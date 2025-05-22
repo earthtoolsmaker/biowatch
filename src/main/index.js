@@ -41,6 +41,7 @@ import exifr from 'exifr'
 import readline from 'linebyline'
 import luxon, { DateTime } from 'luxon'
 import geoTz from 'geo-tz'
+import { importFromImages } from './importImages'
 
 // Configure electron-log
 log.transports.file.level = 'info'
@@ -347,24 +348,51 @@ async function processImagesDirectory(directoryPath) {
   const dbID = crypto.randomUUID()
   const dbPath = join(app.getPath('userData'), `${dbID}.db`)
 
+  // Create a directory tree structure
+  const directoryTree = {
+    name: path.basename(directoryPath),
+    path: directoryPath,
+    children: [],
+    imageCount: 0
+  }
+
+  // Map to keep track of directory objects by path
+  const directoryMap = new Map()
+  directoryMap.set(directoryPath, directoryTree)
+
   // Function to recursively scan directories
-  async function scanDirectory(dir) {
+  async function scanDirectory(dir, parentDirObj) {
     const entries = await fsPromises.readdir(dir, { withFileTypes: true })
 
+    // First pass: create directory structure
     for (const entry of entries) {
       const fullPath = path.join(dir, entry.name)
 
       if (entry.isDirectory()) {
-        await scanDirectory(fullPath)
+        const dirObj = {
+          name: entry.name,
+          path: fullPath,
+          children: [],
+          imageCount: 0
+        }
+        parentDirObj.children.push(dirObj)
+        directoryMap.set(fullPath, dirObj)
+      }
+    }
+
+    // Second pass: scan files and subdirectories
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name)
+
+      if (entry.isDirectory()) {
+        await scanDirectory(fullPath, directoryMap.get(fullPath))
       } else {
         // Check if it's an image file
         const ext = path.extname(entry.name).toLowerCase()
         if (['.jpg', '.jpeg', '.png', '.gif', '.tiff', '.bmp'].includes(ext)) {
           try {
-            // Get file stats
-            const stats = await fsPromises.stat(fullPath)
-
-            // Get EXIF data
+            // Increment direct image count only for current directory
+            directoryMap.get(dir).imageCount++
             let exifData = {}
             try {
               exifData = await exifr.parse(fullPath, {
@@ -375,6 +403,7 @@ async function processImagesDirectory(directoryPath) {
             } catch (exifError) {
               log.warn(`Could not extract EXIF data from ${fullPath}: ${exifError.message}`)
             }
+
             // Extract GPS coordinates if available
             let latitude = null
             let longitude = null
@@ -426,29 +455,20 @@ async function processImagesDirectory(directoryPath) {
     }
   }
 
-  await scanDirectory(directoryPath)
-  // const predictions = await getPredictions(directoryPath)
-  // log.info('GOT Predictions:', predictions[0])
-  // for (const prediction of predictions) {
-  //   const img = prediction.
+  await scanDirectory(directoryPath, directoryTree)
 
   console.log('media', media[Object.keys(media)[0]])
 
   // return
 
   log.info(`Found ${Object.keys(media).length} images in directory`)
-  log.info('deplyments', deployments)
+  log.info('deployments', deployments)
   // log.info('media', media)
 
-  // Create database and insert collected data
   try {
-    // Create and initialize database
     const db = await createImageDirectoryDatabase(dbPath)
 
-    // Insert deployments
     await insertDeployments(db, deployments)
-
-    // Insert media
 
     log.info('Inserting media into database...', media)
     await insertMedia(db, media)
@@ -482,7 +502,7 @@ async function processImagesDirectory(directoryPath) {
 
     log.info('observations', observations)
 
-    // // Insert observations into the database
+    // // // Insert observations into the database
     await insertObservations(db, observations)
 
     // Close database
@@ -493,8 +513,10 @@ async function processImagesDirectory(directoryPath) {
       })
     })
 
-    pythonProcess.kill()
-    pythonProcess = null
+    // pythonProcess.kill()
+    // pythonProcess = null
+
+    console.log('tree', directoryTree)
 
     return {
       path: directoryPath,
@@ -510,7 +532,8 @@ async function processImagesDirectory(directoryPath) {
           ).toISODate()
         }
       },
-      id: dbID
+      id: dbID,
+      directoryTree
     }
   } catch (error) {
     log.error(`Error creating database for image directory: ${error.message}`)
@@ -1192,9 +1215,12 @@ app.whenReady().then(async () => {
     }
 
     const directoryPath = result.filePaths[0]
+
+    const { tree, deployments, media } = await importFromImages(directoryPath)
+
     try {
-      const data = await processImagesDirectory(directoryPath)
-      return data
+      const data = {} //await processImagesDirectory(directoryPath)
+      return { tree, deployments }
     } catch (error) {
       log.error('Error processing images directory:', error)
       return {
