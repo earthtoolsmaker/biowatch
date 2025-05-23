@@ -4,6 +4,7 @@ import { ErrorBoundary } from 'react-error-boundary'
 import { HashRouter, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router'
 import Import from './import'
 import Study from './study'
+import AIModels from './ai_models'
 
 function ErrorFallback({ error, resetErrorBoundary }) {
   console.log('ErrorFallback', error.stack)
@@ -276,6 +277,14 @@ function AppContent() {
               ))}
             </ul>
           </li>
+          <li>
+            <NavLink
+              to="/ai_models"
+              className="flex w-full items-center h-8 gap-2 text-sm font-medium hover:bg-gray-100 rounded-md p-2"
+            >
+              <span>AI Models</span>
+            </NavLink>
+          </li>
         </ul>
         <footer className="absolute left-0 bottom-8 w-full flex justify-center p-2">
           {!(location.pathname === '/import' && studies.length === 0) && (
@@ -294,6 +303,7 @@ function AppContent() {
           <Routes>
             <Route path="/import" element={<Import onNewStudy={onNewStudy} />} />
             <Route path="/study/:id/*" element={<Study />} />
+            <Route path="/ai_models*" element={<AIModels />} />
           </Routes>
         </div>
       </main>
