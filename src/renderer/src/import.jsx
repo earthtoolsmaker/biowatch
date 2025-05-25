@@ -86,7 +86,7 @@ export default function Import({ onNewStudy }) {
             'Use Demo Dataset'
           )}
         </button>
-        {/* <div className="relative">
+        <div className="relative">
           <div className="absolute inset-0 flex items-center">
             <div className="w-full border-t border-gray-200"></div>
           </div>
@@ -106,7 +106,7 @@ export default function Import({ onNewStudy }) {
           ) : (
             'Import Images Directory'
           )}
-        </button> */}
+        </button>
       </div>
     </div>
   )
