@@ -41,6 +41,8 @@ import exifr from 'exifr'
 import readline from 'linebyline'
 import luxon, { DateTime } from 'luxon'
 import geoTz from 'geo-tz'
+import { getPredictions } from './predictions'
+import { Importer } from './importer'
 
 // Configure electron-log
 log.transports.file.level = 'info'
@@ -171,45 +173,45 @@ async function downloadFile(url, destination) {
   }
 }
 
-async function getPredictions(path) {
-  console.log('Getting predictions for path:', path)
-  return new Promise((resolve, reject) => {
-    let preds = []
-    const scriptPath = join(__dirname, '../../test-species/main.py')
-    const pythonInterpreter = join(__dirname, '../../test-species/.venv/bin/python3.11')
-    pythonProcess = spawn(pythonInterpreter, [scriptPath, '--path', path])
-    const rl = readline(pythonProcess.stdout)
+// async function getPredictions(path) {
+//   console.log('Getting predictions for path:', path)
+//   return new Promise((resolve, reject) => {
+//     let preds = []
+//     const scriptPath = join(__dirname, '../../test-species/main.py')
+//     const pythonInterpreter = join(__dirname, '../../test-species/.venv/bin/python3.11')
+//     pythonProcess = spawn(pythonInterpreter, [scriptPath, '--path', path])
+//     const rl = readline(pythonProcess.stdout)
 
-    rl.on('line', (line) => {
-      try {
-        // log.info('Python line:', line)
-        if (line.startsWith('PREDICTION:')) {
-          const [, prediction] = line.split('PREDICTION: ')
-          preds.push(JSON.parse(prediction))
-          // log.info('Prediction:', JSON.parse(prediction))
-        }
-      } catch (err) {
-        console.error('Failed to parse line:', line, err)
-      }
-    })
+//     rl.on('line', (line) => {
+//       try {
+//         // log.info('Python line:', line)
+//         if (line.startsWith('PREDICTION:')) {
+//           const [, prediction] = line.split('PREDICTION: ')
+//           preds.push(JSON.parse(prediction))
+//           // log.info('Prediction:', JSON.parse(prediction))
+//         }
+//       } catch (err) {
+//         console.error('Failed to parse line:', line, err)
+//       }
+//     })
 
-    pythonProcess.stderr.on('data', (err) => {
-      log.error('Python error:', err.toString())
-    })
+//     pythonProcess.stderr.on('data', (err) => {
+//       log.error('Python error:', err.toString())
+//     })
 
-    pythonProcess.on('close', (code) => {
-      if (code === 0) {
-        resolve(preds)
-      } else {
-        reject(new Error(`Python process exited with code ${code}`))
-      }
-    })
+//     pythonProcess.on('close', (code) => {
+//       if (code === 0) {
+//         resolve(preds)
+//       } else {
+//         reject(new Error(`Python process exited with code ${code}`))
+//       }
+//     })
 
-    pythonProcess.on('error', (err) => {
-      reject(err)
-    })
-  })
-}
+//     pythonProcess.on('error', (err) => {
+//       reject(err)
+//     })
+//   })
+// }
 
 async function startPythonServer() {
   log.info('Finding free port for Python server...')
@@ -449,41 +451,42 @@ async function processImagesDirectory(directoryPath) {
     await insertDeployments(db, deployments)
 
     // Insert media
-
     log.info('Inserting media into database...', media)
     await insertMedia(db, media)
 
     log.info(`Successfully created database for image directory at ${dbPath}`)
 
-    const predictions = await getPredictions(directoryPath)
-    log.info('GOT Predictions:', predictions)
-    const observations = predictions.map((prediction) => {
-      const img = media[prediction.filepath]
-      const isblank = ['blank', 'no cv result'].includes(prediction.prediction.split(';').at(-1))
-      const scientificName =
-        prediction.prediction.split(';').at(-3) + ' ' + prediction.prediction.split(';').at(-2)
-      const observation = {
-        observationID: crypto.randomUUID(),
-        deploymentID: img.deploymentID,
-        mediaID: img.mediaID,
-        eventStart: img.timestamp,
-        eventEnd: img.timestamp,
-        eventID: crypto.randomUUID(),
-        confidence: prediction.prediction_score,
-        scientificName: isblank
-          ? undefined
-          : scientificName.trim() === ''
-            ? prediction.prediction.split(';').at(-1)
-            : scientificName,
-        prediction: prediction.prediction
-      }
-      return observation
+    await getPredictions(Object.keys(media), (preds) => {
+      log.info('GOT Predictions:', preds)
+      const observations = preds.map((prediction) => {
+        const img = media[prediction.filepath]
+        const isblank = ['blank', 'no cv result'].includes(prediction.prediction.split(';').at(-1))
+        const scientificName =
+          prediction.prediction.split(';').at(-3) + ' ' + prediction.prediction.split(';').at(-2)
+        const observation = {
+          observationID: crypto.randomUUID(),
+          deploymentID: img.deploymentID,
+          mediaID: img.mediaID,
+          eventStart: img.timestamp,
+          eventEnd: img.timestamp,
+          eventID: crypto.randomUUID(),
+          confidence: prediction.prediction_score,
+          scientificName: isblank
+            ? undefined
+            : scientificName.trim() === ''
+              ? prediction.prediction.split(';').at(-1)
+              : scientificName,
+          prediction: prediction.prediction
+        }
+        return observation
+      })
+      return insertObservations(db, observations)
     })
 
-    log.info('observations', observations)
+    // log.info('observations', observations)
 
     // // Insert observations into the database
-    await insertObservations(db, observations)
+    // await insertObservations(db, observations)
 
     // Close database
     await new Promise((resolve, reject) => {
@@ -493,8 +496,8 @@ async function processImagesDirectory(directoryPath) {
       })
     })
 
-    pythonProcess.kill()
-    pythonProcess = null
+    // pythonProcess.kill()
+    // pythonProcess = null
 
     return {
       path: directoryPath,
@@ -1193,7 +1196,10 @@ app.whenReady().then(async () => {
 
     const directoryPath = result.filePaths[0]
     try {
-      const data = await processImagesDirectory(directoryPath)
+      // importImagesFromDirectory(directoryPath)
+      const importer = new Importer(directoryPath)
+      // importer.start()
+      const data = await importer.start()
       return data
     } catch (error) {
       log.error('Error processing images directory:', error)
