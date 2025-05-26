@@ -1,6 +1,6 @@
 import { app, shell, BrowserWindow, ipcMain, protocol, dialog } from 'electron'
 import { net as electronNet } from 'electron'
-import { join } from 'path'
+import { join, dirname } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { spawn } from 'child_process'
@@ -14,7 +14,8 @@ import {
   constants,
   createWriteStream,
   statSync,
-  promises as fsPromises
+  promises as fsPromises,
+  unlink
 } from 'fs'
 import log from 'electron-log'
 import net from 'net'
@@ -43,6 +44,7 @@ import luxon, { DateTime } from 'luxon'
 import geoTz from 'geo-tz'
 import { getPredictions } from './predictions'
 import { Importer } from './importer'
+import { registerMLModelManagementIPCHandlers } from './ml_model_management'
 
 // Configure electron-log
 log.transports.file.level = 'info'
@@ -1219,7 +1221,7 @@ app.whenReady().then(async () => {
     app.quit()
   }
 
-  app.on('activate', function () {
+  app.on('activate', function() {
     // On macOS it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -1242,10 +1244,9 @@ app.whenReady().then(async () => {
   ipcMain.handle('download-model', async () => {
     return await downloadModel()
   })
-})
 
-// Add IPC handler to get server port
-ipcMain.handle('get-server-port', () => serverPort)
+  registerMLModelManagementIPCHandlers()
+})
 
 // Quit when all windows are closed, except on macOS. There, it's common
 // for applications and their menu bar to stay active until the user quits

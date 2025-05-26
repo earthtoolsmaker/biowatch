@@ -80,6 +80,32 @@ const api = {
   },
   selectImagesDirectory: async () => {
     return await electronAPI.ipcRenderer.invoke('select-images-directory')
+  },
+  // ML Model Management
+  downloadMLModel: async ({ id, version, downloadURL }) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'ml-model-management:v0:download-ml-model',
+      id,
+      version,
+      downloadURL
+    )
+  },
+  deleteLocalMLModel: async ({ id, version }) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'ml-model-management:v0:delete-local-ml-model',
+      id,
+      version
+    )
+  },
+  isMLModelDownloaded: async ({ id, version }) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'ml-model-management:v0:is-ml-model-downloaded',
+      id,
+      version
+    )
+  },
+  clearAllLocalMLModels: async () => {
+    return await electronAPI.ipcRenderer.invoke('ml-model-management:v0:clear-all-local-ml-models')
   }
 }
 

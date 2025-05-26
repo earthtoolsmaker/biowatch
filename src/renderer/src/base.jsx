@@ -4,7 +4,7 @@ import { ErrorBoundary } from 'react-error-boundary'
 import { HashRouter, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router'
 import Import from './import'
 import Study from './study'
-import AIModels from './ai_models'
+import Zoo from './model_zoo'
 
 function ErrorFallback({ error, resetErrorBoundary }) {
   console.log('ErrorFallback', error.stack)
@@ -279,7 +279,7 @@ function AppContent() {
           </li>
           <li>
             <NavLink
-              to="/ai_models"
+              to="/model_zoo"
               className="flex w-full items-center h-8 gap-2 text-sm font-medium hover:bg-gray-100 rounded-md p-2"
             >
               <span>AI Models</span>
@@ -303,7 +303,7 @@ function AppContent() {
           <Routes>
             <Route path="/import" element={<Import onNewStudy={onNewStudy} />} />
             <Route path="/study/:id/*" element={<Study />} />
-            <Route path="/ai_models*" element={<AIModels />} />
+            <Route path="/model_zoo/*" element={<Zoo />} />
           </Routes>
         </div>
       </main>
