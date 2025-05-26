@@ -1,6 +1,5 @@
-import { useNavigate } from 'react-router'
 import { useState, useEffect } from 'react'
-import { Download, Loader2Icon, LucideLoader, CircleX } from 'lucide-react'
+import { Download, LucideLoader, CircleX } from 'lucide-react'
 
 const PYTHON_ENVIRONMENTS = [
   {
@@ -173,14 +172,16 @@ export default function Zoo() {
   }
   return (
     <div>
-      <button
-        onClick={() => handleClearAllMLModels()}
-        className={` bg-white cursor-pointer w-[80%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50`}
-      >
-        <CircleX color="black" size={14} />
-        Clear All
-      </button>
-      <div className="flex h-full p-2">
+      <div className="relative">
+        <button
+          onClick={() => handleClearAllMLModels()}
+          className={` absolute top-2 right-2 bg-white cursor-pointer w-32 transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50`}
+        >
+          <CircleX color="black" size={14} />
+          Clear All
+        </button>
+      </div>
+      <div className="flex h-full p-8 pt-16">
         {MODEL_ZOO.map((entry) => (
           <ModelCard
             key={entry.reference.id}
