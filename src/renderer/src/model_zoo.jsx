@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Download, LucideLoader, CircleX } from 'lucide-react'
+import { Download, LucideLoader, CircleX, AudioLines, CircleOff } from 'lucide-react'
 
 const PYTHON_ENVIRONMENTS = [
   {
@@ -53,9 +53,12 @@ function findPythonEnvironment({ id, version }) {
   return matchingEnvironments.length > 0 ? matchingEnvironments[0] : null
 }
 
-function ModelCard({ model, pythonEnvironment, platform }) {
+function ModelCard({ model, pythonEnvironment, platform, isDev }) {
   const [isDownloading, setIsDownloading] = useState(false)
+  const [isHTTPServerRunning, setIsHTTPServerRunning] = useState(false)
+  const [isHTTPServerStarting, setIsHTTPServerStarting] = useState(false)
   const [isDownloaded, setIsDownloaded] = useState(false)
+  const [pidPythonProcess, setPidPythonProcess] = useState(null)
 
   // Function to check if the model is downloaded
   const isMLModelDownloaded = async (reference) => {
@@ -76,6 +79,29 @@ function ModelCard({ model, pythonEnvironment, platform }) {
 
     isMLModelDownloaded()
   }, [model.reference]) // Run this effect when the model reference changes
+
+  const handleRunHTTPServer = async ({ modelReference, pythonEnvironment }) => {
+    setIsHTTPServerStarting(true)
+    console.log(`Starting HTTP server for ${modelReference.id} version ${modelReference.version}`)
+    try {
+      const response = await window.api.startMLModelHTTPServer({
+        modelReference,
+        pythonEnvironment
+      })
+      console.log(JSON.stringify(response))
+      setIsHTTPServerRunning(true)
+      setIsHTTPServerStarting(false)
+      setPidPythonProcess(response.process.pid)
+    } catch (error) {
+      console.error('Failed to delete the local model:', error)
+    }
+  }
+
+  const handleStopHTTPServer = async ({ pid }) => {
+    console.log(`Stopping HTTP server running with python process pid ${pid}`)
+    window.api.stopMLModelHTTPServer({ pid })
+    setIsHTTPServerRunning(false)
+  }
 
   const handleDelete = async (reference) => {
     console.log('handling delete...')
@@ -121,7 +147,7 @@ function ModelCard({ model, pythonEnvironment, platform }) {
           🐍 Python Environment Size: {pythonEnvironment.size_in_MiB[platformToKey(platform)]} MiB
         </li>
       </ul>
-      <div className="flex justify-center p-2">
+      <div className="flex justify-center p-2 gap-2">
         {isDownloading ? (
           <button
             className={`bg-gray-200 text-gray-500 cursor-not-allowed w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-300 px-2 h-8 text-sm shadow-sm rounded-md`}
@@ -130,13 +156,54 @@ function ModelCard({ model, pythonEnvironment, platform }) {
             Downloading
           </button>
         ) : isDownloaded ? (
-          <button
-            onClick={() => handleDelete(reference)}
-            className={` bg-red-300 cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-red-400`}
-          >
-            <CircleX color="black" size={14} />
-            Delete
-          </button>
+          <>
+            <button
+              onClick={() => handleDelete(reference)}
+              className={` bg-red-300 cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-red-400`}
+            >
+              <CircleX color="black" size={14} />
+              Delete
+            </button>
+            {isHTTPServerRunning ? (
+              <button
+                onClick={() =>
+                  handleStopHTTPServer({
+                    pid: pidPythonProcess
+                  })
+                }
+                className={` bg-blue-300 cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-blue-400`}
+              >
+                <CircleOff color="black" size={14} />
+                Stop ML Server
+              </button>
+            ) : isHTTPServerStarting ? (
+              <button
+                onClick={() =>
+                  handleRunHTTPServer({
+                    modelReference: reference,
+                    pythonEnvironment: pythonEnvironment
+                  })
+                }
+                className={` bg-blue-300 cursor-not-allowed w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-blue-400`}
+              >
+                <LucideLoader color="black" size={14} />
+                Run
+              </button>
+            ) : (
+              <button
+                onClick={() =>
+                  handleRunHTTPServer({
+                    modelReference: reference,
+                    pythonEnvironment: pythonEnvironment
+                  })
+                }
+                className={` bg-blue-300 cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-blue-400`}
+              >
+                <AudioLines color="black" size={14} />
+                Run
+              </button>
+            )}
+          </>
         ) : (
           <button
             onClick={() =>
@@ -180,6 +247,7 @@ export default function Zoo() {
             model={entry}
             pythonEnvironment={findPythonEnvironment(entry.python_environment)}
             platform={window.electron.process.platform}
+            isDev={window.electron.process.env.NODE_ENV == 'development'}
           />
         ))}
       </div>

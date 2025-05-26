@@ -7,13 +7,16 @@
  */
 
 import { app, ipcMain } from 'electron'
+import { is } from '@electron-toolkit/utils'
 import { net as electronNet } from 'electron'
+import net from 'net'
 import { join, dirname } from 'path'
 import { spawn } from 'child_process'
 import { readdirSync, existsSync, mkdirSync, createWriteStream, promises as fsPromises } from 'fs'
 import log from 'electron-log'
 import path from 'path'
 import { pipeline } from 'stream/promises'
+import kill from 'tree-kill'
 
 /**
  * Extracts a .tar.gz archive to a specified directory.
@@ -282,7 +285,6 @@ export const registerMLModelManagementIPCHandlers = () => {
     clearAllLocalMLModels()
   )
 
-  // Add IPC handler to get server port
   ipcMain.handle(
     'ml-model-management:v0:download-ml-model',
     async (_, id, version, downloadURL, format) => {
@@ -295,4 +297,190 @@ export const registerMLModelManagementIPCHandlers = () => {
       return await downloadPythonEnvironment({ id, version, downloadURL })
     }
   )
+  ipcMain.handle('ml-model-management:v0:stop-ml-model-http-server', async (_, pid) => {
+    return await stopMLModelHTTPServer({ pid })
+  })
+  ipcMain.handle(
+    'ml-model-management:v0:start-ml-model-http-server',
+    async (_, modelReference, pythonEnvironment) => {
+      try {
+        const pythonProcess = await startMLModelHTTPServer({ modelReference, pythonEnvironment })
+        return {
+          sucess: true,
+          process: { pid: pythonProcess.pid },
+          message: 'ML Model HTTP server successfully started'
+        }
+      } catch (error) {
+        return {
+          success: false,
+          message: `Failed to start the ML Model HTTP server: ${error.message}`
+        }
+      }
+    }
+  )
+}
+
+/**
+ * Finds a free port on the local machine.
+ *
+ * This function creates a temporary server that listens on a random port
+ * (by passing 0 to the `listen` method). Once the server is successfully
+ * listening, it retrieves the assigned port number, closes the server,
+ * and resolves the promise with the free port number. If there is an error
+ * while creating the server, the promise is rejected.
+ *
+ * @returns {Promise<number>} A promise that resolves to a free port number.
+ */
+function findFreePort() {
+  return new Promise((resolve, reject) => {
+    // log.info('Finding free port...')
+    const server = net.createServer()
+    server.listen(0, () => {
+      const port = server.address().port
+      server.close(() => resolve(port))
+    })
+    server.on('error', reject)
+  })
+}
+
+/**
+ * Starts the SpeciesNet HTTP server using a specified Python environment and configuration.
+ *
+ * This function initializes a Python process that runs the SpeciesNet server script.
+ * It sets up the server with the provided parameters and checks its health status
+ * by polling the server endpoint until it is ready or the maximum number of retries is reached.
+ *
+ * @async
+ * @param {Object} options - The configuration options for starting the server.
+ * @param {number} options.port - The port on which the server will listen.
+ * @param {string} options.modelWeightsFilepath - The file path to the model weights to be used by the server.
+ * @param {string} options.geofence - The geofence configuration for the server.
+ * @param {number} options.timeout - The timeout duration for server operations.
+ * @param {Object} options.pythonEnvironment - The Python environment configuration.
+ * @param {Object} options.pythonEnvironment.reference - The reference object containing environment details.
+ * @param {string} options.pythonEnvironment.reference.id - The identifier for the Python environment.
+ *
+ * @returns {Promise<ChildProcess>} A promise that resolves to the spawned Python process if the server starts successfully.
+ *
+ * @throws {Error} Throws an error if the server fails to start within the expected time.
+ *
+ * @example
+ * const server = await startSpeciesNetHTTPServer({
+ *   port: 8080,
+ *   modelWeightsFilepath: '/path/to/model/weights',
+ *   geofence: 'some-geofence',
+ *   timeout: 5000,
+ *   pythonEnvironment: {
+ *     reference: {
+ *       id: 'my-python-env'
+ *     }
+ *   }
+ * });
+ */
+async function startSpeciesNetHTTPServer({
+  port,
+  modelWeightsFilepath,
+  geofence,
+  timeout,
+  pythonEnvironment
+}) {
+  log.info('StartSpeciesNetHTTPServer success!')
+  log.info(pythonEnvironment)
+  const localInstalRootDirPythonEnvironment = join(
+    getMLModelEnvironmentLocalInstallPath({
+      ...pythonEnvironment.reference
+    }),
+    pythonEnvironment.reference.id
+  )
+  log.info('Local Python Environment root dir is', localInstalRootDirPythonEnvironment)
+  const scriptPath = join(__dirname, '../../python-environments/common/run_speciesnet_server.py')
+  const pythonInterpreter = join(localInstalRootDirPythonEnvironment, 'bin', 'python')
+  log.info('Python Interpreter found in', pythonInterpreter)
+  log.info('Script path is', scriptPath)
+  const scriptArgs = [
+    '--port',
+    port,
+    '--geofence',
+    geofence,
+    '--model',
+    modelWeightsFilepath,
+    '--timeout',
+    timeout
+  ]
+  log.info('Script args: ', scriptArgs)
+  log.info('Formatted script args: ', [scriptPath, ...scriptArgs])
+  const pythonProcess = spawn(pythonInterpreter, [scriptPath, ...scriptArgs])
+
+  log.info('Python process started:', pythonProcess.pid)
+
+  // Set up error handlers
+  pythonProcess.stderr.on('data', (err) => {
+    log.error('Python error:', err.toString())
+  })
+
+  pythonProcess.on('error', (err) => {
+    log.error('Python process error:', err)
+  })
+
+  // Wait for server to be ready by polling the endpoint
+  const maxRetries = 30
+  const retryInterval = 1000 // 1 second
+
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const healthCheck = await fetch(`http://localhost:${port}/health`, {
+        method: 'GET',
+        timeout: 1000
+      })
+
+      if (healthCheck.ok) {
+        log.info('Server is ready')
+        return pythonProcess
+      }
+    } catch (error) {
+      // Server not ready yet, will retry
+    }
+
+    // Wait before next retry
+    await new Promise((resolve) => setTimeout(resolve, retryInterval))
+    log.info(`Waiting for server to start (attempt ${i + 1}/${maxRetries})`)
+  }
+
+  // If we get here, the server failed to start
+  kill(pythonProcess.pid)
+  throw new Error('Server failed to start in the expected time')
+}
+
+async function stopMLModelHTTPServer({ pid }) {
+  try {
+    log.info('Stopping ML Model HTTP Server with pid', pid)
+    kill(pid)
+    return { success: true, message: `Stopped ML Model within python process pid ${pid}` }
+  } catch (error) {
+    return { success: false, message: `could not stop ML Model within python process pid ${pid}` }
+  }
+}
+
+async function startMLModelHTTPServer({ pythonEnvironment, modelReference }) {
+  log.info('Starting ML Model HTTP Server')
+  log.info('Finding free port for Python server...')
+  switch (modelReference.id) {
+    case 'speciesnet':
+      const port = is.dev ? 8000 : await findFreePort()
+      const localInstallPath = getMLModelLocalInstallPath({ ...modelReference })
+      log.info(`Local ML Model install path ${localInstallPath}`)
+      const pythonProcess = await startSpeciesNetHTTPServer({
+        port,
+        modelWeightsFilepath: localInstallPath,
+        geofence: true,
+        timeout: 30,
+        pythonEnvironment: pythonEnvironment
+      })
+      log.info(`pythonProcess: ${JSON.stringify(pythonProcess)}`)
+      return pythonProcess
+    default:
+      log.warn(
+        `startMLModelHTTPServer: Not implemented for ${modelReference.id} version ${modelReference.version}`
+      )
+  }
 }

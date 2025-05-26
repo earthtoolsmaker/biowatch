@@ -115,6 +115,22 @@ const api = {
       version,
       downloadURL
     )
+  },
+
+  startMLModelHTTPServer: async ({ modelReference, pythonEnvironment }) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'ml-model-management:v0:start-ml-model-http-server',
+      modelReference,
+      pythonEnvironment
+    )
+  },
+
+  stopMLModelHTTPServer: async ({ pid }) => {
+    console.log('Received process pid:', pid)
+    return await electronAPI.ipcRenderer.invoke(
+      'ml-model-management:v0:stop-ml-model-http-server',
+      pid
+    )
   }
 }
 
