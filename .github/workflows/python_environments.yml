@@ -1,4 +1,7 @@
-name: Python/Envs
+# Generate the python environments required to run the ML models as local
+# webservers
+---
+name: Build and Upload Python Environments
 
 on:
   push:
@@ -6,10 +9,10 @@ on:
       - main
       - arthur/electron-model-management
     # paths:
-    #   - 'test-species/**'
+    #   - 'python-environments/**'
 
 jobs:
-  upload_env:
+  build_and_upload_common_python_environment:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -25,6 +28,9 @@ jobs:
           python-version: '3.12'
           auto-update-conda: true
 
+      # For now we replicate what is done in the pyproject.toml using pip,
+      # which is not ideal.
+      # Long run we should use only `uv` to generate the python environment.
       - name: Install Python dependencies
         shell: bash -l {0}
         run: |
