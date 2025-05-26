@@ -117,8 +117,8 @@ function ModelCard({ model, pythonEnvironment, platform }) {
 
   const { name, description, reference, size_in_MiB } = model
   const classNameMainContainer = isDownloaded
-    ? 'flex flex-col justify-around border-gray-200 border p-4 rounded-md w-96 gap-2 shadow-sm'
-    : 'flex bg-gray-50 flex-col justify-around border-gray-200 border p-4 rounded-md w-96 gap-2 shadow-sm'
+    ? 'min-w-[300px] flex flex-col justify-around border-gray-200 border p-4 rounded-md w-96 gap-2 shadow-sm'
+    : 'min-w-[300px] flex bg-gray-50 flex-col justify-around border-gray-200 border p-4 rounded-md w-96 gap-2 shadow-sm'
   return (
     <div className={classNameMainContainer}>
       <div className="p-2 text-l text-center">{name}</div>
@@ -181,7 +181,8 @@ export default function Zoo() {
           Clear All
         </button>
       </div>
-      <div className="flex h-full p-8 pt-16">
+      <h1 className="text-xl font-bold text-gray-800 text-center pt-4">Model Zoo</h1>
+      <div className="flex h-full flex-wrap p-8 pt-6 gap-4 justify-start">
         {MODEL_ZOO.map((entry) => (
           <ModelCard
             key={entry.reference.id}
