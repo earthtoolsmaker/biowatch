@@ -184,7 +184,7 @@ function ModelCard({ model, pythonEnvironment, platform, isDev }) {
                     pythonEnvironment: pythonEnvironment
                   })
                 }
-                className={` bg-blue-300 cursor-not-allowed w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-blue-400`}
+                className={` bg-blue-300 cursor-not-allowed w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md`}
               >
                 <LucideLoader color="black" size={14} />
                 Run
