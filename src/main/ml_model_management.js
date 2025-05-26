@@ -154,8 +154,8 @@ const getMLModelLocalTarPath = ({ id, version }) =>
 
 const getMLModelLocalInstallPath = ({ id, version }) => join(getMLModelLocalRootDir(), id, version)
 
-async function isMLModelDownloaded({ id, version }) {
-  localInstallPath = getMLModelLocalInstallPath({ id, version })
+function isMLModelDownloaded({ id, version }) {
+  const localInstallPath = getMLModelLocalInstallPath({ id, version })
   return existsSync(localInstallPath)
 }
 
@@ -278,7 +278,9 @@ export const registerMLModelManagementIPCHandlers = () => {
     deleteLocalMLModel({ id, version })
   )
 
-  ipcMain.handle('ml-model-management:v0:clear-all-local-ml-models', (_) => clearAllLocalMLModels())
+  ipcMain.handle('ml-model-management:v0:clear-all-local-ml-models', async (_) =>
+    clearAllLocalMLModels()
+  )
 
   // Add IPC handler to get server port
   ipcMain.handle(

@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router'
-import { useState } from 'react'
-import { Download, CircleX } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Download, Loader2Icon, LucideLoader, CircleX } from 'lucide-react'
 
 const PYTHON_ENVIRONMENTS = [
   {
@@ -60,16 +60,41 @@ function findPythonEnvironment({ id, version }) {
 }
 
 function ModelCard({ model, pythonEnvironment, platform }) {
+  const [isDownloading, setIsDownloading] = useState(false)
+  const [isDownloaded, setIsDownloaded] = useState(false)
+
+  // Function to check if the model is downloaded
+  const isMLModelDownloaded = async (reference) => {
+    try {
+      const downloaded = await window.api.isMLModelDownloaded(reference)
+      return downloaded // Assuming this returns a boolean
+    } catch (error) {
+      console.error('Failed to check if model is downloaded:', error)
+      return false // Default to false on error
+    }
+  }
+
+  useEffect(() => {
+    const isMLModelDownloaded = async () => {
+      const isDownloaded = await window.api.isMLModelDownloaded(model.reference)
+      setIsDownloaded(isDownloaded)
+    }
+
+    isMLModelDownloaded()
+  }, [model.reference]) // Run this effect when the model reference changes
+
   const handleDelete = async (reference) => {
     console.log('handling delete...')
     try {
       await window.api.deleteLocalMLModel(reference)
+      setIsDownloaded(false)
     } catch (error) {
       console.error('Failed to delete the local model:', error)
     }
   }
   const handleDownload = async ({ modelReference, pythonEnvironment }) => {
     console.log('handling download...')
+    setIsDownloading(true)
     try {
       await window.api.downloadMLModel(modelReference)
       console.log('downloading python environment')
@@ -83,16 +108,20 @@ function ModelCard({ model, pythonEnvironment, platform }) {
           'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/species-env-macOS.tar.gz'
         // downloadURL: downloadURL
       })
+      setIsDownloaded(true)
+      setIsDownloading(false)
     } catch (error) {
+      setIsDownloading(false)
       console.error('Failed to download model:', error)
     }
   }
 
   const { name, description, reference, size_in_MiB } = model
+  const classNameMainContainer = isDownloaded
+    ? 'flex flex-col justify-around border-gray-200 border p-4 rounded-md w-96 gap-2 shadow-sm'
+    : 'flex bg-gray-50 flex-col justify-around border-gray-200 border p-4 rounded-md w-96 gap-2 shadow-sm'
   return (
-    <div className="flex flex-col justify-around border-gray-200 border p-4 rounded-md w-96 gap-2 shadow-sm">
-      {/* <h2>Platform: {platform}</h2> */}
-      {/* <h2>key: {platformToKey(platform)}</h2> */}
+    <div className={classNameMainContainer}>
       <div className="p-2 text-l text-center">{name}</div>
       <div className="text-sm p-2">{description}</div>
       <ul className="text-sm p-2">
@@ -101,23 +130,33 @@ function ModelCard({ model, pythonEnvironment, platform }) {
           🐍 Python Environment Size: {pythonEnvironment.size_in_MiB[platformToKey(platform)]} MiB
         </li>
       </ul>
-      <div className="flex p-2">
-        <button
-          onClick={() =>
-            handleDownload({ modelReference: reference, pythonEnvironment: pythonEnvironment })
-          }
-          className={` bg-white cursor-pointer w-[80%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50`}
-        >
-          <Download color="black" size={14} />
-          Download
-        </button>
-        <button
-          onClick={() => handleDelete(reference)}
-          className={` bg-white cursor-pointer w-[80%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50`}
-        >
-          <CircleX color="black" size={14} />
-          Delete
-        </button>
+      <div className="flex justify-center p-2">
+        {isDownloading ? (
+          <button
+            className={`bg-gray-200 text-gray-500 cursor-not-allowed w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-300 px-2 h-8 text-sm shadow-sm rounded-md`}
+          >
+            <LucideLoader color="black" size={14} />
+            Downloading
+          </button>
+        ) : isDownloaded ? (
+          <button
+            onClick={() => handleDelete(reference)}
+            className={` bg-red-300 cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-red-400`}
+          >
+            <CircleX color="black" size={14} />
+            Delete
+          </button>
+        ) : (
+          <button
+            onClick={() =>
+              handleDownload({ modelReference: reference, pythonEnvironment: pythonEnvironment })
+            }
+            className={` bg-blue-100 cursor-pointer w-[60%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-blue-200`}
+          >
+            <Download color="black" size={14} />
+            Download
+          </button>
+        )}
       </div>
     </div>
   )
