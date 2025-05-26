@@ -8,17 +8,17 @@ const PYTHON_ENVIRONMENTS = [
       id: 'common',
       version: '0.1.0',
       downloadURL: {
-        mac: 'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/species-env-macOS.tar.gz',
+        mac: 'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.0-macOS.tar.gz',
         linux:
-          'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/species-env-Linux.tar.gz',
+          'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.0-Linux.tar.gz',
         windows:
-          'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/species-env-Windows.tar.gz'
+          'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.0-Windows.tar.gz'
       }
     },
     size_in_MiB: {
-      mac: 345,
-      windows: 500,
-      linux: 3900
+      mac: 367,
+      windows: 522,
+      linux: 3220
     }
   }
 ]
