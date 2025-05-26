@@ -5,6 +5,7 @@ import { HashRouter, NavLink, Route, Routes, useLocation, useNavigate } from 're
 import Import from './import'
 import Study from './study'
 import Zoo from './model_zoo'
+import SettingsPage from './settings'
 
 function ErrorFallback({ error, resetErrorBoundary }) {
   console.log('ErrorFallback', error.stack)
@@ -301,7 +302,7 @@ function AppContent() {
           <Routes>
             <Route path="/import" element={<Import onNewStudy={onNewStudy} />} />
             <Route path="/study/:id/*" element={<Study />} />
-            <Route path="/settings/model_zoo/*" element={<Zoo />} />
+            <Route path="/settings/*" element={<SettingsPage />} />
           </Routes>
         </div>
       </main>

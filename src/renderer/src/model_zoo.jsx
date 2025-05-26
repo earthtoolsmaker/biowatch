@@ -173,7 +173,6 @@ export default function Zoo() {
           Clear All
         </button>
       </div>
-      <h1 className="text-xl font-bold text-gray-800 text-center pt-4">Model Zoo</h1>
       <div className="flex h-full flex-wrap p-8 pt-6 gap-4 justify-start">
         {MODEL_ZOO.map((entry) => (
           <ModelCard
