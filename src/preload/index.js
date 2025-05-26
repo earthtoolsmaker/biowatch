@@ -106,6 +106,15 @@ const api = {
   },
   clearAllLocalMLModels: async () => {
     return await electronAPI.ipcRenderer.invoke('ml-model-management:v0:clear-all-local-ml-models')
+  },
+
+  downloadPythonEnvironment: async ({ id, version, downloadURL }) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'ml-model-management:v0:download-python-environment',
+      id,
+      version,
+      downloadURL
+    )
   }
 }
 

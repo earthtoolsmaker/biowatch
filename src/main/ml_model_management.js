@@ -161,9 +161,12 @@ async function isMLModelDownloaded({ id, version }) {
 
 async function clearAllLocalMLModels() {
   try {
-    const localRootDir = getMLModelLocalRootDir()
-    console.log('clearing all models from:', localRootDir)
-    await fsPromises.rm(localRootDir, { recursive: true, force: true })
+    const localMLModelRootDir = getMLModelLocalRootDir()
+    const localMLModelEnvironmentRootDir = getMLModelEnvironmentRootDir()
+    log.info('clearing all models from:', localMLModelRootDir)
+    await fsPromises.rm(localMLModelRootDir, { recursive: true, force: true })
+    log.info('clearing all python environments from:', localMLModelEnvironmentRootDir)
+    await fsPromises.rm(localMLModelEnvironmentRootDir, { recursive: true, force: true })
     return {
       success: true,
       message: 'All Local ML models are cleared'
@@ -176,15 +179,14 @@ async function clearAllLocalMLModels() {
 async function deleteLocalMLModel({ id, version }) {
   const localTarPath = getMLModelLocalTarPath({ id, version })
   const localInstallPath = getMLModelLocalInstallPath({ id, version })
-  console.log('local tar path:', localTarPath)
+  log.info('local tar path:', localTarPath)
   if (existsSync(localTarPath)) {
-    console.log('delete local tar path:', localTarPath)
+    log.info('delete local tar path:', localTarPath)
     await fsPromises.unlink(localTarPath)
   }
-  console.log('foo')
-  console.log('local installed model:', localInstallPath)
+  log.info('local installed model:', localInstallPath)
   if (existsSync(localInstallPath)) {
-    console.log('delete local installed model:', localInstallPath)
+    log.info('delete local installed model:', localInstallPath)
     fsPromises.rm(localInstallPath, { recursive: true, force: true })
   }
   return {
@@ -193,19 +195,59 @@ async function deleteLocalMLModel({ id, version }) {
   }
 }
 
-async function downloadMLModel({ id, version, downloadURL }) {
+async function downloadPythonEnvironment({ id, version, downloadURL }) {
   try {
-    const extractPath = dirname(getMLModelLocalInstallPath({ id, version }))
-    const localTarPath = getMLModelLocalTarPath({ id, version })
-    log.info('Downloading the model from', downloadURL)
-    await downloadFile(downloadURL, localTarPath)
-    log.info(`Extracting the archive ${localTarPath} to ${extractPath}`)
-    await extractTarGz(localTarPath, extractPath)
-    log.info('Cleaning the local archive: ', localTarPath)
-    await fsPromises.unlink(localTarPath)
+    const extractPath = getMLModelEnvironmentLocalInstallPath({ id, version })
+    const localTarPath = getMLModelEnvironmentLocalTarPath({ id, version })
+    if (existsSync(extractPath)) {
+      log.info(`Python environment already installed in ${extractPath}, skipping.`)
+      return {
+        success: true,
+        message: 'Python Environment downloaded and extracted successfully'
+      }
+    } else {
+      log.info('Downloading the environment from', downloadURL)
+      await downloadFile(downloadURL, localTarPath)
+      log.info(`Extracting the archive ${localTarPath} to ${extractPath}`)
+      await extractTarGz(localTarPath, extractPath)
+      log.info('Cleaning the local archive: ', localTarPath)
+      await fsPromises.unlink(localTarPath)
+    }
     return {
       success: true,
-      message: 'Model downloaded and extracted successfully'
+      message: 'Python Environment downloaded and extracted successfully'
+    }
+  } catch (error) {
+    log.error('Failed to download the Python Environment:', error)
+    return {
+      success: false,
+      message: `Failed to download the Python Environment: ${error.message}`
+    }
+  }
+}
+
+async function downloadMLModel({ id, version, downloadURL }) {
+  try {
+    const localInstallPath = getMLModelLocalInstallPath({ id, version })
+    const extractPath = dirname(localInstallPath)
+    const localTarPath = getMLModelLocalTarPath({ id, version })
+    if (existsSync(localInstallPath)) {
+      log.info(`Model already installed in ${localInstallPath}, skipping.`)
+      return {
+        success: true,
+        message: 'Model downloaded and extracted successfully'
+      }
+    } else {
+      log.info('Downloading the model from', downloadURL)
+      await downloadFile(downloadURL, localTarPath)
+      log.info(`Extracting the archive ${localTarPath} to ${extractPath}`)
+      await extractTarGz(localTarPath, extractPath)
+      log.info('Cleaning the local archive: ', localTarPath)
+      await fsPromises.unlink(localTarPath)
+      return {
+        success: true,
+        message: 'Model downloaded and extracted successfully'
+      }
     }
   } catch (error) {
     log.error('Failed to download model:', error)
@@ -215,6 +257,15 @@ async function downloadMLModel({ id, version, downloadURL }) {
     }
   }
 }
+
+const getMLModelEnvironmentRootDir = () =>
+  join(app.getPath('userData'), 'python-environments', 'conda')
+
+const getMLModelEnvironmentLocalInstallPath = ({ version, id }) => {
+  return join(getMLModelEnvironmentRootDir(), id, version)
+}
+
+const getMLModelEnvironmentLocalTarPath = () => join(getMLModelEnvironmentRootDir(), 'archives')
 
 export const registerMLModelManagementIPCHandlers = () => {
   // Add IPC handler to check whether the ML model is properly installed locally
@@ -234,6 +285,12 @@ export const registerMLModelManagementIPCHandlers = () => {
     'ml-model-management:v0:download-ml-model',
     async (_, id, version, downloadURL, format) => {
       return await downloadMLModel({ id, version, downloadURL, format })
+    }
+  )
+  ipcMain.handle(
+    'ml-model-management:v0:download-python-environment',
+    async (_, id, version, downloadURL) => {
+      return await downloadPythonEnvironment({ id, version, downloadURL })
     }
   )
 }
