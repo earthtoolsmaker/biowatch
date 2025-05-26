@@ -1,0 +1,51 @@
+name: Python/Envs
+
+on:
+  push:
+    branches:
+      - main
+      - arthur/electron-model-management
+    # paths:
+    #   - 'test-species/**'
+
+jobs:
+  upload_env:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-22.04]
+    steps:
+      - name: Run step when directory changes
+        run: echo "This workflow runs only when files in 'my-directory' are modified."
+
+      - name: Install Miniforge
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          activate-environment: common
+          python-version: '3.12'
+          auto-update-conda: true
+
+      - name: Install Python dependencies
+        shell: bash -l {0}
+        run: |
+          conda run pip install fastapi litserve
+          conda run pip install speciesnet==5.0.0 --use-pep517
+          conda list
+
+      - name: Compress conda environment
+        shell: bash -l {0}
+        run: |
+          mkdir -p dist
+          CONDA_BASE=$(conda info --base)
+          CONDA_ENV_PATH=$CONDA_BASE/envs/common
+          tar -czf dist/common-0.1.0-${{ runner.os }}.tar.gz -C $CONDA_BASE/envs common
+
+      - name: Upload to Cloudflare R2
+        uses: shallwefootball/s3-upload-action@master
+        with:
+          aws_key_id: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
+          aws_secret_access_key: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
+          aws_bucket: ${{ secrets.CLOUDFLARE_R2_BUCKET_NAME }}
+          endpoint: ${{ secrets.CLOUDFLARE_R2_ENDPOINT }}
+          source_dir: dist
+          destination_dir: conda-environments
