@@ -30,14 +30,9 @@ const MODEL_ZOO = [
     size_in_MiB: 468,
     reference: {
       id: 'speciesnet',
-      // version: '4.0.1a',
-      // FIXME:
-      version: '4.0.1z',
+      version: '4.0.1a',
       downloadURL:
-        'https://huggingface.co/earthtoolsmaker/speciesnet/resolve/main/4.0.1z.tar.gz?download=true'
-      // FIXME:
-      // downloadURL:
-      //   'https://huggingface.co/earthtoolsmaker/speciesnet/resolve/main/README.md?download=true'
+        'https://huggingface.co/earthtoolsmaker/speciesnet/resolve/main/4.0.1a.tar.gz?download=true'
     },
     description:
       "Google's SpeciesNet is an open-source AI model launched in 2025, specifically designed for identifying animal species from images captured by camera traps. It boasts the capability to classify images into over 2,000 species labels, greatly enhancing the efficiency of wildlife data analysis for conservation initiatives.",
@@ -102,10 +97,7 @@ function ModelCard({ model, pythonEnvironment, platform }) {
       await window.api.downloadPythonEnvironment({
         version: pythonEnvironment.reference.version,
         id: pythonEnvironment.reference.id,
-        // FIXME:
-        downloadURL:
-          'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/species-env-macOS.tar.gz'
-        // downloadURL: downloadURL
+        downloadURL: downloadURL
       })
       setIsDownloaded(true)
       setIsDownloading(false)
