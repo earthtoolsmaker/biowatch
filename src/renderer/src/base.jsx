@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react'
+import { Plus, Settings } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { ErrorBoundary } from 'react-error-boundary'
 import { HashRouter, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router'
@@ -277,25 +277,23 @@ function AppContent() {
               ))}
             </ul>
           </li>
-          <li>
-            <NavLink
-              to="/model_zoo"
-              className="flex w-full items-center h-8 gap-2 text-sm font-medium hover:bg-gray-100 rounded-md p-2"
-            >
-              <span>AI Models</span>
-            </NavLink>
-          </li>
         </ul>
-        <footer className="absolute left-0 bottom-8 w-full flex justify-center p-2">
+        <footer className="absolute left-0 bottom-8 w-full flex justify-center p-2 gap-1">
           {!(location.pathname === '/import' && studies.length === 0) && (
             <NavLink
               to="/import"
-              className={` bg-white cursor-pointer w-[80%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50`}
+              className={` bg-white cursor-pointer w-[72%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50`}
             >
               <Plus color="black" size={14} />
               Add study
             </NavLink>
           )}
+          <NavLink
+            to="/model_zoo"
+            className={` bg-white cursor-pointer w-[20%] transition-colors flex justify-center flex-row items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50`}
+          >
+            <Settings className="text-gray-500" size={18} />
+          </NavLink>
         </footer>
       </div>
       <main className="ml-52 relative flex w-[calc(100%-14rem)] flex-1 bg-transparent pt-3 pr-3">
