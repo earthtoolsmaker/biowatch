@@ -1,14 +1,16 @@
-import { NavLink, Route, Routes, useParams } from 'react-router'
+import { NavLink, Navigate, Route, Routes } from 'react-router'
 import { ErrorBoundary } from 'react-error-boundary'
 import { BrainCircuit, Info, Github, Earth } from 'lucide-react'
 import Zoo from './model_zoo'
 
-function SettingsInfo() {
+function SettingsInfo({ version, platform }) {
   return (
     <div className="p-4">
       <ul className="list-none space-y-2">
         <li className="flex items-center">
-          <span className="font-semibold">Biowatch version 1.0.14</span>
+          <span className="font-semibold">
+            Biowatch version {version} for {platform}
+          </span>
         </li>
         <li className="flex items-center">
           <Github size={14} className="mr-2" />
@@ -82,18 +84,13 @@ function ErrorFallback({ error, resetErrorBoundary }) {
 }
 
 export default function SettingsPage() {
+  const settingsParams = {
+    version: window.electron.process.env.npm_package_version,
+    platform: window.electron.process.platform
+  }
   return (
     <div className="flex gap-4 flex-col h-full">
       <header className="w-full flex border-b border-gray-200 divide-gray-200 divide-x sticky top-0 bg-white z-10 rounded-tl-md rounded-tr-md [&>a:last-child]:rounded-tr-md [&>a:first-child]:rounded-tl-md">
-        <NavLink
-          to={`/settings/ml_zoo`}
-          className={({ isActive }) =>
-            `${isActive ? 'bg-gray-100' : ''} cursor-pointer hover:bg-gray-100 transition-colors flex justify-center flex-row gap-2 items-center px-4 h-10 text-sm`
-          }
-        >
-          <BrainCircuit color="black" size={20} className="pb-[2px]" />
-          AI Models
-        </NavLink>
         <NavLink
           to={`/settings/info`}
           className={({ isActive }) =>
@@ -103,10 +100,18 @@ export default function SettingsPage() {
           <Info color="black" size={20} className="pb-[2px]" />
           Info
         </NavLink>
+        <NavLink
+          to={`/settings/ml_zoo`}
+          className={({ isActive }) =>
+            `${isActive ? 'bg-gray-100' : ''} cursor-pointer hover:bg-gray-100 transition-colors flex justify-center flex-row gap-2 items-center px-4 h-10 text-sm`
+          }
+        >
+          <BrainCircuit color="black" size={20} className="pb-[2px]" />
+          AI Models
+        </NavLink>
       </header>
       <div className="flex-1 overflow-y-auto h-full pb-4">
         <Routes>
-          <Route index element={<SettingsInfo />} />
           <Route
             path="ml_zoo"
             element={
@@ -116,14 +121,15 @@ export default function SettingsPage() {
             }
           />
           <Route
-            index
             path="info"
             element={
               <ErrorBoundary FallbackComponent={ErrorFallback} key={'info'}>
-                <SettingsInfo />
+                <SettingsInfo {...settingsParams} />
               </ErrorBoundary>
             }
           />
+          {/* Default route */}
+          <Route path="*" element={<Navigate to="/settings/info" replace />} />
         </Routes>
       </div>
     </div>
