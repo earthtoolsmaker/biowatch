@@ -8,11 +8,19 @@
 
 import { app, ipcMain } from 'electron'
 import { is } from '@electron-toolkit/utils'
+import { extract } from 'tar'
 import { net as electronNet } from 'electron'
 import net from 'net'
 import { join, dirname } from 'path'
 import { spawn } from 'child_process'
-import { readdirSync, existsSync, mkdirSync, createWriteStream, promises as fsPromises } from 'fs'
+import {
+  createReadStream,
+  readdirSync,
+  existsSync,
+  mkdirSync,
+  createWriteStream,
+  promises as fsPromises
+} from 'fs'
 import log from 'electron-log'
 import path from 'path'
 import { pipeline } from 'stream/promises'
@@ -64,37 +72,20 @@ async function extractTarGz(tarPath, extractPath) {
     mkdirSync(extractPath, { recursive: true })
   }
 
+  const startTime = Date.now()
+
   return new Promise((resolve, reject) => {
-    const startTime = Date.now()
-
-    // Use native tar command - works on macOS, Linux, and modern Windows
-    const tarProcess = spawn('tar', ['-xzf', tarPath, '-C', extractPath])
-
-    tarProcess.stdout.on('data', (data) => {
-      log.info(`tar output: ${data}`)
-    })
-
-    tarProcess.stderr.on('data', (data) => {
-      // Not necessarily an error, tar outputs progress to stderr
-      log.info(`tar progress: ${data}`)
-    })
-
-    tarProcess.on('error', (err) => {
-      log.error(`Error executing tar command:`, err)
-      reject(err)
-    })
-
-    tarProcess.on('close', (code) => {
-      const duration = (Date.now() - startTime) / 1000
-      if (code === 0) {
+    const tarStream = createReadStream(tarPath)
+      .pipe(extract({ cwd: extractPath }))
+      .on('finish', () => {
+        const duration = (Date.now() - startTime) / 1000
         log.info(`Extraction complete to ${extractPath}. Took ${duration} seconds.`)
         resolve(extractPath)
-      } else {
-        const err = new Error(`tar process exited with code ${code}`)
-        log.error(err)
+      })
+      .on('error', (err) => {
+        log.error(`Error during extraction:`, err)
         reject(err)
-      }
-    })
+      })
   })
 }
 
