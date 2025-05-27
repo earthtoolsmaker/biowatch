@@ -42,7 +42,8 @@
     "sqlite3": "^5.1.7",
     "tailwindcss": "^4.0.17",
     "tar": "^7.4.3",
-    "tree-kill": "^1.2.2"
+    "tree-kill": "^1.2.2",
+    "unzipper": "^0.12.3"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config": "^2.0.0",
