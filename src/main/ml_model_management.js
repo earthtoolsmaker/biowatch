@@ -387,6 +387,9 @@ async function startSpeciesNetHTTPServer({
     pythonEnvironment.reference.id
   )
   log.info('Local Python Environment root dir is', localInstalRootDirPythonEnvironment)
+  // FIXME: this works for the dev environment but not for prod.
+  // Make sure the build steps include the python script as a resource in the electron buil
+  // use app.getResource to target the python script
   const scriptPath = join(__dirname, '../../python-environments/common/run_speciesnet_server.py')
   const pythonInterpreter = join(localInstalRootDirPythonEnvironment, 'bin', 'python')
   log.info('Python Interpreter found in', pythonInterpreter)
