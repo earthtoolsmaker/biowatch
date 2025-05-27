@@ -1,5 +1,14 @@
 import { useState, useEffect } from 'react'
-import { Download, LucideLoader, CircleX, CircleOff, PlayIcon } from 'lucide-react'
+import {
+  Download,
+  LucideLoader,
+  CircleX,
+  CircleOff,
+  PlayIcon,
+  CpuIcon,
+  Book,
+  Server
+} from 'lucide-react'
 
 const PYTHON_ENVIRONMENTS = [
   {
@@ -221,9 +230,15 @@ function ModelCard({ model, pythonEnvironment, platform, isDev }) {
       {isHTTPServerRunning ? (
         <div className="p-4 text-sm">
           <ul className="list-none space-y-0">
-            <li>HTTP server port: {portHTTPServer}</li>
-            <li>process Id: {pidPythonProcess}</li>
-            <li>
+            <li className="flex items-center gap-2">
+              <Server size={14}></Server>HTTP server port: {portHTTPServer}
+            </li>
+            <li className="flex items-center gap-2">
+              <CpuIcon size={14} />
+              process Id: {pidPythonProcess}
+            </li>
+            <li className="flex items-center gap-2">
+              <Book size={14} />
               <a
                 href={`http://localhost:${portHTTPServer}/docs`}
                 target="_blank"
