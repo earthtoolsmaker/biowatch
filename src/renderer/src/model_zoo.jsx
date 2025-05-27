@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Download, LucideLoader, CircleX, AudioLines, CircleOff } from 'lucide-react'
+import { Download, LucideLoader, CircleX, CircleOff, PlayIcon } from 'lucide-react'
 
 const PYTHON_ENVIRONMENTS = [
   {
@@ -199,7 +199,7 @@ function ModelCard({ model, pythonEnvironment, platform, isDev }) {
                 }
                 className={` bg-blue-300 cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-blue-400`}
               >
-                <AudioLines color="black" size={14} />
+                <PlayIcon color="black" size={14} />
                 Run
               </button>
             )}
@@ -230,17 +230,17 @@ export default function Zoo() {
     }
   }
   return (
-    <div>
+    <div className="h-full">
       <div className="relative">
         <button
           onClick={() => handleClearAllMLModels()}
-          className={` absolute top-2 right-2 bg-white cursor-pointer w-32 transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50`}
+          className={` absolute top-1 right-8 bg-white cursor-pointer w-32 transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50`}
         >
           <CircleX color="black" size={14} />
           Clear All
         </button>
       </div>
-      <div className="flex h-full flex-wrap p-8 pt-6 gap-4 justify-start">
+      <div className="flex flex-wrap p-8 pt-6 gap-4 justify-start">
         {MODEL_ZOO.map((entry) => (
           <ModelCard
             key={entry.reference.id}
