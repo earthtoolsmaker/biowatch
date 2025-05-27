@@ -41,6 +41,7 @@
     "recharts": "^2.15.3",
     "sqlite3": "^5.1.7",
     "tailwindcss": "^4.0.17",
+    "tar": "^7.4.3",
     "tree-kill": "^1.2.2"
   },
   "devDependencies": {
