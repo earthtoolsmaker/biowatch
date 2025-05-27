@@ -4,7 +4,10 @@ import { join, dirname } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { spawn } from 'child_process'
+import { extract } from 'tar'
+import unzipper from 'unzipper'
 import {
+  createReadStream,
   readdirSync,
   existsSync,
   mkdirSync,
@@ -65,6 +68,28 @@ function findFreePort() {
       server.close(() => resolve(port))
     })
     server.on('error', reject)
+  })
+}
+
+async function extractZip(zipPath, extractPath) {
+  log.info(`Extracting ${zipPath} to ${extractPath}`)
+
+  // Create the extraction directory if it doesn't exist
+  if (!existsSync(extractPath)) {
+    mkdirSync(extractPath, { recursive: true })
+  }
+
+  return new Promise((resolve, reject) => {
+    createReadStream(zipPath)
+      .pipe(unzipper.Extract({ path: extractPath }))
+      .on('finish', () => {
+        log.info(`Extraction complete to ${extractPath}`)
+        resolve()
+      })
+      .on('error', (err) => {
+        log.error(`Error during extraction:`, err)
+        reject(err)
+      })
   })
 }
 
@@ -1072,36 +1097,7 @@ app.whenReady().then(async () => {
       }
 
       // Extract the zip file using tar
-      log.info(`Extracting ${zipPath} to ${extractPath}`)
-      await new Promise((resolve, reject) => {
-        // tar can extract zip files with the right flags (-xf for extract, automatic format detection)
-        const tarProcess = spawn('tar', ['-xf', zipPath, '-C', extractPath])
-
-        tarProcess.stdout.on('data', (data) => {
-          log.info(`tar output: ${data}`)
-        })
-
-        tarProcess.stderr.on('data', (data) => {
-          // Not necessarily an error, tar outputs progress to stderr
-          log.info(`tar progress: ${data}`)
-        })
-
-        tarProcess.on('error', (err) => {
-          log.error(`Error executing tar command:`, err)
-          reject(err)
-        })
-
-        tarProcess.on('close', (code) => {
-          if (code === 0) {
-            log.info(`Extraction complete to ${extractPath}`)
-            resolve()
-          } else {
-            const err = new Error(`tar process exited with code ${code}`)
-            log.error(err)
-            reject(err)
-          }
-        })
-      })
+      await extractZip(zipPath, extractPath)
 
       // Find the directory containing a datapackage.json file
       let camtrapDpDirPath = null
