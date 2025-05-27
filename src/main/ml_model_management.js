@@ -304,10 +304,13 @@ export const registerMLModelManagementIPCHandlers = () => {
     'ml-model-management:v0:start-ml-model-http-server',
     async (_, modelReference, pythonEnvironment) => {
       try {
-        const pythonProcess = await startMLModelHTTPServer({ modelReference, pythonEnvironment })
+        const { port, process } = await startMLModelHTTPServer({
+          modelReference,
+          pythonEnvironment
+        })
         return {
           sucess: true,
-          process: { pid: pythonProcess.pid },
+          process: { pid: process.pid, port: port },
           message: 'ML Model HTTP server successfully started'
         }
       } catch (error) {
@@ -477,7 +480,8 @@ async function startMLModelHTTPServer({ pythonEnvironment, modelReference }) {
         pythonEnvironment: pythonEnvironment
       })
       log.info(`pythonProcess: ${JSON.stringify(pythonProcess)}`)
-      return pythonProcess
+      // return pythonProcess
+      return { port: port, process: pythonProcess }
     default:
       log.warn(
         `startMLModelHTTPServer: Not implemented for ${modelReference.id} version ${modelReference.version}`

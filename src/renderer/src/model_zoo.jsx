@@ -59,6 +59,7 @@ function ModelCard({ model, pythonEnvironment, platform, isDev }) {
   const [isHTTPServerStarting, setIsHTTPServerStarting] = useState(false)
   const [isDownloaded, setIsDownloaded] = useState(false)
   const [pidPythonProcess, setPidPythonProcess] = useState(null)
+  const [portHTTPServer, setPortHTTPServer] = useState(null)
 
   // Function to check if the model is downloaded
   const isMLModelDownloaded = async (reference) => {
@@ -91,6 +92,7 @@ function ModelCard({ model, pythonEnvironment, platform, isDev }) {
       console.log(JSON.stringify(response))
       setIsHTTPServerRunning(true)
       setIsHTTPServerStarting(false)
+      setPortHTTPServer(response.process.port)
       setPidPythonProcess(response.process.pid)
     } catch (error) {
       console.error('Failed to delete the local model:', error)
@@ -216,6 +218,26 @@ function ModelCard({ model, pythonEnvironment, platform, isDev }) {
           </button>
         )}
       </div>
+      {isHTTPServerRunning ? (
+        <div className="p-4 text-sm">
+          <ul className="list-none space-y-0">
+            <li>HTTP server port: {portHTTPServer}</li>
+            <li>process Id: {pidPythonProcess}</li>
+            <li>
+              <a
+                href={`http://localhost:${portHTTPServer}/docs`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:underline"
+              >
+                API documentation
+              </a>
+            </li>
+          </ul>
+        </div>
+      ) : (
+        <span></span>
+      )}
     </div>
   )
 }
