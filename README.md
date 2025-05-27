@@ -65,3 +65,11 @@ $ npm run build:mac
 # For Linux
 $ npm run build:linux
 ```
+
+#### ML Models Integration
+
+The ML Models are integrated as [python environments](./python-environments/README.md)
+where each model can be spawn as an HTTP server that defines a `/predict`
+endpoint.
+
+Make sure to install all the python environments locally.

@@ -10,7 +10,7 @@
     "lint": "eslint --cache .",
     "start": "electron-vite preview",
     "dev": "electron-vite dev --watch",
-    "build:python": "cd test-species && uv run build.py",
+    "build:python-env-common": "cd python-environments/common && uv sync",
     "build": "electron-vite build",
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win --publish always",
@@ -41,7 +41,9 @@
     "recharts": "^2.15.3",
     "sqlite3": "^5.1.7",
     "tailwindcss": "^4.0.17",
-    "tree-kill": "^1.2.2"
+    "tar": "^7.4.3",
+    "tree-kill": "^1.2.2",
+    "unzipper": "^0.12.3"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config": "^2.0.0",

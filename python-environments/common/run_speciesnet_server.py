@@ -5,13 +5,13 @@ CLI script to run SpeciesNet as a LitServer.
 Start the server with the default parameter values:
 
 ```
-run_server.py
+run_speciesnet_server.py
 ```
 
 Override the parameters:
 
 ```
-run_server.py \
+run_speciesnet_server.py \
   --port 8000 \
   --timeout 30 \
   --workers_per_device 1 \
@@ -20,10 +20,10 @@ run_server.py \
   --geofence true
 ```
 
-Load the server from a folder:
+Load the SpeciesNet model from a folder and start the server:
 
 ```
-run_server.py \
+run_speciesnet_server.py \
   --port 8000 \
   --model "v4.0.1a/"
 ```

@@ -8,14 +8,11 @@ files:
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
-  - '!python/*'
-  - '!test-species/*'
+  - '!python-environments/*'
 extraResources:
-  - from: 'test-species'
-    to: 'python'
-    filter: ['main.py*']
-  # - from: 'resources/model'
-  #   to: 'model'
+  - from: 'python-environments/common'
+    to: 'python-environments/common'
+    filter: ['*.py']
 asarUnpack:
   - resources/**
 win:

@@ -1,14 +1,17 @@
-name: Python/Envs
+# Generate the python environments required to run the ML models as local
+# webservers
+---
+name: Build and Upload Python Environments
 
 on:
   push:
     branches:
       - main
     paths:
-      - 'test-species/**'
+      - 'python-environments/**'
 
 jobs:
-  upload_env:
+  build_and_upload_common_python_environment:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -20,10 +23,13 @@ jobs:
       - name: Install Miniforge
         uses: conda-incubator/setup-miniconda@v3
         with:
-          activate-environment: species-env
+          activate-environment: common
           python-version: '3.12'
           auto-update-conda: true
 
+      # For now we replicate what is done in the pyproject.toml using pip,
+      # which is not ideal.
+      # Long run we should use only `uv` to generate the python environment.
       - name: Install Python dependencies
         shell: bash -l {0}
         run: |
@@ -36,9 +42,8 @@ jobs:
         run: |
           mkdir -p dist
           CONDA_BASE=$(conda info --base)
-          CONDA_ENV_PATH=$CONDA_BASE/envs/species-env
-
-          tar -czf dist/species-env-${{ runner.os }}.tar.gz -C $CONDA_BASE/envs species-env
+          CONDA_ENV_PATH=$CONDA_BASE/envs/common
+          tar -czf dist/common-0.1.0-${{ runner.os }}.tar.gz -C $CONDA_BASE/envs common
 
       - name: Upload to Cloudflare R2
         uses: shallwefootball/s3-upload-action@master
