@@ -23,9 +23,7 @@ import {
 } from 'fs'
 import log from 'electron-log'
 import path from 'path'
-import { pipeline } from 'stream/promises'
 import kill from 'tree-kill'
-import { start } from 'repl'
 
 /**
  * Extracts a .tar.gz archive to a specified directory.
@@ -37,12 +35,15 @@ import { start } from 'repl'
  *
  * @async
  * @param {string} tarPath - The path to the .tar.gz file to be extracted.
- * @param {string} extractPath - The directory where the contents of the archive will be extracted.
- * @returns {Promise<string>} A promise that resolves to the extraction path if successful.
+ * @param {function} onProgress - A callback function that is called with progress updates.
+ * @returns {string} extraction path
  * @throws {Error} Throws an error if the extraction process fails or if the `tar` command encounters an issue.
  *
  * @example
- * extractTarGz('./path/to/archive.tar.gz', './path/to/extract')
+ * extractTarGz('./path/to/archive.tar.gz', './path/to/extract', (progress) => {
+ *   console.log(`Download progress: ${progress.extracted}%`);
+ * })
+)
  *   .then((path) => {
  *     console.log(`Files extracted to: ${path}`);
  *   })
@@ -50,7 +51,7 @@ import { start } from 'repl'
  *     console.error('Extraction failed:', error);
  *   });
  */
-async function extractTarGz(tarPath, extractPath) {
+async function extractTarGz(tarPath, extractPath, onProgress) {
   // Check if extraction directory already exists and contains files
   log.info(`Checking extraction directory at ${extractPath}`, existsSync(extractPath))
   if (existsSync(extractPath)) {
@@ -76,6 +77,7 @@ async function extractTarGz(tarPath, extractPath) {
   const startTime = Date.now()
 
   return new Promise((resolve, reject) => {
+    let processedEntries = 0
     const tarStream = createReadStream(tarPath)
       .pipe(extract({ cwd: extractPath }))
       .on('finish', () => {
@@ -87,6 +89,10 @@ async function extractTarGz(tarPath, extractPath) {
         log.error(`Error during extraction:`, err)
         reject(err)
       })
+      .on('entry', (_entry) => {
+        processedEntries++
+        onProgress({ extracted: processedEntries })
+      })
   })
 }
 
@@ -96,45 +102,74 @@ async function extractTarGz(tarPath, extractPath) {
  * This function ensures that the destination directory exists before downloading the file.
  * It uses Electron's net module to fetch the file and streams the response to the specified
  * destination. If the download fails, an error is thrown with the appropriate status.
+ * A progress callback can be provided to track the download progress.
  *
  * @async
  * @param {string} url - The URL of the file to be downloaded.
  * @param {string} destination - The path where the downloaded file will be saved.
+ * @param {function} onProgress - A callback function that is called with progress updates.
  * @returns {Promise<string>} A promise that resolves to the destination path if the download is successful.
  * @throws {Error} Throws an error if the download fails or if the destination directory cannot be created.
  *
  * @example
- * downloadFile('https://example.com/file.zip', './downloads/file.zip')
+ * downloadFile('https://example.com/file.zip', './downloads/file.zip', (progress) => {
+ *   console.log(`Download progress: ${progress.percent}%`);
+ * })
  *   .then((path) => {
  *     console.log(`File downloaded to: ${path}`);
  *   })
  *   .catch((error) => {
  *     console.error('Download failed:', error);
  *   });
- */
-async function downloadFile(url, destination) {
+ **/
+async function downloadFile(url, destination, onProgress) {
   log.info(`Downloading ${url} to ${destination}...`)
 
   try {
-    // Ensure the directory exists
     const dir = path.dirname(destination)
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true })
     }
 
-    // Create a write stream
-    const writer = createWriteStream(destination)
-
-    // Download the file with electron's net module
     const response = await electronNet.fetch(url)
     if (!response.ok) {
       throw new Error(`Download failed with status ${response.status}`)
     }
 
-    // Pipe the response to the file
-    await pipeline(response.body, writer)
+    const totalBytes = Number(response.headers.get('Content-Length'))
+    const writer = createWriteStream(destination)
+    const reader = response.body.getReader()
 
-    log.info(`Download complete: ${destination}`)
+    let downloadedBytes = 0
+
+    // Custom function to read the stream
+    const readStream = async () => {
+      const { done, value } = await reader.read()
+
+      if (done) {
+        log.info(`Download complete: ${destination}`)
+        writer.end() // Close the write stream
+        return destination
+      }
+
+      // Write the chunk to the file
+      writer.write(value)
+      downloadedBytes += value.length
+
+      // Update progress
+      const progress = (downloadedBytes / totalBytes) * 100
+      log.info(`Download progress: ${progress}%`)
+      onProgress({ totalBytes, downloadedBytes, percent: progress })
+      if (onProgress) {
+        onProgress({ totalBytes, downloadedBytes, percent: progress })
+      }
+
+      // Read the next chunk
+      return readStream()
+    }
+
+    await readStream() // Start reading the stream
+
     return destination
   } catch (error) {
     log.error(`Download failed: ${error.message}`)
@@ -202,9 +237,13 @@ async function downloadPythonEnvironment({ id, version, downloadURL }) {
       }
     } else {
       log.info('Downloading the environment from', downloadURL)
-      await downloadFile(downloadURL, localTarPath)
+      await downloadFile(downloadURL, localTarPath, (progress) =>
+        log.info(`Progress ${JSON.stringify(progress)}`)
+      )
       log.info(`Extracting the archive ${localTarPath} to ${extractPath}`)
-      await extractTarGz(localTarPath, extractPath)
+      await extractTarGz(localTarPath, extractPath, (progress) =>
+        log.info(`Number of extracted files ${JSON.stringify(progress)}`)
+      )
       log.info('Cleaning the local archive: ', localTarPath)
       await fsPromises.unlink(localTarPath)
     }
@@ -234,9 +273,14 @@ async function downloadMLModel({ id, version, downloadURL }) {
       }
     } else {
       log.info('Downloading the model from', downloadURL)
-      await downloadFile(downloadURL, localTarPath)
+      await downloadFile(downloadURL, localTarPath, (progress) =>
+        log.info(`Progress ${JSON.stringify(progress)}`)
+      )
       log.info(`Extracting the archive ${localTarPath} to ${extractPath}`)
-      await extractTarGz(localTarPath, extractPath)
+      // await extractTarGz(localTarPath, extractPath)
+      await extractTarGz(localTarPath, extractPath, (progress) =>
+        log.info(`Number of extracted files ${JSON.stringify(progress)}`)
+      )
       log.info('Cleaning the local archive: ', localTarPath)
       await fsPromises.unlink(localTarPath)
       return {
