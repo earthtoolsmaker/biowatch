@@ -236,8 +236,6 @@ export async function* getPredictions(imagesPath) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ instances: imagesPath.map((path) => ({ filepath: path })) })
-    }).catch((error) => {
-      log.error('Error fetching predictions:', error)
     })
 
     if (!response.ok) {
@@ -255,9 +253,7 @@ export async function* getPredictions(imagesPath) {
     const decoder = new TextDecoder()
 
     while (true) {
-      const { value, done } = await reader.read().catch((error) => {
-        log.error('Error reading from response stream:', error)
-      })
+      const { value, done } = await reader.read()
       if (done) break
 
       const chunk = decoder.decode(value, { stream: true })
@@ -283,22 +279,18 @@ export async function* getPredictions(imagesPath) {
     }
   } catch (error) {
     log.error('Error in prediction process:', error)
-    // throw error
+    throw error
   }
 }
 
 function insertInto(db, tableName, data) {
-  // Extract keys and values from the data object
   const keys = Object.keys(data)
   const values = Object.values(data)
 
-  // Create placeholders for the SQL query (?, ?, ?)
   const placeholders = keys.map(() => '?').join(', ')
 
-  // Construct the SQL query
   const query = `INSERT INTO ${tableName} (${keys.join(', ')}) VALUES (${placeholders})`
 
-  // Execute the query
   db.run(query, values, function (err) {
     if (err) {
       log.error(`Error inserting into ${tableName}:`, err)
@@ -727,6 +719,7 @@ ipcMain.handle('importer:select-images-directory', async () => {
     await importer.start()
     return {
       path: directoryPath,
+      importerName: 'local/speciesnet',
       data: {
         name: 'imported study 1',
         title: 'Imported Study 1'

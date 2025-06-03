@@ -223,7 +223,7 @@ function SpeciesDistribution({ data, taxonomicData }) {
   )
 }
 
-export default function Overview({ data, studyId }) {
+export default function Overview({ data, studyId, importerName }) {
   const [speciesData, setSpeciesData] = useState(null)
   const [deploymentsData, setDeploymentsData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -349,7 +349,12 @@ export default function Overview({ data, studyId }) {
 
   // Render import progress when an import is in progress
   const renderImportProgress = () => {
-    if (!importStatus || importStatus.total <= 0 || importStatus.total === importStatus.done)
+    if (
+      importerName !== 'local/speciesnet' ||
+      !importStatus ||
+      importStatus.total <= 0 ||
+      importStatus.total === importStatus.done
+    )
       return null
 
     const progress = (importStatus.done / importStatus.total) * 100

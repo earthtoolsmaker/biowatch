@@ -215,8 +215,8 @@ export default function Import({ onNewStudy }) {
       // setDeployments(deployments)
       // setTree(tree)
       // setMedia(media)
-      const { data, id, path } = await window.api.selectImagesDirectory()
-      onNewStudy({ id, name: data.name, data, path })
+      const { data, id, path, importerName } = await window.api.selectImagesDirectory()
+      onNewStudy({ id, name: data.name, data, path, importerName })
       navigate(`/study/${id}`)
       // if (deployments && deployments.length > 0) {
       //   setShowDeployments(true)
@@ -276,7 +276,7 @@ export default function Import({ onNewStudy }) {
               'Use Demo Dataset'
             )}
           </button>
-          {/* <div className="relative">
+          <div className="relative">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-gray-200"></div>
             </div>
@@ -296,7 +296,7 @@ export default function Import({ onNewStudy }) {
             ) : (
               'Import Images Directory'
             )}
-          </button> */}
+          </button>
         </div>
       )}
     </div>

@@ -1,47 +1,36 @@
-import { app, shell, BrowserWindow, ipcMain, protocol, dialog } from 'electron'
-import { net as electronNet } from 'electron'
-import { join } from 'path'
-import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import icon from '../../resources/icon.png?asset'
+import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { spawn } from 'child_process'
+import { app, BrowserWindow, dialog, net as electronNet, ipcMain, protocol, shell } from 'electron'
+import log from 'electron-log'
+import { autoUpdater } from 'electron-updater'
 import {
-  readdirSync,
-  existsSync,
-  mkdirSync,
-  unlinkSync,
-  chmodSync,
   accessSync,
+  chmodSync,
   constants,
   createWriteStream,
+  existsSync,
+  mkdirSync,
+  readdirSync,
   statSync,
-  promises as fsPromises
+  unlinkSync
 } from 'fs'
-import log from 'electron-log'
 import net from 'net'
-import path from 'path'
+import path, { join } from 'path'
 import { pipeline } from 'stream/promises'
+import icon from '../../resources/icon.png?asset'
 import { importCamTrapDataset } from './camtrap'
+import { Importer } from './importer'
 import {
-  getSpeciesDistribution,
   getDeployments,
   getDeploymentsActivity,
-  getTopSpeciesTimeseries,
-  getSpeciesTimeseries,
-  getSpeciesHeatmapData,
   getLocationsActivity,
   getMedia,
   getSpeciesDailyActivity,
-  createImageDirectoryDatabase,
-  insertDeployments,
-  insertMedia,
-  insertObservations
+  getSpeciesDistribution,
+  getSpeciesHeatmapData,
+  getSpeciesTimeseries,
+  getTopSpeciesTimeseries
 } from './queries'
-import { autoUpdater } from 'electron-updater'
-import exifr from 'exifr'
-import luxon, { DateTime } from 'luxon'
-import geoTz from 'geo-tz'
-import { Importer } from './importer'
-import { importFromImages } from './importImages'
 
 // Configure electron-log
 log.transports.file.level = 'info'
@@ -298,206 +287,6 @@ async function startPythonServer() {
     } else {
       throw error // Re-throw if we've exhausted our options
     }
-  }
-}
-
-async function processImagesDirectory(directoryPath) {
-  log.info(`Processing images directory: ${directoryPath}`)
-  const media = {}
-  const deployments = {}
-  const dbID = crypto.randomUUID()
-  const dbPath = join(app.getPath('userData'), `${dbID}.db`)
-
-  // Create a directory tree structure
-  const directoryTree = {
-    name: path.basename(directoryPath),
-    path: directoryPath,
-    children: [],
-    imageCount: 0
-  }
-
-  // Map to keep track of directory objects by path
-  const directoryMap = new Map()
-  directoryMap.set(directoryPath, directoryTree)
-
-  // Function to recursively scan directories
-  async function scanDirectory(dir, parentDirObj) {
-    const entries = await fsPromises.readdir(dir, { withFileTypes: true })
-
-    // First pass: create directory structure
-    for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name)
-
-      if (entry.isDirectory()) {
-        const dirObj = {
-          name: entry.name,
-          path: fullPath,
-          children: [],
-          imageCount: 0
-        }
-        parentDirObj.children.push(dirObj)
-        directoryMap.set(fullPath, dirObj)
-      }
-    }
-
-    // Second pass: scan files and subdirectories
-    for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name)
-
-      if (entry.isDirectory()) {
-        await scanDirectory(fullPath, directoryMap.get(fullPath))
-      } else {
-        // Check if it's an image file
-        const ext = path.extname(entry.name).toLowerCase()
-        if (['.jpg', '.jpeg', '.png', '.gif', '.tiff', '.bmp'].includes(ext)) {
-          try {
-            // Increment direct image count only for current directory
-            directoryMap.get(dir).imageCount++
-            let exifData = {}
-            try {
-              exifData = await exifr.parse(fullPath, {
-                gps: true,
-                exif: true,
-                reviveValues: true
-              })
-            } catch (exifError) {
-              log.warn(`Could not extract EXIF data from ${fullPath}: ${exifError.message}`)
-            }
-
-            // Extract GPS coordinates if available
-            let latitude = null
-            let longitude = null
-            if (exifData && exifData.latitude && exifData.longitude) {
-              latitude = exifData.latitude
-              longitude = exifData.longitude
-            }
-
-            // Extract date from EXIF or use file creation date
-
-            const [timeZone] = geoTz.find(latitude, longitude)
-
-            const date = luxon.DateTime.fromJSDate(exifData.DateTimeOriginal, {
-              zone: timeZone
-            })
-
-            media[fullPath] = {
-              mediaID: crypto.randomUUID(),
-              deploymentID: 'tbd',
-              timestamp: date,
-              filePath: fullPath.replace(directoryPath, ''),
-              fileName: entry.name
-            }
-
-            const dep = deployments[latitude + ',' + longitude]
-            if (dep) {
-              dep.deploymentStart = luxon.DateTime.min(dep.deploymentStart, date)
-              dep.deploymentEnd = luxon.DateTime.max(dep.deploymentEnd, date)
-
-              media[fullPath].deploymentID = dep.deploymentID
-            } else {
-              const id = crypto.randomUUID()
-              deployments[latitude + ',' + longitude] = {
-                deploymentID: id,
-                deploymentStart: date,
-                deploymentEnd: date,
-                latitude,
-                longitude,
-                locationID: id,
-                locationName: undefined
-              }
-              media[fullPath].deploymentID = id
-            }
-          } catch (error) {
-            log.error(`Error processing image ${fullPath}: ${error.message}`)
-          }
-        }
-      }
-    }
-  }
-
-  await scanDirectory(directoryPath, directoryTree)
-
-  console.log('media', media[Object.keys(media)[0]])
-
-  // return
-
-  log.info(`Found ${Object.keys(media).length} images in directory`)
-  log.info('deployments', deployments)
-  // log.info('media', media)
-
-  try {
-    const db = await createImageDirectoryDatabase(dbPath)
-
-    await insertDeployments(db, deployments)
-
-    log.info('Inserting media into database...', media)
-    await insertMedia(db, media)
-
-    log.info(`Successfully created database for image directory at ${dbPath}`)
-
-    await getPredictions(Object.keys(media), (preds) => {
-      log.info('GOT Predictions:', preds)
-      const observations = preds.map((prediction) => {
-        const img = media[prediction.filepath]
-        const isblank = ['blank', 'no cv result'].includes(prediction.prediction.split(';').at(-1))
-        const scientificName =
-          prediction.prediction.split(';').at(-3) + ' ' + prediction.prediction.split(';').at(-2)
-        const observation = {
-          observationID: crypto.randomUUID(),
-          deploymentID: img.deploymentID,
-          mediaID: img.mediaID,
-          eventStart: img.timestamp,
-          eventEnd: img.timestamp,
-          eventID: crypto.randomUUID(),
-          confidence: prediction.prediction_score,
-          scientificName: isblank
-            ? undefined
-            : scientificName.trim() === ''
-              ? prediction.prediction.split(';').at(-1)
-              : scientificName,
-          prediction: prediction.prediction
-        }
-        return observation
-      })
-      return insertObservations(db, observations)
-    })
-
-    // log.info('observations', observations)
-
-    // // Insert observations into the database
-    // await insertObservations(db, observations)
-
-    // Close database
-    await new Promise((resolve, reject) => {
-      db.close((err) => {
-        if (err) reject(err)
-        else resolve()
-      })
-    })
-
-    // pythonProcess.kill()
-    // pythonProcess = null
-
-    return {
-      path: directoryPath,
-      data: {
-        name: 'study 1',
-        title: 'Study 1',
-        temporal: {
-          start: DateTime.min(
-            ...Object.values(deployments).map((dep) => dep.deploymentStart)
-          ).toISODate(),
-          end: DateTime.max(
-            ...Object.values(deployments).map((dep) => dep.deploymentEnd)
-          ).toISODate()
-        }
-      },
-      id: dbID,
-      directoryTree
-    }
-  } catch (error) {
-    log.error(`Error creating database for image directory: ${error.message}`)
-    throw error
   }
 }
 
