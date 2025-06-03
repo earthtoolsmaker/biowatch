@@ -34,9 +34,10 @@ import kill from 'tree-kill'
  * command, which works on macOS, Linux, and modern Windows systems.
  *
  * @async
- * @param {string} tarPath - The path to the .tar.gz file to be extracted.
+ * @param {string} tarPath - The path to the .tar.gz archive to be extracted.
+ * @param {string} extractPath - The path to the directory where the files will be extracted.
  * @param {function} onProgress - A callback function that is called with progress updates.
- * @returns {string} extraction path
+ * @returns {Promise<string>} A promise that resolves to the destination path if the download is successful.
  * @throws {Error} Throws an error if the extraction process fails or if the `tar` command encounters an issue.
  *
  * @example
