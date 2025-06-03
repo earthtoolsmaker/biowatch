@@ -105,7 +105,7 @@ export default function Study() {
             index
             element={
               <ErrorBoundary FallbackComponent={ErrorFallback} key={'overview'}>
-                <Overview data={study.data} studyId={id} />
+                <Overview data={study.data} studyId={id} importerName={study.importerName} />
               </ErrorBoundary>
             }
           />

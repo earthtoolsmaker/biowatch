@@ -78,9 +78,6 @@ const api = {
       endDate
     )
   },
-  selectImagesDirectory: async () => {
-    return await electronAPI.ipcRenderer.invoke('select-images-directory')
-  },
   // ML Model Management
   downloadMLModel: async ({ id, version, downloadURL }) => {
     return await electronAPI.ipcRenderer.invoke(
@@ -131,6 +128,16 @@ const api = {
       'ml-model-management:v0:stop-ml-model-http-server',
       pid
     )
+    return await electronAPI.ipcRenderer.invoke('importer:select-images-directory')
+  },
+  getImportStatus: async (id) => {
+    return await electronAPI.ipcRenderer.invoke('importer:get-status', id)
+  },
+  stopImport: async (id) => {
+    return await electronAPI.ipcRenderer.invoke('importer:stop', id)
+  },
+  resumeImport: async (id) => {
+    return await electronAPI.ipcRenderer.invoke('importer:resume', id)
   }
 }
 
