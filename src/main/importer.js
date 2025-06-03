@@ -1,43 +1,16 @@
-import { exec, spawn } from 'child_process'
+import { spawn } from 'child_process'
 import { app, dialog, ipcMain } from 'electron'
 import log from 'electron-log'
 import exifr from 'exifr'
 import fs from 'fs'
 import geoTz from 'geo-tz'
 import luxon, { DateTime } from 'luxon'
-import os from 'os'
 import path from 'path'
 import sqlite3 from 'sqlite3'
 import kill from 'tree-kill'
 // import { insertMedia } from './queries'
 
 const imageExtensions = new Set(['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'])
-
-function isWindows() {
-  return os.platform() === 'win32'
-}
-
-function countImagesNative(dir) {
-  if (isWindows()) {
-    // Windows: use PowerShell
-    const cmd = `powershell -Command "Get-ChildItem -Recurse -File '${dir}' | Where-Object { $_.Extension -match '\\.(jpg|jpeg|png|gif|bmp|webp)$' } | Measure-Object | Select-Object -ExpandProperty Count"`
-    return new Promise((resolve, reject) => {
-      exec(cmd, (err, stdout, stderr) => {
-        if (err) return reject(err)
-        resolve(parseInt(stdout.trim(), 10))
-      })
-    })
-  } else {
-    // Unix-based: use `find`
-    const cmd = `find ${JSON.stringify(dir)} -type f \\( -iname "*.jpg" -o -iname "*.png" -o -iname "*.jpeg" -o -iname "*.gif" -o -iname "*.bmp" -o -iname "*.webp" \\) | wc -l`
-    return new Promise((resolve, reject) => {
-      exec(cmd, (err, stdout, stderr) => {
-        if (err) return reject(err)
-        resolve(parseInt(stdout.trim(), 10))
-      })
-    })
-  }
-}
 
 /**
  * Checks if a directory is a leaf directory containing images
@@ -51,7 +24,6 @@ async function isLeafDirectoryWithImages(dir) {
   let imageCount = 0
 
   for (const dirent of dirents) {
-    const fullPath = path.join(dir, dirent.name)
     if (dirent.isDirectory()) {
       hasSubdirectories = true
       break
@@ -110,6 +82,7 @@ export async function getDeployments(rootDir) {
               reviveValues: true
             })
           } catch (exifError) {
+            log.warn(`Could not extract EXIF data from ${imagePath}: ${exifError.message}`)
             continue // Skip images with unreadable EXIF
           }
 
