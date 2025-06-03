@@ -38,10 +38,8 @@ import {
 } from './queries'
 import { autoUpdater } from 'electron-updater'
 import exifr from 'exifr'
-import readline from 'linebyline'
 import luxon, { DateTime } from 'luxon'
 import geoTz from 'geo-tz'
-import { getPredictions } from './predictions'
 import { Importer } from './importer'
 import { importFromImages } from './importImages'
 
@@ -173,46 +171,6 @@ async function downloadFile(url, destination) {
     throw error
   }
 }
-
-// async function getPredictions(path) {
-//   console.log('Getting predictions for path:', path)
-//   return new Promise((resolve, reject) => {
-//     let preds = []
-//     const scriptPath = join(__dirname, '../../test-species/main.py')
-//     const pythonInterpreter = join(__dirname, '../../test-species/.venv/bin/python3.11')
-//     pythonProcess = spawn(pythonInterpreter, [scriptPath, '--path', path])
-//     const rl = readline(pythonProcess.stdout)
-
-//     rl.on('line', (line) => {
-//       try {
-//         // log.info('Python line:', line)
-//         if (line.startsWith('PREDICTION:')) {
-//           const [, prediction] = line.split('PREDICTION: ')
-//           preds.push(JSON.parse(prediction))
-//           // log.info('Prediction:', JSON.parse(prediction))
-//         }
-//       } catch (err) {
-//         console.error('Failed to parse line:', line, err)
-//       }
-//     })
-
-//     pythonProcess.stderr.on('data', (err) => {
-//       log.error('Python error:', err.toString())
-//     })
-
-//     pythonProcess.on('close', (code) => {
-//       if (code === 0) {
-//         resolve(preds)
-//       } else {
-//         reject(new Error(`Python process exited with code ${code}`))
-//       }
-//     })
-
-//     pythonProcess.on('error', (err) => {
-//       reject(err)
-//     })
-//   })
-// }
 
 async function startPythonServer() {
   log.info('Finding free port for Python server...')
