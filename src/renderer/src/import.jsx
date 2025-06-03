@@ -211,14 +211,16 @@ export default function Import({ onNewStudy }) {
   const handleImportImages = async () => {
     setIsImportingImages(true)
     try {
-      const { tree, deployments, media } = await window.api.selectImagesDirectory()
-      setDeployments(deployments)
-      setTree(tree)
-      setMedia(media)
-      console.log('TREE', tree)
-      if (deployments && deployments.length > 0) {
-        setShowDeployments(true)
-      }
+      // const { tree, deployments, media } = await window.api.selectImagesDirectory()
+      // setDeployments(deployments)
+      // setTree(tree)
+      // setMedia(media)
+      const { data, id, path } = await window.api.selectImagesDirectory()
+      onNewStudy({ id, name: data.name, data, path })
+      navigate(`/study/${id}`)
+      // if (deployments && deployments.length > 0) {
+      //   setShowDeployments(true)
+      // }
       setIsImportingImages(false)
     } catch (error) {
       console.error('Failed to import images:', error)
@@ -274,7 +276,7 @@ export default function Import({ onNewStudy }) {
               'Use Demo Dataset'
             )}
           </button>
-          {/* <div className="relative">
+          <div className="relative">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-gray-200"></div>
             </div>
@@ -294,7 +296,7 @@ export default function Import({ onNewStudy }) {
             ) : (
               'Import Images Directory'
             )}
-          </button> */}
+          </button>
         </div>
       )}
     </div>

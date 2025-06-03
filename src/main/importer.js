@@ -1,14 +1,15 @@
-import fs from 'fs'
-import path from 'path'
+import { exec, spawn } from 'child_process'
+import { app, dialog, ipcMain } from 'electron'
 import log from 'electron-log'
-import { spawn, exec } from 'child_process'
-import kill from 'tree-kill'
-import os from 'os'
-import sqlite3 from 'sqlite3'
-import { app } from 'electron'
 import exifr from 'exifr'
-import luxon, { DateTime } from 'luxon'
+import fs from 'fs'
 import geoTz from 'geo-tz'
+import luxon, { DateTime } from 'luxon'
+import os from 'os'
+import path from 'path'
+import sqlite3 from 'sqlite3'
+import kill from 'tree-kill'
+// import { insertMedia } from './queries'
 
 const imageExtensions = new Set(['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'])
 
@@ -254,8 +255,6 @@ async function startServer() {
 }
 
 export async function* getPredictions(imagesPath) {
-  log.info('images', imagesPath)
-
   try {
     // Send request and handle streaming response
     const response = await fetch('http://localhost:8000/predict', {
@@ -264,6 +263,8 @@ export async function* getPredictions(imagesPath) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ instances: imagesPath.map((path) => ({ filepath: path })) })
+    }).catch((error) => {
+      log.error('Error fetching predictions:', error)
     })
 
     if (!response.ok) {
@@ -281,7 +282,9 @@ export async function* getPredictions(imagesPath) {
     const decoder = new TextDecoder()
 
     while (true) {
-      const { value, done } = await reader.read()
+      const { value, done } = await reader.read().catch((error) => {
+        log.error('Error reading from response stream:', error)
+      })
       if (done) break
 
       const chunk = decoder.decode(value, { stream: true })
@@ -307,7 +310,7 @@ export async function* getPredictions(imagesPath) {
     }
   } catch (error) {
     log.error('Error in prediction process:', error)
-    throw error
+    // throw error
   }
 }
 
@@ -327,6 +330,89 @@ function insertInto(db, tableName, data) {
     if (err) {
       log.error(`Error inserting into ${tableName}:`, err)
     }
+  })
+}
+
+async function insertMedia(db, fullPath) {
+  let exifData = {}
+  try {
+    exifData = await exifr.parse(fullPath, {
+      gps: true,
+      exif: true,
+      reviveValues: true
+    })
+  } catch (exifError) {
+    log.warn(`Could not extract EXIF data from ${fullPath}: ${exifError.message}`)
+  }
+  let latitude = null
+  let longitude = null
+  if (exifData && exifData.latitude && exifData.longitude) {
+    latitude = exifData.latitude
+    longitude = exifData.longitude
+  }
+
+  const [timeZone] = geoTz.find(latitude, longitude)
+
+  const date = luxon.DateTime.fromJSDate(exifData.DateTimeOriginal, {
+    zone: timeZone
+  })
+
+  let deployment
+  try {
+    deployment = await getDeployment(db, latitude, longitude)
+
+    if (deployment) {
+      // If a deployment exists, update the start or end time if necessary
+      db.run(
+        'UPDATE deployments SET deploymentStart = ?, deploymentEnd = ? WHERE deploymentID = ?',
+        [
+          DateTime.min(date, DateTime.fromISO(deployment.deploymentStart)).toISO(),
+          DateTime.max(date, DateTime.fromISO(deployment.deploymentEnd)).toISO(),
+          deployment.deploymentID
+        ]
+      )
+    } else {
+      // If no deployment exists, create a new one
+      const deploymentID = crypto.randomUUID()
+      const locationID = crypto.randomUUID()
+      log.info('Creating new deployment with at: ', latitude, longitude)
+      db.run(
+        'INSERT INTO deployments (deploymentID, locationID, locationName, deploymentStart, deploymentEnd, latitude, longitude) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [deploymentID, locationID, null, date.toISO(), date.toISO(), latitude, longitude]
+      )
+      deployment = {
+        deploymentID,
+        latitude,
+        longitude
+      }
+    }
+
+    const media = {
+      mediaID: crypto.randomUUID(),
+      deploymentID: deployment.deploymentID,
+      timestamp: date.toISO(),
+      filePath: fullPath,
+      fileName: fullPath.split(path.sep).pop()
+    }
+
+    insertInto(db, 'media', media)
+    return media
+  } catch (error) {
+    log.error(`Error inserting media for ${fullPath}:`, error)
+    return
+  }
+}
+
+function getMedia(db, filepath) {
+  console.log('getMedia', filepath)
+  return new Promise((resolve, reject) => {
+    db.get('SELECT * FROM media WHERE filePath = ?', [filepath], (err, row) => {
+      if (err) {
+        reject(err)
+        return
+      }
+      resolve(row)
+    })
   })
 }
 
@@ -367,98 +453,64 @@ function insertInto(db, tableName, data) {
 //   prediction_source: 'classifier',
 //   model_version: '4.0.1a'
 // }
-async function insertPrediction(db, folder, prediction) {
-  const fullPath = prediction.filepath
-  let exifData = {}
-  try {
-    exifData = await exifr.parse(fullPath, {
-      gps: true,
-      exif: true,
-      reviveValues: true
-    })
-  } catch (exifError) {
-    log.warn(`Could not extract EXIF data from ${fullPath}: ${exifError.message}`)
+async function insertPrediction(db, prediction) {
+  const media = await getMedia(db, prediction.filepath)
+  if (!media) {
+    log.warn(`No media found for prediction: ${prediction.filepath}`)
+    return
   }
-  let latitude = null
-  let longitude = null
-  if (exifData && exifData.latitude && exifData.longitude) {
-    latitude = exifData.latitude
-    longitude = exifData.longitude
+  const isblank = ['blank', 'no cv result'].includes(prediction.prediction.split(';').at(-1))
+  const scientificName =
+    prediction.prediction.split(';').at(-3) + ' ' + prediction.prediction.split(';').at(-2)
+
+  const observation = {
+    observationID: crypto.randomUUID(),
+    mediaID: media.mediaID,
+    deploymentID: media.deploymentID,
+    eventID: crypto.randomUUID(),
+    eventStart: media.timestamp,
+    eventEnd: media.timestamp,
+    scientificName: isblank
+      ? undefined
+      : scientificName.trim() === ''
+        ? prediction.prediction.split(';').at(-1)
+        : scientificName,
+    confidence: prediction.prediction_score,
+    count: 1,
+    prediction: prediction.prediction
   }
 
-  const [timeZone] = geoTz.find(latitude, longitude)
+  insertInto(db, 'observations', observation)
+  // log.info(`Inserted prediction for ${media.fileName} into database`)
+}
 
-  const date = luxon.DateTime.fromJSDate(exifData.DateTimeOriginal, {
-    zone: timeZone
-  })
-
-  let deployment
-  try {
-    deployment = await getDeployment(db, latitude, longitude)
-    console.log('deployment***', deployment)
-
-    if (deployment) {
-      // If a deployment exists, update the start or end time if necessary
-      db.run(
-        'UPDATE deployments SET deploymentStart = ?, deploymentEnd = ? WHERE deploymentID = ?',
-        [
-          DateTime.min(date, DateTime.fromISO(deployment.deploymentStart)).toISO(),
-          DateTime.max(date, DateTime.fromISO(deployment.deploymentEnd)).toISO(),
-          deployment.deploymentID
-        ]
-      )
-    } else {
-      // If no deployment exists, create a new one
-      const deploymentID = crypto.randomUUID()
-      const locationID = crypto.randomUUID()
-      console.log('Creating new deployment with at: ', latitude, longitude)
-      db.run(
-        'INSERT INTO deployments (deploymentID, locationID, locationName, deploymentStart, deploymentEnd, latitude, longitude) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [deploymentID, locationID, null, date.toISO(), date.toISO(), latitude, longitude]
-      )
-      deployment = {
-        deploymentID,
-        latitude,
-        longitude
+async function nextMediaToPredict(db, batchSize = 100) {
+  return new Promise((resolve, reject) => {
+    db.all(
+      `SELECT m.mediaID, m.filePath, m.fileName, m.timestamp, m.deploymentID
+       FROM media m
+       LEFT JOIN observations o ON m.mediaID = o.mediaID
+       WHERE o.observationID IS NULL
+       AND m.mediaID IS NOT NULL
+       LIMIT ?`,
+      [batchSize],
+      (err, rows) => {
+        if (err) {
+          reject(err)
+          return
+        }
+        resolve(
+          rows.map((row) => ({
+            mediaID: row.mediaID,
+            deploymentID: row.deploymentID,
+            timestamp: row.timestamp,
+            filePath: row.filePath,
+            fileName: row.fileName
+          }))
+        )
       }
-    }
-
-    const media = {
-      mediaID: crypto.randomUUID(),
-      deploymentID: deployment.deploymentID,
-      timestamp: date.toISO(),
-      filePath: fullPath.replace(folder, ''),
-      fileName: fullPath.split(path.sep).pop()
-    }
-
-    insertInto(db, 'media', media)
-
-    const isblank = ['blank', 'no cv result'].includes(prediction.prediction.split(';').at(-1))
-    const scientificName =
-      prediction.prediction.split(';').at(-3) + ' ' + prediction.prediction.split(';').at(-2)
-
-    const observation = {
-      observationID: crypto.randomUUID(),
-      mediaID: media.mediaID,
-      deploymentID: deployment.deploymentID,
-      eventID: crypto.randomUUID(),
-      eventStart: date.toISO(),
-      eventEnd: date.toISO(),
-      scientificName: isblank
-        ? undefined
-        : scientificName.trim() === ''
-          ? prediction.prediction.split(';').at(-1)
-          : scientificName,
-      confidence: prediction.prediction_score,
-      count: 1,
-      prediction: prediction.prediction
-    }
-
-    insertInto(db, 'observations', observation)
-    log.info(`Inserted prediction for ${media.fileName} into database`)
-  } catch (error) {
-    log.error(`Error handling deployment for ${fullPath}:`, error)
-  }
+    )
+  })
 }
 
 function getDeployment(db, latitude, longitude) {
@@ -538,22 +590,30 @@ function getTemporalData(db) {
 }
 
 export class Importer {
-  constructor(folder) {
-    this.id = crypto.randomUUID()
+  constructor(id, folder) {
+    this.id = id
     this.folder = folder
     this.pythonProcess = null
-    this.imageQueue = []
-    this.totalImages = 0
     this.batchSize = 100
-    this.processedImages = 0
-    const dbPath = path.join(app.getPath('userData'), `${this.id}.db`)
-    this.db = new sqlite3.Database(dbPath)
   }
 
   cleanup() {
     if (this.pythonProcess) {
-      kill(this.pythonProcess.pid)
+      log.info('Cleaning up Python process:', this.pythonProcess.pid)
+      return new Promise((resolve, reject) => {
+        kill(this.pythonProcess.pid, 'SIGKILL', (err) => {
+          if (err) {
+            log.error('Error killing Python process:', err)
+            reject(err)
+          } else {
+            log.info('Python process killed successfully')
+            this.pythonProcess = null
+            resolve()
+          }
+        })
+      })
     }
+    return Promise.resolve() // Return resolved promise if no process to kill
   }
 
   async startServer() {
@@ -568,52 +628,49 @@ export class Importer {
 
   async start() {
     try {
-      this.totalImages = await countImagesNative(this.folder)
-      setupDatabase(this.db)
-      // const deployments = await getDeployments(this.folder)
-      // console.log('Deployments found:', deployments)
-      // console.dir(deployments, { depth: null, colors: true })
-      await this.startServer()
+      const dbPath = path.join(app.getPath('userData'), `${this.id}.db`)
+      if (!fs.existsSync(dbPath)) {
+        log.info(`Database not found at ${dbPath}, creating new one`)
+        this.db = new sqlite3.Database(dbPath)
+        setupDatabase(this.db)
 
-      for await (const imagePath of walkImages(this.folder)) {
-        this.imageQueue.push(imagePath)
-        if (this.imageQueue.length >= this.batchSize) {
-          for await (const prediction of getPredictions(this.imageQueue)) {
-            insertPrediction(this.db, this.folder, prediction)
-            this.processedImages++
-            log.info(
-              'current progress percent: ',
-              ((this.processedImages / this.totalImages) * 100).toFixed(2) + '%'
-            )
+        log.info('scanning images in folder:', this.folder)
+
+        for await (const imagePath of walkImages(this.folder)) {
+          await insertMedia(this.db, imagePath)
+        }
+      } else {
+        this.db = new sqlite3.Database(dbPath)
+      }
+
+      // const temporalData = await getTemporalData(this.db)
+
+      try {
+        this.startServer().then(async () => {
+          while (true) {
+            const mediaBatch = await nextMediaToPredict(this.db, this.batchSize)
+            if (mediaBatch.length === 0) {
+              log.info('No more media to process')
+              break
+            }
+
+            const imageQueue = mediaBatch.map((m) => m.filePath)
+
+            log.info(`Processing batch of ${imageQueue.length} images`)
+
+            for await (const prediction of getPredictions(imageQueue)) {
+              await insertPrediction(this.db, prediction)
+            }
+
+            log.info(`Processed batch of ${imageQueue.length} images`)
           }
-          log.info(`Processed batch of ${this.imageQueue.length} images`)
-          this.imageQueue = []
-        }
-      }
 
-      // Process any remaining images in the queue
-      if (this.imageQueue.length > 0) {
-        for await (const prediction of getPredictions(this.imageQueue)) {
-          insertPrediction(this.db, this.folder, prediction)
-          this.processedImages++
-        }
-        log.info(`Processed final batch of ${this.imageQueue.length} images`)
-      }
-
-      log.info(`Processed ${this.processedImages} out of ${this.totalImages} images`)
-      this.cleanup()
-
-      // Get temporal data from database
-      const temporalData = await getTemporalData(this.db)
-
-      return {
-        path: this.folder,
-        data: {
-          name: 'imported study 1',
-          title: 'Imported Study 1',
-          temporal: temporalData
-        },
-        id: this.id
+          this.cleanup()
+        })
+        return this.id
+      } catch (error) {
+        log.error('Error during background processing:', error)
+        this.cleanup()
       }
     } catch (error) {
       console.error('Error starting importer:', error)
@@ -621,3 +678,146 @@ export class Importer {
     }
   }
 }
+
+let importers = {}
+
+async function status(id) {
+  const dbPath = path.join(app.getPath('userData'), `${id}.db`)
+  return new Promise((resolve, reject) => {
+    const db = new sqlite3.Database(dbPath, (err) => {
+      if (err) {
+        reject(err)
+        return
+      }
+
+      // Get total count of media
+      db.get(
+        `SELECT COUNT(*) as mediaCount FROM media WHERE mediaID IS NOT NULL`,
+        (err, mediaRow) => {
+          if (err) {
+            db.close()
+            reject(err)
+            return
+          }
+
+          // Get count of observations
+          db.get(
+            `SELECT COUNT(*) as obsCount FROM observations WHERE observationID IS NOT NULL`,
+            (err, obsRow) => {
+              if (err) {
+                db.close()
+                reject(err)
+                return
+              }
+
+              // Resolve with both counts
+              resolve({
+                total: mediaRow.mediaCount,
+                done: obsRow.obsCount,
+                isRunning: !!importers[id]
+              })
+
+              db.close()
+            }
+          )
+        }
+      )
+    })
+  })
+}
+
+ipcMain.handle('importer:get-status', async (event, id) => {
+  return await status(id)
+})
+
+ipcMain.handle('importer:select-images-directory', async () => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openDirectory'],
+    title: 'Select Images Directory'
+  })
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return { success: false, message: 'Selection canceled' }
+  }
+
+  const directoryPath = result.filePaths[0]
+
+  try {
+    const id = crypto.randomUUID()
+    if (importers[id]) {
+      log.warn(`Importer with ID ${id} already exists, skipping creation`)
+      return { success: false, message: 'Importer already exists' }
+    }
+    log.info(`Creating new importer with ID ${id} for directory: ${directoryPath}`)
+    const importer = new Importer(id, directoryPath)
+    importers[id] = importer
+    await importer.start()
+    return {
+      path: directoryPath,
+      data: {
+        name: 'imported study 1',
+        title: 'Imported Study 1'
+      },
+      id: id
+    }
+  } catch (error) {
+    log.error('Error processing images directory:', error)
+    return {
+      success: false,
+      error: error.message
+    }
+  }
+})
+
+ipcMain.handle('importer:stop', async (event, id) => {
+  if (!importers[id]) {
+    log.warn(`No importer found with ID ${id}`)
+    return { success: false, message: 'Importer not found' }
+  }
+
+  try {
+    await importers[id].cleanup()
+    delete importers[id]
+    log.info(`Importer with ID ${id} stopped successfully`)
+    return { success: true, message: 'Importer stopped successfully' }
+  } catch (error) {
+    log.error(`Error stopping importer with ID ${id}:`, error)
+    return { success: false, error: error.message }
+  }
+})
+
+ipcMain.handle('importer:resume', async (event, id) => {
+  const dbPath = path.join(app.getPath('userData'), `${id}.db`)
+
+  //check if the database exists
+  if (!fs.existsSync(dbPath)) {
+    log.warn(`No database found for importer with ID ${id}`)
+    return { success: false, message: 'Importer not found' }
+  }
+
+  importers[id] = new Importer(id)
+  importers[id].start()
+  return { success: true, message: 'Importer resumed successfully' }
+})
+
+app.on('will-quit', async (e) => {
+  if (Object.keys(importers).length === 0) {
+    log.info('No importers to stop')
+    return
+  }
+  e.preventDefault()
+
+  for (const id in importers) {
+    if (importers[id]) {
+      await importers[id].cleanup()
+      await new Promise((resolve) => setTimeout(resolve, 5000))
+      delete importers[id]
+    }
+  }
+
+  //10s timeout to ensure all importers are cleaned up
+  // await new Promise((resolve) => setTimeout(resolve, 10000))
+
+  log.info('All importers stopped')
+  app.quit()
+})

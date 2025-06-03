@@ -64,7 +64,7 @@ export async function importCamTrapDataset(directoryPath, id) {
 
       // Insert data
       log.debug(`Beginning data insertion for ${tableName}`)
-      await insertCSVData(db, filePath, tableName, columns)
+      await insertCSVData(db, filePath, tableName, columns, directoryPath)
 
       log.info(`Successfully imported ${file} into table ${tableName}`)
     }
@@ -174,7 +174,7 @@ function getCSVColumns(filePath) {
  * @param {string[]} columns - Array of column names
  * @returns {Promise<void>}
  */
-function insertCSVData(db, filePath, tableName, columns) {
+function insertCSVData(db, filePath, tableName, columns, directoryPath) {
   return new Promise((resolve, reject) => {
     log.debug(`Beginning data insertion from ${filePath} to table ${tableName}`)
     const stream = fs.createReadStream(filePath).pipe(csv())
@@ -192,9 +192,14 @@ function insertCSVData(db, filePath, tableName, columns) {
       const placeholders = columns.map(() => '?').join(', ')
       const insertSql = `INSERT INTO "${tableName}" VALUES (${placeholders})`
 
+      log.debug(`directoryPath: ${directoryPath}`)
+
       try {
         stream.on('data', async (row) => {
           const values = columns.map((col) => {
+            if (col === 'filePath') {
+              return path.join(directoryPath.split(path.sep).slice(0, -1).join(path.sep), row[col])
+            }
             if (
               ['eventStart', 'eventEnd', 'timestamp', 'deploymentStart', 'deploymentEnd'].includes(
                 col

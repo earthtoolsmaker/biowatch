@@ -1250,13 +1250,13 @@ app.whenReady().then(async () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 
-  app.on('before-quit', () => {
-    log.info('Quitting app....')
-    if (pythonProcess) {
-      pythonProcess.kill()
-      pythonProcess = null
-    }
-  })
+  // app.on('before-quit', () => {
+  //   log.info('Quitting app....')
+  //   if (pythonProcess) {
+  //     pythonProcess.kill()
+  //     pythonProcess = null
+  //   }
+  // })
 
   // Add model status check handler
   ipcMain.handle('check-model-status', () => {

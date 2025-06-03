@@ -57,7 +57,7 @@ async function scanDir(folderPath) {
     const name = path.basename(dirPath)
     const stats = fs.statSync(dirPath)
 
-    console.log('Processing directory:', dirPath, stats)
+    // console.log('Processing directory:', dirPath, stats)
 
     if (!stats.isDirectory()) {
       return null
@@ -240,12 +240,12 @@ export async function importFromImages(folderPath) {
     }
   })
 
-  log.info('Scanned directory:', folderPath, tree, media.length, media[0])
-  log.info(
-    'Found deployments:',
-    deployments,
-    deployments.map((d) => d.locations)
-  )
+  // log.info('Scanned directory:', folderPath, tree, media.length, media[0])
+  // log.info(
+  //   'Found deployments:',
+  //   deployments,
+  //   deployments.map((d) => d.locations)
+  // )
 
   const treeWithMediaCount = transformTreeMediaList(tree)
 
