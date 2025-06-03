@@ -25,6 +25,7 @@ import log from 'electron-log'
 import path from 'path'
 import { pipeline } from 'stream/promises'
 import kill from 'tree-kill'
+import { start } from 'repl'
 
 /**
  * Extracts a .tar.gz archive to a specified directory.
@@ -451,8 +452,17 @@ async function startSpeciesNetHTTPServer({
 async function stopMLModelHTTPServer({ pid }) {
   try {
     log.info('Stopping ML Model HTTP Server with pid', pid)
-    kill(pid)
-    return { success: true, message: `Stopped ML Model within python process pid ${pid}` }
+    return new Promise((resolve, reject) => {
+      kill(pid, 'SIGKILL', (err) => {
+        if (err) {
+          log.error('Error killing Python process:', err)
+          reject(err)
+        } else {
+          log.info('Python process killed successfully')
+          resolve({ success: true, message: `Stopped ML Model within python process pid ${pid}` })
+        }
+      })
+    })
   } catch (error) {
     return { success: false, message: `could not stop ML Model within python process pid ${pid}` }
   }
@@ -461,8 +471,9 @@ async function stopMLModelHTTPServer({ pid }) {
 async function startMLModelHTTPServer({ pythonEnvironment, modelReference }) {
   log.info('Starting ML Model HTTP Server')
   log.info('Finding free port for Python server...')
+  log.info('Model Reference:', modelReference, pythonEnvironment)
   switch (modelReference.id) {
-    case 'speciesnet':
+    case 'speciesnet': {
       const port = is.dev ? 8000 : await findFreePort()
       const localInstallPath = getMLModelLocalInstallPath({ ...modelReference })
       log.info(`Local ML Model install path ${localInstallPath}`)
@@ -474,11 +485,16 @@ async function startMLModelHTTPServer({ pythonEnvironment, modelReference }) {
         pythonEnvironment: pythonEnvironment
       })
       log.info(`pythonProcess: ${JSON.stringify(pythonProcess)}`)
-      // return pythonProcess
       return { port: port, process: pythonProcess }
+    }
     default:
       log.warn(
         `startMLModelHTTPServer: Not implemented for ${modelReference.id} version ${modelReference.version}`
       )
   }
+}
+
+export default {
+  startMLModelHTTPServer,
+  stopMLModelHTTPServer
 }

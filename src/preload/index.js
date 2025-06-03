@@ -128,6 +128,8 @@ const api = {
       'ml-model-management:v0:stop-ml-model-http-server',
       pid
     )
+  },
+  selectImagesDirectory: async () => {
     return await electronAPI.ipcRenderer.invoke('importer:select-images-directory')
   },
   getImportStatus: async (id) => {

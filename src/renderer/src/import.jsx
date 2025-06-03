@@ -266,8 +266,9 @@ export default function Import({ onNewStudy }) {
           <button
             onClick={handleDemoDataset}
             disabled={isDemoImporting}
-            className={`cursor-pointer transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-10 text-sm shadow-sm rounded-md hover:bg-gray-50 ${isDemoImporting ? 'opacity-70' : ''
-              }`}
+            className={`cursor-pointer transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-10 text-sm shadow-sm rounded-md hover:bg-gray-50 ${
+              isDemoImporting ? 'opacity-70' : ''
+            }`}
           >
             {isDemoImporting ? (
               <span className="animate-pulse">Downloading demo dataset...</span>
@@ -275,7 +276,7 @@ export default function Import({ onNewStudy }) {
               'Use Demo Dataset'
             )}
           </button>
-          {/* <div className="relative">
+          <div className="relative">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-gray-200"></div>
             </div>
@@ -295,7 +296,7 @@ export default function Import({ onNewStudy }) {
             ) : (
               'Import Images Directory'
             )}
-          </button> */}
+          </button>
         </div>
       )}
     </div>
