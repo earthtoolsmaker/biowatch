@@ -1,23 +1,27 @@
+import icon from '../../resources/icon.png?asset'
+import { extract } from 'tar'
+import unzipper from 'unzipper'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { spawn } from 'child_process'
 import { app, BrowserWindow, dialog, net as electronNet, ipcMain, protocol, shell } from 'electron'
 import log from 'electron-log'
-import { autoUpdater } from 'electron-updater'
 import {
   accessSync,
   chmodSync,
   constants,
+  createReadStream,
   createWriteStream,
   existsSync,
   mkdirSync,
   readdirSync,
   statSync,
+  promises as fsPromises,
+  unlink,
   unlinkSync
 } from 'fs'
 import net from 'net'
 import path, { join } from 'path'
 import { pipeline } from 'stream/promises'
-import icon from '../../resources/icon.png?asset'
 import { importCamTrapDataset } from './camtrap'
 import { Importer } from './importer'
 import {
@@ -31,6 +35,8 @@ import {
   getSpeciesTimeseries,
   getTopSpeciesTimeseries
 } from './queries'
+import { autoUpdater } from 'electron-updater'
+import { registerMLModelManagementIPCHandlers } from './ml_model_management'
 
 // Configure electron-log
 log.transports.file.level = 'info'
@@ -51,6 +57,28 @@ function findFreePort() {
       server.close(() => resolve(port))
     })
     server.on('error', reject)
+  })
+}
+
+async function extractZip(zipPath, extractPath) {
+  log.info(`Extracting ${zipPath} to ${extractPath}`)
+
+  // Create the extraction directory if it doesn't exist
+  if (!existsSync(extractPath)) {
+    mkdirSync(extractPath, { recursive: true })
+  }
+
+  return new Promise((resolve, reject) => {
+    createReadStream(zipPath)
+      .pipe(unzipper.Extract({ path: extractPath }))
+      .on('finish', () => {
+        log.info(`Extraction complete to ${extractPath}`)
+        resolve()
+      })
+      .on('error', (err) => {
+        log.error(`Error during extraction:`, err)
+        reject(err)
+      })
   })
 }
 
@@ -839,36 +867,7 @@ app.whenReady().then(async () => {
       }
 
       // Extract the zip file using tar
-      log.info(`Extracting ${zipPath} to ${extractPath}`)
-      await new Promise((resolve, reject) => {
-        // tar can extract zip files with the right flags (-xf for extract, automatic format detection)
-        const tarProcess = spawn('tar', ['-xf', zipPath, '-C', extractPath])
-
-        tarProcess.stdout.on('data', (data) => {
-          log.info(`tar output: ${data}`)
-        })
-
-        tarProcess.stderr.on('data', (data) => {
-          // Not necessarily an error, tar outputs progress to stderr
-          log.info(`tar progress: ${data}`)
-        })
-
-        tarProcess.on('error', (err) => {
-          log.error(`Error executing tar command:`, err)
-          reject(err)
-        })
-
-        tarProcess.on('close', (code) => {
-          if (code === 0) {
-            log.info(`Extraction complete to ${extractPath}`)
-            resolve()
-          } else {
-            const err = new Error(`tar process exited with code ${code}`)
-            log.error(err)
-            reject(err)
-          }
-        })
-      })
+      await extractZip(zipPath, extractPath)
 
       // Find the directory containing a datapackage.json file
       let camtrapDpDirPath = null
@@ -991,7 +990,7 @@ app.whenReady().then(async () => {
     app.quit()
   }
 
-  app.on('activate', function () {
+  app.on('activate', function() {
     // On macOS it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -1014,10 +1013,9 @@ app.whenReady().then(async () => {
   ipcMain.handle('download-model', async () => {
     return await downloadModel()
   })
-})
 
-// Add IPC handler to get server port
-ipcMain.handle('get-server-port', () => serverPort)
+  registerMLModelManagementIPCHandlers()
+})
 
 // Quit when all windows are closed, except on macOS. There, it's common
 // for applications and their menu bar to stay active until the user quits

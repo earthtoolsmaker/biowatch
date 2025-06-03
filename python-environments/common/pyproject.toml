@@ -1,5 +1,5 @@
 [project]
-name = "test-species"
+name = "common"
 version = "0.1.0"
 description = "SpeciesNet running as a LitServer"
 readme = "README.md"
