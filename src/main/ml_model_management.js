@@ -6,6 +6,7 @@
  * @module ml_model_management
  */
 
+import yaml from 'js-yaml'
 import { app, ipcMain } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import { extract } from 'tar'
@@ -16,10 +17,12 @@ import { spawn } from 'child_process'
 import {
   createReadStream,
   readdirSync,
+  readFileSync,
   existsSync,
   mkdirSync,
   createWriteStream,
-  promises as fsPromises
+  promises as fsPromises,
+  writeFileSync
 } from 'fs'
 import log from 'electron-log'
 import path from 'path'
@@ -185,6 +188,8 @@ const getMLModelLocalTarPath = ({ id, version }) =>
 
 const getMLModelLocalInstallPath = ({ id, version }) => join(getMLModelLocalRootDir(), id, version)
 
+const getMLModelLocalDownloadMetadata = () => join(getMLModelLocalRootDir(), 'metadata.yaml')
+
 function isMLModelDownloaded({ id, version }) {
   const localInstallPath = getMLModelLocalInstallPath({ id, version })
   return existsSync(localInstallPath)
@@ -261,11 +266,74 @@ async function downloadPythonEnvironment({ id, version, downloadURL }) {
   }
 }
 
+/**
+ * Reads the contents of a YAML file and parses it into a JavaScript object.
+ *
+ * This function checks if the specified YAML file exists. If it does, it reads the file's contents,
+ * parses the YAML data, and returns it as a JavaScript object. If the file does not exist,
+ * the function returns an empty structure with a default property `downloads` set to an empty array.
+ *
+ * @param {string} yamlFile - The path to the YAML file to be read.
+ * @returns {Object} The parsed contents of the YAML file, or an empty structure if the file does not exist.
+ *
+ * @example
+ * const config = yamlRead('./config.yaml');
+ * console.log(config.downloads);
+ */
+function yamlRead(yamlFile) {
+  if (existsSync(yamlFile)) {
+    const fileContents = readFileSync(yamlFile, 'utf8')
+    return yaml.load(fileContents) || {}
+  } else {
+    return {} // Return an empty structure if the file doesn't exist
+  }
+}
+
+/**
+ * Writes a JavaScript object to a YAML file.
+ *
+ * This function converts the provided data object into a YAML string format
+ * and writes it to the specified file path. If the file already exists,
+ * it will be overwritten. The function uses the `js-yaml` library to perform
+ * the conversion from the JavaScript object to YAML format.
+ *
+ * @param {Object} data - The JavaScript object to be converted and written to the YAML file.
+ * @param {string} yamlFile - The path to the file where the YAML data will be written.
+ *
+ * @example
+ * const data = {
+ *   name: "example",
+ *   version: "1.0.0",
+ *   contributors: ["Alice", "Bob"]
+ * };
+ * yamlWrite(data, './config.yaml');
+ */
+function yamlWrite(data, yamlFile) {
+  const yamlStr = yaml.dump(data)
+  writeFileSync(yamlFile, yamlStr, 'utf8')
+}
+
 async function downloadMLModel({ id, version, downloadURL }) {
   try {
     const localInstallPath = getMLModelLocalInstallPath({ id, version })
     const extractPath = dirname(localInstallPath)
     const localTarPath = getMLModelLocalTarPath({ id, version })
+    const metadataDownloadFilepath = getMLModelLocalDownloadMetadata()
+    const metadata = yamlRead(metadataDownloadFilepath)
+    log.info('metadata filepath: ', metadataDownloadFilepath)
+    log.info('metadata content: ', metadata)
+    const metadataNew = {
+      ...metadata,
+      [id]: {
+        [version]: {
+          state: 'downloading',
+          archivePath: localTarPath,
+          installPath: localInstallPath
+        }
+      }
+    }
+    log.info('updated metadata: ', metadataNew)
+    yamlWrite(metadataNew, metadataDownloadFilepath)
     if (existsSync(localInstallPath)) {
       log.info(`Model already installed in ${localInstallPath}, skipping.`)
       return {
@@ -277,13 +345,51 @@ async function downloadMLModel({ id, version, downloadURL }) {
       await downloadFile(downloadURL, localTarPath, (progress) =>
         log.info(`Progress ${JSON.stringify(progress)}`)
       )
+      yamlWrite(
+        {
+          ...metadata,
+          [id]: {
+            [version]: {
+              state: 'extracting',
+              archivePath: localTarPath,
+              installPath: localInstallPath
+            }
+          }
+        },
+        metadataDownloadFilepath
+      )
       log.info(`Extracting the archive ${localTarPath} to ${extractPath}`)
-      // await extractTarGz(localTarPath, extractPath)
       await extractTarGz(localTarPath, extractPath, (progress) =>
         log.info(`Number of extracted files ${JSON.stringify(progress)}`)
       )
+      yamlWrite(
+        {
+          ...metadata,
+          [id]: {
+            [version]: {
+              state: 'cleaning',
+              archivePath: localTarPath,
+              installPath: localInstallPath
+            }
+          }
+        },
+        metadataDownloadFilepath
+      )
       log.info('Cleaning the local archive: ', localTarPath)
       await fsPromises.unlink(localTarPath)
+      yamlWrite(
+        {
+          ...metadata,
+          [id]: {
+            [version]: {
+              state: 'success',
+              archivePath: localTarPath,
+              installPath: localInstallPath
+            }
+          }
+        },
+        metadataDownloadFilepath
+      )
       return {
         success: true,
         message: 'Model downloaded and extracted successfully'
