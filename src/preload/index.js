@@ -86,6 +86,13 @@ const api = {
       version
     )
   },
+  getMLModelDownloadStatus: async ({ modelReference, pythonEnvironmentReference }) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'ml-model-management:v0:get-model-download-status',
+      modelReference,
+      pythonEnvironmentReference
+    )
+  },
   deleteLocalMLModel: async ({ id, version }) => {
     return await electronAPI.ipcRenderer.invoke(
       'ml-model-management:v0:delete-local-ml-model',

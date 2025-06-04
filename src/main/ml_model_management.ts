@@ -41,6 +41,7 @@ import { findModel, findPythonEnvironment, platformToKey } from '../shared/mlmod
  * @param {string} tarPath - The path to the .tar.gz archive to be extracted.
  * @param {string} extractPath - The path to the directory where the files will be extracted.
  * @param {function} onProgress - A callback function that is called with progress updates.
+ * @param {boolean} useCache - A flag indicating whether to use cached files if available. Defaults to false.
  * @returns {Promise<string>} A promise that resolves to the destination path if the download is successful.
  * @throws {Error} Throws an error if the extraction process fails or if the `tar` command encounters an issue.
  *
@@ -56,10 +57,10 @@ import { findModel, findPythonEnvironment, platformToKey } from '../shared/mlmod
  *     console.error('Extraction failed:', error);
  *   });
  */
-async function extractTarGz(tarPath, extractPath, onProgress) {
+async function extractTarGz(tarPath, extractPath, onProgress, useCache = false) {
   // Check if extraction directory already exists and contains files
   log.info(`Checking extraction directory at ${extractPath}`, existsSync(extractPath))
-  if (existsSync(extractPath)) {
+  if (useCache && existsSync(extractPath)) {
     try {
       const files = readdirSync(extractPath)
       if (files.length > 0) {
@@ -250,12 +251,10 @@ async function downloadPythonEnvironment({ id, version }) {
   log.info(`env: ${env}`)
   const platformKey = platformToKey(process.platform)
   log.info('downloadPythonEnvironment: platformKey is ', platformKey)
-  const { downloadURL } = env['platform'][platformKey]
+  const { downloadURL, files } = env['platform'][platformKey]
   log.info('downloadPythonEnvironment: download URL is ', downloadURL)
   const extractPath = getMLModelEnvironmentLocalInstallPath({ id, version })
-  log.info('extractPath: ', extractPath)
   const localTarPath = getMLModelEnvironmentLocalTarPath({ id, version })
-  log.info('localTarPath: ', localTarPath)
   const manifestFilepath = getMLEnvironmentDownloadManifest()
 
   const manifest = yamlRead(manifestFilepath)
@@ -263,12 +262,12 @@ async function downloadPythonEnvironment({ id, version }) {
   log.info('manifest content: ', manifest)
   const manifestOpts = { archivePath: localTarPath, installPath: extractPath }
 
-  let previousProgress = 0
-  const flushProgressIncrementThreshold = 1
+  let previousDownloadProgress = 0
+  const flushProgressDownloadIncrementThreshold = 1
 
   const onProgressDownload = ({ percent }) => {
     const progress = (percent * installationStateProgress[InstallationState.Download]) / 100
-    if (progress > previousProgress + flushProgressIncrementThreshold) {
+    if (progress > previousDownloadProgress + flushProgressDownloadIncrementThreshold) {
       writeToManifest({
         manifestFilepath,
         id,
@@ -277,12 +276,36 @@ async function downloadPythonEnvironment({ id, version }) {
         progress: progress,
         opts: manifestOpts
       })
-      previousProgress = progress
+      previousDownloadProgress = progress
+    }
+  }
+
+  const flushProgressExtractIncrementThreshold = 1.0
+  let previousExtractProgress = 0
+
+  const onProgressExtract = ({ extracted }) => {
+    const progress = Math.min(
+      installationStateProgress[InstallationState.Extract],
+      installationStateProgress[InstallationState.Download] +
+      (extracted / files) *
+      (installationStateProgress[InstallationState.Extract] -
+        installationStateProgress[InstallationState.Download])
+    )
+    if (progress > previousExtractProgress + flushProgressExtractIncrementThreshold) {
+      writeToManifest({
+        manifestFilepath,
+        id,
+        version,
+        state: InstallationState.Extract,
+        progress: progress,
+        opts: manifestOpts
+      })
+      previousExtractProgress = progress
     }
   }
 
   try {
-    if (existsSync(extractPath)) {
+    if (isDownloadSuccess({ manifestFilepath, id, version })) {
       log.info(`Python environment already installed in ${extractPath}, skipping.`)
       return {
         success: true,
@@ -298,7 +321,8 @@ async function downloadPythonEnvironment({ id, version }) {
         state: InstallationState.Download,
         opts: manifestOpts
       })
-      await downloadFile(downloadURL, localTarPath, onProgressDownload)
+      // FIXME: uncomment
+      // await downloadFile(downloadURL, localTarPath, onProgressDownload)
       writeToManifest({
         manifestFilepath,
         id,
@@ -308,9 +332,8 @@ async function downloadPythonEnvironment({ id, version }) {
         opts: manifestOpts
       })
       log.info(`Extracting the archive ${localTarPath} to ${extractPath}`)
-      await extractTarGz(localTarPath, extractPath, (progress) =>
-        log.info(`Number of extracted files ${JSON.stringify(progress)}`)
-      )
+      await extractTarGz(localTarPath, extractPath, onProgressExtract)
+
       writeToManifest({
         manifestFilepath,
         id,
@@ -320,7 +343,8 @@ async function downloadPythonEnvironment({ id, version }) {
         opts: manifestOpts
       })
       log.info('Cleaning the local archive: ', localTarPath)
-      await fsPromises.unlink(localTarPath)
+      // FIXME: Uncomment
+      // await fsPromises.unlink(localTarPath)
       writeToManifest({
         manifestFilepath,
         id,
@@ -329,10 +353,10 @@ async function downloadPythonEnvironment({ id, version }) {
         opts: manifestOpts,
         progress: installationStateProgress[InstallationState.Success]
       })
-    }
-    return {
-      success: true,
-      message: 'Python Environment downloaded and extracted successfully'
+      return {
+        success: true,
+        message: 'Python Environment downloaded and extracted successfully'
+      }
     }
   } catch (error) {
     log.error('Failed to download the Python Environment:', error)
@@ -349,6 +373,19 @@ async function downloadPythonEnvironment({ id, version }) {
       message: `Failed to download the Python Environment: ${error.message}`
     }
   }
+}
+
+enum InstallationState {
+  /** Indicates a successful installation. */
+  Success = 'success',
+  /** Indicates a failed installation. */
+  Failure = 'failure',
+  /** Indicates that the artifact is currently being downloaded. */
+  Download = 'download',
+  /** Indicates that the artifact is being cleaned up after installation. */
+  Clean = 'clean',
+  /** Indicates that the artifact is currently being extracted from its archive. */
+  Extract = 'extract'
 }
 
 /**
@@ -372,19 +409,6 @@ function yamlRead(yamlFile) {
   } else {
     return {} // Return an empty structure if the file doesn't exist
   }
-}
-
-enum InstallationState {
-  /** Indicates a successful installation. */
-  Success = 'success',
-  /** Indicates a failed installation. */
-  Failure = 'failure',
-  /** Indicates that the artifact is currently being downloaded. */
-  Download = 'download',
-  /** Indicates that the artifact is being cleaned up after installation. */
-  Clean = 'clean',
-  /** Indicates that the artifact is currently being extracted from its archive. */
-  Extract = 'extract'
 }
 
 /**
@@ -412,7 +436,7 @@ function yamlWrite(data, yamlFile) {
 }
 
 /**
- * Writes the specified ML model information to the manifest file.
+ * Writes the specified information to the manifest file.
  *
  * This function updates the manifest file with the current state and options
  * for a given model identified by its ID and version. If the model already exists
@@ -427,7 +451,7 @@ function yamlWrite(data, yamlFile) {
  */
 function writeToManifest({ manifestFilepath, progress, id, version, state, opts }) {
   const manifest = yamlRead(manifestFilepath)
-  log.info('manifest content: ', JSON.stringify(manifest))
+  log.debug('manifest content: ', JSON.stringify(manifest))
   const yamlData = {
     ...manifest,
     [id]: {
@@ -435,8 +459,61 @@ function writeToManifest({ manifestFilepath, progress, id, version, state, opts 
       [version]: { state: state, progress: progress, opts: opts }
     }
   }
-  log.info('New manifest data: ', JSON.stringify(yamlData))
+  log.debug('New manifest data: ', JSON.stringify(yamlData))
   yamlWrite(yamlData, manifestFilepath)
+}
+
+/**
+ * Checks if the download of the artifact was successful.
+ *
+ * This function reads the state of the specified version and id from the
+ * manifest file and determines if the artifact's installation state is marked
+ * as 'success'.
+ *
+ * @param {Object} params - The parameters for checking download success.
+ * @param {string} params.manifestFilepath - The path to the manifest file.
+ * @param {string} params.version - The version of the artifact
+ * @param {string} params.id - The unique identifier of the artifact
+ * @returns {boolean} True if the artifact was successfully downloaded, otherwise false.
+ */
+function isDownloadSuccess({ manifestFilepath, version, id }) {
+  const manifest = yamlRead(manifestFilepath)
+  return manifest[id][version]['state'] === 'success'
+}
+
+/**
+ * Retrieves the download status of an artifact from the manifest file.
+ *
+ * This function reads the specified manifest file and returns the status information
+ * for a particular artifact identified by its ID and version. If the artifact is not found
+ * in the manifest, it returns an empty object.
+ *
+ * @param {Object} params - The parameters for retrieving the download status.
+ * @param {string} params.manifestFilepath - The path to the manifest file.
+ * @param {string} params.version - The version of the model.
+ * @param {string} params.id - The unique identifier of the model.
+ * @returns {Object} An object containing the download status information for the artifact.
+ */
+function getDownloadStatus({ manifestFilepath, version, id }) {
+  const manifest = yamlRead(manifestFilepath)
+  return manifest[id][version] || {}
+}
+
+function getMLModelDownloadStatus({ modelReference, pythonEnvironmentReference }) {
+  const manifestFilepathMLModel = getMLModelLocalDownloadManifest()
+  const manifestFilepathPythonEnvironment = getMLEnvironmentDownloadManifest()
+  return {
+    model: getDownloadStatus({
+      manifestFilepath: manifestFilepathMLModel,
+      version: modelReference.version,
+      id: modelReference.id
+    }),
+    pythonEnvironment: getDownloadStatus({
+      manifestFilepath: manifestFilepathPythonEnvironment,
+      version: pythonEnvironmentReference.version,
+      id: pythonEnvironmentReference.id
+    })
+  }
 }
 
 /**
@@ -521,6 +598,7 @@ async function downloadMLModel({ id, version }) {
     }
   }
   try {
+    // FIXME: improve this by looking at manifest instead to make it more robust
     if (existsSync(localInstallPath)) {
       log.info(`Model already installed in ${localInstallPath}, skipping.`)
       return {
@@ -604,12 +682,19 @@ function getMLModelEnvironmentLocalTarPath({ id, version }) {
 }
 
 export const registerMLModelManagementIPCHandlers = () => {
-  // Add IPC handler to check whether the ML model is properly installed locally
+  // IPC handler to check whether the ML model is properly installed locally
   ipcMain.handle('ml-model-management:v0:is-ml-model-downloaded', (_, id, version) =>
     isMLModelDownloaded({ id, version })
   )
 
-  // Add IPC handler to delete the ml model
+  // IPC handler to check the ML model download status
+  ipcMain.handle(
+    'ml-model-management:v0:get-model-download-status',
+    (_, modelReference, pythonEnvironmentReference) =>
+      getMLModelDownloadStatus({ modelReference, pythonEnvironmentReference })
+  )
+
+  // IPC handler to delete the ml model
   ipcMain.handle('ml-model-management:v0:delete-local-ml-model', (_, id, version) =>
     deleteLocalMLModel({ id, version })
   )

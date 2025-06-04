@@ -14,10 +14,7 @@ export const pythonEnvironments = [
    */
   {
     type: 'conda',
-    reference: {
-      id: 'common',
-      version: '0.1.0'
-    },
+    reference: { id: 'common', version: '0.1.0' },
     platform: {
       mac: {
         downloadURL:
@@ -51,12 +48,9 @@ export const modelZoo = [
    * a description of the model, and a link to the model's website.
    */
   {
-    reference: {
-      id: 'speciesnet',
-      version: '4.0.1a'
-    },
-    name: 'SpeciesNet',
+    reference: { id: 'speciesnet', version: '4.0.1a' },
     pythonEnvironment: { id: 'common', version: '0.1.0' },
+    name: 'SpeciesNet',
     size_in_MiB: 468,
     downloadURL:
       'https://huggingface.co/earthtoolsmaker/speciesnet/resolve/main/4.0.1a.tar.gz?download=true',
