@@ -245,11 +245,11 @@ async function downloadPythonEnvironment({ id, version }) {
   const installationStateProgress = {
     [InstallationState.Failure]: 0,
     // The Download stage indicates that the model is currently being downloaded.
-    // Once this stage is complete, it contributes 70% to the overall progress.
-    [InstallationState.Download]: 70,
+    // Once this stage is complete, it contributes 65% to the overall progress.
+    [InstallationState.Download]: 65,
     // The Extract stage indicates that the model has been downloaded and is now being extracted.
-    // Upon completion, this stage contributes 98% to the overall progress.
-    [InstallationState.Extract]: 98,
+    // Upon completion, this stage contributes 91% to the overall progress.
+    [InstallationState.Extract]: 91,
     // The Clean stage signifies that the installation process is cleaning up temporary files.
     // Once this stage is finished, it marks 100% completion of the installation.
     [InstallationState.Clean]: 100,
@@ -257,7 +257,6 @@ async function downloadPythonEnvironment({ id, version }) {
     [InstallationState.Success]: 100
   }
   const env = findPythonEnvironment({ id, version })
-  log.info(`env: ${env}`)
   const platformKey = platformToKey(process.platform)
   log.info('downloadPythonEnvironment: platformKey is ', platformKey)
   const { downloadURL, files } = env['platform'][platformKey]
