@@ -6,6 +6,7 @@
  * @module ml_model_management
  */
 
+import yaml from 'js-yaml'
 import { app, ipcMain } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import { extract } from 'tar'
@@ -16,16 +17,16 @@ import { spawn } from 'child_process'
 import {
   createReadStream,
   readdirSync,
+  readFileSync,
   existsSync,
   mkdirSync,
   createWriteStream,
-  promises as fsPromises
+  promises as fsPromises,
+  writeFileSync
 } from 'fs'
 import log from 'electron-log'
 import path from 'path'
-import { pipeline } from 'stream/promises'
 import kill from 'tree-kill'
-import { start } from 'repl'
 
 /**
  * Extracts a .tar.gz archive to a specified directory.
@@ -36,13 +37,17 @@ import { start } from 'repl'
  * command, which works on macOS, Linux, and modern Windows systems.
  *
  * @async
- * @param {string} tarPath - The path to the .tar.gz file to be extracted.
- * @param {string} extractPath - The directory where the contents of the archive will be extracted.
- * @returns {Promise<string>} A promise that resolves to the extraction path if successful.
+ * @param {string} tarPath - The path to the .tar.gz archive to be extracted.
+ * @param {string} extractPath - The path to the directory where the files will be extracted.
+ * @param {function} onProgress - A callback function that is called with progress updates.
+ * @returns {Promise<string>} A promise that resolves to the destination path if the download is successful.
  * @throws {Error} Throws an error if the extraction process fails or if the `tar` command encounters an issue.
  *
  * @example
- * extractTarGz('./path/to/archive.tar.gz', './path/to/extract')
+ * extractTarGz('./path/to/archive.tar.gz', './path/to/extract', (progress) => {
+ *   console.log(`Download progress: ${progress.extracted}%`);
+ * })
+)
  *   .then((path) => {
  *     console.log(`Files extracted to: ${path}`);
  *   })
@@ -50,7 +55,7 @@ import { start } from 'repl'
  *     console.error('Extraction failed:', error);
  *   });
  */
-async function extractTarGz(tarPath, extractPath) {
+async function extractTarGz(tarPath, extractPath, onProgress) {
   // Check if extraction directory already exists and contains files
   log.info(`Checking extraction directory at ${extractPath}`, existsSync(extractPath))
   if (existsSync(extractPath)) {
@@ -76,6 +81,7 @@ async function extractTarGz(tarPath, extractPath) {
   const startTime = Date.now()
 
   return new Promise((resolve, reject) => {
+    let processedEntries = 0
     const tarStream = createReadStream(tarPath)
       .pipe(extract({ cwd: extractPath }))
       .on('finish', () => {
@@ -87,6 +93,10 @@ async function extractTarGz(tarPath, extractPath) {
         log.error(`Error during extraction:`, err)
         reject(err)
       })
+      .on('entry', (_entry) => {
+        processedEntries++
+        onProgress({ extracted: processedEntries })
+      })
   })
 }
 
@@ -96,45 +106,73 @@ async function extractTarGz(tarPath, extractPath) {
  * This function ensures that the destination directory exists before downloading the file.
  * It uses Electron's net module to fetch the file and streams the response to the specified
  * destination. If the download fails, an error is thrown with the appropriate status.
+ * A progress callback can be provided to track the download progress.
  *
  * @async
  * @param {string} url - The URL of the file to be downloaded.
  * @param {string} destination - The path where the downloaded file will be saved.
+ * @param {function} onProgress - A callback function that is called with progress updates.
  * @returns {Promise<string>} A promise that resolves to the destination path if the download is successful.
  * @throws {Error} Throws an error if the download fails or if the destination directory cannot be created.
  *
  * @example
- * downloadFile('https://example.com/file.zip', './downloads/file.zip')
+ * downloadFile('https://example.com/file.zip', './downloads/file.zip', (progress) => {
+ *   console.log(`Download progress: ${progress.percent}%`);
+ * })
  *   .then((path) => {
  *     console.log(`File downloaded to: ${path}`);
  *   })
  *   .catch((error) => {
  *     console.error('Download failed:', error);
  *   });
- */
-async function downloadFile(url, destination) {
+ **/
+async function downloadFile(url, destination, onProgress) {
   log.info(`Downloading ${url} to ${destination}...`)
 
   try {
-    // Ensure the directory exists
     const dir = path.dirname(destination)
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true })
     }
 
-    // Create a write stream
-    const writer = createWriteStream(destination)
-
-    // Download the file with electron's net module
     const response = await electronNet.fetch(url)
     if (!response.ok) {
       throw new Error(`Download failed with status ${response.status}`)
     }
 
-    // Pipe the response to the file
-    await pipeline(response.body, writer)
+    const totalBytes = Number(response.headers.get('Content-Length'))
+    const writer = createWriteStream(destination)
+    const reader = response.body.getReader()
 
-    log.info(`Download complete: ${destination}`)
+    let downloadedBytes = 0
+
+    // Custom function to read the stream
+    const readStream = async () => {
+      const { done, value } = await reader.read()
+
+      if (done) {
+        log.info(`Download complete: ${destination}`)
+        writer.end() // Close the write stream
+        return destination
+      }
+
+      // Write the chunk to the file
+      writer.write(value)
+      downloadedBytes += value.length
+
+      // Update progress
+      const progress = (downloadedBytes / totalBytes) * 100
+      onProgress({ totalBytes, downloadedBytes, percent: progress })
+      if (onProgress) {
+        onProgress({ totalBytes, downloadedBytes, percent: progress })
+      }
+
+      // Read the next chunk
+      return readStream()
+    }
+
+    await readStream() // Start reading the stream
+
     return destination
   } catch (error) {
     log.error(`Download failed: ${error.message}`)
@@ -148,6 +186,8 @@ const getMLModelLocalTarPath = ({ id, version }) =>
   join(getMLModelLocalRootDir(), 'archives', id, `${version}.tar.gz`)
 
 const getMLModelLocalInstallPath = ({ id, version }) => join(getMLModelLocalRootDir(), id, version)
+
+const getMLModelLocalDownloadManifest = () => join(getMLModelLocalRootDir(), 'manifest.yaml')
 
 function isMLModelDownloaded({ id, version }) {
   const localInstallPath = getMLModelLocalInstallPath({ id, version })
@@ -202,9 +242,13 @@ async function downloadPythonEnvironment({ id, version, downloadURL }) {
       }
     } else {
       log.info('Downloading the environment from', downloadURL)
-      await downloadFile(downloadURL, localTarPath)
+      await downloadFile(downloadURL, localTarPath, (progress) =>
+        log.info(`Progress ${JSON.stringify(progress)}`)
+      )
       log.info(`Extracting the archive ${localTarPath} to ${extractPath}`)
-      await extractTarGz(localTarPath, extractPath)
+      await extractTarGz(localTarPath, extractPath, (progress) =>
+        log.info(`Number of extracted files ${JSON.stringify(progress)}`)
+      )
       log.info('Cleaning the local archive: ', localTarPath)
       await fsPromises.unlink(localTarPath)
     }
@@ -221,11 +265,183 @@ async function downloadPythonEnvironment({ id, version, downloadURL }) {
   }
 }
 
+/**
+ * Reads the contents of a YAML file and parses it into a JavaScript object.
+ *
+ * This function checks if the specified YAML file exists. If it does, it reads the file's contents,
+ * parses the YAML data, and returns it as a JavaScript object. If the file does not exist,
+ * the function returns an empty structure with a default property `downloads` set to an empty array.
+ *
+ * @param {string} yamlFile - The path to the YAML file to be read.
+ * @returns {Object} The parsed contents of the YAML file, or an empty structure if the file does not exist.
+ *
+ * @example
+ * const config = yamlRead('./config.yaml');
+ * console.log(config.downloads);
+ */
+function yamlRead(yamlFile) {
+  if (existsSync(yamlFile)) {
+    const fileContents = readFileSync(yamlFile, 'utf8')
+    return yaml.load(fileContents) || {}
+  } else {
+    return {} // Return an empty structure if the file doesn't exist
+  }
+}
+
+enum InstallationState {
+  /** Indicates a successful installation. */
+  Success = 'success',
+  /** Indicates a failed installation. */
+  Failure = 'failure',
+  /** Indicates that the artifact is currently being downloaded. */
+  Download = 'download',
+  /** Indicates that the artifact is being cleaned up after installation. */
+  Clean = 'clean',
+  /** Indicates that the artifact is currently being extracted from its archive. */
+  Extract = 'extract'
+}
+
+/**
+ * Writes a JavaScript object to a YAML file.
+ *
+ * This function converts the provided data object into a YAML string format
+ * and writes it to the specified file path. If the file already exists,
+ * it will be overwritten. The function uses the `js-yaml` library to perform
+ * the conversion from the JavaScript object to YAML format.
+ *
+ * @param {Object} data - The JavaScript object to be converted and written to the YAML file.
+ * @param {string} yamlFile - The path to the file where the YAML data will be written.
+ *
+ * @example
+ * const data = {
+ *   name: "example",
+ *   version: "1.0.0",
+ *   contributors: ["Alice", "Bob"]
+ * };
+ * yamlWrite(data, './config.yaml');
+ */
+function yamlWrite(data, yamlFile) {
+  const yamlStr = yaml.dump(data)
+  writeFileSync(yamlFile, yamlStr, 'utf8')
+}
+
+/**
+ * Writes the specified ML model information to the manifest file.
+ *
+ * This function updates the manifest file with the current state and options
+ * for a given model identified by its ID and version. If the model already exists
+ * in the manifest, it will be updated; otherwise, it will be added.
+ *
+ * @param {Object} params - The parameters for writing to the manifest.
+ * @param {string} params.manifestFilepath - The path to the manifest file.
+ * @param {string} params.id - The identifier of the artifact
+ * @param {string} params.version - The version of the artifact
+ * @param {string} params.state - The current state of the download and install (e.g., success, failure).
+ * @param {Object} params.opts - Additional options related to the ML model.
+ */
+function writeToManifest({ manifestFilepath, progress, id, version, state, opts }) {
+  const manifest = yamlRead(manifestFilepath)
+  log.info('manifest content: ', JSON.stringify(manifest))
+  const yamlData = {
+    ...manifest,
+    [id]: {
+      ...manifest[id],
+      [version]: { state: state, progress: progress, opts: opts }
+    }
+  }
+  log.info('New manifest data: ', JSON.stringify(yamlData))
+  yamlWrite(yamlData, manifestFilepath)
+}
+
+/**
+ * Downloads a machine learning model from a specified URL and manages its installation.
+ *
+ * This function handles the downloading of the model archive from the provided URL,
+ * extracts it to the local installation path, and updates the installation manifest
+ * with the current state of the download process. If the model is already installed,
+ * the function will skip the download and return a success message. It also tracks
+ * the progress of the download and extraction process, updating the manifest accordingly.
+ *
+ * @async
+ * @param {Object} params - The parameters for downloading the model.
+ * @param {string} params.id - The unique identifier of the ML model to be downloaded.
+ * @param {string} params.version - The version of the ML model to be downloaded.
+ * @param {string} params.downloadURL - The URL from which to download the ML model.
+ * @returns {Promise<Object>} A promise that resolves to an object indicating the success
+ * of the operation and a corresponding message.
+ * @throws {Error} Throws an error if the download or extraction process fails.
+ *
+ * @example
+ * downloadMLModel({ id: 'model123', version: '1.0.0', downloadURL: 'https://example.com/model.zip' })
+ *   .then(result => {
+ *     console.log(result.message);
+ *   })
+ *   .catch(error => {
+ *     console.error('Error downloading model:', error.message);
+ *   });
+ */
 async function downloadMLModel({ id, version, downloadURL }) {
+  const localInstallPath = getMLModelLocalInstallPath({ id, version })
+  const extractPath = dirname(localInstallPath)
+  const localTarPath = getMLModelLocalTarPath({ id, version })
+  const manifestFilepath = getMLModelLocalDownloadManifest()
+
+  /**
+   * Progress states for the installation process of ML models.
+   *
+   * This object defines the various stages of the installation process,
+   * allowing for tracking of the current state and progress of downloading,
+   * extracting, cleaning up, and final success or failure.
+   *
+   * Each state is represented as a percentage indicating the completion
+   * of that specific stage in the overall installation workflow.
+   */
+  const installationStateProgress = {
+    [InstallationState.Failure]: 0,
+    // The Download stage indicates that the model is currently being downloaded.
+    // Once this stage is complete, it contributes 70% to the overall progress.
+    [InstallationState.Download]: 70,
+    // The Extract stage indicates that the model has been downloaded and is now being extracted.
+    // Upon completion, this stage contributes 98% to the overall progress.
+    [InstallationState.Extract]: 98,
+    // The Clean stage signifies that the installation process is cleaning up temporary files.
+    // Once this stage is finished, it marks 100% completion of the installation.
+    [InstallationState.Clean]: 100,
+    // The Success state indicates that the installation has completed successfully.
+    [InstallationState.Success]: 100
+  }
+
+  const manifest = yamlRead(manifestFilepath)
+  log.info('manifest filepath: ', manifestFilepath)
+  log.info('manifest content: ', manifest)
+  const manifestOpts = { archivePath: localTarPath, installPath: localInstallPath }
+
+  let previousProgress = 0
+  const flushProgressIncrementThreshold = 1
+
+  const onProgressDownload = ({ percent }) => {
+    const progress = (percent * installationStateProgress[InstallationState.Download]) / 100
+    if (progress > previousProgress + flushProgressIncrementThreshold) {
+      writeToManifest({
+        manifestFilepath,
+        id,
+        version,
+        state: InstallationState.Download,
+        progress: progress,
+        opts: manifestOpts
+      })
+      previousProgress = progress
+    }
+  }
   try {
-    const localInstallPath = getMLModelLocalInstallPath({ id, version })
-    const extractPath = dirname(localInstallPath)
-    const localTarPath = getMLModelLocalTarPath({ id, version })
+    writeToManifest({
+      manifestFilepath,
+      id,
+      version,
+      progress: installationStateProgress[InstallationState.Download],
+      state: InstallationState.Download,
+      opts: manifestOpts
+    })
     if (existsSync(localInstallPath)) {
       log.info(`Model already installed in ${localInstallPath}, skipping.`)
       return {
@@ -234,11 +450,37 @@ async function downloadMLModel({ id, version, downloadURL }) {
       }
     } else {
       log.info('Downloading the model from', downloadURL)
-      await downloadFile(downloadURL, localTarPath)
+      await downloadFile(downloadURL, localTarPath, onProgressDownload)
+      writeToManifest({
+        manifestFilepath,
+        id,
+        version,
+        state: InstallationState.Extract,
+        progress: installationStateProgress[InstallationState.Download],
+        opts: manifestOpts
+      })
       log.info(`Extracting the archive ${localTarPath} to ${extractPath}`)
-      await extractTarGz(localTarPath, extractPath)
+      await extractTarGz(localTarPath, extractPath, (progress) =>
+        log.info(`Number of extracted files ${JSON.stringify(progress)}`)
+      )
+      writeToManifest({
+        manifestFilepath,
+        id,
+        version,
+        state: InstallationState.Clean,
+        progress: installationStateProgress[InstallationState.Extract],
+        opts: manifestOpts
+      })
       log.info('Cleaning the local archive: ', localTarPath)
       await fsPromises.unlink(localTarPath)
+      writeToManifest({
+        manifestFilepath,
+        id,
+        version,
+        state: InstallationState.Success,
+        opts: manifestOpts,
+        progress: installationStateProgress[InstallationState.Clean]
+      })
       return {
         success: true,
         message: 'Model downloaded and extracted successfully'
@@ -246,6 +488,14 @@ async function downloadMLModel({ id, version, downloadURL }) {
     }
   } catch (error) {
     log.error('Failed to download model:', error)
+    writeToManifest({
+      manifestFilepath,
+      id,
+      version,
+      state: InstallationState.Failure,
+      opts: manifestOpts,
+      progress: installationStateProgress[InstallationState.Failure]
+    })
     return {
       success: false,
       message: `Failed to download model: ${error.message}`
@@ -255,6 +505,8 @@ async function downloadMLModel({ id, version, downloadURL }) {
 
 const getMLModelEnvironmentRootDir = () =>
   join(app.getPath('userData'), 'python-environments', 'conda')
+
+const getMLEnvironmentDownloadManifest = () => join(getMLModelEnvironmentRootDir(), 'manifest.yaml')
 
 const getMLModelEnvironmentLocalInstallPath = ({ version, id }) => {
   return join(getMLModelEnvironmentRootDir(), id, version)
@@ -388,11 +640,14 @@ async function startSpeciesNetHTTPServer({
     pythonEnvironment.reference.id
   )
   log.info('Local Python Environment root dir is', localInstalRootDirPythonEnvironment)
-  // FIXME: this works for the dev environment but not for prod.
-  // Make sure the build steps include the python script as a resource in the electron buil
+  // TODO: Make sure the build steps include the python script as a resource in the electron buil
   // use app.getResource to target the python script
-  const scriptPath = join(__dirname, '../../python-environments/common/run_speciesnet_server.py')
-  const pythonInterpreter = join(localInstalRootDirPythonEnvironment, 'bin', 'python')
+  const scriptPath = is.dev
+    ? join(__dirname, '../../python-environments/common/run_speciesnet_server.py')
+    : join(process.resourcesPath, 'python-environments', 'common', 'run_speciesnet_server.py')
+  const pythonInterpreter = is.dev
+    ? join(__dirname, '../../python-environments/common/.venv/bin/python')
+    : join(localInstalRootDirPythonEnvironment, 'bin', 'python')
   log.info('Python Interpreter found in', pythonInterpreter)
   log.info('Script path is', scriptPath)
   const scriptArgs = [

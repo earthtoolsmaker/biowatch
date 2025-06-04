@@ -1009,11 +1009,6 @@ app.whenReady().then(async () => {
     return checkModelStatus()
   })
 
-  // Add model download handler
-  ipcMain.handle('download-model', async () => {
-    return await downloadModel()
-  })
-
   registerMLModelManagementIPCHandlers()
 })
 
@@ -1057,40 +1052,4 @@ function checkModelStatus() {
   }
 
   return { isDownloaded: false }
-}
-
-async function downloadModel() {
-  // if (is.dev) {
-  //   // In dev mode, just return success
-  //   return { success: true, message: "Model already available in dev mode" }
-  // }
-
-  try {
-    const extractPath = join(app.getPath('userData'), 'species-data')
-    const baseURL = 'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/'
-    const osName =
-      process.platform === 'win32' ? 'Windows' : process.platform === 'linux' ? 'Linux' : 'macOS'
-
-    const envDownloadUrl = `${baseURL}species-env-${osName}.tar.gz`
-    const downloadedTarPath = join(app.getPath('userData'), `species-env.tar.gz`)
-
-    // Download the environment
-    log.info('Downloading environment file...')
-    await downloadFile(envDownloadUrl, downloadedTarPath)
-
-    // Extract the environment
-    log.info('Extracting downloaded environment...')
-    await extractTarGz(downloadedTarPath, extractPath)
-
-    return {
-      success: true,
-      message: 'Model downloaded and extracted successfully'
-    }
-  } catch (error) {
-    log.error('Failed to download model:', error)
-    return {
-      success: false,
-      message: `Failed to download model: ${error.message}`
-    }
-  }
 }
