@@ -2,6 +2,7 @@ import { NavLink, Navigate, Route, Routes } from 'react-router'
 import { ErrorBoundary } from 'react-error-boundary'
 import { BrainCircuit, Info, Github, Earth } from 'lucide-react'
 import Zoo from './model_zoo'
+import { modelZoo } from '../../shared/mlmodels'
 
 function SettingsFooter() {
   return (
@@ -144,7 +145,7 @@ export default function SettingsPage() {
             element={
               <ErrorBoundary FallbackComponent={ErrorFallback} key={'ml_zoo'}>
                 <>
-                  <Zoo />
+                  <Zoo modelZoo={modelZoo} />
                   <SettingsFooter />
                 </>
               </ErrorBoundary>

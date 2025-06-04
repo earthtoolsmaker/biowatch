@@ -10,19 +10,7 @@ import {
   Server
 } from 'lucide-react'
 import constants from '../../common/constants.js'
-
-const platformToKey = (platform) => {
-  return platform === 'win32' ? 'windows' : platform === 'linux' ? 'linux' : 'mac'
-}
-
-function findPythonEnvironment({ id, version }) {
-  const matchingEnvironments = constants.PYTHON_ENVIRONMENTS.filter(
-    (env) => env.reference.id === id && env.reference.version === version
-  )
-
-  // Return the first matching environment or null if none found
-  return matchingEnvironments.length > 0 ? matchingEnvironments[0] : null
-}
+import { platformToKey, findPythonEnvironment } from '../../shared/mlmodels'
 
 function ModelCard({ model, pythonEnvironment, platform, isDev }) {
   const [isDownloading, setIsDownloading] = useState(false)
@@ -219,7 +207,7 @@ function ModelCard({ model, pythonEnvironment, platform, isDev }) {
   )
 }
 
-export default function Zoo() {
+export default function Zoo({ modelZoo }) {
   const handleClearAllMLModels = async () => {
     console.log('handling clear all...')
     try {
@@ -240,11 +228,11 @@ export default function Zoo() {
         </button>
       </div>
       <div className="flex flex-wrap p-8 pt-6 gap-4 justify-start">
-        {constants.MODEL_ZOO.map((entry) => (
+        {modelZoo.map((entry) => (
           <ModelCard
             key={entry.reference.id}
             model={entry}
-            pythonEnvironment={findPythonEnvironment(entry.python_environment)}
+            pythonEnvironment={findPythonEnvironment(entry.pythonEnvironment)}
             platform={window.electron.process.platform}
             isDev={window.electron.process.env.NODE_ENV == 'development'}
           />
