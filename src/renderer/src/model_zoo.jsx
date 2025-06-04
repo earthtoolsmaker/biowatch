@@ -57,6 +57,21 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false }) {
         modelReference: model.reference,
         pythonEnvironmentReference: pythonEnvironment.reference
       })
+      if (
+        downloadStatus['model']['state'] === 'success' &&
+        downloadStatus['pythonEnvironment']['state'] === 'success'
+      ) {
+        setIsDownloaded(true)
+        setIsDownloading(false)
+      }
+      if (
+        (downloadStatus['model']['state'] !== 'success' &&
+          Object.keys(downloadStatus['model']).length !== 0) ||
+        (downloadStatus['pythonEnvironment']['state'] !== 'success' &&
+          Object.keys(downloadStatus['pythonEnvironment']).length !== 0)
+      ) {
+        setIsDownloading(true)
+      }
       setModelDownloadStatus(downloadStatus)
     }
 
@@ -104,12 +119,12 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false }) {
       console.log('downloading python environment')
       await window.api.downloadPythonEnvironment({ ...pythonEnvironment.reference })
       setIsDownloaded(true)
-      setIsDownloading(false)
       const downloadStatus = await window.api.getMLModelDownloadStatus({
         modelReference: model.reference,
         pythonEnvironmentReference: pythonEnvironment.reference
       })
       setModelDownloadStatus(downloadStatus)
+      setIsDownloading(false)
     } catch (error) {
       setIsDownloading(false)
       console.error('Failed to download model:', error)

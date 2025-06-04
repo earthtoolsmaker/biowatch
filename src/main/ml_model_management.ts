@@ -216,6 +216,15 @@ async function clearAllLocalMLModels() {
 async function deleteLocalMLModel({ id, version }) {
   const localTarPath = getMLModelLocalTarPath({ id, version })
   const localInstallPath = getMLModelLocalInstallPath({ id, version })
+  const manifestFilepath = getMLModelLocalDownloadManifest()
+  writeToManifest({
+    manifestFilepath,
+    progress: 0,
+    id,
+    version,
+    state: InstallationState.Download,
+    opts: {}
+  })
   log.info('local tar path:', localTarPath)
   if (existsSync(localTarPath)) {
     log.info('delete local tar path:', localTarPath)
