@@ -79,12 +79,11 @@ const api = {
     )
   },
   // ML Model Management
-  downloadMLModel: async ({ id, version, downloadURL }) => {
+  downloadMLModel: async ({ id, version }) => {
     return await electronAPI.ipcRenderer.invoke(
       'ml-model-management:v0:download-ml-model',
       id,
-      version,
-      downloadURL
+      version
     )
   },
   deleteLocalMLModel: async ({ id, version }) => {

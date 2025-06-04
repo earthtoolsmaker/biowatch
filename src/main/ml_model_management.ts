@@ -27,6 +27,7 @@ import {
 import log from 'electron-log'
 import path from 'path'
 import kill from 'tree-kill'
+import { findModel, findPythonEnvironment, platformToKey } from '../shared/mlmodels'
 
 /**
  * Extracts a .tar.gz archive to a specified directory.
@@ -230,10 +231,57 @@ async function deleteLocalMLModel({ id, version }) {
   }
 }
 
-async function downloadPythonEnvironment({ id, version, downloadURL }) {
+async function downloadPythonEnvironment({ id, version }) {
+  const installationStateProgress = {
+    [InstallationState.Failure]: 0,
+    // The Download stage indicates that the model is currently being downloaded.
+    // Once this stage is complete, it contributes 70% to the overall progress.
+    [InstallationState.Download]: 70,
+    // The Extract stage indicates that the model has been downloaded and is now being extracted.
+    // Upon completion, this stage contributes 98% to the overall progress.
+    [InstallationState.Extract]: 98,
+    // The Clean stage signifies that the installation process is cleaning up temporary files.
+    // Once this stage is finished, it marks 100% completion of the installation.
+    [InstallationState.Clean]: 100,
+    // The Success state indicates that the installation has completed successfully.
+    [InstallationState.Success]: 100
+  }
+  const env = findPythonEnvironment({ id, version })
+  log.info(`env: ${env}`)
+  const platformKey = platformToKey(process.platform)
+  log.info('downloadPythonEnvironment: platformKey is ', platformKey)
+  const { downloadURL } = env['platform'][platformKey]
+  log.info('downloadPythonEnvironment: download URL is ', downloadURL)
+  const extractPath = getMLModelEnvironmentLocalInstallPath({ id, version })
+  log.info('extractPath: ', extractPath)
+  const localTarPath = getMLModelEnvironmentLocalTarPath({ id, version })
+  log.info('localTarPath: ', localTarPath)
+  const manifestFilepath = getMLEnvironmentDownloadManifest()
+
+  const manifest = yamlRead(manifestFilepath)
+  log.info('manifest filepath: ', manifestFilepath)
+  log.info('manifest content: ', manifest)
+  const manifestOpts = { archivePath: localTarPath, installPath: extractPath }
+
+  let previousProgress = 0
+  const flushProgressIncrementThreshold = 1
+
+  const onProgressDownload = ({ percent }) => {
+    const progress = (percent * installationStateProgress[InstallationState.Download]) / 100
+    if (progress > previousProgress + flushProgressIncrementThreshold) {
+      writeToManifest({
+        manifestFilepath,
+        id,
+        version,
+        state: InstallationState.Download,
+        progress: progress,
+        opts: manifestOpts
+      })
+      previousProgress = progress
+    }
+  }
+
   try {
-    const extractPath = getMLModelEnvironmentLocalInstallPath({ id, version })
-    const localTarPath = getMLModelEnvironmentLocalTarPath({ id, version })
     if (existsSync(extractPath)) {
       log.info(`Python environment already installed in ${extractPath}, skipping.`)
       return {
@@ -242,15 +290,45 @@ async function downloadPythonEnvironment({ id, version, downloadURL }) {
       }
     } else {
       log.info('Downloading the environment from', downloadURL)
-      await downloadFile(downloadURL, localTarPath, (progress) =>
-        log.info(`Progress ${JSON.stringify(progress)}`)
-      )
+      writeToManifest({
+        manifestFilepath,
+        id,
+        version,
+        progress: 0,
+        state: InstallationState.Download,
+        opts: manifestOpts
+      })
+      await downloadFile(downloadURL, localTarPath, onProgressDownload)
+      writeToManifest({
+        manifestFilepath,
+        id,
+        version,
+        state: InstallationState.Extract,
+        progress: installationStateProgress[InstallationState.Download],
+        opts: manifestOpts
+      })
       log.info(`Extracting the archive ${localTarPath} to ${extractPath}`)
       await extractTarGz(localTarPath, extractPath, (progress) =>
         log.info(`Number of extracted files ${JSON.stringify(progress)}`)
       )
+      writeToManifest({
+        manifestFilepath,
+        id,
+        version,
+        state: InstallationState.Clean,
+        progress: installationStateProgress[InstallationState.Extract],
+        opts: manifestOpts
+      })
       log.info('Cleaning the local archive: ', localTarPath)
       await fsPromises.unlink(localTarPath)
+      writeToManifest({
+        manifestFilepath,
+        id,
+        version,
+        state: InstallationState.Success,
+        opts: manifestOpts,
+        progress: installationStateProgress[InstallationState.Success]
+      })
     }
     return {
       success: true,
@@ -258,6 +336,14 @@ async function downloadPythonEnvironment({ id, version, downloadURL }) {
     }
   } catch (error) {
     log.error('Failed to download the Python Environment:', error)
+    writeToManifest({
+      manifestFilepath,
+      id,
+      version,
+      state: InstallationState.Failure,
+      opts: manifestOpts,
+      progress: installationStateProgress[InstallationState.Failure]
+    })
     return {
       success: false,
       message: `Failed to download the Python Environment: ${error.message}`
@@ -366,13 +452,12 @@ function writeToManifest({ manifestFilepath, progress, id, version, state, opts 
  * @param {Object} params - The parameters for downloading the model.
  * @param {string} params.id - The unique identifier of the ML model to be downloaded.
  * @param {string} params.version - The version of the ML model to be downloaded.
- * @param {string} params.downloadURL - The URL from which to download the ML model.
  * @returns {Promise<Object>} A promise that resolves to an object indicating the success
  * of the operation and a corresponding message.
  * @throws {Error} Throws an error if the download or extraction process fails.
  *
  * @example
- * downloadMLModel({ id: 'model123', version: '1.0.0', downloadURL: 'https://example.com/model.zip' })
+ * downloadMLModel({ id: 'model123', version: '1.0.0' })
  *   .then(result => {
  *     console.log(result.message);
  *   })
@@ -380,7 +465,9 @@ function writeToManifest({ manifestFilepath, progress, id, version, state, opts 
  *     console.error('Error downloading model:', error.message);
  *   });
  */
-async function downloadMLModel({ id, version, downloadURL }) {
+async function downloadMLModel({ id, version }) {
+  const { downloadURL } = findModel({ id, version })
+  log.info('downloadMLModel: Download URL is ', downloadURL)
   const localInstallPath = getMLModelLocalInstallPath({ id, version })
   const extractPath = dirname(localInstallPath)
   const localTarPath = getMLModelLocalTarPath({ id, version })
@@ -434,14 +521,6 @@ async function downloadMLModel({ id, version, downloadURL }) {
     }
   }
   try {
-    writeToManifest({
-      manifestFilepath,
-      id,
-      version,
-      progress: installationStateProgress[InstallationState.Download],
-      state: InstallationState.Download,
-      opts: manifestOpts
-    })
     if (existsSync(localInstallPath)) {
       log.info(`Model already installed in ${localInstallPath}, skipping.`)
       return {
@@ -449,6 +528,14 @@ async function downloadMLModel({ id, version, downloadURL }) {
         message: 'Model downloaded and extracted successfully'
       }
     } else {
+      writeToManifest({
+        manifestFilepath,
+        id,
+        version,
+        progress: 0,
+        state: InstallationState.Download,
+        opts: manifestOpts
+      })
       log.info('Downloading the model from', downloadURL)
       await downloadFile(downloadURL, localTarPath, onProgressDownload)
       writeToManifest({
@@ -479,7 +566,7 @@ async function downloadMLModel({ id, version, downloadURL }) {
         version,
         state: InstallationState.Success,
         opts: manifestOpts,
-        progress: installationStateProgress[InstallationState.Clean]
+        progress: installationStateProgress[InstallationState.Success]
       })
       return {
         success: true,
@@ -508,11 +595,13 @@ const getMLModelEnvironmentRootDir = () =>
 
 const getMLEnvironmentDownloadManifest = () => join(getMLModelEnvironmentRootDir(), 'manifest.yaml')
 
-const getMLModelEnvironmentLocalInstallPath = ({ version, id }) => {
-  return join(getMLModelEnvironmentRootDir(), id, version)
+function getMLModelEnvironmentLocalInstallPath({ version, id }) {
+  return join(getMLModelEnvironmentRootDir(), `${id}`, `${version}`)
 }
 
-const getMLModelEnvironmentLocalTarPath = () => join(getMLModelEnvironmentRootDir(), 'archives')
+function getMLModelEnvironmentLocalTarPath({ id, version }) {
+  return join(getMLModelEnvironmentRootDir(), 'archives', id, version)
+}
 
 export const registerMLModelManagementIPCHandlers = () => {
   // Add IPC handler to check whether the ML model is properly installed locally
@@ -529,18 +618,12 @@ export const registerMLModelManagementIPCHandlers = () => {
     clearAllLocalMLModels()
   )
 
-  ipcMain.handle(
-    'ml-model-management:v0:download-ml-model',
-    async (_, id, version, downloadURL, format) => {
-      return await downloadMLModel({ id, version, downloadURL, format })
-    }
-  )
-  ipcMain.handle(
-    'ml-model-management:v0:download-python-environment',
-    async (_, id, version, downloadURL) => {
-      return await downloadPythonEnvironment({ id, version, downloadURL })
-    }
-  )
+  ipcMain.handle('ml-model-management:v0:download-ml-model', async (_, id, version) => {
+    return await downloadMLModel({ id, version })
+  })
+  ipcMain.handle('ml-model-management:v0:download-python-environment', async (_, id, version) => {
+    return await downloadPythonEnvironment({ id, version })
+  })
   ipcMain.handle('ml-model-management:v0:stop-ml-model-http-server', async (_, pid) => {
     return await stopMLModelHTTPServer({ pid })
   })

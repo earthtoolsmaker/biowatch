@@ -9,7 +9,6 @@ import {
   Book,
   Server
 } from 'lucide-react'
-import constants from '../../common/constants.js'
 import { platformToKey, findPythonEnvironment } from '../../shared/mlmodels'
 
 function ModelCard({ model, pythonEnvironment, platform, isDev }) {
@@ -77,15 +76,9 @@ function ModelCard({ model, pythonEnvironment, platform, isDev }) {
     console.log('handling download...')
     setIsDownloading(true)
     try {
-      await window.api.downloadMLModel(modelReference)
+      // await window.api.downloadMLModel(modelReference)
       console.log('downloading python environment')
-      const platformKey = platformToKey(platform)
-      const downloadURL = pythonEnvironment.reference.downloadURL[platformKey]
-      await window.api.downloadPythonEnvironment({
-        version: pythonEnvironment.reference.version,
-        id: pythonEnvironment.reference.id,
-        downloadURL: downloadURL
-      })
+      await window.api.downloadPythonEnvironment({ ...pythonEnvironment.reference })
       setIsDownloaded(true)
       setIsDownloading(false)
     } catch (error) {
@@ -105,7 +98,8 @@ function ModelCard({ model, pythonEnvironment, platform, isDev }) {
       <ul className="text-sm p-2">
         <li>🧠 Model Size: {size_in_MiB} MiB</li>
         <li>
-          🐍 Python Environment Size: {pythonEnvironment.size_in_MiB[platformToKey(platform)]} MiB
+          🐍 Python Environment Size:{' '}
+          {pythonEnvironment['platform'][platformToKey(platform)]['size_in_MiB']} MiB
         </li>
       </ul>
       <div className="flex justify-center p-2 gap-2">

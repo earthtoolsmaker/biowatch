@@ -16,19 +16,29 @@ export const pythonEnvironments = [
     type: 'conda',
     reference: {
       id: 'common',
-      version: '0.1.0',
-      downloadURL: {
-        mac: 'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.0-macOS.tar.gz',
-        linux:
-          'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.0-Linux.tar.gz',
-        windows:
-          'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.0-Windows.tar.gz'
-      }
+      version: '0.1.0'
     },
-    size_in_MiB: {
-      mac: 367,
-      windows: 522,
-      linux: 3220
+    platform: {
+      mac: {
+        downloadURL:
+          'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.0-macOS.tar.gz',
+        size_in_MiB: 367,
+        // TODO: check
+        files: 3000
+      },
+      linux: {
+        downloadURL:
+          'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.0-Linux.tar.gz',
+        size_in_MiB: 3220,
+        files: 54247
+      },
+      windows: {
+        downloadURL:
+          'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.0-Windows.tar.gz',
+        size_in_MiB: 522,
+        // TODO: check
+        files: 3000
+      }
     }
   }
 ]
@@ -41,19 +51,15 @@ export const modelZoo = [
    * a description of the model, and a link to the model's website.
    */
   {
+    reference: {
+      id: 'speciesnet',
+      version: '4.0.1a'
+    },
     name: 'SpeciesNet',
     pythonEnvironment: { id: 'common', version: '0.1.0' },
     size_in_MiB: 468,
-    reference: {
-      id: 'speciesnet',
-      // FIXME:
-      version: '4.0.1a',
-      downloadURL:
-        'https://huggingface.co/earthtoolsmaker/speciesnet/resolve/main/4.0.1a.tar.gz?download=true'
-      // version: '4.0.1z',
-      // downloadURL:
-      //   'https://huggingface.co/earthtoolsmaker/speciesnet/resolve/main/4.0.1z.tar.gz?download=true'
-    },
+    downloadURL:
+      'https://huggingface.co/earthtoolsmaker/speciesnet/resolve/main/4.0.1a.tar.gz?download=true',
     description:
       "Google's SpeciesNet is an open-source AI model launched in 2025, specifically designed for identifying animal species from images captured by camera traps. It boasts the capability to classify images into over 2,000 species labels, greatly enhancing the efficiency of wildlife data analysis for conservation initiatives.",
     website: 'https://github.com/google/cameratrapai'
@@ -76,6 +82,24 @@ export function findPythonEnvironment({ id, version }) {
 
   // Return the first matching environment or null if none found
   return matchingEnvironments.length > 0 ? matchingEnvironments[0] : null
+}
+
+/**
+ * Finds and returns a model configuration that matches the given
+ * id and version. If no matching model is found, returns null.
+ *
+ * @param {Object} params - The parameters for finding the model.
+ * @param {string} params.id - The identifier of the model.
+ * @param {string} params.version - The version of the model.
+ * @returns {Object|null} The matching model object or null if not found.
+ */
+export function findModel({ id, version }) {
+  const matchingModels = modelZoo.filter(
+    (env) => env.reference.id === id && env.reference.version === version
+  )
+
+  // Return the first matching environment or null if none found
+  return matchingModels.length > 0 ? matchingModels[0] : null
 }
 
 /**
