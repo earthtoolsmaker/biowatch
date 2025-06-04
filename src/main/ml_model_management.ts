@@ -162,7 +162,6 @@ async function downloadFile(url, destination, onProgress) {
 
       // Update progress
       const progress = (downloadedBytes / totalBytes) * 100
-      log.info(`Download progress: ${progress}%`)
       onProgress({ totalBytes, downloadedBytes, percent: progress })
       if (onProgress) {
         onProgress({ totalBytes, downloadedBytes, percent: progress })
@@ -188,7 +187,7 @@ const getMLModelLocalTarPath = ({ id, version }) =>
 
 const getMLModelLocalInstallPath = ({ id, version }) => join(getMLModelLocalRootDir(), id, version)
 
-const getMLModelLocalDownloadMetadata = () => join(getMLModelLocalRootDir(), 'metadata.yaml')
+const getMLModelLocalDownloadManifest = () => join(getMLModelLocalRootDir(), 'manifest.yaml')
 
 function isMLModelDownloaded({ id, version }) {
   const localInstallPath = getMLModelLocalInstallPath({ id, version })
@@ -289,6 +288,19 @@ function yamlRead(yamlFile) {
   }
 }
 
+enum InstallationState {
+  /** Indicates a successful installation. */
+  Success = 'success',
+  /** Indicates a failed installation. */
+  Failure = 'failure',
+  /** Indicates that the artifact is currently being downloaded. */
+  Download = 'download',
+  /** Indicates that the artifact is being cleaned up after installation. */
+  Clean = 'clean',
+  /** Indicates that the artifact is currently being extracted from its archive. */
+  Extract = 'extract'
+}
+
 /**
  * Writes a JavaScript object to a YAML file.
  *
@@ -313,27 +325,123 @@ function yamlWrite(data, yamlFile) {
   writeFileSync(yamlFile, yamlStr, 'utf8')
 }
 
-async function downloadMLModel({ id, version, downloadURL }) {
-  try {
-    const localInstallPath = getMLModelLocalInstallPath({ id, version })
-    const extractPath = dirname(localInstallPath)
-    const localTarPath = getMLModelLocalTarPath({ id, version })
-    const metadataDownloadFilepath = getMLModelLocalDownloadMetadata()
-    const metadata = yamlRead(metadataDownloadFilepath)
-    log.info('metadata filepath: ', metadataDownloadFilepath)
-    log.info('metadata content: ', metadata)
-    const metadataNew = {
-      ...metadata,
-      [id]: {
-        [version]: {
-          state: 'downloading',
-          archivePath: localTarPath,
-          installPath: localInstallPath
-        }
-      }
+/**
+ * Writes the specified ML model information to the manifest file.
+ *
+ * This function updates the manifest file with the current state and options
+ * for a given model identified by its ID and version. If the model already exists
+ * in the manifest, it will be updated; otherwise, it will be added.
+ *
+ * @param {Object} params - The parameters for writing to the manifest.
+ * @param {string} params.manifestFilepath - The path to the manifest file.
+ * @param {string} params.id - The identifier of the artifact
+ * @param {string} params.version - The version of the artifact
+ * @param {string} params.state - The current state of the download and install (e.g., success, failure).
+ * @param {Object} params.opts - Additional options related to the ML model.
+ */
+function writeToManifest({ manifestFilepath, progress, id, version, state, opts }) {
+  const manifest = yamlRead(manifestFilepath)
+  log.info('manifest content: ', JSON.stringify(manifest))
+  const yamlData = {
+    ...manifest,
+    [id]: {
+      ...manifest[id],
+      [version]: { state: state, progress: progress, opts: opts }
     }
-    log.info('updated metadata: ', metadataNew)
-    yamlWrite(metadataNew, metadataDownloadFilepath)
+  }
+  log.info('New manifest data: ', JSON.stringify(yamlData))
+  yamlWrite(yamlData, manifestFilepath)
+}
+
+/**
+ * Downloads a machine learning model from a specified URL and manages its installation.
+ *
+ * This function handles the downloading of the model archive from the provided URL,
+ * extracts it to the local installation path, and updates the installation manifest
+ * with the current state of the download process. If the model is already installed,
+ * the function will skip the download and return a success message. It also tracks
+ * the progress of the download and extraction process, updating the manifest accordingly.
+ *
+ * @async
+ * @param {Object} params - The parameters for downloading the model.
+ * @param {string} params.id - The unique identifier of the ML model to be downloaded.
+ * @param {string} params.version - The version of the ML model to be downloaded.
+ * @param {string} params.downloadURL - The URL from which to download the ML model.
+ * @returns {Promise<Object>} A promise that resolves to an object indicating the success
+ * of the operation and a corresponding message.
+ * @throws {Error} Throws an error if the download or extraction process fails.
+ *
+ * @example
+ * downloadMLModel({ id: 'model123', version: '1.0.0', downloadURL: 'https://example.com/model.zip' })
+ *   .then(result => {
+ *     console.log(result.message);
+ *   })
+ *   .catch(error => {
+ *     console.error('Error downloading model:', error.message);
+ *   });
+ */
+async function downloadMLModel({ id, version, downloadURL }) {
+  const localInstallPath = getMLModelLocalInstallPath({ id, version })
+  const extractPath = dirname(localInstallPath)
+  const localTarPath = getMLModelLocalTarPath({ id, version })
+  const manifestFilepath = getMLModelLocalDownloadManifest()
+
+  /**
+   * Progress states for the installation process of ML models.
+   *
+   * This object defines the various stages of the installation process,
+   * allowing for tracking of the current state and progress of downloading,
+   * extracting, cleaning up, and final success or failure.
+   *
+   * Each state is represented as a percentage indicating the completion
+   * of that specific stage in the overall installation workflow.
+   */
+  const installationStateProgress = {
+    [InstallationState.Failure]: 0,
+    // The Download stage indicates that the model is currently being downloaded.
+    // Once this stage is complete, it contributes 70% to the overall progress.
+    [InstallationState.Download]: 70,
+    // The Extract stage indicates that the model has been downloaded and is now being extracted.
+    // Upon completion, this stage contributes 98% to the overall progress.
+    [InstallationState.Extract]: 98,
+    // The Clean stage signifies that the installation process is cleaning up temporary files.
+    // Once this stage is finished, it marks 100% completion of the installation.
+    [InstallationState.Clean]: 100,
+    // The Success state indicates that the installation has completed successfully.
+    [InstallationState.Success]: 100
+  }
+
+  const manifest = yamlRead(manifestFilepath)
+  log.info('manifest filepath: ', manifestFilepath)
+  log.info('manifest content: ', manifest)
+  const manifestOpts = { archivePath: localTarPath, installPath: localInstallPath }
+
+  let previousProgress = 0
+  const flushProgressIncrementThreshold = 1
+
+  const onProgressDownload = ({ percent }) => {
+    const progress = (percent * installationStateProgress[InstallationState.Download]) / 100
+    if (progress > previousProgress + flushProgressIncrementThreshold) {
+      writeToManifest({
+        manifestFilepath,
+        id,
+        version,
+        state: InstallationState.Download,
+        progress: progress,
+        opts: manifestOpts
+      })
+      previousProgress = progress
+    }
+  }
+  try {
+    writeToManifest({
+      manifestFilepath,
+      id,
+      version,
+      progress: installationStateProgress[InstallationState.Download],
+      state: InstallationState.Download,
+      opts: manifestOpts
+    })
     if (existsSync(localInstallPath)) {
       log.info(`Model already installed in ${localInstallPath}, skipping.`)
       return {
@@ -342,54 +450,37 @@ async function downloadMLModel({ id, version, downloadURL }) {
       }
     } else {
       log.info('Downloading the model from', downloadURL)
-      await downloadFile(downloadURL, localTarPath, (progress) =>
-        log.info(`Progress ${JSON.stringify(progress)}`)
-      )
-      yamlWrite(
-        {
-          ...metadata,
-          [id]: {
-            [version]: {
-              state: 'extracting',
-              archivePath: localTarPath,
-              installPath: localInstallPath
-            }
-          }
-        },
-        metadataDownloadFilepath
-      )
+      await downloadFile(downloadURL, localTarPath, onProgressDownload)
+      writeToManifest({
+        manifestFilepath,
+        id,
+        version,
+        state: InstallationState.Extract,
+        progress: installationStateProgress[InstallationState.Download],
+        opts: manifestOpts
+      })
       log.info(`Extracting the archive ${localTarPath} to ${extractPath}`)
       await extractTarGz(localTarPath, extractPath, (progress) =>
         log.info(`Number of extracted files ${JSON.stringify(progress)}`)
       )
-      yamlWrite(
-        {
-          ...metadata,
-          [id]: {
-            [version]: {
-              state: 'cleaning',
-              archivePath: localTarPath,
-              installPath: localInstallPath
-            }
-          }
-        },
-        metadataDownloadFilepath
-      )
+      writeToManifest({
+        manifestFilepath,
+        id,
+        version,
+        state: InstallationState.Clean,
+        progress: installationStateProgress[InstallationState.Extract],
+        opts: manifestOpts
+      })
       log.info('Cleaning the local archive: ', localTarPath)
       await fsPromises.unlink(localTarPath)
-      yamlWrite(
-        {
-          ...metadata,
-          [id]: {
-            [version]: {
-              state: 'success',
-              archivePath: localTarPath,
-              installPath: localInstallPath
-            }
-          }
-        },
-        metadataDownloadFilepath
-      )
+      writeToManifest({
+        manifestFilepath,
+        id,
+        version,
+        state: InstallationState.Success,
+        opts: manifestOpts,
+        progress: installationStateProgress[InstallationState.Clean]
+      })
       return {
         success: true,
         message: 'Model downloaded and extracted successfully'
@@ -397,6 +488,14 @@ async function downloadMLModel({ id, version, downloadURL }) {
     }
   } catch (error) {
     log.error('Failed to download model:', error)
+    writeToManifest({
+      manifestFilepath,
+      id,
+      version,
+      state: InstallationState.Failure,
+      opts: manifestOpts,
+      progress: installationStateProgress[InstallationState.Failure]
+    })
     return {
       success: false,
       message: `Failed to download model: ${error.message}`
@@ -406,6 +505,8 @@ async function downloadMLModel({ id, version, downloadURL }) {
 
 const getMLModelEnvironmentRootDir = () =>
   join(app.getPath('userData'), 'python-environments', 'conda')
+
+const getMLEnvironmentDownloadManifest = () => join(getMLModelEnvironmentRootDir(), 'manifest.yaml')
 
 const getMLModelEnvironmentLocalInstallPath = ({ version, id }) => {
   return join(getMLModelEnvironmentRootDir(), id, version)
