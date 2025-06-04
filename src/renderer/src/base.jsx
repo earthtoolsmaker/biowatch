@@ -4,7 +4,6 @@ import { ErrorBoundary } from 'react-error-boundary'
 import { HashRouter, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router'
 import Import from './import'
 import Study from './study'
-import Zoo from './model_zoo'
 import SettingsPage from './settings'
 
 function ErrorFallback({ error, resetErrorBoundary }) {

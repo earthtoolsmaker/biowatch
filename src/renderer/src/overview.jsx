@@ -1,8 +1,12 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import ReactDOMServer from 'react-dom/server'
 import L from 'leaflet'
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
 import { Camera, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useImportStatus } from '@renderer/hooks/import'
+
+// Create a module-level cache for common names that persists across component unmounts
+const commonNamesCache = {}
 
 function DeploymentMap({ deployments }) {
   if (!deployments || deployments.length === 0) {
@@ -96,8 +100,6 @@ function DeploymentMap({ deployments }) {
 
 // Export SpeciesDistribution so it can be imported in activity.jsx
 function SpeciesDistribution({ data, taxonomicData }) {
-  const [commonNames, setCommonNames] = useState({})
-
   const totalCount = data.reduce((sum, item) => sum + item.count, 0)
 
   // Create a map of scientific names to common names from taxonomic data
@@ -111,7 +113,13 @@ function SpeciesDistribution({ data, taxonomicData }) {
   }
 
   // Function to fetch common names from Global Biodiversity Information Facility (GBIF)
+  // with caching implementation using module-level cache
   async function fetchCommonName(scientificName) {
+    // Check cache first
+    if (commonNamesCache[scientificName] !== undefined) {
+      return commonNamesCache[scientificName]
+    }
+
     try {
       // Step 1: Match the scientific name to get usageKey
       const matchResponse = await fetch(
@@ -121,6 +129,8 @@ function SpeciesDistribution({ data, taxonomicData }) {
 
       // Check if we got a valid usageKey
       if (!matchData.usageKey) {
+        // Cache the null result to avoid future requests
+        commonNamesCache[scientificName] = null
         return null
       }
 
@@ -138,16 +148,24 @@ function SpeciesDistribution({ data, taxonomicData }) {
         )
 
         if (englishName) {
+          // Cache the result
+          commonNamesCache[scientificName] = englishName.vernacularName
           return englishName.vernacularName
         }
 
         // If no English name, return the first available name
+        // Cache the result
+        commonNamesCache[scientificName] = vernacularData.results[0].vernacularName
         return vernacularData.results[0].vernacularName
       }
 
+      // Cache the null result
+      commonNamesCache[scientificName] = null
       return null
     } catch (error) {
       console.error(`Error fetching common name for ${scientificName}:`, error)
+      // Cache the error as null to prevent repeated failed requests
+      commonNamesCache[scientificName] = null
       return null
     }
   }
@@ -161,28 +179,28 @@ function SpeciesDistribution({ data, taxonomicData }) {
         (species) =>
           species.scientificName &&
           !scientificToCommonMap[species.scientificName] &&
-          !commonNames[species.scientificName]
+          commonNamesCache[species.scientificName] === undefined // Only fetch if not cached
       )
 
       if (missingCommonNames.length === 0) return
 
-      const newCommonNames = { ...commonNames }
-
-      // Fetch common names for species with missing common names
+      // No need to maintain state, just fetch and store in the cache
       await Promise.all(
         missingCommonNames.map(async (species) => {
-          const commonName = await fetchCommonName(species.scientificName)
-          if (commonName) {
-            newCommonNames[species.scientificName] = commonName
-          }
+          await fetchCommonName(species.scientificName)
         })
       )
 
-      setCommonNames(newCommonNames)
+      // Force re-render to pick up new cache entries
+      // Using an empty dependency array so it updates once after fetching
+      forceUpdate({})
     }
 
     fetchMissingCommonNames()
-  }, [data, taxonomicData])
+  }, [data, taxonomicData]) // Remove commonNames from dependencies
+
+  // Add a simple state to force re-renders when cache is updated
+  const [, forceUpdate] = useState({})
 
   if (!data || data.length === 0) {
     return <div className="text-gray-500">No species data available</div>
@@ -192,12 +210,13 @@ function SpeciesDistribution({ data, taxonomicData }) {
     <div className="w-1/2 bg-white rounded border border-gray-200 p-3 overflow-y-auto">
       <div className="space-y-4">
         {data.map((species, index) => {
-          // Try to get the common name from the taxonomic data first, then from fetched data
+          // Try to get the common name from the taxonomic data first, then from the cache
           const commonName =
-            scientificToCommonMap[species.scientificName] || commonNames[species.scientificName]
+            scientificToCommonMap[species.scientificName] ||
+            commonNamesCache[species.scientificName]
 
           return (
-            <div key={index} className="">
+            <div key={species.scientificName} className="">
               <div className="flex justify-between mb-1 items-center">
                 <div>
                   <span className="capitalize text-sm">{commonName || species.scientificName}</span>
@@ -231,50 +250,13 @@ export default function Overview({ data, studyId, importerName }) {
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(false)
-  const [importStatus, setImportStatus] = useState({ isRunning: false, pausedCount: 0, done: 0 })
+  const { importStatus, resumeImport, pauseImport } = useImportStatus(studyId)
+
   const contributorsRef = useRef(null)
 
-  // Check import status periodically if this is an imported study
-  useEffect(() => {
-    let intervalId
-
-    const checkImportStatus = async () => {
-      try {
-        console.log('Checking import status for study:', studyId)
-        const status = await window.api.getImportStatus(studyId)
-        setImportStatus((prev) => ({ ...prev, ...status }))
-      } catch (err) {
-        console.error('Failed to get import status:', err)
-      }
-    }
-
-    if (!importStatus.isRunning) {
-      // If import is not running, no need to check status
-      clearInterval(intervalId)
-      return
-    }
-
-    intervalId = setInterval(checkImportStatus, 1000)
-
-    return () => {
-      if (intervalId) clearInterval(intervalId)
-    }
-  }, [importStatus.isRunning, studyId])
-
-  useEffect(() => {
-    const fetchImportStatus = async () => {
-      const status = await window.api.getImportStatus(studyId)
-      setImportStatus((prev) => ({ ...prev, ...status }))
-    }
-
-    fetchImportStatus()
-  }, [studyId])
-
-  useEffect(() => {
+  const fetchData = useCallback(
     async function fetchData() {
       try {
-        setLoading(true)
-
         // Fetch both species and deployments data in parallel
         const [speciesResponse, deploymentsResponse] = await Promise.all([
           window.api.getSpeciesDistribution(studyId),
@@ -297,13 +279,26 @@ export default function Overview({ data, studyId, importerName }) {
         }
       } catch (err) {
         setError(err.message || 'Failed to fetch data')
-      } finally {
-        setLoading(false)
       }
-    }
+    },
+    [studyId]
+  )
 
+  useEffect(() => {
     fetchData()
-  }, [studyId])
+  }, [studyId, fetchData])
+
+  useEffect(() => {
+    let intervalId = null
+    if (importStatus?.isRunning) {
+      intervalId = setInterval(() => {
+        fetchData()
+      }, 5000)
+    }
+    return () => {
+      if (intervalId) clearInterval(intervalId)
+    }
+  }, [importStatus?.isRunning, studyId, fetchData])
 
   // Check scroll possibility
   useEffect(() => {
@@ -359,32 +354,6 @@ export default function Overview({ data, studyId, importerName }) {
 
     const progress = (importStatus.done / importStatus.total) * 100
 
-    const handlePause = async () => {
-      try {
-        setImportStatus((prev) => ({
-          ...prev,
-          isRunning: false
-        }))
-        window.api.stopImport(studyId)
-      } catch (err) {
-        console.error('Failed to pause import:', err)
-      }
-    }
-
-    const handleResume = async () => {
-      try {
-        console.log('Resuming import for study:', studyId)
-        setImportStatus((prev) => ({
-          ...prev,
-          isRunning: true,
-          pausedCount: prev.done
-        }))
-        window.api.resumeImport(studyId)
-      } catch (err) {
-        console.error('Failed to resume import:', err)
-      }
-    }
-
     return (
       <div className="text-gray-500 text-sm mt-2 max-w-xl">
         <div className="bg-blue-50 rounded-lg p-4 flex flex-col gap-4">
@@ -414,14 +383,14 @@ export default function Overview({ data, studyId, importerName }) {
             {importStatus.isRunning ? (
               importStatus.pausedCount + 1 > importStatus.done ? (
                 <button
-                  onClick={handlePause}
+                  onClick={pauseImport}
                   className="text-xs px-3 py-1.5 bg-white hover:bg-gray-100 text-gray-700 rounded border border-gray-300 font-medium "
                 >
                   Starting...
                 </button>
               ) : (
                 <button
-                  onClick={handlePause}
+                  onClick={pauseImport}
                   className="text-xs px-3 py-1.5 bg-white hover:bg-gray-100 text-gray-700 rounded border border-gray-300 font-medium "
                 >
                   Pause
@@ -429,7 +398,7 @@ export default function Overview({ data, studyId, importerName }) {
               )
             ) : (
               <button
-                onClick={handleResume}
+                onClick={resumeImport}
                 className="text-xs px-3 py-1.5 bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 rounded font-medium "
               >
                 Resume
@@ -584,14 +553,14 @@ export default function Overview({ data, studyId, importerName }) {
         </div>
       )}
 
-      {loading ? (
-        <div className="py-4">Loading data...</div>
-      ) : error ? (
+      {error ? (
         <div className="text-red-500 py-4">Error: {error}</div>
       ) : (
         <>
           <div className="flex flex-row gap-4 flex-1 min-h-0 mt-2">
-            <SpeciesDistribution data={speciesData} taxonomicData={taxonomicData} />
+            {speciesData && speciesData.length > 0 && (
+              <SpeciesDistribution data={speciesData} taxonomicData={taxonomicData} />
+            )}
             <DeploymentMap deployments={deploymentsData} />
           </div>
         </>
