@@ -6,9 +6,8 @@ import geoTz from 'geo-tz'
 import luxon, { DateTime } from 'luxon'
 import path from 'path'
 import sqlite3 from 'sqlite3'
-import kill from 'tree-kill'
 import ml_model_management from './ml_model_management.js'
-// import { insertMedia } from './queries'
+import constants from '../common/constants.js'
 
 const imageExtensions = new Set(['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'])
 
@@ -178,100 +177,6 @@ export async function importImagesFromDirectory(directoryPath) {
     console.error('Error reading directory:', error)
     throw new Error('Failed to read images from directory')
   }
-}
-
-const PYTHON_ENVIRONMENTS = [
-  {
-    type: 'conda',
-    reference: {
-      id: 'common',
-      version: '0.1.0',
-      downloadURL: {
-        mac: 'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.0-macOS.tar.gz',
-        linux:
-          'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.0-Linux.tar.gz',
-        windows:
-          'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.0-Windows.tar.gz'
-      }
-    },
-    size_in_MiB: {
-      mac: 367,
-      windows: 522,
-      linux: 3220
-    }
-  }
-]
-
-const MODEL_ZOO = [
-  {
-    name: 'SpeciesNet',
-    python_environment: { id: 'common', version: '0.1.0' },
-    size_in_MiB: 468,
-    reference: {
-      id: 'speciesnet',
-      version: '4.0.1a',
-      downloadURL:
-        'https://huggingface.co/earthtoolsmaker/speciesnet/resolve/main/4.0.1a.tar.gz?download=true'
-    },
-    description:
-      "Google's SpeciesNet is an open-source AI model launched in 2025, specifically designed for identifying animal species from images captured by camera traps. It boasts the capability to classify images into over 2,000 species labels, greatly enhancing the efficiency of wildlife data analysis for conservation initiatives.",
-    website: 'https://github.com/google/cameratrapai'
-  }
-]
-
-async function startServer() {
-  const { port, process } = await ml_model_management.startMLModelHTTPServer({
-    pythonEnvironment: PYTHON_ENVIRONMENTS[0],
-    modelReference: MODEL_ZOO[0].reference
-  })
-
-  log.info('Python server started on port:', port)
-
-  return { port, pythonProcess }
-  // const scriptPath = path.join(__dirname, '../../test-species/run_server.py')
-  // const pythonInterpreter = path.join(__dirname, '../../test-species/.venv/bin/python')
-
-  // // Start the Python server
-  // const pythonProcess = spawn(pythonInterpreter, [scriptPath, '--port', '8000'])
-
-  // log.info('Python process started:', pythonProcess.pid)
-
-  // // Set up error handlers
-  // pythonProcess.stderr.on('data', (err) => {
-  //   log.error('Python error:', err.toString())
-  // })
-
-  // pythonProcess.on('error', (err) => {
-  //   log.error('Python process error:', err)
-  // })
-
-  // // Wait for server to be ready by polling the endpoint
-  // const maxRetries = 30
-  // const retryInterval = 1000 // 1 second
-
-  // for (let i = 0; i < maxRetries; i++) {
-  //   try {
-  //     const healthCheck = await fetch('http://localhost:8000/health', {
-  //       method: 'GET',
-  //       timeout: 1000
-  //     })
-
-  //     if (healthCheck.ok) {
-  //       log.info('Server is ready')
-  //       return pythonProcess
-  //     }
-  //   } catch (error) {
-  //     // Server not ready yet, will retry
-  //   }
-
-  //   // Wait before next retry
-  //   await new Promise((resolve) => setTimeout(resolve, retryInterval))
-  //   log.info(`Waiting for server to start (attempt ${i + 1}/${maxRetries})`)
-  // }
-
-  // // If we get here, the server failed to start
-  // kill(pythonProcess.pid)
-  // throw new Error('Server failed to start in the expected time')
 }
 
 export async function* getPredictions(imagesPath, port) {
@@ -649,8 +554,8 @@ export class Importer {
       try {
         ml_model_management
           .startMLModelHTTPServer({
-            pythonEnvironment: PYTHON_ENVIRONMENTS[0],
-            modelReference: MODEL_ZOO[0].reference
+            pythonEnvironment: constants.PYTHON_ENVIRONMENTS[0],
+            modelReference: constants.MODEL_ZOO[0].reference
           })
           .then(async ({ port, process }) => {
             log.info('New python process', port, process.pid)
@@ -675,6 +580,7 @@ export class Importer {
 
             this.cleanup()
           })
+        //it's important to return after the db is created. Other parts of the app depend on this
         return this.id
       } catch (error) {
         log.error('Error during background processing:', error)
