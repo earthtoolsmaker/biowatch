@@ -213,18 +213,29 @@ async function clearAllLocalMLModels() {
   }
 }
 
+function removeManifestEntry({ manifestFilepath, id, version }) {
+  const manifest = yamlRead(manifestFilepath)
+  let manifestUpdated = manifest
+  log.info('Manifest Update: ', manifestUpdated)
+  if (manifestUpdated[id] && manifestUpdated[id][version]) {
+    delete manifestUpdated[id][version]
+  }
+  yamlWrite(manifestUpdated, manifestFilepath)
+}
+
 async function deleteLocalMLModel({ id, version }) {
   const localTarPath = getMLModelLocalTarPath({ id, version })
   const localInstallPath = getMLModelLocalInstallPath({ id, version })
   const manifestFilepath = getMLModelLocalDownloadManifest()
-  writeToManifest({
-    manifestFilepath,
-    progress: 0,
-    id,
-    version,
-    state: InstallationState.Download,
-    opts: {}
-  })
+  removeManifestEntry({ manifestFilepath, id, version })
+  // writeToManifest({
+  //   manifestFilepath,
+  //   progress: 0,
+  //   id,
+  //   version,
+  //   state: InstallationState.Download,
+  //   opts: {}
+  // })
   log.info('local tar path:', localTarPath)
   if (existsSync(localTarPath)) {
     log.info('delete local tar path:', localTarPath)
@@ -488,7 +499,10 @@ function isDownloadSuccess({ manifestFilepath, version, id }) {
   if (Object.keys(manifest).length === 0) {
     return false
   }
-  return manifest[id][version]['state'] === 'success'
+  if (manifest[id] && manifest[id][version]) {
+    return manifest[id][version]['state'] === 'success'
+  }
+  return false
 }
 
 /**
