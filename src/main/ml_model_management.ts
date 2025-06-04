@@ -321,8 +321,7 @@ async function downloadPythonEnvironment({ id, version }) {
         state: InstallationState.Download,
         opts: manifestOpts
       })
-      // FIXME: uncomment
-      // await downloadFile(downloadURL, localTarPath, onProgressDownload)
+      await downloadFile(downloadURL, localTarPath, onProgressDownload)
       writeToManifest({
         manifestFilepath,
         id,
@@ -343,8 +342,7 @@ async function downloadPythonEnvironment({ id, version }) {
         opts: manifestOpts
       })
       log.info('Cleaning the local archive: ', localTarPath)
-      // FIXME: Uncomment
-      // await fsPromises.unlink(localTarPath)
+      await fsPromises.unlink(localTarPath)
       writeToManifest({
         manifestFilepath,
         id,
@@ -432,6 +430,7 @@ function yamlRead(yamlFile) {
  */
 function yamlWrite(data, yamlFile) {
   const yamlStr = yaml.dump(data)
+  mkdirSync(dirname(yamlFile), { recursive: true })
   writeFileSync(yamlFile, yamlStr, 'utf8')
 }
 
@@ -478,6 +477,9 @@ function writeToManifest({ manifestFilepath, progress, id, version, state, opts 
  */
 function isDownloadSuccess({ manifestFilepath, version, id }) {
   const manifest = yamlRead(manifestFilepath)
+  if (Object.keys(manifest).length === 0) {
+    return false
+  }
   return manifest[id][version]['state'] === 'success'
 }
 
@@ -496,6 +498,10 @@ function isDownloadSuccess({ manifestFilepath, version, id }) {
  */
 function getDownloadStatus({ manifestFilepath, version, id }) {
   const manifest = yamlRead(manifestFilepath)
+  if (Object.keys(manifest).length === 0) {
+    log.info('empty manifest file')
+    return {}
+  }
   return manifest[id][version] || {}
 }
 
@@ -564,7 +570,7 @@ async function downloadMLModel({ id, version }) {
     [InstallationState.Failure]: 0,
     // The Download stage indicates that the model is currently being downloaded.
     // Once this stage is complete, it contributes 70% to the overall progress.
-    [InstallationState.Download]: 70,
+    [InstallationState.Download]: 95,
     // The Extract stage indicates that the model has been downloaded and is now being extracted.
     // Upon completion, this stage contributes 98% to the overall progress.
     [InstallationState.Extract]: 98,
@@ -598,9 +604,8 @@ async function downloadMLModel({ id, version }) {
     }
   }
   try {
-    // FIXME: improve this by looking at manifest instead to make it more robust
-    if (existsSync(localInstallPath)) {
-      log.info(`Model already installed in ${localInstallPath}, skipping.`)
+    if (isDownloadSuccess({ manifestFilepath, id, version })) {
+      log.info(`ML Model weights already installed in ${extractPath}, skipping.`)
       return {
         success: true,
         message: 'Model downloaded and extracted successfully'

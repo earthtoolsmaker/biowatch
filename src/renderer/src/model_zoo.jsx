@@ -11,7 +11,23 @@ import {
 } from 'lucide-react'
 import { platformToKey, findPythonEnvironment } from '../../shared/mlmodels'
 
-function ModelCard({ model, pythonEnvironment, platform, isDev }) {
+function modelDownloadStatusToInfo({ model, pythonEnvironment }) {
+  const isPythonEnvironmentDownloading =
+    model['state'] === 'success' && pythonEnvironment['state'] !== 'success'
+  const progress = isPythonEnvironmentDownloading
+    ? pythonEnvironment['progress']
+    : model['progress']
+  const message = isPythonEnvironmentDownloading
+    ? 'Downloading the Python Environment'
+    : 'Downloading the AI model weights'
+  return { downloadMessage: message, downloadProgress: progress }
+}
+
+function ModelCard({ model, pythonEnvironment, platform, isDev = false }) {
+  const [modelDownloadStatus, setModelDownloadStatus] = useState({
+    model: {},
+    pythonEnvironment: {}
+  })
   const [isDownloading, setIsDownloading] = useState(false)
   const [isHTTPServerRunning, setIsHTTPServerRunning] = useState(false)
   const [isHTTPServerStarting, setIsHTTPServerStarting] = useState(false)
@@ -19,25 +35,33 @@ function ModelCard({ model, pythonEnvironment, platform, isDev }) {
   const [pidPythonProcess, setPidPythonProcess] = useState(null)
   const [portHTTPServer, setPortHTTPServer] = useState(null)
 
-  // Function to check if the model is downloaded
-  const isMLModelDownloaded = async (reference) => {
-    try {
-      const downloaded = await window.api.isMLModelDownloaded(reference)
-      return downloaded // Assuming this returns a boolean
-    } catch (error) {
-      console.error('Failed to check if model is downloaded:', error)
-      return false // Default to false on error
+  useEffect(() => {
+    let intervalId = null
+    if (isDownloading) {
+      intervalId = setInterval(async () => {
+        const downloadStatus = await window.api.getMLModelDownloadStatus({
+          modelReference: model.reference,
+          pythonEnvironmentReference: pythonEnvironment.reference
+        })
+        setModelDownloadStatus(downloadStatus)
+      }, 500)
     }
-  }
+    return () => {
+      if (intervalId) clearInterval(intervalId)
+    }
+  }, [isDownloading])
 
   useEffect(() => {
-    const isMLModelDownloaded = async () => {
-      const isDownloaded = await window.api.isMLModelDownloaded(model.reference)
-      setIsDownloaded(isDownloaded)
+    const getMLModelDownloadStatus = async () => {
+      const downloadStatus = await window.api.getMLModelDownloadStatus({
+        modelReference: model.reference,
+        pythonEnvironmentReference: pythonEnvironment.reference
+      })
+      setModelDownloadStatus(downloadStatus)
     }
 
-    isMLModelDownloaded()
-  }, [model.reference]) // Run this effect when the model reference changes
+    getMLModelDownloadStatus()
+  }, [model.reference, pythonEnvironment.reference]) // Run this effect when the model reference changes
 
   const handleRunHTTPServer = async ({ modelReference, pythonEnvironment }) => {
     setIsHTTPServerStarting(true)
@@ -76,11 +100,16 @@ function ModelCard({ model, pythonEnvironment, platform, isDev }) {
     console.log('handling download...')
     setIsDownloading(true)
     try {
-      // await window.api.downloadMLModel(modelReference)
+      await window.api.downloadMLModel(modelReference)
       console.log('downloading python environment')
       await window.api.downloadPythonEnvironment({ ...pythonEnvironment.reference })
       setIsDownloaded(true)
       setIsDownloading(false)
+      const downloadStatus = await window.api.getMLModelDownloadStatus({
+        modelReference: model.reference,
+        pythonEnvironmentReference: pythonEnvironment.reference
+      })
+      setModelDownloadStatus(downloadStatus)
     } catch (error) {
       setIsDownloading(false)
       console.error('Failed to download model:', error)
@@ -88,6 +117,7 @@ function ModelCard({ model, pythonEnvironment, platform, isDev }) {
   }
 
   const { name, description, reference, size_in_MiB } = model
+  const { downloadMessage, downloadProgress } = modelDownloadStatusToInfo(modelDownloadStatus)
   const classNameMainContainer = isDownloaded
     ? 'min-w-[300px] flex flex-col justify-around border-gray-200 border p-4 rounded-md w-96 gap-2 shadow-sm'
     : 'min-w-[300px] flex bg-gray-50 flex-col justify-around border-gray-200 border p-4 rounded-md w-96 gap-2 shadow-sm'
@@ -196,6 +226,21 @@ function ModelCard({ model, pythonEnvironment, platform, isDev }) {
         </div>
       ) : (
         <span></span>
+      )}
+      {isDownloading ? (
+        <>
+          <div className="pl-6 pr-6">
+            <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+              <div
+                className="h-full bg-blue-600 transition-all duration-500 ease-in-out"
+                style={{ width: `${downloadProgress}%` }}
+              ></div>
+            </div>
+            <div className="w-full text-sm text-center pt-2">{downloadMessage}</div>
+          </div>
+        </>
+      ) : (
+        <></>
       )}
     </div>
   )
