@@ -22,6 +22,7 @@ import {
   getDownloadStatus,
   isDownloadSuccess
 } from './download'
+import os from 'node:os'
 
 // -------------------------------------------------------
 // Util functions to define the install and download paths
@@ -206,9 +207,9 @@ async function downloadPythonEnvironment({ id, version }) {
     const progress = Math.min(
       installationStateProgress[InstallationState.Extract],
       installationStateProgress[InstallationState.Download] +
-      (extracted / files) *
-      (installationStateProgress[InstallationState.Extract] -
-        installationStateProgress[InstallationState.Download])
+        (extracted / files) *
+          (installationStateProgress[InstallationState.Extract] -
+            installationStateProgress[InstallationState.Download])
     )
     if (progress > previousExtractProgress + flushProgressExtractIncrementThreshold) {
       writeToManifest({
@@ -408,9 +409,9 @@ async function downloadMLModel({ id, version }) {
     const progress = Math.min(
       installationStateProgress[InstallationState.Extract],
       installationStateProgress[InstallationState.Download] +
-      (extracted / files) *
-      (installationStateProgress[InstallationState.Extract] -
-        installationStateProgress[InstallationState.Download])
+        (extracted / files) *
+          (installationStateProgress[InstallationState.Extract] -
+            installationStateProgress[InstallationState.Download])
     )
     if (progress > previousExtractProgress + flushProgressExtractIncrementThreshold) {
       writeToManifest({
@@ -634,7 +635,9 @@ async function startSpeciesNetHTTPServer({
     : join(process.resourcesPath, 'python-environments', 'common', 'run_speciesnet_server.py')
   const pythonInterpreter = is.dev
     ? join(__dirname, '../../python-environments/common/.venv/bin/python')
-    : join(localInstalRootDirPythonEnvironment, 'bin', 'python')
+    : os.platform() === 'win32'
+      ? join(localInstalRootDirPythonEnvironment, 'python.exe')
+      : join(localInstalRootDirPythonEnvironment, 'bin', 'python')
   log.info('Python Interpreter found in', pythonInterpreter)
   log.info('Script path is', scriptPath)
   const scriptArgs = [
