@@ -195,25 +195,13 @@ function Gallery({ species, dateRange, timeRange }) {
     }
   }
 
-  const constructImageUrl = (fullFilePath, deploymentID, mediaID) => {
-    if (fullFilePath.startsWith('https://app.wildlifeinsights.org')) {
-      return `https://storage.googleapis.com/437283855702_2003795_678_wildlife_responses_t__thumbnails/deployment/${deploymentID}/${mediaID}.JPG`
-    }
+  const constructImageUrl = (fullFilePath) => {
     if (fullFilePath.startsWith('http')) {
       return fullFilePath
     }
-    const filePathParts = fullFilePath.split('/')
-    const filePath = filePathParts.slice(1).join('/')
-    const fullPath = `${study.path}/${filePath}`
-    const urlPath = fullPath.replace(/\\/g, '/')
 
     return `local-file://get?path=${encodeURIComponent(fullFilePath)}`
   }
-
-  console.log('mediaFiles', mediaFiles)
-
-  //storage.googleapis.com/437283855702_2003795_678_wildlife_responses_t__thumbnails/deployment/2141468/1501c032-32d8-437d-832c-1ff9dd834997.JPG
-  //https://storage.googleapis.com/437283855702_2003795_678_wildlife_responses_t__thumbnails/deployment/2141468/2be66a96-1f39-40e5-bfab-2c25cdddb6e5.JPG
 
   return (
     <div className="flex flex-wrap gap-[12px] h-full overflow-auto">
@@ -224,7 +212,7 @@ function Gallery({ species, dateRange, timeRange }) {
         >
           <div className="bg-gray-100 flex items-center justify-center">
             <img
-              src={constructImageUrl(media.filePath, media.deploymentID, media.mediaID)}
+              src={constructImageUrl(media.filePath)}
               alt={media.fileName || `Media ${media.mediaID}`}
               data-image={media.filePath}
               className={`object-contain w-full h-auto min-h-20 ${imageErrors[media.mediaID] ? 'hidden' : ''}`}

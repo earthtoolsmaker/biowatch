@@ -10,8 +10,11 @@ const api = {
     console.log('electronAPI', electronAPI)
     return await electronAPI.ipcRenderer.invoke('select-image')
   },
-  selectDataset: async () => {
-    return await electronAPI.ipcRenderer.invoke('select-dataset')
+  selectCamtrapDPDataset: async () => {
+    return await electronAPI.ipcRenderer.invoke('select-camtrap-dp-dataset')
+  },
+  selectWildlifeDataset: async () => {
+    return await electronAPI.ipcRenderer.invoke('select-wildlife-dataset')
   },
   checkModelStatus: async () => {
     return await electronAPI.ipcRenderer.invoke('check-model-status')
