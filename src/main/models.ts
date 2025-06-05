@@ -270,6 +270,7 @@ async function downloadPythonEnvironment({ id, version }) {
         opts: manifestOpts,
         progress: installationStateProgress[InstallationState.Success]
       })
+      log.info('Done ✅')
       return {
         success: true,
         message: 'Python Environment downloaded and extracted successfully'
