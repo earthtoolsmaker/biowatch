@@ -161,10 +161,10 @@ async function downloadPythonEnvironment({ id, version }) {
     [InstallationState.Failure]: 0,
     // The Download stage indicates that the model is currently being downloaded.
     // Once this stage is complete, it contributes 65% to the overall progress.
-    [InstallationState.Download]: 65,
+    [InstallationState.Download]: 70,
     // The Extract stage indicates that the model has been downloaded and is now being extracted.
     // Upon completion, this stage contributes 91% to the overall progress.
-    [InstallationState.Extract]: 91,
+    [InstallationState.Extract]: 98,
     // The Clean stage signifies that the installation process is cleaning up temporary files.
     // Once this stage is finished, it marks 100% completion of the installation.
     [InstallationState.Clean]: 100,
@@ -370,7 +370,7 @@ async function downloadMLModel({ id, version }) {
     [InstallationState.Failure]: 0,
     // The Download stage indicates that the model is currently being downloaded.
     // Once this stage is complete, it contributes 70% to the overall progress.
-    [InstallationState.Download]: 95,
+    [InstallationState.Download]: 92,
     // The Extract stage indicates that the model has been downloaded and is now being extracted.
     // Upon completion, this stage contributes 98% to the overall progress.
     [InstallationState.Extract]: 98,

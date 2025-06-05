@@ -17,9 +17,27 @@ function modelDownloadStatusToInfo({ model, pythonEnvironment }) {
   const progress = isPythonEnvironmentDownloading
     ? pythonEnvironment['progress']
     : model['progress']
-  const message = isPythonEnvironmentDownloading
-    ? 'Downloading the Python Environment'
-    : 'Downloading the AI model weights'
+
+  const getDownloadProgressMessage = (model, pythonEnvironment) => {
+    const { state } = isPythonEnvironmentDownloading ? pythonEnvironment : model
+    const suffix = isPythonEnvironmentDownloading
+      ? 'the Python Environment'
+      : 'the AI Model weights'
+    switch (state) {
+      case 'success':
+        return `Successfuly installed ${suffix}`
+      case 'failure':
+        return `Failed installing ${suffix}`
+      case 'download':
+        return `Downloading ${suffix}`
+      case 'extract':
+        return `Extracting ${suffix}`
+      default:
+        return `Downloading ${suffix}`
+    }
+  }
+
+  const message = getDownloadProgressMessage(model, pythonEnvironment)
   return { downloadMessage: message, downloadProgress: progress }
 }
 
