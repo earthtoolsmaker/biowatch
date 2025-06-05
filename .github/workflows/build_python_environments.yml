@@ -33,7 +33,7 @@ jobs:
       - name: Install Python dependencies
         shell: bash -l {0}
         run: |
-          conda run pip install fastapi litserve
+          conda run pip install fastapi==0.115.12 litserve==0.2.11
           conda run pip install speciesnet==5.0.0 --use-pep517
           conda list
 
@@ -43,7 +43,7 @@ jobs:
           mkdir -p dist
           CONDA_BASE=$(conda info --base)
           CONDA_ENV_PATH=$CONDA_BASE/envs/common
-          tar -czf dist/common-0.1.0-${{ runner.os }}.tar.gz -C $CONDA_BASE/envs common
+          tar -czf dist/common-0.1.1-${{ runner.os }}.tar.gz -C $CONDA_BASE/envs common
 
       - name: Upload to Cloudflare R2
         uses: shallwefootball/s3-upload-action@master
