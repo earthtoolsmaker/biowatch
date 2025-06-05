@@ -8,6 +8,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+      CSC_FOR_PULL_REQUEST: true
 
     strategy:
       matrix:
