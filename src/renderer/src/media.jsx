@@ -204,7 +204,7 @@ function Gallery({ species, dateRange, timeRange }) {
     const fullPath = `${study.path}/${filePath}`
     const urlPath = fullPath.replace(/\\/g, '/')
 
-    return `local-file://get?path=${encodeURIComponent(urlPath)}`
+    return `local-file://get?path=${encodeURIComponent(fullFilePath)}`
   }
 
   console.log('mediaFiles', mediaFiles)

@@ -78,8 +78,74 @@ const api = {
       endDate
     )
   },
+  // ML Model Management
+  downloadMLModel: async ({ id, version }) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'ml-model-management:v0:download-ml-model',
+      id,
+      version
+    )
+  },
+  getMLModelDownloadStatus: async ({ modelReference, pythonEnvironmentReference }) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'ml-model-management:v0:get-model-download-status',
+      modelReference,
+      pythonEnvironmentReference
+    )
+  },
+  deleteLocalMLModel: async ({ id, version }) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'ml-model-management:v0:delete-local-ml-model',
+      id,
+      version
+    )
+  },
+  isMLModelDownloaded: async ({ id, version }) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'ml-model-management:v0:is-ml-model-downloaded',
+      id,
+      version
+    )
+  },
+  clearAllLocalMLModels: async () => {
+    return await electronAPI.ipcRenderer.invoke('ml-model-management:v0:clear-all-local-ml-models')
+  },
+
+  downloadPythonEnvironment: async ({ id, version, downloadURL }) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'ml-model-management:v0:download-python-environment',
+      id,
+      version,
+      downloadURL
+    )
+  },
+
+  startMLModelHTTPServer: async ({ modelReference, pythonEnvironment }) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'ml-model-management:v0:start-ml-model-http-server',
+      modelReference,
+      pythonEnvironment
+    )
+  },
+
+  stopMLModelHTTPServer: async ({ pid }) => {
+    console.log('Received process pid:', pid)
+    return await electronAPI.ipcRenderer.invoke(
+      'ml-model-management:v0:stop-ml-model-http-server',
+      pid
+    )
+  },
   selectImagesDirectory: async () => {
-    return await electronAPI.ipcRenderer.invoke('select-images-directory')
+    return await electronAPI.ipcRenderer.invoke('importer:select-images-directory')
+  },
+  getImportStatus: async (id) => {
+    return await electronAPI.ipcRenderer.invoke('importer:get-status', id)
+  },
+  stopImport: async (id) => {
+    return await electronAPI.ipcRenderer.invoke('importer:stop', id)
+  },
+  resumeImport: async (id) => {
+    return await electronAPI.ipcRenderer.invoke('importer:resume', id)
   }
 }
 

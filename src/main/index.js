@@ -1,46 +1,42 @@
-import { app, shell, BrowserWindow, ipcMain, protocol, dialog } from 'electron'
-import { net as electronNet } from 'electron'
-import { join } from 'path'
-import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import { extract } from 'tar'
+import unzipper from 'unzipper'
+import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { spawn } from 'child_process'
+import { app, BrowserWindow, dialog, net as electronNet, ipcMain, protocol, shell } from 'electron'
+import log from 'electron-log'
 import {
-  readdirSync,
+  accessSync,
+  chmodSync,
+  constants,
+  createReadStream,
+  createWriteStream,
   existsSync,
   mkdirSync,
-  unlinkSync,
-  chmodSync,
-  accessSync,
-  constants,
-  createWriteStream,
+  readdirSync,
   statSync,
-  promises as fsPromises
+  promises as fsPromises,
+  unlink,
+  unlinkSync
 } from 'fs'
-import log from 'electron-log'
 import net from 'net'
-import path from 'path'
+import path, { join } from 'path'
 import { pipeline } from 'stream/promises'
 import { importCamTrapDataset } from './camtrap'
+import { Importer } from './importer'
 import {
-  getSpeciesDistribution,
   getDeployments,
   getDeploymentsActivity,
-  getTopSpeciesTimeseries,
-  getSpeciesTimeseries,
-  getSpeciesHeatmapData,
   getLocationsActivity,
   getMedia,
   getSpeciesDailyActivity,
-  createImageDirectoryDatabase,
-  insertDeployments,
-  insertMedia,
-  insertObservations
+  getSpeciesDistribution,
+  getSpeciesHeatmapData,
+  getSpeciesTimeseries,
+  getTopSpeciesTimeseries
 } from './queries'
 import { autoUpdater } from 'electron-updater'
-import exifr from 'exifr'
-import readline from 'linebyline'
-import luxon, { DateTime } from 'luxon'
-import geoTz from 'geo-tz'
+import { registerMLModelManagementIPCHandlers } from './models'
 
 // Configure electron-log
 log.transports.file.level = 'info'
@@ -61,6 +57,28 @@ function findFreePort() {
       server.close(() => resolve(port))
     })
     server.on('error', reject)
+  })
+}
+
+async function extractZip(zipPath, extractPath) {
+  log.info(`Extracting ${zipPath} to ${extractPath}`)
+
+  // Create the extraction directory if it doesn't exist
+  if (!existsSync(extractPath)) {
+    mkdirSync(extractPath, { recursive: true })
+  }
+
+  return new Promise((resolve, reject) => {
+    createReadStream(zipPath)
+      .pipe(unzipper.Extract({ path: extractPath }))
+      .on('finish', () => {
+        log.info(`Extraction complete to ${extractPath}`)
+        resolve()
+      })
+      .on('error', (err) => {
+        log.error(`Error during extraction:`, err)
+        reject(err)
+      })
   })
 }
 
@@ -169,46 +187,6 @@ async function downloadFile(url, destination) {
     log.error(`Download failed: ${error.message}`)
     throw error
   }
-}
-
-async function getPredictions(path) {
-  console.log('Getting predictions for path:', path)
-  return new Promise((resolve, reject) => {
-    let preds = []
-    const scriptPath = join(__dirname, '../../test-species/main.py')
-    const pythonInterpreter = join(__dirname, '../../test-species/.venv/bin/python3.11')
-    pythonProcess = spawn(pythonInterpreter, [scriptPath, '--path', path])
-    const rl = readline(pythonProcess.stdout)
-
-    rl.on('line', (line) => {
-      try {
-        // log.info('Python line:', line)
-        if (line.startsWith('PREDICTION:')) {
-          const [, prediction] = line.split('PREDICTION: ')
-          preds.push(JSON.parse(prediction))
-          // log.info('Prediction:', JSON.parse(prediction))
-        }
-      } catch (err) {
-        console.error('Failed to parse line:', line, err)
-      }
-    })
-
-    pythonProcess.stderr.on('data', (err) => {
-      log.error('Python error:', err.toString())
-    })
-
-    pythonProcess.on('close', (code) => {
-      if (code === 0) {
-        resolve(preds)
-      } else {
-        reject(new Error(`Python process exited with code ${code}`))
-      }
-    })
-
-    pythonProcess.on('error', (err) => {
-      reject(err)
-    })
-  })
 }
 
 async function startPythonServer() {
@@ -337,184 +315,6 @@ async function startPythonServer() {
     } else {
       throw error // Re-throw if we've exhausted our options
     }
-  }
-}
-
-async function processImagesDirectory(directoryPath) {
-  log.info(`Processing images directory: ${directoryPath}`)
-  const media = {}
-  const deployments = {}
-  const dbID = crypto.randomUUID()
-  const dbPath = join(app.getPath('userData'), `${dbID}.db`)
-
-  // Function to recursively scan directories
-  async function scanDirectory(dir) {
-    const entries = await fsPromises.readdir(dir, { withFileTypes: true })
-
-    for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name)
-
-      if (entry.isDirectory()) {
-        await scanDirectory(fullPath)
-      } else {
-        // Check if it's an image file
-        const ext = path.extname(entry.name).toLowerCase()
-        if (['.jpg', '.jpeg', '.png', '.gif', '.tiff', '.bmp'].includes(ext)) {
-          try {
-            // Get file stats
-            const stats = await fsPromises.stat(fullPath)
-
-            // Get EXIF data
-            let exifData = {}
-            try {
-              exifData = await exifr.parse(fullPath, {
-                gps: true,
-                exif: true,
-                reviveValues: true
-              })
-            } catch (exifError) {
-              log.warn(`Could not extract EXIF data from ${fullPath}: ${exifError.message}`)
-            }
-            // Extract GPS coordinates if available
-            let latitude = null
-            let longitude = null
-            if (exifData && exifData.latitude && exifData.longitude) {
-              latitude = exifData.latitude
-              longitude = exifData.longitude
-            }
-
-            // Extract date from EXIF or use file creation date
-
-            const [timeZone] = geoTz.find(latitude, longitude)
-
-            const date = luxon.DateTime.fromJSDate(exifData.DateTimeOriginal, {
-              zone: timeZone
-            })
-
-            media[fullPath] = {
-              mediaID: crypto.randomUUID(),
-              deploymentID: 'tbd',
-              timestamp: date,
-              filePath: fullPath.replace(directoryPath, ''),
-              fileName: entry.name
-            }
-
-            const dep = deployments[latitude + ',' + longitude]
-            if (dep) {
-              dep.deploymentStart = luxon.DateTime.min(dep.deploymentStart, date)
-              dep.deploymentEnd = luxon.DateTime.max(dep.deploymentEnd, date)
-
-              media[fullPath].deploymentID = dep.deploymentID
-            } else {
-              const id = crypto.randomUUID()
-              deployments[latitude + ',' + longitude] = {
-                deploymentID: id,
-                deploymentStart: date,
-                deploymentEnd: date,
-                latitude,
-                longitude,
-                locationID: id,
-                locationName: undefined
-              }
-              media[fullPath].deploymentID = id
-            }
-          } catch (error) {
-            log.error(`Error processing image ${fullPath}: ${error.message}`)
-          }
-        }
-      }
-    }
-  }
-
-  await scanDirectory(directoryPath)
-  // const predictions = await getPredictions(directoryPath)
-  // log.info('GOT Predictions:', predictions[0])
-  // for (const prediction of predictions) {
-  //   const img = prediction.
-
-  console.log('media', media[Object.keys(media)[0]])
-
-  // return
-
-  log.info(`Found ${Object.keys(media).length} images in directory`)
-  log.info('deplyments', deployments)
-  // log.info('media', media)
-
-  // Create database and insert collected data
-  try {
-    // Create and initialize database
-    const db = await createImageDirectoryDatabase(dbPath)
-
-    // Insert deployments
-    await insertDeployments(db, deployments)
-
-    // Insert media
-
-    log.info('Inserting media into database...', media)
-    await insertMedia(db, media)
-
-    log.info(`Successfully created database for image directory at ${dbPath}`)
-
-    const predictions = await getPredictions(directoryPath)
-    log.info('GOT Predictions:', predictions)
-    const observations = predictions.map((prediction) => {
-      const img = media[prediction.filepath]
-      const isblank = ['blank', 'no cv result'].includes(prediction.prediction.split(';').at(-1))
-      const scientificName =
-        prediction.prediction.split(';').at(-3) + ' ' + prediction.prediction.split(';').at(-2)
-      const observation = {
-        observationID: crypto.randomUUID(),
-        deploymentID: img.deploymentID,
-        mediaID: img.mediaID,
-        eventStart: img.timestamp,
-        eventEnd: img.timestamp,
-        eventID: crypto.randomUUID(),
-        confidence: prediction.prediction_score,
-        scientificName: isblank
-          ? undefined
-          : scientificName.trim() === ''
-            ? prediction.prediction.split(';').at(-1)
-            : scientificName,
-        prediction: prediction.prediction
-      }
-      return observation
-    })
-
-    log.info('observations', observations)
-
-    // // Insert observations into the database
-    await insertObservations(db, observations)
-
-    // Close database
-    await new Promise((resolve, reject) => {
-      db.close((err) => {
-        if (err) reject(err)
-        else resolve()
-      })
-    })
-
-    pythonProcess.kill()
-    pythonProcess = null
-
-    return {
-      path: directoryPath,
-      data: {
-        name: 'study 1',
-        title: 'Study 1',
-        temporal: {
-          start: DateTime.min(
-            ...Object.values(deployments).map((dep) => dep.deploymentStart)
-          ).toISODate(),
-          end: DateTime.max(
-            ...Object.values(deployments).map((dep) => dep.deploymentEnd)
-          ).toISODate()
-        }
-      },
-      id: dbID
-    }
-  } catch (error) {
-    log.error(`Error creating database for image directory: ${error.message}`)
-    throw error
   }
 }
 
@@ -1067,36 +867,7 @@ app.whenReady().then(async () => {
       }
 
       // Extract the zip file using tar
-      log.info(`Extracting ${zipPath} to ${extractPath}`)
-      await new Promise((resolve, reject) => {
-        // tar can extract zip files with the right flags (-xf for extract, automatic format detection)
-        const tarProcess = spawn('tar', ['-xf', zipPath, '-C', extractPath])
-
-        tarProcess.stdout.on('data', (data) => {
-          log.info(`tar output: ${data}`)
-        })
-
-        tarProcess.stderr.on('data', (data) => {
-          // Not necessarily an error, tar outputs progress to stderr
-          log.info(`tar progress: ${data}`)
-        })
-
-        tarProcess.on('error', (err) => {
-          log.error(`Error executing tar command:`, err)
-          reject(err)
-        })
-
-        tarProcess.on('close', (code) => {
-          if (code === 0) {
-            log.info(`Extraction complete to ${extractPath}`)
-            resolve()
-          } else {
-            const err = new Error(`tar process exited with code ${code}`)
-            log.error(err)
-            reject(err)
-          }
-        })
-      })
+      await extractZip(zipPath, extractPath)
 
       // Find the directory containing a datapackage.json file
       let camtrapDpDirPath = null
@@ -1192,8 +963,14 @@ app.whenReady().then(async () => {
     }
 
     const directoryPath = result.filePaths[0]
+
+    const { tree, deployments, media } = await importFromImages(directoryPath)
+
     try {
-      const data = await processImagesDirectory(directoryPath)
+      // importImagesFromDirectory(directoryPath)
+      const importer = new Importer(directoryPath)
+      // importer.start()
+      const data = await importer.start()
       return data
     } catch (error) {
       log.error('Error processing images directory:', error)
@@ -1213,33 +990,27 @@ app.whenReady().then(async () => {
     app.quit()
   }
 
-  app.on('activate', function () {
+  app.on('activate', function() {
     // On macOS it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 
-  app.on('before-quit', () => {
-    log.info('Quitting app....')
-    if (pythonProcess) {
-      pythonProcess.kill()
-      pythonProcess = null
-    }
-  })
+  // app.on('before-quit', () => {
+  //   log.info('Quitting app....')
+  //   if (pythonProcess) {
+  //     pythonProcess.kill()
+  //     pythonProcess = null
+  //   }
+  // })
 
   // Add model status check handler
   ipcMain.handle('check-model-status', () => {
     return checkModelStatus()
   })
 
-  // Add model download handler
-  ipcMain.handle('download-model', async () => {
-    return await downloadModel()
-  })
+  registerMLModelManagementIPCHandlers()
 })
-
-// Add IPC handler to get server port
-ipcMain.handle('get-server-port', () => serverPort)
 
 // Quit when all windows are closed, except on macOS. There, it's common
 // for applications and their menu bar to stay active until the user quits
@@ -1281,40 +1052,4 @@ function checkModelStatus() {
   }
 
   return { isDownloaded: false }
-}
-
-async function downloadModel() {
-  // if (is.dev) {
-  //   // In dev mode, just return success
-  //   return { success: true, message: "Model already available in dev mode" }
-  // }
-
-  try {
-    const extractPath = join(app.getPath('userData'), 'species-data')
-    const baseURL = 'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/'
-    const osName =
-      process.platform === 'win32' ? 'Windows' : process.platform === 'linux' ? 'Linux' : 'macOS'
-
-    const envDownloadUrl = `${baseURL}species-env-${osName}.tar.gz`
-    const downloadedTarPath = join(app.getPath('userData'), `species-env.tar.gz`)
-
-    // Download the environment
-    log.info('Downloading environment file...')
-    await downloadFile(envDownloadUrl, downloadedTarPath)
-
-    // Extract the environment
-    log.info('Extracting downloaded environment...')
-    await extractTarGz(downloadedTarPath, extractPath)
-
-    return {
-      success: true,
-      message: 'Model downloaded and extracted successfully'
-    }
-  } catch (error) {
-    log.error('Failed to download model:', error)
-    return {
-      success: false,
-      message: `Failed to download model: ${error.message}`
-    }
-  }
 }

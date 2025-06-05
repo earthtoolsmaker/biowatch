@@ -1,9 +1,10 @@
-import { Plus } from 'lucide-react'
+import { Plus, Settings } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { ErrorBoundary } from 'react-error-boundary'
 import { HashRouter, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router'
 import Import from './import'
 import Study from './study'
+import SettingsPage from './settings'
 
 function ErrorFallback({ error, resetErrorBoundary }) {
   console.log('ErrorFallback', error.stack)
@@ -277,16 +278,22 @@ function AppContent() {
             </ul>
           </li>
         </ul>
-        <footer className="absolute left-0 bottom-8 w-full flex justify-center p-2">
+        <footer className="absolute left-0 bottom-8 w-full flex justify-center p-2 gap-1">
           {!(location.pathname === '/import' && studies.length === 0) && (
             <NavLink
               to="/import"
-              className={` bg-white cursor-pointer w-[80%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50`}
+              className={` bg-white cursor-pointer w-[72%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50`}
             >
               <Plus color="black" size={14} />
               Add study
             </NavLink>
           )}
+          <NavLink
+            to="/settings/model_zoo"
+            className={` bg-white cursor-pointer w-[20%] transition-colors flex justify-center flex-row items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50`}
+          >
+            <Settings className="text-gray-500" size={18} />
+          </NavLink>
         </footer>
       </div>
       <main className="ml-52 relative flex w-[calc(100%-14rem)] flex-1 bg-transparent pt-3 pr-3">
@@ -294,6 +301,7 @@ function AppContent() {
           <Routes>
             <Route path="/import" element={<Import onNewStudy={onNewStudy} />} />
             <Route path="/study/:id/*" element={<Study />} />
+            <Route path="/settings/*" element={<SettingsPage />} />
           </Routes>
         </div>
       </main>

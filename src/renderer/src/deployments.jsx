@@ -129,6 +129,8 @@ function LocationsList({ activity, selectedLocation, setSelectedLocation }) {
     return <div className="text-gray-500">No location data available</div>
   }
 
+  console.log('activity.locations', activity.locations)
+
   // Format date to a more readable format
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A'
@@ -153,8 +155,8 @@ function LocationsList({ activity, selectedLocation, setSelectedLocation }) {
           {activity.locations
             .sort(
               (a, b) =>
-                new Date(a.periods.find((p) => p.count > 0).start) -
-                new Date(b.periods.find((p) => p.count > 0).start)
+                new Date(a.periods.find((p) => p.count > 0)?.start) -
+                new Date(b.periods.find((p) => p.count > 0)?.start)
             )
             .map((location) => (
               <div

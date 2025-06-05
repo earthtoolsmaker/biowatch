@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react'
 
+// Create a module-level cache for common names that persists across component unmounts
+const commonNamesCache = {}
+
 function SpeciesDistribution({ data, taxonomicData, selectedSpecies, onSpeciesChange, palette }) {
-  const [commonNames, setCommonNames] = useState({})
+  // Add a simple state to force re-renders when cache is updated
+  const [, forceUpdate] = useState({})
 
   const totalCount = data.reduce((sum, item) => sum + item.count, 0)
 
@@ -17,6 +21,11 @@ function SpeciesDistribution({ data, taxonomicData, selectedSpecies, onSpeciesCh
 
   // Function to fetch common names from Global Biodiversity Information Facility (GBIF)
   async function fetchCommonName(scientificName) {
+    // Check cache first
+    if (commonNamesCache[scientificName] !== undefined) {
+      return commonNamesCache[scientificName]
+    }
+
     try {
       // Step 1: Match the scientific name to get usageKey
       const matchResponse = await fetch(
@@ -26,6 +35,8 @@ function SpeciesDistribution({ data, taxonomicData, selectedSpecies, onSpeciesCh
 
       // Check if we got a valid usageKey
       if (!matchData.usageKey) {
+        // Cache the null result to avoid future requests
+        commonNamesCache[scientificName] = null
         return null
       }
 
@@ -42,19 +53,25 @@ function SpeciesDistribution({ data, taxonomicData, selectedSpecies, onSpeciesCh
           (name) => name.language === 'eng' || name.language === 'en'
         )
 
-        console.log('EN', englishName, vernacularData.results)
-
         if (englishName) {
+          // Cache the result
+          commonNamesCache[scientificName] = englishName.vernacularName
           return englishName.vernacularName
         }
 
         // If no English name, return the first available name
+        // Cache the result
+        commonNamesCache[scientificName] = vernacularData.results[0].vernacularName
         return vernacularData.results[0].vernacularName
       }
 
+      // Cache the null result
+      commonNamesCache[scientificName] = null
       return null
     } catch (error) {
       console.error(`Error fetching common name for ${scientificName}:`, error)
+      // Cache the error as null to prevent repeated failed requests
+      commonNamesCache[scientificName] = null
       return null
     }
   }
@@ -68,24 +85,20 @@ function SpeciesDistribution({ data, taxonomicData, selectedSpecies, onSpeciesCh
         (species) =>
           species.scientificName &&
           !scientificToCommonMap[species.scientificName] &&
-          !commonNames[species.scientificName]
+          commonNamesCache[species.scientificName] === undefined // Only fetch if not cached
       )
 
       if (missingCommonNames.length === 0) return
 
-      const newCommonNames = { ...commonNames }
-
       // Fetch common names for species with missing common names
       await Promise.all(
         missingCommonNames.map(async (species) => {
-          const commonName = await fetchCommonName(species.scientificName)
-          if (commonName) {
-            newCommonNames[species.scientificName] = commonName
-          }
+          await fetchCommonName(species.scientificName)
         })
       )
 
-      setCommonNames(newCommonNames)
+      // Force re-render to pick up new cache entries
+      forceUpdate({})
     }
 
     fetchMissingCommonNames()
@@ -121,13 +134,10 @@ function SpeciesDistribution({ data, taxonomicData, selectedSpecies, onSpeciesCh
     <div className="w-full h-full bg-white rounded border border-gray-200 p-3 overflow-y-auto myscroll">
       <div className="space-y-4">
         {data.map((species, index) => {
-          // Try to get the common name from the taxonomic data first, then from fetched data
+          // Try to get the common name from the taxonomic data first, then from the cache
           const commonName =
-            scientificToCommonMap[species.scientificName] || commonNames[species.scientificName]
-
-          console.log(scientificToCommonMap, commonNames, species.scientificName)
-
-          console.log(commonName, species.scientificName)
+            scientificToCommonMap[species.scientificName] ||
+            commonNamesCache[species.scientificName]
 
           const isSelected = selectedSpecies.some(
             (s) => s.scientificName === species.scientificName

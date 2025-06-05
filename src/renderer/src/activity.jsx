@@ -7,6 +7,7 @@ import { useParams } from 'react-router'
 import CircularTimeFilter, { DailyActivityRadar } from './ui/clock'
 import SpeciesDistribution from './ui/speciesDistribution'
 import TimelineChart from './ui/timeseries'
+import { useImportStatus } from './hooks/import'
 
 // SpeciesMap component
 const SpeciesMap = ({ heatmapData, selectedSpecies, palette, geoKey }) => {
@@ -148,13 +149,6 @@ const SpeciesMap = ({ heatmapData, selectedSpecies, palette, geoKey }) => {
         )
       : null
 
-  // Only use bounds if we have points and the bounds are valid
-  const shouldUseBounds =
-    bounds &&
-    bounds[0][0] <= bounds[1][0] &&
-    bounds[0][1] <= bounds[1][1] &&
-    locationPoints.length > 1
-
   // Options for bounds
   const boundsOptions = {
     padding: [20, 20]
@@ -162,8 +156,8 @@ const SpeciesMap = ({ heatmapData, selectedSpecies, palette, geoKey }) => {
 
   return (
     <MapContainer
-      bounds={shouldUseBounds ? bounds : undefined}
-      boundsOptions={shouldUseBounds ? boundsOptions : undefined}
+      bounds={bounds}
+      boundsOptions={boundsOptions}
       className="rounded w-full h-full border border-gray-200"
     >
       <LayersControl position="topright">
@@ -272,7 +266,6 @@ export default function Activity({ studyData, studyId }) {
   const { id } = useParams()
   const actualStudyId = studyId || id // Use passed studyId or from params
 
-  const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [selectedSpecies, setSelectedSpecies] = useState([])
   const [dateRange, setDateRange] = useState([null, null])
@@ -281,6 +274,7 @@ export default function Activity({ studyData, studyId }) {
   const [heatmapData, setHeatmapData] = useState(null)
   const [speciesDistributionData, setSpeciesDistributionData] = useState(null)
   const [dailyActivityData, setDailyActivityData] = useState(null)
+  const { importStatus } = useImportStatus(actualStudyId, 5000)
 
   // Get taxonomic data from studyData
   const taxonomicData = studyData?.taxonomic || null
@@ -288,17 +282,7 @@ export default function Activity({ studyData, studyId }) {
   useEffect(() => {
     async function fetchData() {
       try {
-        setLoading(true)
-
-        // const response = await window.api.getTopSpeciesTimeseries(actualStudyId)
         const speciesResponse = await window.api.getSpeciesDistribution(actualStudyId)
-
-        // setTimeseriesData(response.data.timeseries)
-
-        // Default select the top 2 species
-        // setSelectedSpecies(response.data.allSpecies.slice(0, 2))
-        // console.log('SELECTED SPECIES', response.data.allSpecies.slice(0, 2))
-        console.log('Species response:', speciesResponse.data.slice(0, 2))
 
         if (speciesResponse.error) {
           console.error('Error fetching species distribution:', speciesResponse.error)
@@ -309,15 +293,24 @@ export default function Activity({ studyData, studyId }) {
         }
       } catch (err) {
         setError(err.message || 'Failed to fetch activity data')
-      } finally {
-        setLoading(false)
       }
     }
 
     if (actualStudyId) {
+      console.log('Fetching data for study:', actualStudyId)
       fetchData()
     }
-  }, [actualStudyId])
+    let intervalId
+    if (importStatus.isRunning) {
+      intervalId = setInterval(() => {
+        console.log('Import is running, fetching data...')
+        fetchData()
+      }, 5000)
+    }
+    return () => {
+      if (intervalId) clearInterval(intervalId)
+    }
+  }, [actualStudyId, importStatus])
 
   // console.log('selected', selectedSpecies)
 
