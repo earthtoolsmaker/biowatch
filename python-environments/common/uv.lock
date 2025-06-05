@@ -298,7 +298,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115.12" },
-    { name = "litserve", specifier = ">=0.2.10" },
+    { name = "litserve", specifier = ">=0.2.11" },
     { name = "speciesnet", specifier = "==5.0.0" },
 ]
 
@@ -1172,16 +1172,16 @@ wheels = [
 
 [[package]]
 name = "litserve"
-version = "0.2.10"
+version = "0.2.11"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "fastapi" },
     { name = "pyzmq" },
     { name = "uvicorn", extra = ["standard"] },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a7/41/00e2dd2a2679d7f4a9d2bc1c9d8065ab233e03a0777804af8334fb54efae/litserve-0.2.10.tar.gz", hash = "sha256:58376835246d06967cabcf6378b5a26e5e8fcfb71a781ffb9db4ceb8401748ec", size = 56495 }
+sdist = { url = "https://files.pythonhosted.org/packages/1b/9d/ba7a04e37a6d18b1b71ddfa9fd07998482d7a48e9c6f34f9548df14c19b6/litserve-0.2.11.tar.gz", hash = "sha256:3d3c159ebd3b77106c6756fa848f283c28f44c6a34f375b03c26d1597b1c5142", size = 62645 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e7/f5/26877d53a5ee4219df315e9e180bd22b5c600e68f3590d8714161a944a6c/litserve-0.2.10-py3-none-any.whl", hash = "sha256:fe9b1d99c69d76aca749f16070d9c2b1ca79b8f4aaf5be4db47d94c753f2e00e", size = 69761 },
+    { url = "https://files.pythonhosted.org/packages/0d/ff/d57c3d8dd44011c6a8ed547558bdb0fcf8976854fb912bc2a9ee6150f636/litserve-0.2.11-py3-none-any.whl", hash = "sha256:4890ef6a8261857d78cd07e11c01ca6c267c3cec231b085c319d57f8d8084b47", size = 75607 },
 ]
 
 [[package]]

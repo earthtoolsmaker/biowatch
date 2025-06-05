@@ -7,5 +7,5 @@ requires-python = ">=3.9,<3.15"
 dependencies = [
     "speciesnet==5.0.0",
     "fastapi>=0.115.12",
-    "litserve>=0.2.10",
+    "litserve>=0.2.11",
 ]

@@ -33,7 +33,7 @@ jobs:
       - name: Install Python dependencies
         shell: bash -l {0}
         run: |
-          conda run pip install fastapi litserve
+          conda run pip install fastapi==0.115.12 litserve==0.2.11
           conda run pip install speciesnet==5.0.0 --use-pep517
           conda list
 

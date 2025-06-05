@@ -184,6 +184,8 @@ class SpeciesNetLitAPI(ls.LitAPI):
         model_name: str,
         geofence: bool = True,
         extra_fields: Optional[list[str]] = None,
+        *args,
+        **kwargs,
     ) -> None:
         """Initializes the SpeciesNet API server.
 
@@ -198,7 +200,7 @@ class SpeciesNetLitAPI(ls.LitAPI):
                           Comma-separated list of extra fields to propagate from request to
                           response.
         """
-        super().__init__()
+        super().__init__(*args, **kwargs)
         self.model_name = model_name
         self.geofence = geofence
         self.extra_fields = extra_fields or []
@@ -252,6 +254,8 @@ def main(argv: list[str]) -> None:
         model_name=_MODEL.value,
         geofence=_GEOFENCE.value,
         extra_fields=_EXTRA_FIELDS.value,
+        api_path=_API_PATH.value,
+        stream=True,
     )
     model_metadata = {"name": _MODEL.value, "type": "speciesnet"}
     server = ls.LitServer(
@@ -261,8 +265,6 @@ def main(argv: list[str]) -> None:
         workers_per_device=_WORKERS_PER_DEVICE.value,
         model_metadata=model_metadata,
         timeout=_TIMEOUT.value,
-        api_path=_API_PATH.value,
-        stream=True,
     )
     server.run(
         port=_PORT.value,
