@@ -3,7 +3,7 @@
  *
  * This file includes functions for downloading, extracting, deleting model weights.
  *
- * @module ml_model_management
+ * @module models
  */
 
 import yaml from 'js-yaml'

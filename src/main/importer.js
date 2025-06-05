@@ -6,7 +6,7 @@ import geoTz from 'geo-tz'
 import luxon, { DateTime } from 'luxon'
 import path from 'path'
 import sqlite3 from 'sqlite3'
-import ml_model_management from './ml_model_management.js'
+import models from './models.js'
 import mlmodels from '../shared/mlmodels.js'
 
 const imageExtensions = new Set(['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'])
@@ -517,7 +517,7 @@ export class Importer {
   async cleanup() {
     log.info(`Cleaning up importer with ID ${this.id}`, this.pythonProcess)
     if (this.pythonProcess) {
-      return await ml_model_management.stopMLModelHTTPServer({ pid: this.pythonProcess.pid })
+      return await models.stopMLModelHTTPServer({ pid: this.pythonProcess.pid })
     }
     return Promise.resolve() // Return resolved promise if no process to kill
   }
@@ -552,7 +552,7 @@ export class Importer {
       // const temporalData = await getTemporalData(this.db)
 
       try {
-        ml_model_management
+        models
           .startMLModelHTTPServer({
             pythonEnvironment: mlmodels.pythonEnvironments[0],
             modelReference: mlmodels.modelZoo[0].reference
