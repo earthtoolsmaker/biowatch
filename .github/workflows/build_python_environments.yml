@@ -43,7 +43,7 @@ jobs:
           mkdir -p dist
           CONDA_BASE=$(conda info --base)
           CONDA_ENV_PATH=$CONDA_BASE/envs/common
-          tar -czf dist/common-0.1.0-${{ runner.os }}.tar.gz -C $CONDA_BASE/envs common
+          tar -czf dist/common-0.1.1-${{ runner.os }}.tar.gz -C $CONDA_BASE/envs common
 
       - name: Upload to Cloudflare R2
         uses: shallwefootball/s3-upload-action@master
