@@ -24,6 +24,7 @@ import path, { join } from 'path'
 import { pipeline } from 'stream/promises'
 import { importCamTrapDataset } from './camtrap'
 import { Importer } from './importer'
+import { importWildlifeDataset } from './wildlife'
 import {
   getDeployments,
   getDeploymentsActivity,
@@ -464,7 +465,12 @@ async function processDataset(inputPath, id) {
     }
 
     // Import the dataset
-    const { data } = await importCamTrapDataset(pathToImport, id)
+    // const { data } = await importCamTrapDataset(pathToImport, id)
+    const { data } = await importWildlifeDataset(pathToImport, id)
+
+    if (!data) {
+      return
+    }
 
     // Clean up CSV files and datapackage.json after successful import if it was a zip
     if (pathToImport !== inputPath) {
@@ -990,7 +996,7 @@ app.whenReady().then(async () => {
     app.quit()
   }
 
-  app.on('activate', function() {
+  app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

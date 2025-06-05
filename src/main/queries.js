@@ -822,6 +822,7 @@ export async function getMedia(dbPath, options = {}) {
           m.filePath,
           m.fileName,
           m.timestamp,
+          m.deploymentID,
           o.scientificName
         FROM media m
         JOIN observations o ON m.timestamp = o.eventStart
