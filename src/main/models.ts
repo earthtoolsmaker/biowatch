@@ -1,201 +1,91 @@
 /**
  * @fileoverview This module provides utility functions for managing the ML models and their weights.
  *
- * This file includes functions for downloading, extracting, deleting model weights.
- *
  * @module models
  */
 
-import yaml from 'js-yaml'
 import { app, ipcMain } from 'electron'
 import { is } from '@electron-toolkit/utils'
-import { extract } from 'tar'
-import { net as electronNet } from 'electron'
 import net from 'net'
 import { join, dirname } from 'path'
 import { spawn } from 'child_process'
-import {
-  createReadStream,
-  readdirSync,
-  readFileSync,
-  existsSync,
-  mkdirSync,
-  createWriteStream,
-  promises as fsPromises,
-  writeFileSync
-} from 'fs'
+import { existsSync, promises as fsPromises } from 'fs'
 import log from 'electron-log'
-import path from 'path'
 import kill from 'tree-kill'
 import { findModel, findPythonEnvironment, platformToKey } from '../shared/mlmodels'
+import {
+  extractTarGz,
+  InstallationState,
+  downloadFile,
+  writeToManifest,
+  removeManifestEntry,
+  getDownloadStatus,
+  isDownloadSuccess
+} from './download'
+
+// -------------------------------------------------------
+// Util functions to define the install and download paths
+// -------------------------------------------------------
+
+function getMLModelLocalRootDir() {
+  return join(app.getPath('userData'), 'model-zoo')
+}
+
+function getMLModelLocalTarPath({ id, version }) {
+  return join(getMLModelLocalRootDir(), 'archives', id, `${version}.tar.gz`)
+}
+
+function getMLModelLocalInstallPath({ id, version }) {
+  return join(getMLModelLocalRootDir(), id, version)
+}
+
+function getMLModelLocalDownloadManifest() {
+  return join(getMLModelLocalRootDir(), 'manifest.yaml')
+}
+
+function getMLModelEnvironmentRootDir() {
+  return join(app.getPath('userData'), 'python-environments', 'conda')
+}
+
+function getMLEnvironmentDownloadManifest() {
+  return join(getMLModelEnvironmentRootDir(), 'manifest.yaml')
+}
+
+function getMLModelEnvironmentLocalInstallPath({ version, id }) {
+  return join(getMLModelEnvironmentRootDir(), `${id}`, `${version}`)
+}
+
+function getMLModelEnvironmentLocalTarPath({ id, version }) {
+  return join(getMLModelEnvironmentRootDir(), 'archives', id, version)
+}
 
 /**
- * Extracts a .tar.gz archive to a specified directory.
+ * Checks if a machine learning model is downloaded.
  *
- * This function checks if the extraction directory already exists and contains files.
- * If the directory exists and is not empty, the extraction is skipped. If the directory
- * does not exist, it will be created. The extraction is performed using the native `tar`
- * command, which works on macOS, Linux, and modern Windows systems.
+ * This function verifies whether the specified ML model, identified by its unique
+ * ID and version, has been downloaded and is available in the local installation path.
  *
- * @async
- * @param {string} tarPath - The path to the .tar.gz archive to be extracted.
- * @param {string} extractPath - The path to the directory where the files will be extracted.
- * @param {function} onProgress - A callback function that is called with progress updates.
- * @param {boolean} useCache - A flag indicating whether to use cached files if available. Defaults to false.
- * @returns {Promise<string>} A promise that resolves to the destination path if the download is successful.
- * @throws {Error} Throws an error if the extraction process fails or if the `tar` command encounters an issue.
- *
- * @example
- * extractTarGz('./path/to/archive.tar.gz', './path/to/extract', (progress) => {
- *   console.log(`Download progress: ${progress.extracted}%`);
- * })
-)
- *   .then((path) => {
- *     console.log(`Files extracted to: ${path}`);
- *   })
- *   .catch((error) => {
- *     console.error('Extraction failed:', error);
- *   });
+ * @param {Object} params - The parameters for checking the model download status.
+ * @param {string} params.id - The unique identifier of the ML model.
+ * @param {string} params.version - The version of the ML model.
+ * @returns {boolean} True if the model is downloaded, otherwise false.
  */
-async function extractTarGz(tarPath, extractPath, onProgress, useCache = false) {
-  // Check if extraction directory already exists and contains files
-  log.info(`Checking extraction directory at ${extractPath}`, existsSync(extractPath))
-  if (useCache && existsSync(extractPath)) {
-    try {
-      const files = readdirSync(extractPath)
-      if (files.length > 0) {
-        log.info(
-          `Extraction directory already exists with content at ${extractPath}, skipping extraction`
-        )
-        return extractPath
-      }
-    } catch (error) {
-      log.warn(`Error checking extraction directory: ${error}`)
-    }
-  }
-
-  log.info(`Extracting ${tarPath} to ${extractPath}`)
-
-  if (!existsSync(extractPath)) {
-    mkdirSync(extractPath, { recursive: true })
-  }
-
-  const startTime = Date.now()
-
-  return new Promise((resolve, reject) => {
-    let processedEntries = 0
-    const tarStream = createReadStream(tarPath)
-      .pipe(extract({ cwd: extractPath }))
-      .on('finish', () => {
-        const duration = (Date.now() - startTime) / 1000
-        log.info(`Extraction complete to ${extractPath}. Took ${duration} seconds.`)
-        resolve(extractPath)
-      })
-      .on('error', (err) => {
-        log.error(`Error during extraction:`, err)
-        reject(err)
-      })
-      .on('entry', (_entry) => {
-        processedEntries++
-        onProgress({ extracted: processedEntries })
-      })
-  })
-}
-
-/**
- * Downloads a file from a specified URL to a designated destination path.
- *
- * This function ensures that the destination directory exists before downloading the file.
- * It uses Electron's net module to fetch the file and streams the response to the specified
- * destination. If the download fails, an error is thrown with the appropriate status.
- * A progress callback can be provided to track the download progress.
- *
- * @async
- * @param {string} url - The URL of the file to be downloaded.
- * @param {string} destination - The path where the downloaded file will be saved.
- * @param {function} onProgress - A callback function that is called with progress updates.
- * @returns {Promise<string>} A promise that resolves to the destination path if the download is successful.
- * @throws {Error} Throws an error if the download fails or if the destination directory cannot be created.
- *
- * @example
- * downloadFile('https://example.com/file.zip', './downloads/file.zip', (progress) => {
- *   console.log(`Download progress: ${progress.percent}%`);
- * })
- *   .then((path) => {
- *     console.log(`File downloaded to: ${path}`);
- *   })
- *   .catch((error) => {
- *     console.error('Download failed:', error);
- *   });
- **/
-async function downloadFile(url, destination, onProgress) {
-  log.info(`Downloading ${url} to ${destination}...`)
-
-  try {
-    const dir = path.dirname(destination)
-    if (!existsSync(dir)) {
-      mkdirSync(dir, { recursive: true })
-    }
-
-    const response = await electronNet.fetch(url)
-    if (!response.ok) {
-      throw new Error(`Download failed with status ${response.status}`)
-    }
-
-    const totalBytes = Number(response.headers.get('Content-Length'))
-    const writer = createWriteStream(destination)
-    const reader = response.body.getReader()
-
-    let downloadedBytes = 0
-
-    // Custom function to read the stream
-    const readStream = async () => {
-      const { done, value } = await reader.read()
-
-      if (done) {
-        log.info(`Download complete: ${destination}`)
-        writer.end() // Close the write stream
-        return destination
-      }
-
-      // Write the chunk to the file
-      writer.write(value)
-      downloadedBytes += value.length
-
-      // Update progress
-      const progress = (downloadedBytes / totalBytes) * 100
-      onProgress({ totalBytes, downloadedBytes, percent: progress })
-      if (onProgress) {
-        onProgress({ totalBytes, downloadedBytes, percent: progress })
-      }
-
-      // Read the next chunk
-      return readStream()
-    }
-
-    await readStream() // Start reading the stream
-
-    return destination
-  } catch (error) {
-    log.error(`Download failed: ${error.message}`)
-    throw error
-  }
-}
-
-const getMLModelLocalRootDir = () => join(app.getPath('userData'), 'model-zoo')
-
-const getMLModelLocalTarPath = ({ id, version }) =>
-  join(getMLModelLocalRootDir(), 'archives', id, `${version}.tar.gz`)
-
-const getMLModelLocalInstallPath = ({ id, version }) => join(getMLModelLocalRootDir(), id, version)
-
-const getMLModelLocalDownloadManifest = () => join(getMLModelLocalRootDir(), 'manifest.yaml')
-
 function isMLModelDownloaded({ id, version }) {
   const localInstallPath = getMLModelLocalInstallPath({ id, version })
   return existsSync(localInstallPath)
 }
 
+/**
+ * Clears all locally stored machine learning models and their associated Python environments.
+ *
+ * This function removes all files and directories within the local ML model root directory
+ * and the local Python environment root directory, effectively uninstalling all models.
+ * It logs the process and returns a success message if the operation is completed successfully.
+ *
+ * @returns {Promise<Object>} A promise that resolves to an object indicating the success
+ * of the operation and a corresponding message.
+ * @throws {Error} Throws an error if the clearing process fails.
+ */
 async function clearAllLocalMLModels() {
   try {
     const localMLModelRootDir = getMLModelLocalRootDir()
@@ -213,29 +103,27 @@ async function clearAllLocalMLModels() {
   }
 }
 
-function removeManifestEntry({ manifestFilepath, id, version }) {
-  const manifest = yamlRead(manifestFilepath)
-  let manifestUpdated = manifest
-  log.info('Manifest Update: ', manifestUpdated)
-  if (manifestUpdated[id] && manifestUpdated[id][version]) {
-    delete manifestUpdated[id][version]
-  }
-  yamlWrite(manifestUpdated, manifestFilepath)
-}
-
+/**
+ * Deletes a locally stored machine learning model and its associated files.
+ *
+ * This function removes the archived model file and the installed model
+ * directory from the local file system, and updates the download manifest
+ * accordingly. It logs the process and returns a success message if
+ * the operation is completed successfully.
+ *
+ * @async
+ * @param {Object} params - The parameters for deleting the model.
+ * @param {string} params.id - The unique identifier of the ML model to be deleted.
+ * @param {string} params.version - The version of the ML model to be deleted.
+ * @returns {Promise<Object>} A promise that resolves to an object indicating the success
+ * of the operation and a corresponding message.
+ * @throws {Error} Throws an error if the deletion process fails.
+ */
 async function deleteLocalMLModel({ id, version }) {
   const localTarPath = getMLModelLocalTarPath({ id, version })
   const localInstallPath = getMLModelLocalInstallPath({ id, version })
   const manifestFilepath = getMLModelLocalDownloadManifest()
   removeManifestEntry({ manifestFilepath, id, version })
-  // writeToManifest({
-  //   manifestFilepath,
-  //   progress: 0,
-  //   id,
-  //   version,
-  //   state: InstallationState.Download,
-  //   opts: {}
-  // })
   log.info('local tar path:', localTarPath)
   if (existsSync(localTarPath)) {
     log.info('delete local tar path:', localTarPath)
@@ -252,6 +140,22 @@ async function deleteLocalMLModel({ id, version }) {
   }
 }
 
+/**
+ * Downloads a Python environment for a specified machine learning model.
+ *
+ * This function handles the downloading and installation of the Python environment
+ * associated with the specified ML model. It tracks the progress of the download
+ * and extraction process, updating the manifest accordingly. If the environment is
+ * already installed, it will skip the download and return a success message.
+ *
+ * @async
+ * @param {Object} params - The parameters for downloading the Python environment.
+ * @param {string} params.id - The unique identifier of the ML model.
+ * @param {string} params.version - The version of the ML model.
+ * @returns {Promise<Object>} A promise that resolves to an object indicating the success
+ * of the operation and a corresponding message.
+ * @throws {Error} Throws an error if the download or extraction process fails.
+ */
 async function downloadPythonEnvironment({ id, version }) {
   const installationStateProgress = {
     [InstallationState.Failure]: 0,
@@ -275,10 +179,6 @@ async function downloadPythonEnvironment({ id, version }) {
   const extractPath = getMLModelEnvironmentLocalInstallPath({ id, version })
   const localTarPath = getMLModelEnvironmentLocalTarPath({ id, version })
   const manifestFilepath = getMLEnvironmentDownloadManifest()
-
-  const manifest = yamlRead(manifestFilepath)
-  log.info('manifest filepath: ', manifestFilepath)
-  log.info('manifest content: ', manifest)
   const manifestOpts = { archivePath: localTarPath, installPath: extractPath }
 
   let previousDownloadProgress = 0
@@ -392,141 +292,18 @@ async function downloadPythonEnvironment({ id, version }) {
   }
 }
 
-enum InstallationState {
-  /** Indicates a successful installation. */
-  Success = 'success',
-  /** Indicates a failed installation. */
-  Failure = 'failure',
-  /** Indicates that the artifact is currently being downloaded. */
-  Download = 'download',
-  /** Indicates that the artifact is being cleaned up after installation. */
-  Clean = 'clean',
-  /** Indicates that the artifact is currently being extracted from its archive. */
-  Extract = 'extract'
-}
-
 /**
- * Reads the contents of a YAML file and parses it into a JavaScript object.
+ * Retrieves the download status of a machine learning model and its associated Python environment.
  *
- * This function checks if the specified YAML file exists. If it does, it reads the file's contents,
- * parses the YAML data, and returns it as a JavaScript object. If the file does not exist,
- * the function returns an empty structure with a default property `downloads` set to an empty array.
+ * This function checks the current download status of the specified ML model and its corresponding
+ * Python environment by referring to their respective manifests. It returns an object containing
+ * the status of both downloads, which can be used for monitoring and logging purposes.
  *
- * @param {string} yamlFile - The path to the YAML file to be read.
- * @returns {Object} The parsed contents of the YAML file, or an empty structure if the file does not exist.
- *
- * @example
- * const config = yamlRead('./config.yaml');
- * console.log(config.downloads);
+ * @param {Object} params - The parameters for checking download status.
+ * @param {Object} params.modelReference - The reference object containing model details.
+ * @param {Object} params.pythonEnvironmentReference - The reference object containing Python environment details.
+ * @returns {Object} An object containing the download status of the ML model and Python environment.
  */
-function yamlRead(yamlFile) {
-  if (existsSync(yamlFile)) {
-    const fileContents = readFileSync(yamlFile, 'utf8')
-    return yaml.load(fileContents) || {}
-  } else {
-    return {} // Return an empty structure if the file doesn't exist
-  }
-}
-
-/**
- * Writes a JavaScript object to a YAML file.
- *
- * This function converts the provided data object into a YAML string format
- * and writes it to the specified file path. If the file already exists,
- * it will be overwritten. The function uses the `js-yaml` library to perform
- * the conversion from the JavaScript object to YAML format.
- *
- * @param {Object} data - The JavaScript object to be converted and written to the YAML file.
- * @param {string} yamlFile - The path to the file where the YAML data will be written.
- *
- * @example
- * const data = {
- *   name: "example",
- *   version: "1.0.0",
- *   contributors: ["Alice", "Bob"]
- * };
- * yamlWrite(data, './config.yaml');
- */
-function yamlWrite(data, yamlFile) {
-  const yamlStr = yaml.dump(data)
-  mkdirSync(dirname(yamlFile), { recursive: true })
-  writeFileSync(yamlFile, yamlStr, 'utf8')
-}
-
-/**
- * Writes the specified information to the manifest file.
- *
- * This function updates the manifest file with the current state and options
- * for a given model identified by its ID and version. If the model already exists
- * in the manifest, it will be updated; otherwise, it will be added.
- *
- * @param {Object} params - The parameters for writing to the manifest.
- * @param {string} params.manifestFilepath - The path to the manifest file.
- * @param {string} params.id - The identifier of the artifact
- * @param {string} params.version - The version of the artifact
- * @param {string} params.state - The current state of the download and install (e.g., success, failure).
- * @param {Object} params.opts - Additional options related to the ML model.
- */
-function writeToManifest({ manifestFilepath, progress, id, version, state, opts }) {
-  const manifest = yamlRead(manifestFilepath)
-  log.debug('manifest content: ', JSON.stringify(manifest))
-  const yamlData = {
-    ...manifest,
-    [id]: {
-      ...manifest[id],
-      [version]: { state: state, progress: progress, opts: opts }
-    }
-  }
-  log.debug('New manifest data: ', JSON.stringify(yamlData))
-  yamlWrite(yamlData, manifestFilepath)
-}
-
-/**
- * Checks if the download of the artifact was successful.
- *
- * This function reads the state of the specified version and id from the
- * manifest file and determines if the artifact's installation state is marked
- * as 'success'.
- *
- * @param {Object} params - The parameters for checking download success.
- * @param {string} params.manifestFilepath - The path to the manifest file.
- * @param {string} params.version - The version of the artifact
- * @param {string} params.id - The unique identifier of the artifact
- * @returns {boolean} True if the artifact was successfully downloaded, otherwise false.
- */
-function isDownloadSuccess({ manifestFilepath, version, id }) {
-  const manifest = yamlRead(manifestFilepath)
-  if (Object.keys(manifest).length === 0) {
-    return false
-  }
-  if (manifest[id] && manifest[id][version]) {
-    return manifest[id][version]['state'] === 'success'
-  }
-  return false
-}
-
-/**
- * Retrieves the download status of an artifact from the manifest file.
- *
- * This function reads the specified manifest file and returns the status information
- * for a particular artifact identified by its ID and version. If the artifact is not found
- * in the manifest, it returns an empty object.
- *
- * @param {Object} params - The parameters for retrieving the download status.
- * @param {string} params.manifestFilepath - The path to the manifest file.
- * @param {string} params.version - The version of the model.
- * @param {string} params.id - The unique identifier of the model.
- * @returns {Object} An object containing the download status information for the artifact.
- */
-function getDownloadStatus({ manifestFilepath, version, id }) {
-  const manifest = yamlRead(manifestFilepath)
-  if (Object.keys(manifest).length === 0) {
-    log.info('empty manifest file')
-    return {}
-  }
-  return manifest[id][version] || {}
-}
-
 function getMLModelDownloadStatus({ modelReference, pythonEnvironmentReference }) {
   const manifestFilepathMLModel = getMLModelLocalDownloadManifest()
   const manifestFilepathPythonEnvironment = getMLEnvironmentDownloadManifest()
@@ -603,9 +380,6 @@ async function downloadMLModel({ id, version }) {
     [InstallationState.Success]: 100
   }
 
-  const manifest = yamlRead(manifestFilepath)
-  log.info('manifest filepath: ', manifestFilepath)
-  log.info('manifest content: ', manifest)
   const manifestOpts = { archivePath: localTarPath, installPath: localInstallPath }
 
   let previousProgress = 0
@@ -695,20 +469,16 @@ async function downloadMLModel({ id, version }) {
   }
 }
 
-const getMLModelEnvironmentRootDir = () =>
-  join(app.getPath('userData'), 'python-environments', 'conda')
-
-const getMLEnvironmentDownloadManifest = () => join(getMLModelEnvironmentRootDir(), 'manifest.yaml')
-
-function getMLModelEnvironmentLocalInstallPath({ version, id }) {
-  return join(getMLModelEnvironmentRootDir(), `${id}`, `${version}`)
-}
-
-function getMLModelEnvironmentLocalTarPath({ id, version }) {
-  return join(getMLModelEnvironmentRootDir(), 'archives', id, version)
-}
-
-export const registerMLModelManagementIPCHandlers = () => {
+/**
+ * Registers IPC handlers for managing machine learning models.
+ *
+ * This function sets up various IPC (Inter-Process Communication) handlers
+ * to facilitate operations related to machine learning models, such as
+ * checking if a model is downloaded, getting the download status,
+ * deleting a model, clearing all models, and downloading a model
+ * or its associated Python environment.
+ */
+export function registerMLModelManagementIPCHandlers() {
   // IPC handler to check whether the ML model is properly installed locally
   ipcMain.handle('ml-model-management:v0:is-ml-model-downloaded', (_, id, version) =>
     isMLModelDownloaded({ id, version })
@@ -835,8 +605,6 @@ async function startSpeciesNetHTTPServer({
     pythonEnvironment.reference.id
   )
   log.info('Local Python Environment root dir is', localInstalRootDirPythonEnvironment)
-  // TODO: Make sure the build steps include the python script as a resource in the electron buil
-  // use app.getResource to target the python script
   const scriptPath = is.dev
     ? join(__dirname, '../../python-environments/common/run_speciesnet_server.py')
     : join(process.resourcesPath, 'python-environments', 'common', 'run_speciesnet_server.py')
@@ -899,6 +667,19 @@ async function startSpeciesNetHTTPServer({
   throw new Error('Server failed to start in the expected time')
 }
 
+/**
+ * Stops the ML Model HTTP Server.
+ *
+ * This function sends a termination signal to the specified Python process running the ML Model HTTP server.
+ * It logs the process ID and handles any errors that may occur while attempting to stop the process.
+ *
+ * @async
+ * @param {Object} params - The parameters for stopping the server.
+ * @param {number} params.pid - The process ID of the ML Model HTTP server to be stopped.
+ * @returns {Promise<Object>} A promise that resolves to an object indicating the success of the operation
+ * and a corresponding message.
+ * @throws {Error} Throws an error if the process cannot be stopped.
+ */
 async function stopMLModelHTTPServer({ pid }) {
   try {
     log.info('Stopping ML Model HTTP Server with pid', pid)
@@ -918,6 +699,19 @@ async function stopMLModelHTTPServer({ pid }) {
   }
 }
 
+/**
+ * Starts the ML Model HTTP Server using a specified Python environment and model reference.
+ *
+ * This function initializes the HTTP server for the ML model, allowing it to handle requests.
+ * It finds a free port for the server to listen on, initializes the server with the provided
+ * model weights, and manages the lifecycle of the server process.
+ *
+ * @async
+ * @param {Object} options - The options for starting the server.
+ * @param {Object} options.pythonEnvironment - The Python environment configuration.
+ * @param {Object} options.modelReference - The reference object containing model details.
+ * @returns {Promise<Object>} A promise that resolves to an object containing the port and process of the server.
+ */
 async function startMLModelHTTPServer({ pythonEnvironment, modelReference }) {
   log.info('Starting ML Model HTTP Server')
   log.info('Finding free port for Python server...')
@@ -937,14 +731,17 @@ async function startMLModelHTTPServer({ pythonEnvironment, modelReference }) {
       log.info(`pythonProcess: ${JSON.stringify(pythonProcess)}`)
       return { port: port, process: pythonProcess }
     }
-    default:
+    default: {
       log.warn(
         `startMLModelHTTPServer: Not implemented for ${modelReference.id} version ${modelReference.version}`
       )
+      return { port: null, process: null }
+    }
   }
 }
 
 export default {
+  registerMLModelManagementIPCHandlers,
   startMLModelHTTPServer,
   stopMLModelHTTPServer
 }
