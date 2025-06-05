@@ -17,9 +17,27 @@ function modelDownloadStatusToInfo({ model, pythonEnvironment }) {
   const progress = isPythonEnvironmentDownloading
     ? pythonEnvironment['progress']
     : model['progress']
-  const message = isPythonEnvironmentDownloading
-    ? 'Downloading the Python Environment'
-    : 'Downloading the AI model weights'
+
+  const getDownloadProgressMessage = (model, pythonEnvironment) => {
+    const { state } = isPythonEnvironmentDownloading ? pythonEnvironment : model
+    const suffix = isPythonEnvironmentDownloading
+      ? 'the Python Environment'
+      : 'the AI Model weights'
+    switch (state) {
+      case 'success':
+        return `Successfuly installed ${suffix}`
+      case 'failure':
+        return `Failed installing ${suffix}`
+      case 'download':
+        return `Downloading ${suffix}`
+      case 'extract':
+        return `Extracting ${suffix}`
+      default:
+        return `Downloading ${suffix}`
+    }
+  }
+
+  const message = getDownloadProgressMessage(model, pythonEnvironment)
   return { downloadMessage: message, downloadProgress: progress }
 }
 
@@ -57,20 +75,24 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false }) {
         modelReference: model.reference,
         pythonEnvironmentReference: pythonEnvironment.reference
       })
+      console.log(downloadStatus)
       if (
         downloadStatus['model']['state'] === 'success' &&
         downloadStatus['pythonEnvironment']['state'] === 'success'
       ) {
         setIsDownloaded(true)
         setIsDownloading(false)
-      }
-      if (
+      } else if (
         (downloadStatus['model']['state'] !== 'success' &&
           Object.keys(downloadStatus['model']).length !== 0) ||
         (downloadStatus['pythonEnvironment']['state'] !== 'success' &&
           Object.keys(downloadStatus['pythonEnvironment']).length !== 0)
       ) {
         setIsDownloading(true)
+        setIsDownloaded(false)
+      } else {
+        setIsDownloading(false)
+        setIsDownloaded(true)
       }
       setModelDownloadStatus(downloadStatus)
     }
@@ -125,6 +147,7 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false }) {
       })
       setModelDownloadStatus(downloadStatus)
       setIsDownloading(false)
+      setIsDownloaded(true)
     } catch (error) {
       setIsDownloading(false)
       console.error('Failed to download model:', error)

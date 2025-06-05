@@ -20,7 +20,6 @@ export const pythonEnvironments = [
         downloadURL:
           'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.0-macOS.tar.gz',
         size_in_MiB: 367,
-        // TODO: check
         files: 3000
       },
       linux: {
@@ -33,7 +32,6 @@ export const pythonEnvironments = [
         downloadURL:
           'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.0-Windows.tar.gz',
         size_in_MiB: 522,
-        // TODO: check
         files: 3000
       }
     }
@@ -52,6 +50,7 @@ export const modelZoo = [
     pythonEnvironment: { id: 'common', version: '0.1.0' },
     name: 'SpeciesNet',
     size_in_MiB: 468,
+    files: 6,
     downloadURL:
       'https://huggingface.co/earthtoolsmaker/speciesnet/resolve/main/4.0.1a.tar.gz?download=true',
     description:
@@ -104,4 +103,12 @@ export function findModel({ id, version }) {
  */
 export function platformToKey(platform) {
   return platform === 'win32' ? 'windows' : platform === 'linux' ? 'linux' : 'mac'
+}
+
+export default {
+  pythonEnvironments,
+  modelZoo,
+  findPythonEnvironment,
+  findModel,
+  platformToKey
 }

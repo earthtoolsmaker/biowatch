@@ -37,7 +37,7 @@ import {
   getTopSpeciesTimeseries
 } from './queries'
 import { autoUpdater } from 'electron-updater'
-import { registerMLModelManagementIPCHandlers } from './ml_model_management'
+import { registerMLModelManagementIPCHandlers } from './models'
 
 // Configure electron-log
 log.transports.file.level = 'info'

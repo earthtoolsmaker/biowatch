@@ -1,7 +1,7 @@
 import { NavLink, Navigate, Route, Routes } from 'react-router'
 import { ErrorBoundary } from 'react-error-boundary'
 import { BrainCircuit, Info, Github, Earth } from 'lucide-react'
-import Zoo from './model_zoo'
+import Zoo from './models'
 import { modelZoo } from '../../shared/mlmodels'
 
 function SettingsFooter() {
