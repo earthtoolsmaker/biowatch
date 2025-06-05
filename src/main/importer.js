@@ -7,7 +7,7 @@ import luxon, { DateTime } from 'luxon'
 import path from 'path'
 import sqlite3 from 'sqlite3'
 import ml_model_management from './ml_model_management.js'
-import constants from '../common/constants.js'
+import mlmodels from '../shared/mlmodels.js'
 
 const imageExtensions = new Set(['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'])
 
@@ -243,7 +243,7 @@ function insertInto(db, tableName, data) {
 
   const query = `INSERT INTO ${tableName} (${keys.join(', ')}) VALUES (${placeholders})`
 
-  db.run(query, values, function (err) {
+  db.run(query, values, function(err) {
     if (err) {
       log.error(`Error inserting into ${tableName}:`, err)
     }
@@ -554,8 +554,8 @@ export class Importer {
       try {
         ml_model_management
           .startMLModelHTTPServer({
-            pythonEnvironment: constants.PYTHON_ENVIRONMENTS[0],
-            modelReference: constants.MODEL_ZOO[0].reference
+            pythonEnvironment: mlmodels.pythonEnvironments[0],
+            modelReference: mlmodels.modelZoo[0].reference
           })
           .then(async ({ port, process }) => {
             log.info('New python process', port, process.pid)

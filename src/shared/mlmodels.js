@@ -105,3 +105,11 @@ export function findModel({ id, version }) {
 export function platformToKey(platform) {
   return platform === 'win32' ? 'windows' : platform === 'linux' ? 'linux' : 'mac'
 }
+
+export default {
+  pythonEnvironments,
+  modelZoo,
+  findPythonEnvironment,
+  findModel,
+  platformToKey
+}
