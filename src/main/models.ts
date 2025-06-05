@@ -349,7 +349,7 @@ function getMLModelDownloadStatus({ modelReference, pythonEnvironmentReference }
  *   });
  */
 async function downloadMLModel({ id, version }) {
-  const { downloadURL } = findModel({ id, version })
+  const { downloadURL, files } = findModel({ id, version })
   log.info('downloadMLModel: Download URL is ', downloadURL)
   const localInstallPath = getMLModelLocalInstallPath({ id, version })
   const extractPath = dirname(localInstallPath)
@@ -400,6 +400,30 @@ async function downloadMLModel({ id, version }) {
       previousProgress = progress
     }
   }
+
+  const flushProgressExtractIncrementThreshold = 1.0
+  let previousExtractProgress = 0
+
+  const onProgressExtract = ({ extracted }) => {
+    const progress = Math.min(
+      installationStateProgress[InstallationState.Extract],
+      installationStateProgress[InstallationState.Download] +
+      (extracted / files) *
+      (installationStateProgress[InstallationState.Extract] -
+        installationStateProgress[InstallationState.Download])
+    )
+    if (progress > previousExtractProgress + flushProgressExtractIncrementThreshold) {
+      writeToManifest({
+        manifestFilepath,
+        id,
+        version,
+        state: InstallationState.Extract,
+        progress: progress,
+        opts: manifestOpts
+      })
+      previousExtractProgress = progress
+    }
+  }
   try {
     if (isDownloadSuccess({ manifestFilepath, id, version })) {
       log.info(`ML Model weights already installed in ${extractPath}, skipping.`)
@@ -427,9 +451,8 @@ async function downloadMLModel({ id, version }) {
         opts: manifestOpts
       })
       log.info(`Extracting the archive ${localTarPath} to ${extractPath}`)
-      await extractTarGz(localTarPath, extractPath, (progress) =>
-        log.info(`Number of extracted files ${JSON.stringify(progress)}`)
-      )
+      await extractTarGz(localTarPath, extractPath, onProgressExtract)
+
       writeToManifest({
         manifestFilepath,
         id,
