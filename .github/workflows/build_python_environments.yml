@@ -27,13 +27,17 @@ jobs:
           python-version: '3.12'
           auto-update-conda: true
 
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
       # For now we replicate what is done in the pyproject.toml using pip,
       # which is not ideal.
       # Long run we should use only `uv` to generate the python environment.
       - name: Install Python dependencies
         shell: bash -l {0}
         run: |
-          conda run pip install fastapi litserve
+          conda run pip install fastapi==0.115.12 litserve==0.2.11
           conda run pip install speciesnet==5.0.0 --use-pep517
           conda list
 
@@ -43,7 +47,10 @@ jobs:
           mkdir -p dist
           CONDA_BASE=$(conda info --base)
           CONDA_ENV_PATH=$CONDA_BASE/envs/common
-          tar -czf dist/common-0.1.0-${{ runner.os }}.tar.gz -C $CONDA_BASE/envs common
+          ENVIRONMENT_VERSION=$(grep 'version' ./python-environments/common/pyproject.toml | awk -F '=' '{print $2}' | tr -d ' "')
+          echo "${ENVIRONMENT_VERSION}"
+
+          tar -czf dist/common-"${ENVIRONMENT_VERSION}"-${{ runner.os }}.tar.gz -C "${CONDA_BASE}"/envs common
 
       - name: Upload to Cloudflare R2
         uses: shallwefootball/s3-upload-action@master
