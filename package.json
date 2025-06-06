@@ -1,7 +1,7 @@
 {
   "name": "biowatch",
   "version": "1.0.14",
-  "description": "An Electron application with React",
+  "description": "Analyse and visualise camera trap datasets",
   "main": "./out/main/index.js",
   "author": "earthtoolsmaker.org",
   "homepage": "https://www.earthtoolsmaker.org/",

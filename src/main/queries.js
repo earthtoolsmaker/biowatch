@@ -25,7 +25,7 @@ export async function getSpeciesDistribution(dbPath) {
           COUNT(*) as count
         FROM observations
         WHERE scientificName IS NOT NULL AND scientificName != ''
-        AND observationType != 'blank'
+        AND (observationType IS NULL OR observationType != 'blank')
         GROUP BY scientificName
         ORDER BY count DESC
       `
