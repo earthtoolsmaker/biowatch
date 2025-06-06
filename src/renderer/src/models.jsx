@@ -62,6 +62,13 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false }) {
           pythonEnvironmentReference: pythonEnvironment.reference
         })
         setModelDownloadStatus(downloadStatus)
+        if (
+          downloadStatus['model']['state'] === 'success' &&
+          downloadStatus['pythonEnvironment']['state'] === 'success'
+        ) {
+          setIsDownloaded(true)
+          setIsDownloading(false)
+        }
       }, 500)
     }
     return () => {
