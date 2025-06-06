@@ -2,12 +2,16 @@ import logging
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 import cv2
+import litserve as ls
 import numpy as np
 import timm
 import torch
 import torch.nn as nn
+from absl import app, flags
+from fastapi import HTTPException
 from PIL import Image
 from torch import tensor
 from torchvision.transforms import InterpolationMode, transforms
@@ -437,12 +441,16 @@ def predict(
     selected_detection_record = select_best_animal_detection(detection_records)
     if not selected_detection_record:
         return {
-            "filepath": str(filepath),
-            "classifications": {},
-            "detections": detection_records,
-            "prediction": detection_records[0]["label"],
-            "prediction_score": detection_records[0]["score"],
-            "model_version": model_version,
+            "predictions": [
+                {
+                    "filepath": str(filepath),
+                    "classifications": {},
+                    "detections": detection_records,
+                    "prediction": detection_records[0]["label"],
+                    "prediction_score": detection_records[0]["score"],
+                    "model_version": model_version,
+                }
+            ],
         }
 
     else:
@@ -465,27 +473,165 @@ def predict(
             )
         )
         return {
-            "filepath": str(filepath),
-            "classifications": classifications_record,
-            "detections": detection_records,
-            "prediction": classifications_record["labels"][0],
-            "prediction_score": classifications_record["scores"][0],
-            "model_version": model_version,
+            "predictions": [
+                {
+                    "filepath": str(filepath),
+                    "classifications": classifications_record,
+                    "detections": detection_records,
+                    "prediction": classifications_record["labels"][0],
+                    "prediction_score": classifications_record["scores"][0],
+                    "model_version": model_version,
+                }
+            ]
         }
 
 
-## REPL. Should be run from the server
-filepath = Path("./data/badger.JPG")
-filepath.exists()
-
-model = load_model(
-    filepath_detector_weights=Path("./MDV6-yolov10x.pt"),
-    filepath_classifier_weights=Path(
-        "./deepfaune-vit_large_patch14_dinov2.lvd142m.v3.pt"
-    ),
-    classifier_backbone=BACKBONE,
-    classifier_crop_size=CROP_SIZE,
-    classifier_num_classes=len(CLASS_LABEL_MAPPING),
+_PORT = flags.DEFINE_integer(
+    "port",
+    8000,
+    "Port to run the server on.",
+)
+_API_PATH = flags.DEFINE_string(
+    "api_path",
+    "/predict",
+    "URL path for the server endpoint.",
+)
+_WORKERS_PER_DEVICE = flags.DEFINE_integer(
+    "workers_per_device",
+    1,
+    "Number of server replicas per device.",
+)
+_TIMEOUT = flags.DEFINE_integer(
+    "timeout",
+    30,
+    "Timeout (in seconds) for requests.",
+)
+_BACKLOG = flags.DEFINE_integer(
+    "backlog",
+    2048,
+    "Maximum number of connections to hold in backlog.",
+)
+_FILEPATH_DETECTOR_WEIGHTS = flags.DEFINE_string(
+    name="filepath-detector-weights",
+    default=None,
+    help="filepath for the weights of the detector",
+    required=True,
+)
+_FILEPATH_CLASSIFIER_WEIGHTS = flags.DEFINE_string(
+    name="filepath-classifier-weights",
+    default=None,
+    help="filepath for the weights of the classifier",
+    required=True,
+)
+_EXTRA_FIELDS = flags.DEFINE_list(
+    "extra_fields",
+    None,
+    "Comma-separated list of extra fields to propagate from request to response.",
 )
 
-print(predict(model=model, filepath=filepath, crop_size=CROP_SIZE))
+
+class DeepFauneLitAPI(ls.LitAPI):
+    def __init__(
+        self,
+        filepath_detector_weights: Path,
+        filepath_classifier_weights: Path,
+        extra_fields: Optional[list[str]] = None,
+        *args,
+        **kwargs,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self.filepath_detector_weights = filepath_detector_weights
+        self.filepath_classifier_weights = filepath_classifier_weights
+        self.extra_fields = extra_fields or []
+
+    def setup(self, device):
+        del device  # Unused.
+        self.model = load_model(
+            filepath_detector_weights=self.filepath_detector_weights,
+            filepath_classifier_weights=self.filepath_classifier_weights,
+            classifier_backbone=BACKBONE,
+            classifier_crop_size=CROP_SIZE,
+            classifier_num_classes=len(CLASS_LABEL_MAPPING),
+        )
+
+    def decode_request(self, request, **kwargs):
+        for instance in request["instances"]:
+            filepath = instance["filepath"]
+            if not Path(filepath).exists():
+                raise HTTPException(400, f"Cannot access filepath: `{filepath}`")
+        return request
+
+    def _propagate_extra_fields(
+        self,
+        instances_dict: dict,
+        predictions_dict: dict,
+    ) -> dict:
+        predictions = predictions_dict["predictions"]
+        new_predictions = {p["filepath"]: p for p in predictions}
+        for instance in instances_dict["instances"]:
+            for field in self.extra_fields:
+                if field in instance:
+                    new_predictions[instance["filepath"]][field] = instance[field]
+        return {"predictions": list(new_predictions.values())}
+
+    def predict(self, x, **kwargs):
+
+        for instance in x["instances"]:
+            filepath = instance["filepath"]
+            single_instances_dict = {"instances": [{"filepath": filepath}]}
+            single_predictions_dict = predict(
+                model=self.model,
+                filepath=filepath,
+            )
+            assert single_predictions_dict is not None
+            yield self._propagate_extra_fields(
+                single_instances_dict, single_predictions_dict
+            )
+
+    def encode_response(self, output, **kwargs):
+        for out in output:
+            yield {"output": out}
+
+
+def main(argv: list[str]) -> None:
+    api = DeepFauneLitAPI(
+        filepath_classifier_weights=Path(_FILEPATH_CLASSIFIER_WEIGHTS.value),
+        filepath_detector_weights=Path(_FILEPATH_DETECTOR_WEIGHTS.value),
+        extra_fields=_EXTRA_FIELDS.value,
+        api_path=_API_PATH.value,
+        stream=True,
+    )
+    model_metadata = {"name": "deepfaune", "type": "speciesnet"}
+    server = ls.LitServer(
+        api,
+        accelerator="auto",
+        devices="auto",
+        workers_per_device=_WORKERS_PER_DEVICE.value,
+        model_metadata=model_metadata,
+        timeout=_TIMEOUT.value,
+    )
+    server.run(
+        port=_PORT.value,
+        generate_client_file=False,
+        backlog=_BACKLOG.value,
+    )
+
+
+## REPL. Should be run from the server
+# filepath = Path("./data/badger.JPG")
+# filepath.exists()
+#
+# model = load_model(
+#     filepath_detector_weights=Path("./MDV6-yolov10x.pt"),
+#     filepath_classifier_weights=Path(
+#         "./deepfaune-vit_large_patch14_dinov2.lvd142m.v3.pt"
+#     ),
+#     classifier_backbone=BACKBONE,
+#     classifier_crop_size=CROP_SIZE,
+#     classifier_num_classes=len(CLASS_LABEL_MAPPING),
+# )
+#
+# print(predict(model=model, filepath=filepath, crop_size=CROP_SIZE))
+
+if __name__ == "__main__":
+    app.run(main)
