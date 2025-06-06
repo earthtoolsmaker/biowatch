@@ -25,6 +25,7 @@ export async function getSpeciesDistribution(dbPath) {
           COUNT(*) as count
         FROM observations
         WHERE scientificName IS NOT NULL AND scientificName != ''
+        AND (observationType IS NULL OR observationType != 'blank')
         GROUP BY scientificName
         ORDER BY count DESC
       `
@@ -822,6 +823,7 @@ export async function getMedia(dbPath, options = {}) {
           m.filePath,
           m.fileName,
           m.timestamp,
+          m.deploymentID,
           o.scientificName
         FROM media m
         JOIN observations o ON m.timestamp = o.eventStart

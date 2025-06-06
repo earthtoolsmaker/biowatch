@@ -243,7 +243,7 @@ function insertInto(db, tableName, data) {
 
   const query = `INSERT INTO ${tableName} (${keys.join(', ')}) VALUES (${placeholders})`
 
-  db.run(query, values, function(err) {
+  db.run(query, values, function (err) {
     if (err) {
       log.error(`Error inserting into ${tableName}:`, err)
     }
@@ -478,6 +478,7 @@ function setupDatabase(db) {
         eventStart TEXT,
         eventEnd TEXT,
         scientificName TEXT,
+        observationType TEXT,
         confidence REAL,
         count INTEGER,
         prediction TEXT,

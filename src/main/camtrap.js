@@ -21,15 +21,13 @@ export async function importCamTrapDataset(directoryPath, id) {
   const db = await openDatabase(dbPath)
 
   // Get dataset name from datapackage.json
-  let name
   let data
   try {
     const datapackagePath = path.join(directoryPath, 'datapackage.json')
     if (fs.existsSync(datapackagePath)) {
       const datapackage = JSON.parse(fs.readFileSync(datapackagePath, 'utf8'))
-      name = datapackage.name
       data = datapackage
-      log.info(`Found dataset name: ${name}`)
+      log.info(`Found dataset name: ${data.name}`)
     } else {
       log.warn('datapackage.json not found in directory')
       return {
@@ -197,7 +195,7 @@ function insertCSVData(db, filePath, tableName, columns, directoryPath) {
       try {
         stream.on('data', async (row) => {
           const values = columns.map((col) => {
-            if (col === 'filePath') {
+            if (col === 'filePath' && !row[col].startsWith('http')) {
               return path.join(directoryPath.split(path.sep).slice(0, -1).join(path.sep), row[col])
             }
             if (

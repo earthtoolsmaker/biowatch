@@ -1,17 +1,14 @@
-name: Build/Release
+name: Build Preview
 
 on:
-  push:
-    branches:
-      - main
-    tags:
-      - 'v*.*.*'
+  pull_request:
 
 jobs:
   release:
     runs-on: ${{ matrix.os }}
     env:
       GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+      CSC_FOR_PULL_REQUEST: true
 
     strategy:
       matrix:
@@ -49,3 +46,9 @@ jobs:
       - name: Build on Windows
         if: matrix.os == 'windows-latest'
         run: npm run build:win
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Biowatch-preview-${{matrix.os}}
+          path: dist

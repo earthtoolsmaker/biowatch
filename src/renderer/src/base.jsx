@@ -76,8 +76,6 @@ function AppContent() {
   const [studies, setStudies] = useState(JSON.parse(localStorage.getItem('studies')) || [])
   const navigate = useNavigate()
   const location = useLocation()
-  const [isDragging, setIsDragging] = useState(false)
-  const [isImporting, setIsImporting] = useState(false)
 
   useEffect(() => {
     const lastUrl = localStorage.getItem('lastUrl')
@@ -98,46 +96,6 @@ function AppContent() {
     }
     localStorage.setItem('lastUrl', location.pathname)
   }, [location])
-
-  // Setup drag and drop event handlers
-  useEffect(() => {
-    const handleDragOver = (e) => {
-      e.preventDefault()
-      setIsDragging(true)
-    }
-
-    const handleDragLeave = (e) => {
-      e.preventDefault()
-      setIsDragging(false)
-    }
-
-    const handleDrop = async (e) => {
-      e.preventDefault()
-      setIsDragging(false)
-
-      const files = e.dataTransfer.files
-      if (!files || files.length === 0) return
-      setIsImporting(true)
-
-      try {
-        const { id, data, path } = await window.api.importDroppedDataset(files[0])
-        onNewStudy({ id, name: data.name, data, path })
-        navigate(`/study/${id}`)
-      } finally {
-        setIsImporting(false)
-      }
-    }
-
-    window.addEventListener('dragover', handleDragOver)
-    window.addEventListener('dragleave', handleDragLeave)
-    window.addEventListener('drop', handleDrop)
-
-    return () => {
-      window.removeEventListener('dragover', handleDragOver)
-      window.removeEventListener('dragleave', handleDragLeave)
-      window.removeEventListener('drop', handleDrop)
-    }
-  }, [studies])
 
   // Add listener for the delete study action
   useEffect(() => {
@@ -185,64 +143,6 @@ function AppContent() {
     e.preventDefault()
     window.api.showStudyContextMenu(study.id)
   }
-
-  // Add visual indicators for drag and import states
-  const dragOverlay = isDragging ? (
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 9999
-      }}
-    >
-      <div
-        style={{
-          padding: '2rem',
-          backgroundColor: 'white',
-          borderRadius: '0.5rem',
-          textAlign: 'center'
-        }}
-      >
-        <h2>Drop Camera Trap Directory or ZIP File to Import</h2>
-      </div>
-    </div>
-  ) : null
-
-  const importingOverlay = isImporting ? (
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 9999
-      }}
-    >
-      <div
-        style={{
-          padding: '2rem',
-          backgroundColor: 'white',
-          borderRadius: '0.5rem',
-          textAlign: 'center'
-        }}
-      >
-        <h2>Importing Camera Trap Data...</h2>
-        <p>This may take a few moments</p>
-      </div>
-    </div>
-  ) : null
 
   return (
     <div className={`relative flex h-svh flex-row`}>
@@ -305,12 +205,6 @@ function AppContent() {
           </Routes>
         </div>
       </main>
-
-      {/* Drag overlay */}
-      {dragOverlay}
-
-      {/* Import loading overlay */}
-      {importingOverlay}
     </div>
   )
 }

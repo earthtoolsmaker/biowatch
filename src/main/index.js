@@ -24,6 +24,7 @@ import path, { join } from 'path'
 import { pipeline } from 'stream/promises'
 import { importCamTrapDataset } from './camtrap'
 import { Importer } from './importer'
+import { importWildlifeDataset } from './wildlife'
 import {
   getDeployments,
   getDeploymentsActivity,
@@ -465,6 +466,11 @@ async function processDataset(inputPath, id) {
 
     // Import the dataset
     const { data } = await importCamTrapDataset(pathToImport, id)
+    // const { data } = await importWildlifeDataset(pathToImport, id)
+
+    if (!data) {
+      return
+    }
 
     // Clean up CSV files and datapackage.json after successful import if it was a zip
     if (pathToImport !== inputPath) {
@@ -557,7 +563,7 @@ app.whenReady().then(async () => {
   })
 
   // Add dataset selection handler (supports both directories and zip files)
-  ipcMain.handle('select-dataset', async () => {
+  ipcMain.handle('select-camtrap-dp-dataset', async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openFile', 'openDirectory'],
       filters: [
@@ -572,6 +578,138 @@ app.whenReady().then(async () => {
     const id = crypto.randomUUID()
 
     return await processDataset(selectedPath, id)
+  })
+
+  // Add Wildlife Insights dataset selection handler
+  ipcMain.handle('select-wildlife-dataset', async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile', 'openDirectory'],
+      filters: [
+        { name: 'Wildlife Datasets', extensions: ['zip'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    })
+
+    if (!result || result.canceled || result.filePaths.length === 0) return null
+
+    const selectedPath = result.filePaths[0]
+    const id = crypto.randomUUID()
+
+    // Use Wildlife Insights importer
+    try {
+      let pathToImport = selectedPath
+
+      // Check if selected path is a file (potential zip) or directory
+      const stats = statSync(selectedPath)
+      const isZip = stats.isFile() && selectedPath.toLowerCase().endsWith('.zip')
+
+      if (isZip) {
+        log.info(`Processing Wildlife Insights zip file: ${selectedPath}`)
+
+        // Create a directory for extraction in app data
+        const extractPath = join(app.getPath('userData'), id)
+        if (!existsSync(extractPath)) {
+          mkdirSync(extractPath, { recursive: true })
+        }
+
+        // Extract the zip file
+        await extractZip(selectedPath, extractPath)
+
+        // Find the directory containing a projects.csv file
+        let wildlifeInsightsDirPath = null
+
+        const findWildlifeInsightsDir = (dir) => {
+          if (wildlifeInsightsDirPath) return // Already found, exit recursion
+
+          try {
+            const files = readdirSync(dir)
+
+            // First check if this directory has projects.csv
+            if (files.includes('projects.csv')) {
+              wildlifeInsightsDirPath = dir
+              return
+            }
+
+            // Then check subdirectories
+            for (const file of files) {
+              const fullPath = join(dir, file)
+              if (statSync(fullPath).isDirectory()) {
+                findWildlifeInsightsDir(fullPath)
+              }
+            }
+          } catch (error) {
+            log.warn(`Error reading directory ${dir}: ${error.message}`)
+          }
+        }
+
+        findWildlifeInsightsDir(extractPath)
+
+        if (!wildlifeInsightsDirPath) {
+          throw new Error(
+            'Wildlife Insights directory with projects.csv not found in extracted archive'
+          )
+        }
+
+        log.info(`Found Wildlife Insights directory at ${wildlifeInsightsDirPath}`)
+        pathToImport = wildlifeInsightsDirPath
+      } else if (!stats.isDirectory()) {
+        throw new Error('The selected path is neither a directory nor a zip file')
+      }
+
+      // Import using Wildlife Insights importer
+      const { data } = await importWildlifeDataset(pathToImport, id)
+
+      if (!data) {
+        return null
+      }
+
+      // Clean up CSV files after successful import if it was a zip
+      if (pathToImport !== selectedPath) {
+        log.info('Cleaning up CSV files...')
+
+        const cleanupDirectory = (dir) => {
+          try {
+            const files = readdirSync(dir)
+
+            for (const file of files) {
+              const fullPath = join(dir, file)
+
+              if (statSync(fullPath).isDirectory()) {
+                cleanupDirectory(fullPath)
+              } else if (file.toLowerCase().endsWith('.csv')) {
+                log.info(`Removing file: ${fullPath}`)
+                unlinkSync(fullPath)
+              }
+            }
+          } catch (error) {
+            log.warn(`Error cleaning up directory ${dir}: ${error.message}`)
+          }
+        }
+
+        cleanupDirectory(pathToImport)
+      }
+
+      return {
+        path: pathToImport,
+        data,
+        id
+      }
+    } catch (error) {
+      log.error('Error processing Wildlife Insights dataset:', error)
+      // Clean up extracted directory if there was an error
+      if (pathToImport !== selectedPath) {
+        try {
+          await new Promise((resolve) => {
+            const rmProcess = spawn('rm', ['-rf', join(app.getPath('userData'), id)])
+            rmProcess.on('close', () => resolve())
+            rmProcess.on('error', () => resolve())
+          })
+        } catch (cleanupError) {
+          log.warn(`Failed to clean up after error: ${cleanupError.message}`)
+        }
+      }
+      throw error
+    }
   })
 
   // Add drag and drop handler (supports both directories and zip files)
@@ -990,7 +1128,7 @@ app.whenReady().then(async () => {
     app.quit()
   }
 
-  app.on('activate', function() {
+  app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

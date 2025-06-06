@@ -199,15 +199,9 @@ function Gallery({ species, dateRange, timeRange }) {
     if (fullFilePath.startsWith('http')) {
       return fullFilePath
     }
-    const filePathParts = fullFilePath.split('/')
-    const filePath = filePathParts.slice(1).join('/')
-    const fullPath = `${study.path}/${filePath}`
-    const urlPath = fullPath.replace(/\\/g, '/')
 
     return `local-file://get?path=${encodeURIComponent(fullFilePath)}`
   }
-
-  console.log('mediaFiles', mediaFiles)
 
   return (
     <div className="flex flex-wrap gap-[12px] h-full overflow-auto">
