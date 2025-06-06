@@ -80,6 +80,18 @@ export const modelZoo = [
     description:
       "Google's SpeciesNet is an open-source AI model launched in 2025, specifically designed for identifying animal species from images captured by camera traps. It boasts the capability to classify images into over 2,000 species labels, greatly enhancing the efficiency of wildlife data analysis for conservation initiatives.",
     website: 'https://github.com/google/cameratrapai'
+  },
+  {
+    reference: { id: 'deepfaune', version: '1.3' },
+    pythonEnvironment: { id: 'common', version: '0.1.1' },
+    name: 'DeepFaune',
+    size_in_MiB: 1200,
+    files: 2,
+    downloadURL:
+      'https://huggingface.co/earthtoolsmaker/deepfaune/resolve/main/1.3.tar.gz?download=true',
+    description:
+      "Launched in 2022, CNRS' DeepFaune is an open-source AI model developed to identify animal species from images captured by camera traps, focusing specifically on European fauna.",
+    website: 'https://www.deepfaune.cnrs.fr/en/'
   }
 ]
 

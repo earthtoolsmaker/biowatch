@@ -16,7 +16,6 @@ run_deepfaune_server.py \
   --timeout 30 \
   --workers_per_device 1 \
   --backlog 2048 \
-  --model kaggle:google/speciesnet/keras/v4.0.0a \
   --filepath-classifier-weights ./path/to/weights/deepfaune-vit_large_patch14_dinov2.lvd142m.v3.pt
   --filepath-detector-weights ./path/to/weights/MDV6-yolov10x.pt
 ```

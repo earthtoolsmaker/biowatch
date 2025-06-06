@@ -207,9 +207,9 @@ async function downloadPythonEnvironment({ id, version }) {
     const progress = Math.min(
       installationStateProgress[InstallationState.Extract],
       installationStateProgress[InstallationState.Download] +
-        (extracted / files) *
-          (installationStateProgress[InstallationState.Extract] -
-            installationStateProgress[InstallationState.Download])
+      (extracted / files) *
+      (installationStateProgress[InstallationState.Extract] -
+        installationStateProgress[InstallationState.Download])
     )
     if (progress > previousExtractProgress + flushProgressExtractIncrementThreshold) {
       writeToManifest({
@@ -409,9 +409,9 @@ async function downloadMLModel({ id, version }) {
     const progress = Math.min(
       installationStateProgress[InstallationState.Extract],
       installationStateProgress[InstallationState.Download] +
-        (extracted / files) *
-          (installationStateProgress[InstallationState.Extract] -
-            installationStateProgress[InstallationState.Download])
+      (extracted / files) *
+      (installationStateProgress[InstallationState.Extract] -
+        installationStateProgress[InstallationState.Download])
     )
     if (progress > previousExtractProgress + flushProgressExtractIncrementThreshold) {
       writeToManifest({
@@ -683,6 +683,86 @@ async function startSpeciesNetHTTPServer({
   throw new Error('Server failed to start in the expected time')
 }
 
+async function startDeepFauneHTTPServer({
+  port,
+  classifierWeightsFilepath,
+  detectorWeightsFilepath,
+  timeout,
+  pythonEnvironment
+}) {
+  log.info('StartDeepFauneNetHTTPServer success!')
+  log.info(pythonEnvironment)
+  const localInstalRootDirPythonEnvironment = join(
+    getMLModelEnvironmentLocalInstallPath({
+      ...pythonEnvironment.reference
+    }),
+    pythonEnvironment.reference.id
+  )
+  log.info('Local Python Environment root dir is', localInstalRootDirPythonEnvironment)
+  const scriptPath = is.dev
+    ? join(__dirname, '../../python-environments/common/run_deepfaune_server.py')
+    : join(process.resourcesPath, 'python-environments', 'common', 'run_deepfaune_server.py')
+  const pythonInterpreter = is.dev
+    ? join(__dirname, '../../python-environments/common/.venv/bin/python')
+    : os.platform() === 'win32'
+      ? join(localInstalRootDirPythonEnvironment, 'python.exe')
+      : join(localInstalRootDirPythonEnvironment, 'bin', 'python')
+  log.info('Python Interpreter found in', pythonInterpreter)
+  log.info('Script path is', scriptPath)
+  const scriptArgs = [
+    '--port',
+    port,
+    '--filepath-classifier-weights',
+    classifierWeightsFilepath,
+    '--filepath-detector-weights',
+    detectorWeightsFilepath,
+    '--timeout',
+    timeout
+  ]
+  log.info('Script args: ', scriptArgs)
+  log.info('Formatted script args: ', [scriptPath, ...scriptArgs])
+  const pythonProcess = spawn(pythonInterpreter, [scriptPath, ...scriptArgs])
+
+  log.info('Python process started:', pythonProcess.pid)
+
+  // Set up error handlers
+  pythonProcess.stderr.on('data', (err) => {
+    log.error('Python error:', err.toString())
+  })
+
+  pythonProcess.on('error', (err) => {
+    log.error('Python process error:', err)
+  })
+
+  // Wait for server to be ready by polling the endpoint
+  const maxRetries = 30
+  const retryInterval = 1000 // 1 second
+
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const healthCheck = await fetch(`http://localhost:${port}/health`, {
+        method: 'GET',
+        timeout: 1000
+      })
+
+      if (healthCheck.ok) {
+        log.info('Server is ready')
+        return pythonProcess
+      }
+    } catch (error) {
+      // Server not ready yet, will retry
+    }
+
+    // Wait before next retry
+    await new Promise((resolve) => setTimeout(resolve, retryInterval))
+    log.info(`Waiting for server to start (attempt ${i + 1}/${maxRetries})`)
+  }
+
+  // If we get here, the server failed to start
+  kill(pythonProcess.pid)
+  throw new Error('Server failed to start in the expected time')
+}
+
 /**
  * Stops the ML Model HTTP Server.
  *
@@ -741,6 +821,25 @@ async function startMLModelHTTPServer({ pythonEnvironment, modelReference }) {
         port,
         modelWeightsFilepath: localInstallPath,
         geofence: true,
+        timeout: 30,
+        pythonEnvironment: pythonEnvironment
+      })
+      log.info(`pythonProcess: ${JSON.stringify(pythonProcess)}`)
+      return { port: port, process: pythonProcess }
+    }
+    case 'deepfaune': {
+      const port = is.dev ? 8000 : await findFreePort()
+      const localInstallPath = getMLModelLocalInstallPath({ ...modelReference })
+      log.info(`Local ML Model install path ${localInstallPath}`)
+      const classifierWeightsFilepath = join(
+        localInstallPath,
+        'deepfaune-vit_large_patch14_dinov2.lvd142m.v3.pt'
+      )
+      const detectorWeightsFilepath = join(localInstallPath, 'MDV6-yolov10x.pt')
+      const pythonProcess = await startDeepFauneHTTPServer({
+        port,
+        classifierWeightsFilepath: classifierWeightsFilepath,
+        detectorWeightsFilepath: detectorWeightsFilepath,
         timeout: 30,
         pythonEnvironment: pythonEnvironment
       })
