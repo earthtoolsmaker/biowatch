@@ -20,9 +20,7 @@ function modelDownloadStatusToInfo({ model, pythonEnvironment }) {
 
   const getDownloadProgressMessage = (model, pythonEnvironment) => {
     const { state } = isPythonEnvironmentDownloading ? pythonEnvironment : model
-    const suffix = isPythonEnvironmentDownloading
-      ? 'the Python Environment'
-      : 'the AI Model weights'
+    const suffix = isPythonEnvironmentDownloading ? 'the Python Environment' : 'the AI Model'
     switch (state) {
       case 'success':
         return `Successfuly installed ${suffix}`
@@ -39,6 +37,18 @@ function modelDownloadStatusToInfo({ model, pythonEnvironment }) {
 
   const message = getDownloadProgressMessage(model, pythonEnvironment)
   return { downloadMessage: message, downloadProgress: progress }
+}
+
+/**
+ * Converts a size in MiB to GiB or returns the size in MiB if it is less than or equal to 1000.
+ * @param {number} size_in_MiB - The size in MiB to convert.
+ * @returns {string} The size in GiB if greater than 1000, otherwise in MiB.
+ */
+function formatSizeInMiB(size_in_MiB) {
+  if (size_in_MiB > 1000) {
+    return (size_in_MiB / 1024).toFixed(2) + ' GiB'
+  }
+  return size_in_MiB + ' MiB'
 }
 
 function ModelCard({ model, pythonEnvironment, platform, isDev = false }) {
@@ -177,80 +187,84 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false }) {
       <div className="p-2 text-l text-center">{name}</div>
       <div className="text-sm p-2">{description}</div>
       <ul className="text-sm p-2">
-        <li>🧠 Model Size: {size_in_MiB} MiB</li>
+        <li>🧠 Model Size: {formatSizeInMiB(size_in_MiB)}</li>
         <li>
           🐍 Python Environment Size:{' '}
-          {pythonEnvironment['platform'][platformToKey(platform)]['size_in_MiB']} MiB
+          {formatSizeInMiB(pythonEnvironment['platform'][platformToKey(platform)]['size_in_MiB'])}
         </li>
       </ul>
-      <div className="flex justify-center p-2 gap-2">
+      <div>
         {isDownloading ? (
           <></>
         ) : isDownloaded ? (
           <>
-            <button
-              onClick={() => handleDelete(reference)}
-              className={` bg-red-300 cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-red-400`}
-            >
-              <CircleX color="black" size={14} />
-              Delete
-            </button>
-            {!isDev ? (
-              <></>
-            ) : (
-              <>
-                {isHTTPServerRunning ? (
-                  <button
-                    onClick={() =>
-                      handleStopHTTPServer({
-                        pid: pidPythonProcess
-                      })
-                    }
-                    className={` bg-blue-300 cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-blue-400`}
-                  >
-                    <CircleOff color="black" size={14} />
-                    Stop ML Server
-                  </button>
-                ) : isHTTPServerStarting ? (
-                  <button
-                    onClick={() =>
-                      handleRunHTTPServer({
-                        modelReference: reference,
-                        pythonEnvironment: pythonEnvironment
-                      })
-                    }
-                    className={` bg-blue-300 cursor-not-allowed w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md opacity-70`}
-                  >
-                    <LucideLoader color="black" size={14} />
-                    <span className="animate-pulse">Starting Server</span>
-                  </button>
-                ) : (
-                  <button
-                    onClick={() =>
-                      handleRunHTTPServer({
-                        modelReference: reference,
-                        pythonEnvironment: pythonEnvironment
-                      })
-                    }
-                    className={` bg-blue-300 cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-blue-400`}
-                  >
-                    <PlayIcon color="black" size={14} />
-                    Run
-                  </button>
-                )}
-              </>
-            )}
+            <div className="flex justify-center p-2 gap-2">
+              <button
+                onClick={() => handleDelete(reference)}
+                className={` bg-red-300 cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-red-400`}
+              >
+                <CircleX color="black" size={14} />
+                Delete
+              </button>
+              {!isDev ? (
+                <></>
+              ) : (
+                <>
+                  {isHTTPServerRunning ? (
+                    <button
+                      onClick={() =>
+                        handleStopHTTPServer({
+                          pid: pidPythonProcess
+                        })
+                      }
+                      className={` bg-blue-300 cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-blue-400`}
+                    >
+                      <CircleOff color="black" size={14} />
+                      Stop ML Server
+                    </button>
+                  ) : isHTTPServerStarting ? (
+                    <button
+                      onClick={() =>
+                        handleRunHTTPServer({
+                          modelReference: reference,
+                          pythonEnvironment: pythonEnvironment
+                        })
+                      }
+                      className={` bg-blue-300 cursor-not-allowed w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md opacity-70`}
+                    >
+                      <LucideLoader color="black" size={14} />
+                      <span className="animate-pulse">Starting Server</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() =>
+                        handleRunHTTPServer({
+                          modelReference: reference,
+                          pythonEnvironment: pythonEnvironment
+                        })
+                      }
+                      className={` bg-blue-300 cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-blue-400`}
+                    >
+                      <PlayIcon color="black" size={14} />
+                      Run
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
           </>
         ) : (
-          <button
-            onClick={() =>
-              handleDownload({ modelReference: reference, pythonEnvironment: pythonEnvironment })
-            }
-            className={` bg-blue-100 cursor-pointer w-[60%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-blue-200`}
-          >
-            <Download color="black" size={14} />
-            Download
-          </button>
+          <div className="flex justify-center p-2 gap-2">
+            <button
+              onClick={() =>
+                handleDownload({ modelReference: reference, pythonEnvironment: pythonEnvironment })
+              }
+              className={` bg-blue-100 cursor-pointer w-[60%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-blue-200`}
+            >
+              <Download color="black" size={14} />
+              Download
+            </button>
+          </div>
         )}
       </div>
       {isHTTPServerRunning ? (
@@ -281,7 +295,7 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false }) {
       )}
       {isDownloading ? (
         <>
-          <div className="pl-6 pr-6">
+          <div className="pl-6 pr-6 pb-4">
             <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
               <div
                 className="h-full bg-blue-600 transition-all duration-500 ease-in-out"
