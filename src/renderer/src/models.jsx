@@ -20,9 +20,7 @@ function modelDownloadStatusToInfo({ model, pythonEnvironment }) {
 
   const getDownloadProgressMessage = (model, pythonEnvironment) => {
     const { state } = isPythonEnvironmentDownloading ? pythonEnvironment : model
-    const suffix = isPythonEnvironmentDownloading
-      ? 'the Python Environment'
-      : 'the AI Model weights'
+    const suffix = isPythonEnvironmentDownloading ? 'the Python Environment' : 'the AI Model'
     switch (state) {
       case 'success':
         return `Successfuly installed ${suffix}`
@@ -39,6 +37,18 @@ function modelDownloadStatusToInfo({ model, pythonEnvironment }) {
 
   const message = getDownloadProgressMessage(model, pythonEnvironment)
   return { downloadMessage: message, downloadProgress: progress }
+}
+
+/**
+ * Converts a size in MiB to GiB or returns the size in MiB if it is less than or equal to 1000.
+ * @param {number} size_in_MiB - The size in MiB to convert.
+ * @returns {string} The size in GiB if greater than 1000, otherwise in MiB.
+ */
+function formatSizeInMiB(size_in_MiB) {
+  if (size_in_MiB > 1000) {
+    return (size_in_MiB / 1024).toFixed(2) + ' GiB'
+  }
+  return size_in_MiB + ' MiB'
 }
 
 function ModelCard({ model, pythonEnvironment, platform, isDev = false }) {
@@ -177,10 +187,10 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false }) {
       <div className="p-2 text-l text-center">{name}</div>
       <div className="text-sm p-2">{description}</div>
       <ul className="text-sm p-2">
-        <li>🧠 Model Size: {size_in_MiB} MiB</li>
+        <li>🧠 Model Size: {formatSizeInMiB(size_in_MiB)}</li>
         <li>
           🐍 Python Environment Size:{' '}
-          {pythonEnvironment['platform'][platformToKey(platform)]['size_in_MiB']} MiB
+          {formatSizeInMiB(pythonEnvironment['platform'][platformToKey(platform)]['size_in_MiB'])}
         </li>
       </ul>
       <div>
