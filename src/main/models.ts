@@ -683,6 +683,40 @@ async function startSpeciesNetHTTPServer({
   throw new Error('Server failed to start in the expected time')
 }
 
+/**
+ * Starts the DeepFaune HTTP server using a specified Python environment and configuration.
+ *
+ * This function initializes a Python process that runs the DeepFaune server script.
+ * It sets up the server with the provided parameters and checks its health status
+ * by polling the server endpoint until it is ready or the maximum number of retries is reached.
+ *
+ * @async
+ * @param {Object} options - The configuration options for starting the server.
+ * @param {number} options.port - The port on which the server will listen.
+ * @param {string} options.classifierWeightsFilepath - The file path to the classifier weights to be used by the server.
+ * @param {string} options.detectorWeightsFilepath - The file path to the detector weights to be used by the server.
+ * @param {number} options.timeout - The timeout duration for server operations.
+ * @param {Object} options.pythonEnvironment - The Python environment configuration.
+ * @param {Object} options.pythonEnvironment.reference - The reference object containing environment details.
+ * @param {string} options.pythonEnvironment.reference.id - The identifier for the Python environment.
+ *
+ * @returns {Promise<ChildProcess>} A promise that resolves to the spawned Python process if the server starts successfully.
+ *
+ * @throws {Error} Throws an error if the server fails to start within the expected time.
+ *
+ * @example
+ * const server = await startDeepFauneHTTPServer({
+ *   port: 8080,
+ *   classifierWeightsFilepath: '/path/to/classifier/weights',
+ *   detectorWeightsFilepath: '/path/to/detector/weights',
+ *   timeout: 5000,
+ *   pythonEnvironment: {
+ *     reference: {
+ *       id: 'my-python-env'
+ *     }
+ *   }
+ * });
+ */
 async function startDeepFauneHTTPServer({
   port,
   classifierWeightsFilepath,
