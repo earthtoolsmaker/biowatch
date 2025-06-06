@@ -61,6 +61,9 @@ curl -X POST http://localhost:8000/predict \
         },
         {
             "filepath": "/media/data/ssd_1/earthtoolsmaker/projects/biowatch/python-environments/common/data/vehicle.JPG"
+        },
+        {
+            "filepath": "/media/data/ssd_1/earthtoolsmaker/projects/biowatch/python-environments/common/data/empty1.JPG"
         }
     ]
 }'

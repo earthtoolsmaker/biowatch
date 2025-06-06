@@ -93,7 +93,6 @@ class Classifier:
                     size=(crop_size, crop_size),
                     interpolation=InterpolationMode.BICUBIC,
                     max_size=None,
-                    antialias=False,
                 ),
                 transforms.ToTensor(),
                 transforms.Normalize(
@@ -418,7 +417,7 @@ def predict(
             - prediction_score: The confidence score for the predicted class.
             - model_version: The version of the model used for prediction.
     """
-    ultralytics_results = model.detector(filepath)
+    ultralytics_results = model.detector(filepath, verbose=False)
     detections = ultralytics_results[0]
     bboxes = detections.boxes
     class_names = detections.names
@@ -440,18 +439,31 @@ def predict(
     ]
     selected_detection_record = select_best_animal_detection(detection_records)
     if not selected_detection_record:
-        return {
-            "predictions": [
-                {
-                    "filepath": str(filepath),
-                    "classifications": {},
-                    "detections": detection_records,
-                    "prediction": detection_records[0]["label"],
-                    "prediction_score": detection_records[0]["score"],
-                    "model_version": model_version,
-                }
-            ],
-        }
+        if not detection_records:
+            return {
+                "predictions": [
+                    {
+                        "filepath": str(filepath),
+                        "classifications": {},
+                        "detections": detection_records,
+                        "prediction": "blank",
+                        "model_version": model_version,
+                    }
+                ],
+            }
+        else:
+            return {
+                "predictions": [
+                    {
+                        "filepath": str(filepath),
+                        "classifications": {},
+                        "detections": detection_records,
+                        "prediction": detection_records[0]["label"],
+                        "prediction_score": detection_records[0]["conf"],
+                        "model_version": model_version,
+                    }
+                ],
+            }
 
     else:
         xyxy = selected_detection_record["xyxy"]
@@ -616,22 +628,6 @@ def main(argv: list[str]) -> None:
         backlog=_BACKLOG.value,
     )
 
-
-## REPL. Should be run from the server
-# filepath = Path("./data/badger.JPG")
-# filepath.exists()
-#
-# model = load_model(
-#     filepath_detector_weights=Path("./MDV6-yolov10x.pt"),
-#     filepath_classifier_weights=Path(
-#         "./deepfaune-vit_large_patch14_dinov2.lvd142m.v3.pt"
-#     ),
-#     classifier_backbone=BACKBONE,
-#     classifier_crop_size=CROP_SIZE,
-#     classifier_num_classes=len(CLASS_LABEL_MAPPING),
-# )
-#
-# print(predict(model=model, filepath=filepath, crop_size=CROP_SIZE))
 
 if __name__ == "__main__":
     app.run(main)
