@@ -1,30 +1,24 @@
-import icon from '../../resources/icon.png?asset'
-import { extract } from 'tar'
-import unzipper from 'unzipper'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { spawn } from 'child_process'
 import { app, BrowserWindow, dialog, net as electronNet, ipcMain, protocol, shell } from 'electron'
 import log from 'electron-log'
+import { autoUpdater } from 'electron-updater'
 import {
-  accessSync,
-  chmodSync,
-  constants,
   createReadStream,
   createWriteStream,
   existsSync,
   mkdirSync,
   readdirSync,
   statSync,
-  promises as fsPromises,
-  unlink,
   unlinkSync
 } from 'fs'
-import net from 'net'
 import path, { join } from 'path'
 import { pipeline } from 'stream/promises'
+import unzipper from 'unzipper'
+import icon from '../../resources/icon.png?asset'
 import { importCamTrapDataset } from './camtrap'
 import { Importer } from './importer'
-import { importWildlifeDataset } from './wildlife'
+import { registerMLModelManagementIPCHandlers } from './models'
 import {
   getDeployments,
   getLocationsActivity,
@@ -32,11 +26,9 @@ import {
   getSpeciesDailyActivity,
   getSpeciesDistribution,
   getSpeciesHeatmapData,
-  getSpeciesTimeseries,
-  getTopSpeciesTimeseries
+  getSpeciesTimeseries
 } from './queries'
-import { autoUpdater } from 'electron-updater'
-import { registerMLModelManagementIPCHandlers } from './models'
+import { importWildlifeDataset } from './wildlife'
 
 // Configure electron-log
 log.transports.file.level = 'info'
@@ -523,22 +515,6 @@ app.whenReady().then(async () => {
       return { data: deployments }
     } catch (error) {
       log.error('Error getting deployments:', error)
-      return { error: error.message }
-    }
-  })
-
-  ipcMain.handle('activity:get-top-timeseries', async (_, studyId) => {
-    try {
-      const dbPath = join(app.getPath('userData'), `${studyId}.db`)
-      if (!existsSync(dbPath)) {
-        log.warn(`Database not found for study ID: ${studyId}`)
-        return { error: 'Database not found for this study' }
-      }
-
-      const timeseriesData = await getTopSpeciesTimeseries(dbPath)
-      return { data: timeseriesData }
-    } catch (error) {
-      log.error('Error getting top species timeseries:', error)
       return { error: error.message }
     }
   })

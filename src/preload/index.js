@@ -24,9 +24,6 @@ const api = {
   deleteStudyDatabase: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('study:delete-database', studyId)
   },
-  getTopSpeciesTimeseries: async (studyId) => {
-    return await electronAPI.ipcRenderer.invoke('activity:get-top-timeseries', studyId)
-  },
   getSpeciesTimeseries: async (studyId, species) => {
     return await electronAPI.ipcRenderer.invoke('activity:get-timeseries', studyId, species)
   },

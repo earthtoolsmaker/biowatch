@@ -20,63 +20,6 @@ const palette = [
   'hsl(27 87% 67%)'
 ]
 
-// Add the SpeciesFilter component
-const SpeciesFilter = ({ speciesList, selectedSpecies, onChange }) => {
-  const [query, setQuery] = useState('')
-
-  const filteredSpecies =
-    query === ''
-      ? speciesList
-      : speciesList.filter((item) =>
-          item.scientificName.toLowerCase().includes(query.toLowerCase())
-        )
-
-  return (
-    <div className="w-48 relative">
-      <Combobox value={selectedSpecies} onChange={onChange} immediate>
-        <div className="relative w-full cursor-default overflow-hidden rounded-lg bg-white text-left shadow-md border border-gray-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-opacity-75 focus-visible:ring-offset-2 sm:text-sm">
-          <ComboboxInput
-            className="w-full border-none py-2 pl-3 pr-10 text-sm leading-5 text-gray-900 focus:ring-0 outline-none"
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Filter by species"
-            displayValue={(species) => (species ? species.scientificName : 'All Species')}
-          />
-          <ComboboxButton className="absolute inset-y-0 right-0 flex items-center pr-2">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="currentColor"
-              className="w-5 h-5 text-gray-400"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M8.25 15L12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9"
-              />
-            </svg>
-          </ComboboxButton>
-        </div>
-        <ComboboxOptions className="absolute mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm z-10">
-          {filteredSpecies.map((species) => (
-            <ComboboxOption
-              key={species.scientificName}
-              value={species}
-              className="group flex cursor-default items-center gap-2 rounded-lg py-1.5 px-3 select-none data-[focus]:bg-gray-100"
-            >
-              <div className="text-sm/6 text-gray-800">
-                {species.scientificName} ({species.count})
-              </div>
-              <CheckIcon className="ml-4 invisible size-4 fill-white group-data-[selected]:visible" />
-            </ComboboxOption>
-          ))}
-        </ComboboxOptions>
-      </Combobox>
-    </div>
-  )
-}
-
 function Gallery({ species, dateRange, timeRange }) {
   const [mediaFiles, setMediaFiles] = useState([])
   const [loading, setLoading] = useState(true)
@@ -90,7 +33,6 @@ function Gallery({ species, dateRange, timeRange }) {
   const debounceTimeoutRef = useRef(null)
 
   const { id } = useParams()
-  const study = JSON.parse(localStorage.getItem('studies')).find((study) => study.id === id)
 
   // Debounce function
   const debounce = (func, delay) => {
@@ -260,7 +202,6 @@ export default function Activity({ studyData, studyId }) {
   const { id } = useParams()
   const actualStudyId = studyId || id // Use passed studyId or from params
 
-  const [, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [selectedSpecies, setSelectedSpecies] = useState([])
   const [dateRange, setDateRange] = useState([null, null])
@@ -269,35 +210,21 @@ export default function Activity({ studyData, studyId }) {
   const [speciesDistributionData, setSpeciesDistributionData] = useState(null)
   const [dailyActivityData, setDailyActivityData] = useState(null)
 
-  // Get taxonomic data from studyData
   const taxonomicData = studyData?.taxonomic || null
 
   useEffect(() => {
     async function fetchData() {
       try {
-        setLoading(true)
-
-        const response = await window.api.getTopSpeciesTimeseries(actualStudyId)
         const speciesResponse = await window.api.getSpeciesDistribution(actualStudyId)
 
-        if (response.error) {
-          setError(response.error)
-        } else {
-          setTimeseriesData(response.data.timeseries)
-
-          // Default select the top 2 species
-          setSelectedSpecies(response.data.allSpecies.slice(0, 2))
-        }
-
         if (speciesResponse.error) {
-          console.error('Error fetching species distribution:', speciesResponse.error)
+          setError(speciesResponse.error)
         } else {
           setSpeciesDistributionData(speciesResponse.data)
+          setSelectedSpecies(speciesResponse.data.slice(0, 2))
         }
       } catch (err) {
         setError(err.message || 'Failed to fetch activity data')
-      } finally {
-        setLoading(false)
       }
     }
 
