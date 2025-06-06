@@ -1,6 +1,6 @@
 [project]
 name = "common"
-version = "0.1.1"
+version = "0.1.2"
 description = "Common Python Environment for running the Machine Learning Models"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
