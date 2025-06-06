@@ -523,8 +523,8 @@ export function registerMLModelManagementIPCHandlers() {
   ipcMain.handle('model:download-python-environment', async (_, id, version) => {
     return await downloadPythonEnvironment({ id, version })
   })
-  ipcMain.handle('model:stop-http-server', async (_, pid) => {
-    return await stopMLModelHTTPServer({ pid })
+  ipcMain.handle('model:stop-http-server', async (_, pid, port) => {
+    return await stopMLModelHTTPServer({ pid, port })
   })
   ipcMain.handle('model:start-http-server', async (_, modelReference, pythonEnvironment) => {
     try {
@@ -811,9 +811,9 @@ async function startDeepFauneHTTPServer({
  * and a corresponding message.
  * @throws {Error} Throws an error if the process cannot be stopped.
  */
-async function stopMLModelHTTPServer({ pid }) {
+async function stopMLModelHTTPServer({ pid, port }) {
   try {
-    log.info('Stopping ML Model HTTP Server with pid', pid)
+    log.info(`Stopping ML Model HTTP Server running on port ${port} with pid ${pid}`)
     return new Promise((resolve, reject) => {
       kill(pid, 'SIGKILL', (err) => {
         if (err) {
