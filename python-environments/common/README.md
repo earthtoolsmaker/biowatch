@@ -1,4 +1,4 @@
-# common v0.1.1
+# common v0.1.2
 
 This is the `common` python environment.
 It currently contains all the dependencies necessary to run pytorch models

@@ -141,9 +141,9 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false }) {
     }
   }
 
-  const handleStopHTTPServer = async ({ pid }) => {
+  const handleStopHTTPServer = async ({ pid, port }) => {
     console.log(`Stopping HTTP server running with python process pid ${pid}`)
-    window.api.stopMLModelHTTPServer({ pid })
+    window.api.stopMLModelHTTPServer({ pid, port })
     setIsHTTPServerRunning(false)
   }
 
@@ -214,7 +214,8 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false }) {
                     <button
                       onClick={() =>
                         handleStopHTTPServer({
-                          pid: pidPythonProcess
+                          pid: pidPythonProcess,
+                          port: portHTTPServer
                         })
                       }
                       className={` bg-blue-300 cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-blue-400`}
