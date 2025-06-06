@@ -62,6 +62,13 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false }) {
           pythonEnvironmentReference: pythonEnvironment.reference
         })
         setModelDownloadStatus(downloadStatus)
+        if (
+          downloadStatus['model']['state'] === 'success' &&
+          downloadStatus['pythonEnvironment']['state'] === 'success'
+        ) {
+          setIsDownloaded(true)
+          setIsDownloading(false)
+        }
       }, 500)
     }
     return () => {
@@ -90,7 +97,13 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false }) {
       ) {
         setIsDownloading(true)
         setIsDownloaded(false)
+      } else if (
+        Object.keys(downloadStatus['pythonEnvironment']).length === 0 ||
+        Object.keys(downloadStatus['model']).length === 0
+      ) {
+        setIsDownloaded(false)
       } else {
+        console.warn('The download or electron app probably crashed...')
         setIsDownloading(false)
         setIsDownloaded(true)
       }
@@ -172,12 +185,7 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false }) {
       </ul>
       <div className="flex justify-center p-2 gap-2">
         {isDownloading ? (
-          <button
-            className={`bg-gray-200 text-gray-500 cursor-not-allowed w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-300 px-2 h-8 text-sm shadow-sm rounded-md opacity-70`}
-          >
-            <LucideLoader color="black" size={14} />
-            <span className="animate-pulse">Downloading...</span>
-          </button>
+          <></>
         ) : isDownloaded ? (
           <>
             <button
