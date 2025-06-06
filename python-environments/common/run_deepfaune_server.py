@@ -1,3 +1,124 @@
+"""
+CLI script to run DeepFaune as a LitServer.
+
+
+Start the server with the default parameter values:
+
+```
+run_deepfaune_server.py
+```
+
+Override the parameters:
+
+```
+run_deepfaune_server.py \
+  --port 8000 \
+  --timeout 30 \
+  --workers_per_device 1 \
+  --backlog 2048 \
+  --model kaggle:google/speciesnet/keras/v4.0.0a \
+  --filepath-classifier-weights ./path/to/weights/deepfaune-vit_large_patch14_dinov2.lvd142m.v3.pt
+  --filepath-detector-weights ./path/to/weights/MDV6-yolov10x.pt
+```
+
+A Swagger API documentation is served at localhost:${port}/docs
+
+health:
+
+```
+$ curl http://localhost:${port}/health
+"ok"
+```
+
+info:
+
+```
+$ curl http://localhost:${port}/info
+
+{
+  "model": {
+    "type": "deepfaune",
+    "version": "0.13"
+  },
+  "server": {
+    "devices": [
+      [
+        "cuda:0"
+      ]
+    ],
+    "workers_per_device": 1,
+    "timeout": 30,
+    "stream": true,
+    "max_payload_size": null,
+    "track_requests": false
+  }
+}
+```
+
+predict (streaming):
+
+```
+$ curl -X POST http://localhost:${port}/predict \
+-H "Content-Type: application/json" \
+-d '{
+    "instances": [
+        {
+            "filepath": "/path/to/your/image"
+        },
+      ]
+    }
+
+
+{
+  "output": {
+    "predictions": [
+      {
+        "classifications": {
+          "labels": [
+            "chamois",
+            "marmot",
+            "ibex",
+            "badger",
+            "mustelid"
+          ],
+          "scores": [
+            0.9999195337295532,
+            0.00003925038981833495,
+            0.000007861674930609297,
+            0.000004211383838992333,
+            0.0000040040545172814745
+          ]
+        },
+        "detections": [
+          {
+            "class": 0,
+            "conf": 0.9823879599571228,
+            "label": "animal",
+            "xywhn": [
+              0.22085066139698029,
+              0.5265612602233887,
+              0.4415794909000397,
+              0.8490889668464661
+            ],
+            "xyxy": [
+              0.06091594696044922,
+              76.5125503540039,
+              441.640380859375,
+              713.3292846679688
+            ]
+          }
+        ],
+        "filepath": "/media/data/ssd_1/earthtoolsmaker/projects/biowatch/python-environments/common/data/chamois1.JPG",
+        "model_version": "1.3",
+        "prediction": "chamois",
+        "prediction_score": 0.9999195337295532
+      }
+    ]
+  }
+}
+```
+"""
+
 import logging
 import sys
 from dataclasses import dataclass
@@ -613,7 +734,7 @@ def main(argv: list[str]) -> None:
         api_path=_API_PATH.value,
         stream=True,
     )
-    model_metadata = {"name": "deepfaune", "type": "speciesnet"}
+    model_metadata = {"version": "1.3", "type": "speciesnet"}
     server = ls.LitServer(
         api,
         accelerator="auto",
