@@ -90,7 +90,13 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false }) {
       ) {
         setIsDownloading(true)
         setIsDownloaded(false)
+      } else if (
+        Object.keys(downloadStatus['pythonEnvironment']).length === 0 ||
+        Object.keys(downloadStatus['model']).length === 0
+      ) {
+        setIsDownloaded(false)
       } else {
+        console.warn('The download or electron app probably crashed...')
         setIsDownloading(false)
         setIsDownloaded(true)
       }
