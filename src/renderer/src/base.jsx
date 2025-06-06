@@ -121,11 +121,11 @@ function AppContent() {
     }
 
     // Register the IPC event listener
-    window.electron.ipcRenderer.on('delete-study', handleDeleteStudy)
+    window.electron.ipcRenderer.on('study:delete', handleDeleteStudy)
 
     return () => {
       // Clean up listener when component unmounts
-      window.electron.ipcRenderer.removeListener('delete-study', handleDeleteStudy)
+      window.electron.ipcRenderer.removeListener('study:delete', handleDeleteStudy)
     }
   }, [studies, location, navigate])
 

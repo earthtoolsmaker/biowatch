@@ -27,7 +27,6 @@ import { Importer } from './importer'
 import { importWildlifeDataset } from './wildlife'
 import {
   getDeployments,
-  getDeploymentsActivity,
   getLocationsActivity,
   getMedia,
   getSpeciesDailyActivity,
@@ -49,18 +48,6 @@ let serverPort = null
 autoUpdater.logger = log
 autoUpdater.checkForUpdatesAndNotify()
 
-function findFreePort() {
-  return new Promise((resolve, reject) => {
-    log.info('Finding free port...')
-    const server = net.createServer()
-    server.listen(0, () => {
-      const port = server.address().port
-      server.close(() => resolve(port))
-    })
-    server.on('error', reject)
-  })
-}
-
 async function extractZip(zipPath, extractPath) {
   log.info(`Extracting ${zipPath} to ${extractPath}`)
 
@@ -81,83 +68,6 @@ async function extractZip(zipPath, extractPath) {
         reject(err)
       })
   })
-}
-
-async function extractTarGz(tarPath, extractPath) {
-  // Check if extraction directory already exists and contains files
-  log.info(`Checking extraction directory at ${extractPath}`, existsSync(extractPath))
-  if (existsSync(extractPath)) {
-    try {
-      const files = readdirSync(extractPath)
-      if (files.length > 0 && files.includes('env')) {
-        log.info(
-          `Extraction directory already exists with content at ${extractPath}, skipping extraction`
-        )
-        return extractPath
-      }
-    } catch (error) {
-      log.warn(`Error checking extraction directory: ${error}`)
-    }
-  }
-
-  log.info(`Extracting ${tarPath} to ${extractPath}`)
-
-  if (!existsSync(extractPath)) {
-    mkdirSync(extractPath, { recursive: true })
-  }
-
-  return new Promise((resolve, reject) => {
-    const startTime = Date.now()
-
-    // Use native tar command - works on macOS, Linux, and modern Windows
-    const tarProcess = spawn('tar', ['-xzf', tarPath, '-C', extractPath])
-
-    tarProcess.stdout.on('data', (data) => {
-      log.info(`tar output: ${data}`)
-    })
-
-    tarProcess.stderr.on('data', (data) => {
-      // Not necessarily an error, tar outputs progress to stderr
-      log.info(`tar progress: ${data}`)
-    })
-
-    tarProcess.on('error', (err) => {
-      log.error(`Error executing tar command:`, err)
-      reject(err)
-    })
-
-    tarProcess.on('close', (code) => {
-      const duration = (Date.now() - startTime) / 1000
-      if (code === 0) {
-        log.info(`Extraction complete to ${extractPath}. Took ${duration} seconds.`)
-        resolve(extractPath)
-      } else {
-        const err = new Error(`tar process exited with code ${code}`)
-        log.error(err)
-        reject(err)
-      }
-    })
-  })
-}
-
-function isExecutable(filePath) {
-  try {
-    accessSync(filePath, constants.X_OK)
-    return true
-  } catch {
-    return false
-  }
-}
-
-function makeExecutable(filePath) {
-  try {
-    log.info(`Making ${filePath} executable...`)
-    chmodSync(filePath, 0o755) // rwx r-x r-x
-    return true
-  } catch (err) {
-    log.error(`Failed to make file executable: ${err}`)
-    return false
-  }
 }
 
 async function downloadFile(url, destination) {
@@ -187,135 +97,6 @@ async function downloadFile(url, destination) {
   } catch (error) {
     log.error(`Download failed: ${error.message}`)
     throw error
-  }
-}
-
-async function startPythonServer() {
-  log.info('Finding free port for Python server...')
-  serverPort = is.dev ? 5002 : await findFreePort()
-  log.info(`Free port found: ${serverPort}`)
-
-  let scriptPath
-  let pythonInterpreter
-
-  if (is.dev) {
-    scriptPath = join(__dirname, '../../test-species/main.py')
-    pythonInterpreter = join(__dirname, '../../test-species/.venv/bin/python3.11')
-
-    log.info(`Using extracted main.py at: ${scriptPath}`)
-    log.info(`Using Python interpreter: ${pythonInterpreter}`)
-  } else {
-    // Production mode
-    const extractPath = join(app.getPath('userData'), 'species-data')
-
-    const baseURL = 'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/'
-    const osName =
-      process.platform === 'win32' ? 'Windows' : process.platform === 'linux' ? 'Linux' : 'macOS'
-
-    const envDownloadUrl = `${baseURL}species-env-${osName}.tar.gz`
-    const downloadedTarPath = join(app.getPath('userData'), `species-env.tar.gz`)
-
-    scriptPath = join(process.resourcesPath, 'python', 'main.py')
-
-    try {
-      // Check if we already have files extracted
-      if (existsSync(extractPath)) {
-        const files = readdirSync(extractPath)
-        if (files.length > 0 && files.includes('species-env')) {
-          log.info('Environment already extracted, using existing files')
-        } else {
-          // Download and extract the environment
-          log.info('Downloading environment file...')
-          await downloadFile(envDownloadUrl, downloadedTarPath)
-          log.info('Extracting downloaded environment...')
-          await extractTarGz(downloadedTarPath, extractPath)
-        }
-      } else {
-        // Download and extract the environment
-        log.info('Downloading environment file...')
-        await downloadFile(envDownloadUrl, downloadedTarPath)
-        log.info('Extracting downloaded environment...')
-        await extractTarGz(downloadedTarPath, extractPath)
-      }
-
-      // Use the extracted Python environment
-      pythonInterpreter =
-        process.platform === 'win32'
-          ? join(extractPath, 'species-env/python.exe')
-          : join(extractPath, 'species-env/bin/python3.11')
-
-      // Check if executable and make it executable if needed
-      if (!isExecutable(pythonInterpreter)) {
-        log.warn(`Python interpreter not executable: ${pythonInterpreter}`)
-        if (!makeExecutable(pythonInterpreter)) {
-          log.warn('Could not make Python interpreter executable, falling back to bundled backend')
-          if (!isExecutable(scriptPath)) {
-            makeExecutable(scriptPath)
-          }
-        }
-      }
-    } catch (error) {
-      log.error('Failed to download or extract environment:', error)
-    }
-  }
-
-  try {
-    log.info(`Starting Python server on port ${serverPort}...`)
-
-    if (is.dev) {
-      pythonProcess = spawn(pythonInterpreter, [scriptPath, '--port', serverPort.toString()])
-    } else if (pythonInterpreter && existsSync(pythonInterpreter)) {
-      // If we have a valid Python interpreter, use it
-      pythonProcess = spawn(pythonInterpreter, [scriptPath, '--port', serverPort.toString()])
-    } else {
-      log.error('Python interpreter not found or not executable:', pythonInterpreter)
-    }
-
-    pythonProcess.stdout.on('data', (data) => {
-      const output = data.toString()
-      log.info('Python output:', output)
-    })
-
-    //python/flask sends everything to stderr
-    pythonProcess.stderr.on('data', (data) => {
-      log.info(`Python output: ${data}`)
-    })
-
-    pythonProcess.on('error', (err) => {
-      log.error('Failed to start Python server:', err)
-      throw err // Re-throw to be caught by the outer try-catch
-    })
-
-    // Wait a bit to ensure the server is ready
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-  } catch (error) {
-    log.error('Error in Python process startup:', error)
-
-    // Last resort: try with system Python
-    if (is.dev && pythonInterpreter !== 'python3') {
-      log.info('Attempting to start with system Python as last resort...')
-      pythonProcess = spawn('python3', [scriptPath, '--port', serverPort.toString()])
-
-      // Set up event handlers again
-      pythonProcess.stdout.on('data', (data) => {
-        const output = data.toString()
-        log.info('Python output (fallback):', output)
-      })
-
-      pythonProcess.stderr.on('data', (data) => {
-        log.error(`Python output (fallback): ${data}`)
-      })
-
-      pythonProcess.on('error', (err) => {
-        log.error('Failed to start Python server with fallback:', err)
-        throw new Error('Could not start Python server with any method')
-      })
-
-      // Wait again
-      await new Promise((resolve) => setTimeout(resolve, 2000))
-    } else {
-      throw error // Re-throw if we've exhausted our options
-    }
   }
 }
 
@@ -542,10 +323,10 @@ app.whenReady().then(async () => {
   })
 
   // IPC test
-  ipcMain.on('ping', () => log.info('pong'))
+  ipcMain.on('ipc:ping', () => log.info('pong'))
 
   // Add image selection handler
-  ipcMain.handle('select-image', async () => {
+  ipcMain.handle('dialog:select-image', async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openFile'],
       filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'gif'] }]
@@ -563,7 +344,7 @@ app.whenReady().then(async () => {
   })
 
   // Add dataset selection handler (supports both directories and zip files)
-  ipcMain.handle('select-camtrap-dp-dataset', async () => {
+  ipcMain.handle('import:select-camtrap-dp', async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openFile', 'openDirectory'],
       filters: [
@@ -581,7 +362,7 @@ app.whenReady().then(async () => {
   })
 
   // Add Wildlife Insights dataset selection handler
-  ipcMain.handle('select-wildlife-dataset', async () => {
+  ipcMain.handle('import:select-wildlife', async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openFile', 'openDirectory'],
       filters: [
@@ -712,27 +493,8 @@ app.whenReady().then(async () => {
     }
   })
 
-  // Add drag and drop handler (supports both directories and zip files)
-  ipcMain.handle('import-dropped-dataset', async (_, path) => {
-    try {
-      log.info(`Processing dropped item: ${path}`)
-
-      // Validate that the path exists
-      if (!existsSync(path)) {
-        log.warn(`Invalid path: ${path}`)
-        return { error: 'The dropped item does not exist' }
-      }
-
-      const id = crypto.randomUUID()
-      return await processDataset(path, id)
-    } catch (error) {
-      log.error('Error processing dropped dataset:', error)
-      return { error: error.message }
-    }
-  })
-
   // Add species distribution handler
-  ipcMain.handle('get-species-distribution', async (_, studyId) => {
+  ipcMain.handle('species:get-distribution', async (_, studyId) => {
     try {
       const dbPath = join(app.getPath('userData'), `${studyId}.db`)
       if (!existsSync(dbPath)) {
@@ -749,7 +511,7 @@ app.whenReady().then(async () => {
   })
 
   // Add deployments handler
-  ipcMain.handle('get-deployments', async (_, studyId) => {
+  ipcMain.handle('deployments:get', async (_, studyId) => {
     try {
       const dbPath = join(app.getPath('userData'), `${studyId}.db`)
       if (!existsSync(dbPath)) {
@@ -765,23 +527,7 @@ app.whenReady().then(async () => {
     }
   })
 
-  ipcMain.handle('get-deployments-activity', async (_, studyId) => {
-    try {
-      const dbPath = join(app.getPath('userData'), `${studyId}.db`)
-      if (!existsSync(dbPath)) {
-        log.warn(`Database not found for study ID: ${studyId}`)
-        return { error: 'Database not found for this study' }
-      }
-
-      const activity = await getDeploymentsActivity(dbPath)
-      return { data: activity }
-    } catch (error) {
-      log.error('Error getting deployments activity:', error)
-      return { error: error.message }
-    }
-  })
-
-  ipcMain.handle('get-top-species-timeseries', async (_, studyId) => {
+  ipcMain.handle('activity:get-top-timeseries', async (_, studyId) => {
     try {
       const dbPath = join(app.getPath('userData'), `${studyId}.db`)
       if (!existsSync(dbPath)) {
@@ -797,7 +543,7 @@ app.whenReady().then(async () => {
     }
   })
 
-  ipcMain.handle('get-species-timeseries', async (_, studyId, species) => {
+  ipcMain.handle('activity:get-timeseries', async (_, studyId, species) => {
     try {
       const dbPath = join(app.getPath('userData'), `${studyId}.db`)
       if (!existsSync(dbPath)) {
@@ -814,7 +560,7 @@ app.whenReady().then(async () => {
   })
 
   ipcMain.handle(
-    'get-species-heatmap-data',
+    'activity:get-heatmap-data',
     async (_, studyId, species, startDate, endDate, startTime, endTime) => {
       try {
         const dbPath = join(app.getPath('userData'), `${studyId}.db`)
@@ -839,7 +585,7 @@ app.whenReady().then(async () => {
     }
   )
 
-  ipcMain.handle('get-locations-activity', async (_, studyId) => {
+  ipcMain.handle('locations:get-activity', async (_, studyId) => {
     try {
       const dbPath = join(app.getPath('userData'), `${studyId}.db`)
       if (!existsSync(dbPath)) {
@@ -855,7 +601,7 @@ app.whenReady().then(async () => {
     }
   })
 
-  ipcMain.handle('get-species-daily-activity', async (_, studyId, species, startDate, endDate) => {
+  ipcMain.handle('activity:get-daily', async (_, studyId, species, startDate, endDate) => {
     try {
       const dbPath = join(app.getPath('userData'), `${studyId}.db`)
       if (!existsSync(dbPath)) {
@@ -872,7 +618,7 @@ app.whenReady().then(async () => {
   })
 
   // Add handler for showing study context menu
-  ipcMain.handle('show-study-context-menu', (event, studyId) => {
+  ipcMain.handle('study:show-context-menu', (event, studyId) => {
     const { Menu } = require('electron')
     const targetWindow = BrowserWindow.fromWebContents(event.sender)
 
@@ -883,7 +629,7 @@ app.whenReady().then(async () => {
           try {
             log.info(`Deleting database for study: ${studyId}`)
             const dbPath = join(app.getPath('userData'), `${studyId}.db`)
-            event.sender.send('delete-study', studyId)
+            event.sender.send('study:delete', studyId)
 
             if (existsSync(dbPath)) {
               unlinkSync(dbPath)
@@ -906,7 +652,7 @@ app.whenReady().then(async () => {
   })
 
   // Add handler for deleting study database
-  ipcMain.handle('delete-study-database', async (_, studyId) => {
+  ipcMain.handle('study:delete-database', async (_, studyId) => {
     try {
       log.info(`Deleting database for study: ${studyId}`)
       const dbPath = join(app.getPath('userData'), `${studyId}.db`)
@@ -926,7 +672,7 @@ app.whenReady().then(async () => {
   })
 
   // Update media handler to use the new getMedia function with options
-  ipcMain.handle('get-media', async (_, studyId, options = {}) => {
+  ipcMain.handle('media:get', async (_, studyId, options = {}) => {
     try {
       const dbPath = join(app.getPath('userData'), `${studyId}.db`)
       if (!existsSync(dbPath)) {
@@ -942,25 +688,7 @@ app.whenReady().then(async () => {
     }
   })
 
-  // Keep the old handler for backward compatibility, but implement it using the new function
-  ipcMain.handle('get-latest-media', async (_, studyId, limit = 10) => {
-    try {
-      const dbPath = join(app.getPath('userData'), `${studyId}.db`)
-      if (!existsSync(dbPath)) {
-        log.warn(`Database not found for study ID: ${studyId}`)
-        return { error: 'Database not found for this study' }
-      }
-
-      const media = await getMedia(dbPath, { limit })
-      return { data: media }
-    } catch (error) {
-      log.error('Error getting latest media:', error)
-      return { error: error.message }
-    }
-  })
-
-  // Add demo dataset download handler
-  ipcMain.handle('download-demo-dataset', async () => {
+  ipcMain.handle('import:download-demo', async () => {
     try {
       log.info('Downloading and importing demo dataset')
 
@@ -970,12 +698,10 @@ app.whenReady().then(async () => {
         mkdirSync(downloadDir, { recursive: true })
       }
 
-      // URL for the demo dataset
       const demoDatasetUrl = 'https://gbif.mnhn.lu/ipt/archive.do?r=luxvalmoni20223025'
       const zipPath = join(downloadDir, 'demo-dataset.zip')
       const extractPath = join(downloadDir, 'extracted')
 
-      // Download the file
       log.info(`Downloading demo dataset from ${demoDatasetUrl} to ${zipPath}`)
       await downloadFile(demoDatasetUrl, zipPath)
       log.info('Download complete')
@@ -1090,7 +816,7 @@ app.whenReady().then(async () => {
     }
   })
 
-  ipcMain.handle('select-images-directory', async () => {
+  ipcMain.handle('dialog:select-images-directory', async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openDirectory'],
       title: 'Select Images Directory'
@@ -1101,8 +827,6 @@ app.whenReady().then(async () => {
     }
 
     const directoryPath = result.filePaths[0]
-
-    const { tree, deployments, media } = await importFromImages(directoryPath)
 
     try {
       // importImagesFromDirectory(directoryPath)
@@ -1134,19 +858,6 @@ app.whenReady().then(async () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 
-  // app.on('before-quit', () => {
-  //   log.info('Quitting app....')
-  //   if (pythonProcess) {
-  //     pythonProcess.kill()
-  //     pythonProcess = null
-  //   }
-  // })
-
-  // Add model status check handler
-  ipcMain.handle('check-model-status', () => {
-    return checkModelStatus()
-  })
-
   registerMLModelManagementIPCHandlers()
 })
 
@@ -1165,29 +876,3 @@ app.on('window-all-closed', () => {
 
 // In this file you can include the rest of your app's specific main process
 // code. You can also put them in separate files and require them here.
-
-function checkModelStatus() {
-  // if (is.dev) {
-  //   // In dev mode, assume model is available through the Python environment
-  //   return { isDownloaded: true }
-  // }
-
-  const extractPath = join(app.getPath('userData'), 'species-data')
-  const envPath = join(extractPath, 'species-env')
-
-  // Check if environment exists and has content
-  if (existsSync(envPath)) {
-    try {
-      const stats = statSync(envPath)
-      return {
-        isDownloaded: stats.isDirectory(),
-        size: stats.size,
-        lastModified: stats.mtime
-      }
-    } catch (error) {
-      log.warn(`Error checking model status: ${error}`)
-    }
-  }
-
-  return { isDownloaded: false }
-}
