@@ -183,74 +183,78 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false }) {
           {pythonEnvironment['platform'][platformToKey(platform)]['size_in_MiB']} MiB
         </li>
       </ul>
-      <div className="flex justify-center p-2 gap-2">
+      <div>
         {isDownloading ? (
           <></>
         ) : isDownloaded ? (
           <>
-            <button
-              onClick={() => handleDelete(reference)}
-              className={` bg-red-300 cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-red-400`}
-            >
-              <CircleX color="black" size={14} />
-              Delete
-            </button>
-            {!isDev ? (
-              <></>
-            ) : (
-              <>
-                {isHTTPServerRunning ? (
-                  <button
-                    onClick={() =>
-                      handleStopHTTPServer({
-                        pid: pidPythonProcess
-                      })
-                    }
-                    className={` bg-blue-300 cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-blue-400`}
-                  >
-                    <CircleOff color="black" size={14} />
-                    Stop ML Server
-                  </button>
-                ) : isHTTPServerStarting ? (
-                  <button
-                    onClick={() =>
-                      handleRunHTTPServer({
-                        modelReference: reference,
-                        pythonEnvironment: pythonEnvironment
-                      })
-                    }
-                    className={` bg-blue-300 cursor-not-allowed w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md opacity-70`}
-                  >
-                    <LucideLoader color="black" size={14} />
-                    <span className="animate-pulse">Starting Server</span>
-                  </button>
-                ) : (
-                  <button
-                    onClick={() =>
-                      handleRunHTTPServer({
-                        modelReference: reference,
-                        pythonEnvironment: pythonEnvironment
-                      })
-                    }
-                    className={` bg-blue-300 cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-blue-400`}
-                  >
-                    <PlayIcon color="black" size={14} />
-                    Run
-                  </button>
-                )}
-              </>
-            )}
+            <div className="flex justify-center p-2 gap-2">
+              <button
+                onClick={() => handleDelete(reference)}
+                className={` bg-red-300 cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-red-400`}
+              >
+                <CircleX color="black" size={14} />
+                Delete
+              </button>
+              {!isDev ? (
+                <></>
+              ) : (
+                <>
+                  {isHTTPServerRunning ? (
+                    <button
+                      onClick={() =>
+                        handleStopHTTPServer({
+                          pid: pidPythonProcess
+                        })
+                      }
+                      className={` bg-blue-300 cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-blue-400`}
+                    >
+                      <CircleOff color="black" size={14} />
+                      Stop ML Server
+                    </button>
+                  ) : isHTTPServerStarting ? (
+                    <button
+                      onClick={() =>
+                        handleRunHTTPServer({
+                          modelReference: reference,
+                          pythonEnvironment: pythonEnvironment
+                        })
+                      }
+                      className={` bg-blue-300 cursor-not-allowed w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md opacity-70`}
+                    >
+                      <LucideLoader color="black" size={14} />
+                      <span className="animate-pulse">Starting Server</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() =>
+                        handleRunHTTPServer({
+                          modelReference: reference,
+                          pythonEnvironment: pythonEnvironment
+                        })
+                      }
+                      className={` bg-blue-300 cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-blue-400`}
+                    >
+                      <PlayIcon color="black" size={14} />
+                      Run
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
           </>
         ) : (
-          <button
-            onClick={() =>
-              handleDownload({ modelReference: reference, pythonEnvironment: pythonEnvironment })
-            }
-            className={` bg-blue-100 cursor-pointer w-[60%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-blue-200`}
-          >
-            <Download color="black" size={14} />
-            Download
-          </button>
+          <div className="flex justify-center p-2 gap-2">
+            <button
+              onClick={() =>
+                handleDownload({ modelReference: reference, pythonEnvironment: pythonEnvironment })
+              }
+              className={` bg-blue-100 cursor-pointer w-[60%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-blue-200`}
+            >
+              <Download color="black" size={14} />
+              Download
+            </button>
+          </div>
         )}
       </div>
       {isHTTPServerRunning ? (
@@ -281,7 +285,7 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false }) {
       )}
       {isDownloading ? (
         <>
-          <div className="pl-6 pr-6">
+          <div className="pl-6 pr-6 pb-4">
             <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
               <div
                 className="h-full bg-blue-600 transition-all duration-500 ease-in-out"
