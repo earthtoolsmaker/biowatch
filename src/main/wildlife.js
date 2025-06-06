@@ -13,11 +13,9 @@ import { DateTime } from 'luxon'
  */
 export async function importWildlifeDataset(directoryPath, id) {
   log.info('Starting Wildlife dataset import')
-  // Create database in app's user data directory
   const dbPath = path.join(app.getPath('userData'), `${id}.db`)
   log.info(`Creating database at: ${dbPath}`)
 
-  // Create database connection
   const db = await openDatabase(dbPath)
   setupDatabase(db)
 
@@ -56,15 +54,6 @@ export async function importWildlifeDataset(directoryPath, id) {
     if (fs.existsSync(deploymentsCSV)) {
       log.info('Importing deployments data')
 
-      const columns = [
-        'deploymentID',
-        'locationID',
-        'locationName',
-        'deploymentStart',
-        'deploymentEnd',
-        'latitude',
-        'longitude'
-      ]
       await insertDeployments(db, deploymentsCSV)
 
       log.info('Deployments data imported successfully in', dbPath)
@@ -99,67 +88,11 @@ export async function importWildlifeDataset(directoryPath, id) {
 
   console.log('returning Data:', data)
 
+  closeDatabase(db)
+
   return {
     data
   }
-
-  // try {
-  //   const datapackagePath = path.join(directoryPath, 'datapackage.json')
-  //   if (fs.existsSync(datapackagePath)) {
-  //     const datapackage = JSON.parse(fs.readFileSync(datapackagePath, 'utf8'))
-  //     data = datapackage
-  //   } else {
-  //     log.warn('datapackage.json not found in directory')
-  //     return {
-  //       error: 'datapackage.json not found in directory'
-  //     }
-  //   }
-  // } catch (error) {
-  //   log.error('Error reading datapackage.json:', error)
-  // }
-
-  // log.info(`Using dataset directory: ${directoryPath}`)
-
-  // try {
-  //   // Get all CSV files in the directory
-  //   const files = fs.readdirSync(directoryPath).filter((file) => file.endsWith('.csv'))
-  //   log.info(`Found ${files.length} CSV files to import`)
-
-  //   // Process each CSV file
-  //   for (const file of files) {
-  //     const filePath = path.join(directoryPath, file)
-  //     const tableName = path.basename(file, '.csv')
-  //     log.info(`Processing file: ${file} into table: ${tableName}`)
-
-  //     // Read the first row to get column names
-  //     const columns = await getCSVColumns(filePath)
-  //     log.debug(`Found ${columns.length} columns in ${file}`)
-
-  //     // Create table
-  //     const columnDefs = columns.map((col) => `"${col}" TEXT`).join(', ')
-  //     await runQuery(db, `CREATE TABLE IF NOT EXISTS "${tableName}" (${columnDefs})`)
-  //     log.debug(`Created table: ${tableName}`)
-
-  //     // Insert data
-  //     log.debug(`Beginning data insertion for ${tableName}`)
-  //     await insertCSVData(db, filePath, tableName, columns)
-
-  //     log.info(`Successfully imported ${file} into table ${tableName}`)
-  //   }
-
-  //   log.info('CamTrap dataset import completed successfully')
-  //   return {
-  //     dbPath,
-  //     data
-  //   }
-  // } catch (error) {
-  //   log.error('Error importing dataset:', error)
-  //   console.error('Error importing dataset:', error)
-  //   throw error
-  // } finally {
-  //   log.debug('Closing database connection')
-  //   await closeDatabase(db)
-  // }
 }
 
 function insertDeployments(db, deploymentsCSV) {
@@ -167,7 +100,6 @@ function insertDeployments(db, deploymentsCSV) {
     const stream = fs.createReadStream(deploymentsCSV).pipe(csv())
     let rowCount = 0
 
-    // Begin transaction for better performance
     db.run('BEGIN TRANSACTION', async (err) => {
       if (err) {
         log.error(`Error starting transaction: ${err.message}`)
@@ -176,26 +108,13 @@ function insertDeployments(db, deploymentsCSV) {
 
       log.debug('Started transaction for bulk insert')
 
-      // Update to use explicit column names
       const insertSql = `INSERT INTO deployments (deploymentID, locationID, locationName,
                          deploymentStart, deploymentEnd, latitude, longitude)
                          VALUES (?, ?, ?, ?, ?, ?, ?)`
 
-      //csvCols = project_id	deployment_id	longitude	latitude	start_date	end_date	bait_type	bait_description	feature_type	feature_type_methodology	camera_id	camera_name	quiet_period	camera_functioning	sensor_height	height_other	sensor_orientation	orientation_other	plot_treatment	plot_treatment_description	detection_distance	subproject_name	subproject_design	event_name	event_description	event_type	recorded_by	fuzzed	deployment_fuzzed
-      const columns = [
-        'deploymentID',
-        'locationID',
-        'locationName',
-        'deploymentStart',
-        'deploymentEnd',
-        'latitude',
-        'longitude'
-      ]
-
       try {
         stream.on('data', async (row) => {
-          // Convert space-separated datetime to ISO format or use fromSQL
-          const startDate = DateTime.fromSQL(row.start_date) // or DateTime.fromFormat(row.start_date, 'yyyy-MM-dd HH:mm:ss')
+          const startDate = DateTime.fromSQL(row.start_date)
           const endDate = DateTime.fromSQL(row.end_date)
 
           const values = [
@@ -513,108 +432,6 @@ function runQuery(db, query, params = []) {
         reject(err)
       } else {
         resolve(this)
-      }
-    })
-  })
-}
-
-/**
- * Get column names from the first row of a CSV file
- * @param {string} filePath - Path to the CSV file
- * @returns {Promise<string[]>} - Array of column names
- */
-function getCSVColumns(filePath) {
-  log.debug(`Reading columns from: ${filePath}`)
-  return new Promise((resolve, reject) => {
-    let columns = []
-    fs.createReadStream(filePath)
-      .pipe(csv())
-      .on('headers', (headers) => {
-        columns = headers
-        resolve(columns)
-      })
-      .on('error', (error) => {
-        log.error(`Error reading CSV headers: ${error.message}`)
-        reject(error)
-      })
-      .on('data', () => {
-        // We only need the headers, so end the stream after getting the first row
-        resolve(columns)
-      })
-  })
-}
-
-/**
- * Insert CSV data into a SQLite table
- * @param {sqlite3.Database} db - SQLite database instance
- * @param {string} filePath - Path to the CSV file
- * @param {string} tableName - Name of the table
- * @param {string[]} columns - Array of column names
- * @returns {Promise<void>}
- */
-function insertCSVData(db, filePath, tableName, columns) {
-  return new Promise((resolve, reject) => {
-    log.debug(`Beginning data insertion from ${filePath} to table ${tableName}`)
-    const stream = fs.createReadStream(filePath).pipe(csv())
-    let rowCount = 0
-
-    // Begin transaction for better performance
-    db.run('BEGIN TRANSACTION', async (err) => {
-      if (err) {
-        log.error(`Error starting transaction: ${err.message}`)
-        return reject(err)
-      }
-
-      log.debug('Started transaction for bulk insert')
-
-      const placeholders = columns.map(() => '?').join(', ')
-      const insertSql = `INSERT INTO "${tableName}" VALUES (${placeholders})`
-
-      try {
-        stream.on('data', async (row) => {
-          const values = columns.map((col) => {
-            if (
-              ['eventStart', 'eventEnd', 'timestamp', 'deploymentStart', 'deploymentEnd'].includes(
-                col
-              )
-            ) {
-              const date = DateTime.fromISO(row[col])
-              return date.isValid ? date.toISO() : null
-            }
-            return row[col]
-          })
-          try {
-            await runQuery(db, insertSql, values)
-            rowCount++
-            if (rowCount % 1000 === 0) {
-              log.debug(`Inserted ${rowCount} rows into ${tableName}`)
-            }
-          } catch (error) {
-            log.error(`Error inserting row: ${error.message}`)
-            throw error
-          }
-        })
-
-        stream.on('end', () => {
-          db.run('COMMIT', (err) => {
-            if (err) {
-              log.error(`Error committing transaction: ${err.message}`)
-              db.run('ROLLBACK')
-              return reject(err)
-            }
-            log.info(`Completed insertion of ${rowCount} rows into ${tableName}`)
-            resolve()
-          })
-        })
-
-        stream.on('error', (error) => {
-          log.error(`Error during CSV data insertion: ${error.message}`)
-          db.run('ROLLBACK')
-          reject(error)
-        })
-      } catch (error) {
-        db.run('ROLLBACK')
-        reject(error)
       }
     })
   })
