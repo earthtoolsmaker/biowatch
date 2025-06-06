@@ -570,6 +570,75 @@ function findFreePort() {
 }
 
 /**
+ * Waits for the specified server to become healthy by polling its health endpoint.
+ *
+ * This function spawns a Python process for the server and continuously checks
+ * its health status by making GET requests to the provided health endpoint.
+ * If the server becomes healthy within the maximum number of retries,
+ * the function resolves with the spawned process.
+ * If the server fails to start within the expected time,
+ * it terminates the process and throws an error.
+ *
+ * @async
+ * @param {Object} options - The configuration options for health checking.
+ * @param {string} options.pythonInterpreter - The path to the Python interpreter.
+ * @param {string} options.scriptPath - The path to the server script to be executed.
+ * @param {Array<string>} options.scriptArgs - The arguments to be passed to the server script.
+ * @param {string} options.healthEndpoint - The URL of the health check endpoint.
+ * @param {number} options.retryInterval - The interval between health check attempts in milliseconds.
+ * @param {number} options.maxRetries - The maximum number of retries for health checking.
+ *
+ * @returns {Promise<ChildProcess>} A promise that resolves to the spawned Python process if the server starts successfully.
+ *
+ * @throws {Error} Throws an error if the server fails to start within the expected time.
+ */
+async function startAndWaitTillServerHealty({
+  pythonInterpreter,
+  scriptPath,
+  scriptArgs,
+  healthEndpoint,
+  retryInterval = 1000,
+  maxRetries = 30
+}) {
+  const pythonProcess = spawn(pythonInterpreter, [scriptPath, ...scriptArgs])
+
+  log.info('Python process started:', pythonProcess.pid)
+
+  // Set up error handlers
+  pythonProcess.stderr.on('data', (err) => {
+    log.error('Python error:', err.toString())
+  })
+
+  pythonProcess.on('error', (err) => {
+    log.error('Python process error:', err)
+  })
+  // Wait for server to be ready by polling the endpoint
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const healthCheck = await fetch(healthEndpoint, {
+        method: 'GET',
+        timeout: 1000
+      })
+
+      if (healthCheck.ok) {
+        log.info('Server is ready')
+        return pythonProcess
+      }
+    } catch (error) {
+      // Server not ready yet, will retry
+    }
+
+    // Wait before next retry
+    await new Promise((resolve) => setTimeout(resolve, retryInterval))
+    log.info(`Waiting for server to start (attempt ${i + 1}/${maxRetries})`)
+  }
+
+  // If we get here, the server failed to start
+  kill(pythonProcess.pid)
+  throw new Error('Server failed to start in the expected time')
+}
+
+/**
  * Starts the SpeciesNet HTTP server using a specified Python environment and configuration.
  *
  * This function initializes a Python process that runs the SpeciesNet server script.
@@ -641,46 +710,12 @@ async function startSpeciesNetHTTPServer({
   ]
   log.info('Script args: ', scriptArgs)
   log.info('Formatted script args: ', [scriptPath, ...scriptArgs])
-  const pythonProcess = spawn(pythonInterpreter, [scriptPath, ...scriptArgs])
-
-  log.info('Python process started:', pythonProcess.pid)
-
-  // Set up error handlers
-  pythonProcess.stderr.on('data', (err) => {
-    log.error('Python error:', err.toString())
+  return await startAndWaitTillServerHealty({
+    pythonInterpreter,
+    scriptPath,
+    scriptArgs,
+    healthEndpoint: `http://localhost:${port}/health`
   })
-
-  pythonProcess.on('error', (err) => {
-    log.error('Python process error:', err)
-  })
-
-  // Wait for server to be ready by polling the endpoint
-  const maxRetries = 30
-  const retryInterval = 1000 // 1 second
-
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      const healthCheck = await fetch(`http://localhost:${port}/health`, {
-        method: 'GET',
-        timeout: 1000
-      })
-
-      if (healthCheck.ok) {
-        log.info('Server is ready')
-        return pythonProcess
-      }
-    } catch (error) {
-      // Server not ready yet, will retry
-    }
-
-    // Wait before next retry
-    await new Promise((resolve) => setTimeout(resolve, retryInterval))
-    log.info(`Waiting for server to start (attempt ${i + 1}/${maxRetries})`)
-  }
-
-  // If we get here, the server failed to start
-  kill(pythonProcess.pid)
-  throw new Error('Server failed to start in the expected time')
 }
 
 /**
@@ -755,46 +790,12 @@ async function startDeepFauneHTTPServer({
   ]
   log.info('Script args: ', scriptArgs)
   log.info('Formatted script args: ', [scriptPath, ...scriptArgs])
-  const pythonProcess = spawn(pythonInterpreter, [scriptPath, ...scriptArgs])
-
-  log.info('Python process started:', pythonProcess.pid)
-
-  // Set up error handlers
-  pythonProcess.stderr.on('data', (err) => {
-    log.error('Python error:', err.toString())
+  return await startAndWaitTillServerHealty({
+    pythonInterpreter,
+    scriptPath,
+    scriptArgs,
+    healthEndpoint: `http://localhost:${port}/health`
   })
-
-  pythonProcess.on('error', (err) => {
-    log.error('Python process error:', err)
-  })
-
-  // Wait for server to be ready by polling the endpoint
-  const maxRetries = 30
-  const retryInterval = 1000 // 1 second
-
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      const healthCheck = await fetch(`http://localhost:${port}/health`, {
-        method: 'GET',
-        timeout: 1000
-      })
-
-      if (healthCheck.ok) {
-        log.info('Server is ready')
-        return pythonProcess
-      }
-    } catch (error) {
-      // Server not ready yet, will retry
-    }
-
-    // Wait before next retry
-    await new Promise((resolve) => setTimeout(resolve, retryInterval))
-    log.info(`Waiting for server to start (attempt ${i + 1}/${maxRetries})`)
-  }
-
-  // If we get here, the server failed to start
-  kill(pythonProcess.pid)
-  throw new Error('Server failed to start in the expected time')
 }
 
 /**
@@ -862,7 +863,7 @@ async function startMLModelHTTPServer({ pythonEnvironment, modelReference }) {
       return { port: port, process: pythonProcess }
     }
     case 'deepfaune': {
-      const port = is.dev ? 8000 : await findFreePort()
+      const port = is.dev ? 8001 : await findFreePort()
       const localInstallPath = getMLModelLocalInstallPath({ ...modelReference })
       log.info(`Local ML Model install path ${localInstallPath}`)
       const classifierWeightsFilepath = join(
