@@ -1,36 +1,3 @@
-# Copyright CNRS 2024
-
-# simon.chamaille@cefe.cnrs.fr; vincent.miele@univ-lyon1.fr
-
-# This software is a computer program whose purpose is to identify
-# animal species in camera trap images.
-
-# This software is governed by the CeCILL  license under French law and
-# abiding by the rules of distribution of free software.  You can  use,
-# modify and/ or redistribute the software under the terms of the CeCILL
-# license as circulated by CEA, CNRS and INRIA at the following URL
-# "http://www.cecill.info".
-
-# As a counterpart to the access to the source code and  rights to copy,
-# modify and redistribute granted by the license, users are provided only
-# with a limited warranty  and the software's author,  the holder of the
-# economic rights,  and the successive licensors  have only  limited
-# liability.
-
-# In this respect, the user's attention is drawn to the risks associated
-# with loading,  using,  modifying and/or developing or reproducing the
-# software by the user in light of its specific status of free software,
-# that may mean  that it is complicated to manipulate,  and  that  also
-# therefore means  that it is reserved for developers  and  experienced
-# professionals having in-depth computer knowledge. Users are therefore
-# encouraged to load and test the software's suitability as regards their
-# requirements in conditions enabling the security of their systems and/or
-# data to be ensured and,  more generally, to use and operate it in the
-# same conditions as regards security.
-
-# The fact that you are presently reading this means that you have had
-# knowledge of the CeCILL license and that you accept its terms.
-
 import logging
 import sys
 from dataclasses import dataclass
@@ -87,6 +54,20 @@ CLASS_LABEL_MAPPING = {
 
 
 class Classifier:
+    """
+    Classifier for image classification tasks using a specified backbone model.
+
+    Attributes:
+        model (Model): The underlying model used for predictions.
+        transforms (torchvision.transforms.Compose): The preprocessing transformations applied to input images.
+
+    Methods:
+        predict_on_batch(batchtensor, withsoftmax=True):
+            Predict the classes for a batch of input tensors.
+
+        preprocess_image(croppedimage):
+            Preprocess an image by applying the necessary transformations and adding a batch dimension.
+    """
 
     def __init__(
         self,
@@ -101,14 +82,14 @@ class Classifier:
             crop_size=crop_size,
             num_classes=num_classes,
         )
-        self.model.loadWeights(str(filepath_weights))
+        self.model.load_weights(str(filepath_weights))
         self.transforms = transforms.Compose(
             [
                 transforms.Resize(
                     size=(crop_size, crop_size),
                     interpolation=InterpolationMode.BICUBIC,
                     max_size=None,
-                    antialias=None,
+                    antialias=False,
                 ),
                 transforms.ToTensor(),
                 transforms.Normalize(
@@ -118,21 +99,57 @@ class Classifier:
             ]
         )
 
-    def predictOnBatch(self, batchtensor, withsoftmax=True):
-        return self.model.predict(batchtensor, withsoftmax)
+    def predict_on_batch(self, batch: torch.Tensor, with_softmax: bool = True):
+        """
+        Predict the classes for a batch of input tensors.
 
-    # croppedimage loaded by PIL
-    def preprocessImage(self, croppedimage):
-        preprocessimage = self.transforms(croppedimage)
+        Args:
+            batch (torch.Tensor): A batch of input tensors for prediction.
+            with_softmax (bool): Whether to apply softmax to the output probabilities.
+
+        Returns:
+            numpy.ndarray: The predicted class probabilities or class indices depending on withsoftmax.
+        """
+        return self.model.predict(batch, with_softmax)
+
+    def preprocess_image(self, cropped_image):
+        """
+        Preprocess an image by applying the necessary transformations and adding a batch dimension.
+
+        Args:
+            cropped_image (PIL.Image): The input image to be preprocessed.
+
+        Returns:
+            torch.Tensor: The preprocessed image tensor with an added batch dimension.
+        """
+        preprocessimage = self.transforms(cropped_image)
         return preprocessimage.unsqueeze(dim=0)
 
 
 class Model(nn.Module):
+    """
+    Model class for the deep learning architecture.
+
+    This class encapsulates the model definition using a specified backbone,
+    loading of weights, and prediction functionality.
+
+    Attributes:
+        base_model (torch.nn.Module): The underlying model architecture.
+        backbone (str): The name of the backbone model.
+        nbclasses (int): The number of output classes for the model.
+    """
+
     def __init__(
         self, filepath_weights: Path, backbone: str, crop_size: int, num_classes: int
     ):
         """
-        Constructor of model classifier
+        Initialize the Classifier with the specified model parameters.
+
+        Args:
+            filepath_weights (Path): Path to the model weights file.
+            backbone (str): The backbone architecture to be used for the model.
+            crop_size (int): The size to which input images will be cropped.
+            num_classes (int): The number of output classes for the model.
         """
         super().__init__()
         self.base_model = timm.create_model(
@@ -148,14 +165,28 @@ class Model(nn.Module):
         self.nbclasses = num_classes
 
     def forward(self, input):
+        """
+        Forward pass through the model.
+
+        Args:
+            input (torch.Tensor): Input tensor for the model.
+
+        Returns:
+            torch.Tensor: Output tensor from the model.
+        """
         x = self.base_model(input)
         return x
 
     def predict(self, data, withsoftmax=True):
         """
-        Predict on test DataLoader
-        :param test_loader: test dataloader: torch.utils.data.DataLoader
-        :return: numpy array of predictions without soft max
+        Predict the output for the given input data.
+
+        Args:
+            data (torch.Tensor): Input data tensor for prediction.
+            withsoftmax (bool): Flag to indicate whether to apply softmax to the output.
+
+        Returns:
+            numpy.ndarray: The predicted class probabilities or class indices depending on withsoftmax.
         """
         self.eval()
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -171,9 +202,17 @@ class Model(nn.Module):
 
         return np.array(total_output)
 
-    def loadWeights(self, path):
+    def load_weights(self, path):
         """
-        :param path: path of .pt save of model
+        Load model weights from the specified file path.
+
+        Args:
+            path (str): The path to the weights file. If the path does not end with '.pt',
+                         it will be appended with '.pt'.
+
+        Raises:
+            Exception: If the model architecture does not match the number of classes in the
+                        loaded weights or if the weights cannot be loaded.
         """
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -199,6 +238,14 @@ class Model(nn.Module):
 
 @dataclass
 class DeepFauneModel:
+    """
+    A model that encapsulates both the object detector and classifier for wildlife detection tasks.
+
+    Attributes:
+        detector (YOLO): The object detection model.
+        classifier (Classifier): The image classification model.
+    """
+
     detector: YOLO
     classifier: Classifier
 
@@ -210,6 +257,19 @@ def load_model(
     classifier_crop_size: int,
     classifier_num_classes: int,
 ) -> DeepFauneModel:
+    """
+    Load the object detection and image classification models.
+
+    Args:
+        filepath_detector_weights (Path): Path to the YOLO object detector weights.
+        filepath_classifier_weights (Path): Path to the image classifier weights.
+        classifier_backbone (str): The backbone architecture for the classifier.
+        classifier_crop_size (int): The size to which input images will be cropped for classification.
+        classifier_num_classes (int): The number of output classes for the classifier.
+
+    Returns:
+        DeepFauneModel: An instance containing both the detector and classifier models.
+    """
     classifier = Classifier(
         filepath_weights=filepath_classifier_weights,
         backbone=classifier_backbone,
@@ -227,6 +287,19 @@ def to_detection_record(
     xyxy: list[float],
     class_label_mapping: dict[int, str],
 ) -> dict:
+    """
+    Create a detection record for an object detected in an image.
+
+    Args:
+        conf (float): The confidence score of the detection.
+        class_instance (int): The class index of the detected object.
+        xywhn (list[float]): Normalized bounding box coordinates (center x, center y, width, height).
+        xyxy (list[float]): Bounding box coordinates (x1, y1, x2, y2).
+        class_label_mapping (dict[int, str]): A mapping from class indices to class labels.
+
+    Returns:
+        dict: A dictionary containing the detection details.
+    """
     return {
         "class": class_instance,
         "label": class_label_mapping[class_instance],
@@ -237,6 +310,17 @@ def to_detection_record(
 
 
 def select_best_animal_detection(detection_records: list[dict]) -> dict | None:
+    """
+    Select the best animal detection from the provided records based on the confidence score.
+
+    Args:
+        detection_records (list[dict]): A list of detection records, each containing details
+        about a detected object including its confidence score and label.
+
+    Returns:
+        dict | None: The detection record with the highest confidence score for the label "animal",
+        or None if no such record exists.
+    """
     animal_records = [r for r in detection_records if r["label"] == "animal"]
     sorted_animal_records = sorted(
         animal_records, key=lambda r: r["conf"], reverse=True
@@ -247,7 +331,18 @@ def select_best_animal_detection(detection_records: list[dict]) -> dict | None:
         return sorted_animal_records[0]
 
 
-def crop_square_cv_to_pil(imagecv, xyxy):
+def crop_square_cv_to_pil(array_image: np.ndarray, xyxy: list[float]):
+    """
+    Crop a square region from a given image based on the provided bounding box coordinates
+    and convert it to a PIL Image.
+
+    Args:
+        array_image (np.ndarray): The input image as a NumPy array in BGR format.
+        xyxy (list[float]): The bounding box coordinates in the format [x1, y1, x2, y2].
+
+    Returns:
+        Image: The cropped image as a PIL Image in RGB format.
+    """
     x1, y1, x2, y2 = xyxy
     xsize = x2 - x1
     ysize = y2 - y1
@@ -257,14 +352,13 @@ def crop_square_cv_to_pil(imagecv, xyxy):
     if ysize > xsize:
         x1 = x1 - int((ysize - xsize) / 2)
         x2 = x2 + int((ysize - xsize) / 2)
-    height, width, _ = imagecv.shape
-    croppedimagecv = imagecv[
+    height, width, _ = array_image.shape
+    croppedimagecv = array_image[
         max(0, int(y1)) : min(int(y2), height), max(0, int(x1)) : min(int(x2), width)
     ]
-    croppedimage = Image.fromarray(
+    return Image.fromarray(
         croppedimagecv[:, :, (2, 1, 0)]
     )  # converted to PIL BGR image
-    return croppedimage
 
 
 def to_classifications_record(
@@ -272,7 +366,17 @@ def to_classifications_record(
     class_label_mapping: dict[int, str],
     k: int = 5,
 ) -> dict:
-    print(class_label_mapping)
+    """
+    Create a record of the top-k classifications based on the provided scores.
+
+    Args:
+        scores (list[float]): A list of scores corresponding to each class.
+        class_label_mapping (dict[int, str]): A mapping from class indices to class labels.
+        k (int): The number of top classifications to return. Defaults to 5.
+
+    Returns:
+        dict: A dictionary containing the top-k labels and their corresponding scores.
+    """
     top_k_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[
         :k
     ]
@@ -291,6 +395,25 @@ def predict(
     model_version: str = "1.3",
     class_label_mapping: dict[int, str] = CLASS_LABEL_MAPPING,
 ) -> dict:
+    """
+    Predict the class and confidence score for a given image using the specified model.
+
+    Args:
+        model (DeepFauneModel): The model containing the object detection and classification components.
+        filepath (Path): The path to the image file to be processed.
+        crop_size (int): The size to which the cropped image will be resized. Default is CROP_SIZE.
+        model_version (str): The version of the model being used. Default is "1.3".
+        class_label_mapping (dict[int, str]): A mapping from class indices to class labels.
+
+    Returns:
+        dict: A dictionary containing the prediction results, including:
+            - filepath: The path to the input image.
+            - classifications: The top classifications and their scores.
+            - detections: The detection records from the object detection model.
+            - prediction: The predicted class label for the image.
+            - prediction_score: The confidence score for the predicted class.
+            - model_version: The version of the model used for prediction.
+    """
     ultralytics_results = model.detector(filepath)
     detections = ultralytics_results[0]
     bboxes = detections.boxes
@@ -329,7 +452,7 @@ def predict(
         )
         croppedimage = crop_square_cv_to_pil(imagecv, xyxy)
         cropped_tensor = torch.ones((1, 3, crop_size, crop_size))
-        cropped_tensor[0, :, :, :] = model.classifier.preprocessImage(croppedimage)
+        cropped_tensor[0, :, :, :] = model.classifier.preprocess_image(croppedimage)
         scores = model.classifier.model.predict(cropped_tensor)
         classifications_record = (
             {}
@@ -351,6 +474,7 @@ def predict(
         }
 
 
+## REPL. Should be run from the server
 filepath = Path("./data/badger.JPG")
 filepath.exists()
 
