@@ -59,6 +59,30 @@ export const pythonEnvironments = [
         files: 3000
       }
     }
+  },
+  {
+    type: 'conda',
+    reference: { id: 'common', version: '0.1.2' },
+    platform: {
+      mac: {
+        downloadURL:
+          'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.2-macOS.tar.gz',
+        size_in_MiB: 367,
+        files: 3000
+      },
+      linux: {
+        downloadURL:
+          'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.2-Linux.tar.gz',
+        size_in_MiB: 3220,
+        files: 54247
+      },
+      windows: {
+        downloadURL:
+          'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.2-Windows.tar.gz',
+        size_in_MiB: 522,
+        files: 3000
+      }
+    }
   }
 ]
 
