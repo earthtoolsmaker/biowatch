@@ -505,56 +505,45 @@ async function downloadMLModel({ id, version }) {
  */
 export function registerMLModelManagementIPCHandlers() {
   // IPC handler to check whether the ML model is properly installed locally
-  ipcMain.handle('ml-model-management:v0:is-ml-model-downloaded', (_, id, version) =>
-    isMLModelDownloaded({ id, version })
-  )
+  ipcMain.handle('model:is-downloaded', (_, id, version) => isMLModelDownloaded({ id, version }))
 
   // IPC handler to check the ML model download status
-  ipcMain.handle(
-    'ml-model-management:v0:get-model-download-status',
-    (_, modelReference, pythonEnvironmentReference) =>
-      getMLModelDownloadStatus({ modelReference, pythonEnvironmentReference })
+  ipcMain.handle('model:get-status', (_, modelReference, pythonEnvironmentReference) =>
+    getMLModelDownloadStatus({ modelReference, pythonEnvironmentReference })
   )
 
   // IPC handler to delete the ml model
-  ipcMain.handle('ml-model-management:v0:delete-local-ml-model', (_, id, version) =>
-    deleteLocalMLModel({ id, version })
-  )
+  ipcMain.handle('model:delete', (_, id, version) => deleteLocalMLModel({ id, version }))
 
-  ipcMain.handle('ml-model-management:v0:clear-all-local-ml-models', async (_) =>
-    clearAllLocalMLModels()
-  )
+  ipcMain.handle('model:clear-all', async (_) => clearAllLocalMLModels())
 
-  ipcMain.handle('ml-model-management:v0:download-ml-model', async (_, id, version) => {
+  ipcMain.handle('model:download', async (_, id, version) => {
     return await downloadMLModel({ id, version })
   })
-  ipcMain.handle('ml-model-management:v0:download-python-environment', async (_, id, version) => {
+  ipcMain.handle('model:download-python-environment', async (_, id, version) => {
     return await downloadPythonEnvironment({ id, version })
   })
-  ipcMain.handle('ml-model-management:v0:stop-ml-model-http-server', async (_, pid) => {
+  ipcMain.handle('model:stop-http-server', async (_, pid) => {
     return await stopMLModelHTTPServer({ pid })
   })
-  ipcMain.handle(
-    'ml-model-management:v0:start-ml-model-http-server',
-    async (_, modelReference, pythonEnvironment) => {
-      try {
-        const { port, process } = await startMLModelHTTPServer({
-          modelReference,
-          pythonEnvironment
-        })
-        return {
-          sucess: true,
-          process: { pid: process.pid, port: port },
-          message: 'ML Model HTTP server successfully started'
-        }
-      } catch (error) {
-        return {
-          success: false,
-          message: `Failed to start the ML Model HTTP server: ${error.message}`
-        }
+  ipcMain.handle('model:start-http-server', async (_, modelReference, pythonEnvironment) => {
+    try {
+      const { port, process } = await startMLModelHTTPServer({
+        modelReference,
+        pythonEnvironment
+      })
+      return {
+        sucess: true,
+        process: { pid: process.pid, port: port },
+        message: 'ML Model HTTP server successfully started'
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to start the ML Model HTTP server: ${error.message}`
       }
     }
-  )
+  })
 }
 
 /**
