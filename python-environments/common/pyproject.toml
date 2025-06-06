@@ -1,9 +1,9 @@
 [project]
 name = "common"
 version = "0.1.1"
-description = "SpeciesNet running as a LitServer"
+description = "Common Python Environment for running the Machine Learning Models"
 readme = "README.md"
-requires-python = ">=3.9,<3.15"
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "speciesnet==5.0.0",
     "fastapi>=0.115.12",
