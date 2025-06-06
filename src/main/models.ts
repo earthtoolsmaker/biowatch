@@ -508,7 +508,7 @@ export function registerMLModelManagementIPCHandlers() {
   ipcMain.handle('model:is-downloaded', (_, id, version) => isMLModelDownloaded({ id, version }))
 
   // IPC handler to check the ML model download status
-  ipcMain.handle('model:get-status', (_, modelReference, pythonEnvironmentReference) =>
+  ipcMain.handle('model:get-download-status', (_, modelReference, pythonEnvironmentReference) =>
     getMLModelDownloadStatus({ modelReference, pythonEnvironmentReference })
   )
 

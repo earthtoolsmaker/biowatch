@@ -62,7 +62,7 @@ const api = {
   },
   getMLModelDownloadStatus: async ({ modelReference, pythonEnvironmentReference }) => {
     return await electronAPI.ipcRenderer.invoke(
-      'model:get-status',
+      'model:get-download-status',
       modelReference,
       pythonEnvironmentReference
     )
