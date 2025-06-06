@@ -187,44 +187,50 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false }) {
               <CircleX color="black" size={14} />
               Delete
             </button>
-            {isHTTPServerRunning ? (
-              <button
-                onClick={() =>
-                  handleStopHTTPServer({
-                    pid: pidPythonProcess
-                  })
-                }
-                className={` bg-blue-300 cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-blue-400`}
-              >
-                <CircleOff color="black" size={14} />
-                Stop ML Server
-              </button>
-            ) : isHTTPServerStarting ? (
-              <button
-                onClick={() =>
-                  handleRunHTTPServer({
-                    modelReference: reference,
-                    pythonEnvironment: pythonEnvironment
-                  })
-                }
-                className={` bg-blue-300 cursor-not-allowed w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md opacity-70`}
-              >
-                <LucideLoader color="black" size={14} />
-                <span className="animate-pulse">Starting Server</span>
-              </button>
+            {!isDev ? (
+              <></>
             ) : (
-              <button
-                onClick={() =>
-                  handleRunHTTPServer({
-                    modelReference: reference,
-                    pythonEnvironment: pythonEnvironment
-                  })
-                }
-                className={` bg-blue-300 cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-blue-400`}
-              >
-                <PlayIcon color="black" size={14} />
-                Run
-              </button>
+              <>
+                {isHTTPServerRunning ? (
+                  <button
+                    onClick={() =>
+                      handleStopHTTPServer({
+                        pid: pidPythonProcess
+                      })
+                    }
+                    className={` bg-blue-300 cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-blue-400`}
+                  >
+                    <CircleOff color="black" size={14} />
+                    Stop ML Server
+                  </button>
+                ) : isHTTPServerStarting ? (
+                  <button
+                    onClick={() =>
+                      handleRunHTTPServer({
+                        modelReference: reference,
+                        pythonEnvironment: pythonEnvironment
+                      })
+                    }
+                    className={` bg-blue-300 cursor-not-allowed w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md opacity-70`}
+                  >
+                    <LucideLoader color="black" size={14} />
+                    <span className="animate-pulse">Starting Server</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() =>
+                      handleRunHTTPServer({
+                        modelReference: reference,
+                        pythonEnvironment: pythonEnvironment
+                      })
+                    }
+                    className={` bg-blue-300 cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-blue-400`}
+                  >
+                    <PlayIcon color="black" size={14} />
+                    Run
+                  </button>
+                )}
+              </>
             )}
           </>
         ) : (
