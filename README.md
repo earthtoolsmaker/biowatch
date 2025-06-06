@@ -73,3 +73,15 @@ where each model can be spawn as an HTTP server that defines a `/predict`
 endpoint.
 
 Make sure to install all the python environments locally.
+
+Install `uv` with pipx:
+
+```bash
+pipx install uv
+```
+
+Build the python environments:
+
+```bash
+npm run build:python-env-common
+```

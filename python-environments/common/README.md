@@ -1,4 +1,4 @@
-# common v0.1.0
+# common v0.1.1
 
 This is the `common` python environment.
 It currently contains all the dependencies necessary to run pytorch models
@@ -12,6 +12,13 @@ update to its UI based on the predictions made by the models.
 
 We are currently evaluating LiteServe as our default abstraction for running
 the ML Models.
+
+## Python Version
+
+Python versions are pinned to very specific version numbers in
+[pyproject.toml](./pyproject.toml) and [.python-version](./.python-version)
+
+Currently, it is set to `python==3.12`
 
 ## ML Models
 
