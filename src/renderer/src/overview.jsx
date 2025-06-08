@@ -362,7 +362,7 @@ export default function Overview({ data, studyId, studyName, importerName, onUpd
   }
 
   const saveTitle = async () => {
-    if (editedTitle.trim() && editedTitle !== (data.title || data?.project?.title)) {
+    if (editedTitle.trim() && editedTitle !== studyName) {
       onUpdateStudy(studyId, {
         name: editedTitle.trim()
       })
@@ -513,8 +513,9 @@ export default function Overview({ data, studyId, studyName, importerName, onUpd
               </a>
               <button
                 onClick={startEditingTitle}
-                className="opacity-0 group-hover:opacity-100 p-1 hover:bg-gray-100 rounded text-gray-500 transition-opacity"
+                className="opacity-0 group-hover:opacity-100 p-1 hover:bg-gray-100 rounded text-gray-500 transition-opacity focus:opacity-100"
                 title="Edit title"
+                aria-label="Edit title"
               >
                 <Pencil size={12} />
               </button>
