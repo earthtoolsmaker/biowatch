@@ -671,8 +671,8 @@ ipcMain.handle('importer:select-images-directory', async () => {
       path: directoryPath,
       importerName: 'local/speciesnet',
       data: {
-        name: 'imported study 1',
-        title: 'Imported Study 1'
+        name: directoryPath.split(path.sep).pop(),
+        title: directoryPath.split(path.sep).pop()
       },
       id: id
     }

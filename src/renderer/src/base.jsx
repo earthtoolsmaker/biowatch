@@ -139,6 +139,12 @@ function AppContent() {
     localStorage.setItem('studies', JSON.stringify(newStudies))
   }
 
+  const onUpdateStudy = (id, update) => {
+    const newStudies = studies.map((study) => (study.id === id ? { ...study, ...update } : study))
+    setStudies(newStudies)
+    localStorage.setItem('studies', JSON.stringify(newStudies))
+  }
+
   const handleStudyContextMenu = (e, study) => {
     e.preventDefault()
     window.api.showStudyContextMenu(study.id)
@@ -167,7 +173,7 @@ function AppContent() {
                   <NavLink
                     to={`/study/${study.id}`}
                     className={({ isActive }) =>
-                      `break-anywhere flex w-full items-center text-sm hover:bg-gray-100 rounded-md px-2 ${isActive ? 'font-semibold' : ''}`
+                      `break-anywhere flex w-full items-center text-sm hover:bg-gray-100 rounded-md px-2 py-1 ${isActive ? 'font-semibold' : ''}`
                     }
                     onContextMenu={(e) => handleStudyContextMenu(e, study)}
                   >
@@ -200,7 +206,7 @@ function AppContent() {
         <div className="flex-col bg-white rounded-t-xl shadow w-full">
           <Routes>
             <Route path="/import" element={<Import onNewStudy={onNewStudy} />} />
-            <Route path="/study/:id/*" element={<Study />} />
+            <Route path="/study/:id/*" element={<Study onUpdateStudy={onUpdateStudy} />} />
             <Route path="/settings/*" element={<SettingsPage />} />
           </Routes>
         </div>
