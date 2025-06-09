@@ -2,7 +2,16 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import ReactDOMServer from 'react-dom/server'
 import L from 'leaflet'
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
-import { Camera, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from 'lucide-react'
+import {
+  Camera,
+  ChevronDown,
+  ChevronUp,
+  ChevronLeft,
+  ChevronRight,
+  Pencil,
+  Check,
+  X
+} from 'lucide-react'
 import { useImportStatus } from '@renderer/hooks/import'
 
 // Create a module-level cache for common names that persists across component unmounts
@@ -242,12 +251,14 @@ function SpeciesDistribution({ data, taxonomicData }) {
   )
 }
 
-export default function Overview({ data, studyId, importerName }) {
+export default function Overview({ data, studyId, studyName, importerName, onUpdateStudy }) {
   const [speciesData, setSpeciesData] = useState(null)
   const [deploymentsData, setDeploymentsData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
+  const [isEditingTitle, setIsEditingTitle] = useState(false)
+  const [editedTitle, setEditedTitle] = useState('')
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(false)
   const { importStatus, resumeImport, pauseImport } = useImportStatus(studyId)
@@ -338,6 +349,34 @@ export default function Overview({ data, studyId, importerName }) {
 
   const toggleDescription = () => {
     setIsDescriptionExpanded(!isDescriptionExpanded)
+  }
+
+  const startEditingTitle = () => {
+    setEditedTitle(studyName)
+    setIsEditingTitle(true)
+  }
+
+  const cancelEditingTitle = () => {
+    setIsEditingTitle(false)
+    setEditedTitle('')
+  }
+
+  const saveTitle = async () => {
+    if (editedTitle.trim() && editedTitle !== studyName) {
+      onUpdateStudy(studyId, {
+        name: editedTitle.trim()
+      })
+    }
+    setIsEditingTitle(false)
+    setEditedTitle('')
+  }
+
+  const handleTitleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      saveTitle()
+    } else if (e.key === 'Escape') {
+      cancelEditingTitle()
+    }
   }
 
   const taxonomicData = data.taxonomic || null
@@ -436,15 +475,52 @@ export default function Overview({ data, studyId, importerName }) {
   return (
     <div className="flex flex-col px-4 gap-4 h-full">
       <header className="flex flex-col">
-        <div className="flex gap-2">
-          <a
-            target="_blank"
-            rel="noopener noreferrer"
-            href={data.homepage}
-            className="max-w-prose text-balance font-medium"
-          >
-            {data.title || data?.project?.title}
-          </a>
+        <div className="flex gap-2 items-center group">
+          {isEditingTitle ? (
+            <div className="flex items-center gap-1 flex-1">
+              <input
+                type="text"
+                value={editedTitle}
+                onChange={(e) => setEditedTitle(e.target.value)}
+                onKeyDown={handleTitleKeyPress}
+                className="max-w-prose text-balance font-medium capitalize bg-transparent border-b-2 border-blue-500 focus:outline-none"
+                autoFocus
+              />
+              <button
+                onClick={saveTitle}
+                className="p-1 hover:bg-green-100 rounded text-green-600"
+                title="Save"
+              >
+                <Check size={16} />
+              </button>
+              <button
+                onClick={cancelEditingTitle}
+                className="p-1 hover:bg-red-100 rounded text-red-600"
+                title="Cancel"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          ) : (
+            <>
+              <a
+                target="_blank"
+                rel="noopener noreferrer"
+                href={data.homepage}
+                className="max-w-prose text-balance font-medium capitalize"
+              >
+                {studyName}
+              </a>
+              <button
+                onClick={startEditingTitle}
+                className="opacity-0 group-hover:opacity-100 p-1 hover:bg-gray-100 rounded text-gray-500 transition-opacity focus:opacity-100"
+                title="Edit title"
+                aria-label="Edit title"
+              >
+                <Pencil size={12} />
+              </button>
+            </>
+          )}
         </div>
         {renderTemporalData()}
         {renderImportProgress()}
