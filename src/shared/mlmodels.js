@@ -19,20 +19,22 @@ export const pythonEnvironments = [
       mac: {
         downloadURL:
           'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.0-macOS.tar.gz',
-        size_in_MiB: 367,
-        files: 3000
+        size_in_MiB: 349,
+        size_in_MiB_installed: 1300,
+        files: 54414
       },
       linux: {
         downloadURL:
           'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.0-Linux.tar.gz',
         size_in_MiB: 3220,
+        size_in_MiB_installed: 6200,
         files: 54247
       },
       windows: {
         downloadURL:
           'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.0-Windows.tar.gz',
         size_in_MiB: 522,
-        files: 3000
+        files: 52231
       }
     }
   },
@@ -43,20 +45,23 @@ export const pythonEnvironments = [
       mac: {
         downloadURL:
           'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.1-macOS.tar.gz',
-        size_in_MiB: 367,
-        files: 3000
+        size_in_MiB: 349,
+        size_in_MiB_installed: 1300,
+        files: 54414
       },
       linux: {
         downloadURL:
           'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.1-Linux.tar.gz',
         size_in_MiB: 3220,
+        size_in_MiB_installed: 6200,
         files: 54247
       },
       windows: {
         downloadURL:
           'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.1-Windows.tar.gz',
-        size_in_MiB: 522,
-        files: 3000
+        size_in_MiB: 499,
+        size_in_MiB_installed: 2100,
+        files: 52231
       }
     }
   },
@@ -67,20 +72,23 @@ export const pythonEnvironments = [
       mac: {
         downloadURL:
           'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.2-macOS.tar.gz',
-        size_in_MiB: 367,
-        files: 3000
+        size_in_MiB: 354,
+        size_in_MiB_installed: 1300,
+        files: 55470
       },
       linux: {
         downloadURL:
           'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.2-Linux.tar.gz',
-        size_in_MiB: 3220,
-        files: 54247
+        size_in_MiB: 3200,
+        size_in_MiB_installed: 6200,
+        files: 55869
       },
       windows: {
         downloadURL:
           'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.2-Windows.tar.gz',
-        size_in_MiB: 522,
-        files: 3000
+        size_in_MiB: 505,
+        size_in_MiB_installed: 2200,
+        files: 53286
       }
     }
   }
