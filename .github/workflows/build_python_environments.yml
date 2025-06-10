@@ -32,10 +32,22 @@ jobs:
           python-version: '3.12'
           auto-update-conda: true
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
       - name: Check out Git repository
         uses: actions/checkout@v4
         with:
           lfs: true
+
+      - name: Generate requirements.txt file
+        shell: bash -l {0}
+        run: |
+          cd python-environments/common
+          uv sync
+          uv pip compile pyproject.toml --managed-python -o requirements.txt
+          cat requirements.txt
+
       # For now we replicate what is done in the pyproject.toml using pip,
       # which is not ideal.
       # Long run we should use only `uv` to generate the python environment.
