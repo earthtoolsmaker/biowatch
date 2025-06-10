@@ -19,10 +19,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        # FIXME: for faster iteration
-        # os: [windows-latest, macos-latest, ubuntu-22.04]
-        # os: [windows-latest]
-        os: [macos-latest]
+        os: [windows-latest, macos-latest, ubuntu-22.04]
     steps:
       - name: Run step when directory changes
         run: echo "This workflow runs only when files in 'my-directory' are modified."
@@ -50,9 +47,6 @@ jobs:
           uv pip compile pyproject.toml --managed-python -o requirements.txt
           cat requirements.txt
 
-      # For now we replicate what is done in the pyproject.toml using pip,
-      # which is not ideal.
-      # Long run we should use only `uv` to generate the python environment.
       - name: Install Python dependencies with conda
         shell: bash -l {0}
         run: |
