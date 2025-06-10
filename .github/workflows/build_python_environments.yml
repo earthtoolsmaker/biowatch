@@ -1,18 +1,20 @@
 # Generate the python environments required to run the ML models as local
 # webservers
----
+#
+# Only conda can be used to generate full environments, including the Python
+# interpreter, C files, and Python files.
+# Therefore, we need to integrate uv and conda to create the conda environments
+# while ensuring that uv remains the source of truth for managing Python
+# dependencies.
+
 name: Build and Upload Python Environments
 
 on:
   push:
     branches:
-      # FIXME:
-      # - main
-      - '*'
-      - arthur/improve-conda-environment-building
-    # FIXME:
-    # paths:
-    #   - 'python-environments/**'
+      - main
+    paths:
+      - 'python-environments/**'
 
 jobs:
   build_and_upload_common_python_environment:
@@ -28,6 +30,8 @@ jobs:
         uses: conda-incubator/setup-miniconda@v3
         with:
           activate-environment: common
+          # Make sure the python-version matches the `.python-version` in the
+          # python-environments/common folder
           python-version: '3.12'
           auto-update-conda: true
 
