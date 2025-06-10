@@ -7,10 +7,8 @@ on:
   push:
     branches:
       - main
-      - arthur/deepfaune-integration
-      # - '*'
-    # paths:
-    #   - 'python-environments/**'
+    paths:
+      - 'python-environments/**'
 
 jobs:
   build_and_upload_common_python_environment:
