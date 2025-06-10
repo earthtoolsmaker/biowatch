@@ -39,7 +39,7 @@ jobs:
       - name: Install Python dependencies
         shell: bash -l {0}
         run: |
-          conda run pip install fastapi==0.115.12 litserve==0.2.11 timm=1.0.15 torch==2.7.1 torchvision==0.22.1 ultralytics==8.3.152 numpy==2.3.0
+          conda run pip install fastapi==0.115.12 litserve==0.2.11 timm==1.0.15 torch==2.7.1 torchvision==0.22.1 ultralytics==8.3.152 numpy==2.3.0
           conda run pip install speciesnet==5.0.0 --use-pep517
           conda list
 
