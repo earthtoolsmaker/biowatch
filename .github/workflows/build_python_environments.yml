@@ -1,6 +1,12 @@
 # Generate the python environments required to run the ML models as local
 # webservers
----
+#
+# Only conda can be used to generate full environments, including the Python
+# interpreter, C files, and Python files.
+# Therefore, we need to integrate uv and conda to create the conda environments
+# while ensuring that uv remains the source of truth for managing Python
+# dependencies.
+
 name: Build and Upload Python Environments
 
 on:
@@ -24,21 +30,32 @@ jobs:
         uses: conda-incubator/setup-miniconda@v3
         with:
           activate-environment: common
+          # Make sure the python-version matches the `.python-version` in the
+          # python-environments/common folder
           python-version: '3.12'
           auto-update-conda: true
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
 
       - name: Check out Git repository
         uses: actions/checkout@v4
         with:
           lfs: true
-      # For now we replicate what is done in the pyproject.toml using pip,
-      # which is not ideal.
-      # Long run we should use only `uv` to generate the python environment.
-      - name: Install Python dependencies
+
+      - name: Generate requirements.txt file with uv
         shell: bash -l {0}
         run: |
-          conda run pip install fastapi==0.115.12 litserve==0.2.11 timm==1.0.15 torch==2.7.1 torchvision==0.22.1 ultralytics==8.3.152 numpy==2.3.0
-          conda run pip install speciesnet==5.0.0 --use-pep517
+          cd python-environments/common
+          uv sync
+          uv pip compile pyproject.toml --managed-python -o requirements.txt
+          cat requirements.txt
+
+      - name: Install Python dependencies with conda
+        shell: bash -l {0}
+        run: |
+          cd python-environments/common
+          conda run pip install -r requirements.txt --use-pep517
           conda list
 
       - name: Compress conda environment
