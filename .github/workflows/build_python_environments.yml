@@ -6,16 +6,20 @@ name: Build and Upload Python Environments
 on:
   push:
     branches:
-      - main
-    paths:
-      - 'python-environments/**'
+      # - main
+      - '*'
+      - arthur/improve-conda-environment-building
+    # paths:
+    #   - 'python-environments/**'
 
 jobs:
   build_and_upload_common_python_environment:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-22.04]
+        # FIXME: for faster iteration
+        # os: [windows-latest, macos-latest, ubuntu-22.04]
+        os: [windows-latest]
     steps:
       - name: Run step when directory changes
         run: echo "This workflow runs only when files in 'my-directory' are modified."
