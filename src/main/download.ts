@@ -21,6 +21,7 @@ import {
 } from 'fs'
 import log from 'electron-log'
 import path from 'path'
+import unzipper from 'unzipper'
 
 export enum InstallationState {
   /** Indicates a successful installation. */
@@ -152,6 +153,50 @@ export async function extractTarGz(tarPath, extractPath, onProgress, useCache = 
       .on('entry', (_entry) => {
         processedEntries++
         onProgress({ extracted: processedEntries })
+      })
+  })
+}
+
+/**
+ * Extracts a .zip archive to a specified directory.
+ *
+ * This function checks if the extraction directory already exists and creates it if it does not.
+ * It uses the `unzipper` library to extract the contents of the .zip file to the specified directory.
+ *
+ * @async
+ * @param {string} zipPath - The path to the .zip archive to be extracted.
+ * @param {string} extractPath - The path to the directory where the files will be extracted.
+ * @returns {Promise<string>} A promise that resolves to the extract path when the extraction is complete.
+ * @throws {Error} Throws an error if the extraction process fails.
+ *
+ * @example
+ * extractZip('./path/to/archive.zip', './path/to/extract')
+ *   .then(() => {
+ *     console.log('Extraction complete');
+ *   })
+ *   .catch((error) => {
+ *     console.error('Extraction failed:', error);
+ *   });
+ */
+export async function extractZip(zipPath, extractPath) {
+  log.info(`Extracting ${zipPath} to ${extractPath}`)
+
+  // Create the extraction directory if it doesn't exist
+  if (!existsSync(extractPath)) {
+    mkdirSync(extractPath, { recursive: true })
+  }
+
+  return new Promise((resolve, reject) => {
+    let processedEntries = 0
+    createReadStream(zipPath)
+      .pipe(unzipper.Extract({ path: extractPath }))
+      .on('finish', () => {
+        log.info(`Extraction complete to ${extractPath}`)
+        resolve(extractPath)
+      })
+      .on('error', (err) => {
+        log.error(`Error during extraction:`, err)
+        reject(err)
       })
   })
 }
