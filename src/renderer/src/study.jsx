@@ -162,7 +162,6 @@ export default function Study({ onUpdateStudy }) {
                   data={study.data}
                   studyId={id}
                   studyName={study.name}
-                  importerName={study.importerName}
                   onUpdateStudy={onUpdateStudy}
                 />
               </ErrorBoundary>

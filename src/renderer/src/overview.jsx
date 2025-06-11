@@ -218,7 +218,7 @@ function SpeciesDistribution({ data, taxonomicData }) {
   return (
     <div className="w-1/2 bg-white rounded border border-gray-200 p-3 overflow-y-auto">
       <div className="space-y-4">
-        {data.map((species, index) => {
+        {data.map((species) => {
           // Try to get the common name from the taxonomic data first, then from the cache
           const commonName =
             scientificToCommonMap[species.scientificName] ||
@@ -251,7 +251,7 @@ function SpeciesDistribution({ data, taxonomicData }) {
   )
 }
 
-export default function Overview({ data, studyId, studyName, importerName, onUpdateStudy }) {
+export default function Overview({ data, studyId, studyName, onUpdateStudy }) {
   const [speciesData, setSpeciesData] = useState(null)
   const [deploymentsData, setDeploymentsData] = useState(null)
   const [error, setError] = useState(null)
@@ -260,7 +260,7 @@ export default function Overview({ data, studyId, studyName, importerName, onUpd
   const [editedTitle, setEditedTitle] = useState('')
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(false)
-  const { importStatus, resumeImport, pauseImport } = useImportStatus(studyId)
+  const { importStatus } = useImportStatus(studyId)
 
   const contributorsRef = useRef(null)
 
@@ -386,9 +386,6 @@ export default function Overview({ data, studyId, studyName, importerName, onUpd
     return (
       <div className="text-gray-500 text-sm max-w-prose mb-2">
         {data.temporal.start} to {data.temporal.end}
-        {importStatus && importStatus.total > 0 && importStatus.done < importStatus.total && (
-          <span className="text-xs italic ml-2">(May be incomplete until import finishes)</span>
-        )}
       </div>
     )
   }
