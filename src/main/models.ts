@@ -207,9 +207,9 @@ async function downloadPythonEnvironment({ id, version }) {
     const progress = Math.min(
       installationStateProgress[InstallationState.Extract],
       installationStateProgress[InstallationState.Download] +
-        (extracted / files) *
-          (installationStateProgress[InstallationState.Extract] -
-            installationStateProgress[InstallationState.Download])
+      (extracted / files) *
+      (installationStateProgress[InstallationState.Extract] -
+        installationStateProgress[InstallationState.Download])
     )
     if (progress > previousExtractProgress + flushProgressExtractIncrementThreshold) {
       writeToManifest({
@@ -409,9 +409,9 @@ async function downloadMLModel({ id, version }) {
     const progress = Math.min(
       installationStateProgress[InstallationState.Extract],
       installationStateProgress[InstallationState.Download] +
-        (extracted / files) *
-          (installationStateProgress[InstallationState.Extract] -
-            installationStateProgress[InstallationState.Download])
+      (extracted / files) *
+      (installationStateProgress[InstallationState.Extract] -
+        installationStateProgress[InstallationState.Download])
     )
     if (progress > previousExtractProgress + flushProgressExtractIncrementThreshold) {
       writeToManifest({
@@ -523,8 +523,8 @@ export function registerMLModelManagementIPCHandlers() {
   ipcMain.handle('model:download-python-environment', async (_, id, version) => {
     return await downloadPythonEnvironment({ id, version })
   })
-  ipcMain.handle('model:stop-http-server', async (_, pid) => {
-    return await stopMLModelHTTPServer({ pid })
+  ipcMain.handle('model:stop-http-server', async (_, pid, port) => {
+    return await stopMLModelHTTPServer({ pid, port })
   })
   ipcMain.handle('model:start-http-server', async (_, modelReference, pythonEnvironment) => {
     try {
@@ -567,6 +567,75 @@ function findFreePort() {
     })
     server.on('error', reject)
   })
+}
+
+/**
+ * Waits for the specified server to become healthy by polling its health endpoint.
+ *
+ * This function spawns a Python process for the server and continuously checks
+ * its health status by making GET requests to the provided health endpoint.
+ * If the server becomes healthy within the maximum number of retries,
+ * the function resolves with the spawned process.
+ * If the server fails to start within the expected time,
+ * it terminates the process and throws an error.
+ *
+ * @async
+ * @param {Object} options - The configuration options for health checking.
+ * @param {string} options.pythonInterpreter - The path to the Python interpreter.
+ * @param {string} options.scriptPath - The path to the server script to be executed.
+ * @param {Array<string>} options.scriptArgs - The arguments to be passed to the server script.
+ * @param {string} options.healthEndpoint - The URL of the health check endpoint.
+ * @param {number} options.retryInterval - The interval between health check attempts in milliseconds.
+ * @param {number} options.maxRetries - The maximum number of retries for health checking.
+ *
+ * @returns {Promise<ChildProcess>} A promise that resolves to the spawned Python process if the server starts successfully.
+ *
+ * @throws {Error} Throws an error if the server fails to start within the expected time.
+ */
+async function startAndWaitTillServerHealty({
+  pythonInterpreter,
+  scriptPath,
+  scriptArgs,
+  healthEndpoint,
+  retryInterval = 1000,
+  maxRetries = 30
+}) {
+  const pythonProcess = spawn(pythonInterpreter, [scriptPath, ...scriptArgs])
+
+  log.info('Python process started:', pythonProcess.pid)
+
+  // Set up error handlers
+  pythonProcess.stderr.on('data', (err) => {
+    log.error('Python error:', err.toString())
+  })
+
+  pythonProcess.on('error', (err) => {
+    log.error('Python process error:', err)
+  })
+  // Wait for server to be ready by polling the endpoint
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const healthCheck = await fetch(healthEndpoint, {
+        method: 'GET',
+        timeout: 1000
+      })
+
+      if (healthCheck.ok) {
+        log.info('Server is ready')
+        return pythonProcess
+      }
+    } catch (error) {
+      // Server not ready yet, will retry
+    }
+
+    // Wait before next retry
+    await new Promise((resolve) => setTimeout(resolve, retryInterval))
+    log.info(`Waiting for server to start (attempt ${i + 1}/${maxRetries})`)
+  }
+
+  // If we get here, the server failed to start
+  kill(pythonProcess.pid)
+  throw new Error('Server failed to start in the expected time')
 }
 
 /**
@@ -641,46 +710,92 @@ async function startSpeciesNetHTTPServer({
   ]
   log.info('Script args: ', scriptArgs)
   log.info('Formatted script args: ', [scriptPath, ...scriptArgs])
-  const pythonProcess = spawn(pythonInterpreter, [scriptPath, ...scriptArgs])
-
-  log.info('Python process started:', pythonProcess.pid)
-
-  // Set up error handlers
-  pythonProcess.stderr.on('data', (err) => {
-    log.error('Python error:', err.toString())
+  return await startAndWaitTillServerHealty({
+    pythonInterpreter,
+    scriptPath,
+    scriptArgs,
+    healthEndpoint: `http://localhost:${port}/health`
   })
+}
 
-  pythonProcess.on('error', (err) => {
-    log.error('Python process error:', err)
+/**
+ * Starts the DeepFaune HTTP server using a specified Python environment and configuration.
+ *
+ * This function initializes a Python process that runs the DeepFaune server script.
+ * It sets up the server with the provided parameters and checks its health status
+ * by polling the server endpoint until it is ready or the maximum number of retries is reached.
+ *
+ * @async
+ * @param {Object} options - The configuration options for starting the server.
+ * @param {number} options.port - The port on which the server will listen.
+ * @param {string} options.classifierWeightsFilepath - The file path to the classifier weights to be used by the server.
+ * @param {string} options.detectorWeightsFilepath - The file path to the detector weights to be used by the server.
+ * @param {number} options.timeout - The timeout duration for server operations.
+ * @param {Object} options.pythonEnvironment - The Python environment configuration.
+ * @param {Object} options.pythonEnvironment.reference - The reference object containing environment details.
+ * @param {string} options.pythonEnvironment.reference.id - The identifier for the Python environment.
+ *
+ * @returns {Promise<ChildProcess>} A promise that resolves to the spawned Python process if the server starts successfully.
+ *
+ * @throws {Error} Throws an error if the server fails to start within the expected time.
+ *
+ * @example
+ * const server = await startDeepFauneHTTPServer({
+ *   port: 8080,
+ *   classifierWeightsFilepath: '/path/to/classifier/weights',
+ *   detectorWeightsFilepath: '/path/to/detector/weights',
+ *   timeout: 5000,
+ *   pythonEnvironment: {
+ *     reference: {
+ *       id: 'my-python-env'
+ *     }
+ *   }
+ * });
+ */
+async function startDeepFauneHTTPServer({
+  port,
+  classifierWeightsFilepath,
+  detectorWeightsFilepath,
+  timeout,
+  pythonEnvironment
+}) {
+  log.info('StartDeepFauneNetHTTPServer success!')
+  log.info(pythonEnvironment)
+  const localInstalRootDirPythonEnvironment = join(
+    getMLModelEnvironmentLocalInstallPath({
+      ...pythonEnvironment.reference
+    }),
+    pythonEnvironment.reference.id
+  )
+  log.info('Local Python Environment root dir is', localInstalRootDirPythonEnvironment)
+  const scriptPath = is.dev
+    ? join(__dirname, '../../python-environments/common/run_deepfaune_server.py')
+    : join(process.resourcesPath, 'python-environments', 'common', 'run_deepfaune_server.py')
+  const pythonInterpreter = is.dev
+    ? join(__dirname, '../../python-environments/common/.venv/bin/python')
+    : os.platform() === 'win32'
+      ? join(localInstalRootDirPythonEnvironment, 'python.exe')
+      : join(localInstalRootDirPythonEnvironment, 'bin', 'python')
+  log.info('Python Interpreter found in', pythonInterpreter)
+  log.info('Script path is', scriptPath)
+  const scriptArgs = [
+    '--port',
+    port,
+    '--filepath-classifier-weights',
+    classifierWeightsFilepath,
+    '--filepath-detector-weights',
+    detectorWeightsFilepath,
+    '--timeout',
+    timeout
+  ]
+  log.info('Script args: ', scriptArgs)
+  log.info('Formatted script args: ', [scriptPath, ...scriptArgs])
+  return await startAndWaitTillServerHealty({
+    pythonInterpreter,
+    scriptPath,
+    scriptArgs,
+    healthEndpoint: `http://localhost:${port}/health`
   })
-
-  // Wait for server to be ready by polling the endpoint
-  const maxRetries = 30
-  const retryInterval = 1000 // 1 second
-
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      const healthCheck = await fetch(`http://localhost:${port}/health`, {
-        method: 'GET',
-        timeout: 1000
-      })
-
-      if (healthCheck.ok) {
-        log.info('Server is ready')
-        return pythonProcess
-      }
-    } catch (error) {
-      // Server not ready yet, will retry
-    }
-
-    // Wait before next retry
-    await new Promise((resolve) => setTimeout(resolve, retryInterval))
-    log.info(`Waiting for server to start (attempt ${i + 1}/${maxRetries})`)
-  }
-
-  // If we get here, the server failed to start
-  kill(pythonProcess.pid)
-  throw new Error('Server failed to start in the expected time')
 }
 
 /**
@@ -696,9 +811,9 @@ async function startSpeciesNetHTTPServer({
  * and a corresponding message.
  * @throws {Error} Throws an error if the process cannot be stopped.
  */
-async function stopMLModelHTTPServer({ pid }) {
+async function stopMLModelHTTPServer({ pid, port }) {
   try {
-    log.info('Stopping ML Model HTTP Server with pid', pid)
+    log.info(`Stopping ML Model HTTP Server running on port ${port} with pid ${pid}`)
     return new Promise((resolve, reject) => {
       kill(pid, 'SIGKILL', (err) => {
         if (err) {
@@ -741,6 +856,25 @@ async function startMLModelHTTPServer({ pythonEnvironment, modelReference }) {
         port,
         modelWeightsFilepath: localInstallPath,
         geofence: true,
+        timeout: 30,
+        pythonEnvironment: pythonEnvironment
+      })
+      log.info(`pythonProcess: ${JSON.stringify(pythonProcess)}`)
+      return { port: port, process: pythonProcess }
+    }
+    case 'deepfaune': {
+      const port = is.dev ? 8001 : await findFreePort()
+      const localInstallPath = getMLModelLocalInstallPath({ ...modelReference })
+      log.info(`Local ML Model install path ${localInstallPath}`)
+      const classifierWeightsFilepath = join(
+        localInstallPath,
+        'deepfaune-vit_large_patch14_dinov2.lvd142m.v3.pt'
+      )
+      const detectorWeightsFilepath = join(localInstallPath, 'MDV6-yolov10x.pt')
+      const pythonProcess = await startDeepFauneHTTPServer({
+        port,
+        classifierWeightsFilepath: classifierWeightsFilepath,
+        detectorWeightsFilepath: detectorWeightsFilepath,
         timeout: 30,
         pythonEnvironment: pythonEnvironment
       })

@@ -1,6 +1,6 @@
 [project]
 name = "common"
-version = "0.1.1"
+version = "0.1.2"
 description = "Common Python Environment for running the Machine Learning Models"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
@@ -8,4 +8,9 @@ dependencies = [
     "speciesnet==5.0.0",
     "fastapi>=0.115.12",
     "litserve>=0.2.11",
+    "torch>=2.6.0",
+    "numpy>=1.26.4",
+    "timm>=1.0.15",
+    "torchvision>=0.21.0",
+    "ultralytics>=8.3.151",
 ]

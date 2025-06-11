@@ -105,7 +105,7 @@ function ImportStatus({ studyId, importerName }) {
   )
 }
 
-export default function Study() {
+export default function Study({ onUpdateStudy }) {
   let { id } = useParams()
   const study = JSON.parse(localStorage.getItem('studies')).find((study) => study.id === id)
 
@@ -158,7 +158,13 @@ export default function Study() {
             index
             element={
               <ErrorBoundary FallbackComponent={ErrorFallback} key={'overview'}>
-                <Overview data={study.data} studyId={id} importerName={study.importerName} />
+                <Overview
+                  data={study.data}
+                  studyId={id}
+                  studyName={study.name}
+                  importerName={study.importerName}
+                  onUpdateStudy={onUpdateStudy}
+                />
               </ErrorBoundary>
             }
           />
