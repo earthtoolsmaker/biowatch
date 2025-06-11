@@ -165,20 +165,6 @@ async function* walkImages(dir) {
   }
 }
 
-export async function importImagesFromDirectory(directoryPath) {
-  const images = []
-  try {
-    for await (const imagePath of walkImages(directoryPath)) {
-      images.push(imagePath)
-    }
-    console.log(`Found &&&&&&&&&& ${images.length} images in directory: ${directoryPath}`)
-    return images
-  } catch (error) {
-    console.error('Error reading directory:', error)
-    throw new Error('Failed to read images from directory')
-  }
-}
-
 export async function* getPredictions(imagesPath, port) {
   try {
     // Send request and handle streaming response
