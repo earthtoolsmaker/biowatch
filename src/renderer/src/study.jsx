@@ -1,12 +1,12 @@
 import 'leaflet/dist/leaflet.css'
-import { Cctv, ChartBar, Image, NotebookText } from 'lucide-react'
+import { Cctv, ChartBar, Image, NotebookText, Download, Pause } from 'lucide-react'
 import { NavLink, Route, Routes, useParams } from 'react-router'
 import { ErrorBoundary } from 'react-error-boundary'
 import Deployments from './deployments'
 import Overview from './overview'
 import Activity from './activity'
 import Media from './media'
-import { useEffect, useState } from 'react'
+import { useImportStatus } from '@renderer/hooks/import'
 
 // Error fallback component
 function ErrorFallback({ error, resetErrorBoundary }) {
@@ -53,11 +53,61 @@ function ErrorFallback({ error, resetErrorBoundary }) {
   )
 }
 
+// Import status component to prevent unnecessary re-renders
+function ImportStatus({ studyId, importerName }) {
+  const { importStatus, resumeImport, pauseImport } = useImportStatus(studyId)
+
+  // Calculate progress for display
+  const progress =
+    importStatus && importStatus.total > 0 ? (importStatus.done / importStatus.total) * 100 : 0
+  const showImportStatus =
+    importerName === 'local/speciesnet' &&
+    importStatus &&
+    importStatus.total > 0 &&
+    importStatus.total > importStatus.done
+
+  if (!showImportStatus) {
+    return null
+  }
+
+  // Calculate width based on number of digits in total (accounting for both done and total)
+  const totalDigits = importStatus.total.toString().length
+  const spanWidth = `${totalDigits * 1}rem` // Minimum width with scaling
+
+  return (
+    <div className="flex items-center gap-3 px-4 ml-auto">
+      <button
+        onClick={importStatus.isRunning ? pauseImport : resumeImport}
+        className="px-2 py-0.5 bg-white hover:bg-gray-50 border border-gray-300 rounded text-sm font-medium text-gray-700 transition-colors flex items-center gap-1"
+        title={importStatus.isRunning ? 'Pause import' : 'Resume import'}
+      >
+        {importStatus.isRunning ? (
+          <Pause size={14} color="black" />
+        ) : (
+          <Download size={14} color="black" />
+        )}
+        {importStatus.isRunning
+          ? importStatus.pausedCount + 1 > importStatus.done
+            ? 'Starting'
+            : 'Pause'
+          : 'Resume'}
+      </button>
+      <div className="w-20 bg-gray-200 rounded-full h-2">
+        <div
+          className="h-full bg-blue-600 transition-all duration-500 ease-in-out rounded-full"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+      <span className="text-xs text-gray-600 text-right tabular-nums" style={{ width: spanWidth }}>
+        {importStatus.done}/{importStatus.total}
+      </span>
+    </div>
+  )
+}
+
 export default function Study() {
   let { id } = useParams()
-  console.log('window', window.location.href)
   const study = JSON.parse(localStorage.getItem('studies')).find((study) => study.id === id)
-  console.log('S', study)
 
   return (
     <div className="flex gap-4 flex-col h-full">
@@ -99,6 +149,8 @@ export default function Study() {
           <Cctv color="black" size={20} className="pb-[2px]" />
           Deployments
         </NavLink>
+
+        <ImportStatus studyId={id} importerName={study?.importerName} />
       </header>
       <div className="flex-1 overflow-y-auto h-full pb-4">
         <Routes>

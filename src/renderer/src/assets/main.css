@@ -186,3 +186,9 @@ body:not(.mac-os) .overflow-y-auto::-webkit-scrollbar-thumb {
 .break-anywhere {
   overflow-wrap: anywhere;
 }
+
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}

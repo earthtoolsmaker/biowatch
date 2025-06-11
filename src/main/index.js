@@ -22,6 +22,7 @@ import { registerMLModelManagementIPCHandlers } from './models'
 import {
   getDeployments,
   getLocationsActivity,
+  getDeploymentsActivity,
   getMedia,
   getSpeciesDailyActivity,
   getSpeciesDistribution,
@@ -577,6 +578,22 @@ app.whenReady().then(async () => {
     }
   })
 
+  ipcMain.handle('deployments:get-activity', async (_, studyId) => {
+    try {
+      const dbPath = join(app.getPath('userData'), `${studyId}.db`)
+      if (!existsSync(dbPath)) {
+        log.warn(`Database not found for study ID: ${studyId}`)
+        return { error: 'Database not found for this study' }
+      }
+
+      const activity = await getDeploymentsActivity(dbPath)
+      return { data: activity }
+    } catch (error) {
+      log.error('Error getting deployments activity:', error)
+      return { error: error.message }
+    }
+  })
+
   ipcMain.handle('activity:get-daily', async (_, studyId, species, startDate, endDate) => {
     try {
       const dbPath = join(app.getPath('userData'), `${studyId}.db`)
@@ -852,3 +869,79 @@ app.on('window-all-closed', () => {
 
 // In this file you can include the rest of your app's specific main process
 // code. You can also put them in separate files and require them here.
+
+ipcMain.handle('deployments:set-latitude', async (_, studyId, deploymentID, latitude) => {
+  try {
+    const dbPath = join(app.getPath('userData'), `${studyId}.db`)
+    if (!existsSync(dbPath)) {
+      log.warn(`Database not found for study ID: ${studyId}`)
+      return { error: 'Database not found for this study' }
+    }
+
+    const db = new (require('sqlite3').Database)(dbPath, (err) => {
+      if (err) {
+        log.error(`Could not open database ${dbPath}: ${err.message}`)
+        return { error: err.message }
+      }
+    })
+
+    const result = await new Promise((resolve, reject) => {
+      db.run(
+        'UPDATE deployments SET latitude = ? WHERE deploymentID = ?',
+        [latitude, deploymentID],
+        function (err) {
+          if (err) {
+            reject(err)
+          } else {
+            resolve(this)
+          }
+        }
+      )
+    })
+
+    db.close()
+    log.info(`Updated latitude for deployment ${deploymentID} to ${latitude}`)
+    return { success: true }
+  } catch (error) {
+    log.error('Error updating deployment latitude:', error)
+    return { error: error.message }
+  }
+})
+
+ipcMain.handle('deployments:set-longitude', async (_, studyId, deploymentID, longitude) => {
+  try {
+    const dbPath = join(app.getPath('userData'), `${studyId}.db`)
+    if (!existsSync(dbPath)) {
+      log.warn(`Database not found for study ID: ${studyId}`)
+      return { error: 'Database not found for this study' }
+    }
+
+    const db = new (require('sqlite3').Database)(dbPath, (err) => {
+      if (err) {
+        log.error(`Could not open database ${dbPath}: ${err.message}`)
+        return { error: err.message }
+      }
+    })
+
+    const result = await new Promise((resolve, reject) => {
+      db.run(
+        'UPDATE deployments SET longitude = ? WHERE deploymentID = ?',
+        [longitude, deploymentID],
+        function (err) {
+          if (err) {
+            reject(err)
+          } else {
+            resolve(this)
+          }
+        }
+      )
+    })
+
+    db.close()
+    log.info(`Updated longitude for deployment ${deploymentID} to ${longitude}`)
+    return { success: true }
+  } catch (error) {
+    log.error('Error updating deployment longitude:', error)
+    return { error: error.message }
+  }
+})

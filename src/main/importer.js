@@ -250,7 +250,7 @@ function insertInto(db, tableName, data) {
   })
 }
 
-async function insertMedia(db, fullPath) {
+async function insertMedia(db, fullPath, importFolder) {
   let exifData = {}
   try {
     exifData = await exifr.parse(fullPath, {
@@ -264,19 +264,21 @@ async function insertMedia(db, fullPath) {
   let latitude = null
   let longitude = null
   if (exifData && exifData.latitude && exifData.longitude) {
-    latitude = exifData.latitude
-    longitude = exifData.longitude
+    latitude = exifData.latitude.toFixed(6) // Round to 6 decimal places
+    longitude = exifData.longitude.toFixed(6) // Round to 6 decimal places
   }
 
-  const [timeZone] = geoTz.find(latitude, longitude)
+  const zones = latitude && longitude ? geoTz.find(latitude, longitude) : null
 
   const date = luxon.DateTime.fromJSDate(exifData.DateTimeOriginal, {
-    zone: timeZone
+    zone: zones?.[0]
   })
+
+  const parentFolder = path.relative(importFolder, path.dirname(fullPath))
 
   let deployment
   try {
-    deployment = await getDeployment(db, latitude, longitude)
+    deployment = await getDeployment(db, parentFolder)
 
     if (deployment) {
       // If a deployment exists, update the start or end time if necessary
@@ -291,11 +293,11 @@ async function insertMedia(db, fullPath) {
     } else {
       // If no deployment exists, create a new one
       const deploymentID = crypto.randomUUID()
-      const locationID = crypto.randomUUID()
+      const locationID = parentFolder
       log.info('Creating new deployment with at: ', latitude, longitude)
       db.run(
         'INSERT INTO deployments (deploymentID, locationID, locationName, deploymentStart, deploymentEnd, latitude, longitude) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [deploymentID, locationID, null, date.toISO(), date.toISO(), latitude, longitude]
+        [deploymentID, locationID, locationID, date.toISO(), date.toISO(), latitude, longitude]
       )
       deployment = {
         deploymentID,
@@ -309,7 +311,7 @@ async function insertMedia(db, fullPath) {
       deploymentID: deployment.deploymentID,
       timestamp: date.toISO(),
       filePath: fullPath,
-      fileName: fullPath.split(path.sep).pop()
+      fileName: path.basename(fullPath)
     }
 
     insertInto(db, 'media', media)
@@ -430,19 +432,15 @@ async function nextMediaToPredict(db, batchSize = 100) {
   })
 }
 
-function getDeployment(db, latitude, longitude) {
+function getDeployment(db, locationID) {
   return new Promise((resolve, reject) => {
-    db.get(
-      'SELECT * FROM deployments WHERE latitude = ? AND longitude = ?',
-      [latitude, longitude],
-      (err, row) => {
-        if (err) {
-          reject(err)
-          return
-        }
-        resolve(row)
+    db.get('SELECT * FROM deployments WHERE locationID = ?', [locationID], (err, row) => {
+      if (err) {
+        reject(err)
+        return
       }
-    )
+      resolve(row)
+    })
   })
 }
 
@@ -523,16 +521,6 @@ export class Importer {
     return Promise.resolve() // Return resolved promise if no process to kill
   }
 
-  // async startServer() {
-  //   try {
-  //     this.pythonProcess = await startServer()
-  //     log.info('Python server started successfully')
-  //   } catch (error) {
-  //     log.error('Error starting Python server:', error)
-  //     throw error
-  //   }
-  // }
-
   async start() {
     try {
       const dbPath = path.join(app.getPath('userData'), `${this.id}.db`)
@@ -544,7 +532,7 @@ export class Importer {
         log.info('scanning images in folder:', this.folder)
 
         for await (const imagePath of walkImages(this.folder)) {
-          await insertMedia(this.db, imagePath)
+          await insertMedia(this.db, imagePath, this.folder)
         }
       } else {
         this.db = new sqlite3.Database(dbPath)
@@ -726,13 +714,9 @@ app.on('will-quit', async (e) => {
   for (const id in importers) {
     if (importers[id]) {
       await importers[id].cleanup()
-      await new Promise((resolve) => setTimeout(resolve, 5000))
       delete importers[id]
     }
   }
-
-  //10s timeout to ensure all importers are cleaned up
-  // await new Promise((resolve) => setTimeout(resolve, 10000))
 
   log.info('All importers stopped')
   app.quit()
