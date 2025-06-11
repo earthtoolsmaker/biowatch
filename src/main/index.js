@@ -809,36 +809,7 @@ app.whenReady().then(async () => {
     }
   })
 
-  ipcMain.handle('dialog:select-images-directory', async () => {
-    const result = await dialog.showOpenDialog({
-      properties: ['openDirectory'],
-      title: 'Select Images Directory'
-    })
-
-    if (result.canceled || result.filePaths.length === 0) {
-      return { success: false, message: 'Selection canceled' }
-    }
-
-    const directoryPath = result.filePaths[0]
-
-    try {
-      // importImagesFromDirectory(directoryPath)
-      const importer = new Importer(directoryPath)
-      // importer.start()
-      const data = await importer.start()
-      return data
-    } catch (error) {
-      log.error('Error processing images directory:', error)
-      return {
-        success: false,
-        error: error.message
-      }
-    }
-  })
-
   try {
-    // await startPythonServer()
-
     createWindow()
   } catch (error) {
     log.error('Failed to start Python server:', error)
