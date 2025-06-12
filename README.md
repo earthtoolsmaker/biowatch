@@ -1,7 +1,7 @@
 # Biowatch
 
 <p align="center">
-  <img src="./docs/assets/images/biowatch-logo-small.png" alt="Biowatch Logo" />
+  <img src="./docs/assets/images/biowatch-logo.png" alt="Biowatch Logo" />
 </p>
 
 
