@@ -76,7 +76,8 @@ export async function getDeployments(rootDir) {
           let exifData = {}
           try {
             exifData = await exifr.parse(imagePath, {
-              gps: true,
+              // gps: true,
+              gps: false,
               exif: true,
               reviveValues: true
             })
@@ -236,17 +237,27 @@ function insertInto(db, tableName, data) {
   })
 }
 
+const exifrOptions = {
+  gps: true,
+  exif: true,
+  ifd0: false,
+  reviveValues: false
+}
+
+//15s, 1s
 async function insertMedia(db, fullPath, importFolder) {
+  const timings = { exif: 0, db: 0 }
+
+  const exifStart = process.hrtime.bigint()
   let exifData = {}
   try {
-    exifData = await exifr.parse(fullPath, {
-      gps: true,
-      exif: true,
-      reviveValues: true
-    })
+    exifData = await exifr.parse(fullPath, exifrOptions)
   } catch (exifError) {
     log.warn(`Could not extract EXIF data from ${fullPath}: ${exifError.message}`)
   }
+  const exifEnd = process.hrtime.bigint()
+  timings.exif = Number(exifEnd - exifStart) / 1000000 // Convert to milliseconds
+
   let latitude = null
   let longitude = null
   if (exifData && exifData.latitude && exifData.longitude) {
@@ -256,12 +267,24 @@ async function insertMedia(db, fullPath, importFolder) {
 
   const zones = latitude && longitude ? geoTz.find(latitude, longitude) : null
 
-  const date = luxon.DateTime.fromJSDate(exifData.DateTimeOriginal, {
-    zone: zones?.[0]
-  })
+  let date = null
+  if (exifData && exifData.DateTimeOriginal) {
+    if (typeof exifData.DateTimeOriginal === 'string') {
+      // Parse EXIF date string format: "YYYY:MM:DD HH:mm:ss"
+      date = DateTime.fromFormat(exifData.DateTimeOriginal, 'yyyy:MM:dd HH:mm:ss', {
+        zone: zones?.[0]
+      })
+    } else {
+      // Fallback for when reviveValues is true and we get a Date object
+      date = DateTime.fromJSDate(exifData.DateTimeOriginal, {
+        zone: zones?.[0]
+      })
+    }
+  }
 
   const parentFolder = path.relative(importFolder, path.dirname(fullPath))
 
+  const dbStart = process.hrtime.bigint()
   let deployment
   try {
     deployment = await getDeployment(db, parentFolder)
@@ -301,10 +324,15 @@ async function insertMedia(db, fullPath, importFolder) {
     }
 
     insertInto(db, 'media', media)
-    return media
+    const dbEnd = process.hrtime.bigint()
+    timings.db = Number(dbEnd - dbStart) / 1000000 // Convert to milliseconds
+
+    return { media, timings }
   } catch (error) {
     log.error(`Error inserting media for ${fullPath}:`, error)
-    return
+    const dbEnd = process.hrtime.bigint()
+    timings.db = Number(dbEnd - dbStart) / 1000000
+    return { media: null, timings }
   }
 }
 
@@ -517,9 +545,38 @@ export class Importer {
 
         log.info('scanning images in folder:', this.folder)
 
+        let totalExifTime = 0
+        let totalDbTime = 0
+        let processedCount = 0
+
         for await (const imagePath of walkImages(this.folder)) {
-          await insertMedia(this.db, imagePath, this.folder)
+          const result = await insertMedia(this.db, imagePath, this.folder)
+
+          if (result && result.timings) {
+            totalExifTime += result.timings.exif
+            totalDbTime += result.timings.db
+          }
+
+          processedCount++
+
+          if (processedCount % 1000 === 0) {
+            log.info(`Processed ${processedCount} media records`)
+            log.info(`  Avg EXIF time: ${(totalExifTime / processedCount).toFixed(2)}ms`)
+            log.info(`  Avg DB time: ${(totalDbTime / processedCount).toFixed(2)}ms`)
+          }
         }
+
+        log.info(`=== PERFORMANCE SUMMARY ===`)
+        log.info(`Total media processed: ${processedCount}`)
+        log.info(
+          `Total EXIF parsing time: ${totalExifTime.toFixed(2)}ms (${(totalExifTime / 1000).toFixed(2)}s)`
+        )
+        log.info(
+          `Total DB operation time: ${totalDbTime.toFixed(2)}ms (${(totalDbTime / 1000).toFixed(2)}s)`
+        )
+        log.info(`Average EXIF time per media: ${(totalExifTime / processedCount).toFixed(2)}ms`)
+        log.info(`Average DB time per media: ${(totalDbTime / processedCount).toFixed(2)}ms`)
+        log.info(`Total processing time: ${((totalExifTime + totalDbTime) / 1000).toFixed(2)}s`)
       } else {
         this.db = new sqlite3.Database(dbPath)
       }
