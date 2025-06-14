@@ -266,6 +266,7 @@ async function insertMedia(db, fullPath, importFolder) {
   }
 
   const zones = latitude && longitude ? geoTz.find(latitude, longitude) : null
+  const zones = latitude && longitude ? geoTz.find(latitude, longitude) : null
 
   let date = null
   if (exifData && exifData.DateTimeOriginal) {

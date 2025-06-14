@@ -3,18 +3,8 @@ import { spawn } from 'child_process'
 import { app, BrowserWindow, dialog, net as electronNet, ipcMain, protocol, shell } from 'electron'
 import log from 'electron-log'
 import { autoUpdater } from 'electron-updater'
-import {
-  createReadStream,
-  createWriteStream,
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  statSync,
-  unlinkSync
-} from 'fs'
-import path, { join } from 'path'
-import { pipeline } from 'stream/promises'
-import unzipper from 'unzipper'
+import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'fs'
+import { join } from 'path'
 import icon from '../../resources/icon.png?asset'
 import { importCamTrapDataset } from './camtrap'
 import { Importer } from './importer'
@@ -30,6 +20,7 @@ import {
   getSpeciesTimeseries
 } from './queries'
 import { importWildlifeDataset } from './wildlife'
+import { extractZip, downloadFile } from './download'
 
 // Configure electron-log
 log.transports.file.level = 'info'
@@ -40,58 +31,6 @@ let serverPort = null
 
 autoUpdater.logger = log
 autoUpdater.checkForUpdatesAndNotify()
-
-async function extractZip(zipPath, extractPath) {
-  log.info(`Extracting ${zipPath} to ${extractPath}`)
-
-  // Create the extraction directory if it doesn't exist
-  if (!existsSync(extractPath)) {
-    mkdirSync(extractPath, { recursive: true })
-  }
-
-  return new Promise((resolve, reject) => {
-    createReadStream(zipPath)
-      .pipe(unzipper.Extract({ path: extractPath }))
-      .on('finish', () => {
-        log.info(`Extraction complete to ${extractPath}`)
-        resolve()
-      })
-      .on('error', (err) => {
-        log.error(`Error during extraction:`, err)
-        reject(err)
-      })
-  })
-}
-
-async function downloadFile(url, destination) {
-  log.info(`Downloading ${url} to ${destination}...`)
-
-  try {
-    // Ensure the directory exists
-    const dir = path.dirname(destination)
-    if (!existsSync(dir)) {
-      mkdirSync(dir, { recursive: true })
-    }
-
-    // Create a write stream
-    const writer = createWriteStream(destination)
-
-    // Download the file with electron's net module
-    const response = await electronNet.fetch(url)
-    if (!response.ok) {
-      throw new Error(`Download failed with status ${response.status}`)
-    }
-
-    // Pipe the response to the file
-    await pipeline(response.body, writer)
-
-    log.info(`Download complete: ${destination}`)
-    return destination
-  } catch (error) {
-    log.error(`Download failed: ${error.message}`)
-    throw error
-  }
-}
 
 function createWindow() {
   // Create the browser window.
@@ -696,7 +635,7 @@ app.whenReady().then(async () => {
       const extractPath = join(downloadDir, 'extracted')
 
       log.info(`Downloading demo dataset from ${demoDatasetUrl} to ${zipPath}`)
-      await downloadFile(demoDatasetUrl, zipPath)
+      await downloadFile(demoDatasetUrl, zipPath, () => { })
       log.info('Download complete')
 
       // Create extraction directory if it doesn't exist
@@ -816,7 +755,7 @@ app.whenReady().then(async () => {
     app.quit()
   }
 
-  app.on('activate', function () {
+  app.on('activate', function() {
     // On macOS it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
