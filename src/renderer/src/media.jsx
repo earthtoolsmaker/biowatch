@@ -1,12 +1,5 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import {
-  Combobox,
-  ComboboxInput,
-  ComboboxButton,
-  ComboboxOptions,
-  ComboboxOption
-} from '@headlessui/react'
-import { CheckIcon, CameraOff } from 'lucide-react'
+import { CameraOff } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router'
 import CircularTimeFilter, { DailyActivityRadar } from './ui/clock'
 import SpeciesDistribution from './ui/speciesDistribution'
@@ -23,7 +16,6 @@ const palette = [
 function Gallery({ species, dateRange, timeRange }) {
   const [mediaFiles, setMediaFiles] = useState([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
   const [imageErrors, setImageErrors] = useState({})
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(true)
@@ -91,7 +83,7 @@ function Gallery({ species, dateRange, timeRange }) {
         })
 
         if (response.error) {
-          setError(response.error)
+          console.warn('Error fetching media files:', response.error)
         } else {
           if (isNewSearch) {
             setMediaFiles(response.data)
@@ -102,7 +94,7 @@ function Gallery({ species, dateRange, timeRange }) {
           setHasMore(response.data.length === PAGE_SIZE)
         }
       } catch (err) {
-        setError(err.message || 'Failed to fetch media files')
+        console.warn(err)
       } finally {
         setLoading(false)
         setInitialLoad(false)

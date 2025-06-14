@@ -1,5 +1,5 @@
-import { contextBridge, webUtils } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
+import { contextBridge } from 'electron'
 
 // Custom APIs for renderer
 const api = {
@@ -40,6 +40,9 @@ const api = {
   },
   getLocationsActivity: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('locations:get-activity', studyId)
+  },
+  getDeploymentsActivity: async (studyId) => {
+    return await electronAPI.ipcRenderer.invoke('deployments:get-activity', studyId)
   },
   getMedia: async (studyId, options = {}) => {
     return await electronAPI.ipcRenderer.invoke('media:get', studyId, options)
@@ -106,6 +109,22 @@ const api = {
   },
   resumeImport: async (id) => {
     return await electronAPI.ipcRenderer.invoke('importer:resume', id)
+  },
+  setDeploymentLatitude: async (studyId, deploymentID, latitude) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'deployments:set-latitude',
+      studyId,
+      deploymentID,
+      latitude
+    )
+  },
+  setDeploymentLongitude: async (studyId, deploymentID, longitude) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'deployments:set-longitude',
+      studyId,
+      deploymentID,
+      longitude
+    )
   }
 }
 

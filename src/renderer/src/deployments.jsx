@@ -14,7 +14,30 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png'
 })
 
-function LocationMap({ locations, selectedLocation, setSelectedLocation }) {
+// Add this style block at the top of the file after imports
+const invisibleMarkerStyle = `
+  .invisible-drag-marker {
+    background: transparent !important;
+    border: none !important;
+    cursor: move;
+  }
+`
+
+// Add the style to the document head
+if (typeof document !== 'undefined' && !document.getElementById('invisible-marker-styles')) {
+  const style = document.createElement('style')
+  style.id = 'invisible-marker-styles'
+  style.textContent = invisibleMarkerStyle
+  document.head.appendChild(style)
+}
+
+function LocationMap({
+  locations,
+  selectedLocation,
+  setSelectedLocation,
+  onNewLatitude,
+  onNewLongitude
+}) {
   const mapRef = useRef(null)
 
   // useEffect(() => {
@@ -25,6 +48,9 @@ function LocationMap({ locations, selectedLocation, setSelectedLocation }) {
   //     )
   //   }
   // }, [selectedLocation])
+  useEffect(() => {
+    console.log('mount')
+  }, [])
 
   if (!locations || locations.length === 0) {
     return <div className="text-gray-500">No location data available for map</div>
@@ -33,9 +59,9 @@ function LocationMap({ locations, selectedLocation, setSelectedLocation }) {
   // Filter to include only locations with valid coordinates
   const validLocations = locations.filter((location) => location.latitude && location.longitude)
 
-  if (validLocations.length === 0) {
-    return <div className="text-gray-500">No valid geographic coordinates found for locations</div>
-  }
+  // if (validLocations.length === 0) {
+  //   return <div className="text-gray-500">No valid geographic coordinates found for locations</div>
+  // }
 
   // Create bounds from all valid location coordinates
   const positions = validLocations.map((location) => [
@@ -71,10 +97,11 @@ function LocationMap({ locations, selectedLocation, setSelectedLocation }) {
   const activeCameraIcon = createCameraIcon(true)
 
   return (
-    <div className="w-full h-[400px] bg-white rounded border border-gray-200">
+    <div className="w-full h-full bg-white rounded border border-gray-200">
       <MapContainer
-        bounds={bounds}
-        boundsOptions={{ padding: [30, 30] }}
+        {...(validLocations.length > 0
+          ? { bounds: bounds, boundsOptions: { padding: [30, 30] } }
+          : { center: [0, 0], zoom: 2 })}
         style={{ height: '100%', width: '100%' }}
         ref={mapRef}
       >
@@ -82,54 +109,57 @@ function LocationMap({ locations, selectedLocation, setSelectedLocation }) {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+
         {validLocations.map((location) => (
           <Marker
             key={location.locationID}
+            title={location.locationID}
             position={[parseFloat(location.latitude), parseFloat(location.longitude)]}
             icon={
               selectedLocation?.locationID === location.locationID ? activeCameraIcon : cameraIcon
             }
-            // opacity={selectedLocation?.locationID === location.locationID ? 1 : 0.5}
+            draggable={selectedLocation?.locationID === location.locationID}
             zIndexOffset={selectedLocation?.locationID === location.locationID ? 1000 : 0}
             eventHandlers={{
               click: () => {
                 console.log('clicked', location.locationID)
                 setSelectedLocation(location)
+              },
+              dragend: (e) => {
+                const marker = e.target
+                const position = marker.getLatLng()
+                console.log('marker dragged to:', position.lat, position.lng)
+                onNewLatitude(location.deploymentID, position.lat.toFixed(6))
+                onNewLongitude(location.deploymentID, position.lng.toFixed(6))
               }
             }}
-          >
-            {/* <Popup>
-              <div>
-                <h3 className="font-medium">{location.locationName || 'Unnamed Location'}</h3>
-                <p className="text-sm">
-                  {formatDate(location.deploymentStart)} - {formatDate(location.deploymentEnd)}
-                </p>
-                <p className="text-xs text-gray-500">
-                  Coordinates: {location.latitude}, {location.longitude}
-                </p>
-              </div>
-            </Popup> */}
-          </Marker>
+          />
         ))}
       </MapContainer>
     </div>
   )
 }
 
-function LocationsList({ activity, selectedLocation, setSelectedLocation }) {
+function LocationsList({
+  activity,
+  selectedLocation,
+  setSelectedLocation,
+  onNewLatitude,
+  onNewLongitude
+}) {
   useEffect(() => {
     if (selectedLocation && selectedLocation) {
       document
-        .getElementById(selectedLocation.locationID)
+        .getElementById(selectedLocation.deploymentID)
         .scrollIntoView({ behavior: 'smooth', block: 'center' })
     }
   }, [selectedLocation])
 
-  if (!activity.locations || activity.locations.length === 0) {
-    return <div className="text-gray-500">No location data available</div>
+  if (!activity.deployments || activity.deployments.length === 0) {
+    return <div className="text-gray-500">No deployment data available</div>
   }
 
-  console.log('activity.locations', activity.locations)
+  console.log('activity.deployments', activity.deployments)
 
   // Format date to a more readable format
   const formatDate = (dateString) => {
@@ -145,14 +175,14 @@ function LocationsList({ activity, selectedLocation, setSelectedLocation }) {
   console.log('selectedLocation', selectedLocation)
 
   return (
-    <div className="w-full flex-1 overflow-y-auto">
+    <div className="flex-1 overflow-y-auto">
       <div className="flex flex-col gap-2">
-        <div className="ml-56 pl-6 flex justify-between text-sm text-gray-700">
+        <header className="sticky top-0 bg-white z-10 pl-68 flex justify-between text-sm text-gray-700 py-2">
           <span>{formatDate(activity.startDate)} </span>
           <span>{formatDate(activity.endDate)}</span>
-        </div>
+        </header>
         <div className="flex flex-col divide-y divide-gray-200 mb-4">
-          {activity.locations
+          {activity.deployments
             .sort(
               (a, b) =>
                 new Date(a.periods.find((p) => p.count > 0)?.start) -
@@ -160,17 +190,45 @@ function LocationsList({ activity, selectedLocation, setSelectedLocation }) {
             )
             .map((location) => (
               <div
-                key={location.locationID}
-                id={location.locationID}
+                key={location.deploymentID}
+                id={location.deploymentID} // Use deploymentID as the ID for scrolling
                 title={location.deploymentStart}
-                className="flex gap-4 items-center py-4 first:pt-1"
+                onClick={() => setSelectedLocation(location)}
+                className={`flex gap-4 items-center py-4 first:pt-2 hover:bg-gray-50 cursor-pointer px-2 ${selectedLocation?.locationID === location.locationID ? 'bg-gray-50' : ''}`}
               >
-                <div
-                  className={`hover:font-bold cursor-pointer text-sm w-56 truncate text-gray-700 ${selectedLocation?.locationID === location.locationID ? 'font-bold' : ''}`}
-                  onClick={() => setSelectedLocation(location)}
-                  title={location.deploymentStart}
-                >
-                  {location.locationName || location.locationID || 'Unnamed Location'}
+                <div className="flex flex-col gap-2">
+                  <div
+                    className={`cursor-pointer text-sm w-62 truncate text-gray-700 ${selectedLocation?.locationID === location.locationID ? 'font-medium' : ''}`}
+                    title={location.deploymentStart}
+                  >
+                    {location.locationName || location.locationID || 'Unnamed Location'}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      step={0.00001}
+                      min={-90}
+                      max={90}
+                      title="Latitude"
+                      value={location.latitude}
+                      onChange={(e) => onNewLatitude(location.deploymentID, e.target.value)}
+                      placeholder="Lat"
+                      className="max-w-20 text-xs border border-zinc-950/10 rounded px-2 py-1"
+                      name="Latitude"
+                    />
+                    <input
+                      step={0.00001}
+                      min="-180"
+                      max="180"
+                      type="number"
+                      title="Longitude"
+                      value={location.longitude}
+                      onChange={(e) => onNewLongitude(location.deploymentID, e.target.value)}
+                      placeholder="Lng"
+                      className="max-w-20 text-xs border border-zinc-950/10 rounded px-2 py-1"
+                      name="longitude"
+                    />
+                  </div>
                 </div>
                 <div className="flex gap-2 flex-1">
                   {location.periods.map((period) => (
@@ -207,7 +265,7 @@ export default function Deployments({ studyId }) {
   useEffect(() => {
     async function fetchData() {
       try {
-        const activityResponse = await window.api.getLocationsActivity(studyId)
+        const activityResponse = await window.api.getDeploymentsActivity(studyId)
         console.log('Activity response:', activityResponse)
 
         if (activityResponse.error) {
@@ -224,22 +282,74 @@ export default function Deployments({ studyId }) {
     fetchData()
   }, [studyId])
 
+  const onNewLatitude = async (deploymentID, latitude) => {
+    try {
+      const lat = parseFloat(latitude)
+      const result = await window.api.setDeploymentLatitude(studyId, deploymentID, lat)
+      setActivity((prevActivity) => {
+        const updatedDeployments = prevActivity.deployments.map((deployment) => {
+          if (deployment.deploymentID === deploymentID) {
+            return { ...deployment, latitude: lat }
+          }
+          return deployment
+        })
+        return { ...prevActivity, deployments: updatedDeployments }
+      })
+      if (result.error) {
+        console.error('Error updating latitude:', result.error)
+      } else {
+        console.log('Latitude updated successfully')
+      }
+    } catch (error) {
+      console.error('Error updating latitude:', error)
+    }
+  }
+
+  const onNewLongitude = async (deploymentID, longitude) => {
+    try {
+      const lng = parseFloat(longitude)
+      const result = await window.api.setDeploymentLongitude(studyId, deploymentID, lng)
+      setActivity((prevActivity) => {
+        const updatedDeployments = prevActivity.deployments.map((deployment) => {
+          if (deployment.deploymentID === deploymentID) {
+            return { ...deployment, longitude: lng }
+          }
+          return deployment
+        })
+        return { ...prevActivity, deployments: updatedDeployments }
+      })
+      if (result.error) {
+        console.error('Error updating longitude:', result.error)
+      } else {
+        console.log('Longitude updated successfully')
+      }
+    } catch (error) {
+      console.error('Error updating longitude:', error)
+    }
+  }
+
   console.log('Activity data:', activity)
 
   return (
-    <div className="flex flex-col gap-6 px-4 h-full">
-      {activity && (
-        <LocationMap
-          locations={activity.locations}
-          selectedLocation={selectedLocation}
-          setSelectedLocation={setSelectedLocation}
-        />
-      )}
+    <div className="flex flex-col px-4 h-full gap-4">
+      <div className="flex-[0.7]">
+        {activity && (
+          <LocationMap
+            locations={activity.deployments}
+            selectedLocation={selectedLocation}
+            setSelectedLocation={setSelectedLocation}
+            onNewLatitude={onNewLatitude}
+            onNewLongitude={onNewLongitude}
+          />
+        )}
+      </div>
       {activity && (
         <LocationsList
           activity={activity}
           selectedLocation={selectedLocation}
           setSelectedLocation={setSelectedLocation}
+          onNewLatitude={onNewLatitude}
+          onNewLongitude={onNewLongitude}
         />
       )}
     </div>
