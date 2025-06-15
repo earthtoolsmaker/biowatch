@@ -21,6 +21,7 @@ import {
 } from './queries'
 import { importWildlifeDataset } from './wildlife'
 import { extractZip, downloadFile } from './download'
+import { runMigrations, getMigrationStatus, getStudyDatabasePath } from './migrations/migrations.js'
 
 // Configure electron-log
 log.transports.file.level = 'info'
@@ -76,6 +77,46 @@ function createWindow() {
 }
 
 log.info('Starting Electron app...')
+
+/**
+ * Initialize and run database migrations before starting the app
+ * This ensures that user data is properly migrated to new formats
+ * before any UI or database operations begin.
+ */
+async function initializeMigrations() {
+  try {
+    const userDataPath = app.getPath('userData')
+
+    log.info('Checking for pending migrations...')
+    const migrationStatus = await getMigrationStatus(userDataPath)
+    log.info('Migration status:', migrationStatus)
+
+    if (migrationStatus.needsMigration) {
+      log.info('Running pending migrations...')
+      await runMigrations(userDataPath, log)
+      log.info('Migrations completed successfully')
+    } else {
+      log.info('No migrations needed')
+    }
+  } catch (error) {
+    log.error('Migration failed:', error)
+    // Show error dialog to user
+    const { response } = await dialog.showMessageBox({
+      type: 'error',
+      title: 'Migration Failed',
+      message: 'The application failed to migrate your data. Please contact support.',
+      detail: error.message,
+      buttons: ['Quit', 'Continue Anyway'],
+      defaultId: 0
+    })
+
+    if (response === 0) {
+      app.quit()
+      return false
+    }
+  }
+  return true
+}
 
 // Add this before app.whenReady()
 function registerLocalFileProtocol() {
@@ -241,6 +282,12 @@ async function processDataset(inputPath, id) {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(async () => {
+  // Initialize migrations first, before creating any windows
+  const migrationSuccess = await initializeMigrations()
+  if (!migrationSuccess) {
+    return // App will quit if migrations failed and user chose to quit
+  }
+
   // Set app user model id for windows
   electronApp.setAppUserModelId('org.biowatch')
 
@@ -428,8 +475,8 @@ app.whenReady().then(async () => {
   // Add species distribution handler
   ipcMain.handle('species:get-distribution', async (_, studyId) => {
     try {
-      const dbPath = join(app.getPath('userData'), `${studyId}.db`)
-      if (!existsSync(dbPath)) {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) {
         log.warn(`Database not found for study ID: ${studyId}`)
         return { error: 'Database not found for this study' }
       }
@@ -445,8 +492,8 @@ app.whenReady().then(async () => {
   // Add deployments handler
   ipcMain.handle('deployments:get', async (_, studyId) => {
     try {
-      const dbPath = join(app.getPath('userData'), `${studyId}.db`)
-      if (!existsSync(dbPath)) {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) {
         log.warn(`Database not found for study ID: ${studyId}`)
         return { error: 'Database not found for this study' }
       }
@@ -461,8 +508,8 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('activity:get-timeseries', async (_, studyId, species) => {
     try {
-      const dbPath = join(app.getPath('userData'), `${studyId}.db`)
-      if (!existsSync(dbPath)) {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) {
         log.warn(`Database not found for study ID: ${studyId}`)
         return { error: 'Database not found for this study' }
       }
@@ -479,8 +526,8 @@ app.whenReady().then(async () => {
     'activity:get-heatmap-data',
     async (_, studyId, species, startDate, endDate, startTime, endTime) => {
       try {
-        const dbPath = join(app.getPath('userData'), `${studyId}.db`)
-        if (!existsSync(dbPath)) {
+        const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+        if (!dbPath || !existsSync(dbPath)) {
           log.warn(`Database not found for study ID: ${studyId}`)
           return { error: 'Database not found for this study' }
         }
@@ -503,8 +550,8 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('locations:get-activity', async (_, studyId) => {
     try {
-      const dbPath = join(app.getPath('userData'), `${studyId}.db`)
-      if (!existsSync(dbPath)) {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) {
         log.warn(`Database not found for study ID: ${studyId}`)
         return { error: 'Database not found for this study' }
       }
@@ -519,8 +566,8 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('deployments:get-activity', async (_, studyId) => {
     try {
-      const dbPath = join(app.getPath('userData'), `${studyId}.db`)
-      if (!existsSync(dbPath)) {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) {
         log.warn(`Database not found for study ID: ${studyId}`)
         return { error: 'Database not found for this study' }
       }
@@ -535,8 +582,8 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('activity:get-daily', async (_, studyId, species, startDate, endDate) => {
     try {
-      const dbPath = join(app.getPath('userData'), `${studyId}.db`)
-      if (!existsSync(dbPath)) {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) {
         log.warn(`Database not found for study ID: ${studyId}`)
         return { error: 'Database not found for this study' }
       }
@@ -560,10 +607,10 @@ app.whenReady().then(async () => {
         click: () => {
           try {
             log.info(`Deleting database for study: ${studyId}`)
-            const dbPath = join(app.getPath('userData'), `${studyId}.db`)
+            const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
             event.sender.send('study:delete', studyId)
 
-            if (existsSync(dbPath)) {
+            if (dbPath && existsSync(dbPath)) {
               unlinkSync(dbPath)
               log.info(`Successfully deleted database: ${dbPath}`)
               return { success: true }
@@ -587,9 +634,9 @@ app.whenReady().then(async () => {
   ipcMain.handle('study:delete-database', async (_, studyId) => {
     try {
       log.info(`Deleting database for study: ${studyId}`)
-      const dbPath = join(app.getPath('userData'), `${studyId}.db`)
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
 
-      if (existsSync(dbPath)) {
+      if (dbPath && existsSync(dbPath)) {
         unlinkSync(dbPath)
         log.info(`Successfully deleted database: ${dbPath}`)
         return { success: true }
@@ -606,8 +653,8 @@ app.whenReady().then(async () => {
   // Update media handler to use the new getMedia function with options
   ipcMain.handle('media:get', async (_, studyId, options = {}) => {
     try {
-      const dbPath = join(app.getPath('userData'), `${studyId}.db`)
-      if (!existsSync(dbPath)) {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) {
         log.warn(`Database not found for study ID: ${studyId}`)
         return { error: 'Database not found for this study' }
       }
@@ -635,7 +682,7 @@ app.whenReady().then(async () => {
       const extractPath = join(downloadDir, 'extracted')
 
       log.info(`Downloading demo dataset from ${demoDatasetUrl} to ${zipPath}`)
-      await downloadFile(demoDatasetUrl, zipPath, () => { })
+      await downloadFile(demoDatasetUrl, zipPath, () => {})
       log.info('Download complete')
 
       // Create extraction directory if it doesn't exist
@@ -755,7 +802,7 @@ app.whenReady().then(async () => {
     app.quit()
   }
 
-  app.on('activate', function() {
+  app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -782,8 +829,8 @@ app.on('window-all-closed', () => {
 
 ipcMain.handle('deployments:set-latitude', async (_, studyId, deploymentID, latitude) => {
   try {
-    const dbPath = join(app.getPath('userData'), `${studyId}.db`)
-    if (!existsSync(dbPath)) {
+    const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+    if (!dbPath || !existsSync(dbPath)) {
       log.warn(`Database not found for study ID: ${studyId}`)
       return { error: 'Database not found for this study' }
     }
@@ -820,8 +867,8 @@ ipcMain.handle('deployments:set-latitude', async (_, studyId, deploymentID, lati
 
 ipcMain.handle('deployments:set-longitude', async (_, studyId, deploymentID, longitude) => {
   try {
-    const dbPath = join(app.getPath('userData'), `${studyId}.db`)
-    if (!existsSync(dbPath)) {
+    const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+    if (!dbPath || !existsSync(dbPath)) {
       log.warn(`Database not found for study ID: ${studyId}`)
       return { error: 'Database not found for this study' }
     }
