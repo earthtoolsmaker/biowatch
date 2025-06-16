@@ -8,7 +8,14 @@ import { join } from 'path'
 import icon from '../../resources/icon.png?asset'
 import { importCamTrapDataset } from './camtrap'
 import { Importer } from './importer'
-import { registerMLModelManagementIPCHandlers } from './models'
+import {
+  registerMLModelManagementIPCHandlers,
+  listStaleInstalledModels,
+  garbageCollectMLModelEnvironments,
+  garbageCollectMLModels,
+  garbageCollect
+} from './models'
+import { modelZoo } from '../shared/mlmodels'
 import {
   getDeployments,
   getLocationsActivity,
@@ -246,6 +253,10 @@ app.whenReady().then(async () => {
 
   // Register local-file:// protocol
   registerLocalFileProtocol()
+
+  // FIXME:
+  // listStaleInstalledModels(modelZoo)
+  garbageCollectMLModels()
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
@@ -799,7 +810,7 @@ ipcMain.handle('deployments:set-latitude', async (_, studyId, deploymentID, lati
       db.run(
         'UPDATE deployments SET latitude = ? WHERE deploymentID = ?',
         [latitude, deploymentID],
-        function (err) {
+        function(err) {
           if (err) {
             reject(err)
           } else {
@@ -837,7 +848,7 @@ ipcMain.handle('deployments:set-longitude', async (_, studyId, deploymentID, lon
       db.run(
         'UPDATE deployments SET longitude = ? WHERE deploymentID = ?',
         [longitude, deploymentID],
-        function (err) {
+        function(err) {
           if (err) {
             reject(err)
           } else {
