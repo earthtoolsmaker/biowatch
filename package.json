@@ -19,6 +19,7 @@
     "build:linux": "npm run build && electron-builder --linux --publish always",
     "test": "node --test test/**/*.test.js",
     "test:migrations": "node --test test/migrations.test.js",
+    "test:umzug": "node --test test/umzug-migrations.test.js",
     "test:watch": "node --test --watch test/**/*.test.js",
     "postinstall": "electron-builder install-app-deps"
   },
@@ -47,6 +48,7 @@
     "tailwindcss": "^4.1.8",
     "tar": "^7.4.3",
     "tree-kill": "^1.2.2",
+    "umzug": "^3.8.2",
     "unzipper": "^0.12.3"
   },
   "devDependencies": {
