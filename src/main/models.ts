@@ -7,12 +7,13 @@
 import { app, ipcMain } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import net from 'net'
-import { join, dirname } from 'path'
+import { join, dirname, basename } from 'path'
 import { spawn } from 'child_process'
-import { existsSync, promises as fsPromises } from 'fs'
+import { existsSync, readdir, promises as fsPromises } from 'fs'
 import log from 'electron-log'
 import kill from 'tree-kill'
 import { findModel, findPythonEnvironment, platformToKey } from '../shared/mlmodels'
+import { modelZoo } from '../shared/mlmodels'
 import {
   extractTarGz,
   InstallationState,
@@ -24,6 +25,46 @@ import {
 } from './download'
 import os from 'node:os'
 
+/**
+ * Lists all directories within a specified folder path.
+ *
+ * This asynchronous function reads the contents of the given folder path
+ * and returns an array of paths that correspond to the directories found.
+ *
+ * @param {string} folderPath - The path of the folder to be scanned for directories.
+ * @returns {Promise<string[]>} A promise that resolves to an array of strings,
+ * where each string is a path to a directory within the specified folder.
+ *
+ * @throws {Error} Throws an error if there is an issue reading the folder or
+ * if the folder does not exist.
+ *
+ * @example
+ * listDirectories('/path/to/folder')
+ *   .then(directories => {
+ *     console.log('Directories found:', directories);
+ *   })
+ *   .catch(error => {
+ *     console.error('Error listing directories:', error.message);
+ *   });
+ */
+async function listDirectories(folderPath: string): Promise<string[]> {
+  return new Promise((resolve, reject) => {
+    readdir(folderPath, { withFileTypes: true }, (err, files) => {
+      if (err) {
+        log.error('Error reading directory:', err)
+        reject(err)
+        return
+      }
+
+      const directories = files
+        .filter((file) => file.isDirectory())
+        .map((dir) => join(folderPath, dir.name))
+
+      resolve(directories)
+    })
+  })
+}
+
 // -------------------------------------------------------
 // Util functions to define the install and download paths
 // -------------------------------------------------------
@@ -32,12 +73,53 @@ function getMLModelLocalRootDir() {
   return join(app.getPath('userData'), 'model-zoo')
 }
 
+function getMLModelLocalTarPathRoot() {
+  return join(getMLModelLocalRootDir(), 'archives')
+}
+
 function getMLModelLocalTarPath({ id, version }) {
-  return join(getMLModelLocalRootDir(), 'archives', id, `${version}.tar.gz`)
+  return join(getMLModelLocalTarPathRoot(), id, `${version}.tar.gz`)
 }
 
 function getMLModelLocalInstallPath({ id, version }) {
   return join(getMLModelLocalRootDir(), id, version)
+}
+
+/**
+ * Lists all installed machine learning models in the local model zoo directory.
+ *
+ * This asynchronous function retrieves all directories from the local model zoo directory,
+ * filtering out the archives directory and returning an array of references to the installed
+ * models. Each reference contains the model's unique identifier (id) and its version.
+ *
+ * @returns {Promise<Array<Object>>} A promise that resolves to an array of objects representing
+ * the installed models, where each object contains:
+ *   - {string} id - The unique identifier of the ML model.
+ *   - {string} version - The version of the ML model.
+ *
+ * @throws {Error} Throws an error if there is an issue reading the directories.
+ *
+ * @example
+ * listMLModelInstalled()
+ *   .then(installedModels => {
+ *     console.log('Installed models:', installedModels);
+ *   })
+ *   .catch(error => {
+ *     console.error('Error listing installed models:', error.message);
+ *   });
+ */
+async function listInstalledMLModels() {
+  const installedPaths = await listDirectories(getMLModelLocalRootDir())
+  // Remove the archives
+  const filteredPaths = installedPaths.filter((x: string) => x !== getMLModelLocalTarPathRoot())
+  const folderPaths = await Promise.all(
+    filteredPaths.map((folderPath: string) => listDirectories(folderPath))
+  )
+  const references = folderPaths.flat().map((folderPath: string) => ({
+    version: basename(folderPath),
+    id: basename(dirname(folderPath))
+  }))
+  return references
 }
 
 function getMLModelLocalDownloadManifest() {
@@ -56,8 +138,227 @@ function getMLModelEnvironmentLocalInstallPath({ version, id }) {
   return join(getMLModelEnvironmentRootDir(), `${id}`, `${version}`)
 }
 
+/**
+ * Lists all installed machine learning model environments in the local environment directory.
+ *
+ * This asynchronous function retrieves all directories from the local environment directory,
+ * filtering out the archives directory and returning an array of references to the installed
+ * environments. Each reference contains the environment's unique identifier (id) and its version.
+ *
+ * @returns {Promise<Array<Object>>} A promise that resolves to an array of objects representing
+ * the installed environments, where each object contains:
+ *   - {string} id - The unique identifier of the environment.
+ *   - {string} version - The version of the environment.
+ *
+ * @throws {Error} Throws an error if there is an issue reading the directories.
+ *
+ * @example
+ * listInstalledMLModelEnvironments()
+ *   .then(installedEnvironments => {
+ *     console.log('Installed environments:', installedEnvironments);
+ *   })
+ *   .catch(error => {
+ *     console.error('Error listing installed environments:', error.message);
+ *   });
+ */
+async function listInstalledMLModelEnvironments() {
+  const installedPaths = await listDirectories(getMLModelEnvironmentRootDir())
+  // Remove the archives
+  const filteredPaths = installedPaths.filter(
+    (x: string) => x !== getMLModelEnvironmentLocalTarPathRoot()
+  )
+  const folderPaths = await Promise.all(
+    filteredPaths.map((folderPath: string) => listDirectories(folderPath))
+  )
+  const references = folderPaths.flat().map((folderPath: string) => ({
+    version: basename(folderPath),
+    id: basename(dirname(folderPath))
+  }))
+  return references
+}
+
+function getMLModelEnvironmentLocalTarPathRoot() {
+  return join(getMLModelEnvironmentRootDir(), 'archives')
+}
+
 function getMLModelEnvironmentLocalTarPath({ id, version }) {
-  return join(getMLModelEnvironmentRootDir(), 'archives', id, version)
+  return join(getMLModelEnvironmentLocalTarPathRoot(), id, version)
+}
+
+/**
+ * Retrieves a list of stale installed machine learning models.
+ *
+ * This asynchronous function checks the installed models in the local model zoo
+ * against the available models in the model repository. It identifies and returns
+ * the models that are no longer available or have been deprecated.
+ *
+ * @returns {Promise<Array<Object>>} A promise that resolves to an array of objects
+ * representing the stale installed models, where each object contains:
+ *   - {string} id - The unique identifier of the ML model.
+ *   - {string} version - The version of the ML model.
+ *
+ * @throws {Error} Throws an error if there is an issue retrieving the installed models.
+ *
+ * @example
+ * listStaleInstalledModels()
+ *   .then(staleModels => {
+ *     console.log('Stale models found:', staleModels);
+ *   })
+ *   .catch(error => {
+ *     console.error('Error listing stale models:', error.message);
+ *   });
+ */
+async function listStaleInstalledModels() {
+  const installedReferences = await listInstalledMLModels()
+  const availableReferences = modelZoo.map((e) => e.reference)
+
+  const staleReferences = installedReferences.filter(
+    (installed) =>
+      !availableReferences.some(
+        (available) => available.id === installed.id && available.version === installed.version
+      )
+  )
+
+  return staleReferences
+}
+
+/**
+ * Lists all stale installed machine learning model environments in the local environment directory.
+ *
+ * This asynchronous function checks the installed environments in the local environment directory
+ * against the available environments in the model repository. It identifies and returns
+ * the environments that are no longer available or have been deprecated.
+ *
+ * @returns {Promise<Array<Object>>} A promise that resolves to an array of objects
+ * representing the stale installed environments, where each object contains:
+ *   - {string} id - The unique identifier of the environment.
+ *   - {string} version - The version of the environment.
+ *
+ * @throws {Error} Throws an error if there is an issue retrieving the installed environments.
+ *
+ * @example
+ * listStaleInstalledMLModelEnvironments()
+ *   .then(staleEnvironments => {
+ *     console.log('Stale environments found:', staleEnvironments);
+ *   })
+ *   .catch(error => {
+ *     console.error('Error listing stale environments:', error.message);
+ *   });
+ */
+async function listStaleInstalledMLModelEnvironments() {
+  const installedReferences = await listInstalledMLModelEnvironments()
+  const availableReferences = modelZoo.map((e) => e.pythonEnvironment)
+
+  const staleReferences = installedReferences.filter(
+    (installed) =>
+      !availableReferences.some(
+        (available) => available.id === installed.id && available.version === installed.version
+      )
+  )
+
+  return staleReferences
+}
+
+/**
+ * Garbage collects stale machine learning models from the local model zoo directory.
+ *
+ * This asynchronous function identifies stale models that are no longer available
+ * in the model zoo and removes their corresponding directories from the local file
+ * system. It logs the number of models found for removal and performs the cleanup
+ * operation, ensuring that only valid models are retained in the local installation.
+ *
+ * @returns {Promise<void>} A promise that resolves when the garbage collection
+ * process is completed.
+ *
+ * @throws {Error} Throws an error if there is an issue during the removal of directories.
+ */
+async function garbageCollectMLModels() {
+  const staleReferences = await listStaleInstalledModels()
+  const dirs = staleReferences.map((reference) => getMLModelLocalInstallPath({ ...reference }))
+  if (dirs.length > 0) {
+    log.info(`[GC] Found ${dirs.length} models to remove: ${dirs}`)
+  } else {
+    log.info('[GC] no ML Model to garbage collect')
+  }
+
+  // Remove directories
+  await Promise.all(
+    dirs.map(async (dir) => {
+      if (existsSync(dir)) {
+        log.info('[GC] Removing directory:', dir)
+        await fsPromises.rm(dir, { recursive: true, force: true })
+      }
+    })
+  )
+}
+
+/**
+ * Garbage collects stale machine learning model environments from the local environment directory.
+ *
+ * This asynchronous function identifies stale environments that are no longer available
+ * in the model zoo and removes their corresponding directories from the local file system.
+ * It logs the number of environments found for removal and performs the cleanup operation,
+ * ensuring that only valid environments are retained.
+ *
+ * @returns {Promise<void>} A promise that resolves when the garbage collection
+ * process is completed.
+ *
+ * @throws {Error} Throws an error if there is an issue during the removal of directories.
+ */
+async function garbageCollectMLModelEnvironments() {
+  const staleReferences = await listStaleInstalledMLModelEnvironments()
+  const dirs = staleReferences.map((reference) =>
+    getMLModelEnvironmentLocalInstallPath({ ...reference })
+  )
+  if (dirs.length > 0) {
+    log.info(`[GC] Found ${dirs.length} environments to remove: ${dirs}`)
+  } else {
+    log.info('[GC] no environment to garbage collect')
+  }
+  // Remove directories
+  await Promise.all(
+    dirs.map(async (dir) => {
+      if (existsSync(dir)) {
+        log.info('[GC] Removing directory:', dir)
+        await fsPromises.rm(dir, { recursive: true, force: true })
+      }
+    })
+  )
+}
+
+/**
+ * Initiates the garbage collection process for machine learning models and their environments.
+ *
+ * This asynchronous function identifies and removes stale machine learning models
+ * and their associated Python environments from the local filesystem. It logs the
+ * progress of the garbage collection, including the number of models and environments
+ * found for removal, and handles any errors that may occur during the process.
+ *
+ * @returns {Promise<void>} A promise that resolves when the garbage collection process
+ * is completed successfully, or rejects if an error occurs.
+ *
+ * @throws {Error} Throws an error if there is an issue during the garbage collection
+ * process, including failures to remove directories or access the filesystem.
+ *
+ * @example
+ * garbageCollect()
+ *   .then(() => {
+ *     console.log('Garbage collection completed successfully.');
+ *   })
+ *   .catch(error => {
+ *     console.error('Error during garbage collection:', error.message);
+ *   });
+ */
+export async function garbageCollect() {
+  log.info('[GC] Starting garbage collection of Models and Environments')
+  try {
+    await garbageCollectMLModels()
+    await garbageCollectMLModelEnvironments()
+    log.info('[GC] completed successfully ✅')
+  } catch (error) {
+    log.error('[GC] Error during garbage collection:', error.message)
+    throw new Error(`Garbage collection failed: ${error.message}`)
+  }
 }
 
 /**
@@ -891,6 +1192,7 @@ async function startMLModelHTTPServer({ pythonEnvironment, modelReference }) {
 }
 
 export default {
+  garbageCollect,
   registerMLModelManagementIPCHandlers,
   startMLModelHTTPServer,
   stopMLModelHTTPServer
