@@ -7,15 +7,7 @@ import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'fs'
 import { join } from 'path'
 import icon from '../../resources/icon.png?asset'
 import { importCamTrapDataset } from './camtrap'
-import { Importer } from './importer'
-import {
-  registerMLModelManagementIPCHandlers,
-  listStaleInstalledModels,
-  garbageCollectMLModelEnvironments,
-  garbageCollectMLModels,
-  garbageCollect
-} from './models'
-import { modelZoo } from '../shared/mlmodels'
+import { registerMLModelManagementIPCHandlers, garbageCollect } from './models'
 import {
   getDeployments,
   getLocationsActivity,
@@ -254,9 +246,8 @@ app.whenReady().then(async () => {
   // Register local-file:// protocol
   registerLocalFileProtocol()
 
-  // FIXME:
-  // listStaleInstalledModels(modelZoo)
-  garbageCollectMLModels()
+  // Garbage collect stale ML Models and environments
+  garbageCollect()
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
