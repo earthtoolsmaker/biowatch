@@ -509,9 +509,20 @@ export class Importer {
 
   async start() {
     try {
-      const dbPath = path.join(app.getPath('userData'), `${this.id}.db`)
+      const dbPath = path.join(
+        app.getPath('userData'),
+        'biowatch-data',
+        'studies',
+        this.id,
+        'study.db'
+      )
       if (!fs.existsSync(dbPath)) {
         log.info(`Database not found at ${dbPath}, creating new one`)
+        // Ensure the directory exists
+        const dbDir = path.dirname(dbPath)
+        if (!fs.existsSync(dbDir)) {
+          fs.mkdirSync(dbDir, { recursive: true })
+        }
         this.db = new sqlite3.Database(dbPath)
         setupDatabase(this.db)
 
@@ -571,7 +582,7 @@ export class Importer {
 let importers = {}
 
 async function status(id) {
-  const dbPath = path.join(app.getPath('userData'), `${id}.db`)
+  const dbPath = path.join(app.getPath('userData'), 'biowatch-data', 'studies', id, 'study.db')
   return new Promise((resolve, reject) => {
     const db = new sqlite3.Database(dbPath, (err) => {
       if (err) {
@@ -677,7 +688,7 @@ ipcMain.handle('importer:stop', async (event, id) => {
 })
 
 ipcMain.handle('importer:resume', async (event, id) => {
-  const dbPath = path.join(app.getPath('userData'), `${id}.db`)
+  const dbPath = path.join(app.getPath('userData'), 'biowatch-data', 'studies', id, 'study.db')
 
   //check if the database exists
   if (!fs.existsSync(dbPath)) {
