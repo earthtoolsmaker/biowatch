@@ -12,6 +12,9 @@ const api = {
   downloadDemoDataset: async () => {
     return await electronAPI.ipcRenderer.invoke('import:download-demo')
   },
+  importGbifDataset: async (datasetKey) => {
+    return await electronAPI.ipcRenderer.invoke('import:gbif-dataset', datasetKey)
+  },
   getSpeciesDistribution: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('species:get-distribution', studyId)
   },
