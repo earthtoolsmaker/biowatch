@@ -20,6 +20,7 @@ import {
 } from './queries'
 import { importWildlifeDataset } from './wildlife'
 import { extractZip, downloadFile } from './download'
+import { drizzle } from 'drizzle-orm/libsql'
 
 // Configure electron-log
 log.transports.file.level = 'info'
@@ -248,6 +249,8 @@ app.whenReady().then(async () => {
 
   // Garbage collect stale ML Models and environments
   garbageCollect()
+
+  const db = drizzle({ connection: 'file:local.db' })
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
