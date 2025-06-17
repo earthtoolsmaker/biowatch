@@ -21,7 +21,6 @@ import {
 import { Importer } from './importer'
 import { importWildlifeDataset } from './wildlife'
 import { extractZip, downloadFile } from './download'
-// import { runMigrations, getMigrationStatus, getStudyDatabasePath } from './migrations/migrations.js'
 import migrations from './migrations/index.js'
 
 // Configure electron-log
