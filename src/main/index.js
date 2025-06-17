@@ -7,7 +7,6 @@ import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'fs'
 import { join } from 'path'
 import icon from '../../resources/icon.png?asset'
 import { importCamTrapDataset } from './camtrap'
-import { Importer } from './importer'
 import { registerMLModelManagementIPCHandlers } from './models'
 import {
   getDeployments,
@@ -19,9 +18,11 @@ import {
   getSpeciesHeatmapData,
   getSpeciesTimeseries
 } from './queries'
+import { Importer } from './importer'
 import { importWildlifeDataset } from './wildlife'
 import { extractZip, downloadFile } from './download'
-import { runMigrations, getMigrationStatus, getStudyDatabasePath } from './migrations/migrations.js'
+// import { runMigrations, getMigrationStatus, getStudyDatabasePath } from './migrations/migrations.js'
+import migrations from './migrations/index.js'
 
 // Configure electron-log
 log.transports.file.level = 'info'
@@ -76,6 +77,10 @@ function createWindow() {
   }
 }
 
+function getStudyDatabasePath(userDataPath, studyId) {
+  return join(userDataPath, 'biowatch-data', 'studies', studyId, 'study.db')
+}
+
 log.info('Starting Electron app...')
 
 /**
@@ -87,17 +92,21 @@ async function initializeMigrations() {
   try {
     const userDataPath = app.getPath('userData')
 
-    log.info('Checking for pending migrations...')
-    const migrationStatus = await getMigrationStatus(userDataPath)
-    log.info('Migration status:', migrationStatus)
+    log.info('Migration status', await migrations.getMigrationStatus(userDataPath))
 
-    if (migrationStatus.needsMigration) {
-      log.info('Running pending migrations...')
-      await runMigrations(userDataPath, log)
-      log.info('Migrations completed successfully')
-    } else {
-      log.info('No migrations needed')
-    }
+    await migrations.runMigrations(userDataPath, log)
+
+    // log.info('Checking for pending migrations...')
+    // const migrationStatus = await getMigrationStatus(userDataPath)
+    // log.info('Migration status:', migrationStatus)
+
+    // if (migrationStatus.needsMigration) {
+    //   log.info('Running pending migrations...')
+    //   await runMigrations(userDataPath, log)
+    //   log.info('Migrations completed successfully')
+    // } else {
+    //   log.info('No migrations needed')
+    // }
   } catch (error) {
     log.error('Migration failed:', error)
     // Show error dialog to user
@@ -476,6 +485,7 @@ app.whenReady().then(async () => {
   ipcMain.handle('species:get-distribution', async (_, studyId) => {
     try {
       const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      log.info('Dd path for study:', dbPath)
       if (!dbPath || !existsSync(dbPath)) {
         log.warn(`Database not found for study ID: ${studyId}`)
         return { error: 'Database not found for this study' }

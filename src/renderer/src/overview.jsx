@@ -295,6 +295,8 @@ export default function Overview({ data, studyId, studyName, onUpdateStudy }) {
   )
 
   useEffect(() => {
+    console.log('fetch data for studyId:', studyId)
+    setError(null) // Reset error state on new fetch
     fetchData()
   }, [studyId, fetchData])
 
