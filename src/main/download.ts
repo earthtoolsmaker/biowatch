@@ -187,10 +187,10 @@ export async function extractZip(zipPath, extractPath) {
   }
 
   return new Promise((resolve, reject) => {
-    let processedEntries = 0
     createReadStream(zipPath)
       .pipe(unzipper.Extract({ path: extractPath }))
-      .on('finish', () => {
+      .on('finish', () => {}) //finish can be emitted before extraction is complete
+      .on('close', () => {
         log.info(`Extraction complete to ${extractPath}`)
         resolve(extractPath)
       })
