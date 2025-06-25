@@ -7,7 +7,7 @@ import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'fs'
 import { join } from 'path'
 import icon from '../../resources/icon.png?asset'
 import { importCamTrapDataset } from './camtrap'
-import { registerMLModelManagementIPCHandlers } from './models'
+import { registerMLModelManagementIPCHandlers, garbageCollect } from './models'
 import {
   getDeployments,
   getLocationsActivity,
@@ -302,6 +302,9 @@ app.whenReady().then(async () => {
 
   // Register local-file:// protocol
   registerLocalFileProtocol()
+
+  // Garbage collect stale ML Models and environments
+  garbageCollect()
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
@@ -801,6 +804,161 @@ app.whenReady().then(async () => {
       return result
     } catch (error) {
       log.error('Error downloading or importing demo dataset:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('import:gbif-dataset', async (_, datasetKey) => {
+    try {
+      log.info(`Downloading and importing GBIF dataset: ${datasetKey}`)
+
+      // First, fetch the dataset metadata to get the download URL
+      const datasetResponse = await fetch(`https://api.gbif.org/v1/dataset/${datasetKey}`)
+      if (!datasetResponse.ok) {
+        throw new Error(`Failed to fetch dataset metadata: ${datasetResponse.statusText}`)
+      }
+
+      const datasetMetadata = await datasetResponse.json()
+      log.info(`Dataset title: ${datasetMetadata.title}`)
+
+      // Find the CAMTRAP_DP endpoint
+      const camtrapEndpoint = datasetMetadata.endpoints?.find(
+        (endpoint) => endpoint.type === 'CAMTRAP_DP'
+      )
+      if (!camtrapEndpoint) {
+        throw new Error('No CAMTRAP_DP endpoint found for this dataset')
+      }
+
+      const downloadUrl = camtrapEndpoint.url
+      log.info(`Found download URL: ${downloadUrl}`)
+
+      // Create a temp directory for the downloaded file
+      const downloadDir = join(app.getPath('temp'), `gbif-${datasetKey}`)
+      if (!existsSync(downloadDir)) {
+        mkdirSync(downloadDir, { recursive: true })
+      }
+
+      const zipPath = join(downloadDir, 'gbif-dataset.zip')
+      const extractPath = join(downloadDir, 'extracted')
+
+      log.info(`Downloading GBIF dataset from ${downloadUrl} to ${zipPath}`)
+      await downloadFile(downloadUrl, zipPath, () => {})
+      log.info('Download complete')
+
+      // Create extraction directory if it doesn't exist
+      if (!existsSync(extractPath)) {
+        mkdirSync(extractPath, { recursive: true })
+      } else {
+        // Clean the extraction directory first to avoid conflicts
+        const files = readdirSync(extractPath)
+        for (const file of files) {
+          const filePath = join(extractPath, file)
+          if (statSync(filePath).isDirectory()) {
+            await new Promise((resolve, reject) => {
+              const rmProcess = spawn('rm', ['-rf', filePath])
+              rmProcess.on('close', (code) => {
+                if (code === 0) resolve()
+                else reject(new Error(`Failed to delete directory: ${filePath}`))
+              })
+              rmProcess.on('error', reject)
+            })
+          } else {
+            unlinkSync(filePath)
+          }
+        }
+      }
+
+      // Extract the zip file
+      await extractZip(zipPath, extractPath)
+
+      // //wait for 2s
+      // await new Promise((resolve) => setTimeout(resolve, 2000))
+
+      // Find the directory containing a datapackage.json file
+      let camtrapDpDirPath = null
+
+      const findCamtrapDpDir = (dir) => {
+        if (camtrapDpDirPath) return // Already found, exit recursion
+
+        try {
+          const files = readdirSync(dir)
+
+          console.log(`Checking directory: ${dir}`)
+          log.info(`Files in directory: ${files.join(', ')}`)
+
+          // First check if this directory has datapackage.json
+          if (files.includes('datapackage.json')) {
+            camtrapDpDirPath = dir
+            return
+          }
+
+          // Then check subdirectories
+          for (const file of files) {
+            const fullPath = join(dir, file)
+            if (statSync(fullPath).isDirectory()) {
+              findCamtrapDpDir(fullPath)
+            }
+          }
+        } catch (error) {
+          log.warn(`Error reading directory ${dir}: ${error.message}`)
+        }
+      }
+
+      findCamtrapDpDir(extractPath)
+
+      if (!camtrapDpDirPath) {
+        throw new Error('CamTrap DP directory with datapackage.json not found in extracted archive')
+      }
+
+      log.info(`Found CamTrap DP directory at ${camtrapDpDirPath}`)
+
+      const id = crypto.randomUUID()
+      const { data } = await importCamTrapDataset(camtrapDpDirPath, id)
+
+      const result = {
+        path: camtrapDpDirPath,
+        data: {
+          ...data,
+          name: datasetMetadata.title || data.name
+        },
+        id
+      }
+
+      log.info('Cleaning up temporary files after successful import...')
+
+      try {
+        if (existsSync(zipPath)) {
+          unlinkSync(zipPath)
+          log.info(`Deleted zip file: ${zipPath}`)
+        }
+      } catch (error) {
+        log.warn(`Failed to delete zip file: ${error.message}`)
+      }
+
+      try {
+        await new Promise((resolve, reject) => {
+          const rmProcess = spawn('rm', ['-rf', extractPath])
+          rmProcess.on('close', (code) => {
+            if (code === 0) {
+              log.info(`Deleted extraction directory: ${extractPath}`)
+              resolve()
+            } else {
+              log.warn(`Failed to delete extraction directory, exit code: ${code}`)
+              resolve() // Still resolve to avoid blocking the import process
+            }
+          })
+          rmProcess.on('error', (err) => {
+            log.warn(`Error during extraction directory cleanup: ${err.message}`)
+            resolve() // Still resolve to avoid blocking the import process
+          })
+        })
+      } catch (error) {
+        log.warn(`Failed to cleanup extraction directory: ${error.message}`)
+      }
+
+      return result
+    } catch (error) {
+      log.error('Error downloading or importing GBIF dataset:', error)
       throw error
     }
   })
