@@ -13,6 +13,7 @@ import {
   X
 } from 'lucide-react'
 import { useImportStatus } from '@renderer/hooks/import'
+import { useQueryClient } from '@tanstack/react-query'
 
 // Create a module-level cache for common names that persists across component unmounts
 const commonNamesCache = {}
@@ -251,7 +252,7 @@ function SpeciesDistribution({ data, taxonomicData }) {
   )
 }
 
-export default function Overview({ data, studyId, studyName, onUpdateStudy }) {
+export default function Overview({ data, studyId, studyName }) {
   const [speciesData, setSpeciesData] = useState(null)
   const [deploymentsData, setDeploymentsData] = useState(null)
   const [error, setError] = useState(null)
@@ -263,6 +264,7 @@ export default function Overview({ data, studyId, studyName, onUpdateStudy }) {
   const { importStatus } = useImportStatus(studyId)
 
   const contributorsRef = useRef(null)
+  const queryClient = useQueryClient()
 
   const fetchData = useCallback(
     async function fetchData() {
@@ -364,9 +366,10 @@ export default function Overview({ data, studyId, studyName, onUpdateStudy }) {
 
   const saveTitle = async () => {
     if (editedTitle.trim() && editedTitle !== studyName) {
-      onUpdateStudy(studyId, {
-        name: editedTitle.trim()
-      })
+      await window.api.updateStudy(studyId, { name: editedTitle.trim() })
+
+      // Invalidate the study cache to refetch updated data
+      queryClient.invalidateQueries({ queryKey: ['study'] })
     }
     setIsEditingTitle(false)
     setEditedTitle('')

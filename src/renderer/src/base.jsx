@@ -1,10 +1,21 @@
 import { Plus, Settings } from 'lucide-react'
-import { useEffect, useState } from 'react'
 import { ErrorBoundary } from 'react-error-boundary'
 import { HashRouter, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router'
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import Import from './import'
 import Study from './study'
 import SettingsPage from './settings'
+import { useEffect } from 'react'
+
+// Create a client outside the component to avoid recreation
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes
+      refetchOnWindowFocus: false
+    }
+  }
+})
 
 function ErrorFallback({ error, resetErrorBoundary }) {
   console.log('ErrorFallback', error.stack)
@@ -73,11 +84,24 @@ function ErrorFallback({ error, resetErrorBoundary }) {
 }
 
 function AppContent() {
-  const [studies, setStudies] = useState(JSON.parse(localStorage.getItem('studies')) || [])
   const navigate = useNavigate()
   const location = useLocation()
 
+  const { data: studies = [], isLoading } = useQuery({
+    queryKey: ['study'],
+    queryFn: async () => {
+      const studies = await window.api.getStudies()
+      console.log('Fetched studies from API:', studies)
+      return studies
+    },
+    onError: (error) => {
+      console.error('Failed to fetch studies:', error)
+      alert('Failed to load studies: ' + error.message)
+    }
+  })
+
   useEffect(() => {
+    if (isLoading) return
     const lastUrl = localStorage.getItem('lastUrl')
 
     if (studies.length === 0) {
@@ -87,7 +111,7 @@ function AppContent() {
     } else {
       navigate(`/study/${studies[0].id}`)
     }
-  }, [])
+  }, [isLoading])
 
   // Store current URL in localStorage whenever it changes
   useEffect(() => {
@@ -112,8 +136,7 @@ function AppContent() {
             navigate('/import')
           }
         }
-        setStudies(updatedStudies)
-        localStorage.setItem('studies', JSON.stringify(updatedStudies))
+        // No need to update local state, let the query handle data
       } catch (error) {
         console.error('Failed to delete study:', error)
         alert('Failed to delete study: ' + error.message)
@@ -134,15 +157,8 @@ function AppContent() {
     if (!isValid) {
       console.warn('Invalid study data', study)
     }
-    const newStudies = [...studies, study]
-    setStudies(newStudies)
-    localStorage.setItem('studies', JSON.stringify(newStudies))
-  }
-
-  const onUpdateStudy = (id, update) => {
-    const newStudies = studies.map((study) => (study.id === id ? { ...study, ...update } : study))
-    setStudies(newStudies)
-    localStorage.setItem('studies', JSON.stringify(newStudies))
+    // Invalidate the query to refetch studies
+    queryClient.invalidateQueries(['studies'])
   }
 
   const handleStudyContextMenu = (e, study) => {
@@ -206,7 +222,7 @@ function AppContent() {
         <div className="flex-col bg-white rounded-t-xl shadow w-full">
           <Routes>
             <Route path="/import" element={<Import onNewStudy={onNewStudy} />} />
-            <Route path="/study/:id/*" element={<Study onUpdateStudy={onUpdateStudy} />} />
+            <Route path="/study/:id/*" element={<Study />} />
             <Route path="/settings/*" element={<SettingsPage />} />
           </Routes>
         </div>
@@ -217,10 +233,12 @@ function AppContent() {
 
 export default function App() {
   return (
-    <HashRouter>
-      <ErrorBoundary FallbackComponent={ErrorFallback}>
-        <AppContent />
-      </ErrorBoundary>
-    </HashRouter>
+    <QueryClientProvider client={queryClient}>
+      <HashRouter>
+        <ErrorBoundary FallbackComponent={ErrorFallback}>
+          <AppContent />
+        </ErrorBoundary>
+      </HashRouter>
+    </QueryClientProvider>
   )
 }
