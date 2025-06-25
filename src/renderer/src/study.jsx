@@ -106,7 +106,7 @@ function ImportStatus({ studyId, importerName }) {
   )
 }
 
-export default function Study({ onUpdateStudy }) {
+export default function Study() {
   let { id } = useParams()
 
   const { data: study, error } = useQuery({
@@ -183,12 +183,7 @@ export default function Study({ onUpdateStudy }) {
             index
             element={
               <ErrorBoundary FallbackComponent={ErrorFallback} key={'overview'}>
-                <Overview
-                  data={study.data}
-                  studyId={id}
-                  studyName={study.name}
-                  onUpdateStudy={onUpdateStudy}
-                />
+                <Overview data={study.data} studyId={id} studyName={study.name} />
               </ErrorBoundary>
             }
           />

@@ -161,11 +161,6 @@ function AppContent() {
     queryClient.invalidateQueries(['studies'])
   }
 
-  const onUpdateStudy = (id, update) => {
-    // Invalidate the query to refetch studies
-    queryClient.invalidateQueries(['studies'])
-  }
-
   const handleStudyContextMenu = (e, study) => {
     e.preventDefault()
     window.api.showStudyContextMenu(study.id)
@@ -227,7 +222,7 @@ function AppContent() {
         <div className="flex-col bg-white rounded-t-xl shadow w-full">
           <Routes>
             <Route path="/import" element={<Import onNewStudy={onNewStudy} />} />
-            <Route path="/study/:id/*" element={<Study onUpdateStudy={onUpdateStudy} />} />
+            <Route path="/study/:id/*" element={<Study />} />
             <Route path="/settings/*" element={<SettingsPage />} />
           </Routes>
         </div>

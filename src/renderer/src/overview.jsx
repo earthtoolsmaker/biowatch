@@ -252,7 +252,7 @@ function SpeciesDistribution({ data, taxonomicData }) {
   )
 }
 
-export default function Overview({ data, studyId, studyName, onUpdateStudy }) {
+export default function Overview({ data, studyId, studyName }) {
   const [speciesData, setSpeciesData] = useState(null)
   const [deploymentsData, setDeploymentsData] = useState(null)
   const [error, setError] = useState(null)
