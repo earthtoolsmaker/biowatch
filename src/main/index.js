@@ -18,7 +18,8 @@ import {
   getSpeciesHeatmapData,
   getSpeciesTimeseries
 } from './queries'
-import { Importer } from './importer'
+import { Importer } from './importer' //required to register handlers
+import studies from './studies'
 import { importWildlifeDataset } from './wildlife'
 import { extractZip, downloadFile } from './download'
 import migrations from './migrations/index.js'

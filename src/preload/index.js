@@ -9,6 +9,15 @@ const api = {
   selectWildlifeDataset: async () => {
     return await electronAPI.ipcRenderer.invoke('import:select-wildlife')
   },
+  updateStudy: async (id, update) => {
+    return await electronAPI.ipcRenderer.invoke('studies:update', id, update)
+  },
+  getStudies: async () => {
+    return await electronAPI.ipcRenderer.invoke('studies:list')
+  },
+  migratefromLocalStorage: async (studies) => {
+    return await electronAPI.ipcRenderer.invoke('studies:fromLocalStorage', studies)
+  },
   downloadDemoDataset: async () => {
     return await electronAPI.ipcRenderer.invoke('import:download-demo')
   },
