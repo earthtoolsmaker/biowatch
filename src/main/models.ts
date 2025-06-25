@@ -70,7 +70,7 @@ async function listDirectories(folderPath: string): Promise<string[]> {
 // -------------------------------------------------------
 
 function getMLModelLocalRootDir() {
-  return join(app.getPath('userData'), 'model-zoo')
+  return join(app.getPath('userData'), 'biowatch-data', 'model-zoo')
 }
 
 function getMLModelLocalTarPathRoot() {
@@ -127,7 +127,7 @@ function getMLModelLocalDownloadManifest() {
 }
 
 function getMLModelEnvironmentRootDir() {
-  return join(app.getPath('userData'), 'python-environments', 'conda')
+  return join(app.getPath('userData'), 'biowatch-data', 'python-environments', 'conda')
 }
 
 function getMLEnvironmentDownloadManifest() {
@@ -508,9 +508,9 @@ async function downloadPythonEnvironment({ id, version }) {
     const progress = Math.min(
       installationStateProgress[InstallationState.Extract],
       installationStateProgress[InstallationState.Download] +
-      (extracted / files) *
-      (installationStateProgress[InstallationState.Extract] -
-        installationStateProgress[InstallationState.Download])
+        (extracted / files) *
+          (installationStateProgress[InstallationState.Extract] -
+            installationStateProgress[InstallationState.Download])
     )
     if (progress > previousExtractProgress + flushProgressExtractIncrementThreshold) {
       writeToManifest({
@@ -710,9 +710,9 @@ async function downloadMLModel({ id, version }) {
     const progress = Math.min(
       installationStateProgress[InstallationState.Extract],
       installationStateProgress[InstallationState.Download] +
-      (extracted / files) *
-      (installationStateProgress[InstallationState.Extract] -
-        installationStateProgress[InstallationState.Download])
+        (extracted / files) *
+          (installationStateProgress[InstallationState.Extract] -
+            installationStateProgress[InstallationState.Download])
     )
     if (progress > previousExtractProgress + flushProgressExtractIncrementThreshold) {
       writeToManifest({

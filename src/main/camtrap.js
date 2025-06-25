@@ -13,9 +13,15 @@ import { DateTime } from 'luxon'
  */
 export async function importCamTrapDataset(directoryPath, id) {
   log.info('Starting CamTrap dataset import')
-  // Create database in app's user data directory
-  const dbPath = path.join(app.getPath('userData'), `${id}.db`)
+  // Create database in app's user data directory using new structure
+  const dbPath = path.join(app.getPath('userData'), 'biowatch-data', 'studies', id, 'study.db')
   log.info(`Creating database at: ${dbPath}`)
+
+  // Ensure the directory exists
+  const dbDir = path.dirname(dbPath)
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true })
+  }
 
   // Create database connection
   const db = await openDatabase(dbPath)
