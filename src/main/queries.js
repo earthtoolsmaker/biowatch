@@ -4,12 +4,22 @@ import log from 'electron-log'
 /**
  * Get species distribution from the database
  * @param {string} dbPath - Path to the SQLite database
+ * @param {Object} bounds - Map bounds for filtering (optional)
+ * @param {number} bounds.north - Northern boundary
+ * @param {number} bounds.south - Southern boundary
+ * @param {number} bounds.east - Eastern boundary
+ * @param {number} bounds.west - Western boundary
  * @returns {Promise<Array>} - Species distribution data
  */
-export async function getSpeciesDistribution(dbPath) {
+export async function getSpeciesDistribution(dbPath, bounds) {
   return new Promise((resolve, reject) => {
     const startTime = Date.now()
     log.info(`Querying species distribution from: ${dbPath}`)
+    if (bounds) {
+      log.info(
+        `Filtering by bounds: N=${bounds.north}, S=${bounds.south}, E=${bounds.east}, W=${bounds.west}`
+      )
+    }
 
     // Open the database
     const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READONLY, (err) => {
@@ -18,19 +28,35 @@ export async function getSpeciesDistribution(dbPath) {
         return reject(err)
       }
 
+      // Build bounds filter if provided
+      let boundsFilter = ''
+      const queryParams = []
+
+      if (bounds) {
+        boundsFilter = `
+          AND d.latitude IS NOT NULL
+          AND d.longitude IS NOT NULL
+          AND d.latitude <= ? AND d.latitude >= ?
+          AND d.longitude <= ? AND d.longitude >= ?
+        `
+        queryParams.push(bounds.north, bounds.south, bounds.east, bounds.west)
+      }
+
       // Query to count occurrences by species
       const query = `
         SELECT
-          scientificName,
+          o.scientificName,
           COUNT(*) as count
-        FROM observations
-        WHERE scientificName IS NOT NULL AND scientificName != ''
-        AND (observationType IS NULL OR observationType != 'blank')
-        GROUP BY scientificName
+        FROM observations o
+        JOIN deployments d ON o.deploymentID = d.deploymentID
+        WHERE o.scientificName IS NOT NULL AND o.scientificName != ''
+        AND (o.observationType IS NULL OR o.observationType != 'blank')
+        ${boundsFilter}
+        GROUP BY o.scientificName
         ORDER BY count DESC
       `
 
-      db.all(query, [], (err, rows) => {
+      db.all(query, queryParams, (err, rows) => {
         // Close the database
         db.close()
 
@@ -272,13 +298,19 @@ export async function getLocationsActivity(dbPath) {
  * Get daily timeseries data for specific species
  * @param {string} dbPath - Path to the SQLite database
  * @param {Array<string>} speciesNames - List of scientific names to include
+ * @param {Object} bounds - Map bounds for filtering (optional)
  * @returns {Promise<Object>} - Timeseries data for specified species
  */
-export async function getSpeciesTimeseries(dbPath, speciesNames = []) {
+export async function getSpeciesTimeseries(dbPath, speciesNames = [], bounds) {
   return new Promise((resolve, reject) => {
     const startTime = Date.now()
     log.info(`Querying species timeseries from: ${dbPath} for specific species`)
     log.info(`Selected species: ${speciesNames.join(', ')}`)
+    if (bounds) {
+      log.info(
+        `Filtering by bounds: N=${bounds.north}, S=${bounds.south}, E=${bounds.east}, W=${bounds.west}`
+      )
+    }
 
     // Open the database
     const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READONLY, (err) => {
@@ -294,17 +326,30 @@ export async function getSpeciesTimeseries(dbPath, speciesNames = []) {
       if (speciesNames && speciesNames.length > 0) {
         const quotedSpecies = speciesNames.map((name) => `'${name.replace(/'/g, "''")}'`).join(',')
         speciesClause = `WHERE scientificName IN (${quotedSpecies})`
-        speciesFilter = `AND scientificName IN (${quotedSpecies})`
+        speciesFilter = `AND o.scientificName IN (${quotedSpecies})`
+      }
+
+      // Build bounds filter if provided
+      let boundsFilter = ''
+      if (bounds) {
+        boundsFilter = `
+          AND d.latitude IS NOT NULL
+          AND d.longitude IS NOT NULL
+          AND d.latitude <= ${bounds.north} AND d.latitude >= ${bounds.south}
+          AND d.longitude <= ${bounds.east} AND d.longitude >= ${bounds.west}
+        `
       }
 
       // Query using recursive CTE to generate week series and join with observations
       const timeseriesQuery = `
         WITH date_range AS (
           SELECT
-            date(min(substr(eventStart, 1, 10)), 'weekday 0') AS start_week,
-            date(max(substr(eventStart, 1, 10)), 'weekday 0') AS end_week
-          FROM observations
-          WHERE substr(eventStart, 1, 4) > '1970'
+            date(min(substr(o.eventStart, 1, 10)), 'weekday 0') AS start_week,
+            date(max(substr(o.eventStart, 1, 10)), 'weekday 0') AS end_week
+          FROM observations o
+          JOIN deployments d ON o.deploymentID = d.deploymentID
+          WHERE substr(o.eventStart, 1, 4) > '1970'
+          ${boundsFilter}
         ),
         weeks(week_start) AS (
           SELECT start_week FROM date_range
@@ -315,12 +360,14 @@ export async function getSpeciesTimeseries(dbPath, speciesNames = []) {
         ),
         species_list AS (
           SELECT
-            scientificName,
+            o.scientificName,
             COUNT(*) as count
-          FROM observations
-          WHERE scientificName IS NOT NULL AND scientificName != ''
+          FROM observations o
+          JOIN deployments d ON o.deploymentID = d.deploymentID
+          WHERE o.scientificName IS NOT NULL AND o.scientificName != ''
           ${speciesFilter ? speciesFilter : ''}
-          GROUP BY scientificName
+          ${boundsFilter}
+          GROUP BY o.scientificName
         ),
         week_species_combinations AS (
           SELECT
@@ -331,13 +378,15 @@ export async function getSpeciesTimeseries(dbPath, speciesNames = []) {
         ),
         weekly_counts AS (
           SELECT
-            date(substr(eventStart, 1, 10), 'weekday 0') as observation_week,
-            scientificName,
+            date(substr(o.eventStart, 1, 10), 'weekday 0') as observation_week,
+            o.scientificName,
             COUNT(*) as count
-          FROM observations
-          WHERE scientificName IS NOT NULL AND scientificName != ''
+          FROM observations o
+          JOIN deployments d ON o.deploymentID = d.deploymentID
+          WHERE o.scientificName IS NOT NULL AND o.scientificName != ''
           ${speciesFilter ? speciesFilter : ''}
-          GROUP BY observation_week, scientificName
+          ${boundsFilter}
+          GROUP BY observation_week, o.scientificName
         )
         SELECT
           wsc.week_start as date,
@@ -397,6 +446,7 @@ export async function getSpeciesTimeseries(dbPath, speciesNames = []) {
  * @param {string} endDate - ISO date string for range end
  * @param {number} startHour - Starting hour of day (0-24)
  * @param {number} endHour - Ending hour of day (0-24)
+ * @param {Object} bounds - Map bounds for filtering (optional)
  * @returns {Promise<Object>} - Species geolocation data for heatmap
  */
 export async function getSpeciesHeatmapData(
@@ -405,7 +455,8 @@ export async function getSpeciesHeatmapData(
   startDate,
   endDate,
   startHour = 0,
-  endHour = 24
+  endHour = 24,
+  bounds
 ) {
   return new Promise((resolve, reject) => {
     const startTime = Date.now()
@@ -413,6 +464,11 @@ export async function getSpeciesHeatmapData(
     log.info(`Date range: ${startDate} to ${endDate}`)
     log.info(`Time range: ${startHour} to ${endHour} hours`)
     log.info(`Species: ${species.join(', ')}`)
+    if (bounds) {
+      log.info(
+        `Filtering by bounds: N=${bounds.north}, S=${bounds.south}, E=${bounds.east}, W=${bounds.west}`
+      )
+    }
 
     const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READONLY, (err) => {
       if (err) {
@@ -440,6 +496,15 @@ export async function getSpeciesHeatmapData(
       }
       // If startHour equals endHour, we include all hours (full day)
 
+      // Build bounds filter if provided
+      let boundsFilter = ''
+      if (bounds) {
+        boundsFilter = `
+          AND d.latitude <= ${bounds.north} AND d.latitude >= ${bounds.south}
+          AND d.longitude <= ${bounds.east} AND d.longitude >= ${bounds.west}
+        `
+      }
+
       // Query to get observation counts by location and species
       const query = `
         SELECT
@@ -457,6 +522,7 @@ export async function getSpeciesHeatmapData(
           AND d.latitude IS NOT NULL
           AND d.longitude IS NOT NULL
           ${timeCondition}
+          ${boundsFilter}
         GROUP BY d.latitude, d.longitude, o.scientificName
         ORDER BY count DESC
       `
@@ -621,14 +687,20 @@ export async function getMedia(dbPath, options = {}) {
  * @param {Array<string>} species - List of scientific names to include
  * @param {string} startDate - ISO date string for range start
  * @param {string} endDate - ISO date string for range end
+ * @param {Object} bounds - Map bounds for filtering (optional)
  * @returns {Promise<Object>} - Hourly activity data for specified species
  */
-export async function getSpeciesDailyActivity(dbPath, species, startDate, endDate) {
+export async function getSpeciesDailyActivity(dbPath, species, startDate, endDate, bounds) {
   return new Promise((resolve, reject) => {
     const startTime = Date.now()
     log.info(`Querying species daily activity from: ${dbPath}`)
     log.info(`Date range: ${startDate} to ${endDate}`)
     log.info(`Species: ${species.join(', ')}`)
+    if (bounds) {
+      log.info(
+        `Filtering by bounds: N=${bounds.north}, S=${bounds.south}, E=${bounds.east}, W=${bounds.west}`
+      )
+    }
 
     const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READONLY, (err) => {
       if (err) {
@@ -639,19 +711,32 @@ export async function getSpeciesDailyActivity(dbPath, species, startDate, endDat
       // Extract species names for the IN clause with proper escaping
       const speciesNames = species.map((s) => `'${s.replace(/'/g, "''")}'`).join(',')
 
+      // Build bounds filter if provided
+      let boundsFilter = ''
+      if (bounds) {
+        boundsFilter = `
+          AND d.latitude IS NOT NULL
+          AND d.longitude IS NOT NULL
+          AND d.latitude <= ${bounds.north} AND d.latitude >= ${bounds.south}
+          AND d.longitude <= ${bounds.east} AND d.longitude >= ${bounds.west}
+        `
+      }
+
       // Query to get observation counts by hour and species
       const query = `
         SELECT
-          CAST(strftime('%H', eventStart) AS INTEGER) as hour,
-          scientificName,
+          CAST(strftime('%H', o.eventStart) AS INTEGER) as hour,
+          o.scientificName,
           COUNT(*) as count
-        FROM observations
+        FROM observations o
+        JOIN deployments d ON o.deploymentID = d.deploymentID
         WHERE
-          scientificName IN (${speciesNames})
-          AND eventStart >= ?
-          AND eventStart <= ?
-        GROUP BY hour, scientificName
-        ORDER BY hour, scientificName
+          o.scientificName IN (${speciesNames})
+          AND o.eventStart >= ?
+          AND o.eventStart <= ?
+          ${boundsFilter}
+        GROUP BY hour, o.scientificName
+        ORDER BY hour, o.scientificName
       `
 
       db.all(query, [startDate, endDate], (err, rows) => {

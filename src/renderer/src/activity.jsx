@@ -1,7 +1,7 @@
-import L from 'leaflet'
+import L, { bounds } from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { useCallback, useEffect, useState } from 'react'
-import { LayersControl, MapContainer, Marker, Popup, TileLayer } from 'react-leaflet'
+import { LayersControl, MapContainer, Marker, Popup, TileLayer, useMapEvents } from 'react-leaflet'
 import MarkerClusterGroup from 'react-leaflet-cluster'
 import { useParams } from 'react-router'
 import CircularTimeFilter, { DailyActivityRadar } from './ui/clock'
@@ -9,8 +9,31 @@ import SpeciesDistribution from './ui/speciesDistribution'
 import TimelineChart from './ui/timeseries'
 import { useImportStatus } from './hooks/import'
 
+// MapBoundsHandler component to track map bounds changes
+const MapBoundsHandler = ({ onBoundsChange }) => {
+  const map = useMapEvents({
+    moveend: () => {
+      const bounds = map.getBounds()
+      onBoundsChange({
+        north: bounds.getNorth(),
+        south: bounds.getSouth(),
+        east: bounds.getEast(),
+        west: bounds.getWest()
+      })
+    }
+  })
+  return null
+}
+
 // SpeciesMap component
-const SpeciesMap = ({ heatmapData, selectedSpecies, palette, geoKey }) => {
+const SpeciesMap = ({
+  heatmapData,
+  selectedSpecies,
+  palette,
+  geoKey,
+  onBoundsChange,
+  initialBounds
+}) => {
   // Function to create a pie chart icon
   const createPieChartIcon = (counts) => {
     const total = Object.values(counts).reduce((sum, count) => sum + count, 0)
@@ -132,8 +155,8 @@ const SpeciesMap = ({ heatmapData, selectedSpecies, palette, geoKey }) => {
 
   const locationPoints = processPointData()
 
-  // Calculate bounds if we have location points
-  const bounds =
+  // Only calculate bounds from data if we don't have initial bounds and have location points
+  const dataBounds =
     locationPoints.length > 0
       ? locationPoints.reduce(
           (bounds, point) => {
@@ -145,9 +168,12 @@ const SpeciesMap = ({ heatmapData, selectedSpecies, palette, geoKey }) => {
           [
             [90, 180],
             [-90, -180]
-          ] // Initial bounds [min, max]
+          ]
         )
       : null
+
+  // Use initial bounds if provided, otherwise use data bounds
+  const bounds = initialBounds || dataBounds
 
   // Options for bounds
   const boundsOptions = {
@@ -159,7 +185,9 @@ const SpeciesMap = ({ heatmapData, selectedSpecies, palette, geoKey }) => {
       bounds={bounds}
       boundsOptions={boundsOptions}
       className="rounded w-full h-full border border-gray-200"
+      key={initialBounds ? 'with-initial-bounds' : 'data-bounds'} // Force re-render when switching modes
     >
+      <MapBoundsHandler onBoundsChange={onBoundsChange} />
       <LayersControl position="topright">
         <LayersControl.BaseLayer name="Street Map" checked={true}>
           <TileLayer
@@ -264,12 +292,15 @@ const palette = [
 
 export default function Activity({ studyData, studyId }) {
   const { id } = useParams()
-  const actualStudyId = studyId || id // Use passed studyId or from params
+  const actualStudyId = studyId || id
 
   const [error, setError] = useState(null)
   const [selectedSpecies, setSelectedSpecies] = useState([])
   const [dateRange, setDateRange] = useState([null, null])
   const [timeRange, setTimeRange] = useState({ start: 0, end: 24 })
+  const [mapBounds, setMapBounds] = useState(null)
+  const [initialMapBounds, setInitialMapBounds] = useState(null)
+  const [hasUserInteracted, setHasUserInteracted] = useState(false)
   const [timeseriesData, setTimeseriesData] = useState(null)
   const [heatmapData, setHeatmapData] = useState(null)
   const [speciesDistributionData, setSpeciesDistributionData] = useState(null)
@@ -279,8 +310,15 @@ export default function Activity({ studyData, studyId }) {
   // Get taxonomic data from studyData
   const taxonomicData = studyData?.taxonomic || null
 
+  // Handle map bounds changes
+  const handleBoundsChange = useCallback((bounds) => {
+    setHasUserInteracted(true)
+    setMapBounds(bounds)
+  }, [])
+
+  // Initial data fetch without bounds filtering
   useEffect(() => {
-    async function fetchData() {
+    async function fetchInitialData() {
       try {
         const speciesResponse = await window.api.getSpeciesDistribution(actualStudyId)
 
@@ -288,7 +326,6 @@ export default function Activity({ studyData, studyId }) {
           console.error('Error fetching species distribution:', speciesResponse.error)
         } else {
           setSpeciesDistributionData(speciesResponse.data)
-
           setSelectedSpecies(speciesResponse.data.slice(0, 2))
         }
       } catch (err) {
@@ -296,21 +333,30 @@ export default function Activity({ studyData, studyId }) {
       }
     }
 
-    if (actualStudyId) {
-      console.log('Fetching data for study:', actualStudyId)
-      fetchData()
+    if (actualStudyId && !hasUserInteracted) {
+      console.log('Fetching initial data for study:', actualStudyId)
+      fetchInitialData()
     }
-    let intervalId
-    if (importStatus.isRunning) {
-      intervalId = setInterval(() => {
-        console.log('Import is running, fetching data...')
-        fetchData()
-      }, 5000)
+  }, [actualStudyId, hasUserInteracted])
+
+  // Bounds-filtered data fetch (only after user interaction)
+  useEffect(() => {
+    async function fetchFilteredData() {
+      if (!hasUserInteracted || !mapBounds) return
+
+      try {
+        // Fetch species distribution with bounds
+        const speciesResponse = await window.api.getSpeciesDistribution(actualStudyId, mapBounds)
+        if (!speciesResponse.error) {
+          setSpeciesDistributionData(speciesResponse.data)
+        }
+      } catch (err) {
+        console.error('Error fetching filtered data:', err)
+      }
     }
-    return () => {
-      if (intervalId) clearInterval(intervalId)
-    }
-  }, [actualStudyId, importStatus])
+
+    fetchFilteredData()
+  }, [mapBounds, hasUserInteracted, actualStudyId])
 
   // console.log('selected', selectedSpecies)
 
@@ -320,14 +366,16 @@ export default function Activity({ studyData, studyId }) {
 
       try {
         const speciesNames = selectedSpecies.map((s) => s.scientificName)
-        const response = await window.api.getSpeciesTimeseries(actualStudyId, speciesNames)
+        const response = await window.api.getSpeciesTimeseries(
+          actualStudyId,
+          speciesNames,
+          hasUserInteracted ? mapBounds : undefined
+        )
 
         if (response.error) {
           console.error('Error fetching species timeseries:', response.error)
           return
         }
-
-        console.log('Timeseries response:', response.data)
 
         setTimeseriesData(response.data.timeseries)
       } catch (err) {
@@ -336,7 +384,7 @@ export default function Activity({ studyData, studyId }) {
     }
 
     fetchTimeseriesData()
-  }, [selectedSpecies, actualStudyId])
+  }, [selectedSpecies, actualStudyId, mapBounds, hasUserInteracted])
 
   useEffect(() => {
     if (
@@ -356,18 +404,24 @@ export default function Activity({ studyData, studyId }) {
     }
   }, [timeseriesData, dateRange])
 
+  // Single unified heatmap data fetch
   useEffect(() => {
     async function fetchHeatmapData() {
       if (!selectedSpecies.length || !dateRange[0] || !dateRange[1]) return
 
       const speciesNames = selectedSpecies.map((s) => s.scientificName)
+
+      // Use bounds only if user has interacted with the map
+      const boundsToUse = hasUserInteracted ? mapBounds : undefined
+
       const response = await window.api.getSpeciesHeatmapData(
-        studyId,
+        actualStudyId,
         speciesNames,
         dateRange[0].toISOString(),
         dateRange[1].toISOString(),
         timeRange.start,
-        timeRange.end
+        timeRange.end,
+        boundsToUse
       )
 
       if (response.error) {
@@ -376,10 +430,42 @@ export default function Activity({ studyData, studyId }) {
       }
 
       setHeatmapData(response.data)
+
+      // Calculate initial bounds from all data only if we haven't interacted yet
+      if (!hasUserInteracted && !initialMapBounds) {
+        const allPoints = []
+        Object.values(response.data).forEach((speciesPoints) => {
+          allPoints.push(...speciesPoints)
+        })
+
+        if (allPoints.length > 0) {
+          const bounds = allPoints.reduce(
+            (bounds, point) => {
+              return [
+                [Math.min(bounds[0][0], point.lat), Math.min(bounds[0][1], point.lng)],
+                [Math.max(bounds[1][0], point.lat), Math.max(bounds[1][1], point.lng)]
+              ]
+            },
+            [
+              [90, 180],
+              [-90, -180]
+            ]
+          )
+          setInitialMapBounds(bounds)
+        }
+      }
     }
 
     fetchHeatmapData()
-  }, [dateRange, timeRange, selectedSpecies, actualStudyId, studyId])
+  }, [
+    dateRange,
+    timeRange,
+    selectedSpecies,
+    actualStudyId,
+    hasUserInteracted,
+    mapBounds,
+    initialMapBounds
+  ])
 
   useEffect(() => {
     async function fetchDailyActivityData() {
@@ -391,7 +477,8 @@ export default function Activity({ studyData, studyId }) {
           actualStudyId,
           speciesNames,
           dateRange[0].toISOString(),
-          dateRange[1].toISOString()
+          dateRange[1].toISOString(),
+          hasUserInteracted ? mapBounds : undefined
         )
 
         if (response.error) {
@@ -406,7 +493,7 @@ export default function Activity({ studyData, studyId }) {
     }
 
     fetchDailyActivityData()
-  }, [dateRange, selectedSpecies, actualStudyId])
+  }, [dateRange, selectedSpecies, actualStudyId, mapBounds, hasUserInteracted])
 
   // Handle time range changes
   const handleTimeRangeChange = useCallback((newTimeRange) => {
@@ -432,9 +519,7 @@ export default function Activity({ studyData, studyId }) {
         <div className="flex flex-col h-full gap-4">
           {/* First row - takes remaining space */}
           <div className="flex flex-row gap-4 flex-1 min-h-0">
-            {/* Species Distribution - left side */}
-
-            {/* Map - right side */}
+            {/* Map - left side */}
             <div className="h-full flex-1">
               {heatmapData && (
                 <SpeciesMap
@@ -447,8 +532,14 @@ export default function Activity({ studyData, studyId }) {
                     dateRange +
                     ' ' +
                     timeRange.start +
-                    timeRange.end
+                    timeRange.end +
+                    ' ' +
+                    hasUserInteracted +
+                    ' ' +
+                    JSON.stringify(mapBounds)
                   }
+                  onBoundsChange={handleBoundsChange}
+                  initialBounds={hasUserInteracted ? null : initialMapBounds}
                 />
               )}
             </div>

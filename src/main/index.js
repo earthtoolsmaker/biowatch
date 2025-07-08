@@ -485,7 +485,7 @@ app.whenReady().then(async () => {
   })
 
   // Add species distribution handler
-  ipcMain.handle('species:get-distribution', async (_, studyId) => {
+  ipcMain.handle('species:get-distribution', async (_, studyId, bounds) => {
     try {
       const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
       log.info('Dd path for study:', dbPath)
@@ -494,7 +494,7 @@ app.whenReady().then(async () => {
         return { error: 'Database not found for this study' }
       }
 
-      const distribution = await getSpeciesDistribution(dbPath)
+      const distribution = await getSpeciesDistribution(dbPath, bounds)
       return { data: distribution }
     } catch (error) {
       log.error('Error getting species distribution:', error)
@@ -519,7 +519,7 @@ app.whenReady().then(async () => {
     }
   })
 
-  ipcMain.handle('activity:get-timeseries', async (_, studyId, species) => {
+  ipcMain.handle('activity:get-timeseries', async (_, studyId, species, bounds) => {
     try {
       const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
       if (!dbPath || !existsSync(dbPath)) {
@@ -527,7 +527,7 @@ app.whenReady().then(async () => {
         return { error: 'Database not found for this study' }
       }
 
-      const timeseriesData = await getSpeciesTimeseries(dbPath, species)
+      const timeseriesData = await getSpeciesTimeseries(dbPath, species, bounds)
       return { data: timeseriesData }
     } catch (error) {
       log.error('Error getting species timeseries:', error)
@@ -537,7 +537,7 @@ app.whenReady().then(async () => {
 
   ipcMain.handle(
     'activity:get-heatmap-data',
-    async (_, studyId, species, startDate, endDate, startTime, endTime) => {
+    async (_, studyId, species, startDate, endDate, startTime, endTime, bounds) => {
       try {
         const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
         if (!dbPath || !existsSync(dbPath)) {
@@ -551,7 +551,8 @@ app.whenReady().then(async () => {
           startDate,
           endDate,
           startTime,
-          endTime
+          endTime,
+          bounds
         )
         return { data: heatmapData }
       } catch (error) {
@@ -593,7 +594,7 @@ app.whenReady().then(async () => {
     }
   })
 
-  ipcMain.handle('activity:get-daily', async (_, studyId, species, startDate, endDate) => {
+  ipcMain.handle('activity:get-daily', async (_, studyId, species, startDate, endDate, bounds) => {
     try {
       const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
       if (!dbPath || !existsSync(dbPath)) {
@@ -601,7 +602,13 @@ app.whenReady().then(async () => {
         return { error: 'Database not found for this study' }
       }
 
-      const dailyActivity = await getSpeciesDailyActivity(dbPath, species, startDate, endDate)
+      const dailyActivity = await getSpeciesDailyActivity(
+        dbPath,
+        species,
+        startDate,
+        endDate,
+        bounds
+      )
       return { data: dailyActivity }
     } catch (error) {
       log.error('Error getting species daily activity data:', error)
