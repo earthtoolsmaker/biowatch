@@ -18,7 +18,8 @@ import {
   getSpeciesHeatmapData,
   getSpeciesTimeseries
 } from './queries'
-import { Importer } from './importer'
+import { Importer } from './importer' //required to register handlers
+import studies from './studies'
 import { importWildlifeDataset } from './wildlife'
 import { extractZip, downloadFile } from './download'
 import migrations from './migrations/index.js'
@@ -1013,7 +1014,7 @@ ipcMain.handle('deployments:set-latitude', async (_, studyId, deploymentID, lati
       db.run(
         'UPDATE deployments SET latitude = ? WHERE deploymentID = ?',
         [latitude, deploymentID],
-        function(err) {
+        function (err) {
           if (err) {
             reject(err)
           } else {
@@ -1051,7 +1052,7 @@ ipcMain.handle('deployments:set-longitude', async (_, studyId, deploymentID, lon
       db.run(
         'UPDATE deployments SET longitude = ? WHERE deploymentID = ?',
         [longitude, deploymentID],
-        function(err) {
+        function (err) {
           if (err) {
             reject(err)
           } else {

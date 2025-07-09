@@ -2,6 +2,7 @@ import 'leaflet/dist/leaflet.css'
 import { Cctv, ChartBar, Image, NotebookText, Download, Pause } from 'lucide-react'
 import { NavLink, Route, Routes, useParams } from 'react-router'
 import { ErrorBoundary } from 'react-error-boundary'
+import { useQuery } from '@tanstack/react-query'
 import Deployments from './deployments'
 import Overview from './overview'
 import Activity from './activity'
@@ -105,9 +106,33 @@ function ImportStatus({ studyId, importerName }) {
   )
 }
 
-export default function Study({ onUpdateStudy }) {
+export default function Study() {
   let { id } = useParams()
-  const study = JSON.parse(localStorage.getItem('studies')).find((study) => study.id === id)
+
+  const { data: study, error } = useQuery({
+    queryKey: ['study', id],
+    queryFn: async () => {
+      const studies = await window.api.getStudies()
+      const study = studies.find((s) => s.id === id)
+      if (!study) {
+        throw new Error(`Study with ID ${id} not found`)
+      }
+      return study
+    },
+    enabled: !!id
+  })
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-red-500">Error loading study: {error.message}</div>
+      </div>
+    )
+  }
+
+  if (!study) {
+    return
+  }
 
   return (
     <div className="flex gap-4 flex-col h-full">
@@ -158,12 +183,7 @@ export default function Study({ onUpdateStudy }) {
             index
             element={
               <ErrorBoundary FallbackComponent={ErrorFallback} key={'overview'}>
-                <Overview
-                  data={study.data}
-                  studyId={id}
-                  studyName={study.name}
-                  onUpdateStudy={onUpdateStudy}
-                />
+                <Overview data={study.data} studyId={id} studyName={study.name} />
               </ErrorBoundary>
             }
           />
