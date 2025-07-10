@@ -16,7 +16,8 @@ import {
   getSpeciesDailyActivity,
   getSpeciesDistribution,
   getSpeciesHeatmapData,
-  getSpeciesTimeseries
+  getSpeciesTimeseries,
+  getFilesData
 } from './queries'
 import { Importer } from './importer' //required to register handlers
 import studies from './studies'
@@ -229,7 +230,6 @@ async function processDataset(inputPath, id) {
 
     // Import the dataset
     const { data } = await importCamTrapDataset(pathToImport, id)
-    // const { data } = await importWildlifeDataset(pathToImport, id)
 
     if (!data) {
       return
@@ -960,6 +960,23 @@ app.whenReady().then(async () => {
     } catch (error) {
       log.error('Error downloading or importing GBIF dataset:', error)
       throw error
+    }
+  })
+
+  // Add handler for getting files data for local/speciesnet studies
+  ipcMain.handle('files:get-data', async (_, studyId) => {
+    try {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) {
+        log.warn(`Database not found for study ID: ${studyId}`)
+        return { error: 'Database not found for this study' }
+      }
+
+      const filesData = await getFilesData(dbPath)
+      return { data: filesData }
+    } catch (error) {
+      log.error('Error getting files data:', error)
+      return { error: error.message }
     }
   })
 

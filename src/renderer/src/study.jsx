@@ -1,5 +1,5 @@
 import 'leaflet/dist/leaflet.css'
-import { Cctv, ChartBar, Image, NotebookText, Download, Pause } from 'lucide-react'
+import { Cctv, ChartBar, Image, NotebookText, Download, Pause, FolderOpen } from 'lucide-react'
 import { NavLink, Route, Routes, useParams } from 'react-router'
 import { ErrorBoundary } from 'react-error-boundary'
 import { useQuery } from '@tanstack/react-query'
@@ -7,6 +7,7 @@ import Deployments from './deployments'
 import Overview from './overview'
 import Activity from './activity'
 import Media from './media'
+import Files from './files'
 import { useImportStatus } from '@renderer/hooks/import'
 
 // Error fallback component
@@ -58,6 +59,8 @@ function ErrorFallback({ error, resetErrorBoundary }) {
 function ImportStatus({ studyId, importerName }) {
   const { importStatus, resumeImport, pauseImport } = useImportStatus(studyId)
 
+  console.log('ImportStatus', importStatus)
+
   // Calculate progress for display
   const progress =
     importStatus && importStatus.total > 0 ? (importStatus.done / importStatus.total) * 100 : 0
@@ -73,7 +76,7 @@ function ImportStatus({ studyId, importerName }) {
 
   // Calculate width based on number of digits in total (accounting for both done and total)
   const totalDigits = importStatus.total.toString().length
-  const spanWidth = `${totalDigits * 1}rem` // Minimum width with scaling
+  const spanWidth = `${totalDigits * 1 + 0.1}rem` // Minimum width with scaling
 
   return (
     <div className="flex items-center gap-3 px-4 ml-auto">
@@ -93,14 +96,27 @@ function ImportStatus({ studyId, importerName }) {
             : 'Pause'
           : 'Resume'}
       </button>
+
+      <span className="text-gray-600 tabular-nums text-xs" style={{ width: spanWidth }}>
+        {importStatus.done} / {importStatus.total}
+      </span>
+
       <div className="w-20 bg-gray-200 rounded-full h-2">
         <div
           className="h-full bg-blue-600 transition-all duration-500 ease-in-out rounded-full"
           style={{ width: `${progress}%` }}
         />
       </div>
-      <span className="text-xs text-gray-600 text-right tabular-nums" style={{ width: spanWidth }}>
-        {importStatus.done}/{importStatus.total}
+
+      <span
+        className="text-xs text-gray-600 text-right"
+        title={`${importStatus.speed} images/minute`}
+      >
+        {importStatus.estimatedMinutesRemaining
+          ? importStatus.estimatedMinutesRemaining > 60
+            ? `${Math.round(importStatus.estimatedMinutesRemaining / 60)} hrs remaining`
+            : `${Math.round(importStatus.estimatedMinutesRemaining)} mins remaining`
+          : ''}
       </span>
     </div>
   )
@@ -174,6 +190,17 @@ export default function Study() {
           <Cctv color="black" size={20} className="pb-[2px]" />
           Deployments
         </NavLink>
+        {study?.importerName === 'local/speciesnet' && (
+          <NavLink
+            to={`/study/${id}/files`}
+            className={({ isActive }) =>
+              `${isActive ? 'bg-gray-100' : ''} cursor-pointer hover:bg-gray-100 transition-colors flex justify-center flex-row gap-2 items-center px-4 h-10 text-sm`
+            }
+          >
+            <FolderOpen color="black" size={20} className="pb-[2px]" />
+            Files
+          </NavLink>
+        )}
 
         <ImportStatus studyId={id} importerName={study?.importerName} />
       </header>
@@ -211,6 +238,16 @@ export default function Study() {
               </ErrorBoundary>
             }
           />
+          {study?.importerName === 'local/speciesnet' && (
+            <Route
+              path="files"
+              element={
+                <ErrorBoundary FallbackComponent={ErrorFallback} key={'files'}>
+                  <Files studyId={id} />
+                </ErrorBoundary>
+              }
+            />
+          )}
         </Routes>
       </div>
     </div>

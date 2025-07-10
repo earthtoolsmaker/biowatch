@@ -2,6 +2,7 @@ import 'leaflet/dist/leaflet.css'
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router'
 import { modelZoo } from '../../shared/mlmodels.js'
+import { useQueryClient } from '@tanstack/react-query'
 
 function ImportButton({ onClick, children, className = '', disabled = false }) {
   const [isImporting, setIsImporting] = useState(false)
@@ -102,12 +103,13 @@ function GbifImportCard({ onImport }) {
 export default function Import({ onNewStudy }) {
   let navigate = useNavigate()
   const [selectedModel, setSelectedModel] = useState(modelZoo[0]?.reference || null)
+  const queryClient = useQueryClient()
 
   const handleCamTrapDP = async () => {
-    const { data, id, path } = await window.api.selectCamtrapDPDataset()
-    console.log('select', path)
+    const { id } = await window.api.selectCamtrapDPDataset()
     if (!id) return
-    onNewStudy({ id, name: data.name, data, path })
+    // onNewStudy({ id, name: data.name, data, path })
+    queryClient.invalidateQueries(['studies'])
     navigate(`/study/${id}`)
   }
 
@@ -128,8 +130,9 @@ export default function Import({ onNewStudy }) {
   }
 
   const handleImportImages = async () => {
-    const { data, id, path, importerName } = await window.api.selectImagesDirectory()
-    onNewStudy({ id, name: data.name, data, path, importerName, selectedModel })
+    const { id } = await window.api.selectImagesDirectory()
+    // onNewStudy({ id, name: data.name, data, path, importerName, selectedModel })
+    queryClient.invalidateQueries(['studies'])
     navigate(`/study/${id}`)
   }
 
