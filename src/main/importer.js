@@ -280,7 +280,7 @@ async function insertMedia(db, fullPath, importFolder) {
       // If no deployment exists, create a new one
       const deploymentID = crypto.randomUUID()
       const locationID = parentFolder
-      log.info('Creating new deployment with at: ', latitude, longitude)
+      log.info('Creating new deployment with at: ', locationID, latitude, longitude)
       db.run(
         'INSERT INTO deployments (deploymentID, locationID, locationName, deploymentStart, deploymentEnd, latitude, longitude) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [deploymentID, locationID, locationID, date.toISO(), date.toISO(), latitude, longitude]
@@ -491,12 +491,15 @@ function getTemporalData(db) {
   })
 }
 
+let lastBatchDuration = null
+const batchSize = 5
+
 export class Importer {
   constructor(id, folder) {
     this.id = id
     this.folder = folder
     this.pythonProcess = null
-    this.batchSize = 100
+    this.batchSize = batchSize
   }
 
   async cleanup() {
@@ -540,13 +543,14 @@ export class Importer {
       try {
         models
           .startMLModelHTTPServer({
-            pythonEnvironment: mlmodels.pythonEnvironments[0],
+            pythonEnvironment: mlmodels.pythonEnvironments[2],
             modelReference: mlmodels.modelZoo[0].reference
           })
           .then(async ({ port, process }) => {
             log.info('New python process', port, process.pid)
             this.pythonProcess = process
             while (true) {
+              const batchStart = DateTime.now()
               const mediaBatch = await nextMediaToPredict(this.db, this.batchSize)
               if (mediaBatch.length === 0) {
                 log.info('No more media to process')
@@ -562,6 +566,8 @@ export class Importer {
               }
 
               log.info(`Processed batch of ${imageQueue.length} images`)
+              const batchEnd = DateTime.now()
+              lastBatchDuration = batchEnd.diff(batchStart, 'seconds').seconds
             }
 
             this.cleanup()
@@ -610,11 +616,20 @@ async function status(id) {
                 return
               }
 
+              const remain = mediaRow.mediaCount - obsRow.obsCount
+              const estimatedMinutesRemaining = lastBatchDuration
+                ? (remain * lastBatchDuration) / batchSize / 60
+                : null
+
+              const speed = lastBatchDuration ? (batchSize / lastBatchDuration) * 60 : null
+
               // Resolve with both counts
               resolve({
                 total: mediaRow.mediaCount,
                 done: obsRow.obsCount,
-                isRunning: !!importers[id]
+                isRunning: !!importers[id],
+                estimatedMinutesRemaining: estimatedMinutesRemaining,
+                speed: Math.round(speed)
               })
 
               db.close()
@@ -652,15 +667,20 @@ ipcMain.handle('importer:select-images-directory', async () => {
     const importer = new Importer(id, directoryPath)
     importers[id] = importer
     await importer.start()
-    return {
+    const data = {
       path: directoryPath,
       importerName: 'local/speciesnet',
+      name: path.basename(directoryPath),
       data: {
-        name: path.basename(directoryPath),
-        title: path.basename(directoryPath)
+        name: path.basename(directoryPath)
       },
       id: id
     }
+    fs.writeFileSync(
+      path.join(app.getPath('userData'), 'biowatch-data', 'studies', id, 'study.json'),
+      JSON.stringify(data, null, 2)
+    )
+    return data
   } catch (error) {
     log.error('Error processing images directory:', error)
     return {

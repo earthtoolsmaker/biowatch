@@ -1149,3 +1149,49 @@ export async function getDeploymentsActivity(dbPath) {
     })
   })
 }
+
+/**
+ * Get files data (directories with image counts and processing progress) for local/speciesnet studies
+ * @param {string} dbPath - Path to the SQLite database
+ * @returns {Promise<Array>} - Array of directory objects with image counts and processing progress
+ */
+export async function getFilesData(dbPath) {
+  return new Promise((resolve, reject) => {
+    const startTime = Date.now()
+    log.info(`Querying files data from: ${dbPath}`)
+
+    const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READONLY, (err) => {
+      if (err) {
+        log.error(`Error opening database: ${err.message}`)
+        return reject(err)
+      }
+
+      // Query to get directory statistics
+      const query = `
+        SELECT
+          d.locationID,
+          d.locationName,
+          COUNT(m.mediaID) as imageCount,
+          COUNT(o.observationID) as processedCount
+        FROM deployments d
+        LEFT JOIN media m ON d.deploymentID = m.deploymentID
+        LEFT JOIN observations o ON m.mediaID = o.mediaID
+        GROUP BY d.locationID, d.locationName
+        ORDER BY d.locationName, d.locationID
+      `
+
+      db.all(query, [], (err, rows) => {
+        db.close()
+
+        if (err) {
+          log.error(`Error querying files data: ${err.message}`)
+          return reject(err)
+        }
+
+        const elapsedTime = Date.now() - startTime
+        log.info(`Retrieved files data: ${rows.length} directories found in ${elapsedTime}ms`)
+        resolve(rows)
+      })
+    })
+  })
+}

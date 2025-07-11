@@ -70,7 +70,7 @@ async function listDirectories(folderPath: string): Promise<string[]> {
 // -------------------------------------------------------
 
 function getMLModelLocalRootDir() {
-  return join(app.getPath('userData'), 'biowatch-data', 'biowatch-data', 'model-zoo')
+  return join(app.getPath('userData'), 'biowatch-data', 'model-zoo')
 }
 
 function getMLModelLocalTarPathRoot() {
