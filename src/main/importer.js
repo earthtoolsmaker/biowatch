@@ -544,7 +544,7 @@ export class Importer {
         models
           .startMLModelHTTPServer({
             pythonEnvironment: mlmodels.pythonEnvironments[1],
-            modelReference: mlmodels.modelZoo[1].reference
+            modelReference: mlmodels.modelZoo[0].reference
           })
           .then(async ({ port, process }) => {
             log.info('New python process', port, process.pid)
