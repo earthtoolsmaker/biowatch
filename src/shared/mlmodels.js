@@ -103,7 +103,7 @@ export const modelZoo = [
    */
   {
     reference: { id: 'speciesnet', version: '4.0.1a' },
-    pythonEnvironment: { id: 'common', version: '0.1.1' },
+    pythonEnvironment: { id: 'common', version: '0.1.2' },
     name: 'SpeciesNet',
     size_in_MiB: 468,
     files: 6,
