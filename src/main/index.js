@@ -3,7 +3,7 @@ import { spawn } from 'child_process'
 import { app, BrowserWindow, dialog, net as electronNet, ipcMain, protocol, shell } from 'electron'
 import log from 'electron-log'
 import { autoUpdater } from 'electron-updater'
-import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'fs'
+import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync, rmSync } from 'fs'
 import { join } from 'path'
 import icon from '../../resources/icon.png?asset'
 import { importCamTrapDataset } from './camtrap'
@@ -79,7 +79,11 @@ function createWindow() {
 }
 
 function getStudyDatabasePath(userDataPath, studyId) {
-  return join(userDataPath, 'biowatch-data', 'studies', studyId, 'study.db')
+  return join(getStudyPath(userDataPath, studyId), 'study.db')
+}
+
+function getStudyPath(userDataPath, studyId) {
+  return join(userDataPath, 'biowatch-data', 'studies', studyId)
 }
 
 log.info('Starting Electron app...')
@@ -620,15 +624,15 @@ app.whenReady().then(async () => {
         click: () => {
           try {
             log.info(`Deleting database for study: ${studyId}`)
-            const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+            const studyPath = getStudyPath(app.getPath('userData'), studyId)
             event.sender.send('study:delete', studyId)
 
-            if (dbPath && existsSync(dbPath)) {
-              unlinkSync(dbPath)
-              log.info(`Successfully deleted database: ${dbPath}`)
+            if (studyPath && existsSync(studyPath)) {
+              rmSync(studyPath, { recursive: true, force: true })
+              log.info(`Successfully deleted database: ${studyPath}`)
               return { success: true }
             } else {
-              log.warn(`Database not found for deletion: ${dbPath}`)
+              log.warn(`Database not found for deletion: ${studyPath}`)
               return { success: true, message: 'Database already deleted or not found' }
             }
           } catch (error) {

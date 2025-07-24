@@ -88,7 +88,7 @@ function AppContent() {
   const location = useLocation()
 
   const { data: studies = [], isLoading } = useQuery({
-    queryKey: ['study'],
+    queryKey: ['studies'],
     queryFn: async () => {
       const studies = await window.api.getStudies()
       console.log('Fetched studies from API:', studies)
@@ -127,6 +127,7 @@ function AppContent() {
       try {
         console.log('Deleting study with ID:', studyId)
         const updatedStudies = studies.filter((s) => s.id !== studyId)
+        queryClient.invalidateQueries(['studies'])
 
         // Navigate away if we're on the deleted study
         if (location.pathname.includes(`/study/${studyId}`)) {
