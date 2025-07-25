@@ -22,6 +22,7 @@ import {
 import { Importer } from './importer' //required to register handlers
 import studies from './studies'
 import { importWildlifeDataset } from './wildlife'
+import { importDeepfauneDataset } from './deepfaune'
 import { extractZip, downloadFile } from './download'
 import migrations from './migrations/index.js'
 
@@ -484,6 +485,41 @@ app.whenReady().then(async () => {
           log.warn(`Failed to clean up after error: ${cleanupError.message}`)
         }
       }
+      throw error
+    }
+  })
+
+  ipcMain.handle('import:select-deepfaune', async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [
+        { name: 'Deepfaune CSV', extensions: ['csv'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    })
+
+    if (!result || result.canceled || result.filePaths.length === 0) return null
+
+    const selectedPath = result.filePaths[0]
+    const id = crypto.randomUUID()
+
+    try {
+      log.info(`Processing Deepfaune CSV file: ${selectedPath}`)
+
+      // Import using Deepfaune importer
+      const { data } = await importDeepfauneDataset(selectedPath, id)
+
+      if (!data) {
+        return null
+      }
+
+      return {
+        path: selectedPath,
+        data,
+        id
+      }
+    } catch (error) {
+      log.error('Error processing Deepfaune CSV dataset:', error)
       throw error
     }
   })

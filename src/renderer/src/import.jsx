@@ -121,6 +121,14 @@ export default function Import({ onNewStudy }) {
     navigate(`/study/${id}`)
   }
 
+  const handleDeepfauneCSV = async () => {
+    const { data, id, path } = await window.api.selectDeepfauneDataset()
+    console.log('Deepfaune CSV select', path)
+    if (!id) return
+    onNewStudy({ id, name: data.name, data, path })
+    navigate(`/study/${id}`)
+  }
+
   const handleDemoDataset = async () => {
     const { data, id } = await window.api.downloadDemoDataset()
     if (!id) return
@@ -183,6 +191,20 @@ export default function Import({ onNewStudy }) {
             <div className="flex justify-start">
               <ImportButton onClick={handleWildlifeInsights} className="">
                 Select Wildlife Insights
+              </ImportButton>
+            </div>
+          </div>
+
+          {/* Deepfaune CSV Card */}
+          <div className="border border-gray-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
+            <h3 className="text-lg mb-2">Deepfaune CSV</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Import predictions from Deepfaune CSV files with species identifications and
+              confidence scores.
+            </p>
+            <div className="flex justify-start">
+              <ImportButton onClick={handleDeepfauneCSV} className="">
+                Select Deepfaune CSV
               </ImportButton>
             </div>
           </div>
