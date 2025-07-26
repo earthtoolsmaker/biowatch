@@ -74,6 +74,10 @@ export async function importCamTrapDataset(directoryPath, id) {
     }
 
     log.info('CamTrap dataset import completed successfully')
+    fs.writeFileSync(
+      path.join(app.getPath('userData'), 'biowatch-data', 'studies', id, 'study.json'),
+      JSON.stringify({ id, data, name: data.name }, null, 2)
+    )
     return {
       dbPath,
       data

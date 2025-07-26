@@ -9,6 +9,9 @@ const api = {
   selectWildlifeDataset: async () => {
     return await electronAPI.ipcRenderer.invoke('import:select-wildlife')
   },
+  selectDeepfauneDataset: async () => {
+    return await electronAPI.ipcRenderer.invoke('import:select-deepfaune')
+  },
   updateStudy: async (id, update) => {
     return await electronAPI.ipcRenderer.invoke('studies:update', id, update)
   },
@@ -137,6 +140,9 @@ const api = {
       deploymentID,
       longitude
     )
+  },
+  getFilesData: async (studyId) => {
+    return await electronAPI.ipcRenderer.invoke('files:get-data', studyId)
   }
 }
 

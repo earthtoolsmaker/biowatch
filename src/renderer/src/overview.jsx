@@ -336,7 +336,7 @@ export default function Overview({ data, studyId, studyName }) {
       container?.removeEventListener('scroll', checkScroll)
       window.removeEventListener('resize', checkScroll)
     }
-  }, [data.contributors])
+  }, [data?.contributors])
 
   const scrollContributors = (direction) => {
     if (!contributorsRef.current) return
@@ -383,7 +383,7 @@ export default function Overview({ data, studyId, studyName }) {
     }
   }
 
-  const taxonomicData = data.taxonomic || null
+  const taxonomicData = data?.taxonomic || null
 
   // Temporal data is always shown when available
   const renderTemporalData = () => {
@@ -429,7 +429,7 @@ export default function Overview({ data, studyId, studyName }) {
               <a
                 target="_blank"
                 rel="noopener noreferrer"
-                href={data.homepage}
+                href={data?.homepage}
                 className="max-w-prose text-balance font-medium capitalize"
               >
                 {studyName}

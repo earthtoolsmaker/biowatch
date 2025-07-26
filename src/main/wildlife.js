@@ -1,20 +1,52 @@
 import fs from 'fs'
 import path from 'path'
-import { app } from 'electron'
 import sqlite3 from 'sqlite3'
 import csv from 'csv-parser'
-import log from 'electron-log'
 import { DateTime } from 'luxon'
 
+// Conditionally import electron modules for production, use fallback for testing
+let app, log
+try {
+  const electron = await import('electron')
+  app = electron.app
+  const electronLog = await import('electron-log')
+  log = electronLog.default
+} catch {
+  // Fallback for testing environment
+  app = {
+    getPath: () => '/tmp'
+  }
+  log = {
+    info: () => {},
+    error: () => {},
+    warn: () => {},
+    debug: () => {}
+  }
+}
+
 /**
- * Import CamTrapDP dataset from a directory into a SQLite database
- * @param {string} directoryPath - Path to the CamTrapDP dataset directory
- * @returns {Promise<Object>} - Object containing dbPath and name
+ * Import Wildlife Insights dataset from a directory into a SQLite database
+ * @param {string} directoryPath - Path to the Wildlife Insights dataset directory
+ * @param {string} id - Unique ID for the study
+ * @returns {Promise<Object>} - Object containing study data
  */
 export async function importWildlifeDataset(directoryPath, id) {
+  const biowatchDataPath = path.join(app.getPath('userData'), 'biowatch-data')
+  return await importWildlifeDatasetWithPath(directoryPath, biowatchDataPath, id)
+}
+
+/**
+ * Import Wildlife Insights dataset from a directory into a SQLite database (core function)
+ * @param {string} directoryPath - Path to the Wildlife Insights dataset directory
+ * @param {string} biowatchDataPath - Path to the biowatch-data directory
+ * @param {string} id - Unique ID for the study
+ * @returns {Promise<Object>} - Object containing study data
+ */
+export async function importWildlifeDatasetWithPath(directoryPath, biowatchDataPath, id) {
   log.info('Starting Wildlife dataset import')
-  // Create database in app's user data directory using new structure
-  const dbPath = path.join(app.getPath('userData'), 'biowatch-data', 'studies', id, 'study.db')
+
+  // Create database in the specified biowatch-data directory
+  const dbPath = path.join(biowatchDataPath, 'studies', id, 'study.db')
   log.info(`Creating database at: ${dbPath}`)
 
   // Ensure the directory exists

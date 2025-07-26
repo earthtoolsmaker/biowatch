@@ -184,9 +184,14 @@ function LocationsList({
         <div className="flex flex-col divide-y divide-gray-200 mb-4">
           {activity.deployments
             .sort(
-              (a, b) =>
-                new Date(a.periods.find((p) => p.count > 0)?.start) -
-                new Date(b.periods.find((p) => p.count > 0)?.start)
+              (a, b) => {
+                const aName = a.locationName || a.locationID || 'Unnamed Location'
+                const bName = b.locationName || b.locationID || 'Unnamed Location'
+                return aName.localeCompare(bName)
+              }
+              // a.localCompare(b)
+              // new Date(a.periods.find((p) => p.count > 0)?.start) -
+              // new Date(b.periods.find((p) => p.count > 0)?.start)
             )
             .map((location) => (
               <div
