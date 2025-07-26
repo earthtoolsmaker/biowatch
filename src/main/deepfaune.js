@@ -1,11 +1,30 @@
 import fs from 'fs'
 import path from 'path'
-import { app } from 'electron'
 import sqlite3 from 'sqlite3'
 import csv from 'csv-parser'
-import log from 'electron-log'
 import { DateTime } from 'luxon'
 import crypto from 'crypto'
+import { time } from 'console'
+
+// Conditionally import electron modules for production, use fallback for testing
+let app, log
+try {
+  const electron = await import('electron')
+  app = electron.app
+  const electronLog = await import('electron-log')
+  log = electronLog.default
+} catch {
+  // Fallback for testing environment
+  app = {
+    getPath: () => '/tmp'
+  }
+  log = {
+    info: () => {},
+    error: () => {},
+    warn: () => {},
+    debug: () => {}
+  }
+}
 
 /**
  * Import Deepfaune CSV dataset from a CSV file into a SQLite database
@@ -14,10 +33,22 @@ import crypto from 'crypto'
  * @returns {Promise<Object>} - Object containing study data
  */
 export async function importDeepfauneDataset(csvPath, id) {
+  const biowatchDataPath = path.join(app.getPath('userData'), 'biowatch-data')
+  return await importDeepfauneDatasetWithPath(csvPath, biowatchDataPath, id)
+}
+
+/**
+ * Import Deepfaune CSV dataset from a CSV file into a SQLite database (core function)
+ * @param {string} csvPath - Path to the Deepfaune CSV file
+ * @param {string} biowatchDataPath - Path to the biowatch-data directory
+ * @param {string} id - Unique ID for the study
+ * @returns {Promise<Object>} - Object containing study data
+ */
+export async function importDeepfauneDatasetWithPath(csvPath, biowatchDataPath, id) {
   log.info('Starting Deepfaune CSV dataset import')
 
-  // Create database in app's user data directory
-  const dbPath = path.join(app.getPath('userData'), 'biowatch-data', 'studies', id, 'study.db')
+  // Create database in the specified biowatch-data directory
+  const dbPath = path.join(biowatchDataPath, 'studies', id, 'study.db')
   log.info(`Creating database at: ${dbPath}`)
 
   // Ensure the directory exists
@@ -40,7 +71,7 @@ export async function importDeepfauneDataset(csvPath, id) {
   }
 
   fs.writeFileSync(
-    path.join(app.getPath('userData'), 'biowatch-data', 'studies', id, 'study.json'),
+    path.join(biowatchDataPath, 'studies', id, 'study.json'),
     JSON.stringify(data, null, 2)
   )
 
@@ -60,7 +91,6 @@ export async function importDeepfauneDataset(csvPath, id) {
           const platformPath = path.normalize(normalizedPath)
           // Extract folder path from normalized filename
           const folderPath = path.dirname(platformPath)
-          console.log(`Found deployment folder: ${folderPath} - ${row.filename}`)
           deploymentFolders.add(folderPath)
         }
       })
@@ -183,29 +213,27 @@ async function insertDeepfauneData(db, csvPath) {
       const updateDeploymentDateRange = (deploymentID, timestamp) => {
         return new Promise((resolve, reject) => {
           // Get current deployment dates
-          db.get(
-            'SELECT deploymentStart, deploymentEnd FROM deployments WHERE deploymentID = ?',
-            [deploymentID],
-            (err, row) => {
-              if (err) return reject(err)
-
-              const currentStart = row.deploymentStart
-                ? DateTime.fromISO(row.deploymentStart)
-                : null
-              const currentEnd = row.deploymentEnd ? DateTime.fromISO(row.deploymentEnd) : null
-              const newDate = timestamp
-
-              const newStart = !currentStart || newDate < currentStart ? newDate : currentStart
-              const newEnd = !currentEnd || newDate > currentEnd ? newDate : currentEnd
-
-              db.run(
-                'UPDATE deployments SET deploymentStart = ?, deploymentEnd = ? WHERE deploymentID = ?',
-                [newStart.toISO(), newEnd.toISO(), deploymentID],
-                (updateErr) => {
-                  if (updateErr) reject(updateErr)
-                  else resolve()
-                }
-              )
+          db.run(
+            `UPDATE deployments
+              SET deploymentStart = CASE
+                WHEN deploymentStart IS NULL THEN ?
+                ELSE MIN(deploymentStart, ?)
+              END,
+              deploymentEnd = CASE
+                WHEN deploymentEnd IS NULL THEN ?
+                ELSE MAX(deploymentEnd, ?)
+              END
+              WHERE deploymentID = ?`,
+            [
+              timestamp.toISO(), // For NULL deploymentStart
+              timestamp.toISO(), // Compare with existing deploymentStart
+              timestamp.toISO(), // For NULL deploymentEnd
+              timestamp.toISO(), // Compare with existing deploymentEnd
+              deploymentID
+            ],
+            (updateErr) => {
+              if (updateErr) reject(updateErr)
+              else resolve()
             }
           )
         })
