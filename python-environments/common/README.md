@@ -47,3 +47,5 @@ run_speciesnet_server.py \
   --port 8000 \
   --model "v4.0.1a/"
 ```
+
+### Deepfaune

@@ -3,7 +3,7 @@ import { spawn } from 'child_process'
 import { app, BrowserWindow, dialog, net as electronNet, ipcMain, protocol, shell } from 'electron'
 import log from 'electron-log'
 import { autoUpdater } from 'electron-updater'
-import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'fs'
+import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync, rmSync } from 'fs'
 import { join } from 'path'
 import icon from '../../resources/icon.png?asset'
 import { importCamTrapDataset } from './camtrap'
@@ -16,11 +16,13 @@ import {
   getSpeciesDailyActivity,
   getSpeciesDistribution,
   getSpeciesHeatmapData,
-  getSpeciesTimeseries
+  getSpeciesTimeseries,
+  getFilesData
 } from './queries'
 import { Importer } from './importer' //required to register handlers
 import studies from './studies'
 import { importWildlifeDataset } from './wildlife'
+import { importDeepfauneDataset } from './deepfaune'
 import { extractZip, downloadFile } from './download'
 import migrations from './migrations/index.js'
 
@@ -78,7 +80,11 @@ function createWindow() {
 }
 
 function getStudyDatabasePath(userDataPath, studyId) {
-  return join(userDataPath, 'biowatch-data', 'studies', studyId, 'study.db')
+  return join(getStudyPath(userDataPath, studyId), 'study.db')
+}
+
+function getStudyPath(userDataPath, studyId) {
+  return join(userDataPath, 'biowatch-data', 'studies', studyId)
 }
 
 log.info('Starting Electron app...')
@@ -229,7 +235,6 @@ async function processDataset(inputPath, id) {
 
     // Import the dataset
     const { data } = await importCamTrapDataset(pathToImport, id)
-    // const { data } = await importWildlifeDataset(pathToImport, id)
 
     if (!data) {
       return
@@ -484,6 +489,41 @@ app.whenReady().then(async () => {
     }
   })
 
+  ipcMain.handle('import:select-deepfaune', async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [
+        { name: 'Deepfaune CSV', extensions: ['csv'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    })
+
+    if (!result || result.canceled || result.filePaths.length === 0) return null
+
+    const selectedPath = result.filePaths[0]
+    const id = crypto.randomUUID()
+
+    try {
+      log.info(`Processing Deepfaune CSV file: ${selectedPath}`)
+
+      // Import using Deepfaune importer
+      const { data } = await importDeepfauneDataset(selectedPath, id)
+
+      if (!data) {
+        return null
+      }
+
+      return {
+        path: selectedPath,
+        data,
+        id
+      }
+    } catch (error) {
+      log.error('Error processing Deepfaune CSV dataset:', error)
+      throw error
+    }
+  })
+
   // Add species distribution handler
   ipcMain.handle('species:get-distribution', async (_, studyId) => {
     try {
@@ -620,15 +660,15 @@ app.whenReady().then(async () => {
         click: () => {
           try {
             log.info(`Deleting database for study: ${studyId}`)
-            const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+            const studyPath = getStudyPath(app.getPath('userData'), studyId)
             event.sender.send('study:delete', studyId)
 
-            if (dbPath && existsSync(dbPath)) {
-              unlinkSync(dbPath)
-              log.info(`Successfully deleted database: ${dbPath}`)
+            if (studyPath && existsSync(studyPath)) {
+              rmSync(studyPath, { recursive: true, force: true })
+              log.info(`Successfully deleted database: ${studyPath}`)
               return { success: true }
             } else {
-              log.warn(`Database not found for deletion: ${dbPath}`)
+              log.warn(`Database not found for deletion: ${studyPath}`)
               return { success: true, message: 'Database already deleted or not found' }
             }
           } catch (error) {
@@ -960,6 +1000,23 @@ app.whenReady().then(async () => {
     } catch (error) {
       log.error('Error downloading or importing GBIF dataset:', error)
       throw error
+    }
+  })
+
+  // Add handler for getting files data for local/speciesnet studies
+  ipcMain.handle('files:get-data', async (_, studyId) => {
+    try {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) {
+        log.warn(`Database not found for study ID: ${studyId}`)
+        return { error: 'Database not found for this study' }
+      }
+
+      const filesData = await getFilesData(dbPath)
+      return { data: filesData }
+    } catch (error) {
+      log.error('Error getting files data:', error)
+      return { error: error.message }
     }
   })
 

@@ -1,0 +1,42 @@
+filename,date,seqnum,predictionbase,scorebase,prediction,score,top1,humancount
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam1\sd1\bird2.JPG,2019:05:14 17:14:52,1,bird,0.99,bird,0.99,bird,0
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam1\sd1\chamois2.JPG,2019:07:16 16:19:28,2,chamois,0.99,chamois,0.99,chamois,0
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam1\sd1\human3.JPG,2019:10:16 10:17:28,3,human,1.0,human,1.0,human,2
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam1\sd1\human2.JPG,2020:02:25 11:10:52,4,human,1.0,human,1.0,human,1
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam1\sd1\fox2.JPG,2020:05:12 12:21:47,5,fox,0.98,fox,0.98,fox,0
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam1\sd1\chamois3.JPG,2020:05:18 15:34:51,6,chamois,0.99,chamois,0.99,chamois,0
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam1\sd1\chamois1.JPG,2020:06:07 14:52:12,7,chamois,0.99,chamois,0.99,chamois,0
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam1\sd1\empty1.JPG,2020:06:12 13:41:22,8,empty,1.0,empty,1.0,empty,0
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam1\sd1\badger.JPG,2021:11:03 20:31:20,9,badger,0.99,badger,0.99,badger,0
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam1\sd1\cat1.JPG,2021:11:05 06:01:18,10,cat,0.99,cat,0.99,cat,0
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam1\sd1\hedgehog.JPG,2022:08:28 02:51:17,11,empty,1.0,empty,1.0,empty,0
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam1\sd1\human4.JPG,2022:09:01 08:45:51,12,human,1.0,human,1.0,human,1
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam1\sd1\cat2.JPG,2022:09:09 22:27:35,13,cat,0.99,cat,0.99,cat,0
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam1\sd1\bird1.JPG,2022:09:11 09:48:31,14,bird,0.99,bird,0.99,bird,0
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam1\sd1\dog.JPG,NA,15,dog,0.99,dog,0.99,dog,0
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam1\sd1\empty2.JPG,NA,16,empty,1.0,empty,1.0,empty,0
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam1\sd1\fox1.JPG,NA,17,fox,0.99,fox,0.99,fox,0
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam1\sd1\bird3.JPG,NA,18,bird,0.98,bird,0.98,bird,0
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam2\lagomorph2.JPG,2019:05:14 17:02:19,19,empty,1.0,empty,1.0,empty,0
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam2\squirrel.JPG,2019:08:01 17:59:06,20,squirrel,0.99,squirrel,0.99,squirrel,0
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam2\wildboar11.JPG,2019:10:19 18:33:23,21,wild boar,0.99,wild boar,0.99,wild boar,0
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam2\wildboar12.JPG,2019:10:19 18:33:25,21,wild boar,0.99,wild boar,0.99,wild boar,0
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam2\wildboar13.JPG,2019:10:19 18:33:27,21,wild boar,0.99,wild boar,0.99,wild boar,0
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam2\wildboar14.JPG,2019:10:19 18:33:45,22,undefined,0.57,undefined,0.57,wild boar,0
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam2\wildboar15.JPG,2019:10:19 18:33:47,22,empty,1.0,undefined,0.57,wild boar,0
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam2\wildboar21.JPG,2019:10:21 19:11:14,23,wild boar,0.99,wild boar,0.99,wild boar,0
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam2\wildboar22.JPG,2019:10:21 19:11:16,23,wild boar,0.99,wild boar,0.99,wild boar,0
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam2\wildboar23.JPG,2019:10:21 19:11:18,23,empty,1.0,wild boar,0.99,wild boar,0
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam2\human11.JPG,2020:02:12 17:04:06,24,human,1.0,human,1.0,human,1
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam2\human12.JPG,2020:02:12 17:04:08,24,human,1.0,human,1.0,human,1
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam2\human13.JPG,2020:02:12 17:04:10,24,human,1.0,human,1.0,human,1
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam2\sheep.JPG,2020:04:17 15:29:09,25,sheep,0.99,sheep,0.99,sheep,0
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam2\roedeer11.JPG,2021:04:02 07:30:39,26,roe deer,0.97,roe deer,0.99,roe deer,0
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam2\roedeer12.JPG,2021:04:02 07:30:40,26,roe deer,0.99,roe deer,0.99,roe deer,0
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam2\roedeer13.JPG,2021:04:02 07:30:41,26,empty,1.0,roe deer,0.99,roe deer,0
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam2\roedeer2.JPG,2021:08:29 04:07:47,27,roe deer,0.99,roe deer,0.99,roe deer,0
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam2\lagomorph1.JPG,2022:08:31 07:36:21,28,lagomorph,0.99,lagomorph,0.99,lagomorph,0
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam2\mustelide.JPG,2022:09:13 23:09:13,29,mustelid,0.99,mustelid,0.99,mustelid,0
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam2\wolf1.JPG,NA,30,wolf,0.99,wolf,0.99,wolf,0
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam2\vehicle.JPG,NA,31,vehicle,1.0,vehicle,1.0,vehicle,0
+C:\Users\ioRek\Downloads\deepfaune-latest\testdata\cam2\wolf2.JPG,NA,32,wolf,0.99,wolf,0.99,wolf,0

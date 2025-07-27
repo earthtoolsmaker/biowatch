@@ -2,6 +2,7 @@ import 'leaflet/dist/leaflet.css'
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router'
 import { modelZoo } from '../../shared/mlmodels.js'
+import { useQueryClient } from '@tanstack/react-query'
 
 function ImportButton({ onClick, children, className = '', disabled = false }) {
   const [isImporting, setIsImporting] = useState(false)
@@ -102,18 +103,27 @@ function GbifImportCard({ onImport }) {
 export default function Import({ onNewStudy }) {
   let navigate = useNavigate()
   const [selectedModel, setSelectedModel] = useState(modelZoo[0]?.reference || null)
+  const queryClient = useQueryClient()
 
   const handleCamTrapDP = async () => {
-    const { data, id, path } = await window.api.selectCamtrapDPDataset()
-    console.log('select', path)
+    const { id } = await window.api.selectCamtrapDPDataset()
     if (!id) return
-    onNewStudy({ id, name: data.name, data, path })
+    // onNewStudy({ id, name: data.name, data, path })
+    queryClient.invalidateQueries(['studies'])
     navigate(`/study/${id}`)
   }
 
   const handleWildlifeInsights = async () => {
     const { data, id, path } = await window.api.selectWildlifeDataset()
     console.log('Wildlife Insights select', path)
+    if (!id) return
+    onNewStudy({ id, name: data.name, data, path })
+    navigate(`/study/${id}`)
+  }
+
+  const handleDeepfauneCSV = async () => {
+    const { data, id, path } = await window.api.selectDeepfauneDataset()
+    console.log('Deepfaune CSV select', path)
     if (!id) return
     onNewStudy({ id, name: data.name, data, path })
     navigate(`/study/${id}`)
@@ -128,8 +138,9 @@ export default function Import({ onNewStudy }) {
   }
 
   const handleImportImages = async () => {
-    const { data, id, path, importerName } = await window.api.selectImagesDirectory()
-    onNewStudy({ id, name: data.name, data, path, importerName, selectedModel })
+    const { id } = await window.api.selectImagesDirectory()
+    // onNewStudy({ id, name: data.name, data, path, importerName, selectedModel })
+    queryClient.invalidateQueries(['studies'])
     navigate(`/study/${id}`)
   }
 
@@ -184,6 +195,20 @@ export default function Import({ onNewStudy }) {
             </div>
           </div>
 
+          {/* Deepfaune CSV Card */}
+          <div className="border border-gray-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
+            <h3 className="text-lg mb-2">Deepfaune CSV</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Import predictions from Deepfaune CSV files with species identifications and
+              confidence scores.
+            </p>
+            <div className="flex justify-start">
+              <ImportButton onClick={handleDeepfauneCSV} className="">
+                Select Deepfaune CSV
+              </ImportButton>
+            </div>
+          </div>
+
           {/* GBIF Dataset Card */}
           <GbifImportCard onImport={handleGbifImport} />
 
@@ -192,11 +217,11 @@ export default function Import({ onNewStudy }) {
             <h3 className="text-lg mb-2">Images Directory</h3>
             <p className="text-sm text-gray-500 mb-4">
               Import a directory of images and automatically extract metadata from file names and
-              EXIF data.
+              EXIF data. Work in progress!
             </p>
             <div className="flex gap-2 justify-start">
               <ImportButton onClick={handleImportImages} className="whitespace-nowrap flex-1">
-                Select Images folder
+                Select Images folder (WIP)
               </ImportButton>
               <select
                 value={selectedModel ? `${selectedModel.id}-${selectedModel.version}` : ''}
