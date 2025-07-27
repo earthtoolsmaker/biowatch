@@ -221,7 +221,7 @@ export default function Import({ onNewStudy }) {
             </p>
             <div className="flex gap-2 justify-start">
               <ImportButton onClick={handleImportImages} className="whitespace-nowrap flex-1">
-                Select Images folder
+                Select Images folder (WIP)
               </ImportButton>
               <select
                 value={selectedModel ? `${selectedModel.id}-${selectedModel.version}` : ''}
