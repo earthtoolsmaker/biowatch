@@ -217,7 +217,7 @@ export default function Import({ onNewStudy }) {
             <h3 className="text-lg mb-2">Images Directory</h3>
             <p className="text-sm text-gray-500 mb-4">
               Import a directory of images and automatically extract metadata from file names and
-              EXIF data.
+              EXIF data. Work in progress!
             </p>
             <div className="flex gap-2 justify-start">
               <ImportButton onClick={handleImportImages} className="whitespace-nowrap flex-1">

@@ -1,28 +1,33 @@
 import fs from 'fs'
 import path from 'path'
-import sqlite3 from 'sqlite3'
 import csv from 'csv-parser'
 import { DateTime } from 'luxon'
 import crypto from 'crypto'
-import { time } from 'console'
+import { openDatabase, closeDatabase, setupDatabase } from './db.js'
 
 // Conditionally import electron modules for production, use fallback for testing
 let app, log
-try {
-  const electron = await import('electron')
-  app = electron.app
-  const electronLog = await import('electron-log')
-  log = electronLog.default
-} catch {
-  // Fallback for testing environment
-  app = {
-    getPath: () => '/tmp'
-  }
-  log = {
-    info: () => {},
-    error: () => {},
-    warn: () => {},
-    debug: () => {}
+
+// Initialize electron modules with proper async handling
+async function initializeElectronModules() {
+  if (app && log) return // Already initialized
+
+  try {
+    const electron = await import('electron')
+    app = electron.app
+    const electronLog = await import('electron-log')
+    log = electronLog.default
+  } catch {
+    // Fallback for testing environment
+    app = {
+      getPath: () => '/tmp'
+    }
+    log = {
+      info: () => {},
+      error: () => {},
+      warn: () => {},
+      debug: () => {}
+    }
   }
 }
 
@@ -33,6 +38,7 @@ try {
  * @returns {Promise<Object>} - Object containing study data
  */
 export async function importDeepfauneDataset(csvPath, id) {
+  await initializeElectronModules()
   const biowatchDataPath = path.join(app.getPath('userData'), 'biowatch-data')
   return await importDeepfauneDatasetWithPath(csvPath, biowatchDataPath, id)
 }
@@ -45,6 +51,7 @@ export async function importDeepfauneDataset(csvPath, id) {
  * @returns {Promise<Object>} - Object containing study data
  */
 export async function importDeepfauneDatasetWithPath(csvPath, biowatchDataPath, id) {
+  await initializeElectronModules()
   log.info('Starting Deepfaune CSV dataset import')
 
   // Create database in the specified biowatch-data directory
@@ -333,90 +340,6 @@ async function insertDeepfauneData(db, csvPath) {
       } catch (error) {
         db.run('ROLLBACK')
         reject(error)
-      }
-    })
-  })
-}
-
-function setupDatabase(db) {
-  db.serialize(() => {
-    db.run(
-      `CREATE TABLE IF NOT EXISTS deployments (
-        deploymentID TEXT PRIMARY KEY,
-        locationID TEXT,
-        locationName TEXT,
-        deploymentStart TEXT,
-        deploymentEnd TEXT,
-        latitude REAL,
-        longitude REAL
-      )`
-    )
-    db.run(
-      `CREATE TABLE IF NOT EXISTS media (
-        mediaID TEXT PRIMARY KEY,
-        deploymentID TEXT,
-        timestamp TEXT,
-        filePath TEXT,
-        fileName TEXT,
-        FOREIGN KEY (deploymentID) REFERENCES deployments(deploymentID)
-      )`
-    )
-    db.run(
-      `CREATE TABLE IF NOT EXISTS observations (
-        observationID TEXT PRIMARY KEY,
-        mediaID TEXT,
-        deploymentID TEXT,
-        eventID TEXT,
-        eventStart TEXT,
-        eventEnd TEXT,
-        scientificName TEXT,
-        observationType TEXT,
-        commonName TEXT,
-        confidence REAL,
-        count INTEGER,
-        prediction TEXT,
-        lifeStage TEXT,
-        age TEXT,
-        sex TEXT,
-        behavior TEXT,
-        FOREIGN KEY (mediaID) REFERENCES media(mediaID),
-        FOREIGN KEY (deploymentID) REFERENCES deployments(deploymentID)
-      )`
-    )
-  })
-}
-
-/**
- * Open a SQLite database
- * @param {string} dbPath - Path to the database file
- * @returns {Promise<sqlite3.Database>} - Database instance
- */
-function openDatabase(dbPath) {
-  return new Promise((resolve, reject) => {
-    const db = new sqlite3.Database(dbPath, (err) => {
-      if (err) {
-        log.error(`Error opening database: ${err.message}`)
-        reject(err)
-      } else {
-        resolve(db)
-      }
-    })
-  })
-}
-
-/**
- * Close a SQLite database
- * @param {sqlite3.Database} db - Database instance
- * @returns {Promise<void>}
- */
-function closeDatabase(db) {
-  return new Promise((resolve, reject) => {
-    db.close((err) => {
-      if (err) {
-        log.error(`Error closing database: ${err.message}`)
-        reject(err)
-      } else {
-        resolve()
       }
     })
   })

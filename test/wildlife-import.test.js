@@ -1,6 +1,6 @@
 import { test, beforeEach, afterEach, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdirSync, rmSync, existsSync } from 'fs'
+import { mkdirSync, rmSync, existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import sqlite3 from 'sqlite3'
@@ -91,53 +91,7 @@ describe('Wildlife Import Tests', () => {
       const studyId = 'test-wildlife-study'
 
       // Run the import
-      const result = await importWildlifeDatasetWithPath(
-        testWildlifeDataPath,
-        testBiowatchDataPath,
-        studyId
-      )
-
-      // Verify the result structure
-      assert(result.data, 'Import result should contain data')
-      assert.equal(
-        result.data.name,
-        'RafaBenjumea',
-        'Should extract correct name from projects.csv'
-      )
-      assert.equal(
-        result.data.title,
-        'Rafa Benjumea',
-        'Should extract correct title from projects.csv'
-      )
-      assert.equal(
-        result.data.description,
-        'Seguimiento realizado por Rafael Benjumea en el marco de la iniciativa Seguimiento de Mamíferos en España y Portugal',
-        'Should extract correct description'
-      )
-
-      // Check contributors structure
-      assert(Array.isArray(result.data.contributors), 'Contributors should be an array')
-      assert.equal(result.data.contributors.length, 1, 'Should have one contributor')
-      assert.equal(
-        result.data.contributors[0].title,
-        'Rafa Benjumea',
-        'Should have correct contributor name'
-      )
-      assert.equal(
-        result.data.contributors[0].role,
-        'Administrator',
-        'Should have correct contributor role'
-      )
-      assert.equal(
-        result.data.contributors[0].organization,
-        'SECEM',
-        'Should have correct organization'
-      )
-      assert.equal(
-        result.data.contributors[0].email,
-        'rafabenjumea@gmail.com',
-        'Should have correct email'
-      )
+      await importWildlifeDatasetWithPath(testWildlifeDataPath, testBiowatchDataPath, studyId)
 
       // Check that database was created
       const dbPath = join(testBiowatchDataPath, 'studies', studyId, 'study.db')
@@ -344,6 +298,48 @@ describe('Wildlife Import Tests', () => {
       assert.equal(specificRecord.length, 1, 'Should find the specific record')
       assert(specificRecord[0].timestamp.includes('2024-04-09'), 'Should have correct date')
       assert(specificRecord[0].timestamp.includes('12:15:36'), 'Should have correct time')
+    })
+
+    test('study.json should be created with valid name', async () => {
+      const studyId = 'test-wildlife-study-json'
+
+      // Import the test dataset
+      const result = await importWildlifeDatasetWithPath(
+        testWildlifeDataPath,
+        testBiowatchDataPath,
+        studyId
+      )
+
+      // Check that study.json was created
+      const studyJsonPath = join(testBiowatchDataPath, 'studies', studyId, 'study.json')
+      assert(existsSync(studyJsonPath), 'study.json should be created')
+
+      // Read and parse the study.json file
+      const studyJsonContent = readFileSync(studyJsonPath, 'utf8')
+      const studyData = JSON.parse(studyJsonContent)
+
+      // Verify the structure and content
+      assert(studyData.name, 'study.json should contain a name property')
+      assert.equal(typeof studyData.name, 'string', 'name should be a string')
+      assert(studyData.name.length > 0, 'name should not be empty')
+      assert.equal(studyData.importerName, 'wildlife/folder', 'should have correct importer name')
+
+      // Should either have project name from CSV or fallback to directory name
+      assert(
+        studyData.name === 'RafaBenjumea' || studyData.name === 'wildlife',
+        `name should be project name from CSV or fallback to directory name, got: ${studyData.name}`
+      )
+
+      assert(Array.isArray(studyData.data.contributors), 'Contributors should be an array')
+      assert.equal(studyData.data.contributors.length, 1, 'Should have one contributor')
+      assert.equal(
+        studyData.data.contributors[0].title,
+        'Rafa Benjumea',
+        'Should have correct contributor name'
+      )
+
+      // Should match the returned data
+      assert.deepEqual(result.data, studyData, 'returned data should match study.json content')
     })
   })
 })

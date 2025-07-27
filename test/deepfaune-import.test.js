@@ -1,6 +1,6 @@
 import { test, beforeEach, afterEach, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdirSync, rmSync, existsSync } from 'fs'
+import { mkdirSync, rmSync, existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import sqlite3 from 'sqlite3'
@@ -195,6 +195,28 @@ describe('Import Methods Tests', () => {
         `SELECT * FROM observations WHERE prediction = 'bird'`
       )
       assert(birdObservations.length === 2, 'Should have exactly 2 bird observations')
+    })
+
+    test('study.json should contain a valid name', async () => {
+      const studyId = 'test-study-name-validation'
+
+      // Import the test dataset
+      await importDeepfauneDatasetWithPath(testCsvPath, testUserDataPath, studyId)
+
+      // Check that study.json was created with proper content
+      const studyJsonPath = join(testUserDataPath, 'studies', studyId, 'study.json')
+      assert(existsSync(studyJsonPath), 'study.json should be created')
+
+      // Read and parse the study.json file
+      const studyJsonContent = readFileSync(studyJsonPath, 'utf8')
+      const studyData = JSON.parse(studyJsonContent)
+
+      // Verify the structure and content
+      assert(studyData.name, 'study.json should contain a name property')
+      assert.equal(typeof studyData.name, 'string', 'name should be a string')
+      assert(studyData.name.length > 0, 'name should not be empty')
+      assert.equal(studyData.name, 'deepfaune-test', 'name should match CSV filename')
+      assert.equal(studyData.importerName, 'deepfaune/csv', 'should have correct importer name')
     })
   })
 

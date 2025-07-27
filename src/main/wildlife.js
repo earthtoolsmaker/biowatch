@@ -1,26 +1,32 @@
 import fs from 'fs'
 import path from 'path'
-import sqlite3 from 'sqlite3'
 import csv from 'csv-parser'
 import { DateTime } from 'luxon'
+import { openDatabase, closeDatabase, setupDatabase } from './db.js'
 
 // Conditionally import electron modules for production, use fallback for testing
 let app, log
-try {
-  const electron = await import('electron')
-  app = electron.app
-  const electronLog = await import('electron-log')
-  log = electronLog.default
-} catch {
-  // Fallback for testing environment
-  app = {
-    getPath: () => '/tmp'
-  }
-  log = {
-    info: () => {},
-    error: () => {},
-    warn: () => {},
-    debug: () => {}
+
+// Initialize electron modules with proper async handling
+async function initializeElectronModules() {
+  if (app && log) return // Already initialized
+
+  try {
+    const electron = await import('electron')
+    app = electron.app
+    const electronLog = await import('electron-log')
+    log = electronLog.default
+  } catch {
+    // Fallback for testing environment
+    app = {
+      getPath: () => '/tmp'
+    }
+    log = {
+      info: () => {},
+      error: () => {},
+      warn: () => {},
+      debug: () => {}
+    }
   }
 }
 
@@ -31,6 +37,7 @@ try {
  * @returns {Promise<Object>} - Object containing study data
  */
 export async function importWildlifeDataset(directoryPath, id) {
+  await initializeElectronModules()
   const biowatchDataPath = path.join(app.getPath('userData'), 'biowatch-data')
   return await importWildlifeDatasetWithPath(directoryPath, biowatchDataPath, id)
 }
@@ -43,6 +50,7 @@ export async function importWildlifeDataset(directoryPath, id) {
  * @returns {Promise<Object>} - Object containing study data
  */
 export async function importWildlifeDatasetWithPath(directoryPath, biowatchDataPath, id) {
+  await initializeElectronModules()
   log.info('Starting Wildlife dataset import')
 
   // Create database in the specified biowatch-data directory
@@ -58,31 +66,42 @@ export async function importWildlifeDatasetWithPath(directoryPath, biowatchDataP
   const db = await openDatabase(dbPath)
   setupDatabase(db)
 
-  // Get dataset name from datapackage.json
-  // {
-  //   title, description, name, contributors{title, role, organization, email}, temporal.start, temporal.end
-  // }
+  // Get dataset name from projects.csv
   const projectCSV = path.join(directoryPath, 'projects.csv')
   let data = {}
-  fs.createReadStream(projectCSV)
-    .pipe(csv())
-    .on('data', (project) => {
-      data = {
-        name: project.project_short_name,
-        title: project.project_name,
-        description: project.project_objectives,
-        contributors: [
-          {
-            title: project.project_admin,
-            role: 'Administrator',
-            organization: project.project_admin_organization,
-            email: project.project_admin_email
-          }
-        ]
-      }
-      console.log('Project data:', project, data)
-    })
-  // .on('end', () => {})
+
+  if (fs.existsSync(projectCSV)) {
+    try {
+      await new Promise((resolve, reject) => {
+        fs.createReadStream(projectCSV)
+          .pipe(csv())
+          .on('data', (project) => {
+            data = {
+              name: project.project_short_name || path.basename(directoryPath),
+              importerName: 'wildlife/folder',
+              data: {
+                name: project.project_short_name || path.basename(directoryPath),
+                description: project.project_objectives,
+                contributors: [
+                  {
+                    title: project.project_admin,
+                    role: 'Administrator',
+                    organization: project.project_admin_organization,
+                    email: project.project_admin_email
+                  }
+                ]
+              }
+            }
+          })
+          .on('end', resolve)
+          .on('error', reject)
+      })
+    } catch (error) {
+      log.warn('Error reading projects.csv, using fallback data:', error)
+    }
+  } else {
+    log.warn('projects.csv not found, using directory name as study name')
+  }
 
   // Create and populate deployments table
   try {
@@ -124,6 +143,12 @@ export async function importWildlifeDatasetWithPath(directoryPath, biowatchDataP
   } catch (error) {
     log.error('Error importing media data:', error)
   }
+
+  // Create study.json file with the data
+  fs.writeFileSync(
+    path.join(biowatchDataPath, 'studies', id, 'study.json'),
+    JSON.stringify(data, null, 2)
+  )
 
   console.log('returning Data:', data)
 
@@ -368,89 +393,6 @@ async function insertObservations(db, csvPath) {
       } catch (error) {
         db.run('ROLLBACK')
         reject(error)
-      }
-    })
-  })
-}
-
-function setupDatabase(db) {
-  db.serialize(() => {
-    db.run(
-      `CREATE TABLE IF NOT EXISTS deployments (
-        deploymentID TEXT PRIMARY KEY,
-        locationID TEXT,
-        locationName TEXT,
-        deploymentStart TEXT,
-        deploymentEnd TEXT,
-        latitude REAL,
-        longitude REAL
-      )`
-    )
-    db.run(
-      `CREATE TABLE IF NOT EXISTS media (
-        mediaID TEXT PRIMARY KEY,
-        deploymentID TEXT,
-        timestamp TEXT,
-        filePath TEXT,
-        fileName TEXT,
-        FOREIGN KEY (deploymentID) REFERENCES deployments(deploymentID)
-      )`
-    )
-    db.run(
-      `CREATE TABLE IF NOT EXISTS observations (
-        observationID TEXT PRIMARY KEY,
-        mediaID TEXT,
-        deploymentID TEXT,
-        eventID TEXT,
-        eventStart TEXT,
-        eventEnd TEXT,
-        scientificName TEXT,
-        commonName TEXT,
-        confidence REAL,
-        count INTEGER,
-        prediction TEXT,
-        lifeStage TEXT,
-        age TEXT,
-        sex TEXT,
-        behavior TEXT,
-        FOREIGN KEY (mediaID) REFERENCES media(mediaID),
-        FOREIGN KEY (deploymentID) REFERENCES deployments(deploymentID)
-      )`
-    )
-  })
-}
-
-/**
- * Open a SQLite database
- * @param {string} dbPath - Path to the database file
- * @returns {Promise<sqlite3.Database>} - Database instance
- */
-function openDatabase(dbPath) {
-  return new Promise((resolve, reject) => {
-    const db = new sqlite3.Database(dbPath, (err) => {
-      if (err) {
-        log.error(`Error opening database: ${err.message}`)
-        reject(err)
-      } else {
-        resolve(db)
-      }
-    })
-  })
-}
-
-/**
- * Close a SQLite database
- * @param {sqlite3.Database} db - Database instance
- * @returns {Promise<void>}
- */
-function closeDatabase(db) {
-  return new Promise((resolve, reject) => {
-    db.close((err) => {
-      if (err) {
-        log.error(`Error closing database: ${err.message}`)
-        reject(err)
-      } else {
-        resolve()
       }
     })
   })
