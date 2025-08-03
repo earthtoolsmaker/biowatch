@@ -430,48 +430,6 @@ function getDeployment(db, locationID) {
   })
 }
 
-function setupDatabase(db) {
-  db.serialize(() => {
-    db.run(
-      `CREATE TABLE IF NOT EXISTS deployments (
-        deploymentID TEXT PRIMARY KEY,
-        locationID TEXT,
-        locationName TEXT,
-        deploymentStart TEXT,
-        deploymentEnd TEXT,
-        latitude REAL,
-        longitude REAL
-      )`
-    )
-    db.run(
-      `CREATE TABLE IF NOT EXISTS media (
-        mediaID TEXT PRIMARY KEY,
-        deploymentID TEXT,
-        timestamp TEXT,
-        filePath TEXT,
-        fileName TEXT,
-        FOREIGN KEY (deploymentID) REFERENCES deployments(deploymentID)
-      )`
-    )
-    db.run(
-      `CREATE TABLE IF NOT EXISTS observations (
-        observationID TEXT PRIMARY KEY,
-        mediaID TEXT,
-        deploymentID TEXT,
-        eventID TEXT,
-        eventStart TEXT,
-        eventEnd TEXT,
-        scientificName TEXT,
-        observationType TEXT,
-        confidence REAL,
-        count INTEGER,
-        prediction TEXT,
-        FOREIGN KEY (mediaID) REFERENCES media(mediaID),
-        FOREIGN KEY (deploymentID) REFERENCES deployments(deploymentID)
-      )`
-    )
-  })
-}
 
 function getTemporalData(db) {
   return new Promise((resolve, reject) => {
@@ -527,7 +485,6 @@ export class Importer {
           fs.mkdirSync(dbDir, { recursive: true })
         }
         this.db = new sqlite3.Database(dbPath)
-        setupDatabase(this.db)
 
         log.info('scanning images in folder:', this.folder)
 
