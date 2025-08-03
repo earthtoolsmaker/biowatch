@@ -298,17 +298,26 @@ export async function downloadFile(url, destination, onProgress) {
  * @param {Object} params.opts - Additional options related to the ML model.
  */
 export function writeToManifest({ manifestFilepath, progress, id, version, state, opts }) {
-  const manifest = yamlRead(manifestFilepath)
-  log.debug('manifest content: ', JSON.stringify(manifest))
-  const yamlData = {
-    ...manifest,
-    [id]: {
-      ...manifest[id],
-      [version]: { state: state, progress: progress, opts: opts }
+  try {
+    const manifest = yamlRead(manifestFilepath) || {}
+    log.debug('manifest content: ', JSON.stringify(manifest))
+    
+    // Ensure manifest[id] exists before accessing its properties
+    const existingEntry = manifest[id] || {}
+    
+    const yamlData = {
+      ...manifest,
+      [id]: {
+        ...existingEntry,
+        [version]: { state: state, progress: progress, opts: opts }
+      }
     }
+    log.debug('New manifest data: ', JSON.stringify(yamlData))
+    yamlWrite(yamlData, manifestFilepath)
+  } catch (error) {
+    log.error(`Error writing to manifest for ${id} v${version}:`, error.message)
+    throw error // Re-throw to maintain existing error handling behavior
   }
-  log.debug('New manifest data: ', JSON.stringify(yamlData))
-  yamlWrite(yamlData, manifestFilepath)
 }
 
 export function removeManifestEntry({ manifestFilepath, id, version }) {
@@ -335,14 +344,22 @@ export function removeManifestEntry({ manifestFilepath, id, version }) {
  * @returns {boolean} True if the artifact was successfully downloaded, otherwise false.
  */
 export function isDownloadSuccess({ manifestFilepath, version, id }) {
-  const manifest = yamlRead(manifestFilepath)
-  if (Object.keys(manifest).length === 0) {
+  try {
+    const manifest = yamlRead(manifestFilepath)
+    if (!manifest || Object.keys(manifest).length === 0) {
+      return false
+    }
+    
+    // Defensive check: ensure both manifest[id] and manifest[id][version] exist
+    if (!manifest[id] || !manifest[id][version]) {
+      return false
+    }
+    
+    return manifest[id][version]['state'] === 'success'
+  } catch (error) {
+    log.error(`Error checking download success for ${id} v${version}:`, error.message)
     return false
   }
-  if (manifest[id] && manifest[id][version]) {
-    return manifest[id][version]['state'] === 'success'
-  }
-  return false
 }
 
 /**
@@ -359,10 +376,23 @@ export function isDownloadSuccess({ manifestFilepath, version, id }) {
  * @returns {Object} An object containing the download status information for the artifact.
  */
 export function getDownloadStatus({ manifestFilepath, version, id }) {
-  const manifest = yamlRead(manifestFilepath)
-  if (Object.keys(manifest).length === 0) {
-    log.info('empty manifest file')
+  try {
+    const manifest = yamlRead(manifestFilepath)
+    if (!manifest || Object.keys(manifest).length === 0) {
+      log.info('empty manifest file')
+      return {}
+    }
+    
+    // Defensive check: ensure manifest[id] exists before accessing manifest[id][version]
+    if (!manifest[id]) {
+      log.debug(`No manifest entry found for id: ${id}`)
+      return {}
+    }
+    
+    // Use optional chaining equivalent for better safety
+    return manifest[id][version] || {}
+  } catch (error) {
+    log.error(`Error reading download status for ${id} v${version}:`, error.message)
     return {}
   }
-  return manifest[id][version] || {}
 }

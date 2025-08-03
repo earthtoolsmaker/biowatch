@@ -48,6 +48,12 @@ import os from 'node:os'
  *   });
  */
 async function listDirectories(folderPath: string): Promise<string[]> {
+  // Check if directory exists before attempting to read it
+  if (!existsSync(folderPath)) {
+    log.debug(`Directory does not exist: ${folderPath}`)
+    return []
+  }
+
   return new Promise((resolve, reject) => {
     readdir(folderPath, { withFileTypes: true }, (err, files) => {
       if (err) {
@@ -109,7 +115,15 @@ function getMLModelLocalInstallPath({ id, version }) {
  *   });
  */
 async function listInstalledMLModels() {
-  const installedPaths = await listDirectories(getMLModelLocalRootDir())
+  const rootDir = getMLModelLocalRootDir()
+  
+  // Check if the root directory exists
+  if (!existsSync(rootDir)) {
+    log.debug(`ML Model root directory does not exist: ${rootDir}`)
+    return []
+  }
+
+  const installedPaths = await listDirectories(rootDir)
   // Remove the archives
   const filteredPaths = installedPaths.filter((x: string) => x !== getMLModelLocalTarPathRoot())
   const folderPaths = await Promise.all(
@@ -162,7 +176,15 @@ function getMLModelEnvironmentLocalInstallPath({ version, id }) {
  *   });
  */
 async function listInstalledMLModelEnvironments() {
-  const installedPaths = await listDirectories(getMLModelEnvironmentRootDir())
+  const rootDir = getMLModelEnvironmentRootDir()
+  
+  // Check if the root directory exists
+  if (!existsSync(rootDir)) {
+    log.debug(`ML Model environment root directory does not exist: ${rootDir}`)
+    return []
+  }
+
+  const installedPaths = await listDirectories(rootDir)
   // Remove the archives
   const filteredPaths = installedPaths.filter(
     (x: string) => x !== getMLModelEnvironmentLocalTarPathRoot()
@@ -392,16 +414,54 @@ async function clearAllLocalMLModels() {
   try {
     const localMLModelRootDir = getMLModelLocalRootDir()
     const localMLModelEnvironmentRootDir = getMLModelEnvironmentRootDir()
-    log.info('clearing all models from:', localMLModelRootDir)
-    await fsPromises.rm(localMLModelRootDir, { recursive: true, force: true })
-    log.info('clearing all python environments from:', localMLModelEnvironmentRootDir)
-    await fsPromises.rm(localMLModelEnvironmentRootDir, { recursive: true, force: true })
+    
+    log.info('[CLEAR ALL] Starting clear all operation')
+    log.info('[CLEAR ALL] Model directory path:', localMLModelRootDir)
+    log.info('[CLEAR ALL] Environment directory path:', localMLModelEnvironmentRootDir)
+    
+    // Check if directories exist before attempting to remove
+    const modelDirExists = existsSync(localMLModelRootDir)
+    const envDirExists = existsSync(localMLModelEnvironmentRootDir)
+    
+    log.info('[CLEAR ALL] Model directory exists:', modelDirExists)
+    log.info('[CLEAR ALL] Environment directory exists:', envDirExists)
+    
+    if (modelDirExists) {
+      log.info('[CLEAR ALL] Attempting to remove model directory:', localMLModelRootDir)
+      await fsPromises.rm(localMLModelRootDir, { recursive: true, force: true })
+      log.info('[CLEAR ALL] Model directory removal completed')
+      
+      // Verify removal
+      const modelDirStillExists = existsSync(localMLModelRootDir)
+      log.info('[CLEAR ALL] Model directory still exists after removal:', modelDirStillExists)
+    } else {
+      log.info('[CLEAR ALL] Model directory does not exist, skipping removal')
+    }
+    
+    if (envDirExists) {
+      log.info('[CLEAR ALL] Attempting to remove environment directory:', localMLModelEnvironmentRootDir)
+      await fsPromises.rm(localMLModelEnvironmentRootDir, { recursive: true, force: true })
+      log.info('[CLEAR ALL] Environment directory removal completed')
+      
+      // Verify removal
+      const envDirStillExists = existsSync(localMLModelEnvironmentRootDir)
+      log.info('[CLEAR ALL] Environment directory still exists after removal:', envDirStillExists)
+    } else {
+      log.info('[CLEAR ALL] Environment directory does not exist, skipping removal')
+    }
+    
+    log.info('[CLEAR ALL] Clear all operation completed successfully')
     return {
       success: true,
-      message: 'All Local ML models are cleared'
+      message: 'All Local ML models and environments cleared'
     }
   } catch (error) {
-    return { success: false, message: `Failed to clear all local ML models: ${error.message}` }
+    log.error('[CLEAR ALL] Error during clear all operation:', error)
+    log.error('[CLEAR ALL] Error stack:', error.stack)
+    return { 
+      success: false, 
+      message: `Failed to clear all local ML models: ${error.message}` 
+    }
   }
 }
 
@@ -608,19 +668,36 @@ async function downloadPythonEnvironment({ id, version }) {
  * @returns {Object} An object containing the download status of the ML model and Python environment.
  */
 function getMLModelDownloadStatus({ modelReference, pythonEnvironmentReference }) {
-  const manifestFilepathMLModel = getMLModelLocalDownloadManifest()
-  const manifestFilepathPythonEnvironment = getMLEnvironmentDownloadManifest()
-  return {
-    model: getDownloadStatus({
-      manifestFilepath: manifestFilepathMLModel,
-      version: modelReference.version,
-      id: modelReference.id
-    }),
-    pythonEnvironment: getDownloadStatus({
-      manifestFilepath: manifestFilepathPythonEnvironment,
-      version: pythonEnvironmentReference.version,
-      id: pythonEnvironmentReference.id
-    })
+  try {
+    const manifestFilepathMLModel = getMLModelLocalDownloadManifest()
+    const manifestFilepathPythonEnvironment = getMLEnvironmentDownloadManifest()
+    
+    // Validate input parameters
+    if (!modelReference || !modelReference.id || !modelReference.version) {
+      log.error('Invalid modelReference provided to getMLModelDownloadStatus')
+      return { model: {}, pythonEnvironment: {} }
+    }
+    
+    if (!pythonEnvironmentReference || !pythonEnvironmentReference.id || !pythonEnvironmentReference.version) {
+      log.error('Invalid pythonEnvironmentReference provided to getMLModelDownloadStatus')
+      return { model: {}, pythonEnvironment: {} }
+    }
+    
+    return {
+      model: getDownloadStatus({
+        manifestFilepath: manifestFilepathMLModel,
+        version: modelReference.version,
+        id: modelReference.id
+      }),
+      pythonEnvironment: getDownloadStatus({
+        manifestFilepath: manifestFilepathPythonEnvironment,
+        version: pythonEnvironmentReference.version,
+        id: pythonEnvironmentReference.id
+      })
+    }
+  } catch (error) {
+    log.error('Error getting ML model download status:', error.message)
+    return { model: {}, pythonEnvironment: {} }
   }
 }
 
@@ -808,6 +885,12 @@ export function registerMLModelManagementIPCHandlers() {
   // IPC handler to check whether the ML model is properly installed locally
   ipcMain.handle('model:is-downloaded', (_, id, version) => isMLModelDownloaded({ id, version }))
 
+  // IPC handler to list all installed ML models
+  ipcMain.handle('model:list-installed', () => listInstalledMLModels())
+
+  // IPC handler to list all installed ML model environments
+  ipcMain.handle('model:list-installed-environments', () => listInstalledMLModelEnvironments())
+
   // IPC handler to check the ML model download status
   ipcMain.handle('model:get-download-status', (_, modelReference, pythonEnvironmentReference) =>
     getMLModelDownloadStatus({ modelReference, pythonEnvironmentReference })
@@ -816,7 +899,12 @@ export function registerMLModelManagementIPCHandlers() {
   // IPC handler to delete the ml model
   ipcMain.handle('model:delete', (_, id, version) => deleteLocalMLModel({ id, version }))
 
-  ipcMain.handle('model:clear-all', async (_) => clearAllLocalMLModels())
+  ipcMain.handle('model:clear-all', async (_) => {
+    log.info('[CLEAR ALL] IPC: Received clear all request')
+    const result = await clearAllLocalMLModels()
+    log.info('[CLEAR ALL] IPC: Clear all operation result:', result)
+    return result
+  })
 
   ipcMain.handle('model:download', async (_, id, version) => {
     return await downloadMLModel({ id, version })

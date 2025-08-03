@@ -103,7 +103,79 @@ function GbifImportCard({ onImport }) {
 export default function Import({ onNewStudy }) {
   let navigate = useNavigate()
   const [selectedModel, setSelectedModel] = useState(modelZoo[0]?.reference || null)
+  const [installedModels, setInstalledModels] = useState([])
+  const [installedEnvironments, setInstalledEnvironments] = useState([])
   const queryClient = useQueryClient()
+
+  useEffect(() => {
+    const fetchInstalledData = async () => {
+      try {
+        const [models, environments] = await Promise.all([
+          window.api.listInstalledMLModels(),
+          window.api.listInstalledMLModelEnvironments()
+        ])
+        
+        setInstalledModels(models)
+        setInstalledEnvironments(environments)
+        
+        // Set the selected model to the first completely installed model
+        const completelyInstalledModels = modelZoo.filter((model) => {
+          const modelInstalled = models.some(
+            (inst) => inst.id === model.reference.id && inst.version === model.reference.version
+          )
+          const envInstalled = environments.some(
+            (env) => env.id === model.pythonEnvironment.id && env.version === model.pythonEnvironment.version
+          )
+          return modelInstalled && envInstalled
+        })
+        
+        if (completelyInstalledModels.length > 0) {
+          const firstCompleteModel = completelyInstalledModels[0]
+          if (!selectedModel || !isModelCompletelyInstalled(selectedModel)) {
+            setSelectedModel(firstCompleteModel.reference)
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch installed models and environments:', error)
+        setInstalledModels([])
+        setInstalledEnvironments([])
+      }
+    }
+    fetchInstalledData()
+  }, [])
+
+  const isModelInstalled = (modelReference) => {
+    return installedModels.some(
+      (installed) =>
+        installed.id === modelReference.id && installed.version === modelReference.version
+    )
+  }
+
+  const isEnvironmentInstalled = (environmentReference) => {
+    return installedEnvironments.some(
+      (installed) =>
+        installed.id === environmentReference.id && installed.version === environmentReference.version
+    )
+  }
+
+  const isModelCompletelyInstalled = (modelReference) => {
+    const model = modelZoo.find(
+      (m) => m.reference.id === modelReference.id && m.reference.version === modelReference.version
+    )
+    if (!model) return false
+    
+    return isModelInstalled(model.reference) && isEnvironmentInstalled(model.pythonEnvironment)
+  }
+
+  const getCompletelyInstalledModels = () => {
+    return modelZoo.filter((model) => 
+      isModelInstalled(model.reference) && isEnvironmentInstalled(model.pythonEnvironment)
+    )
+  }
+
+  const getInstalledModels = () => {
+    return modelZoo.filter((model) => isModelInstalled(model.reference))
+  }
 
   const handleCamTrapDP = async () => {
     const { id } = await window.api.selectCamtrapDPDataset()
@@ -219,31 +291,65 @@ export default function Import({ onNewStudy }) {
               Import a directory of images and automatically extract metadata from file names and
               EXIF data. Work in progress!
             </p>
-            <div className="flex gap-2 justify-start">
-              <ImportButton onClick={handleImportImages} className="whitespace-nowrap flex-1">
-                Select Images folder (WIP)
-              </ImportButton>
-              <select
-                value={selectedModel ? `${selectedModel.id}-${selectedModel.version}` : ''}
-                onChange={(e) => {
-                  const [id, version] = e.target.value.split('-')
-                  const model = modelZoo.find(
-                    (m) => m.reference.id === id && m.reference.version === version
-                  )
-                  setSelectedModel(model?.reference || null)
-                }}
-                className="flex-1 px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                {modelZoo.map((model) => (
-                  <option
-                    key={`${model.reference.id}-${model.reference.version}`}
-                    value={`${model.reference.id}-${model.reference.version}`}
-                  >
-                    {model.name} v{model.reference.version}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {getCompletelyInstalledModels().length === 0 ? (
+              /* No complete models installed - show Install AI Models button */
+              <div className="flex gap-2 justify-start">
+                <button
+                  onClick={() => navigate('/settings/ml_zoo')}
+                  className="cursor-pointer transition-colors flex justify-center flex-row gap-2 items-center border border-blue-200 bg-blue-50 hover:bg-blue-100 px-4 h-10 text-sm shadow-sm rounded-md text-blue-700 font-medium"
+                >
+                  {getInstalledModels().length === 0 ? 'Install AI Models' : 'Install AI Environments'}
+                </button>
+              </div>
+            ) : (
+              /* Some models installed - show enhanced dropdown */
+              <div className="flex gap-2 justify-start">
+                <ImportButton onClick={handleImportImages} className="whitespace-nowrap flex-1">
+                  Select Images folder (WIP)
+                </ImportButton>
+                <select
+                  value={selectedModel ? `${selectedModel.id}-${selectedModel.version}` : ''}
+                  onChange={(e) => {
+                    const [id, version] = e.target.value.split('-')
+                    const model = modelZoo.find(
+                      (m) => m.reference.id === id && m.reference.version === version
+                    )
+                    // Only allow selecting completely installed models
+                    if (model && isModelCompletelyInstalled(model.reference)) {
+                      setSelectedModel(model.reference)
+                    }
+                  }}
+                  className="flex-1 px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  {modelZoo.map((model) => {
+                    const modelInstalled = isModelInstalled(model.reference)
+                    const envInstalled = isEnvironmentInstalled(model.pythonEnvironment)
+                    const completelyInstalled = modelInstalled && envInstalled
+                    
+                    let statusText = ''
+                    if (!modelInstalled) {
+                      statusText = ' (not installed)'
+                    } else if (!envInstalled) {
+                      statusText = ' (environment missing)'
+                    }
+                    
+                    return (
+                      <option
+                        key={`${model.reference.id}-${model.reference.version}`}
+                        value={`${model.reference.id}-${model.reference.version}`}
+                        disabled={!completelyInstalled}
+                        style={{
+                          color: completelyInstalled ? 'black' : '#9ca3af',
+                          fontStyle: completelyInstalled ? 'normal' : 'italic'
+                        }}
+                      >
+                        {model.name} v{model.reference.version}{statusText}
+                      </option>
+                    )
+                  })}
+                </select>
+              </div>
+            )}
           </div>
 
           {/* Demo Dataset Card */}
