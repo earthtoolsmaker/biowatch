@@ -88,6 +88,12 @@ const api = {
   isMLModelDownloaded: async ({ id, version }) => {
     return await electronAPI.ipcRenderer.invoke('model:is-downloaded', id, version)
   },
+  listInstalledMLModels: async () => {
+    return await electronAPI.ipcRenderer.invoke('model:list-installed')
+  },
+  listInstalledMLModelEnvironments: async () => {
+    return await electronAPI.ipcRenderer.invoke('model:list-installed-environments')
+  },
   clearAllLocalMLModel: async () => {
     return await electronAPI.ipcRenderer.invoke('model:clear-all')
   },

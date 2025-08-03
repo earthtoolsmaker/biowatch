@@ -115,7 +115,7 @@ export const modelZoo = [
   },
   {
     reference: { id: 'deepfaune', version: '1.3' },
-    pythonEnvironment: { id: 'common', version: '0.1.1' },
+    pythonEnvironment: { id: 'common', version: '0.1.2' },
     name: 'DeepFaune',
     size_in_MiB: 1200,
     files: 2,
