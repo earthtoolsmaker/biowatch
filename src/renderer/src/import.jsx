@@ -20,9 +20,8 @@ function ImportButton({ onClick, children, className = '', disabled = false }) {
     <button
       onClick={handleClick}
       disabled={isImporting || disabled}
-      className={`cursor-pointer transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-10 text-sm shadow-sm rounded-md hover:bg-gray-50 ${
-        isImporting || disabled ? 'opacity-70' : ''
-      } ${className}`}
+      className={`cursor-pointer transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-10 text-sm shadow-sm rounded-md hover:bg-gray-50 ${isImporting || disabled ? 'opacity-70' : ''
+        } ${className}`}
     >
       {isImporting ? <span className="animate-pulse">Importing...</span> : children}
     </button>
@@ -114,10 +113,10 @@ export default function Import({ onNewStudy }) {
           window.api.listInstalledMLModels(),
           window.api.listInstalledMLModelEnvironments()
         ])
-        
+
         setInstalledModels(models)
         setInstalledEnvironments(environments)
-        
+
         // Set the selected model to the first completely installed model
         const completelyInstalledModels = modelZoo.filter((model) => {
           const modelInstalled = models.some(
@@ -128,7 +127,7 @@ export default function Import({ onNewStudy }) {
           )
           return modelInstalled && envInstalled
         })
-        
+
         if (completelyInstalledModels.length > 0) {
           const firstCompleteModel = completelyInstalledModels[0]
           if (!selectedModel || !isModelCompletelyInstalled(selectedModel)) {
@@ -163,12 +162,12 @@ export default function Import({ onNewStudy }) {
       (m) => m.reference.id === modelReference.id && m.reference.version === modelReference.version
     )
     if (!model) return false
-    
+
     return isModelInstalled(model.reference) && isEnvironmentInstalled(model.pythonEnvironment)
   }
 
   const getCompletelyInstalledModels = () => {
-    return modelZoo.filter((model) => 
+    return modelZoo.filter((model) =>
       isModelInstalled(model.reference) && isEnvironmentInstalled(model.pythonEnvironment)
     )
   }
@@ -305,7 +304,7 @@ export default function Import({ onNewStudy }) {
               /* Some models installed - show enhanced dropdown */
               <div className="flex gap-2 justify-start">
                 <ImportButton onClick={handleImportImages} className="whitespace-nowrap flex-1">
-                  Select Images folder (WIP)
+                  Select Images folder
                 </ImportButton>
                 <select
                   value={selectedModel ? `${selectedModel.id}-${selectedModel.version}` : ''}
@@ -325,14 +324,14 @@ export default function Import({ onNewStudy }) {
                     const modelInstalled = isModelInstalled(model.reference)
                     const envInstalled = isEnvironmentInstalled(model.pythonEnvironment)
                     const completelyInstalled = modelInstalled && envInstalled
-                    
+
                     let statusText = ''
                     if (!modelInstalled) {
                       statusText = ' (not installed)'
                     } else if (!envInstalled) {
                       statusText = ' (environment missing)'
                     }
-                    
+
                     return (
                       <option
                         key={`${model.reference.id}-${model.reference.version}`}
