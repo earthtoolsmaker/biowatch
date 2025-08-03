@@ -546,18 +546,26 @@ async function downloadPythonEnvironment({ id, version }) {
   let previousDownloadProgress = 0
   const flushProgressDownloadIncrementThreshold = 1
 
-  const onProgressDownload = ({ percent }) => {
+  const onProgressDownload = ({ percent, isRetry, attemptNumber }) => {
     const progress = (percent * installationStateProgress[InstallationState.Download]) / 100
     if (progress > previousDownloadProgress + flushProgressDownloadIncrementThreshold) {
+      // Add retry information to the manifest when retrying
+      const retryInfo = isRetry ? { isRetry, attemptNumber } : {}
+      
       writeToManifest({
         manifestFilepath,
         id,
         version,
         state: InstallationState.Download,
         progress: progress,
-        opts: manifestOpts
+        opts: { ...manifestOpts, ...retryInfo }
       })
       previousDownloadProgress = progress
+      
+      // Log retry progress
+      if (isRetry) {
+        log.info(`[RETRY ${attemptNumber}] Python environment download progress: ${progress.toFixed(1)}%`)
+      }
     }
   }
 
@@ -593,7 +601,9 @@ async function downloadPythonEnvironment({ id, version }) {
         message: 'Python Environment downloaded and extracted successfully'
       }
     } else {
-      log.info('Downloading the environment from', downloadURL)
+      log.info(`[DOWNLOAD] Starting Python environment download from ${downloadURL}`)
+      log.info(`[DOWNLOAD] Download will use retry logic with up to ${5} attempts`)
+      
       writeToManifest({
         manifestFilepath,
         id,
@@ -602,6 +612,8 @@ async function downloadPythonEnvironment({ id, version }) {
         state: InstallationState.Download,
         opts: manifestOpts
       })
+      
+      // Use the robust download function with retry logic
       await downloadFile(downloadURL, localTarPath, onProgressDownload)
       writeToManifest({
         manifestFilepath,
