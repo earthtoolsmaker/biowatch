@@ -5,7 +5,7 @@ import { existsSync, mkdirSync } from 'fs'
 import { dirname } from 'path'
 import log from 'electron-log'
 import * as schema from './schema.js'
-import { getValidatedMigrationsPath, isDevelopment } from './migrations-utils.js'
+import { getValidatedMigrationsPath } from './migrations-utils.js'
 
 /**
  * Database manager for individual study databases with Drizzle ORM
@@ -57,14 +57,11 @@ export class StudyDatabaseManager {
     try {
       log.info(`[DB] Checking migrations for study ${this.studyId}`)
 
-      const isDevMode = await isDevelopment()
-      log.info(`[DB] Running in ${isDevMode ? 'development' : 'production'} mode`)
-
       // Check if migration tracking table exists
       await this.checkMigrationState()
 
-      // Get validated migrations path
-      const migrationsPath = await getValidatedMigrationsPath()
+      // Get validated migrations path with explicit logger injection
+      const migrationsPath = getValidatedMigrationsPath(undefined, log)
 
       if (migrationsPath) {
         log.info(`[DB] Running migrations from ${migrationsPath}`)
