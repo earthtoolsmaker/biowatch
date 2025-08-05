@@ -5,7 +5,9 @@ import fs from 'fs'
 import geoTz from 'geo-tz'
 import luxon, { DateTime } from 'luxon'
 import path from 'path'
-import sqlite3 from 'sqlite3'
+import crypto from 'crypto'
+import { getDrizzleDb, deployments, media, observations, closeDatabase } from './db/index.js'
+import { eq, isNull, min, max, count } from 'drizzle-orm'
 import models from './models.js'
 import mlmodels from '../shared/mlmodels.js'
 
@@ -221,19 +223,12 @@ export async function* getPredictions(imagesPath, port) {
   }
 }
 
-function insertInto(db, tableName, data) {
-  const keys = Object.keys(data)
-  const values = Object.values(data)
-
-  const placeholders = keys.map(() => '?').join(', ')
-
-  const query = `INSERT INTO ${tableName} (${keys.join(', ')}) VALUES (${placeholders})`
-
-  db.run(query, values, function (err) {
-    if (err) {
-      log.error(`Error inserting into ${tableName}:`, err)
-    }
-  })
+async function insertIntoTable(db, table, data) {
+  try {
+    await db.insert(table).values(data)
+  } catch (err) {
+    log.error(`Error inserting into table:`, err)
+  }
 }
 
 async function insertMedia(db, fullPath, importFolder) {
@@ -268,23 +263,28 @@ async function insertMedia(db, fullPath, importFolder) {
 
     if (deployment) {
       // If a deployment exists, update the start or end time if necessary
-      db.run(
-        'UPDATE deployments SET deploymentStart = ?, deploymentEnd = ? WHERE deploymentID = ?',
-        [
-          DateTime.min(date, DateTime.fromISO(deployment.deploymentStart)).toISO(),
-          DateTime.max(date, DateTime.fromISO(deployment.deploymentEnd)).toISO(),
-          deployment.deploymentID
-        ]
-      )
+      await db.update(deployments)
+        .set({
+          deploymentStart: DateTime.min(date, DateTime.fromISO(deployment.deploymentStart)).toISO(),
+          deploymentEnd: DateTime.max(date, DateTime.fromISO(deployment.deploymentEnd)).toISO()
+        })
+        .where(eq(deployments.deploymentID, deployment.deploymentID))
     } else {
       // If no deployment exists, create a new one
       const deploymentID = crypto.randomUUID()
       const locationID = parentFolder
       log.info('Creating new deployment with at: ', locationID, latitude, longitude)
-      db.run(
-        'INSERT INTO deployments (deploymentID, locationID, locationName, deploymentStart, deploymentEnd, latitude, longitude) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [deploymentID, locationID, locationID, date.toISO(), date.toISO(), latitude, longitude]
-      )
+      
+      await db.insert(deployments).values({
+        deploymentID,
+        locationID,
+        locationName: locationID,
+        deploymentStart: date.toISO(),
+        deploymentEnd: date.toISO(),
+        latitude: parseFloat(latitude),
+        longitude: parseFloat(longitude)
+      })
+      
       deployment = {
         deploymentID,
         latitude,
@@ -292,7 +292,7 @@ async function insertMedia(db, fullPath, importFolder) {
       }
     }
 
-    const media = {
+    const mediaData = {
       mediaID: crypto.randomUUID(),
       deploymentID: deployment.deploymentID,
       timestamp: date.toISO(),
@@ -300,25 +300,23 @@ async function insertMedia(db, fullPath, importFolder) {
       fileName: path.basename(fullPath)
     }
 
-    insertInto(db, 'media', media)
-    return media
+    await insertIntoTable(db, media, mediaData)
+    return mediaData
   } catch (error) {
     log.error(`Error inserting media for ${fullPath}:`, error)
     return
   }
 }
 
-function getMedia(db, filepath) {
+async function getMedia(db, filepath) {
   console.log('getMedia', filepath)
-  return new Promise((resolve, reject) => {
-    db.get('SELECT * FROM media WHERE filePath = ?', [filepath], (err, row) => {
-      if (err) {
-        reject(err)
-        return
-      }
-      resolve(row)
-    })
-  })
+  try {
+    const result = await db.select().from(media).where(eq(media.filePath, filepath)).limit(1)
+    return result[0] || null
+  } catch (error) {
+    log.error(`Error getting media for path ${filepath}:`, error)
+    return null
+  }
 }
 
 // {
@@ -359,8 +357,8 @@ function getMedia(db, filepath) {
 //   model_version: '4.0.1a'
 // }
 async function insertPrediction(db, prediction) {
-  const media = await getMedia(db, prediction.filepath)
-  if (!media) {
+  const mediaRecord = await getMedia(db, prediction.filepath)
+  if (!mediaRecord) {
     log.warn(`No media found for prediction: ${prediction.filepath}`)
     return
   }
@@ -368,15 +366,15 @@ async function insertPrediction(db, prediction) {
   const scientificName =
     prediction.prediction.split(';').at(-3) + ' ' + prediction.prediction.split(';').at(-2)
 
-  const observation = {
+  const observationData = {
     observationID: crypto.randomUUID(),
-    mediaID: media.mediaID,
-    deploymentID: media.deploymentID,
+    mediaID: mediaRecord.mediaID,
+    deploymentID: mediaRecord.deploymentID,
     eventID: crypto.randomUUID(),
-    eventStart: media.timestamp,
-    eventEnd: media.timestamp,
+    eventStart: mediaRecord.timestamp,
+    eventEnd: mediaRecord.timestamp,
     scientificName: isblank
-      ? undefined
+      ? null
       : scientificName.trim() === ''
         ? prediction.prediction.split(';').at(-1)
         : scientificName,
@@ -385,68 +383,67 @@ async function insertPrediction(db, prediction) {
     prediction: prediction.prediction
   }
 
-  insertInto(db, 'observations', observation)
-  // log.info(`Inserted prediction for ${media.fileName} into database`)
+  await insertIntoTable(db, observations, observationData)
+  // log.info(`Inserted prediction for ${mediaRecord.fileName} into database`)
 }
 
 async function nextMediaToPredict(db, batchSize = 100) {
-  return new Promise((resolve, reject) => {
-    db.all(
-      `SELECT m.mediaID, m.filePath, m.fileName, m.timestamp, m.deploymentID
-       FROM media m
-       LEFT JOIN observations o ON m.mediaID = o.mediaID
-       WHERE o.observationID IS NULL
-       AND m.mediaID IS NOT NULL
-       LIMIT ?`,
-      [batchSize],
-      (err, rows) => {
-        if (err) {
-          reject(err)
-          return
-        }
-        resolve(
-          rows.map((row) => ({
-            mediaID: row.mediaID,
-            deploymentID: row.deploymentID,
-            timestamp: row.timestamp,
-            filePath: row.filePath,
-            fileName: row.fileName
-          }))
-        )
-      }
-    )
-  })
+  try {
+    const results = await db
+      .select({
+        mediaID: media.mediaID,
+        filePath: media.filePath,
+        fileName: media.fileName,
+        timestamp: media.timestamp,
+        deploymentID: media.deploymentID
+      })
+      .from(media)
+      .leftJoin(observations, eq(media.mediaID, observations.mediaID))
+      .where(isNull(observations.observationID))
+      .limit(batchSize)
+
+    return results.map((row) => ({
+      mediaID: row.mediaID,
+      deploymentID: row.deploymentID,
+      timestamp: row.timestamp,
+      filePath: row.filePath,
+      fileName: row.fileName
+    }))
+  } catch (error) {
+    log.error('Error getting next media to predict:', error)
+    return []
+  }
 }
 
-function getDeployment(db, locationID) {
-  return new Promise((resolve, reject) => {
-    db.get('SELECT * FROM deployments WHERE locationID = ?', [locationID], (err, row) => {
-      if (err) {
-        reject(err)
-        return
-      }
-      resolve(row)
-    })
-  })
+async function getDeployment(db, locationID) {
+  try {
+    const result = await db.select().from(deployments).where(eq(deployments.locationID, locationID)).limit(1)
+    return result[0] || null
+  } catch (error) {
+    log.error(`Error getting deployment for locationID ${locationID}:`, error)
+    return null
+  }
 }
 
 
-function getTemporalData(db) {
-  return new Promise((resolve, reject) => {
-    db.get(
-      `SELECT MIN(deploymentStart) as startDate, MAX(deploymentEnd) as endDate FROM deployments`,
-      (err, row) => {
-        if (err) {
-          reject(err)
-          return
-        }
-        resolve({
-          start: DateTime.fromISO(row?.startDate).toFormat('dd LLL yyyy') || null,
-          end: DateTime.fromISO(row?.endDate).toFormat('dd LLL yyyy') || null
-        })
-      }
-    )
-  })
+async function getTemporalData(db) {
+  try {
+    const result = await db
+      .select({
+        startDate: min(deployments.deploymentStart).as('startDate'),
+        endDate: max(deployments.deploymentEnd).as('endDate')
+      })
+      .from(deployments)
+      .get()
+
+    return {
+      start: result?.startDate ? DateTime.fromISO(result.startDate).toFormat('dd LLL yyyy') : null,
+      end: result?.endDate ? DateTime.fromISO(result.endDate).toFormat('dd LLL yyyy') : null
+    }
+  } catch (error) {
+    log.error('Error getting temporal data:', error)
+    return { start: null, end: null }
+  }
 }
 
 let lastBatchDuration = null
@@ -484,7 +481,7 @@ export class Importer {
         if (!fs.existsSync(dbDir)) {
           fs.mkdirSync(dbDir, { recursive: true })
         }
-        this.db = new sqlite3.Database(dbPath)
+        this.db = await getDrizzleDb(this.id, dbPath)
 
         log.info('scanning images in folder:', this.folder)
 
@@ -492,7 +489,7 @@ export class Importer {
           await insertMedia(this.db, imagePath, this.folder)
         }
       } else {
-        this.db = new sqlite3.Database(dbPath)
+        this.db = await getDrizzleDb(this.id, dbPath)
       }
 
       // const temporalData = await getTemporalData(this.db)
@@ -533,10 +530,14 @@ export class Importer {
         return this.id
       } catch (error) {
         log.error('Error during background processing:', error)
+        await closeDatabase(this.db)
         this.cleanup()
       }
     } catch (error) {
       console.error('Error starting importer:', error)
+      if (this.db) {
+        await closeDatabase(this.db)
+      }
       this.cleanup()
     }
   }
@@ -546,56 +547,44 @@ let importers = {}
 
 async function status(id) {
   const dbPath = path.join(app.getPath('userData'), 'biowatch-data', 'studies', id, 'study.db')
-  return new Promise((resolve, reject) => {
-    const db = new sqlite3.Database(dbPath, (err) => {
-      if (err) {
-        reject(err)
-        return
-      }
+  
+  try {
+    const db = await getDrizzleDb(id, dbPath)
 
-      // Get total count of media
-      db.get(
-        `SELECT COUNT(*) as mediaCount FROM media WHERE mediaID IS NOT NULL`,
-        (err, mediaRow) => {
-          if (err) {
-            db.close()
-            reject(err)
-            return
-          }
+    // Get total count of media
+    const mediaResult = await db
+      .select({ mediaCount: count(media.mediaID) })
+      .from(media)
+      .get()
 
-          // Get count of observations
-          db.get(
-            `SELECT COUNT(*) as obsCount FROM observations WHERE observationID IS NOT NULL`,
-            (err, obsRow) => {
-              if (err) {
-                db.close()
-                reject(err)
-                return
-              }
+    // Get count of observations  
+    const obsResult = await db
+      .select({ obsCount: count(observations.observationID) })
+      .from(observations)
+      .get()
 
-              const remain = mediaRow.mediaCount - obsRow.obsCount
-              const estimatedMinutesRemaining = lastBatchDuration
-                ? (remain * lastBatchDuration) / batchSize / 60
-                : null
+    const mediaCount = mediaResult?.mediaCount || 0
+    const obsCount = obsResult?.obsCount || 0
+    const remain = mediaCount - obsCount
+    const estimatedMinutesRemaining = lastBatchDuration
+      ? (remain * lastBatchDuration) / batchSize / 60
+      : null
 
-              const speed = lastBatchDuration ? (batchSize / lastBatchDuration) * 60 : null
+    const speed = lastBatchDuration ? (batchSize / lastBatchDuration) * 60 : null
 
-              // Resolve with both counts
-              resolve({
-                total: mediaRow.mediaCount,
-                done: obsRow.obsCount,
-                isRunning: !!importers[id],
-                estimatedMinutesRemaining: estimatedMinutesRemaining,
-                speed: Math.round(speed)
-              })
+    await closeDatabase(db)
 
-              db.close()
-            }
-          )
-        }
-      )
-    })
-  })
+    return {
+      total: mediaCount,
+      done: obsCount,
+      isRunning: !!importers[id],
+      estimatedMinutesRemaining: estimatedMinutesRemaining,
+      speed: Math.round(speed)
+    }
+  } catch (error) {
+    log.error(`Error getting status for importer ${id}:`, error)
+    throw error
+  }
 }
 
 ipcMain.handle('importer:get-status', async (event, id) => {

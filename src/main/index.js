@@ -8,6 +8,8 @@ import { join } from 'path'
 import icon from '../../resources/icon.png?asset'
 import { importCamTrapDataset } from './camtrap'
 import { registerMLModelManagementIPCHandlers, garbageCollect } from './models'
+import { getDrizzleDb, deployments, closeDatabase } from './db/index.js'
+import { eq } from 'drizzle-orm'
 import {
   getDeployments,
   getLocationsActivity,
@@ -1060,28 +1062,13 @@ ipcMain.handle('deployments:set-latitude', async (_, studyId, deploymentID, lati
       return { error: 'Database not found for this study' }
     }
 
-    const db = new (require('sqlite3').Database)(dbPath, (err) => {
-      if (err) {
-        log.error(`Could not open database ${dbPath}: ${err.message}`)
-        return { error: err.message }
-      }
-    })
+    const db = await getDrizzleDb(studyId, dbPath)
 
-    const result = await new Promise((resolve, reject) => {
-      db.run(
-        'UPDATE deployments SET latitude = ? WHERE deploymentID = ?',
-        [latitude, deploymentID],
-        function (err) {
-          if (err) {
-            reject(err)
-          } else {
-            resolve(this)
-          }
-        }
-      )
-    })
+    await db.update(deployments)
+      .set({ latitude: parseFloat(latitude) })
+      .where(eq(deployments.deploymentID, deploymentID))
 
-    db.close()
+    await closeDatabase(db)
     log.info(`Updated latitude for deployment ${deploymentID} to ${latitude}`)
     return { success: true }
   } catch (error) {
@@ -1098,28 +1085,13 @@ ipcMain.handle('deployments:set-longitude', async (_, studyId, deploymentID, lon
       return { error: 'Database not found for this study' }
     }
 
-    const db = new (require('sqlite3').Database)(dbPath, (err) => {
-      if (err) {
-        log.error(`Could not open database ${dbPath}: ${err.message}`)
-        return { error: err.message }
-      }
-    })
+    const db = await getDrizzleDb(studyId, dbPath)
 
-    const result = await new Promise((resolve, reject) => {
-      db.run(
-        'UPDATE deployments SET longitude = ? WHERE deploymentID = ?',
-        [longitude, deploymentID],
-        function (err) {
-          if (err) {
-            reject(err)
-          } else {
-            resolve(this)
-          }
-        }
-      )
-    })
+    await db.update(deployments)
+      .set({ longitude: parseFloat(longitude) })
+      .where(eq(deployments.deploymentID, deploymentID))
 
-    db.close()
+    await closeDatabase(db)
     log.info(`Updated longitude for deployment ${deploymentID} to ${longitude}`)
     return { success: true }
   } catch (error) {

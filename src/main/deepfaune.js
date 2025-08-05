@@ -3,7 +3,8 @@ import path from 'path'
 import csv from 'csv-parser'
 import { DateTime } from 'luxon'
 import crypto from 'crypto'
-import { openDatabase, closeDatabase, setupDatabase } from './db.js'
+import { getDrizzleDb, deployments, media, observations, closeDatabase } from './db/index.js'
+import { eq } from 'drizzle-orm'
 
 // Conditionally import electron modules for production, use fallback for testing
 let app, log
@@ -64,8 +65,8 @@ export async function importDeepfauneDatasetWithPath(csvPath, biowatchDataPath, 
     fs.mkdirSync(dbDir, { recursive: true })
   }
 
-  const db = await openDatabase(dbPath)
-  setupDatabase(db)
+  // Get Drizzle database connection
+  const db = await getDrizzleDb(id, dbPath)
 
   // Extract study information from CSV file name and path
   const csvFileName = path.basename(csvPath, '.csv')
@@ -126,241 +127,208 @@ export async function importDeepfauneDatasetWithPath(csvPath, biowatchDataPath, 
 }
 
 /**
- * Insert deployments for Deepfaune CSV data
- * @param {Object} db - Database connection
+ * Insert deployments for Deepfaune CSV data using Drizzle ORM
+ * @param {Object} db - Drizzle database instance
  * @param {Array<string>} deploymentFolders - Array of unique folder paths
  */
 async function insertDeepfauneDeployments(db, deploymentFolders) {
-  return new Promise((resolve, reject) => {
-    db.run('BEGIN TRANSACTION', async (err) => {
-      if (err) {
-        log.error(`Error starting transaction: ${err.message}`)
-        return reject(err)
-      }
+  try {
+    log.debug('Starting bulk insert of deployments using Drizzle')
 
-      log.debug('Started transaction for deployments bulk insert')
+    const rows = deploymentFolders.map(folderPath => {
+      const deploymentID = crypto.randomUUID()
+      const locationName = path.basename(folderPath) || folderPath
 
-      const insertSql = `INSERT INTO deployments (deploymentID, locationID, locationName,
-                         deploymentStart, deploymentEnd, latitude, longitude)
-                         VALUES (?, ?, ?, ?, ?, ?, ?)`
-
-      try {
-        for (const folderPath of deploymentFolders) {
-          const deploymentID = crypto.randomUUID()
-          const locationName = path.basename(folderPath) || folderPath
-
-          const values = [
-            deploymentID,
-            folderPath,
-            locationName,
-            null, // Will be updated when processing media
-            null, // Will be updated when processing media
-            null, // No GPS data in CSV
-            null // No GPS data in CSV
-          ]
-
-          await runQuery(db, insertSql, values)
-        }
-
-        db.run('COMMIT', (commitErr) => {
-          if (commitErr) {
-            log.error(`Error committing transaction: ${commitErr.message}`)
-            db.run('ROLLBACK')
-            return reject(commitErr)
-          }
-          log.info(`Completed insertion of ${deploymentFolders.length} deployments`)
-          resolve()
-        })
-      } catch (error) {
-        db.run('ROLLBACK')
-        reject(error)
+      return {
+        deploymentID,
+        locationID: folderPath,
+        locationName,
+        deploymentStart: null, // Will be updated when processing media
+        deploymentEnd: null, // Will be updated when processing media
+        latitude: null, // No GPS data in CSV
+        longitude: null // No GPS data in CSV
       }
     })
-  })
+
+    if (rows.length > 0) {
+      // Insert in batches for better performance
+      const batchSize = 1000
+      for (let i = 0; i < rows.length; i += batchSize) {
+        const batch = rows.slice(i, i + batchSize)
+        await db.insert(deployments).values(batch)
+        log.debug(`Inserted batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(rows.length / batchSize)} into deployments`)
+      }
+      
+      log.info(`Completed insertion of ${deploymentFolders.length} deployments`)
+    } else {
+      log.warn('No deployment folders to insert')
+    }
+  } catch (error) {
+    log.error('Error during deployments bulk insert:', error)
+    throw error
+  }
 }
 
 /**
- * Insert media and observations data from Deepfaune CSV
- * @param {Object} db - Database connection
+ * Insert media and observations data from Deepfaune CSV using Drizzle ORM
+ * @param {Object} db - Drizzle database instance
  * @param {string} csvPath - Path to the CSV file
  */
 async function insertDeepfauneData(db, csvPath) {
   return new Promise((resolve, reject) => {
     const stream = fs.createReadStream(csvPath).pipe(csv())
     let rowCount = 0
+    const mediaRows = []
+    const observationRows = []
+    const deploymentTimestamps = new Map() // Track timestamps per deployment
 
-    // Begin transaction for better performance
-    db.run('BEGIN TRANSACTION', async (err) => {
-      if (err) {
-        log.error(`Error starting transaction: ${err.message}`)
-        return reject(err)
-      }
+    log.debug('Started Deepfaune data bulk insert using Drizzle')
 
-      log.debug('Started transaction for Deepfaune data bulk insert')
-
-      const mediaInsertSql = `INSERT OR IGNORE INTO media (mediaID, deploymentID, timestamp, filePath, fileName)
-                              VALUES (?, ?, ?, ?, ?)`
-
-      const observationInsertSql = `INSERT OR IGNORE INTO observations (observationID, mediaID, deploymentID, eventID,
-                                     eventStart, eventEnd, scientificName, commonName, confidence, count, prediction,
-                                     lifeStage, age, sex, behavior)
-                                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-
-      // Helper function to get deployment by folder path
-      const getDeploymentByFolder = (folderPath) => {
-        return new Promise((resolve, reject) => {
-          db.get('SELECT * FROM deployments WHERE locationID = ?', [folderPath], (err, row) => {
-            if (err) reject(err)
-            else resolve(row)
-          })
-        })
-      }
-
-      // Helper function to update deployment date range
-      const updateDeploymentDateRange = (deploymentID, timestamp) => {
-        return new Promise((resolve, reject) => {
-          // Get current deployment dates
-          db.run(
-            `UPDATE deployments
-              SET deploymentStart = CASE
-                WHEN deploymentStart IS NULL THEN ?
-                ELSE MIN(deploymentStart, ?)
-              END,
-              deploymentEnd = CASE
-                WHEN deploymentEnd IS NULL THEN ?
-                ELSE MAX(deploymentEnd, ?)
-              END
-              WHERE deploymentID = ?`,
-            [
-              timestamp.toISO(), // For NULL deploymentStart
-              timestamp.toISO(), // Compare with existing deploymentStart
-              timestamp.toISO(), // For NULL deploymentEnd
-              timestamp.toISO(), // Compare with existing deploymentEnd
-              deploymentID
-            ],
-            (updateErr) => {
-              if (updateErr) reject(updateErr)
-              else resolve()
-            }
-          )
-        })
-      }
-
+    // Helper function to get deployment by folder path using Drizzle
+    const getDeploymentByFolder = async (folderPath) => {
       try {
-        stream.on('data', async (row) => {
-          if (!row.filename || !row.date || row.date === 'NA' || row.date === '') {
-            return // Skip rows without required data or missing dates
-          }
-
-          // Parse timestamp from the date field (format: "2019:05:14 17:14:52")
-          const timestamp = DateTime.fromFormat(row.date, 'yyyy:MM:dd HH:mm:ss')
-          if (!timestamp.isValid) {
-            log.warn(`Invalid timestamp format: ${row.date}`)
-            return
-          }
-
-          // Handle cross-platform paths - convert to current platform format
-          const normalizedPath = row.filename.replace(/\\/g, '/')
-          const platformPath = path.normalize(normalizedPath)
-          const folderPath = path.dirname(platformPath)
-          const fileName = path.basename(platformPath)
-
-          // Get deployment for this folder
-          const deployment = await getDeploymentByFolder(folderPath)
-          if (!deployment) {
-            log.warn(`No deployment found for folder: ${folderPath}`)
-            return
-          }
-
-          // Update deployment date range
-          await updateDeploymentDateRange(deployment.deploymentID, timestamp)
-
-          // Insert media record
-          const mediaID = crypto.randomUUID()
-          const mediaValues = [
-            mediaID,
-            deployment.deploymentID,
-            timestamp.toISO(),
-            row.filename,
-            fileName
-          ]
-
-          await runQuery(db, mediaInsertSql, mediaValues)
-
-          // Insert observation record if there's a prediction
-          if (row.prediction && row.prediction !== '') {
-            const observationID = `${mediaID}_obs`
-            const confidence = row.score ? parseFloat(row.score) : null
-            const count = row.humancount ? parseInt(row.humancount) : 1
-
-            const observationValues = [
-              observationID,
-              mediaID,
-              deployment.deploymentID,
-              row.seqnum || null, // Use sequence number as eventID
-              timestamp.toISO(), // eventStart
-              timestamp.toISO(), // eventEnd
-              row.prediction, // Use prediction as scientificName
-              row.prediction, // Use prediction as commonName too
-              confidence,
-              count,
-              row.prediction, // prediction field
-              null, // lifeStage
-              null, // age
-              null, // sex
-              null // behavior
-            ]
-
-            await runQuery(db, observationInsertSql, observationValues)
-          }
-
-          rowCount++
-          if (rowCount % 1000 === 0) {
-            log.debug(`Processed ${rowCount} rows from Deepfaune CSV`)
-          }
-        })
-
-        stream.on('end', () => {
-          db.run('COMMIT', (commitErr) => {
-            if (commitErr) {
-              log.error(`Error committing transaction: ${commitErr.message}`)
-              db.run('ROLLBACK')
-              return reject(commitErr)
-            }
-            log.info(`Completed processing of ${rowCount} rows from Deepfaune CSV`)
-            resolve()
-          })
-        })
-
-        stream.on('error', (error) => {
-          log.error(`Error during Deepfaune CSV data insertion: ${error.message}`)
-          db.run('ROLLBACK')
-          reject(error)
-        })
+        const result = await db.select().from(deployments).where(eq(deployments.locationID, folderPath)).limit(1)
+        return result[0] || null
       } catch (error) {
-        db.run('ROLLBACK')
-        reject(error)
+        log.error(`Error getting deployment for folder ${folderPath}:`, error)
+        return null
       }
-    })
+    }
+
+    try {
+      stream.on('data', async (row) => {
+        if (!row.filename || !row.date || row.date === 'NA' || row.date === '') {
+          return // Skip rows without required data or missing dates
+        }
+
+        // Parse timestamp from the date field (format: "2019:05:14 17:14:52")
+        const timestamp = DateTime.fromFormat(row.date, 'yyyy:MM:dd HH:mm:ss')
+        if (!timestamp.isValid) {
+          log.warn(`Invalid timestamp format: ${row.date}`)
+          return
+        }
+
+        // Handle cross-platform paths - convert to current platform format
+        const normalizedPath = row.filename.replace(/\\/g, '/')
+        const platformPath = path.normalize(normalizedPath)
+        const folderPath = path.dirname(platformPath)
+        const fileName = path.basename(platformPath)
+
+        // Get deployment for this folder
+        const deployment = await getDeploymentByFolder(folderPath)
+        if (!deployment) {
+          log.warn(`No deployment found for folder: ${folderPath}`)
+          return
+        }
+
+        // Track timestamps for this deployment
+        if (!deploymentTimestamps.has(deployment.deploymentID)) {
+          deploymentTimestamps.set(deployment.deploymentID, [])
+        }
+        deploymentTimestamps.get(deployment.deploymentID).push(timestamp)
+
+        // Prepare media record
+        const mediaID = crypto.randomUUID()
+        mediaRows.push({
+          mediaID,
+          deploymentID: deployment.deploymentID,
+          timestamp: timestamp.toISO(),
+          filePath: row.filename,
+          fileName
+        })
+
+        // Prepare observation record if there's a prediction
+        if (row.prediction && row.prediction !== '') {
+          const observationID = `${mediaID}_obs`
+          const confidence = row.score ? parseFloat(row.score) : null
+          const count = row.humancount ? parseInt(row.humancount) : 1
+
+          observationRows.push({
+            observationID,
+            mediaID,
+            deploymentID: deployment.deploymentID,
+            eventID: row.seqnum || null, // Use sequence number as eventID
+            eventStart: timestamp.toISO(),
+            eventEnd: timestamp.toISO(),
+            scientificName: row.prediction, // Use prediction as scientificName
+            observationType: null,
+            commonName: row.prediction, // Use prediction as commonName too
+            confidence,
+            count,
+            prediction: row.prediction,
+            lifeStage: null,
+            age: null,
+            sex: null,
+            behavior: null
+          })
+        }
+
+        rowCount++
+        if (rowCount % 1000 === 0) {
+          log.debug(`Processed ${rowCount} rows from Deepfaune CSV`)
+        }
+      })
+
+      stream.on('end', async () => {
+        try {
+          // Update deployment date ranges based on collected timestamps
+          log.debug('Updating deployment date ranges')
+          for (const [deploymentID, timestamps] of deploymentTimestamps.entries()) {
+            if (timestamps.length === 0) continue
+            
+            // Find min and max timestamps
+            const sortedTimestamps = timestamps.sort((a, b) => a.toMillis() - b.toMillis())
+            const minTimestamp = sortedTimestamps[0].toISO()
+            const maxTimestamp = sortedTimestamps[sortedTimestamps.length - 1].toISO()
+            
+            await db.update(deployments)
+              .set({
+                deploymentStart: minTimestamp,
+                deploymentEnd: maxTimestamp
+              })
+              .where(eq(deployments.deploymentID, deploymentID))
+            
+            log.debug(`Updated deployment ${deploymentID} date range: ${minTimestamp} - ${maxTimestamp}`)
+          }
+
+          // Insert media records in batches
+          if (mediaRows.length > 0) {
+            log.debug(`Starting bulk insert of ${mediaRows.length} media records`)
+            const batchSize = 1000
+            for (let i = 0; i < mediaRows.length; i += batchSize) {
+              const batch = mediaRows.slice(i, i + batchSize)
+              await db.insert(media).values(batch).onConflictDoNothing()
+              log.debug(`Inserted media batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(mediaRows.length / batchSize)}`)
+            }
+          }
+
+          // Insert observation records in batches
+          if (observationRows.length > 0) {
+            log.debug(`Starting bulk insert of ${observationRows.length} observation records`)
+            const batchSize = 1000
+            for (let i = 0; i < observationRows.length; i += batchSize) {
+              const batch = observationRows.slice(i, i + batchSize)
+              await db.insert(observations).values(batch).onConflictDoNothing()
+              log.debug(`Inserted observations batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(observationRows.length / batchSize)}`)
+            }
+          }
+
+          log.info(`Completed processing of ${rowCount} rows from Deepfaune CSV`)
+          resolve()
+        } catch (error) {
+          log.error(`Error during bulk insert:`, error)
+          reject(error)
+        }
+      })
+
+      stream.on('error', (error) => {
+        log.error(`Error during Deepfaune CSV data insertion: ${error.message}`)
+        reject(error)
+      })
+    } catch (error) {
+      log.error(`Error processing Deepfaune CSV:`, error)
+      reject(error)
+    }
   })
 }
 
-/**
- * Run a SQLite query
- * @param {sqlite3.Database} db - Database instance
- * @param {string} query - SQL query
- * @param {Array} params - Parameters for the query
- * @returns {Promise<void>}
- */
-function runQuery(db, query, params = []) {
-  return new Promise((resolve, reject) => {
-    db.run(query, params, function (err) {
-      if (err) {
-        log.error(`Error executing query: ${err.message}`)
-        reject(err)
-      } else {
-        resolve(this)
-      }
-    })
-  })
-}
