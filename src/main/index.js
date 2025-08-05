@@ -8,7 +8,7 @@ import { join } from 'path'
 import icon from '../../resources/icon.png?asset'
 import { importCamTrapDataset } from './camtrap'
 import { registerMLModelManagementIPCHandlers, garbageCollect } from './models'
-import { getDrizzleDb, deployments, closeDatabase } from './db/index.js'
+import { getDrizzleDb, deployments, closeStudyDatabase } from './db/index.js'
 import { eq } from 'drizzle-orm'
 import {
   getDeployments,
@@ -1069,7 +1069,7 @@ ipcMain.handle('deployments:set-latitude', async (_, studyId, deploymentID, lati
       .set({ latitude: parseFloat(latitude) })
       .where(eq(deployments.deploymentID, deploymentID))
 
-    await closeDatabase(db)
+    await closeStudyDatabase(studyId, dbPath)
     log.info(`Updated latitude for deployment ${deploymentID} to ${latitude}`)
     return { success: true }
   } catch (error) {
@@ -1093,7 +1093,7 @@ ipcMain.handle('deployments:set-longitude', async (_, studyId, deploymentID, lon
       .set({ longitude: parseFloat(longitude) })
       .where(eq(deployments.deploymentID, deploymentID))
 
-    await closeDatabase(db)
+    await closeStudyDatabase(studyId, dbPath)
     log.info(`Updated longitude for deployment ${deploymentID} to ${longitude}`)
     return { success: true }
   } catch (error) {

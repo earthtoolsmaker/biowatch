@@ -3,7 +3,7 @@ import path from 'path'
 import csv from 'csv-parser'
 import { DateTime } from 'luxon'
 import crypto from 'crypto'
-import { getDrizzleDb, deployments, media, observations, closeDatabase } from './db/index.js'
+import { getDrizzleDb, deployments, media, observations, closeStudyDatabase } from './db/index.js'
 import { eq } from 'drizzle-orm'
 
 // Conditionally import electron modules for production, use fallback for testing
@@ -118,11 +118,11 @@ export async function importDeepfauneDatasetWithPath(csvPath, biowatchDataPath, 
     log.info('Deepfaune dataset imported successfully')
   } catch (error) {
     log.error('Error importing Deepfaune dataset:', error)
-    await closeDatabase(db)
+    await closeStudyDatabase(id, dbPath)
     throw error
   }
 
-  await closeDatabase(db)
+  await closeStudyDatabase(id, dbPath)
   return { data }
 }
 

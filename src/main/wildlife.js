@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import csv from 'csv-parser'
 import { DateTime } from 'luxon'
-import { getDrizzleDb, deployments, media, observations, closeDatabase } from './db/index.js'
+import { getDrizzleDb, deployments, media, observations, closeStudyDatabase } from './db/index.js'
 
 // Conditionally import electron modules for production, use fallback for testing
 let app, log
@@ -152,7 +152,7 @@ export async function importWildlifeDatasetWithPath(directoryPath, biowatchDataP
 
   console.log('returning Data:', data)
 
-  closeDatabase(db)
+  await closeStudyDatabase(id, dbPath)
 
   return {
     data

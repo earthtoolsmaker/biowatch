@@ -6,7 +6,7 @@ import geoTz from 'geo-tz'
 import luxon, { DateTime } from 'luxon'
 import path from 'path'
 import crypto from 'crypto'
-import { getDrizzleDb, deployments, media, observations, closeDatabase } from './db/index.js'
+import { getDrizzleDb, deployments, media, observations, closeStudyDatabase } from './db/index.js'
 import { eq, isNull, min, max, count } from 'drizzle-orm'
 import models from './models.js'
 import mlmodels from '../shared/mlmodels.js'
@@ -459,6 +459,7 @@ export class Importer {
     this.folder = folder
     this.pythonProcess = null
     this.batchSize = batchSize
+    this.dbPath = null
   }
 
   async cleanup() {
@@ -471,13 +472,14 @@ export class Importer {
 
   async start() {
     try {
-      const dbPath = path.join(
+      this.dbPath = path.join(
         app.getPath('userData'),
         'biowatch-data',
         'studies',
         this.id,
         'study.db'
       )
+      const dbPath = this.dbPath
       if (!fs.existsSync(dbPath)) {
         log.info(`Database not found at ${dbPath}, creating new one`)
         // Ensure the directory exists
@@ -534,13 +536,13 @@ export class Importer {
         return this.id
       } catch (error) {
         log.error('Error during background processing:', error)
-        await closeDatabase(this.db)
+        await closeStudyDatabase(this.id, this.dbPath)
         this.cleanup()
       }
     } catch (error) {
       console.error('Error starting importer:', error)
       if (this.db) {
-        await closeDatabase(this.db)
+        await closeStudyDatabase(this.id, this.dbPath)
       }
       this.cleanup()
     }
@@ -576,7 +578,7 @@ async function status(id) {
 
     const speed = lastBatchDuration ? (batchSize / lastBatchDuration) * 60 : null
 
-    await closeDatabase(db)
+    await closeStudyDatabase(id, dbPath)
 
     return {
       total: mediaCount,
