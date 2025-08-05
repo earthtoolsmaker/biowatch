@@ -48,7 +48,6 @@
     "react-leaflet-cluster": "^2.1.0",
     "react-router": "^7.5.0",
     "recharts": "^2.15.3",
-    "sqlite3": "^5.1.7",
     "tailwindcss": "^4.1.8",
     "tar": "^7.4.3",
     "tree-kill": "^1.2.2",
@@ -70,6 +69,7 @@
     "prettier": "^3.5.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "sqlite3": "^5.1.7",
     "vite": "^6.1.0"
   }
 }
