@@ -1,10 +1,10 @@
 import fs from 'fs'
 import path from 'path'
 import { app } from 'electron'
-import sqlite3 from 'sqlite3'
 import csv from 'csv-parser'
 import log from 'electron-log'
 import { DateTime } from 'luxon'
+import { getDrizzleDb, deployments, media, observations } from './db/index.js'
 
 /**
  * Import CamTrapDP dataset from a directory into a SQLite database
@@ -23,8 +23,8 @@ export async function importCamTrapDataset(directoryPath, id) {
     fs.mkdirSync(dbDir, { recursive: true })
   }
 
-  // Create database connection
-  const db = await openDatabase(dbPath)
+  // Get Drizzle database connection
+  const db = await getDrizzleDb(id, dbPath)
 
   // Get dataset name from datapackage.json
   let data
@@ -51,26 +51,32 @@ export async function importCamTrapDataset(directoryPath, id) {
     const files = fs.readdirSync(directoryPath).filter((file) => file.endsWith('.csv'))
     log.info(`Found ${files.length} CSV files to import`)
 
+    // Map CamTrapDP CSV files to schema tables
+    const csvToTableMap = {
+      'deployments.csv': { table: deployments, name: 'deployments' },
+      'media.csv': { table: media, name: 'media' },
+      'observations.csv': { table: observations, name: 'observations' }
+    }
+
     // Process each CSV file
     for (const file of files) {
       const filePath = path.join(directoryPath, file)
-      const tableName = path.basename(file, '.csv')
-      log.info(`Processing file: ${file} into table: ${tableName}`)
+      const mapping = csvToTableMap[file]
+      
+      if (mapping) {
+        log.info(`Processing CamTrapDP file: ${file} into schema table: ${mapping.name}`)
+        
+        // Read the first row to get column names
+        const columns = await getCSVColumns(filePath)
+        log.debug(`Found ${columns.length} columns in ${file}`)
 
-      // Read the first row to get column names
-      const columns = await getCSVColumns(filePath)
-      log.debug(`Found ${columns.length} columns in ${file}`)
-
-      // Create table
-      const columnDefs = columns.map((col) => `"${col}" TEXT`).join(', ')
-      await runQuery(db, `CREATE TABLE IF NOT EXISTS "${tableName}" (${columnDefs})`)
-      log.debug(`Created table: ${tableName}`)
-
-      // Insert data
-      log.debug(`Beginning data insertion for ${tableName}`)
-      await insertCSVData(db, filePath, tableName, columns, directoryPath)
-
-      log.info(`Successfully imported ${file} into table ${tableName}`)
+        // Insert data using Drizzle
+        await insertCSVData(db, filePath, mapping.table, mapping.name, columns, directoryPath)
+        
+        log.info(`Successfully imported ${file} into ${mapping.name} table`)
+      } else {
+        log.warn(`Unknown CamTrapDP CSV file: ${file} - skipping (not part of standard schema)`)
+      }
     }
 
     log.info('CamTrap dataset import completed successfully')
@@ -86,67 +92,9 @@ export async function importCamTrapDataset(directoryPath, id) {
     log.error('Error importing dataset:', error)
     console.error('Error importing dataset:', error)
     throw error
-  } finally {
-    log.debug('Closing database connection')
-    await closeDatabase(db)
   }
 }
 
-/**
- * Open a SQLite database
- * @param {string} dbPath - Path to the database file
- * @returns {Promise<sqlite3.Database>} - Database instance
- */
-function openDatabase(dbPath) {
-  return new Promise((resolve, reject) => {
-    const db = new sqlite3.Database(dbPath, (err) => {
-      if (err) {
-        log.error(`Error opening database: ${err.message}`)
-        reject(err)
-      } else {
-        resolve(db)
-      }
-    })
-  })
-}
-
-/**
- * Close a SQLite database
- * @param {sqlite3.Database} db - Database instance
- * @returns {Promise<void>}
- */
-function closeDatabase(db) {
-  return new Promise((resolve, reject) => {
-    db.close((err) => {
-      if (err) {
-        log.error(`Error closing database: ${err.message}`)
-        reject(err)
-      } else {
-        resolve()
-      }
-    })
-  })
-}
-
-/**
- * Run a SQLite query
- * @param {sqlite3.Database} db - Database instance
- * @param {string} query - SQL query
- * @param {Array} params - Parameters for the query
- * @returns {Promise<void>}
- */
-function runQuery(db, query, params = []) {
-  return new Promise((resolve, reject) => {
-    db.run(query, params, function (err) {
-      if (err) {
-        log.error(`Error executing query: ${err.message}`)
-        reject(err)
-      } else {
-        resolve(this)
-      }
-    })
-  })
-}
 
 /**
  * Get column names from the first row of a CSV file
@@ -175,82 +123,167 @@ function getCSVColumns(filePath) {
 }
 
 /**
- * Insert CSV data into a SQLite table
- * @param {sqlite3.Database} db - SQLite database instance
+ * Insert CSV data into a Drizzle schema table
+ * @param {Object} db - Drizzle database instance
  * @param {string} filePath - Path to the CSV file
+ * @param {Object} table - Drizzle table schema
  * @param {string} tableName - Name of the table
- * @param {string[]} columns - Array of column names
+ * @param {string[]} columns - Array of column names from CSV
+ * @param {string} directoryPath - Path to the CamTrapDP directory
  * @returns {Promise<void>}
  */
-function insertCSVData(db, filePath, tableName, columns, directoryPath) {
+async function insertCSVData(db, filePath, table, tableName, columns, directoryPath) {
+  log.debug(`Beginning data insertion from ${filePath} to table ${tableName}`)
+  
   return new Promise((resolve, reject) => {
-    log.debug(`Beginning data insertion from ${filePath} to table ${tableName}`)
     const stream = fs.createReadStream(filePath).pipe(csv())
+    const rows = []
     let rowCount = 0
 
-    // Begin transaction for better performance
-    db.run('BEGIN TRANSACTION', async (err) => {
-      if (err) {
-        log.error(`Error starting transaction: ${err.message}`)
-        return reject(err)
+    log.debug(`directoryPath: ${directoryPath}`)
+
+    stream.on('data', (row) => {
+      // Transform CSV row data to match schema fields
+      const transformedRow = transformRowToSchema(row, tableName, columns, directoryPath)
+      if (transformedRow) {
+        rows.push(transformedRow)
+        rowCount++
       }
+    })
 
-      log.debug('Started transaction for bulk insert')
-
-      const placeholders = columns.map(() => '?').join(', ')
-      const insertSql = `INSERT INTO "${tableName}" VALUES (${placeholders})`
-
-      log.debug(`directoryPath: ${directoryPath}`)
-
+    stream.on('end', async () => {
       try {
-        stream.on('data', async (row) => {
-          const values = columns.map((col) => {
-            if (col === 'filePath' && !row[col].startsWith('http')) {
-              return path.join(directoryPath.split(path.sep).slice(0, -1).join(path.sep), row[col])
-            }
-            if (
-              ['eventStart', 'eventEnd', 'timestamp', 'deploymentStart', 'deploymentEnd'].includes(
-                col
-              )
-            ) {
-              const date = DateTime.fromISO(row[col])
-              return date.isValid ? date.toISO() : null
-            }
-            return row[col]
-          })
-          try {
-            await runQuery(db, insertSql, values)
-            rowCount++
-            if (rowCount % 1000 === 0) {
-              log.debug(`Inserted ${rowCount} rows into ${tableName}`)
-            }
-          } catch (error) {
-            log.error(`Error inserting row: ${error.message}`)
-            throw error
+        if (rows.length > 0) {
+          // Use Drizzle batch inserts (transactions temporarily disabled for compatibility)
+          log.debug(`Starting bulk insert of ${rows.length} rows`)
+          
+          // Insert in batches for better performance
+          const batchSize = 1000
+          for (let i = 0; i < rows.length; i += batchSize) {
+            const batch = rows.slice(i, i + batchSize)
+            await db.insert(table).values(batch)
+            log.debug(`Inserted batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(rows.length / batchSize)} into ${tableName}`)
           }
-        })
-
-        stream.on('end', () => {
-          db.run('COMMIT', (err) => {
-            if (err) {
-              log.error(`Error committing transaction: ${err.message}`)
-              db.run('ROLLBACK')
-              return reject(err)
-            }
-            log.info(`Completed insertion of ${rowCount} rows into ${tableName}`)
-            resolve()
-          })
-        })
-
-        stream.on('error', (error) => {
-          log.error(`Error during CSV data insertion: ${error.message}`)
-          db.run('ROLLBACK')
-          reject(error)
-        })
+          
+          log.info(`Completed insertion of ${rowCount} rows into ${tableName}`)
+        } else {
+          log.warn(`No valid rows found in ${filePath} for table ${tableName}`)
+        }
+        resolve()
       } catch (error) {
-        db.run('ROLLBACK')
+        log.error(`Error during bulk insert for ${tableName}:`, error)
         reject(error)
       }
     })
+
+    stream.on('error', (error) => {
+      log.error(`Error reading CSV file ${filePath}:`, error)
+      reject(error)
+    })
   })
+}
+
+/**
+ * Transform CSV row data to match schema fields
+ * @param {Object} row - CSV row data
+ * @param {string} tableName - Target table name
+ * @param {string[]} columns - CSV column names
+ * @param {string} directoryPath - Path to the CamTrapDP directory
+ * @returns {Object|null} - Transformed row data or null if invalid
+ */
+function transformRowToSchema(row, tableName, columns, directoryPath) {
+  try {
+    switch (tableName) {
+      case 'deployments':
+        return transformDeploymentRow(row, directoryPath)
+      case 'media':
+        return transformMediaRow(row, directoryPath)
+      case 'observations':
+        return transformObservationRow(row, directoryPath)
+      default:
+        log.warn(`Unknown table name: ${tableName}`)
+        return null
+    }
+  } catch (error) {
+    log.error(`Error transforming row for table ${tableName}:`, error)
+    return null
+  }
+}
+
+/**
+ * Transform deployment CSV row to deployments schema
+ */
+function transformDeploymentRow(row, directoryPath) {
+  return {
+    deploymentID: row.deploymentID || row.deployment_id || null,
+    locationID: row.locationID || row.location_id || null,
+    locationName: row.locationName || row.location_name || null,
+    deploymentStart: transformDateField(row.deploymentStart || row.deployment_start),
+    deploymentEnd: transformDateField(row.deploymentEnd || row.deployment_end),
+    latitude: parseFloat(row.latitude) || null,
+    longitude: parseFloat(row.longitude) || null
+  }
+}
+
+/**
+ * Transform media CSV row to media schema
+ */
+function transformMediaRow(row, directoryPath) {
+  return {
+    mediaID: row.mediaID || row.media_id || null,
+    deploymentID: row.deploymentID || row.deployment_id || null,
+    timestamp: transformDateField(row.timestamp),
+    filePath: transformFilePathField(row.filePath || row.file_path, directoryPath),
+    fileName: row.fileName || row.file_name || path.basename(row.filePath || row.file_path || '')
+  }
+}
+
+/**
+ * Transform observation CSV row to observations schema
+ */
+function transformObservationRow(row, directoryPath) {
+  return {
+    observationID: row.observationID || row.observation_id || null,
+    mediaID: row.mediaID || row.media_id || null,
+    deploymentID: row.deploymentID || row.deployment_id || null,
+    eventID: row.eventID || row.event_id || null,
+    eventStart: transformDateField(row.eventStart || row.event_start),
+    eventEnd: transformDateField(row.eventEnd || row.event_end),
+    scientificName: row.scientificName || row.scientific_name || null,
+    observationType: row.observationType || row.observation_type || null,
+    commonName: row.commonName || row.common_name || null,
+    confidence: parseFloat(row.confidence) || null,
+    count: parseInt(row.count) || null,
+    prediction: row.prediction || null,
+    lifeStage: row.lifeStage || row.life_stage || null,
+    age: row.age || null,
+    sex: row.sex || null,
+    behavior: row.behavior || null
+  }
+}
+
+/**
+ * Transform date field from CSV to ISO format
+ */
+function transformDateField(dateValue) {
+  if (!dateValue) return null
+  
+  const date = DateTime.fromISO(dateValue)
+  return date.isValid ? date.toISO() : null
+}
+
+/**
+ * Transform file path field to absolute path
+ */
+function transformFilePathField(filePath, directoryPath) {
+  if (!filePath) return null
+  
+  // If it's already an absolute path or URL, return as is
+  if (filePath.startsWith('http') || path.isAbsolute(filePath)) {
+    return filePath
+  }
+  
+  // Convert relative path to absolute path relative to the parent of the CamTrapDP directory
+  const parentDir = path.dirname(directoryPath)
+  return path.join(parentDir, filePath)
 }

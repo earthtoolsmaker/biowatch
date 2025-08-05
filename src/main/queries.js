@@ -1,5 +1,5 @@
 import { getDrizzleDb, deployments, media, observations, getStudyDatabase, executeRawQuery } from './db/index.js'
-import { eq, and, desc, asc, count, sql, inArray, isNotNull, ne } from 'drizzle-orm'
+import { eq, and, desc, count, sql, isNotNull, ne } from 'drizzle-orm'
 import log from 'electron-log'
 
 /**

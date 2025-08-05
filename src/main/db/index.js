@@ -5,7 +5,7 @@
 
 import { getStudyDatabase, closeStudyDatabase, closeAllDatabases } from './manager.js'
 import { deployments, media, observations } from './schema.js'
-import { eq, and, desc, asc, count, sql } from 'drizzle-orm'
+import { eq, and, desc, count, sql } from 'drizzle-orm'
 import log from 'electron-log'
 
 // Re-export schema and manager functions
