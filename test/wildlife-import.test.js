@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdirSync, rmSync, existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
-import sqlite3 from 'sqlite3'
+import Database from 'better-sqlite3'
 
 // Import the function we want to test
 import { importWildlifeDatasetWithPath } from '../src/main/wildlife.js'
@@ -42,36 +42,26 @@ afterEach(() => {
  * Helper function to query database and return results
  * @param {string} dbPath - Path to the database
  * @param {string} query - SQL query
- * @returns {Promise<Array>} - Query results
+ * @returns {Array} - Query results
  */
 function queryDatabase(dbPath, query) {
-  return new Promise((resolve, reject) => {
-    const db = new sqlite3.Database(dbPath, (err) => {
-      if (err) {
-        reject(err)
-        return
-      }
-
-      db.all(query, (err, rows) => {
-        if (err) {
-          reject(err)
-        } else {
-          resolve(rows)
-        }
-        db.close()
-      })
-    })
-  })
+  const db = new Database(dbPath, { readonly: true })
+  try {
+    const results = db.prepare(query).all()
+    return results
+  } finally {
+    db.close()
+  }
 }
 
 /**
  * Helper function to count records in a table
  * @param {string} dbPath - Path to the database
  * @param {string} tableName - Name of the table
- * @returns {Promise<number>} - Number of records
+ * @returns {number} - Number of records
  */
-async function countRecords(dbPath, tableName) {
-  const results = await queryDatabase(dbPath, `SELECT COUNT(*) as count FROM ${tableName}`)
+function countRecords(dbPath, tableName) {
+  const results = queryDatabase(dbPath, `SELECT COUNT(*) as count FROM ${tableName}`)
   return results[0].count
 }
 
@@ -79,10 +69,10 @@ async function countRecords(dbPath, tableName) {
  * Helper function to get all records from a table
  * @param {string} dbPath - Path to the database
  * @param {string} tableName - Name of the table
- * @returns {Promise<Array>} - All records
+ * @returns {Array} - All records
  */
-async function getAllRecords(dbPath, tableName) {
-  return await queryDatabase(dbPath, `SELECT * FROM ${tableName}`)
+function getAllRecords(dbPath, tableName) {
+  return queryDatabase(dbPath, `SELECT * FROM ${tableName}`)
 }
 
 describe('Wildlife Import Tests', () => {
@@ -98,10 +88,7 @@ describe('Wildlife Import Tests', () => {
       assert(existsSync(dbPath), 'Database should be created')
 
       // Verify database tables exist (Drizzle also creates __drizzle_migrations table)
-      const tables = await queryDatabase(
-        dbPath,
-        "SELECT name FROM sqlite_master WHERE type='table'"
-      )
+      const tables = queryDatabase(dbPath, "SELECT name FROM sqlite_master WHERE type='table'")
       const tableNames = tables.map((t) => t.name).sort()
       const expectedTables = ['__drizzle_migrations', 'deployments', 'media', 'observations']
       assert.deepEqual(
@@ -118,11 +105,11 @@ describe('Wildlife Import Tests', () => {
       const dbPath = join(testBiowatchDataPath, 'studies', studyId, 'study.db')
 
       // Count deployments - should be 1 from the test data
-      const deploymentCount = await countRecords(dbPath, 'deployments')
+      const deploymentCount = countRecords(dbPath, 'deployments')
       assert.equal(deploymentCount, 1, 'Should create 1 deployment')
 
       // Verify deployment details
-      const deployments = await getAllRecords(dbPath, 'deployments')
+      const deployments = getAllRecords(dbPath, 'deployments')
       const deployment = deployments[0]
 
       assert.equal(
@@ -152,12 +139,12 @@ describe('Wildlife Import Tests', () => {
       const dbPath = join(testBiowatchDataPath, 'studies', studyId, 'study.db')
 
       // Count media records - should match the number of rows in images.csv (593 + header = 594 total, so 593 data rows)
-      const mediaCount = await countRecords(dbPath, 'media')
+      const mediaCount = countRecords(dbPath, 'media')
       assert(mediaCount > 0, 'Should create media records')
       assert(mediaCount <= 593, 'Should not exceed total number of images')
 
       // Verify media record structure
-      const mediaRecords = await queryDatabase(dbPath, 'SELECT * FROM media LIMIT 5')
+      const mediaRecords = queryDatabase(dbPath, 'SELECT * FROM media LIMIT 5')
 
       for (const media of mediaRecords) {
         assert(media.mediaID, 'Media should have an ID')
@@ -168,7 +155,7 @@ describe('Wildlife Import Tests', () => {
       }
 
       // Check specific media record
-      const specificMedia = await queryDatabase(
+      const specificMedia = queryDatabase(
         dbPath,
         "SELECT * FROM media WHERE mediaID = 'e668cfa2-c2c3-476b-b132-3daf1fe0e260'"
       )
@@ -188,14 +175,14 @@ describe('Wildlife Import Tests', () => {
       const dbPath = join(testBiowatchDataPath, 'studies', studyId, 'study.db')
 
       // Count observations - should be less than media count since some are blank
-      const observationCount = await countRecords(dbPath, 'observations')
-      const mediaCount = await countRecords(dbPath, 'media')
+      const observationCount = countRecords(dbPath, 'observations')
+      const mediaCount = countRecords(dbPath, 'media')
 
       assert(observationCount > 0, 'Should create observation records')
       assert(observationCount <= mediaCount, 'Observations should not exceed media count')
 
       // Verify observation record structure
-      const observations = await queryDatabase(dbPath, 'SELECT * FROM observations LIMIT 5')
+      const observations = queryDatabase(dbPath, 'SELECT * FROM observations LIMIT 5')
 
       for (const obs of observations) {
         assert(obs.observationID, 'Observation should have an ID')
@@ -206,14 +193,14 @@ describe('Wildlife Import Tests', () => {
       }
 
       // Check for blank observations
-      const blankObs = await queryDatabase(
+      const blankObs = queryDatabase(
         dbPath,
         "SELECT * FROM observations WHERE commonName = 'Blank'"
       )
       assert(blankObs.length > 0, 'Should have blank observations')
 
       // Check for species observations
-      const speciesObs = await queryDatabase(
+      const speciesObs = queryDatabase(
         dbPath,
         "SELECT * FROM observations WHERE scientificName LIKE 'Vulpes vulpes'"
       )
@@ -233,7 +220,7 @@ describe('Wildlife Import Tests', () => {
       const dbPath = join(testBiowatchDataPath, 'studies', studyId, 'study.db')
 
       // Check various taxonomic scenarios
-      const observations = await queryDatabase(
+      const observations = queryDatabase(
         dbPath,
         'SELECT DISTINCT scientificName, commonName FROM observations WHERE scientificName IS NOT NULL'
       )
@@ -243,7 +230,7 @@ describe('Wildlife Import Tests', () => {
       assert(scientificNames.includes('Vulpes vulpes'), 'Should have Vulpes vulpes')
 
       // Should handle blank entries - they should have commonName = 'Blank' but scientificName = null
-      const blankObs = await queryDatabase(
+      const blankObs = queryDatabase(
         dbPath,
         "SELECT * FROM observations WHERE commonName = 'Blank' AND scientificName IS NULL"
       )
@@ -260,14 +247,11 @@ describe('Wildlife Import Tests', () => {
       const dbPath = join(testBiowatchDataPath, 'studies', studyId, 'study.db')
 
       // All media records should have mediaID
-      const mediaWithoutId = await queryDatabase(
-        dbPath,
-        'SELECT * FROM media WHERE mediaID IS NULL'
-      )
+      const mediaWithoutId = queryDatabase(dbPath, 'SELECT * FROM media WHERE mediaID IS NULL')
       assert.equal(mediaWithoutId.length, 0, 'No media records should have null mediaID')
 
       // All observations should have mediaID
-      const obsWithoutMediaId = await queryDatabase(
+      const obsWithoutMediaId = queryDatabase(
         dbPath,
         'SELECT * FROM observations WHERE mediaID IS NULL'
       )
@@ -281,7 +265,7 @@ describe('Wildlife Import Tests', () => {
       const dbPath = join(testBiowatchDataPath, 'studies', studyId, 'study.db')
 
       // Check that timestamps are in ISO format
-      const mediaWithTimestamp = await queryDatabase(
+      const mediaWithTimestamp = queryDatabase(
         dbPath,
         'SELECT timestamp FROM media WHERE timestamp IS NOT NULL LIMIT 5'
       )
@@ -292,7 +276,7 @@ describe('Wildlife Import Tests', () => {
       }
 
       // Check specific timestamp conversion
-      const specificRecord = await queryDatabase(
+      const specificRecord = queryDatabase(
         dbPath,
         "SELECT timestamp FROM media WHERE mediaID = 'e668cfa2-c2c3-476b-b132-3daf1fe0e260'"
       )

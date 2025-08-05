@@ -6,8 +6,9 @@
   "author": "earthtoolsmaker.org",
   "homepage": "https://www.earthtoolsmaker.org/",
   "scripts": {
-    "format": "prettier --write .",
+    "format": "prettier --write 'src/**/*.{js,jsx,ts,tsx,mjs}' 'test/**/*.{js,jsx,ts,tsx}' '*.{js,mjs}'",
     "lint": "eslint --cache .",
+    "fix": "eslint --cache --fix .",
     "start": "electron-vite preview",
     "dev": "electron-vite dev --watch",
     "build:python-env-common": "cd python-environments/common && uv sync",
@@ -69,7 +70,6 @@
     "prettier": "^3.5.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "sqlite3": "^5.1.7",
     "vite": "^6.1.0"
   }
 }

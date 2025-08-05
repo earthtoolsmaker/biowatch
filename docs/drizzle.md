@@ -66,8 +66,9 @@ npx drizzle-kit generate --name create_settings_table
 ```
 
 This will:
+
 - Analyze the schema changes
-- Create a new migration file in `src/main/db/migrations/` 
+- Create a new migration file in `src/main/db/migrations/`
 - If using `--name`, creates `0001_initial.sql` instead of auto-generated name
 - Update the migration metadata in `meta/_journal.json`
 
@@ -97,10 +98,12 @@ export { deployments, media, observations, settings }
 ### Step 4: Test the Migration
 
 The migration will be automatically applied when:
+
 1. A study database is first accessed
 2. The app restarts and accesses existing study databases
 
 Test by:
+
 ```bash
 npm run dev
 # Open a study - migrations will be applied automatically
@@ -114,7 +117,7 @@ npm run dev
 // Before
 export const deployments = sqliteTable('deployments', {
   deploymentID: text('deploymentID').primaryKey(),
-  locationID: text('locationID'),
+  locationID: text('locationID')
   // ...
 })
 
@@ -122,7 +125,7 @@ export const deployments = sqliteTable('deployments', {
 export const deployments = sqliteTable('deployments', {
   deploymentID: text('deploymentID').primaryKey(),
   locationID: text('locationID'),
-  timezone: text('timezone'),  // NEW COLUMN
+  timezone: text('timezone') // NEW COLUMN
   // ...
 })
 ```
@@ -144,12 +147,16 @@ export const userPreferences = sqliteTable('user_preferences', {
 ```javascript
 import { sqliteTable, text, index } from 'drizzle-orm/sqlite-core'
 
-export const observations = sqliteTable('observations', {
-  // ... columns
-}, (table) => ({
-  scientificNameIdx: index('scientific_name_idx').on(table.scientificName),
-  eventStartIdx: index('event_start_idx').on(table.eventStart)
-}))
+export const observations = sqliteTable(
+  'observations',
+  {
+    // ... columns
+  },
+  (table) => ({
+    scientificNameIdx: index('scientific_name_idx').on(table.scientificName),
+    eventStartIdx: index('event_start_idx').on(table.eventStart)
+  })
+)
 ```
 
 ### Adding Foreign Keys
@@ -174,13 +181,10 @@ import { eq } from 'drizzle-orm'
 export async function getStudySettings(dbPath) {
   const pathParts = dbPath.split('/')
   const studyId = pathParts[pathParts.length - 2] || 'unknown'
-  
+
   const db = await getDrizzleDb(studyId, dbPath)
-  
-  return await db
-    .select()
-    .from(settings)
-    .where(eq(settings.key, 'study_config'))
+
+  return await db.select().from(settings).where(eq(settings.key, 'study_config'))
 }
 ```
 
@@ -236,11 +240,11 @@ The Drizzle configuration is in `drizzle.config.js`:
 import { defineConfig } from 'drizzle-kit'
 
 export default defineConfig({
-  schema: './src/main/db/schema.js',      // Schema location
-  out: './src/main/db/migrations',        // Migration output
-  dialect: 'sqlite',                      // Database type
-  verbose: true,                          // Detailed output
-  strict: true                            // Strict mode
+  schema: './src/main/db/schema.js', // Schema location
+  out: './src/main/db/migrations', // Migration output
+  dialect: 'sqlite', // Database type
+  verbose: true, // Detailed output
+  strict: true // Strict mode
 })
 ```
 
@@ -249,6 +253,7 @@ export default defineConfig({
 ### Migration Fails
 
 Check the logs for detailed error messages:
+
 ```
 [DB] Migration failed for study studyId: Error details...
 ```
@@ -278,6 +283,7 @@ If you see this message but migration files exist:
 ### Database Locked
 
 If you get database locked errors:
+
 1. Close the Electron app completely
 2. Restart and try again
 3. Check that no other processes are accessing the database files

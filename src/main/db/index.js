@@ -30,14 +30,14 @@ export function setupDatabase(db) {
  */
 export async function openDatabase(dbPath) {
   log.warn('[DB] openDatabase is deprecated - use getStudyDatabase instead')
-  
+
   // Extract study ID from path for compatibility
   // Path format: .../studies/{studyId}/study.db
   const pathParts = dbPath.split('/')
   const studyId = pathParts[pathParts.length - 2] || 'unknown'
-  
+
   const manager = await getStudyDatabase(studyId, dbPath)
-  
+
   // Return an object that mimics the old sqlite3 interface
   return {
     manager,
@@ -86,7 +86,7 @@ export async function openDatabase(dbPath) {
  */
 export async function closeDatabase(db) {
   log.warn('[DB] closeDatabase is deprecated - use closeStudyDatabase instead')
-  
+
   if (db && db.manager) {
     await db.manager.close()
   }
@@ -105,7 +105,7 @@ export async function getDrizzleDb(studyId, dbPath) {
 
 /**
  * Helper function to execute raw SQL queries when needed
- * @param {string} studyId - Study identifier  
+ * @param {string} studyId - Study identifier
  * @param {string} dbPath - Path to database file
  * @param {string} query - SQL query
  * @param {Array} params - Query parameters
@@ -114,7 +114,7 @@ export async function getDrizzleDb(studyId, dbPath) {
 export async function executeRawQuery(studyId, dbPath, query, params = []) {
   const manager = await getStudyDatabase(studyId, dbPath)
   const sqlite = manager.getSqlite()
-  
+
   try {
     const statement = sqlite.prepare(query)
     return statement.all(params)

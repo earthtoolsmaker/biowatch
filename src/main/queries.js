@@ -1,4 +1,11 @@
-import { getDrizzleDb, deployments, media, observations, getStudyDatabase, executeRawQuery } from './db/index.js'
+import {
+  getDrizzleDb,
+  deployments,
+  media,
+  observations,
+  getStudyDatabase,
+  executeRawQuery
+} from './db/index.js'
 import { eq, and, desc, count, sql, isNotNull, ne } from 'drizzle-orm'
 import log from 'electron-log'
 
@@ -15,7 +22,7 @@ export async function getSpeciesDistribution(dbPath) {
     // Extract study ID from path
     const pathParts = dbPath.split('/')
     const studyId = pathParts[pathParts.length - 2] || 'unknown'
-    
+
     const db = await getDrizzleDb(studyId, dbPath)
 
     const result = await db
@@ -36,7 +43,7 @@ export async function getSpeciesDistribution(dbPath) {
 
     const elapsedTime = Date.now() - startTime
     log.info(`Retrieved species distribution: ${result.length} species found in ${elapsedTime}ms`)
-    
+
     return result
   } catch (error) {
     log.error(`Error querying species distribution: ${error.message}`)
@@ -57,7 +64,7 @@ export async function getDeployments(dbPath) {
     // Extract study ID from path
     const pathParts = dbPath.split('/')
     const studyId = pathParts[pathParts.length - 2] || 'unknown'
-    
+
     const db = await getDrizzleDb(studyId, dbPath)
 
     // Use raw SQL for complex GROUP BY query that's hard to express in Drizzle
@@ -86,10 +93,8 @@ export async function getDeployments(dbPath) {
     `)
 
     const elapsedTime = Date.now() - startTime
-    log.info(
-      `Retrieved distinct deployments: ${result.length} locations found in ${elapsedTime}ms`
-    )
-    
+    log.info(`Retrieved distinct deployments: ${result.length} locations found in ${elapsedTime}ms`)
+
     return result
   } catch (error) {
     log.error(`Error querying deployments: ${error.message}`)
@@ -110,7 +115,7 @@ export async function getLocationsActivity(dbPath) {
     // Extract study ID from path
     const pathParts = dbPath.split('/')
     const studyId = pathParts[pathParts.length - 2] || 'unknown'
-    
+
     const db = await getDrizzleDb(studyId, dbPath)
 
     // First get the total date range to calculate period size
@@ -253,7 +258,7 @@ export async function getSpeciesTimeseries(dbPath, speciesNames = []) {
     // Extract study ID from path
     const pathParts = dbPath.split('/')
     const studyId = pathParts[pathParts.length - 2] || 'unknown'
-    
+
     const db = await getDrizzleDb(studyId, dbPath)
 
     // Prepare species filter for the complex CTE query
@@ -378,7 +383,7 @@ export async function getSpeciesHeatmapData(
     // Extract study ID from path
     const pathParts = dbPath.split('/')
     const studyId = pathParts[pathParts.length - 2] || 'unknown'
-    
+
     const db = await getDrizzleDb(studyId, dbPath)
 
     // Extract species names for the IN clause with proper escaping
@@ -467,7 +472,7 @@ export async function getSpeciesHeatmapData(
  */
 export async function getMedia(dbPath, options = {}) {
   const { limit = 10, offset = 0, species = [], dateRange = {}, timeRange = {} } = options
-  
+
   const startTime = Date.now()
   log.info(`Querying media files from: ${dbPath} with filtering options`)
   log.info(`Pagination: limit ${limit}, offset ${offset}`)
@@ -488,7 +493,7 @@ export async function getMedia(dbPath, options = {}) {
     // Extract study ID from path
     const pathParts = dbPath.split('/')
     const studyId = pathParts[pathParts.length - 2] || 'unknown'
-    
+
     const db = await getDrizzleDb(studyId, dbPath)
 
     // Build the query with optional filters using raw SQL for complex filtering
@@ -582,7 +587,7 @@ export async function getSpeciesDailyActivity(dbPath, species, startDate, endDat
     // Extract study ID from path
     const pathParts = dbPath.split('/')
     const studyId = pathParts[pathParts.length - 2] || 'unknown'
-    
+
     const db = await getDrizzleDb(studyId, dbPath)
 
     // Extract species names for the IN clause with proper escaping
@@ -664,10 +669,10 @@ export async function createImageDirectoryDatabase(dbPath) {
     // Extract study ID from path
     const pathParts = dbPath.split('/')
     const studyId = pathParts[pathParts.length - 2] || 'unknown'
-    
+
     // Use the Drizzle database manager which will create the database and run migrations
     const manager = await getStudyDatabase(studyId, dbPath)
-    
+
     log.info(`Successfully created database for study ${studyId} at: ${dbPath}`)
     return manager
   } catch (error) {
@@ -687,7 +692,7 @@ export async function insertDeployments(manager, deploymentsData) {
 
   try {
     const db = manager.getDb()
-    
+
     await manager.transaction(async () => {
       for (const depKey of Object.keys(deploymentsData)) {
         const dep = deploymentsData[depKey]
@@ -721,7 +726,7 @@ export async function insertMedia(manager, mediaData) {
 
   try {
     const db = manager.getDb()
-    
+
     await manager.transaction(async () => {
       let count = 0
       for (const mediaPath of Object.keys(mediaData)) {
@@ -760,7 +765,7 @@ export async function insertObservations(manager, observationsData) {
 
   try {
     const db = manager.getDb()
-    
+
     await manager.transaction(async () => {
       let count = 0
       for (const observation of observationsData) {
@@ -789,7 +794,6 @@ export async function insertObservations(manager, observationsData) {
   }
 }
 
-
 /**
  * Get activity data (observation counts) per deployment over time periods
  * @param {string} dbPath - Path to the SQLite database
@@ -803,7 +807,7 @@ export async function getDeploymentsActivity(dbPath) {
     // Extract study ID from path
     const pathParts = dbPath.split('/')
     const studyId = pathParts[pathParts.length - 2] || 'unknown'
-    
+
     const db = await getDrizzleDb(studyId, dbPath)
 
     // First get the total date range to calculate period size
@@ -949,7 +953,7 @@ export async function getFilesData(dbPath) {
     // Extract study ID from path
     const pathParts = dbPath.split('/')
     const studyId = pathParts[pathParts.length - 2] || 'unknown'
-    
+
     const db = await getDrizzleDb(studyId, dbPath)
 
     // Query to get directory statistics

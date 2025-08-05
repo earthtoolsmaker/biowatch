@@ -62,17 +62,17 @@ export async function importCamTrapDataset(directoryPath, id) {
     for (const file of files) {
       const filePath = path.join(directoryPath, file)
       const mapping = csvToTableMap[file]
-      
+
       if (mapping) {
         log.info(`Processing CamTrapDP file: ${file} into schema table: ${mapping.name}`)
-        
+
         // Read the first row to get column names
         const columns = await getCSVColumns(filePath)
         log.debug(`Found ${columns.length} columns in ${file}`)
 
         // Insert data using Drizzle
         await insertCSVData(db, filePath, mapping.table, mapping.name, columns, directoryPath)
-        
+
         log.info(`Successfully imported ${file} into ${mapping.name} table`)
       } else {
         log.warn(`Unknown CamTrapDP CSV file: ${file} - skipping (not part of standard schema)`)
@@ -94,7 +94,6 @@ export async function importCamTrapDataset(directoryPath, id) {
     throw error
   }
 }
-
 
 /**
  * Get column names from the first row of a CSV file
@@ -134,7 +133,7 @@ function getCSVColumns(filePath) {
  */
 async function insertCSVData(db, filePath, table, tableName, columns, directoryPath) {
   log.debug(`Beginning data insertion from ${filePath} to table ${tableName}`)
-  
+
   return new Promise((resolve, reject) => {
     const stream = fs.createReadStream(filePath).pipe(csv())
     const rows = []
@@ -156,15 +155,17 @@ async function insertCSVData(db, filePath, table, tableName, columns, directoryP
         if (rows.length > 0) {
           // Use Drizzle batch inserts (transactions temporarily disabled for compatibility)
           log.debug(`Starting bulk insert of ${rows.length} rows`)
-          
+
           // Insert in batches for better performance
           const batchSize = 1000
           for (let i = 0; i < rows.length; i += batchSize) {
             const batch = rows.slice(i, i + batchSize)
             await db.insert(table).values(batch)
-            log.debug(`Inserted batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(rows.length / batchSize)} into ${tableName}`)
+            log.debug(
+              `Inserted batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(rows.length / batchSize)} into ${tableName}`
+            )
           }
-          
+
           log.info(`Completed insertion of ${rowCount} rows into ${tableName}`)
         } else {
           log.warn(`No valid rows found in ${filePath} for table ${tableName}`)
@@ -267,7 +268,7 @@ function transformObservationRow(row, directoryPath) {
  */
 function transformDateField(dateValue) {
   if (!dateValue) return null
-  
+
   const date = DateTime.fromISO(dateValue)
   return date.isValid ? date.toISO() : null
 }
@@ -277,12 +278,12 @@ function transformDateField(dateValue) {
  */
 function transformFilePathField(filePath, directoryPath) {
   if (!filePath) return null
-  
+
   // If it's already an absolute path or URL, return as is
   if (filePath.startsWith('http') || path.isAbsolute(filePath)) {
     return filePath
   }
-  
+
   // Convert relative path to absolute path relative to the parent of the CamTrapDP directory
   const parentDir = path.dirname(directoryPath)
   return path.join(parentDir, filePath)

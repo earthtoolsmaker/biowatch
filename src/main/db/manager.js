@@ -31,7 +31,7 @@ export class StudyDatabaseManager {
 
       // Create SQLite connection
       this.sqlite = new Database(this.dbPath)
-      
+
       // Enable foreign keys
       this.sqlite.pragma('foreign_keys = ON')
 
@@ -39,7 +39,7 @@ export class StudyDatabaseManager {
 
       // Run migrations FIRST on raw SQLite connection (before schema attachment)
       await this.runMigrations()
-      
+
       // THEN create Drizzle instance with schema (after migrations are complete)
       this.db = drizzle(this.sqlite, { schema })
 
@@ -56,30 +56,33 @@ export class StudyDatabaseManager {
   async runMigrations() {
     try {
       log.info(`[DB] Checking migrations for study ${this.studyId}`)
-      
+
       const isDevMode = await isDevelopment()
       log.info(`[DB] Running in ${isDevMode ? 'development' : 'production'} mode`)
-      
+
       // Check if migration tracking table exists
       await this.checkMigrationState()
-      
+
       // Get validated migrations path
       const migrationsPath = await getValidatedMigrationsPath()
-      
+
       if (migrationsPath) {
         log.info(`[DB] Running migrations from ${migrationsPath}`)
-        
+
         try {
           // Create a temporary Drizzle instance WITHOUT schema for migrations only
           const migrationDb = drizzle(this.sqlite)
           await migrate(migrationDb, { migrationsFolder: migrationsPath })
           log.info(`[DB] Migrations completed for study ${this.studyId}`)
-          
+
           // Verify migration state after successful migration
           await this.checkMigrationState()
         } catch (migrationError) {
           // If migration fails due to tables already existing, check if this is expected
-          if (migrationError.message.includes('already exists') || migrationError.message.includes('CREATE TABLE')) {
+          if (
+            migrationError.message.includes('already exists') ||
+            migrationError.message.includes('CREATE TABLE')
+          ) {
             log.warn(`[DB] Migration attempted to create existing tables for study ${this.studyId}`)
             await this.validateExistingSchema()
           } else {
@@ -104,31 +107,46 @@ export class StudyDatabaseManager {
   async checkMigrationState() {
     try {
       // Check if Drizzle migration tracking table exists
-      const tables = this.sqlite.prepare(`
+      const tables = this.sqlite
+        .prepare(
+          `
         SELECT name FROM sqlite_master 
         WHERE type='table' AND name='__drizzle_migrations'
-      `).all()
-      
+      `
+        )
+        .all()
+
       if (tables.length > 0) {
         log.info(`[DB] Migration tracking table exists for study ${this.studyId}`)
-        
+
         // Get applied migrations
-        const appliedMigrations = this.sqlite.prepare(`
+        const appliedMigrations = this.sqlite
+          .prepare(
+            `
           SELECT * FROM __drizzle_migrations ORDER BY id
-        `).all()
-        
+        `
+          )
+          .all()
+
         log.info(`[DB] Applied migrations for study ${this.studyId}:`, appliedMigrations)
       } else {
         log.info(`[DB] No migration tracking table found for study ${this.studyId}`)
       }
-      
+
       // Check if main tables exist
-      const mainTables = this.sqlite.prepare(`
+      const mainTables = this.sqlite
+        .prepare(
+          `
         SELECT name FROM sqlite_master 
         WHERE type='table' AND name IN ('deployments', 'media', 'observations')
-      `).all()
-      
-      log.info(`[DB] Existing main tables for study ${this.studyId}:`, mainTables.map(t => t.name))
+      `
+        )
+        .all()
+
+      log.info(
+        `[DB] Existing main tables for study ${this.studyId}:`,
+        mainTables.map((t) => t.name)
+      )
     } catch (error) {
       log.error(`[DB] Error checking migration state for study ${this.studyId}:`, error)
     }
@@ -140,19 +158,25 @@ export class StudyDatabaseManager {
   async validateExistingSchema() {
     try {
       log.info(`[DB] Validating existing schema for study ${this.studyId}`)
-      
+
       // Check if all required tables exist
       const requiredTables = ['deployments', 'media', 'observations']
-      const existingTables = this.sqlite.prepare(`
+      const existingTables = this.sqlite
+        .prepare(
+          `
         SELECT name FROM sqlite_master 
         WHERE type='table' AND name IN (${requiredTables.map(() => '?').join(', ')})
-      `).all(...requiredTables)
-      
+      `
+        )
+        .all(...requiredTables)
+
       if (existingTables.length === requiredTables.length) {
-        log.info(`[DB] All required tables exist for study ${this.studyId}, schema validation passed`)
+        log.info(
+          `[DB] All required tables exist for study ${this.studyId}, schema validation passed`
+        )
       } else {
-        const missing = requiredTables.filter(table => 
-          !existingTables.some(existing => existing.name === table)
+        const missing = requiredTables.filter(
+          (table) => !existingTables.some((existing) => existing.name === table)
         )
         log.warn(`[DB] Missing tables for study ${this.studyId}:`, missing)
       }
@@ -212,15 +236,15 @@ const dbConnections = new Map()
  */
 export async function getStudyDatabase(studyId, dbPath) {
   const cacheKey = `${studyId}:${dbPath}`
-  
+
   if (!dbConnections.has(cacheKey)) {
     const manager = new StudyDatabaseManager(studyId, dbPath)
     await manager.initialize()
     dbConnections.set(cacheKey, manager)
-    
+
     log.info(`[DB] Created new database connection for study ${studyId}`)
   }
-  
+
   return dbConnections.get(cacheKey)
 }
 
@@ -245,7 +269,7 @@ export async function closeStudyDatabase(studyId, dbPath = null) {
         keysToDelete.push(key)
       }
     }
-    keysToDelete.forEach(key => dbConnections.delete(key))
+    keysToDelete.forEach((key) => dbConnections.delete(key))
     log.info(`[DB] Closed all database connections for study ${studyId}`)
   }
 }
@@ -255,10 +279,10 @@ export async function closeStudyDatabase(studyId, dbPath = null) {
  */
 export async function closeAllDatabases() {
   log.info('[DB] Closing all database connections')
-  
-  const closePromises = Array.from(dbConnections.values()).map(manager => manager.close())
+
+  const closePromises = Array.from(dbConnections.values()).map((manager) => manager.close())
   await Promise.all(closePromises)
-  
+
   dbConnections.clear()
   log.info('[DB] All database connections closed')
 }

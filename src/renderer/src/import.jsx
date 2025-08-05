@@ -20,8 +20,9 @@ function ImportButton({ onClick, children, className = '', disabled = false }) {
     <button
       onClick={handleClick}
       disabled={isImporting || disabled}
-      className={`cursor-pointer transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-10 text-sm shadow-sm rounded-md hover:bg-gray-50 ${isImporting || disabled ? 'opacity-70' : ''
-        } ${className}`}
+      className={`cursor-pointer transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-10 text-sm shadow-sm rounded-md hover:bg-gray-50 ${
+        isImporting || disabled ? 'opacity-70' : ''
+      } ${className}`}
     >
       {isImporting ? <span className="animate-pulse">Importing...</span> : children}
     </button>
@@ -123,7 +124,9 @@ export default function Import({ onNewStudy }) {
             (inst) => inst.id === model.reference.id && inst.version === model.reference.version
           )
           const envInstalled = environments.some(
-            (env) => env.id === model.pythonEnvironment.id && env.version === model.pythonEnvironment.version
+            (env) =>
+              env.id === model.pythonEnvironment.id &&
+              env.version === model.pythonEnvironment.version
           )
           return modelInstalled && envInstalled
         })
@@ -153,7 +156,8 @@ export default function Import({ onNewStudy }) {
   const isEnvironmentInstalled = (environmentReference) => {
     return installedEnvironments.some(
       (installed) =>
-        installed.id === environmentReference.id && installed.version === environmentReference.version
+        installed.id === environmentReference.id &&
+        installed.version === environmentReference.version
     )
   }
 
@@ -167,8 +171,9 @@ export default function Import({ onNewStudy }) {
   }
 
   const getCompletelyInstalledModels = () => {
-    return modelZoo.filter((model) =>
-      isModelInstalled(model.reference) && isEnvironmentInstalled(model.pythonEnvironment)
+    return modelZoo.filter(
+      (model) =>
+        isModelInstalled(model.reference) && isEnvironmentInstalled(model.pythonEnvironment)
     )
   }
 
@@ -297,7 +302,9 @@ export default function Import({ onNewStudy }) {
                   onClick={() => navigate('/settings/ml_zoo')}
                   className="cursor-pointer transition-colors flex justify-center flex-row gap-2 items-center border border-blue-200 bg-blue-50 hover:bg-blue-100 px-4 h-10 text-sm shadow-sm rounded-md text-blue-700 font-medium"
                 >
-                  {getInstalledModels().length === 0 ? 'Install AI Models' : 'Install AI Environments'}
+                  {getInstalledModels().length === 0
+                    ? 'Install AI Models'
+                    : 'Install AI Environments'}
                 </button>
               </div>
             ) : (
@@ -342,7 +349,8 @@ export default function Import({ onNewStudy }) {
                           fontStyle: completelyInstalled ? 'normal' : 'italic'
                         }}
                       >
-                        {model.name} v{model.reference.version}{statusText}
+                        {model.name} v{model.reference.version}
+                        {statusText}
                       </option>
                     )
                   })}

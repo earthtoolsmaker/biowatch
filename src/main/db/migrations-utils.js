@@ -110,7 +110,7 @@ export async function getValidatedMigrationsPath() {
     app = { isPackaged: false, getPath: () => '/tmp' }
   }
   const migrationsPath = await getMigrationsPath()
-  
+
   if (await validateMigrationsPath(migrationsPath)) {
     return migrationsPath
   }

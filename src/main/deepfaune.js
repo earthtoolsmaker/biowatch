@@ -135,7 +135,7 @@ async function insertDeepfauneDeployments(db, deploymentFolders) {
   try {
     log.debug('Starting bulk insert of deployments using Drizzle')
 
-    const rows = deploymentFolders.map(folderPath => {
+    const rows = deploymentFolders.map((folderPath) => {
       const deploymentID = crypto.randomUUID()
       const locationName = path.basename(folderPath) || folderPath
 
@@ -156,9 +156,11 @@ async function insertDeepfauneDeployments(db, deploymentFolders) {
       for (let i = 0; i < rows.length; i += batchSize) {
         const batch = rows.slice(i, i + batchSize)
         await db.insert(deployments).values(batch)
-        log.debug(`Inserted batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(rows.length / batchSize)} into deployments`)
+        log.debug(
+          `Inserted batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(rows.length / batchSize)} into deployments`
+        )
       }
-      
+
       log.info(`Completed insertion of ${deploymentFolders.length} deployments`)
     } else {
       log.warn('No deployment folders to insert')
@@ -187,7 +189,11 @@ async function insertDeepfauneData(db, csvPath) {
     // Helper function to get deployment by folder path using Drizzle
     const getDeploymentByFolder = async (folderPath) => {
       try {
-        const result = await db.select().from(deployments).where(eq(deployments.locationID, folderPath)).limit(1)
+        const result = await db
+          .select()
+          .from(deployments)
+          .where(eq(deployments.locationID, folderPath))
+          .limit(1)
         return result[0] || null
       } catch (error) {
         log.error(`Error getting deployment for folder ${folderPath}:`, error)
@@ -275,20 +281,23 @@ async function insertDeepfauneData(db, csvPath) {
           log.debug('Updating deployment date ranges')
           for (const [deploymentID, timestamps] of deploymentTimestamps.entries()) {
             if (timestamps.length === 0) continue
-            
+
             // Find min and max timestamps
             const sortedTimestamps = timestamps.sort((a, b) => a.toMillis() - b.toMillis())
             const minTimestamp = sortedTimestamps[0].toISO()
             const maxTimestamp = sortedTimestamps[sortedTimestamps.length - 1].toISO()
-            
-            await db.update(deployments)
+
+            await db
+              .update(deployments)
               .set({
                 deploymentStart: minTimestamp,
                 deploymentEnd: maxTimestamp
               })
               .where(eq(deployments.deploymentID, deploymentID))
-            
-            log.debug(`Updated deployment ${deploymentID} date range: ${minTimestamp} - ${maxTimestamp}`)
+
+            log.debug(
+              `Updated deployment ${deploymentID} date range: ${minTimestamp} - ${maxTimestamp}`
+            )
           }
 
           // Insert media records in batches
@@ -298,7 +307,9 @@ async function insertDeepfauneData(db, csvPath) {
             for (let i = 0; i < mediaRows.length; i += batchSize) {
               const batch = mediaRows.slice(i, i + batchSize)
               await db.insert(media).values(batch).onConflictDoNothing()
-              log.debug(`Inserted media batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(mediaRows.length / batchSize)}`)
+              log.debug(
+                `Inserted media batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(mediaRows.length / batchSize)}`
+              )
             }
           }
 
@@ -309,7 +320,9 @@ async function insertDeepfauneData(db, csvPath) {
             for (let i = 0; i < observationRows.length; i += batchSize) {
               const batch = observationRows.slice(i, i + batchSize)
               await db.insert(observations).values(batch).onConflictDoNothing()
-              log.debug(`Inserted observations batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(observationRows.length / batchSize)}`)
+              log.debug(
+                `Inserted observations batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(observationRows.length / batchSize)}`
+              )
             }
           }
 
@@ -331,4 +344,3 @@ async function insertDeepfauneData(db, csvPath) {
     }
   })
 }
-

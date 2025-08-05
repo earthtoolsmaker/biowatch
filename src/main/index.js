@@ -1064,7 +1064,8 @@ ipcMain.handle('deployments:set-latitude', async (_, studyId, deploymentID, lati
 
     const db = await getDrizzleDb(studyId, dbPath)
 
-    await db.update(deployments)
+    await db
+      .update(deployments)
       .set({ latitude: parseFloat(latitude) })
       .where(eq(deployments.deploymentID, deploymentID))
 
@@ -1087,7 +1088,8 @@ ipcMain.handle('deployments:set-longitude', async (_, studyId, deploymentID, lon
 
     const db = await getDrizzleDb(studyId, dbPath)
 
-    await db.update(deployments)
+    await db
+      .update(deployments)
       .set({ longitude: parseFloat(longitude) })
       .where(eq(deployments.deploymentID, deploymentID))
 

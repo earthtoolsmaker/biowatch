@@ -8,7 +8,13 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     build: {
       rollupOptions: {
-        external: ['drizzle-orm', 'drizzle-orm/better-sqlite3', 'drizzle-orm/better-sqlite3/migrator', 'drizzle-orm/sqlite-core', 'better-sqlite3']
+        external: [
+          'drizzle-orm',
+          'drizzle-orm/better-sqlite3',
+          'drizzle-orm/better-sqlite3/migrator',
+          'drizzle-orm/sqlite-core',
+          'better-sqlite3'
+        ]
       }
     }
   },

@@ -178,7 +178,7 @@ async function insertDeployments(db, deploymentsCSV) {
         latitude: parseFloat(row.latitude) || null,
         longitude: parseFloat(row.longitude) || null
       }
-      
+
       rows.push(transformedRow)
       rowCount++
     })
@@ -187,15 +187,17 @@ async function insertDeployments(db, deploymentsCSV) {
       try {
         if (rows.length > 0) {
           log.debug(`Starting bulk insert of ${rows.length} deployments`)
-          
+
           // Insert in batches for better performance
           const batchSize = 1000
           for (let i = 0; i < rows.length; i += batchSize) {
             const batch = rows.slice(i, i + batchSize)
             await db.insert(deployments).values(batch)
-            log.debug(`Inserted batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(rows.length / batchSize)} into deployments`)
+            log.debug(
+              `Inserted batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(rows.length / batchSize)} into deployments`
+            )
           }
-          
+
           log.info(`Completed insertion of ${rowCount} rows into deployments`)
         } else {
           log.warn(`No valid rows found in ${deploymentsCSV}`)
@@ -239,7 +241,7 @@ async function insertMedia(db, csvPath) {
         filePath: row.location || null,
         fileName: row.filename || null
       }
-      
+
       rows.push(transformedRow)
       rowCount++
     })
@@ -248,15 +250,17 @@ async function insertMedia(db, csvPath) {
       try {
         if (rows.length > 0) {
           log.debug(`Starting bulk insert of ${rows.length} media items`)
-          
-          // Insert in batches for better performance  
+
+          // Insert in batches for better performance
           const batchSize = 1000
           for (let i = 0; i < rows.length; i += batchSize) {
             const batch = rows.slice(i, i + batchSize)
             await db.insert(media).values(batch).onConflictDoNothing()
-            log.debug(`Inserted batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(rows.length / batchSize)} into media`)
+            log.debug(
+              `Inserted batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(rows.length / batchSize)} into media`
+            )
           }
-          
+
           log.info(`Completed insertion of ${rowCount} rows into media`)
         } else {
           log.warn(`No valid rows found in ${csvPath}`)
@@ -321,7 +325,7 @@ async function insertObservations(db, csvPath) {
         sex: row.sex || null,
         behavior: row.behavior || null
       }
-      
+
       rows.push(transformedRow)
       rowCount++
     })
@@ -330,15 +334,17 @@ async function insertObservations(db, csvPath) {
       try {
         if (rows.length > 0) {
           log.debug(`Starting bulk insert of ${rows.length} observations`)
-          
+
           // Insert in batches for better performance
           const batchSize = 1000
           for (let i = 0; i < rows.length; i += batchSize) {
             const batch = rows.slice(i, i + batchSize)
             await db.insert(observations).values(batch).onConflictDoNothing()
-            log.debug(`Inserted batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(rows.length / batchSize)} into observations`)
+            log.debug(
+              `Inserted batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(rows.length / batchSize)} into observations`
+            )
           }
-          
+
           log.info(`Completed insertion of ${rowCount} rows into observations`)
         } else {
           log.warn(`No valid rows found in ${csvPath}`)
@@ -356,4 +362,3 @@ async function insertObservations(db, csvPath) {
     })
   })
 }
-

@@ -263,7 +263,8 @@ async function insertMedia(db, fullPath, importFolder) {
 
     if (deployment) {
       // If a deployment exists, update the start or end time if necessary
-      await db.update(deployments)
+      await db
+        .update(deployments)
         .set({
           deploymentStart: DateTime.min(date, DateTime.fromISO(deployment.deploymentStart)).toISO(),
           deploymentEnd: DateTime.max(date, DateTime.fromISO(deployment.deploymentEnd)).toISO()
@@ -274,7 +275,7 @@ async function insertMedia(db, fullPath, importFolder) {
       const deploymentID = crypto.randomUUID()
       const locationID = parentFolder
       log.info('Creating new deployment with at: ', locationID, latitude, longitude)
-      
+
       await db.insert(deployments).values({
         deploymentID,
         locationID,
@@ -284,7 +285,7 @@ async function insertMedia(db, fullPath, importFolder) {
         latitude: parseFloat(latitude),
         longitude: parseFloat(longitude)
       })
-      
+
       deployment = {
         deploymentID,
         latitude,
@@ -417,14 +418,17 @@ async function nextMediaToPredict(db, batchSize = 100) {
 
 async function getDeployment(db, locationID) {
   try {
-    const result = await db.select().from(deployments).where(eq(deployments.locationID, locationID)).limit(1)
+    const result = await db
+      .select()
+      .from(deployments)
+      .where(eq(deployments.locationID, locationID))
+      .limit(1)
     return result[0] || null
   } catch (error) {
     log.error(`Error getting deployment for locationID ${locationID}:`, error)
     return null
   }
 }
-
 
 async function getTemporalData(db) {
   try {
@@ -547,7 +551,7 @@ let importers = {}
 
 async function status(id) {
   const dbPath = path.join(app.getPath('userData'), 'biowatch-data', 'studies', id, 'study.db')
-  
+
   try {
     const db = await getDrizzleDb(id, dbPath)
 
@@ -557,7 +561,7 @@ async function status(id) {
       .from(media)
       .get()
 
-    // Get count of observations  
+    // Get count of observations
     const obsResult = await db
       .select({ obsCount: count(observations.observationID) })
       .from(observations)
