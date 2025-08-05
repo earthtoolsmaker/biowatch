@@ -1,20 +1,59 @@
 import fs from 'fs'
 import path from 'path'
-import { app } from 'electron'
 import csv from 'csv-parser'
-import log from 'electron-log'
 import { DateTime } from 'luxon'
 import { getDrizzleDb, deployments, media, observations } from './db/index.js'
+
+// Conditionally import electron modules for production, use fallback for testing
+let app, log
+
+// Initialize electron modules with proper async handling
+async function initializeElectronModules() {
+  if (app && log) return // Already initialized
+
+  try {
+    const electron = await import('electron')
+    app = electron.app
+    const electronLog = await import('electron-log')
+    log = electronLog.default
+  } catch {
+    // Fallback for testing environment
+    app = {
+      getPath: () => '/tmp'
+    }
+    log = {
+      info: () => {},
+      error: () => {},
+      warn: () => {},
+      debug: () => {}
+    }
+  }
+}
 
 /**
  * Import CamTrapDP dataset from a directory into a SQLite database
  * @param {string} directoryPath - Path to the CamTrapDP dataset directory
+ * @param {string} id - Unique ID for the study
  * @returns {Promise<Object>} - Object containing dbPath and name
  */
 export async function importCamTrapDataset(directoryPath, id) {
+  await initializeElectronModules()
+  const biowatchDataPath = path.join(app.getPath('userData'), 'biowatch-data')
+  return await importCamTrapDatasetWithPath(directoryPath, biowatchDataPath, id)
+}
+
+/**
+ * Import CamTrapDP dataset from a directory into a SQLite database (core function)
+ * @param {string} directoryPath - Path to the CamTrapDP dataset directory
+ * @param {string} biowatchDataPath - Path to the biowatch-data directory
+ * @param {string} id - Unique ID for the study
+ * @returns {Promise<Object>} - Object containing dbPath and data
+ */
+export async function importCamTrapDatasetWithPath(directoryPath, biowatchDataPath, id) {
+  await initializeElectronModules()
   log.info('Starting CamTrap dataset import')
-  // Create database in app's user data directory using new structure
-  const dbPath = path.join(app.getPath('userData'), 'biowatch-data', 'studies', id, 'study.db')
+  // Create database in the specified biowatch-data directory
+  const dbPath = path.join(biowatchDataPath, 'studies', id, 'study.db')
   log.info(`Creating database at: ${dbPath}`)
 
   // Ensure the directory exists
@@ -47,46 +86,65 @@ export async function importCamTrapDataset(directoryPath, id) {
   log.info(`Using dataset directory: ${directoryPath}`)
 
   try {
-    // Get all CSV files in the directory
-    const files = fs.readdirSync(directoryPath).filter((file) => file.endsWith('.csv'))
-    log.info(`Found ${files.length} CSV files to import`)
+    // Define processing order to respect foreign key dependencies
+    const filesToProcess = [
+      { file: 'deployments.csv', table: deployments, name: 'deployments' },
+      { file: 'media.csv', table: media, name: 'media' },
+      { file: 'observations.csv', table: observations, name: 'observations' }
+    ]
 
-    // Map CamTrapDP CSV files to schema tables
-    const csvToTableMap = {
-      'deployments.csv': { table: deployments, name: 'deployments' },
-      'media.csv': { table: media, name: 'media' },
-      'observations.csv': { table: observations, name: 'observations' }
-    }
-
-    // Process each CSV file
-    for (const file of files) {
-      const filePath = path.join(directoryPath, file)
-      const mapping = csvToTableMap[file]
-
-      if (mapping) {
-        log.info(`Processing CamTrapDP file: ${file} into schema table: ${mapping.name}`)
-
-        // Read the first row to get column names
-        const columns = await getCSVColumns(filePath)
-        log.debug(`Found ${columns.length} columns in ${file}`)
-
-        // Insert data using Drizzle
-        await insertCSVData(db, filePath, mapping.table, mapping.name, columns, directoryPath)
-
-        log.info(`Successfully imported ${file} into ${mapping.name} table`)
+    // Check which files exist
+    const existingFiles = filesToProcess.filter(({ file }) => {
+      const exists = fs.existsSync(path.join(directoryPath, file))
+      if (exists) {
+        log.info(`Found CamTrapDP file: ${file}`)
       } else {
-        log.warn(`Unknown CamTrapDP CSV file: ${file} - skipping (not part of standard schema)`)
+        log.warn(`CamTrapDP file not found: ${file}`)
       }
+      return exists
+    })
+
+    log.info(`Found ${existingFiles.length} CamTrapDP CSV files to import`)
+
+    // Process each CSV file in dependency order
+    for (const { file, table, name } of existingFiles) {
+      const filePath = path.join(directoryPath, file)
+
+      log.info(`Processing CamTrapDP file: ${file} into schema table: ${name}`)
+
+      // Read the first row to get column names
+      const columns = await getCSVColumns(filePath)
+      log.debug(`Found ${columns.length} columns in ${file}`)
+
+      // Insert data using Drizzle
+      await insertCSVData(db, filePath, table, name, columns, directoryPath)
+
+      log.info(`Successfully imported ${file} into ${name} table`)
     }
 
     log.info('CamTrap dataset import completed successfully')
+    const studyJsonPath = path.join(biowatchDataPath, 'studies', id, 'study.json')
     fs.writeFileSync(
-      path.join(app.getPath('userData'), 'biowatch-data', 'studies', id, 'study.json'),
-      JSON.stringify({ id, data, name: data.name }, null, 2)
+      studyJsonPath,
+      JSON.stringify(
+        {
+          id,
+          data,
+          name: data.name,
+          importerName: 'camtrap/datapackage'
+        },
+        null,
+        2
+      )
     )
     return {
       dbPath,
-      data
+      data: {
+        id,
+        data,
+        name: data.name,
+        importerName: 'camtrap/datapackage'
+      }
     }
   } catch (error) {
     log.error('Error importing dataset:', error)
@@ -100,7 +158,8 @@ export async function importCamTrapDataset(directoryPath, id) {
  * @param {string} filePath - Path to the CSV file
  * @returns {Promise<string[]>} - Array of column names
  */
-function getCSVColumns(filePath) {
+async function getCSVColumns(filePath) {
+  await initializeElectronModules()
   log.debug(`Reading columns from: ${filePath}`)
   return new Promise((resolve, reject) => {
     let columns = []
@@ -132,6 +191,7 @@ function getCSVColumns(filePath) {
  * @returns {Promise<void>}
  */
 async function insertCSVData(db, filePath, table, tableName, columns, directoryPath) {
+  await initializeElectronModules()
   log.debug(`Beginning data insertion from ${filePath} to table ${tableName}`)
 
   return new Promise((resolve, reject) => {
@@ -196,11 +256,11 @@ function transformRowToSchema(row, tableName, columns, directoryPath) {
   try {
     switch (tableName) {
       case 'deployments':
-        return transformDeploymentRow(row, directoryPath)
+        return transformDeploymentRow(row)
       case 'media':
         return transformMediaRow(row, directoryPath)
       case 'observations':
-        return transformObservationRow(row, directoryPath)
+        return transformObservationRow(row)
       default:
         log.warn(`Unknown table name: ${tableName}`)
         return null
@@ -214,9 +274,17 @@ function transformRowToSchema(row, tableName, columns, directoryPath) {
 /**
  * Transform deployment CSV row to deployments schema
  */
-function transformDeploymentRow(row, directoryPath) {
-  return {
-    deploymentID: row.deploymentID || row.deployment_id || null,
+function transformDeploymentRow(row) {
+  const deploymentID = row.deploymentID || row.deployment_id
+
+  // Skip deployments without required primary key
+  if (!deploymentID) {
+    log.warn('Skipping deployment row without deploymentID:', row)
+    return null
+  }
+
+  const transformed = {
+    deploymentID,
     locationID: row.locationID || row.location_id || null,
     locationName: row.locationName || row.location_name || null,
     deploymentStart: transformDateField(row.deploymentStart || row.deployment_start),
@@ -224,14 +292,25 @@ function transformDeploymentRow(row, directoryPath) {
     latitude: parseFloat(row.latitude) || null,
     longitude: parseFloat(row.longitude) || null
   }
+
+  log.debug('Transformed deployment row:', transformed)
+  return transformed
 }
 
 /**
  * Transform media CSV row to media schema
  */
 function transformMediaRow(row, directoryPath) {
+  const mediaID = row.mediaID || row.media_id
+
+  // Skip rows without required primary key
+  if (!mediaID) {
+    log.warn('Skipping media row without mediaID:', row)
+    return null
+  }
+
   return {
-    mediaID: row.mediaID || row.media_id || null,
+    mediaID,
     deploymentID: row.deploymentID || row.deployment_id || null,
     timestamp: transformDateField(row.timestamp),
     filePath: transformFilePathField(row.filePath || row.file_path, directoryPath),
@@ -242,9 +321,17 @@ function transformMediaRow(row, directoryPath) {
 /**
  * Transform observation CSV row to observations schema
  */
-function transformObservationRow(row, directoryPath) {
+function transformObservationRow(row) {
+  const observationID = row.observationID || row.observation_id
+
+  // Skip observations without required primary key
+  if (!observationID) {
+    log.warn('Skipping observation row without observationID:', row)
+    return null
+  }
+
   return {
-    observationID: row.observationID || row.observation_id || null,
+    observationID,
     mediaID: row.mediaID || row.media_id || null,
     deploymentID: row.deploymentID || row.deployment_id || null,
     eventID: row.eventID || row.event_id || null,
@@ -270,7 +357,7 @@ function transformDateField(dateValue) {
   if (!dateValue) return null
 
   const date = DateTime.fromISO(dateValue)
-  return date.isValid ? date.toISO() : null
+  return date.isValid ? date.toUTC().toISO() : null
 }
 
 /**
