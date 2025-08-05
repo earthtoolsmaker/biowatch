@@ -17,9 +17,11 @@
     "build:mac": "npm run build && electron-builder --mac --publish always",
     "build:mac:no-sign": "npm run build && electron-builder --mac --publish never --config.mac.identity=null",
     "build:linux": "npm run build && electron-builder --linux --publish always",
-    "test": "node --test test/**/*.test.js",
-    "test:migrations": "node --test test/migrations.test.js",
-    "test:watch": "node --test --watch test/**/*.test.js",
+    "test": "npm run test:rebuild && node --test test/**/*.test.js && npm run test:rebuild-electron",
+    "test:migrations": "npm run test:rebuild && node --test test/migrations.test.js && npm run test:rebuild-electron",
+    "test:watch": "npm run test:rebuild && node --test --watch test/**/*.test.js",
+    "test:rebuild": "npm rebuild better-sqlite3",
+    "test:rebuild-electron": "npx electron-rebuild -f -w better-sqlite3",
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
