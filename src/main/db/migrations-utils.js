@@ -3,8 +3,20 @@ import { join } from 'path'
 
 // Conditionally import electron modules for testing compatibility
 let app, log
+
+// Initialize fallback values immediately for test environment
+app = {
+  isPackaged: false,
+  getPath: () => '/tmp'
+}
+log = {
+  info: () => {},
+  warn: () => {},
+  error: () => {}
+}
+
 async function initializeElectronModules() {
-  if (app && log) return // Already initialized
+  if (app && log && app.getAppPath) return // Already initialized with real electron modules
 
   try {
     const electron = await import('electron')
@@ -12,16 +24,7 @@ async function initializeElectronModules() {
     const electronLog = await import('electron-log')
     log = electronLog.default
   } catch {
-    // Fallback for testing environment
-    app = {
-      isPackaged: false,
-      getPath: () => '/tmp'
-    }
-    log = {
-      info: () => {},
-      warn: () => {},
-      error: () => {}
-    }
+    // Keep fallback values for testing environment - already set above
   }
 }
 
@@ -31,6 +34,10 @@ async function initializeElectronModules() {
  */
 export async function isDevelopment() {
   await initializeElectronModules()
+  // Ensure app is defined with fallback
+  if (!app) {
+    app = { isPackaged: false, getPath: () => '/tmp' }
+  }
   return !app.isPackaged
 }
 
@@ -40,6 +47,10 @@ export async function isDevelopment() {
  */
 export async function getMigrationsPath() {
   await initializeElectronModules()
+  // Ensure app is defined with fallback
+  if (!app) {
+    app = { isPackaged: false, getPath: () => '/tmp' }
+  }
   if (!app.isPackaged) {
     // In development, use absolute path to source migrations
     const devPath = join(process.cwd(), 'src', 'main', 'db', 'migrations')
@@ -94,6 +105,10 @@ export async function validateMigrationsPath(migrationsPath) {
  */
 export async function getValidatedMigrationsPath() {
   await initializeElectronModules()
+  // Ensure app is defined with fallback
+  if (!app) {
+    app = { isPackaged: false, getPath: () => '/tmp' }
+  }
   const migrationsPath = await getMigrationsPath()
   
   if (await validateMigrationsPath(migrationsPath)) {

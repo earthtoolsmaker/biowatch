@@ -2,6 +2,7 @@
   "name": "biowatch",
   "version": "1.1.0",
   "description": "Analyse and visualise camera trap datasets",
+  "type": "module",
   "main": "./out/main/index.js",
   "author": "earthtoolsmaker.org",
   "homepage": "https://www.earthtoolsmaker.org/",

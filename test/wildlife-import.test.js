@@ -97,16 +97,17 @@ describe('Wildlife Import Tests', () => {
       const dbPath = join(testBiowatchDataPath, 'studies', studyId, 'study.db')
       assert(existsSync(dbPath), 'Database should be created')
 
-      // Verify database tables exist
+      // Verify database tables exist (Drizzle also creates __drizzle_migrations table)
       const tables = await queryDatabase(
         dbPath,
         "SELECT name FROM sqlite_master WHERE type='table'"
       )
       const tableNames = tables.map((t) => t.name).sort()
+      const expectedTables = ['__drizzle_migrations', 'deployments', 'media', 'observations']
       assert.deepEqual(
         tableNames,
-        ['deployments', 'media', 'observations'],
-        'Should create all required tables'
+        expectedTables,
+        'Should create all required tables including Drizzle migration tracking'
       )
     })
 
