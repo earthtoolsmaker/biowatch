@@ -693,10 +693,10 @@ export async function insertDeployments(manager, deploymentsData) {
   try {
     const db = manager.getDb()
 
-    await manager.transaction(async () => {
+    manager.transaction(() => {
       for (const depKey of Object.keys(deploymentsData)) {
         const dep = deploymentsData[depKey]
-        await db.insert(deployments).values({
+        db.insert(deployments).values({
           deploymentID: dep.deploymentID,
           locationID: dep.locationID,
           locationName: dep.locationName,
@@ -704,7 +704,7 @@ export async function insertDeployments(manager, deploymentsData) {
           deploymentEnd: dep.deploymentEnd ? dep.deploymentEnd.toISO() : null,
           latitude: dep.latitude,
           longitude: dep.longitude
-        })
+        }).run()
       }
     })
 
@@ -727,18 +727,17 @@ export async function insertMedia(manager, mediaData) {
   try {
     const db = manager.getDb()
 
-    await manager.transaction(async () => {
+    manager.transaction(() => {
       let count = 0
       for (const mediaPath of Object.keys(mediaData)) {
         const item = mediaData[mediaPath]
-        console.log('ITEM', item)
-        await db.insert(media).values({
+        db.insert(media).values({
           mediaID: item.mediaID,
           deploymentID: item.deploymentID,
           timestamp: item.timestamp ? item.timestamp.toISO() : null,
           filePath: item.filePath,
           fileName: item.fileName
-        })
+        }).run()
 
         count++
         if (count % 1000 === 0) {
@@ -766,19 +765,22 @@ export async function insertObservations(manager, observationsData) {
   try {
     const db = manager.getDb()
 
-    await manager.transaction(async () => {
+    manager.transaction(() => {
       let count = 0
       for (const observation of observationsData) {
-        await db.insert(observations).values({
+        db.insert(observations).values({
           observationID: observation.observationID,
           mediaID: observation.mediaID,
           deploymentID: observation.deploymentID,
           eventID: observation.eventID,
           eventStart: observation.eventStart ? observation.eventStart.toISO() : null,
+          eventEnd: observation.eventEnd ? observation.eventEnd.toISO() : null,
           scientificName: observation.scientificName,
-          confidence: observation.confidence || null,
+          commonName: observation.commonName,
+          confidence: observation.confidence !== undefined ? observation.confidence : null,
+          count: observation.count !== undefined ? observation.count : null,
           prediction: observation.prediction || null
-        })
+        }).run()
 
         count++
         if (count % 1000 === 0) {
