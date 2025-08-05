@@ -116,7 +116,7 @@ function getMLModelLocalInstallPath({ id, version }) {
  */
 async function listInstalledMLModels() {
   const rootDir = getMLModelLocalRootDir()
-  
+
   // Check if the root directory exists
   if (!existsSync(rootDir)) {
     log.debug(`ML Model root directory does not exist: ${rootDir}`)
@@ -177,7 +177,7 @@ function getMLModelEnvironmentLocalInstallPath({ version, id }) {
  */
 async function listInstalledMLModelEnvironments() {
   const rootDir = getMLModelEnvironmentRootDir()
-  
+
   // Check if the root directory exists
   if (!existsSync(rootDir)) {
     log.debug(`ML Model environment root directory does not exist: ${rootDir}`)
@@ -414,42 +414,45 @@ async function clearAllLocalMLModels() {
   try {
     const localMLModelRootDir = getMLModelLocalRootDir()
     const localMLModelEnvironmentRootDir = getMLModelEnvironmentRootDir()
-    
+
     log.info('[CLEAR ALL] Starting clear all operation')
     log.info('[CLEAR ALL] Model directory path:', localMLModelRootDir)
     log.info('[CLEAR ALL] Environment directory path:', localMLModelEnvironmentRootDir)
-    
+
     // Check if directories exist before attempting to remove
     const modelDirExists = existsSync(localMLModelRootDir)
     const envDirExists = existsSync(localMLModelEnvironmentRootDir)
-    
+
     log.info('[CLEAR ALL] Model directory exists:', modelDirExists)
     log.info('[CLEAR ALL] Environment directory exists:', envDirExists)
-    
+
     if (modelDirExists) {
       log.info('[CLEAR ALL] Attempting to remove model directory:', localMLModelRootDir)
       await fsPromises.rm(localMLModelRootDir, { recursive: true, force: true })
       log.info('[CLEAR ALL] Model directory removal completed')
-      
+
       // Verify removal
       const modelDirStillExists = existsSync(localMLModelRootDir)
       log.info('[CLEAR ALL] Model directory still exists after removal:', modelDirStillExists)
     } else {
       log.info('[CLEAR ALL] Model directory does not exist, skipping removal')
     }
-    
+
     if (envDirExists) {
-      log.info('[CLEAR ALL] Attempting to remove environment directory:', localMLModelEnvironmentRootDir)
+      log.info(
+        '[CLEAR ALL] Attempting to remove environment directory:',
+        localMLModelEnvironmentRootDir
+      )
       await fsPromises.rm(localMLModelEnvironmentRootDir, { recursive: true, force: true })
       log.info('[CLEAR ALL] Environment directory removal completed')
-      
+
       // Verify removal
       const envDirStillExists = existsSync(localMLModelEnvironmentRootDir)
       log.info('[CLEAR ALL] Environment directory still exists after removal:', envDirStillExists)
     } else {
       log.info('[CLEAR ALL] Environment directory does not exist, skipping removal')
     }
-    
+
     log.info('[CLEAR ALL] Clear all operation completed successfully')
     return {
       success: true,
@@ -458,9 +461,9 @@ async function clearAllLocalMLModels() {
   } catch (error) {
     log.error('[CLEAR ALL] Error during clear all operation:', error)
     log.error('[CLEAR ALL] Error stack:', error.stack)
-    return { 
-      success: false, 
-      message: `Failed to clear all local ML models: ${error.message}` 
+    return {
+      success: false,
+      message: `Failed to clear all local ML models: ${error.message}`
     }
   }
 }
@@ -551,7 +554,7 @@ async function downloadPythonEnvironment({ id, version }) {
     if (progress > previousDownloadProgress + flushProgressDownloadIncrementThreshold) {
       // Add retry information to the manifest when retrying
       const retryInfo = isRetry ? { isRetry, attemptNumber } : {}
-      
+
       writeToManifest({
         manifestFilepath,
         id,
@@ -561,10 +564,12 @@ async function downloadPythonEnvironment({ id, version }) {
         opts: { ...manifestOpts, ...retryInfo }
       })
       previousDownloadProgress = progress
-      
+
       // Log retry progress
       if (isRetry) {
-        log.info(`[RETRY ${attemptNumber}] Python environment download progress: ${progress.toFixed(1)}%`)
+        log.info(
+          `[RETRY ${attemptNumber}] Python environment download progress: ${progress.toFixed(1)}%`
+        )
       }
     }
   }
@@ -603,7 +608,7 @@ async function downloadPythonEnvironment({ id, version }) {
     } else {
       log.info(`[DOWNLOAD] Starting Python environment download from ${downloadURL}`)
       log.info(`[DOWNLOAD] Download will use retry logic with up to ${5} attempts`)
-      
+
       writeToManifest({
         manifestFilepath,
         id,
@@ -612,7 +617,7 @@ async function downloadPythonEnvironment({ id, version }) {
         state: InstallationState.Download,
         opts: manifestOpts
       })
-      
+
       // Use the robust download function with retry logic
       await downloadFile(downloadURL, localTarPath, onProgressDownload)
       writeToManifest({
@@ -683,18 +688,22 @@ function getMLModelDownloadStatus({ modelReference, pythonEnvironmentReference }
   try {
     const manifestFilepathMLModel = getMLModelLocalDownloadManifest()
     const manifestFilepathPythonEnvironment = getMLEnvironmentDownloadManifest()
-    
+
     // Validate input parameters
     if (!modelReference || !modelReference.id || !modelReference.version) {
       log.error('Invalid modelReference provided to getMLModelDownloadStatus')
       return { model: {}, pythonEnvironment: {} }
     }
-    
-    if (!pythonEnvironmentReference || !pythonEnvironmentReference.id || !pythonEnvironmentReference.version) {
+
+    if (
+      !pythonEnvironmentReference ||
+      !pythonEnvironmentReference.id ||
+      !pythonEnvironmentReference.version
+    ) {
       log.error('Invalid pythonEnvironmentReference provided to getMLModelDownloadStatus')
       return { model: {}, pythonEnvironment: {} }
     }
-    
+
     return {
       model: getDownloadStatus({
         manifestFilepath: manifestFilepathMLModel,

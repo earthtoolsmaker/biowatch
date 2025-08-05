@@ -251,20 +251,18 @@ export async function extractZip(zipPath, extractPath) {
  **/
 /**
  * Checks if an error is retryable based on its message or type.
- * 
+ *
  * @param {Error} error - The error to check
  * @returns {boolean} True if the error should trigger a retry
  */
 function isRetryableError(error) {
   const errorMessage = error.message || error.toString()
-  return RETRYABLE_ERRORS.some(retryableError => 
-    errorMessage.includes(retryableError)
-  )
+  return RETRYABLE_ERRORS.some((retryableError) => errorMessage.includes(retryableError))
 }
 
 /**
  * Calculates the delay for the next retry attempt using exponential backoff.
- * 
+ *
  * @param {number} attemptNumber - The current attempt number (0-based)
  * @returns {number} The delay in milliseconds
  */
@@ -275,7 +273,7 @@ function calculateRetryDelay(attemptNumber) {
 
 /**
  * Gets the size of a partially downloaded file, or 0 if it doesn't exist.
- * 
+ *
  * @param {string} filePath - Path to the file
  * @returns {number} File size in bytes
  */
@@ -292,7 +290,7 @@ function getPartialFileSize(filePath) {
 
 /**
  * Downloads a file with retry logic and resume capability.
- * 
+ *
  * @param {string} url - The URL to download from
  * @param {string} destination - The local file path to save to
  * @param {function} onProgress - Progress callback function
@@ -301,7 +299,7 @@ function getPartialFileSize(filePath) {
  */
 export async function downloadFileWithRetry(url, destination, onProgress, attemptNumber = 0) {
   const isRetry = attemptNumber > 0
-  
+
   try {
     if (isRetry) {
       log.info(`[RETRY ${attemptNumber}/${RETRY_CONFIG.maxRetries}] Retrying download: ${url}`)
@@ -317,14 +315,14 @@ export async function downloadFileWithRetry(url, destination, onProgress, attemp
     // Check for partial download and prepare resume
     const partialSize = getPartialFileSize(destination)
     const headers = {}
-    
+
     if (partialSize > 0 && isRetry) {
       headers['Range'] = `bytes=${partialSize}-`
       log.info(`[RETRY] Resuming download from byte ${partialSize}`)
     }
 
     const response = await electronNet.fetch(url, { headers })
-    
+
     if (!response.ok) {
       throw new Error(`Download failed with status ${response.status}: ${response.statusText}`)
     }
@@ -332,7 +330,7 @@ export async function downloadFileWithRetry(url, destination, onProgress, attemp
     const totalBytes = Number(response.headers.get('Content-Length')) || 0
     const actualTotalBytes = partialSize + totalBytes
     const writer = createWriteStream(destination, { flags: partialSize > 0 ? 'a' : 'w' })
-    
+
     if (response.body) {
       const reader = response.body.getReader()
       let downloadedBytes = partialSize
@@ -351,12 +349,12 @@ export async function downloadFileWithRetry(url, destination, onProgress, attemp
 
         const progress = actualTotalBytes > 0 ? (downloadedBytes / actualTotalBytes) * 100 : 0
         if (onProgress) {
-          onProgress({ 
-            totalBytes: actualTotalBytes, 
-            downloadedBytes, 
+          onProgress({
+            totalBytes: actualTotalBytes,
+            downloadedBytes,
             percent: progress,
             isRetry,
-            attemptNumber 
+            attemptNumber
           })
         }
 
@@ -365,27 +363,29 @@ export async function downloadFileWithRetry(url, destination, onProgress, attemp
 
       await readStream()
     }
-    
+
     return destination
   } catch (error) {
     log.error(`Download attempt ${attemptNumber + 1} failed: ${error.message}`)
-    
+
     // Check if we should retry
     if (attemptNumber < RETRY_CONFIG.maxRetries && isRetryableError(error)) {
       const delay = calculateRetryDelay(attemptNumber)
-      log.info(`[RETRY] Waiting ${delay}ms before retry ${attemptNumber + 1}/${RETRY_CONFIG.maxRetries}`)
-      
-      await new Promise(resolve => setTimeout(resolve, delay))
+      log.info(
+        `[RETRY] Waiting ${delay}ms before retry ${attemptNumber + 1}/${RETRY_CONFIG.maxRetries}`
+      )
+
+      await new Promise((resolve) => setTimeout(resolve, delay))
       return downloadFileWithRetry(url, destination, onProgress, attemptNumber + 1)
     }
-    
+
     // No more retries or non-retryable error
     if (attemptNumber >= RETRY_CONFIG.maxRetries) {
       log.error(`Download failed after ${RETRY_CONFIG.maxRetries} retries: ${error.message}`)
     } else {
       log.error(`Download failed with non-retryable error: ${error.message}`)
     }
-    
+
     throw error
   }
 }
@@ -413,10 +413,10 @@ export function writeToManifest({ manifestFilepath, progress, id, version, state
   try {
     const manifest = yamlRead(manifestFilepath) || {}
     log.debug('manifest content: ', JSON.stringify(manifest))
-    
+
     // Ensure manifest[id] exists before accessing its properties
     const existingEntry = manifest[id] || {}
-    
+
     const yamlData = {
       ...manifest,
       [id]: {
@@ -461,12 +461,12 @@ export function isDownloadSuccess({ manifestFilepath, version, id }) {
     if (!manifest || Object.keys(manifest).length === 0) {
       return false
     }
-    
+
     // Defensive check: ensure both manifest[id] and manifest[id][version] exist
     if (!manifest[id] || !manifest[id][version]) {
       return false
     }
-    
+
     return manifest[id][version]['state'] === 'success'
   } catch (error) {
     log.error(`Error checking download success for ${id} v${version}:`, error.message)
@@ -494,13 +494,13 @@ export function getDownloadStatus({ manifestFilepath, version, id }) {
       log.info('empty manifest file')
       return {}
     }
-    
+
     // Defensive check: ensure manifest[id] exists before accessing manifest[id][version]
     if (!manifest[id]) {
       log.debug(`No manifest entry found for id: ${id}`)
       return {}
     }
-    
+
     // Use optional chaining equivalent for better safety
     return manifest[id][version] || {}
   } catch (error) {

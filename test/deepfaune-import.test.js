@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdirSync, rmSync, existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
-import sqlite3 from 'sqlite3'
+import Database from 'better-sqlite3'
 
 // Import the function we want to test
 import { importDeepfauneDatasetWithPath } from '../src/main/deepfaune.js'
@@ -41,36 +41,26 @@ afterEach(() => {
  * Helper function to query database and return results
  * @param {string} dbPath - Path to the database
  * @param {string} query - SQL query
- * @returns {Promise<Array>} - Query results
+ * @returns {Array} - Query results
  */
 function queryDatabase(dbPath, query) {
-  return new Promise((resolve, reject) => {
-    const db = new sqlite3.Database(dbPath, (err) => {
-      if (err) {
-        reject(err)
-        return
-      }
-
-      db.all(query, (err, rows) => {
-        if (err) {
-          reject(err)
-        } else {
-          resolve(rows)
-        }
-        db.close()
-      })
-    })
-  })
+  const db = new Database(dbPath, { readonly: true })
+  try {
+    const results = db.prepare(query).all()
+    return results
+  } finally {
+    db.close()
+  }
 }
 
 /**
  * Helper function to count records in a table
  * @param {string} dbPath - Path to the database
  * @param {string} tableName - Name of the table
- * @returns {Promise<number>} - Number of records
+ * @returns {number} - Number of records
  */
-async function countRecords(dbPath, tableName) {
-  const results = await queryDatabase(dbPath, `SELECT * FROM ${tableName}`)
+function countRecords(dbPath, tableName) {
+  const results = queryDatabase(dbPath, `SELECT * FROM ${tableName}`)
   console.log(`Results for table ${tableName}:`, results)
   return results.length
 }
@@ -97,22 +87,19 @@ describe('Import Methods Tests', () => {
       assert(existsSync(dbPath), 'Database should be created')
 
       // Count deployments - should be 2 (cam1/sd1 and cam2)
-      const deploymentCount = await countRecords(dbPath, 'deployments')
+      const deploymentCount = countRecords(dbPath, 'deployments')
       assert.equal(deploymentCount, 2, 'Should create 2 deployments')
 
       // Count media records - should be 34 (41 total - 7 with "NA" dates)
-      const mediaCount = await countRecords(dbPath, 'media')
+      const mediaCount = countRecords(dbPath, 'media')
       assert.equal(mediaCount, 34, 'Should create 34 media records (excluding NA dates)')
 
       // Count observations - should be 34 (all records with valid dates have predictions)
-      const observationCount = await countRecords(dbPath, 'observations')
+      const observationCount = countRecords(dbPath, 'observations')
       assert.equal(observationCount, 34, 'Should create 34 observation records')
 
       // Verify deployment details
-      const deployments = await queryDatabase(
-        dbPath,
-        'SELECT * FROM deployments ORDER BY locationName'
-      )
+      const deployments = queryDatabase(dbPath, 'SELECT * FROM deployments ORDER BY locationName')
       assert.equal(deployments.length, 2, 'Should have 2 deployments')
 
       // Check deployment names
@@ -120,11 +107,11 @@ describe('Import Methods Tests', () => {
       assert.deepEqual(deploymentNames, ['cam2', 'sd1'], 'Should have correct deployment names')
 
       // Verify each deployment has correct media count
-      const cam1MediaCount = await countRecords(
+      const cam1MediaCount = countRecords(
         dbPath,
         `media WHERE deploymentID = '${deployments.find((d) => d.locationName === 'sd1').deploymentID}'`
       )
-      const cam2MediaCount = await countRecords(
+      const cam2MediaCount = countRecords(
         dbPath,
         `media WHERE deploymentID = '${deployments.find((d) => d.locationName === 'cam2').deploymentID}'`
       )
@@ -139,7 +126,7 @@ describe('Import Methods Tests', () => {
       await importDeepfauneDatasetWithPath(testCsvPath, testUserDataPath, studyId)
 
       const dbPath = join(testUserDataPath, 'studies', studyId, 'study.db')
-      const deployments = await queryDatabase(dbPath, 'SELECT * FROM deployments')
+      const deployments = queryDatabase(dbPath, 'SELECT * FROM deployments')
 
       console.log('Deployments:', deployments)
 
@@ -161,7 +148,7 @@ describe('Import Methods Tests', () => {
         )
 
         // Verify deployment start matches the earliest media date for this deployment
-        const mediaForDeployment = await queryDatabase(
+        const mediaForDeployment = queryDatabase(
           dbPath,
           `SELECT MIN(timestamp) as earliestDate, MAX(timestamp) as latestDate
            FROM media WHERE deploymentID = '${deployment.deploymentID}'`
@@ -190,7 +177,7 @@ describe('Import Methods Tests', () => {
       const dbPath = join(testUserDataPath, 'studies', studyId, 'study.db')
 
       // Check for specific predictions from the test data
-      const birdObservations = await queryDatabase(
+      const birdObservations = queryDatabase(
         dbPath,
         `SELECT * FROM observations WHERE prediction = 'bird'`
       )

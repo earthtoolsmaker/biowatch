@@ -1,0 +1,79 @@
+{
+  "name": "test-camtrap-dataset",
+  "title": "Test CamTrap Dataset",
+  "description": "Minimal test dataset for CamTrapDP import regression testing",
+  "version": "1.0.0",
+  "created": "2024-01-01T00:00:00Z",
+  "contributors": [
+    {
+      "title": "Test Contributor",
+      "email": "test@example.com",
+      "role": "author"
+    }
+  ],
+  "sources": [
+    {
+      "title": "Test Camera Trap Study",
+      "path": "https://example.com/test-study"
+    }
+  ],
+  "licenses": [
+    {
+      "name": "CC-BY-4.0",
+      "title": "Creative Commons Attribution 4.0",
+      "path": "https://creativecommons.org/licenses/by/4.0/"
+    }
+  ],
+  "profile": "tabular-data-package",
+  "resources": [
+    {
+      "name": "deployments",
+      "path": "deployments.csv",
+      "profile": "tabular-data-resource",
+      "schema": {
+        "fields": [
+          {"name": "deploymentID", "type": "string"},
+          {"name": "locationID", "type": "string"},
+          {"name": "locationName", "type": "string"},
+          {"name": "latitude", "type": "number"},
+          {"name": "longitude", "type": "number"},
+          {"name": "deploymentStart", "type": "datetime"},
+          {"name": "deploymentEnd", "type": "datetime"}
+        ]
+      }
+    },
+    {
+      "name": "media",
+      "path": "media.csv",
+      "profile": "tabular-data-resource",
+      "schema": {
+        "fields": [
+          {"name": "mediaID", "type": "string"},
+          {"name": "deploymentID", "type": "string"},
+          {"name": "filePath", "type": "string"},
+          {"name": "fileName", "type": "string"},
+          {"name": "timestamp", "type": "datetime"}
+        ]
+      }
+    },
+    {
+      "name": "observations",
+      "path": "observations.csv", 
+      "profile": "tabular-data-resource",
+      "schema": {
+        "fields": [
+          {"name": "observationID", "type": "string"},
+          {"name": "mediaID", "type": "string"},
+          {"name": "deploymentID", "type": "string"},
+          {"name": "eventID", "type": "string"},
+          {"name": "eventStart", "type": "datetime"},
+          {"name": "eventEnd", "type": "datetime"},
+          {"name": "scientificName", "type": "string"},
+          {"name": "commonName", "type": "string"},
+          {"name": "confidence", "type": "number"},
+          {"name": "count", "type": "integer"}
+        ]
+      }
+    }
+  ]
+}

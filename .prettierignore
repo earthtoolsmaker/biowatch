@@ -1,6 +1,27 @@
+# Build outputs
 out
 dist
+build/
+
+# Dependencies and lock files
+node_modules/
 pnpm-lock.yaml
+package-lock.json
+
+# Python environments and files
+python-environments/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Configuration files that shouldn't be formatted
 LICENSE.md
 tsconfig.json
 tsconfig.*.json
+
+# Logs and temporary files
+*.log
+
+# Version control
+.git/

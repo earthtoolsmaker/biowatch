@@ -1,0 +1,11 @@
+observationID,mediaID,deploymentID,eventID,eventStart,eventEnd,scientificName,commonName,confidence,count
+obs001,media001,deploy001,event001,2023-03-20T14:30:15Z,2023-03-20T14:30:45Z,Cervus elaphus,Red Deer,0.95,2
+obs002,media002,deploy001,event002,2023-03-25T08:45:22Z,2023-03-25T08:45:52Z,Sus scrofa,Wild Boar,0.87,1
+obs003,media003,deploy001,event003,2023-04-10T16:20:10Z,2023-04-10T16:20:40Z,,Empty,1.0,0
+obs004,media004,deploy002,event004,2023-04-05T11:15:30Z,2023-04-05T11:16:00Z,Lepus europaeus,European Hare,0.92,1
+obs005,media005,deploy002,event005,2023-04-20T07:55:45Z,2023-04-20T07:56:15Z,Vulpes vulpes,Red Fox,0.89,1
+obs006,media006,deploy002,event006,2023-05-15T19:30:12Z,2023-05-15T19:30:42Z,Capreolus capreolus,Roe Deer,0.93,3
+obs007,media007,deploy003,event007,2023-05-10T12:10:18Z,2023-05-10T12:10:48Z,Castor fiber,Eurasian Beaver,0.91,1
+obs008,media008,deploy003,event008,2023-06-01T15:45:33Z,2023-06-01T15:46:03Z,Meles meles,European Badger,0.88,1
+obs009,media009,deploy003,event009,2023-06-20T09:25:27Z,2023-06-20T09:25:57Z,,Empty,1.0,0
+obs010,media010,deploy001,event010,2023-05-30T18:15:40Z,2023-05-30T18:16:10Z,Sciurus vulgaris,Red Squirrel,0.85,2
