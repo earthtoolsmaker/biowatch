@@ -17,7 +17,7 @@
 <br/>
 
 Biowatch is a powerful tool for wildlife researchers and conservationists to
-analyze, visualize, and explore [CamtrapDP
+analyze, visualize, and explore [Camtrap DP
 datasets](https://camtrap-dp.tdwg.org/) with ease.
 
 ![Overview](./docs/assets/images/overview-biowatch.gif)
