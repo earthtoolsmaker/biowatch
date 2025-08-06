@@ -38,12 +38,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Key Components
 - **Database**: SQLite with Umzug migrations (`src/main/db.js`, `src/main/migrations/`)
-- **Data Import**: CamtrapDP and Wildlife CSV formats (`src/main/camtrap.js`, `src/main/wildlife.js`)
+- **Data Import**: Camtrap DP and Wildlife CSV formats (`src/main/camtrap.js`, `src/main/wildlife.js`)
 - **ML Models**: Python HTTP servers spawned from main process (`src/main/models.ts`)
 - **Studies Management**: Local filesystem-based project organization (`src/main/studies.js`)
 
 ### Data Flow
-1. Import camera trap datasets (CamtrapDP standard or Wildlife CSV)
+1. Import camera trap datasets (Camtrap DP standard or Wildlife CSV)
 2. Process images through ML models (DeepFaune, SpeciesNet) via HTTP APIs
 3. Store results in SQLite database with spatial/temporal indexing
 4. Visualize in React frontend with maps (Leaflet), charts (Recharts), and media viewers

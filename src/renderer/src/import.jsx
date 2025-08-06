@@ -239,16 +239,16 @@ export default function Import({ onNewStudy }) {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* CamtrapDP Card */}
+          {/* Camtrap DP Card */}
           <div className="border border-gray-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
-            <h3 className="text-lg mb-2">CamtrapDP</h3>
+            <h3 className="text-lg mb-2">Camtrap DP</h3>
             <p className="text-sm text-gray-500 mb-4">
               Import camera trap data in Camera Trap Data Package format with standardized metadata
               and observations.
             </p>
             <div className="flex justify-start">
               <ImportButton onClick={handleCamTrapDP} className="">
-                Select CamtrapDP
+                Select Camtrap DP
               </ImportButton>
             </div>
           </div>
