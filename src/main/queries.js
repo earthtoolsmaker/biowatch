@@ -288,12 +288,10 @@ export async function getSpeciesTimeseries(dbPath, speciesNames = []) {
       }
 
       // Prepare IN clause for selected species if provided
-      let speciesClause = ''
       let speciesFilter = ''
 
       if (speciesNames && speciesNames.length > 0) {
         const quotedSpecies = speciesNames.map((name) => `'${name.replace(/'/g, "''")}'`).join(',')
-        speciesClause = `WHERE scientificName IN (${quotedSpecies})`
         speciesFilter = `AND scientificName IN (${quotedSpecies})`
       }
 
@@ -1169,15 +1167,14 @@ export async function getFilesData(dbPath) {
       // Query to get directory statistics
       const query = `
         SELECT
-          d.locationID,
-          d.locationName,
+          m.folderName as folderName,
+          m.importFolder as importFolder,
           COUNT(m.mediaID) as imageCount,
           COUNT(o.observationID) as processedCount
-        FROM deployments d
-        LEFT JOIN media m ON d.deploymentID = m.deploymentID
+        FROM media m
         LEFT JOIN observations o ON m.mediaID = o.mediaID
-        GROUP BY d.locationID, d.locationName
-        ORDER BY d.locationName, d.locationID
+        GROUP BY m.folderName
+        ORDER BY m.folderName
       `
 
       db.all(query, [], (err, rows) => {

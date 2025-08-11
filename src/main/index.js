@@ -371,11 +371,10 @@ app.whenReady().then(async () => {
 
     const selectedPath = result.filePaths[0]
     const id = crypto.randomUUID()
+    let pathToImport = selectedPath
 
     // Use Wildlife Insights importer
     try {
-      let pathToImport = selectedPath
-
       // Check if selected path is a file (potential zip) or directory
       const stats = statSync(selectedPath)
       const isZip = stats.isFile() && selectedPath.toLowerCase().endsWith('.zip')
@@ -821,7 +820,7 @@ app.whenReady().then(async () => {
       }
 
       try {
-        await new Promise((resolve, reject) => {
+        await new Promise((resolve) => {
           const rmProcess = spawn('rm', ['-rf', extractPath])
           rmProcess.on('close', (code) => {
             if (code === 0) {
@@ -976,7 +975,7 @@ app.whenReady().then(async () => {
       }
 
       try {
-        await new Promise((resolve, reject) => {
+        await new Promise((resolve) => {
           const rmProcess = spawn('rm', ['-rf', extractPath])
           rmProcess.on('close', (code) => {
             if (code === 0) {
@@ -1067,7 +1066,7 @@ ipcMain.handle('deployments:set-latitude', async (_, studyId, deploymentID, lati
       }
     })
 
-    const result = await new Promise((resolve, reject) => {
+    await new Promise((resolve, reject) => {
       db.run(
         'UPDATE deployments SET latitude = ? WHERE deploymentID = ?',
         [latitude, deploymentID],
@@ -1105,7 +1104,7 @@ ipcMain.handle('deployments:set-longitude', async (_, studyId, deploymentID, lon
       }
     })
 
-    const result = await new Promise((resolve, reject) => {
+    await new Promise((resolve, reject) => {
       db.run(
         'UPDATE deployments SET longitude = ? WHERE deploymentID = ?',
         [longitude, deploymentID],
