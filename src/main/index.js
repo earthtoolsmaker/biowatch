@@ -23,6 +23,7 @@ import { Importer } from './importer' //required to register handlers
 import studies from './studies'
 import { importWildlifeDataset } from './wildlife'
 import { importDeepfauneDataset } from './deepfaune'
+import { exportCamtrapDP } from './export'
 import { extractZip, downloadFile } from './download'
 import migrations from './migrations/index.js'
 
@@ -1125,5 +1126,17 @@ ipcMain.handle('deployments:set-longitude', async (_, studyId, deploymentID, lon
   } catch (error) {
     log.error('Error updating deployment longitude:', error)
     return { error: error.message }
+  }
+})
+
+// Export handlers
+ipcMain.handle('export:camtrap-dp', async (_, studyId, metadata) => {
+  try {
+    log.info(`Exporting Camtrap DP for study ${studyId}`)
+    const result = await exportCamtrapDP(studyId, metadata)
+    return result
+  } catch (error) {
+    log.error('Error exporting Camtrap DP:', error)
+    return { success: false, error: error.message }
   }
 })

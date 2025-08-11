@@ -149,6 +149,9 @@ const api = {
   },
   getFilesData: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('files:get-data', studyId)
+  },
+  exportCamtrapDP: async (studyId, metadata) => {
+    return await electronAPI.ipcRenderer.invoke('export:camtrap-dp', studyId, metadata)
   }
 }
 
