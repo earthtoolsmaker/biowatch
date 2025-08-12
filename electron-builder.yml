@@ -2,6 +2,7 @@ appId: org.biowatch.app
 productName: Biowatch
 directories:
   buildResources: build
+icon: build/icon
 files:
   - '!**/.vscode/*'
   - '!src/*'
@@ -25,6 +26,7 @@ nsis:
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
 mac:
+  icon: build/icon.icns
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.
@@ -33,6 +35,19 @@ mac:
     - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
   notarize: true
 dmg:
+  icon: build/icon.icns
+  iconSize: 160
+  window:
+    width: 540
+    height: 380
+  contents:
+    - x: 410
+      y: 230
+      type: link
+      path: /Applications
+    - x: 130
+      y: 230
+      type: file
   artifactName: ${name}.${ext}
   # arch: universal
 linux:
