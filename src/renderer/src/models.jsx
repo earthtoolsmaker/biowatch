@@ -320,11 +320,14 @@ export default function Zoo({ modelZoo }) {
       console.log('[CLEAR ALL] Frontend: Calling clearAllLocalMLModel API...')
       const result = await window.api.clearAllLocalMLModel()
       console.log('[CLEAR ALL] Frontend: API call completed with result:', result)
-      
+
       if (result && result.success) {
         console.log('[CLEAR ALL] Frontend: Clear all operation successful:', result.message)
       } else {
-        console.error('[CLEAR ALL] Frontend: Clear all operation failed:', result?.message || 'Unknown error')
+        console.error(
+          '[CLEAR ALL] Frontend: Clear all operation failed:',
+          result?.message || 'Unknown error'
+        )
       }
     } catch (error) {
       console.error('[CLEAR ALL] Frontend: Failed to clear all the local models:', error)
