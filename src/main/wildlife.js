@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import csv from 'csv-parser'
 import { DateTime } from 'luxon'
-import { openDatabase, closeDatabase, setupDatabase } from './db.js'
+import { getDrizzleDb, deployments, media, observations, closeStudyDatabase } from './db/index.js'
 
 // Conditionally import electron modules for production, use fallback for testing
 let app, log
@@ -63,8 +63,8 @@ export async function importWildlifeDatasetWithPath(directoryPath, biowatchDataP
     fs.mkdirSync(dbDir, { recursive: true })
   }
 
-  const db = await openDatabase(dbPath)
-  setupDatabase(db)
+  // Get Drizzle database connection
+  const db = await getDrizzleDb(id, dbPath)
 
   // Get dataset name from projects.csv
   const projectCSV = path.join(directoryPath, 'projects.csv')
@@ -152,77 +152,66 @@ export async function importWildlifeDatasetWithPath(directoryPath, biowatchDataP
 
   console.log('returning Data:', data)
 
-  closeDatabase(db)
+  await closeStudyDatabase(id, dbPath)
 
   return {
     data
   }
 }
 
-function insertDeployments(db, deploymentsCSV) {
+async function insertDeployments(db, deploymentsCSV) {
   return new Promise((resolve, reject) => {
     const stream = fs.createReadStream(deploymentsCSV).pipe(csv())
+    const rows = []
     let rowCount = 0
 
-    db.run('BEGIN TRANSACTION', async (err) => {
-      if (err) {
-        log.error(`Error starting transaction: ${err.message}`)
-        return reject(err)
+    stream.on('data', (row) => {
+      const startDate = DateTime.fromSQL(row.start_date)
+      const endDate = DateTime.fromSQL(row.end_date)
+
+      const transformedRow = {
+        deploymentID: row.deployment_id,
+        locationID: row.latitude + ' ' + row.longitude,
+        locationName: row.deployment_id,
+        deploymentStart: startDate.isValid ? startDate.toISO() : null,
+        deploymentEnd: endDate.isValid ? endDate.toISO() : null,
+        latitude: parseFloat(row.latitude) || null,
+        longitude: parseFloat(row.longitude) || null
       }
 
-      log.debug('Started transaction for bulk insert')
+      rows.push(transformedRow)
+      rowCount++
+    })
 
-      const insertSql = `INSERT INTO deployments (deploymentID, locationID, locationName,
-                         deploymentStart, deploymentEnd, latitude, longitude)
-                         VALUES (?, ?, ?, ?, ?, ?, ?)`
-
+    stream.on('end', async () => {
       try {
-        stream.on('data', async (row) => {
-          const startDate = DateTime.fromSQL(row.start_date)
-          const endDate = DateTime.fromSQL(row.end_date)
+        if (rows.length > 0) {
+          log.debug(`Starting bulk insert of ${rows.length} deployments`)
 
-          const values = [
-            row.deployment_id,
-            row.latitude + ' ' + row.longitude,
-            row.deployment_id,
-            startDate.isValid ? startDate.toISO() : null,
-            endDate.isValid ? endDate.toISO() : null,
-            row.latitude,
-            row.longitude
-          ]
-          try {
-            await runQuery(db, insertSql, values)
-            rowCount++
-            if (rowCount % 1000 === 0) {
-              log.debug(`Inserted ${rowCount} rows into deployments`)
-            }
-          } catch (error) {
-            log.error(`Error inserting row: ${error.message}`)
-            throw error
+          // Insert in batches for better performance
+          const batchSize = 1000
+          for (let i = 0; i < rows.length; i += batchSize) {
+            const batch = rows.slice(i, i + batchSize)
+            await db.insert(deployments).values(batch)
+            log.debug(
+              `Inserted batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(rows.length / batchSize)} into deployments`
+            )
           }
-        })
 
-        stream.on('end', () => {
-          db.run('COMMIT', (err) => {
-            if (err) {
-              log.error(`Error committing transaction: ${err.message}`)
-              db.run('ROLLBACK')
-              return reject(err)
-            }
-            log.info(`Completed insertion of ${rowCount} rows into deployments`)
-            resolve()
-          })
-        })
-
-        stream.on('error', (error) => {
-          log.error(`Error during CSV data insertion: ${error.message}`)
-          db.run('ROLLBACK')
-          reject(error)
-        })
+          log.info(`Completed insertion of ${rowCount} rows into deployments`)
+        } else {
+          log.warn(`No valid rows found in ${deploymentsCSV}`)
+        }
+        resolve()
       } catch (error) {
-        db.run('ROLLBACK')
+        log.error(`Error during bulk insert for deployments:`, error)
         reject(error)
       }
+    })
+
+    stream.on('error', (error) => {
+      log.error(`Error reading CSV file ${deploymentsCSV}:`, error)
+      reject(error)
     })
   })
 }
@@ -235,68 +224,57 @@ function insertDeployments(db, deploymentsCSV) {
 async function insertMedia(db, csvPath) {
   return new Promise((resolve, reject) => {
     const stream = fs.createReadStream(csvPath).pipe(csv())
+    const rows = []
     let rowCount = 0
 
-    // Begin transaction for better performance
-    db.run('BEGIN TRANSACTION', async (err) => {
-      if (err) {
-        log.error(`Error starting transaction: ${err.message}`)
-        return reject(err)
+    stream.on('data', (row) => {
+      // Skip rows without image_id
+      if (!row.image_id) {
+        return
       }
 
-      log.debug('Started transaction for media bulk insert')
+      const timestamp = DateTime.fromSQL(row.timestamp)
+      const transformedRow = {
+        mediaID: row.image_id,
+        deploymentID: row.deployment_id || null,
+        timestamp: timestamp.isValid ? timestamp.toISO() : null,
+        filePath: row.location || null,
+        fileName: row.filename || null
+      }
 
-      const insertSql = `INSERT OR IGNORE INTO media (mediaID, deploymentID, timestamp, filePath, fileName)
-                        VALUES (?, ?, ?, ?, ?)`
+      rows.push(transformedRow)
+      rowCount++
+    })
 
+    stream.on('end', async () => {
       try {
-        stream.on('data', async (row) => {
-          const timestamp = DateTime.fromSQL(row.timestamp)
-          const values = [
-            row.image_id || null,
-            row.deployment_id || null,
-            timestamp.isValid ? timestamp.toISO() : null,
-            row.location || null,
-            row.filename || null
-          ]
+        if (rows.length > 0) {
+          log.debug(`Starting bulk insert of ${rows.length} media items`)
 
-          if (!row.image_id) {
-            return
+          // Insert in batches for better performance
+          const batchSize = 1000
+          for (let i = 0; i < rows.length; i += batchSize) {
+            const batch = rows.slice(i, i + batchSize)
+            await db.insert(media).values(batch).onConflictDoNothing()
+            log.debug(
+              `Inserted batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(rows.length / batchSize)} into media`
+            )
           }
 
-          try {
-            await runQuery(db, insertSql, values)
-            rowCount++
-            if (rowCount % 1000 === 0) {
-              log.debug(`Inserted ${rowCount} rows into media`)
-            }
-          } catch (error) {
-            log.error(`Error inserting media row: ${error.message}`, row)
-            throw error
-          }
-        })
-
-        stream.on('end', () => {
-          db.run('COMMIT', (commitErr) => {
-            if (commitErr) {
-              log.error(`Error committing transaction: ${commitErr.message}`)
-              db.run('ROLLBACK')
-              return reject(commitErr)
-            }
-            log.info(`Completed insertion of ${rowCount} rows into media`)
-            resolve()
-          })
-        })
-
-        stream.on('error', (error) => {
-          log.error(`Error during media CSV data insertion: ${error.message}`)
-          db.run('ROLLBACK')
-          reject(error)
-        })
+          log.info(`Completed insertion of ${rowCount} rows into media`)
+        } else {
+          log.warn(`No valid rows found in ${csvPath}`)
+        }
+        resolve()
       } catch (error) {
-        db.run('ROLLBACK')
+        log.error(`Error during bulk insert for media:`, error)
         reject(error)
       }
+    })
+
+    stream.on('error', (error) => {
+      log.error(`Error reading CSV file ${csvPath}:`, error)
+      reject(error)
     })
   })
 }
@@ -309,111 +287,78 @@ async function insertMedia(db, csvPath) {
 async function insertObservations(db, csvPath) {
   return new Promise((resolve, reject) => {
     const stream = fs.createReadStream(csvPath).pipe(csv())
+    const rows = []
     let rowCount = 0
 
-    // Begin transaction for better performance
-    db.run('BEGIN TRANSACTION', async (err) => {
-      if (err) {
-        log.error(`Error starting transaction: ${err.message}`)
-        return reject(err)
+    stream.on('data', (row) => {
+      // Only insert rows that have taxonomic information or are identified as blank/vehicle etc
+      if (!row.image_id || (!row.genus && !row.species && !row.common_name)) {
+        return
       }
 
-      log.debug('Started transaction for observations bulk insert')
+      // Create scientific name from genus and species
+      let scientificName = null
+      if (row.genus && row.species) {
+        scientificName = `${row.genus} ${row.species}`
+      } else if (row.common_name && row.common_name !== 'Blank') {
+        scientificName = row.common_name
+      }
 
-      const insertSql = `INSERT OR IGNORE INTO observations (observationID, mediaID, deploymentID, eventID,
-                         eventStart, eventEnd, scientificName, commonName, confidence, count, prediction,
-                         lifeStage, age, sex, behavior)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      // Parse timestamp to ISO format
+      const timestamp = DateTime.fromSQL(row.timestamp)
 
+      const transformedRow = {
+        observationID: `${row.image_id}_obs`, // Create unique observation ID
+        mediaID: row.image_id || null,
+        deploymentID: row.deployment_id || null,
+        eventID: row.sequence_id || null,
+        eventStart: timestamp.isValid ? timestamp.toISO() : null,
+        eventEnd: timestamp.isValid ? timestamp.toISO() : null,
+        scientificName: scientificName,
+        observationType: null, // Not available in Wildlife Insights format
+        commonName: row.common_name || null,
+        confidence: row.cv_confidence ? parseFloat(row.cv_confidence) : null,
+        count: row.number_of_objects ? parseInt(row.number_of_objects) : 1,
+        prediction: row.common_name || null,
+        lifeStage: row.age || null,
+        age: row.age || null,
+        sex: row.sex || null,
+        behavior: row.behavior || null
+      }
+
+      rows.push(transformedRow)
+      rowCount++
+    })
+
+    stream.on('end', async () => {
       try {
-        stream.on('data', async (row) => {
-          // Only insert rows that have taxonomic information or are identified as blank/vehicle etc
-          if (!row.image_id || (!row.genus && !row.species && !row.common_name)) {
-            return
+        if (rows.length > 0) {
+          log.debug(`Starting bulk insert of ${rows.length} observations`)
+
+          // Insert in batches for better performance
+          const batchSize = 1000
+          for (let i = 0; i < rows.length; i += batchSize) {
+            const batch = rows.slice(i, i + batchSize)
+            await db.insert(observations).values(batch).onConflictDoNothing()
+            log.debug(
+              `Inserted batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(rows.length / batchSize)} into observations`
+            )
           }
 
-          // Create scientific name from genus and species
-          let scientificName = null
-          if (row.genus && row.species) {
-            scientificName = `${row.genus} ${row.species}`
-          } else if (row.common_name && row.common_name !== 'Blank') {
-            scientificName = row.common_name
-          }
-
-          // Parse timestamp to ISO format
-          const timestamp = DateTime.fromSQL(row.timestamp)
-
-          const values = [
-            `${row.image_id}_obs`, // Create unique observation ID
-            row.image_id || null,
-            row.deployment_id || null,
-            row.sequence_id || null,
-            timestamp.isValid ? timestamp.toISO() : null, // eventStart as ISO
-            timestamp.isValid ? timestamp.toISO() : null, // eventEnd as ISO
-            scientificName,
-            row.common_name || null,
-            row.cv_confidence ? parseFloat(row.cv_confidence) : null,
-            row.number_of_objects ? parseInt(row.number_of_objects) : 1,
-            row.common_name || null,
-            row.age || null, // lifeStage - using age column from CSV
-            row.age || null, // age
-            row.sex || null, // sex
-            row.behavior || null // behavior
-          ]
-
-          try {
-            await runQuery(db, insertSql, values)
-            rowCount++
-            if (rowCount % 1000 === 0) {
-              log.debug(`Inserted ${rowCount} rows into observations`)
-            }
-          } catch (error) {
-            log.error(`Error inserting observation row: ${error.message}`, row)
-            throw error
-          }
-        })
-
-        stream.on('end', () => {
-          db.run('COMMIT', (commitErr) => {
-            if (commitErr) {
-              log.error(`Error committing transaction: ${commitErr.message}`)
-              db.run('ROLLBACK')
-              return reject(commitErr)
-            }
-            log.info(`Completed insertion of ${rowCount} rows into observations`)
-            resolve()
-          })
-        })
-
-        stream.on('error', (error) => {
-          log.error(`Error during observations CSV data insertion: ${error.message}`)
-          db.run('ROLLBACK')
-          reject(error)
-        })
+          log.info(`Completed insertion of ${rowCount} rows into observations`)
+        } else {
+          log.warn(`No valid rows found in ${csvPath}`)
+        }
+        resolve()
       } catch (error) {
-        db.run('ROLLBACK')
+        log.error(`Error during bulk insert for observations:`, error)
         reject(error)
       }
     })
-  })
-}
 
-/**
- * Run a SQLite query
- * @param {sqlite3.Database} db - Database instance
- * @param {string} query - SQL query
- * @param {Array} params - Parameters for the query
- * @returns {Promise<void>}
- */
-function runQuery(db, query, params = []) {
-  return new Promise((resolve, reject) => {
-    db.run(query, params, function (err) {
-      if (err) {
-        log.error(`Error executing query: ${err.message}`)
-        reject(err)
-      } else {
-        resolve(this)
-      }
+    stream.on('error', (error) => {
+      log.error(`Error reading CSV file ${csvPath}:`, error)
+      reject(error)
     })
   })
 }
