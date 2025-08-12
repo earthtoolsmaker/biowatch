@@ -81,14 +81,6 @@ export async function* getPredictions(imagesPath, port) {
   }
 }
 
-async function insertIntoTable(db, table, data) {
-  try {
-    await db.insert(table).values(data)
-  } catch (err) {
-    log.error(`Error inserting into table:`, err)
-  }
-}
-
 async function insertMedia(db, fullPath, importFolder) {
   const folderName =
     importFolder === path.dirname(fullPath)
@@ -104,7 +96,7 @@ async function insertMedia(db, fullPath, importFolder) {
     folderName: folderName
   }
 
-  insertIntoTable(db, media, mediaData)
+  await db.insert(media).values(mediaData)
   return mediaData
 }
 
@@ -156,6 +148,7 @@ async function getMedia(db, filepath) {
 //   prediction_source: 'classifier',
 //   model_version: '4.0.1a'
 // }
+
 async function insertPrediction(db, prediction) {
   const mediaRecord = await getMedia(db, prediction.filepath)
   if (!mediaRecord) {
@@ -201,24 +194,32 @@ async function insertPrediction(db, prediction) {
       deployment = await getDeployment(db, parentFolder)
 
       if (deployment) {
-        // Update deployment date range if necessary
-        db.run(
-          'UPDATE deployments SET deploymentStart = ?, deploymentEnd = ? WHERE deploymentID = ?',
-          [
-            DateTime.min(date, DateTime.fromISO(deployment.deploymentStart)).toISO(),
-            DateTime.max(date, DateTime.fromISO(deployment.deploymentEnd)).toISO(),
-            deployment.deploymentID
-          ]
-        )
+        await db
+          .update(deployments)
+          .set({
+            deploymentStart: DateTime.min(
+              date,
+              DateTime.fromISO(deployment.deploymentStart)
+            ).toISO(),
+            deploymentEnd: DateTime.max(date, DateTime.fromISO(deployment.deploymentEnd)).toISO()
+          })
+          .where(eq(deployments.deploymentID, deployment.deploymentID))
       } else {
-        // Create new deployment
+        // If no deployment exists, create a new one
         const deploymentID = crypto.randomUUID()
         const locationID = parentFolder
-        log.info('Creating new deployment at:', locationID, latitude, longitude)
-        db.run(
-          'INSERT INTO deployments (deploymentID, locationID, locationName, deploymentStart, deploymentEnd, latitude, longitude) VALUES (?, ?, ?, ?, ?, ?, ?)',
-          [deploymentID, locationID, locationID, date.toISO(), date.toISO(), latitude, longitude]
-        )
+        log.info('Creating new deployment with at: ', locationID, latitude, longitude)
+
+        await db.insert(deployments).values({
+          deploymentID,
+          locationID,
+          locationName: locationID,
+          deploymentStart: date.toISO(),
+          deploymentEnd: date.toISO(),
+          latitude: parseFloat(latitude),
+          longitude: parseFloat(longitude)
+        })
+
         deployment = {
           deploymentID,
           latitude,
@@ -226,16 +227,17 @@ async function insertPrediction(db, prediction) {
         }
       }
 
-      // Update media with timestamp and deploymentID
-      db.run('UPDATE media SET timestamp = ?, deploymentID = ? WHERE mediaID = ?', [
-        date.toISO(),
-        deployment.deploymentID,
-        media.mediaID
-      ])
-
       // Update local media object for observation creation
-      media.timestamp = date.toISO()
-      media.deploymentID = deployment.deploymentID
+      mediaRecord.timestamp = date.toISO()
+      mediaRecord.deploymentID = deployment.deploymentID
+
+      await db
+        .update(media)
+        .set({
+          timestamp: date.toISO(),
+          deploymentID: deployment.deploymentID
+        })
+        .where(eq(media.mediaID, mediaRecord.mediaID))
     } catch (error) {
       log.error(`Error processing EXIF data for ${prediction.filepath}:`, error)
       return
@@ -263,7 +265,7 @@ async function insertPrediction(db, prediction) {
     prediction: prediction.prediction
   }
 
-  await insertIntoTable(db, observations, observationData)
+  await db.insert(observations).values(observationData)
   // log.info(`Inserted prediction for ${mediaRecord.fileName} into database`)
 }
 
