@@ -38,6 +38,8 @@ export function useImportStatus(id, interval = 1000) {
     queryClient.invalidateQueries(['importStatus'])
   }
 
+  console.log('Import status:', importStatus)
+
   return {
     importStatus: { ...importStatus, pausedCount },
     resumeImport,

@@ -739,7 +739,9 @@ export async function insertMedia(manager, mediaData) {
             deploymentID: item.deploymentID,
             timestamp: item.timestamp ? item.timestamp.toISO() : null,
             filePath: item.filePath,
-            fileName: item.fileName
+            fileName: item.fileName,
+            importFolder: item.importFolder || null,
+            folderName: item.folderName || null
           })
           .run()
 

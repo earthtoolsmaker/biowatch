@@ -6,8 +6,15 @@ import geoTz from 'geo-tz'
 import luxon, { DateTime } from 'luxon'
 import path from 'path'
 import crypto from 'crypto'
-import { getDrizzleDb, deployments, media, observations, closeStudyDatabase } from './db/index.js'
-import { eq, isNull, min, max, count } from 'drizzle-orm'
+import {
+  getDrizzleDb,
+  getReadonlyDrizzleDb,
+  deployments,
+  media,
+  observations,
+  closeStudyDatabase
+} from './db/index.js'
+import { eq, isNull, count } from 'drizzle-orm'
 import models from './models.js'
 import mlmodels from '../shared/mlmodels.js'
 
@@ -157,7 +164,7 @@ async function insertPrediction(db, prediction) {
   }
 
   // If media hasn't been processed yet (no timestamp/deploymentID), process EXIF data
-  if (!media.timestamp || !media.deploymentID) {
+  if (!mediaRecord.timestamp || !mediaRecord.deploymentID) {
     let exifData = {}
     try {
       exifData = await exifr.parse(prediction.filepath, {
@@ -182,16 +189,18 @@ async function insertPrediction(db, prediction) {
       : luxon.DateTime.now()
 
     const parentFolder =
-      media.importFolder === path.dirname(prediction.filepath)
-        ? path.basename(media.importFolder)
-        : path.relative(media.importFolder, path.dirname(prediction.filepath))
+      mediaRecord.importFolder === path.dirname(prediction.filepath)
+        ? path.basename(mediaRecord.importFolder)
+        : path.relative(mediaRecord.importFolder, path.dirname(prediction.filepath))
 
-    console.log('Parent folder:', media.importFolder, prediction.filepath, parentFolder)
+    console.log('Parent folder:', mediaRecord.importFolder, prediction.filepath, parentFolder)
     console.log('dir name:', path.dirname(prediction.filepath))
 
     let deployment
     try {
       deployment = await getDeployment(db, parentFolder)
+
+      console.log('Found deployment:', deployment)
 
       if (deployment) {
         await db
@@ -311,26 +320,6 @@ async function getDeployment(db, locationID) {
   }
 }
 
-async function getTemporalData(db) {
-  try {
-    const result = await db
-      .select({
-        startDate: min(deployments.deploymentStart).as('startDate'),
-        endDate: max(deployments.deploymentEnd).as('endDate')
-      })
-      .from(deployments)
-      .get()
-
-    return {
-      start: result?.startDate ? DateTime.fromISO(result.startDate).toFormat('dd LLL yyyy') : null,
-      end: result?.endDate ? DateTime.fromISO(result.endDate).toFormat('dd LLL yyyy') : null
-    }
-  } catch (error) {
-    log.error('Error getting temporal data:', error)
-    return { start: null, end: null }
-  }
-}
-
 let lastBatchDuration = null
 const batchSize = 5
 
@@ -443,7 +432,7 @@ async function status(id) {
   const dbPath = path.join(app.getPath('userData'), 'biowatch-data', 'studies', id, 'study.db')
 
   try {
-    const db = await getDrizzleDb(id, dbPath)
+    const db = await getReadonlyDrizzleDb(id, dbPath)
 
     // Get total count of media
     const mediaResult = await db
