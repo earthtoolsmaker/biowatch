@@ -325,7 +325,7 @@ export default function Import({ onNewStudy }) {
                       setSelectedModel(model.reference)
                     }
                   }}
-                  className="flex-1 px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full flex-1 px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   {modelZoo.map((model) => {
                     const modelInstalled = isModelInstalled(model.reference)
