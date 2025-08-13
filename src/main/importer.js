@@ -6,6 +6,7 @@ import geoTz from 'geo-tz'
 import luxon, { DateTime } from 'luxon'
 import path from 'path'
 import crypto from 'crypto'
+import Database from 'better-sqlite3'
 import {
   getDrizzleDb,
   getReadonlyDrizzleDb,
@@ -323,6 +324,44 @@ async function getDeployment(db, locationID) {
 let lastBatchDuration = null
 const batchSize = 5
 
+async function insertMediaBatch(dbPath, mediaDataArray) {
+  if (mediaDataArray.length === 0) return
+
+  // Create a direct better-sqlite3 connection for bulk insert
+  const sqlite = new Database(dbPath)
+
+  try {
+    // Prepare the insert statement
+    const insertStmt = sqlite.prepare(`
+      INSERT INTO media (mediaID, deploymentID, timestamp, filePath, fileName, importFolder, folderName)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `)
+
+    // Create a transaction for maximum performance
+    const insertMany = sqlite.transaction((mediaArray) => {
+      for (const mediaData of mediaArray) {
+        insertStmt.run(
+          mediaData.mediaID,
+          mediaData.deploymentID,
+          mediaData.timestamp,
+          mediaData.filePath,
+          mediaData.fileName,
+          mediaData.importFolder,
+          mediaData.folderName
+        )
+      }
+    })
+
+    insertMany(mediaDataArray)
+    log.info(`Inserted ${mediaDataArray.length} media records using prepared statement transaction`)
+  } catch (error) {
+    log.error('Error inserting media batch:', error)
+    throw error
+  } finally {
+    sqlite.close()
+  }
+}
+
 export class Importer {
   constructor(id, folder) {
     this.id = id
@@ -360,10 +399,41 @@ export class Importer {
         this.db = await getDrizzleDb(this.id, dbPath)
 
         log.info('scanning images in folder:', this.folder)
+        console.time('Insert media')
+
+        const mediaBatch = []
+        const batchSize = 100000
 
         for await (const imagePath of walkImages(this.folder)) {
-          await insertMedia(this.db, imagePath, this.folder)
+          const folderName =
+            this.folder === path.dirname(imagePath)
+              ? path.basename(this.folder)
+              : path.relative(this.folder, path.dirname(imagePath))
+
+          const mediaData = {
+            mediaID: crypto.randomUUID(),
+            deploymentID: null,
+            timestamp: null,
+            filePath: imagePath,
+            fileName: path.basename(imagePath),
+            importFolder: this.folder,
+            folderName: folderName
+          }
+
+          mediaBatch.push(mediaData)
+
+          if (mediaBatch.length >= batchSize) {
+            await insertMediaBatch(dbPath, mediaBatch)
+            mediaBatch.length = 0 // Clear the array
+          }
         }
+
+        // Insert any remaining items
+        if (mediaBatch.length > 0) {
+          await insertMediaBatch(dbPath, mediaBatch)
+        }
+
+        console.timeEnd('Insert media')
       } else {
         this.db = await getDrizzleDb(this.id, dbPath)
         if (addingMore) {
@@ -503,7 +573,8 @@ ipcMain.handle('importer:select-images-directory', async () => {
       data: {
         name: path.basename(directoryPath)
       },
-      id: id
+      id: id,
+      createdAt: new Date().toISOString()
     }
     fs.writeFileSync(
       path.join(app.getPath('userData'), 'biowatch-data', 'studies', id, 'study.json'),
@@ -550,6 +621,7 @@ ipcMain.handle('importer:stop', async (event, id) => {
   try {
     await importers[id].cleanup()
     delete importers[id]
+    log.info('Importers', importers)
     log.info(`Importer with ID ${id} stopped successfully`)
     return { success: true, message: 'Importer stopped successfully' }
   } catch (error) {

@@ -241,8 +241,8 @@ describe('CamTrapDP Import Tests', () => {
       // All media records should have valid deploymentID
       const mediaWithoutDeployment = queryDatabase(
         dbPath,
-        `SELECT m.* FROM media m 
-         LEFT JOIN deployments d ON m.deploymentID = d.deploymentID 
+        `SELECT m.* FROM media m
+         LEFT JOIN deployments d ON m.deploymentID = d.deploymentID
          WHERE d.deploymentID IS NULL`
       )
       assert.equal(mediaWithoutDeployment.length, 0, 'All media should be linked to deployments')
@@ -250,8 +250,8 @@ describe('CamTrapDP Import Tests', () => {
       // All observations should have valid mediaID
       const obsWithoutMedia = queryDatabase(
         dbPath,
-        `SELECT o.* FROM observations o 
-         LEFT JOIN media m ON o.mediaID = m.mediaID 
+        `SELECT o.* FROM observations o
+         LEFT JOIN media m ON o.mediaID = m.mediaID
          WHERE m.mediaID IS NULL`
       )
       assert.equal(obsWithoutMedia.length, 0, 'All observations should be linked to media')
@@ -331,6 +331,9 @@ describe('CamTrapDP Import Tests', () => {
         'camtrap/datapackage',
         'should have correct importer name'
       )
+      assert(studyData.createdAt, 'study.json should contain a createdAt property')
+      assert.equal(typeof studyData.createdAt, 'string', 'createdAt should be a string')
+      assert(!isNaN(Date.parse(studyData.createdAt)), 'createdAt should be a valid ISO date string')
 
       // Should extract name from datapackage.json
       assert.equal(studyData.name, 'test-camtrap-dataset', 'name should match datapackage name')
@@ -344,8 +347,16 @@ describe('CamTrapDP Import Tests', () => {
       )
       assert(studyData.data.resources, 'Should preserve resource definitions')
 
-      // Should match the returned data
-      assert.deepEqual(result.data, studyData, 'returned data should match study.json content')
+      // Should match the returned data (excluding createdAt which will be slightly different)
+      const { createdAt: studyCreatedAt, ...studyDataWithoutTimestamp } = studyData
+      const { createdAt: resultCreatedAt, ...resultDataWithoutTimestamp } = result.data
+      assert.deepEqual(
+        resultDataWithoutTimestamp,
+        studyDataWithoutTimestamp,
+        'returned data should match study.json content (excluding timestamp)'
+      )
+      assert(studyCreatedAt, 'study.json should have createdAt')
+      assert(resultCreatedAt, 'returned data should have createdAt')
     })
 
     test('should handle missing datapackage.json gracefully', async () => {

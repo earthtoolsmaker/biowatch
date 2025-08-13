@@ -30,12 +30,12 @@ export function useImportStatus(id, interval = 1000) {
   }
 
   function pauseImport() {
-    queryClient.setQueryData(['importStatus'], (prev) => ({
+    queryClient.setQueryData(['importStatus', id], (prev) => ({
       ...prev,
       isRunning: false
     }))
     window.api.stopImport(id)
-    queryClient.invalidateQueries(['importStatus'])
+    // queryClient.invalidateQueries(['importStatus'])
   }
 
   console.log('Import status:', importStatus)

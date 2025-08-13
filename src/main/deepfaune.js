@@ -75,7 +75,8 @@ export async function importDeepfauneDatasetWithPath(csvPath, biowatchDataPath, 
     importerName: 'deepfaune/csv',
     data: {
       name: csvFileName
-    }
+    },
+    createdAt: new Date().toISOString()
   }
 
   fs.writeFileSync(
