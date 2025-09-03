@@ -131,6 +131,9 @@ const api = {
   resumeImport: async (id) => {
     return await electronAPI.ipcRenderer.invoke('importer:resume', id)
   },
+  selectMoreImagesDirectory: async (id) => {
+    return await electronAPI.ipcRenderer.invoke('importer:select-more-images-directory', id)
+  },
   setDeploymentLatitude: async (studyId, deploymentID, latitude) => {
     return await electronAPI.ipcRenderer.invoke(
       'deployments:set-latitude',

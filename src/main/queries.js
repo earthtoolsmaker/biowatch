@@ -696,15 +696,17 @@ export async function insertDeployments(manager, deploymentsData) {
     manager.transaction(() => {
       for (const depKey of Object.keys(deploymentsData)) {
         const dep = deploymentsData[depKey]
-        db.insert(deployments).values({
-          deploymentID: dep.deploymentID,
-          locationID: dep.locationID,
-          locationName: dep.locationName,
-          deploymentStart: dep.deploymentStart ? dep.deploymentStart.toISO() : null,
-          deploymentEnd: dep.deploymentEnd ? dep.deploymentEnd.toISO() : null,
-          latitude: dep.latitude,
-          longitude: dep.longitude
-        }).run()
+        db.insert(deployments)
+          .values({
+            deploymentID: dep.deploymentID,
+            locationID: dep.locationID,
+            locationName: dep.locationName,
+            deploymentStart: dep.deploymentStart ? dep.deploymentStart.toISO() : null,
+            deploymentEnd: dep.deploymentEnd ? dep.deploymentEnd.toISO() : null,
+            latitude: dep.latitude,
+            longitude: dep.longitude
+          })
+          .run()
       }
     })
 
@@ -731,13 +733,17 @@ export async function insertMedia(manager, mediaData) {
       let count = 0
       for (const mediaPath of Object.keys(mediaData)) {
         const item = mediaData[mediaPath]
-        db.insert(media).values({
-          mediaID: item.mediaID,
-          deploymentID: item.deploymentID,
-          timestamp: item.timestamp ? item.timestamp.toISO() : null,
-          filePath: item.filePath,
-          fileName: item.fileName
-        }).run()
+        db.insert(media)
+          .values({
+            mediaID: item.mediaID,
+            deploymentID: item.deploymentID,
+            timestamp: item.timestamp ? item.timestamp.toISO() : null,
+            filePath: item.filePath,
+            fileName: item.fileName,
+            importFolder: item.importFolder || null,
+            folderName: item.folderName || null
+          })
+          .run()
 
         count++
         if (count % 1000 === 0) {
@@ -768,19 +774,21 @@ export async function insertObservations(manager, observationsData) {
     manager.transaction(() => {
       let count = 0
       for (const observation of observationsData) {
-        db.insert(observations).values({
-          observationID: observation.observationID,
-          mediaID: observation.mediaID,
-          deploymentID: observation.deploymentID,
-          eventID: observation.eventID,
-          eventStart: observation.eventStart ? observation.eventStart.toISO() : null,
-          eventEnd: observation.eventEnd ? observation.eventEnd.toISO() : null,
-          scientificName: observation.scientificName,
-          commonName: observation.commonName,
-          confidence: observation.confidence !== undefined ? observation.confidence : null,
-          count: observation.count !== undefined ? observation.count : null,
-          prediction: observation.prediction || null
-        }).run()
+        db.insert(observations)
+          .values({
+            observationID: observation.observationID,
+            mediaID: observation.mediaID,
+            deploymentID: observation.deploymentID,
+            eventID: observation.eventID,
+            eventStart: observation.eventStart ? observation.eventStart.toISO() : null,
+            eventEnd: observation.eventEnd ? observation.eventEnd.toISO() : null,
+            scientificName: observation.scientificName,
+            commonName: observation.commonName,
+            confidence: observation.confidence !== undefined ? observation.confidence : null,
+            count: observation.count !== undefined ? observation.count : null,
+            prediction: observation.prediction || null
+          })
+          .run()
 
         count++
         if (count % 1000 === 0) {
@@ -961,16 +969,15 @@ export async function getFilesData(dbPath) {
     // Query to get directory statistics
     const rows = await db
       .select({
-        locationID: deployments.locationID,
-        locationName: deployments.locationName,
+        folderName: media.folderName,
+        importFolder: media.importFolder,
         imageCount: count(media.mediaID).as('imageCount'),
         processedCount: count(observations.observationID).as('processedCount')
       })
-      .from(deployments)
-      .leftJoin(media, eq(deployments.deploymentID, media.deploymentID))
+      .from(media)
       .leftJoin(observations, eq(media.mediaID, observations.mediaID))
-      .groupBy(deployments.locationID, deployments.locationName)
-      .orderBy(deployments.locationName, deployments.locationID)
+      .groupBy(media.folderName)
+      .orderBy(media.folderName)
 
     const elapsedTime = Date.now() - startTime
     log.info(`Retrieved files data: ${rows.length} directories found in ${elapsedTime}ms`)

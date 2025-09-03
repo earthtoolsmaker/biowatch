@@ -11,9 +11,10 @@ import { getValidatedMigrationsPath } from './migrations-utils.js'
  * Database manager for individual study databases with Drizzle ORM
  */
 export class StudyDatabaseManager {
-  constructor(studyId, dbPath) {
+  constructor(studyId, dbPath, options = {}) {
     this.studyId = studyId
     this.dbPath = dbPath
+    this.readonly = options.readonly || false
     this.sqlite = null
     this.db = null
   }
@@ -29,19 +30,30 @@ export class StudyDatabaseManager {
         mkdirSync(dbDir, { recursive: true })
       }
 
-      // Create SQLite connection
-      this.sqlite = new Database(this.dbPath)
+      // Create SQLite connection with appropriate mode
+      if (this.readonly) {
+        this.sqlite = new Database(this.dbPath, { readonly: true })
+        log.info(`[DB] Initialized READONLY database for study ${this.studyId}: ${this.dbPath}`)
 
-      // Enable foreign keys
-      this.sqlite.pragma('foreign_keys = ON')
+        // Skip migrations and foreign key setup for readonly connections
+        this.db = drizzle(this.sqlite, { schema })
+      } else {
+        this.sqlite = new Database(this.dbPath)
 
-      log.info(`[DB] Initialized database for study ${this.studyId}: ${this.dbPath}`)
+        // Enable foreign keys
+        this.sqlite.pragma('foreign_keys = ON')
 
-      // Run migrations FIRST on raw SQLite connection (before schema attachment)
-      await this.runMigrations()
+        // // Enable WAL journal mode for better write performance
+        // this.sqlite.pragma('journal_mode = WAL')
 
-      // THEN create Drizzle instance with schema (after migrations are complete)
-      this.db = drizzle(this.sqlite, { schema })
+        log.info(`[DB] Initialized READ-WRITE database for study ${this.studyId}: ${this.dbPath}`)
+
+        // Run migrations FIRST on raw SQLite connection (before schema attachment)
+        await this.runMigrations()
+
+        // THEN create Drizzle instance with schema (after migrations are complete)
+        this.db = drizzle(this.sqlite, { schema })
+      }
 
       return this
     } catch (error) {
@@ -107,7 +119,7 @@ export class StudyDatabaseManager {
       const tables = this.sqlite
         .prepare(
           `
-        SELECT name FROM sqlite_master 
+        SELECT name FROM sqlite_master
         WHERE type='table' AND name='__drizzle_migrations'
       `
         )
@@ -134,7 +146,7 @@ export class StudyDatabaseManager {
       const mainTables = this.sqlite
         .prepare(
           `
-        SELECT name FROM sqlite_master 
+        SELECT name FROM sqlite_master
         WHERE type='table' AND name IN ('deployments', 'media', 'observations')
       `
         )
@@ -161,7 +173,7 @@ export class StudyDatabaseManager {
       const existingTables = this.sqlite
         .prepare(
           `
-        SELECT name FROM sqlite_master 
+        SELECT name FROM sqlite_master
         WHERE type='table' AND name IN (${requiredTables.map(() => '?').join(', ')})
       `
         )
@@ -231,15 +243,18 @@ const dbConnections = new Map()
 /**
  * Get or create a database manager for a study
  */
-export async function getStudyDatabase(studyId, dbPath) {
-  const cacheKey = `${studyId}:${dbPath}`
+export async function getStudyDatabase(studyId, dbPath, options = {}) {
+  const readonly = options.readonly || false
+  const cacheKey = `${studyId}:${dbPath}:${readonly ? 'readonly' : 'readwrite'}`
 
   if (!dbConnections.has(cacheKey)) {
-    const manager = new StudyDatabaseManager(studyId, dbPath)
+    const manager = new StudyDatabaseManager(studyId, dbPath, options)
     await manager.initialize()
     dbConnections.set(cacheKey, manager)
 
-    log.info(`[DB] Created new database connection for study ${studyId}`)
+    log.info(
+      `[DB] Created new ${readonly ? 'READONLY' : 'READ-WRITE'} database connection for study ${studyId}`
+    )
   }
 
   return dbConnections.get(cacheKey)
