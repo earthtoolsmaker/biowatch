@@ -15,7 +15,9 @@ export const media = sqliteTable('media', {
   deploymentID: text('deploymentID').references(() => deployments.deploymentID),
   timestamp: text('timestamp'),
   filePath: text('filePath'),
-  fileName: text('fileName')
+  fileName: text('fileName'),
+  importFolder: text('importFolder'),
+  folderName: text('folderName')
 })
 
 export const observations = sqliteTable('observations', {

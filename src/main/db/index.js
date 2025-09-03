@@ -15,10 +15,22 @@ export { getStudyDatabase, closeStudyDatabase, closeAllDatabases }
  * Helper function to get Drizzle database instance for a study
  * @param {string} studyId - Study identifier
  * @param {string} dbPath - Path to database file
+ * @param {Object} options - Database options (e.g., {readonly: true})
  * @returns {Promise<Object>} Drizzle database instance
  */
-export async function getDrizzleDb(studyId, dbPath) {
-  const manager = await getStudyDatabase(studyId, dbPath)
+export async function getDrizzleDb(studyId, dbPath, options = {}) {
+  const manager = await getStudyDatabase(studyId, dbPath, options)
+  return manager.getDb()
+}
+
+/**
+ * Helper function to get a readonly Drizzle database instance for a study
+ * @param {string} studyId - Study identifier
+ * @param {string} dbPath - Path to database file
+ * @returns {Promise<Object>} Readonly Drizzle database instance
+ */
+export async function getReadonlyDrizzleDb(studyId, dbPath) {
+  const manager = await getStudyDatabase(studyId, dbPath, { readonly: true })
   return manager.getDb()
 }
 

@@ -308,6 +308,9 @@ describe('Wildlife Import Tests', () => {
       assert.equal(typeof studyData.name, 'string', 'name should be a string')
       assert(studyData.name.length > 0, 'name should not be empty')
       assert.equal(studyData.importerName, 'wildlife/folder', 'should have correct importer name')
+      assert(studyData.createdAt, 'study.json should contain a createdAt property')
+      assert.equal(typeof studyData.createdAt, 'string', 'createdAt should be a string')
+      assert(!isNaN(Date.parse(studyData.createdAt)), 'createdAt should be a valid ISO date string')
 
       // Should either have project name from CSV or fallback to directory name
       assert(
@@ -323,8 +326,16 @@ describe('Wildlife Import Tests', () => {
         'Should have correct contributor name'
       )
 
-      // Should match the returned data
-      assert.deepEqual(result.data, studyData, 'returned data should match study.json content')
+      // Should match the returned data (excluding createdAt which will be slightly different)
+      const { createdAt: studyCreatedAt, ...studyDataWithoutTimestamp } = studyData
+      const { createdAt: resultCreatedAt, ...resultDataWithoutTimestamp } = result.data
+      assert.deepEqual(
+        resultDataWithoutTimestamp,
+        studyDataWithoutTimestamp,
+        'returned data should match study.json content (excluding timestamp)'
+      )
+      assert(studyCreatedAt, 'study.json should have createdAt')
+      assert(resultCreatedAt, 'returned data should have createdAt')
     })
   })
 })

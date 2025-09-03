@@ -204,6 +204,9 @@ describe('Import Methods Tests', () => {
       assert(studyData.name.length > 0, 'name should not be empty')
       assert.equal(studyData.name, 'deepfaune-test', 'name should match CSV filename')
       assert.equal(studyData.importerName, 'deepfaune/csv', 'should have correct importer name')
+      assert(studyData.createdAt, 'study.json should contain a createdAt property')
+      assert.equal(typeof studyData.createdAt, 'string', 'createdAt should be a string')
+      assert(!isNaN(Date.parse(studyData.createdAt)), 'createdAt should be a valid ISO date string')
     })
   })
 

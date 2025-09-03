@@ -310,7 +310,7 @@ export default function Activity({ studyData, studyId }) {
     return () => {
       if (intervalId) clearInterval(intervalId)
     }
-  }, [actualStudyId, importStatus])
+  }, [actualStudyId, importStatus.isRunning])
 
   // console.log('selected', selectedSpecies)
 

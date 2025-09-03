@@ -145,6 +145,7 @@ export async function importWildlifeDatasetWithPath(directoryPath, biowatchDataP
   }
 
   // Create study.json file with the data
+  data.createdAt = new Date().toISOString()
   fs.writeFileSync(
     path.join(biowatchDataPath, 'studies', id, 'study.json'),
     JSON.stringify(data, null, 2)

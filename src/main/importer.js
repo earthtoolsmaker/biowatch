@@ -6,154 +6,20 @@ import geoTz from 'geo-tz'
 import luxon, { DateTime } from 'luxon'
 import path from 'path'
 import crypto from 'crypto'
-import { getDrizzleDb, deployments, media, observations, closeStudyDatabase } from './db/index.js'
-import { eq, isNull, min, max, count } from 'drizzle-orm'
+import Database from 'better-sqlite3'
+import {
+  getDrizzleDb,
+  getReadonlyDrizzleDb,
+  deployments,
+  media,
+  observations,
+  closeStudyDatabase
+} from './db/index.js'
+import { eq, isNull, count } from 'drizzle-orm'
 import models from './models.js'
 import mlmodels from '../shared/mlmodels.js'
 
 const imageExtensions = new Set(['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'])
-
-/**
- * Checks if a directory is a leaf directory containing images
- * @param {string} dir - The directory path
- * @returns {Promise<{isLeaf: boolean, imageCount: number}>}
- */
-async function isLeafDirectoryWithImages(dir) {
-  const dirents = await fs.promises.readdir(dir, { withFileTypes: true })
-
-  let hasSubdirectories = false
-  let imageCount = 0
-
-  for (const dirent of dirents) {
-    if (dirent.isDirectory()) {
-      hasSubdirectories = true
-      break
-    } else if (dirent.isFile() && imageExtensions.has(path.extname(dirent.name).toLowerCase())) {
-      imageCount++
-    }
-  }
-
-  return {
-    isLeaf: !hasSubdirectories,
-    imageCount
-  }
-}
-
-/**
- * Gets the most frequent location from a list of locations
- * @param {Array<{latitude: number, longitude: number, count: number}>} locations
- * @returns {{latitude: number, longitude: number}}
- */
-function getMainLocation(locations) {
-  if (locations.length === 0) return { latitude: null, longitude: null }
-
-  // Sort by count in descending order
-  const sorted = [...locations].sort((a, b) => b.count - a.count)
-  return { latitude: sorted[0].latitude, longitude: sorted[0].longitude }
-}
-
-/**
- * Finds all deployments in a given directory by scanning for leaf directories with images
- * @param {string} rootDir - The root directory to scan
- * @returns {Promise<Array>} - List of deployments
- */
-export async function getDeployments(rootDir) {
-  const deployments = []
-
-  async function* scanDirectories(dir, relativePath = '') {
-    try {
-      const dirents = await fs.promises.readdir(dir, { withFileTypes: true })
-
-      const { isLeaf, imageCount } = await isLeafDirectoryWithImages(dir)
-      if (isLeaf && imageCount > 0) {
-        // This is a leaf directory with images - process as a deployment
-        let startDate = null
-        let endDate = null
-        const locationMap = new Map() // Map to track unique locations and their frequency
-
-        // Process images to extract dates and locations
-        let processedCount = 0
-
-        for await (const imagePath of walkImages(dir)) {
-          let exifData = {}
-          try {
-            exifData = await exifr.parse(imagePath, {
-              gps: true,
-              exif: true,
-              reviveValues: true
-            })
-          } catch (exifError) {
-            log.warn(`Could not extract EXIF data from ${imagePath}: ${exifError.message}`)
-            continue // Skip images with unreadable EXIF
-          }
-
-          // Update date range
-          if (exifData && exifData.DateTimeOriginal) {
-            const imageDate = DateTime.fromJSDate(exifData.DateTimeOriginal)
-            if (!startDate || imageDate < startDate) startDate = imageDate
-            if (!endDate || imageDate > endDate) endDate = imageDate
-          }
-
-          // Track location data
-          if (exifData && exifData.latitude !== undefined && exifData.longitude !== undefined) {
-            // Round to 6 decimal places for better grouping
-            const lat = Math.round(exifData.latitude * 100000) / 100000
-            const lng = Math.round(exifData.longitude * 100000) / 100000
-            const locKey = `${lat},${lng}`
-
-            if (!locationMap.has(locKey)) {
-              locationMap.set(locKey, { latitude: lat, longitude: lng, count: 1 })
-            } else {
-              locationMap.get(locKey).count++
-            }
-          }
-
-          // Log progress occasionally
-          processedCount++
-          if (processedCount % 100 === 0) {
-            log.info(`Processed ${processedCount}/${imageCount} images in ${relativePath || dir}`)
-          }
-        }
-
-        // Convert location map to array
-        const locations = Array.from(locationMap.values())
-        const mainLocation = getMainLocation(locations)
-
-        deployments.push({
-          path: dir,
-          relativePath,
-          imageCount,
-          startDate: startDate ? startDate.toISO() : null,
-          endDate: endDate ? endDate.toISO() : null,
-          mainLocation,
-          locations
-        })
-
-        log.info(`Found deployment in ${relativePath || dir} with ${imageCount} images`)
-      } else if (!isLeaf) {
-        // Continue scanning subdirectories
-        for (const dirent of dirents) {
-          if (dirent.isDirectory()) {
-            const fullPath = path.join(dir, dirent.name)
-            const newRelativePath = relativePath
-              ? path.join(relativePath, dirent.name)
-              : dirent.name
-            yield* scanDirectories(fullPath, newRelativePath)
-          }
-        }
-      }
-    } catch (error) {
-      log.error(`Error scanning directory ${dir}:`, error)
-    }
-  }
-
-  // Start scanning from root directory
-  for await (const _ of scanDirectories(rootDir)) {
-    // The generator populates the deployments array
-  }
-
-  return deployments
-}
 
 async function* walkImages(dir) {
   const dirents = await fs.promises.opendir(dir)
@@ -223,90 +89,23 @@ export async function* getPredictions(imagesPath, port) {
   }
 }
 
-async function insertIntoTable(db, table, data) {
-  try {
-    await db.insert(table).values(data)
-  } catch (err) {
-    log.error(`Error inserting into table:`, err)
-  }
-}
-
 async function insertMedia(db, fullPath, importFolder) {
-  let exifData = {}
-  try {
-    exifData = await exifr.parse(fullPath, {
-      gps: true,
-      exif: true,
-      reviveValues: true
-    })
-  } catch (exifError) {
-    log.warn(`Could not extract EXIF data from ${fullPath}: ${exifError.message}`)
-  }
-  let latitude = null
-  let longitude = null
-  if (exifData && exifData.latitude && exifData.longitude) {
-    latitude = exifData.latitude.toFixed(6) // Round to 6 decimal places
-    longitude = exifData.longitude.toFixed(6) // Round to 6 decimal places
+  const folderName =
+    importFolder === path.dirname(fullPath)
+      ? path.basename(importFolder)
+      : path.relative(importFolder, path.dirname(fullPath))
+  const mediaData = {
+    mediaID: crypto.randomUUID(),
+    deploymentID: null,
+    timestamp: null,
+    filePath: fullPath,
+    fileName: path.basename(fullPath),
+    importFolder: importFolder,
+    folderName: folderName
   }
 
-  const zones = latitude && longitude ? geoTz.find(latitude, longitude) : null
-
-  const date = luxon.DateTime.fromJSDate(exifData.DateTimeOriginal, {
-    zone: zones?.[0]
-  })
-
-  const parentFolder = path.relative(importFolder, path.dirname(fullPath))
-
-  let deployment
-  try {
-    deployment = await getDeployment(db, parentFolder)
-
-    if (deployment) {
-      // If a deployment exists, update the start or end time if necessary
-      await db
-        .update(deployments)
-        .set({
-          deploymentStart: DateTime.min(date, DateTime.fromISO(deployment.deploymentStart)).toISO(),
-          deploymentEnd: DateTime.max(date, DateTime.fromISO(deployment.deploymentEnd)).toISO()
-        })
-        .where(eq(deployments.deploymentID, deployment.deploymentID))
-    } else {
-      // If no deployment exists, create a new one
-      const deploymentID = crypto.randomUUID()
-      const locationID = parentFolder
-      log.info('Creating new deployment with at: ', locationID, latitude, longitude)
-
-      await db.insert(deployments).values({
-        deploymentID,
-        locationID,
-        locationName: locationID,
-        deploymentStart: date.toISO(),
-        deploymentEnd: date.toISO(),
-        latitude: parseFloat(latitude),
-        longitude: parseFloat(longitude)
-      })
-
-      deployment = {
-        deploymentID,
-        latitude,
-        longitude
-      }
-    }
-
-    const mediaData = {
-      mediaID: crypto.randomUUID(),
-      deploymentID: deployment.deploymentID,
-      timestamp: date.toISO(),
-      filePath: fullPath,
-      fileName: path.basename(fullPath)
-    }
-
-    await insertIntoTable(db, media, mediaData)
-    return mediaData
-  } catch (error) {
-    log.error(`Error inserting media for ${fullPath}:`, error)
-    return
-  }
+  await db.insert(media).values(mediaData)
+  return mediaData
 }
 
 async function getMedia(db, filepath) {
@@ -357,12 +156,104 @@ async function getMedia(db, filepath) {
 //   prediction_source: 'classifier',
 //   model_version: '4.0.1a'
 // }
+
 async function insertPrediction(db, prediction) {
   const mediaRecord = await getMedia(db, prediction.filepath)
   if (!mediaRecord) {
     log.warn(`No media found for prediction: ${prediction.filepath}`)
     return
   }
+
+  // If media hasn't been processed yet (no timestamp/deploymentID), process EXIF data
+  if (!mediaRecord.timestamp || !mediaRecord.deploymentID) {
+    let exifData = {}
+    try {
+      exifData = await exifr.parse(prediction.filepath, {
+        gps: true,
+        exif: true,
+        reviveValues: true
+      })
+    } catch (exifError) {
+      log.warn(`Could not extract EXIF data from ${prediction.filepath}: ${exifError.message}`)
+    }
+
+    let latitude = null
+    let longitude = null
+    if (exifData && exifData.latitude && exifData.longitude) {
+      latitude = exifData.latitude.toFixed(6)
+      longitude = exifData.longitude.toFixed(6)
+    }
+
+    const zones = latitude && longitude ? geoTz.find(latitude, longitude) : null
+    const date = exifData.DateTimeOriginal
+      ? luxon.DateTime.fromJSDate(exifData.DateTimeOriginal, { zone: zones?.[0] })
+      : luxon.DateTime.now()
+
+    const parentFolder =
+      mediaRecord.importFolder === path.dirname(prediction.filepath)
+        ? path.basename(mediaRecord.importFolder)
+        : path.relative(mediaRecord.importFolder, path.dirname(prediction.filepath))
+
+    console.log('Parent folder:', mediaRecord.importFolder, prediction.filepath, parentFolder)
+    console.log('dir name:', path.dirname(prediction.filepath))
+
+    let deployment
+    try {
+      deployment = await getDeployment(db, parentFolder)
+
+      console.log('Found deployment:', deployment)
+
+      if (deployment) {
+        await db
+          .update(deployments)
+          .set({
+            deploymentStart: DateTime.min(
+              date,
+              DateTime.fromISO(deployment.deploymentStart)
+            ).toISO(),
+            deploymentEnd: DateTime.max(date, DateTime.fromISO(deployment.deploymentEnd)).toISO()
+          })
+          .where(eq(deployments.deploymentID, deployment.deploymentID))
+      } else {
+        // If no deployment exists, create a new one
+        const deploymentID = crypto.randomUUID()
+        const locationID = parentFolder
+        log.info('Creating new deployment with at: ', locationID, latitude, longitude)
+
+        await db.insert(deployments).values({
+          deploymentID,
+          locationID,
+          locationName: locationID,
+          deploymentStart: date.toISO(),
+          deploymentEnd: date.toISO(),
+          latitude: parseFloat(latitude),
+          longitude: parseFloat(longitude)
+        })
+
+        deployment = {
+          deploymentID,
+          latitude,
+          longitude
+        }
+      }
+
+      // Update local media object for observation creation
+      mediaRecord.timestamp = date.toISO()
+      mediaRecord.deploymentID = deployment.deploymentID
+
+      await db
+        .update(media)
+        .set({
+          timestamp: date.toISO(),
+          deploymentID: deployment.deploymentID
+        })
+        .where(eq(media.mediaID, mediaRecord.mediaID))
+    } catch (error) {
+      log.error(`Error processing EXIF data for ${prediction.filepath}:`, error)
+      return
+    }
+  }
+
   const isblank = ['blank', 'no cv result'].includes(prediction.prediction.split(';').at(-1))
   const scientificName =
     prediction.prediction.split(';').at(-3) + ' ' + prediction.prediction.split(';').at(-2)
@@ -384,7 +275,7 @@ async function insertPrediction(db, prediction) {
     prediction: prediction.prediction
   }
 
-  await insertIntoTable(db, observations, observationData)
+  await db.insert(observations).values(observationData)
   // log.info(`Inserted prediction for ${mediaRecord.fileName} into database`)
 }
 
@@ -430,28 +321,45 @@ async function getDeployment(db, locationID) {
   }
 }
 
-async function getTemporalData(db) {
-  try {
-    const result = await db
-      .select({
-        startDate: min(deployments.deploymentStart).as('startDate'),
-        endDate: max(deployments.deploymentEnd).as('endDate')
-      })
-      .from(deployments)
-      .get()
-
-    return {
-      start: result?.startDate ? DateTime.fromISO(result.startDate).toFormat('dd LLL yyyy') : null,
-      end: result?.endDate ? DateTime.fromISO(result.endDate).toFormat('dd LLL yyyy') : null
-    }
-  } catch (error) {
-    log.error('Error getting temporal data:', error)
-    return { start: null, end: null }
-  }
-}
-
 let lastBatchDuration = null
 const batchSize = 5
+
+async function insertMediaBatch(sqlite, mediaDataArray) {
+  if (mediaDataArray.length === 0) return
+
+  // Create a direct better-sqlite3 connection for bulk insert
+
+  try {
+    // Prepare the insert statement
+    const insertStmt = sqlite.prepare(`
+      INSERT INTO media (mediaID, deploymentID, timestamp, filePath, fileName, importFolder, folderName)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `)
+
+    // Create a transaction for maximum performance
+    const insertMany = sqlite.transaction((mediaArray) => {
+      for (const mediaData of mediaArray) {
+        insertStmt.run(
+          mediaData.mediaID,
+          mediaData.deploymentID,
+          mediaData.timestamp,
+          mediaData.filePath,
+          mediaData.fileName,
+          mediaData.importFolder,
+          mediaData.folderName
+        )
+      }
+    })
+
+    insertMany(mediaDataArray)
+    log.info(`Inserted ${mediaDataArray.length} media records using prepared statement transaction`)
+  } catch (error) {
+    log.error('Error inserting media batch:', error)
+    throw error
+  } finally {
+    // sqlite.close()
+  }
+}
 
 export class Importer {
   constructor(id, folder) {
@@ -463,14 +371,14 @@ export class Importer {
   }
 
   async cleanup() {
-    log.info(`Cleaning up importer with ID ${this.id}`, this.pythonProcess)
+    log.info(`Cleaning up importer with ID ${this.id}`)
     if (this.pythonProcess) {
       return await models.stopMLModelHTTPServer({ pid: this.pythonProcess.pid })
     }
     return Promise.resolve() // Return resolved promise if no process to kill
   }
 
-  async start() {
+  async start(addingMore = false) {
     try {
       this.dbPath = path.join(
         app.getPath('userData'),
@@ -490,12 +398,54 @@ export class Importer {
         this.db = await getDrizzleDb(this.id, dbPath)
 
         log.info('scanning images in folder:', this.folder)
+        console.time('Insert media')
+
+        const mediaBatch = []
+        const batchSize = 100000
+        const sqlite = new Database(dbPath)
+        // sqlite.pragma('journal_mode = WAL')
 
         for await (const imagePath of walkImages(this.folder)) {
-          await insertMedia(this.db, imagePath, this.folder)
+          const folderName =
+            this.folder === path.dirname(imagePath)
+              ? path.basename(this.folder)
+              : path.relative(this.folder, path.dirname(imagePath))
+
+          const mediaData = {
+            mediaID: crypto.randomUUID(),
+            deploymentID: null,
+            timestamp: null,
+            filePath: imagePath,
+            fileName: path.basename(imagePath),
+            importFolder: this.folder,
+            folderName: folderName
+          }
+
+          mediaBatch.push(mediaData)
+
+          if (mediaBatch.length >= batchSize) {
+            await insertMediaBatch(sqlite, mediaBatch)
+            mediaBatch.length = 0 // Clear the array
+          }
         }
+
+        // Insert any remaining items
+        if (mediaBatch.length > 0) {
+          await insertMediaBatch(sqlite, mediaBatch)
+        }
+
+        sqlite.close()
+
+        console.timeEnd('Insert media')
       } else {
         this.db = await getDrizzleDb(this.id, dbPath)
+        if (addingMore) {
+          log.info('scanning images in folder:', this.folder)
+
+          for await (const imagePath of walkImages(this.folder)) {
+            await insertMedia(this.db, imagePath, this.folder)
+          }
+        }
       }
 
       // const temporalData = await getTemporalData(this.db)
@@ -555,7 +505,7 @@ async function status(id) {
   const dbPath = path.join(app.getPath('userData'), 'biowatch-data', 'studies', id, 'study.db')
 
   try {
-    const db = await getDrizzleDb(id, dbPath)
+    const db = await getReadonlyDrizzleDb(id, dbPath)
 
     // Get total count of media
     const mediaResult = await db
@@ -626,7 +576,8 @@ ipcMain.handle('importer:select-images-directory', async () => {
       data: {
         name: path.basename(directoryPath)
       },
-      id: id
+      id: id,
+      createdAt: new Date().toISOString()
     }
     fs.writeFileSync(
       path.join(app.getPath('userData'), 'biowatch-data', 'studies', id, 'study.json'),
@@ -642,6 +593,28 @@ ipcMain.handle('importer:select-images-directory', async () => {
   }
 })
 
+ipcMain.handle('importer:select-more-images-directory', async (event, id) => {
+  if (importers[id]) {
+    log.warn(`No importer found with ID ${id}`)
+    return { success: false, message: 'Importer already running' }
+  }
+
+  const result = await dialog.showOpenDialog({
+    properties: ['openDirectory'],
+    title: 'Select Images Directory'
+  })
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return { success: false, message: 'Selection canceled' }
+  }
+
+  const directoryPath = result.filePaths[0]
+  const importer = new Importer(id, directoryPath)
+  importers[id] = importer
+  await importer.start(true)
+  return { success: true, message: 'Importer started successfully' }
+})
+
 ipcMain.handle('importer:stop', async (event, id) => {
   if (!importers[id]) {
     log.warn(`No importer found with ID ${id}`)
@@ -651,6 +624,7 @@ ipcMain.handle('importer:stop', async (event, id) => {
   try {
     await importers[id].cleanup()
     delete importers[id]
+    log.info('Importers', importers)
     log.info(`Importer with ID ${id} stopped successfully`)
     return { success: true, message: 'Importer stopped successfully' }
   } catch (error) {
