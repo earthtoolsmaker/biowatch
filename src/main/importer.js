@@ -324,11 +324,10 @@ async function getDeployment(db, locationID) {
 let lastBatchDuration = null
 const batchSize = 5
 
-async function insertMediaBatch(dbPath, mediaDataArray) {
+async function insertMediaBatch(sqlite, mediaDataArray) {
   if (mediaDataArray.length === 0) return
 
   // Create a direct better-sqlite3 connection for bulk insert
-  const sqlite = new Database(dbPath)
 
   try {
     // Prepare the insert statement
@@ -358,7 +357,7 @@ async function insertMediaBatch(dbPath, mediaDataArray) {
     log.error('Error inserting media batch:', error)
     throw error
   } finally {
-    sqlite.close()
+    // sqlite.close()
   }
 }
 
@@ -403,6 +402,8 @@ export class Importer {
 
         const mediaBatch = []
         const batchSize = 100000
+        const sqlite = new Database(dbPath)
+        // sqlite.pragma('journal_mode = WAL')
 
         for await (const imagePath of walkImages(this.folder)) {
           const folderName =
@@ -423,15 +424,17 @@ export class Importer {
           mediaBatch.push(mediaData)
 
           if (mediaBatch.length >= batchSize) {
-            await insertMediaBatch(dbPath, mediaBatch)
+            await insertMediaBatch(sqlite, mediaBatch)
             mediaBatch.length = 0 // Clear the array
           }
         }
 
         // Insert any remaining items
         if (mediaBatch.length > 0) {
-          await insertMediaBatch(dbPath, mediaBatch)
+          await insertMediaBatch(sqlite, mediaBatch)
         }
+
+        sqlite.close()
 
         console.timeEnd('Insert media')
       } else {
