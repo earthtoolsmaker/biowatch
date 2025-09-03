@@ -76,7 +76,7 @@ function ImportStatus({ studyId, importerName }) {
 
   // Calculate width based on number of digits in total (accounting for both done and total)
   const totalDigits = importStatus.total.toString().length
-  const spanWidth = `${totalDigits * 1 + 0.1}rem` // Minimum width with scaling
+  const spanWidth = `${totalDigits * 2 + 2}ch` // Minimum width with scaling
 
   return (
     <div className="flex items-center gap-3 px-4 ml-auto">

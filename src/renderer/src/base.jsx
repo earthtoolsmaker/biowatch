@@ -92,7 +92,12 @@ function AppContent() {
     queryFn: async () => {
       const studies = await window.api.getStudies()
       console.log('Fetched studies from API:', studies)
-      return studies
+      return studies.sort((a, b) => {
+        if (!a.createdAt && !b.createdAt) return 0
+        if (!a.createdAt) return -1
+        if (!b.createdAt) return 1
+        return new Date(a.createdAt) - new Date(b.createdAt)
+      })
     },
     onError: (error) => {
       console.error('Failed to fetch studies:', error)

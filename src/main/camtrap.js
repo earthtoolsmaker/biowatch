@@ -131,7 +131,8 @@ export async function importCamTrapDatasetWithPath(directoryPath, biowatchDataPa
           id,
           data,
           name: data.name,
-          importerName: 'camtrap/datapackage'
+          importerName: 'camtrap/datapackage',
+          createdAt: new Date().toISOString()
         },
         null,
         2
@@ -143,7 +144,8 @@ export async function importCamTrapDatasetWithPath(directoryPath, biowatchDataPa
         id,
         data,
         name: data.name,
-        importerName: 'camtrap/datapackage'
+        importerName: 'camtrap/datapackage',
+        createdAt: new Date().toISOString()
       }
     }
   } catch (error) {

@@ -1,61 +1,47 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 export function useImportStatus(id, interval = 1000) {
-  const [importStatus, setImportStatus] = useState({ isRunning: false, pausedCount: 0, done: 0 })
-
-  useEffect(() => {
-    let intervalId
-
-    const checkImportStatus = async () => {
+  const queryClient = useQueryClient()
+  const [pausedCount, setPausedCount] = useState(0)
+  const { data: importStatus = { isRunning: false, done: 0 } } = useQuery({
+    queryKey: ['importStatus', id],
+    queryFn: async () => {
       try {
         const status = await window.api.getImportStatus(id)
-        setImportStatus((prev) => ({ ...prev, ...status }))
+        return status
       } catch (err) {
         console.error('Failed to get import status:', err)
+        throw err
       }
-    }
-
-    if (!importStatus.isRunning) {
-      // If import is not running, no need to check status
-      clearInterval(intervalId)
-      return
-    }
-
-    intervalId = setInterval(checkImportStatus, interval)
-
-    return () => {
-      if (intervalId) clearInterval(intervalId)
-    }
-  }, [importStatus.isRunning, id, interval])
-
-  useEffect(() => {
-    const fetchImportStatus = async () => {
-      const status = await window.api.getImportStatus(id)
-      setImportStatus((prev) => ({ ...prev, ...status }))
-    }
-
-    fetchImportStatus()
-  }, [id])
+    },
+    refetchInterval: (query) => {
+      // Only poll if import is running
+      return query?.state?.data?.isRunning ? interval : false
+    },
+    refetchIntervalInBackground: false,
+    enabled: !!id
+  })
 
   function resumeImport() {
-    setImportStatus((prev) => ({
-      ...prev,
-      isRunning: true,
-      pausedCount: prev.done
-    }))
+    setPausedCount(importStatus.done)
     window.api.resumeImport(id)
+    queryClient.invalidateQueries(['importStatus'])
   }
 
   function pauseImport() {
-    setImportStatus((prev) => ({
+    queryClient.setQueryData(['importStatus', id], (prev) => ({
       ...prev,
       isRunning: false
     }))
     window.api.stopImport(id)
+    // queryClient.invalidateQueries(['importStatus'])
   }
 
+  console.log('Import status:', importStatus)
+
   return {
-    importStatus,
+    importStatus: { ...importStatus, pausedCount },
     resumeImport,
     pauseImport
   }
