@@ -1,8 +1,9 @@
 import 'leaflet/dist/leaflet.css'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router'
 import { modelZoo } from '../../shared/mlmodels.js'
 import { useQueryClient } from '@tanstack/react-query'
+import CountryPickerModal from './CountryPickerModal.jsx'
 
 function ImportButton({ onClick, children, className = '', disabled = false }) {
   const [isImporting, setIsImporting] = useState(false)
@@ -105,7 +106,43 @@ export default function Import({ onNewStudy }) {
   const [selectedModel, setSelectedModel] = useState(modelZoo[0]?.reference || null)
   const [installedModels, setInstalledModels] = useState([])
   const [installedEnvironments, setInstalledEnvironments] = useState([])
+  const [showCountryPicker, setShowCountryPicker] = useState(false)
+  const [pendingDirectoryPath, setPendingDirectoryPath] = useState(null)
   const queryClient = useQueryClient()
+
+  const isModelInstalled = useCallback(
+    (modelReference) => {
+      return installedModels.some(
+        (installed) =>
+          installed.id === modelReference.id && installed.version === modelReference.version
+      )
+    },
+    [installedModels]
+  )
+
+  const isEnvironmentInstalled = useCallback(
+    (environmentReference) => {
+      return installedEnvironments.some(
+        (installed) =>
+          installed.id === environmentReference.id &&
+          installed.version === environmentReference.version
+      )
+    },
+    [installedEnvironments]
+  )
+
+  const isModelCompletelyInstalled = useCallback(
+    (modelReference) => {
+      const model = modelZoo.find(
+        (m) =>
+          m.reference.id === modelReference.id && m.reference.version === modelReference.version
+      )
+      if (!model) return false
+
+      return isModelInstalled(model.reference) && isEnvironmentInstalled(model.pythonEnvironment)
+    },
+    [isModelInstalled, isEnvironmentInstalled]
+  )
 
   useEffect(() => {
     const fetchInstalledData = async () => {
@@ -144,31 +181,7 @@ export default function Import({ onNewStudy }) {
       }
     }
     fetchInstalledData()
-  }, [])
-
-  const isModelInstalled = (modelReference) => {
-    return installedModels.some(
-      (installed) =>
-        installed.id === modelReference.id && installed.version === modelReference.version
-    )
-  }
-
-  const isEnvironmentInstalled = (environmentReference) => {
-    return installedEnvironments.some(
-      (installed) =>
-        installed.id === environmentReference.id &&
-        installed.version === environmentReference.version
-    )
-  }
-
-  const isModelCompletelyInstalled = (modelReference) => {
-    const model = modelZoo.find(
-      (m) => m.reference.id === modelReference.id && m.reference.version === modelReference.version
-    )
-    if (!model) return false
-
-    return isModelInstalled(model.reference) && isEnvironmentInstalled(model.pythonEnvironment)
-  }
+  }, [selectedModel, isModelCompletelyInstalled])
 
   const getCompletelyInstalledModels = () => {
     return modelZoo.filter(
@@ -214,10 +227,43 @@ export default function Import({ onNewStudy }) {
   }
 
   const handleImportImages = async () => {
-    const { id } = await window.api.selectImagesDirectory()
-    // onNewStudy({ id, name: data.name, data, path, importerName, selectedModel })
+    // Check if the selected model is SpeciesNet
+    const isSpeciesNet = selectedModel && selectedModel.id === 'speciesnet'
+    
+    if (isSpeciesNet) {
+      // For SpeciesNet, first select directory then show country picker
+      const result = await window.api.selectImagesDirectoryOnly()
+      if (!result.success || !result.directoryPath) return
+      
+      setPendingDirectoryPath(result.directoryPath)
+      setShowCountryPicker(true)
+    } else {
+      // For other models, use original flow
+      const { id } = await window.api.selectImagesDirectory()
+      if (!id) return
+      queryClient.invalidateQueries(['studies'])
+      navigate(`/study/${id}`)
+    }
+  }
+
+  const handleCountrySelected = async (countryCode) => {
+    if (!pendingDirectoryPath) return
+    
+    const { id } = await window.api.selectImagesDirectoryWithCountry(
+      pendingDirectoryPath,
+      countryCode
+    )
+    if (!id) return
+    
+    setShowCountryPicker(false)
+    setPendingDirectoryPath(null)
     queryClient.invalidateQueries(['studies'])
     navigate(`/study/${id}`)
+  }
+
+  const handleCountryPickerCancel = () => {
+    setShowCountryPicker(false)
+    setPendingDirectoryPath(null)
   }
 
   const handleGbifImport = async (key) => {
@@ -374,6 +420,12 @@ export default function Import({ onNewStudy }) {
           </div>
         </div>
       </div>
+      
+      <CountryPickerModal
+        isOpen={showCountryPicker}
+        onConfirm={handleCountrySelected}
+        onCancel={handleCountryPickerCancel}
+      />
     </div>
   )
 }

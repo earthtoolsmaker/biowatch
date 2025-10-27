@@ -122,6 +122,16 @@ const api = {
   selectImagesDirectory: async () => {
     return await electronAPI.ipcRenderer.invoke('importer:select-images-directory')
   },
+  selectImagesDirectoryOnly: async () => {
+    return await electronAPI.ipcRenderer.invoke('importer:select-images-directory-only')
+  },
+  selectImagesDirectoryWithCountry: async (directoryPath, countryCode) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'importer:select-images-directory-with-country',
+      directoryPath,
+      countryCode
+    )
+  },
   getImportStatus: async (id) => {
     return await electronAPI.ipcRenderer.invoke('importer:get-status', id)
   },

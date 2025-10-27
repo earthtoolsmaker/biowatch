@@ -936,24 +936,28 @@ export function registerMLModelManagementIPCHandlers() {
   ipcMain.handle('model:stop-http-server', async (_, pid, port) => {
     return await stopMLModelHTTPServer({ pid, port })
   })
-  ipcMain.handle('model:start-http-server', async (_, modelReference, pythonEnvironment) => {
-    try {
-      const { port, process } = await startMLModelHTTPServer({
-        modelReference,
-        pythonEnvironment
-      })
-      return {
-        sucess: true,
-        process: { pid: process.pid, port: port },
-        message: 'ML Model HTTP server successfully started'
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: `Failed to start the ML Model HTTP server: ${error.message}`
+  ipcMain.handle(
+    'model:start-http-server',
+    async (_, modelReference, pythonEnvironment, country = null) => {
+      try {
+        const { port, process } = await startMLModelHTTPServer({
+          modelReference,
+          pythonEnvironment,
+          country
+        })
+        return {
+          sucess: true,
+          process: { pid: process.pid, port: port },
+          message: 'ML Model HTTP server successfully started'
+        }
+      } catch (error) {
+        return {
+          success: false,
+          message: `Failed to start the ML Model HTTP server: ${error.message}`
+        }
       }
     }
-  })
+  )
 }
 
 /**
@@ -1087,7 +1091,8 @@ async function startSpeciesNetHTTPServer({
   modelWeightsFilepath,
   geofence,
   timeout,
-  pythonEnvironment
+  pythonEnvironment,
+  country = null
 }) {
   log.info('StartSpeciesNetHTTPServer success!')
   log.info(pythonEnvironment)
@@ -1118,6 +1123,11 @@ async function startSpeciesNetHTTPServer({
     '--timeout',
     timeout
   ]
+
+  // Add country parameter if provided
+  if (country) {
+    scriptArgs.push('--country', country)
+  }
   log.info('Script args: ', scriptArgs)
   log.info('Formatted script args: ', [scriptPath, ...scriptArgs])
   return await startAndWaitTillServerHealty({
@@ -1253,7 +1263,7 @@ async function stopMLModelHTTPServer({ pid, port }) {
  * @param {Object} options.modelReference - The reference object containing model details.
  * @returns {Promise<Object>} A promise that resolves to an object containing the port and process of the server.
  */
-async function startMLModelHTTPServer({ pythonEnvironment, modelReference }) {
+async function startMLModelHTTPServer({ pythonEnvironment, modelReference, country = null }) {
   log.info('Starting ML Model HTTP Server')
   log.info('Finding free port for Python server...')
   log.info('Model Reference:', modelReference, pythonEnvironment)
@@ -1267,7 +1277,8 @@ async function startMLModelHTTPServer({ pythonEnvironment, modelReference }) {
         modelWeightsFilepath: localInstallPath,
         geofence: true,
         timeout: 30,
-        pythonEnvironment: pythonEnvironment
+        pythonEnvironment: pythonEnvironment,
+        country: country
       })
       log.info(`pythonProcess: ${JSON.stringify(pythonProcess)}`)
       return { port: port, process: pythonProcess }

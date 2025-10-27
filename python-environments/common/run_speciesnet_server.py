@@ -168,6 +168,11 @@ _EXTRA_FIELDS = flags.DEFINE_list(
     None,
     "Comma-separated list of extra fields to propagate from request to response.",
 )
+_COUNTRY = flags.DEFINE_string(
+    "country",
+    None,
+    "ISO 3166-1 alpha-3 three-letter country code for geofencing (e.g., GBR, USA, FRA).",
+)
 
 
 class SpeciesNetLitAPI(ls.LitAPI):
@@ -183,6 +188,7 @@ class SpeciesNetLitAPI(ls.LitAPI):
         self,
         model_name: str,
         geofence: bool = True,
+        country: Optional[str] = None,
         extra_fields: Optional[list[str]] = None,
         *args,
         **kwargs,
@@ -196,6 +202,8 @@ class SpeciesNetLitAPI(ls.LitAPI):
                         with `hf:`) or a local folder to load the model from.
                 geofence:
                         Whether to enable geofencing or not. Defaults to `True`.
+                country:
+                        ISO 3166-1 alpha-3 three-letter country code for geofencing.
                 extra_fields:
                           Comma-separated list of extra fields to propagate from request to
                           response.
@@ -203,10 +211,12 @@ class SpeciesNetLitAPI(ls.LitAPI):
         super().__init__(*args, **kwargs)
         self.model_name = model_name
         self.geofence = geofence
+        self.country = country
         self.extra_fields = extra_fields or []
 
     def setup(self, device):
         del device  # Unused.
+        # Initialize SpeciesNet with geofence only - country will be passed during prediction
         self.model = SpeciesNet(self.model_name, geofence=self.geofence)
 
     def decode_request(self, request, **kwargs):
@@ -233,7 +243,14 @@ class SpeciesNetLitAPI(ls.LitAPI):
 
         for instance in x["instances"]:
             filepath = instance["filepath"]
-            single_instances_dict = {"instances": [{"filepath": filepath}]}
+
+            # Create instance dict with filepath and optionally country
+            instance_data = {"filepath": filepath}
+            if self.country:
+                instance_data["country"] = self.country
+
+            single_instances_dict = {"instances": [instance_data]}
+
             single_predictions_dict = self.model.predict(
                 instances_dict=single_instances_dict
             )
@@ -253,10 +270,12 @@ def main(argv: list[str]) -> None:
     api = SpeciesNetLitAPI(
         model_name=_MODEL.value,
         geofence=_GEOFENCE.value,
+        country=_COUNTRY.value,
         extra_fields=_EXTRA_FIELDS.value,
         api_path=_API_PATH.value,
         stream=True,
     )
+    print("SpeciesNet API server initialized with country:", _COUNTRY.value)
     model_metadata = {"name": _MODEL.value, "type": "speciesnet"}
     server = ls.LitServer(
         api,

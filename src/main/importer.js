@@ -362,9 +362,10 @@ async function insertMediaBatch(sqlite, mediaDataArray) {
 }
 
 export class Importer {
-  constructor(id, folder) {
+  constructor(id, folder, country = null) {
     this.id = id
     this.folder = folder
+    this.country = country
     this.pythonProcess = null
     this.batchSize = batchSize
     this.dbPath = null
@@ -454,7 +455,8 @@ export class Importer {
         models
           .startMLModelHTTPServer({
             pythonEnvironment: mlmodels.pythonEnvironments[2],
-            modelReference: mlmodels.modelZoo[0].reference
+            modelReference: mlmodels.modelZoo[0].reference,
+            country: this.country
           })
           .then(async ({ port, process }) => {
             log.info('New python process', port, process.pid)
@@ -592,6 +594,62 @@ ipcMain.handle('importer:select-images-directory', async () => {
     }
   }
 })
+
+ipcMain.handle('importer:select-images-directory-only', async () => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openDirectory'],
+    title: 'Select Images Directory'
+  })
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return { success: false, message: 'Selection canceled' }
+  }
+
+  const directoryPath = result.filePaths[0]
+  return { success: true, directoryPath }
+})
+
+ipcMain.handle(
+  'importer:select-images-directory-with-country',
+  async (event, directoryPath, countryCode) => {
+    try {
+      const id = crypto.randomUUID()
+      if (importers[id]) {
+        log.warn(`Importer with ID ${id} already exists, skipping creation`)
+        return { success: false, message: 'Importer already exists' }
+      }
+      log.info(
+        `Creating new importer with ID ${id} for directory: ${directoryPath} with country: ${countryCode}`
+      )
+      const importer = new Importer(id, directoryPath, countryCode)
+      importers[id] = importer
+      await importer.start()
+      const data = {
+        path: directoryPath,
+        importerName: 'local/speciesnet',
+        name: path.basename(directoryPath),
+        country: countryCode,
+        data: {
+          name: path.basename(directoryPath),
+          country: countryCode
+        },
+        id: id,
+        createdAt: new Date().toISOString()
+      }
+      fs.writeFileSync(
+        path.join(app.getPath('userData'), 'biowatch-data', 'studies', id, 'study.json'),
+        JSON.stringify(data, null, 2)
+      )
+      return data
+    } catch (error) {
+      log.error('Error processing images directory with country:', error)
+      return {
+        success: false,
+        error: error.message
+      }
+    }
+  }
+)
 
 ipcMain.handle('importer:select-more-images-directory', async (event, id) => {
   if (importers[id]) {
