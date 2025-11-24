@@ -1,9 +1,77 @@
-import { CameraOff } from 'lucide-react'
+import { CameraOff, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router'
 import CircularTimeFilter, { DailyActivityRadar } from './ui/clock'
 import SpeciesDistribution from './ui/speciesDistribution'
 import TimelineChart from './ui/timeseries'
+
+function ImageModal({
+  isOpen,
+  onClose,
+  media,
+  constructImageUrl,
+  onNext,
+  onPrevious,
+  hasNext,
+  hasPrevious
+}) {
+  useEffect(() => {
+    if (!isOpen) return
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'ArrowLeft' && hasPrevious) {
+        onPrevious()
+      } else if (e.key === 'ArrowRight' && hasNext) {
+        onNext()
+      } else if (e.key === 'Escape') {
+        onClose()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onNext, onPrevious, onClose, hasNext, hasPrevious])
+
+  if (!isOpen || !media) return null
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4"
+      onClick={onClose}
+    >
+      <div className="relative max-w-7xl w-full h-full flex items-center justify-center">
+        <button
+          onClick={onClose}
+          className="absolute top-0 right-0 z-10 bg-white rounded-full p-2 hover:bg-gray-100 transition-colors"
+          aria-label="Close modal"
+        >
+          <X size={24} />
+        </button>
+        <div
+          className="bg-white rounded-lg overflow-hidden shadow-2xl max-h-[90vh] flex flex-col max-w-full"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-center bg-gray-100 overflow-hidden">
+            <img
+              src={constructImageUrl(media.filePath)}
+              alt={media.fileName || `Media ${media.mediaID}`}
+              className="max-w-full max-h-[calc(90vh-120px)] w-auto h-auto object-contain"
+            />
+          </div>
+          <div className="p-4 bg-white flex-shrink-0">
+            <h3 className="text-lg font-semibold">{media.scientificName}</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              {new Date(media.timestamp).toLocaleString()}
+            </p>
+            {media.fileName && (
+              <p className="text-xs text-gray-400 mt-1 truncate">{media.fileName}</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 const palette = [
   'hsl(173 58% 39%)',
@@ -20,6 +88,8 @@ function Gallery({ species, dateRange, timeRange }) {
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(true)
   const [initialLoad, setInitialLoad] = useState(true)
+  const [selectedMedia, setSelectedMedia] = useState(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
   const loaderRef = useRef(null)
   const PAGE_SIZE = 15
   const debounceTimeoutRef = useRef(null)
@@ -137,56 +207,103 @@ function Gallery({ species, dateRange, timeRange }) {
     return `local-file://get?path=${encodeURIComponent(fullFilePath)}`
   }
 
-  return (
-    <div className="flex flex-wrap gap-[12px] h-full overflow-auto">
-      {mediaFiles.map((media) => (
-        <div
-          key={media.mediaID}
-          className="border border-gray-300 rounded-lg overflow-hidden min-w-[200px] w-[calc(33%-7px)] flex flex-col h-max"
-        >
-          <div className="bg-gray-100 flex items-center justify-center">
-            <img
-              src={constructImageUrl(media.filePath)}
-              alt={media.fileName || `Media ${media.mediaID}`}
-              data-image={media.filePath}
-              className={`object-contain w-full h-auto min-h-20 ${imageErrors[media.mediaID] ? 'hidden' : ''}`}
-              onError={() => {
-                setImageErrors((prev) => ({ ...prev, [media.mediaID]: true }))
-              }}
-              loading="lazy"
-            />
-            {imageErrors[media.mediaID] && (
-              <div
-                className="flex items-center justify-center w-full h-full bg-gray-100 text-gray-400 flex-1"
-                title={`Image not available or failed to load because it's not public or has been deleted/moved locally ${media.filePath}`}
-              >
-                <CameraOff size={32} />
-              </div>
-            )}
-          </div>
-          <div className="p-2">
-            <h3 className="text-sm font-semibold truncate">{media.scientificName}</h3>
-            <p className="text-xs text-gray-500">{new Date(media.timestamp).toLocaleString()}</p>
-          </div>
-        </div>
-      ))}
+  const handleImageClick = (media) => {
+    setSelectedMedia(media)
+    setIsModalOpen(true)
+  }
 
-      {/* Loading indicator and intersection target */}
-      <div ref={loaderRef} className="w-full flex justify-center p-4">
-        {loading && !initialLoad && (
-          <div className="flex items-center justify-center">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
-            <span className="ml-2">Loading more...</span>
+  const handleCloseModal = () => {
+    setIsModalOpen(false)
+    setSelectedMedia(null)
+  }
+
+  const handleNextImage = () => {
+    if (!selectedMedia) return
+    const currentIndex = mediaFiles.findIndex((m) => m.mediaID === selectedMedia.mediaID)
+    if (currentIndex < mediaFiles.length - 1) {
+      setSelectedMedia(mediaFiles[currentIndex + 1])
+    }
+  }
+
+  const handlePreviousImage = () => {
+    if (!selectedMedia) return
+    const currentIndex = mediaFiles.findIndex((m) => m.mediaID === selectedMedia.mediaID)
+    if (currentIndex > 0) {
+      setSelectedMedia(mediaFiles[currentIndex - 1])
+    }
+  }
+
+  const currentIndex = selectedMedia
+    ? mediaFiles.findIndex((m) => m.mediaID === selectedMedia.mediaID)
+    : -1
+  const hasNext = currentIndex >= 0 && currentIndex < mediaFiles.length - 1
+  const hasPrevious = currentIndex > 0
+
+  return (
+    <>
+      <ImageModal
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        media={selectedMedia}
+        constructImageUrl={constructImageUrl}
+        onNext={handleNextImage}
+        onPrevious={handlePreviousImage}
+        hasNext={hasNext}
+        hasPrevious={hasPrevious}
+      />
+      <div className="flex flex-wrap gap-[12px] h-full overflow-auto">
+        {mediaFiles.map((media) => (
+          <div
+            key={media.mediaID}
+            className="border border-gray-300 rounded-lg overflow-hidden min-w-[200px] w-[calc(33%-7px)] flex flex-col h-max"
+          >
+            <div
+              className="bg-gray-100 flex items-center justify-center cursor-pointer hover:bg-gray-200 transition-colors"
+              onClick={() => handleImageClick(media)}
+            >
+              <img
+                src={constructImageUrl(media.filePath)}
+                alt={media.fileName || `Media ${media.mediaID}`}
+                data-image={media.filePath}
+                className={`object-contain w-full h-auto min-h-20 ${imageErrors[media.mediaID] ? 'hidden' : ''}`}
+                onError={() => {
+                  setImageErrors((prev) => ({ ...prev, [media.mediaID]: true }))
+                }}
+                loading="lazy"
+              />
+              {imageErrors[media.mediaID] && (
+                <div
+                  className="flex items-center justify-center w-full h-full bg-gray-100 text-gray-400 flex-1"
+                  title={`Image not available or failed to load because it's not public or has been deleted/moved locally ${media.filePath}`}
+                >
+                  <CameraOff size={32} />
+                </div>
+              )}
+            </div>
+            <div className="p-2">
+              <h3 className="text-sm font-semibold truncate">{media.scientificName}</h3>
+              <p className="text-xs text-gray-500">{new Date(media.timestamp).toLocaleString()}</p>
+            </div>
           </div>
-        )}
-        {!hasMore && mediaFiles.length > 0 && (
-          <p className="text-gray-500 text-sm">No more images to load</p>
-        )}
-        {!hasMore && mediaFiles.length === 0 && !loading && (
-          <p className="text-gray-500">No media files match the selected filters</p>
-        )}
+        ))}
+
+        {/* Loading indicator and intersection target */}
+        <div ref={loaderRef} className="w-full flex justify-center p-4">
+          {loading && !initialLoad && (
+            <div className="flex items-center justify-center">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
+              <span className="ml-2">Loading more...</span>
+            </div>
+          )}
+          {!hasMore && mediaFiles.length > 0 && (
+            <p className="text-gray-500 text-sm">No more images to load</p>
+          )}
+          {!hasMore && mediaFiles.length === 0 && !loading && (
+            <p className="text-gray-500">No media files match the selected filters</p>
+          )}
+        </div>
       </div>
-    </div>
+    </>
   )
 }
 
