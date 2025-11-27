@@ -65,16 +65,9 @@ function GbifImportCard({ onImport }) {
     <div className="border border-gray-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
       <h3 className="text-lg mb-2">GBIF Dataset</h3>
       <p className="text-sm text-gray-500 mb-4">
-        Import camera trap datasets from GBIF with standardized occurrence data.
+        Import a published camera trap dataset in the Camera Trap Data Package format from GBIF.
       </p>
       <div className="flex gap-2 justify-start">
-        <ImportButton
-          onClick={handleGbifDataset}
-          className="whitespace-nowrap flex-1"
-          disabled={!selectedGbifDataset || loadingGbifDatasets}
-        >
-          Import GBIF Dataset
-        </ImportButton>
         <select
           value={selectedGbifDataset?.key || ''}
           onChange={(e) => {
@@ -96,6 +89,13 @@ function GbifImportCard({ onImport }) {
             ))
           )}
         </select>
+        <ImportButton
+          onClick={handleGbifDataset}
+          className="whitespace-nowrap flex-1"
+          disabled={!selectedGbifDataset || loadingGbifDatasets}
+        >
+          Import GBIF Dataset
+        </ImportButton>
       </div>
     </div>
   )
@@ -229,12 +229,12 @@ export default function Import({ onNewStudy }) {
   const handleImportImages = async () => {
     // Check if the selected model is SpeciesNet
     const isSpeciesNet = selectedModel && selectedModel.id === 'speciesnet'
-    
+
     if (isSpeciesNet) {
       // For SpeciesNet, first select directory then show country picker
       const result = await window.api.selectImagesDirectoryOnly()
       if (!result.success || !result.directoryPath) return
-      
+
       setPendingDirectoryPath(result.directoryPath)
       setShowCountryPicker(true)
     } else {
@@ -248,13 +248,13 @@ export default function Import({ onNewStudy }) {
 
   const handleCountrySelected = async (countryCode) => {
     if (!pendingDirectoryPath) return
-    
+
     const { id } = await window.api.selectImagesDirectoryWithCountry(
       pendingDirectoryPath,
       countryCode
     )
     if (!id) return
-    
+
     setShowCountryPicker(false)
     setPendingDirectoryPath(null)
     queryClient.invalidateQueries(['studies'])
@@ -280,7 +280,7 @@ export default function Import({ onNewStudy }) {
   }
 
   return (
-    <div className="flex items-center justify-center h-full p-8">
+    <div className="flex h-full p-8 overflow-auto">
       <div className="max-w-4xl w-full">
         <div className="text-center mb-8">
           <p className="text-gray-500">
@@ -289,57 +289,13 @@ export default function Import({ onNewStudy }) {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Camtrap DP Card */}
-          <div className="border border-gray-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
-            <h3 className="text-lg mb-2">Camtrap DP</h3>
-            <p className="text-sm text-gray-500 mb-4">
-              Import camera trap data in Camera Trap Data Package format with standardized metadata
-              and observations.
-            </p>
-            <div className="flex justify-start">
-              <ImportButton onClick={handleCamTrapDP} className="">
-                Select Camtrap DP
-              </ImportButton>
-            </div>
-          </div>
-
-          {/* Wildlife Insights Card */}
-          <div className="border border-gray-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
-            <h3 className="text-lg mb-2">Wildlife Insights</h3>
-            <p className="text-sm text-gray-500 mb-4">
-              Import data from Wildlife Insights platform with species identifications and metadata.
-            </p>
-            <div className="flex justify-start">
-              <ImportButton onClick={handleWildlifeInsights} className="">
-                Select Wildlife Insights
-              </ImportButton>
-            </div>
-          </div>
-
-          {/* Deepfaune CSV Card */}
-          <div className="border border-gray-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
-            <h3 className="text-lg mb-2">Deepfaune CSV</h3>
-            <p className="text-sm text-gray-500 mb-4">
-              Import predictions from Deepfaune CSV files with species identifications and
-              confidence scores.
-            </p>
-            <div className="flex justify-start">
-              <ImportButton onClick={handleDeepfauneCSV} className="">
-                Select Deepfaune CSV
-              </ImportButton>
-            </div>
-          </div>
-
-          {/* GBIF Dataset Card */}
-          <GbifImportCard onImport={handleGbifImport} />
-
-          {/* Images Directory Card */}
-          <div className="border border-gray-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
-            <h3 className="text-lg mb-2">Images Directory</h3>
-            <p className="text-sm text-gray-500 mb-4">
-              Import a directory of images and automatically extract metadata from file names and
-              EXIF data. Work in progress!
+        {/* Images Directory Card - Full Width Row */}
+        <div className="mb-6">
+          <div className="border border-gray-300 rounded-lg p-6 shadow-md hover:shadow-lg transition-shadow">
+            <h3 className="text-xl font-semibold mb-2">Images Directory</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Import a directory of images and automatically detect and classify species using AI
+              models.
             </p>
             {getCompletelyInstalledModels().length === 0 ? (
               /* No complete models installed - show Install AI Models button */
@@ -356,9 +312,6 @@ export default function Import({ onNewStudy }) {
             ) : (
               /* Some models installed - show enhanced dropdown */
               <div className="flex gap-2 justify-start">
-                <ImportButton onClick={handleImportImages} className="whitespace-nowrap flex-1">
-                  Select Images folder
-                </ImportButton>
                 <select
                   value={selectedModel ? `${selectedModel.id}-${selectedModel.version}` : ''}
                   onChange={(e) => {
@@ -401,16 +354,21 @@ export default function Import({ onNewStudy }) {
                     )
                   })}
                 </select>
+                <ImportButton onClick={handleImportImages} className="whitespace-nowrap flex-2 ">
+                  Select Images folder
+                </ImportButton>
               </div>
             )}
           </div>
+        </div>
 
+        {/* Other Import Methods - Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-8">
           {/* Demo Dataset Card */}
           <div className="border border-gray-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
             <h3 className="text-lg mb-2">Demo Dataset</h3>
             <p className="text-sm text-gray-500 mb-4">
-              Download and use a sample dataset to explore the application features and
-              functionality.
+              Import a sample dataset to explore the application features and functionality.
             </p>
             <div className="flex justify-start">
               <ImportButton onClick={handleDemoDataset} className="">
@@ -418,9 +376,51 @@ export default function Import({ onNewStudy }) {
               </ImportButton>
             </div>
           </div>
+
+          {/* Camtrap DP Card */}
+          <div className="border border-gray-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
+            <h3 className="text-lg mb-2">Camtrap DP</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Import a camera trap dataset in the Camera Trap Data Package format.
+            </p>
+            <div className="flex justify-start">
+              <ImportButton onClick={handleCamTrapDP} className="">
+                Select Camtrap DP
+              </ImportButton>
+            </div>
+          </div>
+
+          {/* Wildlife Insights Card */}
+          <div className="border border-gray-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
+            <h3 className="text-lg mb-2">Wildlife Insights</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Import a camera trap dataset in the Wildlife Insights format.
+            </p>
+            <div className="flex justify-start">
+              <ImportButton onClick={handleWildlifeInsights} className="">
+                Select Wildlife Insights
+              </ImportButton>
+            </div>
+          </div>
+
+          {/* Deepfaune CSV Card */}
+          <div className="border border-gray-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
+            <h3 className="text-lg mb-2">Deepfaune CSV</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Import Deepfaune predictions (species identifications + confidence scores).
+            </p>
+            <div className="flex justify-start">
+              <ImportButton onClick={handleDeepfauneCSV} className="">
+                Select Deepfaune CSV
+              </ImportButton>
+            </div>
+          </div>
+
+          {/* GBIF Dataset Card */}
+          <GbifImportCard onImport={handleGbifImport} />
         </div>
       </div>
-      
+
       <CountryPickerModal
         isOpen={showCountryPicker}
         onConfirm={handleCountrySelected}
