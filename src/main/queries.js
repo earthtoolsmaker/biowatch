@@ -259,8 +259,6 @@ export async function getSpeciesTimeseries(dbPath, speciesNames = []) {
     const pathParts = dbPath.split('/')
     const studyId = pathParts[pathParts.length - 2] || 'unknown'
 
-    const db = await getDrizzleDb(studyId, dbPath)
-
     // Prepare species filter for the complex CTE query
     let speciesFilter = ''
     if (speciesNames && speciesNames.length > 0) {
@@ -272,7 +270,7 @@ export async function getSpeciesTimeseries(dbPath, speciesNames = []) {
     const timeseriesQuery = `
       WITH date_range AS (
         SELECT
-          date(min(substr(eventStart, 1, 10)), 'weekday 0') AS start_week,
+          date(min(substr(eventStart, 1, 10)), 'weekday 0', '-7 days') AS start_week,
           date(max(substr(eventStart, 1, 10)), 'weekday 0') AS end_week
         FROM observations
         WHERE substr(eventStart, 1, 4) > '1970'
@@ -302,13 +300,13 @@ export async function getSpeciesTimeseries(dbPath, speciesNames = []) {
       ),
       weekly_counts AS (
         SELECT
-          date(substr(eventStart, 1, 10), 'weekday 0') as observation_week,
+          date(substr(eventStart, 1, 10), 'weekday 0', '-7 days') as week_start,
           scientificName,
           COUNT(*) as count
         FROM observations
         WHERE scientificName IS NOT NULL AND scientificName != ''
         ${speciesFilter}
-        GROUP BY observation_week, scientificName
+        GROUP BY week_start, scientificName
       )
       SELECT
         wsc.week_start as date,
@@ -316,7 +314,7 @@ export async function getSpeciesTimeseries(dbPath, speciesNames = []) {
         COALESCE(wc.count, 0) as count,
         sl.count as total_count
       FROM week_species_combinations wsc
-      LEFT JOIN weekly_counts wc ON wsc.week_start = wc.observation_week
+      LEFT JOIN weekly_counts wc ON wsc.week_start = wc.week_start
         AND wsc.scientificName = wc.scientificName
       JOIN species_list sl ON wsc.scientificName = sl.scientificName
       ORDER BY wsc.week_start ASC, wsc.scientificName
