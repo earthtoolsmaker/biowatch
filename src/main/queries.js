@@ -985,3 +985,44 @@ export async function getFilesData(dbPath) {
     throw error
   }
 }
+
+/**
+ * Get all bounding boxes for a specific media file
+ * @param {string} dbPath - Path to the SQLite database
+ * @param {string} mediaID - The media ID to get bboxes for
+ * @returns {Promise<Array>} - Array of observations with bbox data
+ */
+export async function getMediaBboxes(dbPath, mediaID) {
+  const startTime = Date.now()
+  log.info(`Querying bboxes for media: ${mediaID}`)
+
+  try {
+    // Extract study ID from path
+    const pathParts = dbPath.split('/')
+    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+
+    const query = `
+      SELECT
+        observationID,
+        scientificName,
+        confidence,
+        bboxX,
+        bboxY,
+        bboxWidth,
+        bboxHeight
+      FROM observations
+      WHERE mediaID = ?
+      AND bboxX IS NOT NULL
+      ORDER BY confidence DESC
+    `
+
+    const rows = await executeRawQuery(studyId, dbPath, query, [mediaID])
+
+    const elapsedTime = Date.now() - startTime
+    log.info(`Retrieved ${rows.length} bboxes for media ${mediaID} in ${elapsedTime}ms`)
+    return rows
+  } catch (error) {
+    log.error(`Error querying media bboxes: ${error.message}`)
+    throw error
+  }
+}

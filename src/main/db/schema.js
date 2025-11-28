@@ -36,5 +36,10 @@ export const observations = sqliteTable('observations', {
   lifeStage: text('lifeStage'),
   age: text('age'),
   sex: text('sex'),
-  behavior: text('behavior')
+  behavior: text('behavior'),
+  // Bounding box fields (Camtrap DP format: top-left corner, normalized 0-1)
+  bboxX: real('bboxX'),
+  bboxY: real('bboxY'),
+  bboxWidth: real('bboxWidth'),
+  bboxHeight: real('bboxHeight')
 })
