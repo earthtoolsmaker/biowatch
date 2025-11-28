@@ -115,9 +115,9 @@ const api = {
     )
   },
 
-  stopMLModelHTTPServer: async ({ pid, port }) => {
+  stopMLModelHTTPServer: async ({ pid, port, shutdownApiKey }) => {
     console.log(`Received process running on port ${port} and pid ${pid}`)
-    return await electronAPI.ipcRenderer.invoke('model:stop-http-server', pid, port)
+    return await electronAPI.ipcRenderer.invoke('model:stop-http-server', pid, port, shutdownApiKey)
   },
   selectImagesDirectory: async () => {
     return await electronAPI.ipcRenderer.invoke('importer:select-images-directory')
