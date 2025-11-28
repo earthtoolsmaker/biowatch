@@ -29,6 +29,13 @@
       "when": 1764345586083,
       "tag": "0003_add_model_runs_and_predictions",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1764347015055,
+      "tag": "0004_remove_prediction_field",
+      "breakpoints": true
     }
   ]
 }

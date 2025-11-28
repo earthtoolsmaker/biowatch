@@ -786,8 +786,7 @@ export async function insertObservations(manager, observationsData) {
             scientificName: observation.scientificName,
             commonName: observation.commonName,
             confidence: observation.confidence !== undefined ? observation.confidence : null,
-            count: observation.count !== undefined ? observation.count : null,
-            prediction: observation.prediction || null
+            count: observation.count !== undefined ? observation.count : null
           })
           .run()
 
