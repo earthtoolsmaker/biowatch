@@ -3,6 +3,8 @@ import {
   deployments,
   media,
   observations,
+  modelRuns,
+  modelOutputs,
   getStudyDatabase,
   executeRawQuery
 } from './db/index.js'
@@ -989,10 +991,10 @@ export async function getFilesData(dbPath) {
 }
 
 /**
- * Get all bounding boxes for a specific media file
+ * Get all bounding boxes for a specific media file with model provenance
  * @param {string} dbPath - Path to the SQLite database
  * @param {string} mediaID - The media ID to get bboxes for
- * @returns {Promise<Array>} - Array of observations with bbox data
+ * @returns {Promise<Array>} - Array of observations with bbox data and model info
  */
 export async function getMediaBboxes(dbPath, mediaID) {
   const startTime = Date.now()
@@ -1005,17 +1007,24 @@ export async function getMediaBboxes(dbPath, mediaID) {
 
     const query = `
       SELECT
-        observationID,
-        scientificName,
-        confidence,
-        bboxX,
-        bboxY,
-        bboxWidth,
-        bboxHeight
-      FROM observations
-      WHERE mediaID = ?
-      AND bboxX IS NOT NULL
-      ORDER BY confidence DESC
+        o.observationID,
+        o.scientificName,
+        o.confidence,
+        o.bboxX,
+        o.bboxY,
+        o.bboxWidth,
+        o.bboxHeight,
+        o.classificationMethod,
+        o.classifiedBy,
+        o.classificationTimestamp,
+        mr.modelID,
+        mr.modelVersion
+      FROM observations o
+      LEFT JOIN model_outputs mo ON o.modelOutputID = mo.id
+      LEFT JOIN model_runs mr ON mo.runID = mr.id
+      WHERE o.mediaID = ?
+      AND o.bboxX IS NOT NULL
+      ORDER BY o.confidence DESC
     `
 
     const rows = await executeRawQuery(studyId, dbPath, query, [mediaID])
@@ -1025,6 +1034,77 @@ export async function getMediaBboxes(dbPath, mediaID) {
     return rows
   } catch (error) {
     log.error(`Error querying media bboxes: ${error.message}`)
+    throw error
+  }
+}
+
+/**
+ * Get all model runs for a study
+ * @param {string} dbPath - Path to the SQLite database
+ * @returns {Promise<Array>} - Array of model run records
+ */
+export async function getModelRuns(dbPath) {
+  const startTime = Date.now()
+  log.info(`Querying model runs from: ${dbPath}`)
+
+  try {
+    // Extract study ID from path
+    const pathParts = dbPath.split('/')
+    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+
+    const db = await getDrizzleDb(studyId, dbPath)
+
+    const rows = await db
+      .select()
+      .from(modelRuns)
+      .orderBy(desc(modelRuns.startedAt))
+
+    const elapsedTime = Date.now() - startTime
+    log.info(`Retrieved ${rows.length} model runs in ${elapsedTime}ms`)
+    return rows
+  } catch (error) {
+    log.error(`Error querying model runs: ${error.message}`)
+    throw error
+  }
+}
+
+/**
+ * Get model output with observations for a specific media
+ * @param {string} dbPath - Path to the SQLite database
+ * @param {string} mediaID - The media ID to get predictions for
+ * @returns {Promise<Array>} - Array of predictions with model info
+ */
+export async function getMediaPredictions(dbPath, mediaID) {
+  const startTime = Date.now()
+  log.info(`Querying predictions for media: ${mediaID}`)
+
+  try {
+    // Extract study ID from path
+    const pathParts = dbPath.split('/')
+    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+
+    const query = `
+      SELECT
+        o.*,
+        mr.id as runID,
+        mr.modelID,
+        mr.modelVersion,
+        mr.startedAt as runStartedAt,
+        mr.status as runStatus
+      FROM observations o
+      LEFT JOIN model_outputs mo ON o.modelOutputID = mo.id
+      LEFT JOIN model_runs mr ON mo.runID = mr.id
+      WHERE o.mediaID = ?
+      ORDER BY mr.startedAt DESC, o.confidence DESC
+    `
+
+    const rows = await executeRawQuery(studyId, dbPath, query, [mediaID])
+
+    const elapsedTime = Date.now() - startTime
+    log.info(`Retrieved ${rows.length} predictions for media ${mediaID} in ${elapsedTime}ms`)
+    return rows
+  } catch (error) {
+    log.error(`Error querying media predictions: ${error.message}`)
     throw error
   }
 }

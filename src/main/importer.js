@@ -13,6 +13,8 @@ import {
   deployments,
   media,
   observations,
+  modelRuns,
+  modelOutputs,
   closeStudyDatabase
 } from './db/index.js'
 import { transformBboxToCamtrapDP } from './transformers/index.js'
@@ -158,7 +160,13 @@ async function getMedia(db, filepath) {
 //   model_version: '4.0.1a'
 // }
 
-async function insertPrediction(db, prediction) {
+/**
+ * Insert a prediction into the database with model provenance tracking
+ * @param {Object} db - Drizzle database instance
+ * @param {Object} prediction - Model prediction output
+ * @param {Object} modelInfo - Model information { modelOutputID, modelID, modelVersion }
+ */
+async function insertPrediction(db, prediction, modelInfo = {}) {
   const mediaRecord = await getMedia(db, prediction.filepath)
   if (!mediaRecord) {
     log.warn(`No media found for prediction: ${prediction.filepath}`)
@@ -265,6 +273,12 @@ async function insertPrediction(db, prediction) {
       ? prediction.prediction.split(';').at(-1)
       : scientificName
 
+  // Camtrap DP classification fields
+  const classificationTimestamp = new Date().toISOString()
+  const classifiedBy = modelInfo.modelID && modelInfo.modelVersion
+    ? `${modelInfo.modelID} ${modelInfo.modelVersion}`
+    : null
+
   // Create one observation per detection (for bbox support)
   const detections = prediction.detections || []
 
@@ -284,7 +298,12 @@ async function insertPrediction(db, prediction) {
       bboxX: null,
       bboxY: null,
       bboxWidth: null,
-      bboxHeight: null
+      bboxHeight: null,
+      // Model provenance fields
+      modelOutputID: modelInfo.modelOutputID || null,
+      classificationMethod: modelInfo.modelOutputID ? 'machine' : null,
+      classifiedBy: classifiedBy,
+      classificationTimestamp: classificationTimestamp
     }
     await db.insert(observations).values(observationData)
   } else {
@@ -309,7 +328,12 @@ async function insertPrediction(db, prediction) {
         bboxX: bbox?.bboxX ?? null,
         bboxY: bbox?.bboxY ?? null,
         bboxWidth: bbox?.bboxWidth ?? null,
-        bboxHeight: bbox?.bboxHeight ?? null
+        bboxHeight: bbox?.bboxHeight ?? null,
+        // Model provenance fields
+        modelOutputID: modelInfo.modelOutputID || null,
+        classificationMethod: modelInfo.modelOutputID ? 'machine' : null,
+        classifiedBy: classifiedBy,
+        classificationTimestamp: classificationTimestamp
       }
       await db.insert(observations).values(observationData)
     }
@@ -490,34 +514,85 @@ export class Importer {
       // const temporalData = await getTemporalData(this.db)
 
       try {
+        const modelReference = mlmodels.modelZoo[0].reference
         models
           .startMLModelHTTPServer({
             pythonEnvironment: mlmodels.pythonEnvironments[2],
-            modelReference: mlmodels.modelZoo[0].reference,
+            modelReference: modelReference,
             country: this.country
           })
           .then(async ({ port, process }) => {
             log.info('New python process', port, process.pid)
             this.pythonProcess = process
-            while (true) {
-              const batchStart = DateTime.now()
-              const mediaBatch = await nextMediaToPredict(this.db, this.batchSize)
-              if (mediaBatch.length === 0) {
-                log.info('No more media to process')
-                break
+
+            // Create a model run record for this processing session
+            const runID = crypto.randomUUID()
+            await this.db.insert(modelRuns).values({
+              id: runID,
+              modelID: modelReference.id,
+              modelVersion: modelReference.version,
+              startedAt: new Date().toISOString(),
+              status: 'running'
+            })
+            log.info(`Created model run ${runID} for ${modelReference.id} v${modelReference.version}`)
+
+            try {
+              while (true) {
+                const batchStart = DateTime.now()
+                const mediaBatch = await nextMediaToPredict(this.db, this.batchSize)
+                if (mediaBatch.length === 0) {
+                  log.info('No more media to process')
+                  break
+                }
+
+                const imageQueue = mediaBatch.map((m) => m.filePath)
+
+                log.info(`Processing batch of ${imageQueue.length} images`)
+
+                for await (const prediction of getPredictions(imageQueue, port)) {
+                  // Get the media record to get its mediaID
+                  const mediaRecord = await getMedia(this.db, prediction.filepath)
+                  if (!mediaRecord) {
+                    log.warn(`No media found for prediction: ${prediction.filepath}`)
+                    continue
+                  }
+
+                  // Create model_output record for this media
+                  const modelOutputID = crypto.randomUUID()
+                  await this.db.insert(modelOutputs).values({
+                    id: modelOutputID,
+                    mediaID: mediaRecord.mediaID,
+                    runID: runID,
+                    rawOutput: prediction // Store full prediction as JSON
+                  })
+
+                  // Insert prediction with model provenance
+                  await insertPrediction(this.db, prediction, {
+                    modelOutputID,
+                    modelID: modelReference.id,
+                    modelVersion: modelReference.version
+                  })
+                }
+
+                log.info(`Processed batch of ${imageQueue.length} images`)
+                const batchEnd = DateTime.now()
+                lastBatchDuration = batchEnd.diff(batchStart, 'seconds').seconds
               }
 
-              const imageQueue = mediaBatch.map((m) => m.filePath)
-
-              log.info(`Processing batch of ${imageQueue.length} images`)
-
-              for await (const prediction of getPredictions(imageQueue, port)) {
-                await insertPrediction(this.db, prediction)
-              }
-
-              log.info(`Processed batch of ${imageQueue.length} images`)
-              const batchEnd = DateTime.now()
-              lastBatchDuration = batchEnd.diff(batchStart, 'seconds').seconds
+              // Update model run status to completed
+              await this.db
+                .update(modelRuns)
+                .set({ status: 'completed' })
+                .where(eq(modelRuns.id, runID))
+              log.info(`Model run ${runID} completed`)
+            } catch (error) {
+              // Update model run status to failed
+              await this.db
+                .update(modelRuns)
+                .set({ status: 'failed' })
+                .where(eq(modelRuns.id, runID))
+              log.error(`Model run ${runID} failed:`, error)
+              throw error
             }
 
             this.cleanup()

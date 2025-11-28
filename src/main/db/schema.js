@@ -1,4 +1,4 @@
-import { sqliteTable, text, real, integer } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, real, integer, unique } from 'drizzle-orm/sqlite-core'
 
 export const deployments = sqliteTable('deployments', {
   deploymentID: text('deploymentID').primaryKey(),
@@ -19,6 +19,31 @@ export const media = sqliteTable('media', {
   importFolder: text('importFolder'),
   folderName: text('folderName')
 })
+
+// Track model execution sessions
+export const modelRuns = sqliteTable('model_runs', {
+  id: text('id').primaryKey(), // UUID via crypto.randomUUID()
+  modelID: text('modelID').notNull(), // 'speciesnet', 'deepfaune'
+  modelVersion: text('modelVersion').notNull(), // '4.0.1a', '1.3'
+  startedAt: text('startedAt').notNull(), // ISO timestamp
+  status: text('status').default('running') // 'running', 'completed', 'failed'
+})
+
+// Link media to model runs + store raw response
+export const modelOutputs = sqliteTable(
+  'model_outputs',
+  {
+    id: text('id').primaryKey(), // UUID via crypto.randomUUID()
+    mediaID: text('mediaID')
+      .notNull()
+      .references(() => media.mediaID, { onDelete: 'cascade' }),
+    runID: text('runID')
+      .notNull()
+      .references(() => modelRuns.id, { onDelete: 'cascade' }),
+    rawOutput: text('rawOutput', { mode: 'json' }) // Full JSON model response
+  },
+  (table) => [unique().on(table.mediaID, table.runID)]
+)
 
 export const observations = sqliteTable('observations', {
   observationID: text('observationID').primaryKey(),
@@ -41,5 +66,11 @@ export const observations = sqliteTable('observations', {
   bboxX: real('bboxX'),
   bboxY: real('bboxY'),
   bboxWidth: real('bboxWidth'),
-  bboxHeight: real('bboxHeight')
+  bboxHeight: real('bboxHeight'),
+  // Model output link (nullable - NULL if manual entry without model)
+  modelOutputID: text('modelOutputID').references(() => modelOutputs.id),
+  // Camtrap DP classification fields (all nullable)
+  classificationMethod: text('classificationMethod'), // 'machine' | 'human'
+  classifiedBy: text('classifiedBy'), // 'SpeciesNet 4.0.1a' or 'John Doe'
+  classificationTimestamp: text('classificationTimestamp') // ISO 8601 with timezone
 })

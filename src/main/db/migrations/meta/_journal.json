@@ -22,6 +22,13 @@
       "when": 1764340305659,
       "tag": "0002_add_bbox_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1764345586083,
+      "tag": "0003_add_model_runs_and_predictions",
+      "breakpoints": true
     }
   ]
 }
