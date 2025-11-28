@@ -15,6 +15,7 @@ import {
   getLocationsActivity,
   getDeploymentsActivity,
   getMedia,
+  getMediaBboxes,
   getSpeciesDailyActivity,
   getSpeciesDistribution,
   getSpeciesHeatmapData,
@@ -717,6 +718,23 @@ app.whenReady().then(async () => {
       return { data: media }
     } catch (error) {
       log.error('Error getting media:', error)
+      return { error: error.message }
+    }
+  })
+
+  // Get bounding boxes for a specific media file
+  ipcMain.handle('media:get-bboxes', async (_, studyId, mediaID) => {
+    try {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) {
+        log.warn(`Database not found for study ID: ${studyId}`)
+        return { error: 'Database not found for this study' }
+      }
+
+      const bboxes = await getMediaBboxes(dbPath, mediaID)
+      return { data: bboxes }
+    } catch (error) {
+      log.error('Error getting media bboxes:', error)
       return { error: error.message }
     }
   })

@@ -15,6 +15,7 @@ import {
   observations,
   closeStudyDatabase
 } from './db/index.js'
+import { transformBboxToCamtrapDP } from './transformers/index.js'
 import { eq, isNull, count } from 'drizzle-orm'
 import models from './models.js'
 import mlmodels from '../shared/mlmodels.js'
@@ -258,24 +259,61 @@ async function insertPrediction(db, prediction) {
   const scientificName =
     prediction.prediction.split(';').at(-3) + ' ' + prediction.prediction.split(';').at(-2)
 
-  const observationData = {
-    observationID: crypto.randomUUID(),
-    mediaID: mediaRecord.mediaID,
-    deploymentID: mediaRecord.deploymentID,
-    eventID: crypto.randomUUID(),
-    eventStart: mediaRecord.timestamp,
-    eventEnd: mediaRecord.timestamp,
-    scientificName: isblank
-      ? null
-      : scientificName.trim() === ''
-        ? prediction.prediction.split(';').at(-1)
-        : scientificName,
-    confidence: prediction.prediction_score,
-    count: 1,
-    prediction: prediction.prediction
-  }
+  const resolvedScientificName = isblank
+    ? null
+    : scientificName.trim() === ''
+      ? prediction.prediction.split(';').at(-1)
+      : scientificName
 
-  await db.insert(observations).values(observationData)
+  // Create one observation per detection (for bbox support)
+  const detections = prediction.detections || []
+
+  if (detections.length === 0) {
+    // No detections - create a single observation without bbox
+    const observationData = {
+      observationID: crypto.randomUUID(),
+      mediaID: mediaRecord.mediaID,
+      deploymentID: mediaRecord.deploymentID,
+      eventID: crypto.randomUUID(),
+      eventStart: mediaRecord.timestamp,
+      eventEnd: mediaRecord.timestamp,
+      scientificName: resolvedScientificName,
+      confidence: prediction.prediction_score,
+      count: 1,
+      prediction: prediction.prediction,
+      bboxX: null,
+      bboxY: null,
+      bboxWidth: null,
+      bboxHeight: null
+    }
+    await db.insert(observations).values(observationData)
+  } else {
+    // Create one observation per detection with bbox data
+    const eventID = crypto.randomUUID() // Shared eventID for all detections in same image
+
+    for (const detection of detections) {
+      // Transform bbox from model format to Camtrap DP format
+      const bbox = transformBboxToCamtrapDP(detection, 'speciesnet')
+
+      const observationData = {
+        observationID: crypto.randomUUID(),
+        mediaID: mediaRecord.mediaID,
+        deploymentID: mediaRecord.deploymentID,
+        eventID: eventID,
+        eventStart: mediaRecord.timestamp,
+        eventEnd: mediaRecord.timestamp,
+        scientificName: resolvedScientificName,
+        confidence: detection.conf ?? prediction.prediction_score,
+        count: 1,
+        prediction: prediction.prediction,
+        bboxX: bbox?.bboxX ?? null,
+        bboxY: bbox?.bboxY ?? null,
+        bboxWidth: bbox?.bboxWidth ?? null,
+        bboxHeight: bbox?.bboxHeight ?? null
+      }
+      await db.insert(observations).values(observationData)
+    }
+  }
   // log.info(`Inserted prediction for ${mediaRecord.fileName} into database`)
 }
 

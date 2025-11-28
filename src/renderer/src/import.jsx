@@ -229,12 +229,12 @@ export default function Import({ onNewStudy }) {
   const handleImportImages = async () => {
     // Check if the selected model is SpeciesNet
     const isSpeciesNet = selectedModel && selectedModel.id === 'speciesnet'
-    
+
     if (isSpeciesNet) {
       // For SpeciesNet, first select directory then show country picker
       const result = await window.api.selectImagesDirectoryOnly()
       if (!result.success || !result.directoryPath) return
-      
+
       setPendingDirectoryPath(result.directoryPath)
       setShowCountryPicker(true)
     } else {
@@ -248,13 +248,13 @@ export default function Import({ onNewStudy }) {
 
   const handleCountrySelected = async (countryCode) => {
     if (!pendingDirectoryPath) return
-    
+
     const { id } = await window.api.selectImagesDirectoryWithCountry(
       pendingDirectoryPath,
       countryCode
     )
     if (!id) return
-    
+
     setShowCountryPicker(false)
     setPendingDirectoryPath(null)
     queryClient.invalidateQueries(['studies'])
@@ -420,7 +420,7 @@ export default function Import({ onNewStudy }) {
           </div>
         </div>
       </div>
-      
+
       <CountryPickerModal
         isOpen={showCountryPicker}
         onConfirm={handleCountrySelected}

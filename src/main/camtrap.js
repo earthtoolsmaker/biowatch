@@ -348,7 +348,12 @@ function transformObservationRow(row) {
     lifeStage: row.lifeStage || row.life_stage || null,
     age: row.age || null,
     sex: row.sex || null,
-    behavior: row.behavior || null
+    behavior: row.behavior || null,
+    // Bounding box fields (Camtrap DP format)
+    bboxX: parseFloat(row.bboxX || row.bbox_x) || null,
+    bboxY: parseFloat(row.bboxY || row.bbox_y) || null,
+    bboxWidth: parseFloat(row.bboxWidth || row.bbox_width) || null,
+    bboxHeight: parseFloat(row.bboxHeight || row.bbox_height) || null
   }
 }
 
