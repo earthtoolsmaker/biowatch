@@ -4,7 +4,6 @@ import {
   media,
   observations,
   modelRuns,
-  modelOutputs,
   getStudyDatabase,
   executeRawQuery
 } from './db/index.js'
@@ -1054,10 +1053,7 @@ export async function getModelRuns(dbPath) {
 
     const db = await getDrizzleDb(studyId, dbPath)
 
-    const rows = await db
-      .select()
-      .from(modelRuns)
-      .orderBy(desc(modelRuns.startedAt))
+    const rows = await db.select().from(modelRuns).orderBy(desc(modelRuns.startedAt))
 
     const elapsedTime = Date.now() - startTime
     log.info(`Retrieved ${rows.length} model runs in ${elapsedTime}ms`)

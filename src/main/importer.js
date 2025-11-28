@@ -275,9 +275,10 @@ async function insertPrediction(db, prediction, modelInfo = {}) {
 
   // Camtrap DP classification fields
   const classificationTimestamp = new Date().toISOString()
-  const classifiedBy = modelInfo.modelID && modelInfo.modelVersion
-    ? `${modelInfo.modelID} ${modelInfo.modelVersion}`
-    : null
+  const classifiedBy =
+    modelInfo.modelID && modelInfo.modelVersion
+      ? `${modelInfo.modelID} ${modelInfo.modelVersion}`
+      : null
 
   // Create one observation per detection (for bbox support)
   const detections = prediction.detections || []
@@ -534,7 +535,9 @@ export class Importer {
               startedAt: new Date().toISOString(),
               status: 'running'
             })
-            log.info(`Created model run ${runID} for ${modelReference.id} v${modelReference.version}`)
+            log.info(
+              `Created model run ${runID} for ${modelReference.id} v${modelReference.version}`
+            )
 
             try {
               while (true) {
