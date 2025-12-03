@@ -230,16 +230,21 @@ export default function Import({ onNewStudy }) {
     // Check if the selected model is SpeciesNet
     const isSpeciesNet = selectedModel && selectedModel.id === 'speciesnet'
 
-    if (isSpeciesNet) {
-      // For SpeciesNet, first select directory then show country picker
-      const result = await window.api.selectImagesDirectoryOnly()
-      if (!result.success || !result.directoryPath) return
+    // First select directory
+    const result = await window.api.selectImagesDirectoryOnly()
+    if (!result.success || !result.directoryPath) return
 
+    if (isSpeciesNet) {
+      // For SpeciesNet, show country picker then import with model + country
       setPendingDirectoryPath(result.directoryPath)
       setShowCountryPicker(true)
     } else {
-      // For other models, use original flow
-      const { id } = await window.api.selectImagesDirectory()
+      // For DeepFaune and other models, import directly with model (no country needed)
+      const { id } = await window.api.selectImagesDirectoryWithModel(
+        result.directoryPath,
+        selectedModel,
+        null // no country needed
+      )
       if (!id) return
       queryClient.invalidateQueries(['studies'])
       navigate(`/study/${id}`)
@@ -249,8 +254,9 @@ export default function Import({ onNewStudy }) {
   const handleCountrySelected = async (countryCode) => {
     if (!pendingDirectoryPath) return
 
-    const { id } = await window.api.selectImagesDirectoryWithCountry(
+    const { id } = await window.api.selectImagesDirectoryWithModel(
       pendingDirectoryPath,
+      selectedModel,
       countryCode
     )
     if (!id) return

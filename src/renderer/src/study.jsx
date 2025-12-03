@@ -65,7 +65,7 @@ function ImportStatus({ studyId, importerName }) {
   const progress =
     importStatus && importStatus.total > 0 ? (importStatus.done / importStatus.total) * 100 : 0
   const showImportStatus =
-    importerName === 'local/speciesnet' &&
+    importerName?.startsWith('local/') &&
     importStatus &&
     importStatus.total > 0 &&
     importStatus.total > importStatus.done
@@ -190,7 +190,7 @@ export default function Study() {
           <Cctv color="black" size={20} className="pb-[2px]" />
           Deployments
         </NavLink>
-        {study?.importerName === 'local/speciesnet' && (
+        {study?.importerName?.startsWith('local/') && (
           <NavLink
             to={`/study/${id}/files`}
             className={({ isActive }) =>
@@ -238,7 +238,7 @@ export default function Study() {
               </ErrorBoundary>
             }
           />
-          {study?.importerName === 'local/speciesnet' && (
+          {study?.importerName?.startsWith('local/') && (
             <Route
               path="files"
               element={

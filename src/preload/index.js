@@ -122,16 +122,14 @@ const api = {
     console.log(`Received process running on port ${port} and pid ${pid}`)
     return await electronAPI.ipcRenderer.invoke('model:stop-http-server', pid, port, shutdownApiKey)
   },
-  selectImagesDirectory: async () => {
-    return await electronAPI.ipcRenderer.invoke('importer:select-images-directory')
-  },
   selectImagesDirectoryOnly: async () => {
     return await electronAPI.ipcRenderer.invoke('importer:select-images-directory-only')
   },
-  selectImagesDirectoryWithCountry: async (directoryPath, countryCode) => {
+  selectImagesDirectoryWithModel: async (directoryPath, modelReference, countryCode) => {
     return await electronAPI.ipcRenderer.invoke(
-      'importer:select-images-directory-with-country',
+      'importer:select-images-directory-with-model',
       directoryPath,
+      modelReference,
       countryCode
     )
   },
