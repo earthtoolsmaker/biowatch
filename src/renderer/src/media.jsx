@@ -1,5 +1,6 @@
 import { CameraOff, X, Square } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useParams } from 'react-router'
 import CircularTimeFilter, { DailyActivityRadar } from './ui/clock'
 import SpeciesDistribution from './ui/speciesDistribution'
@@ -17,31 +18,18 @@ function ImageModal({
   studyId
 }) {
   const [showBboxes, setShowBboxes] = useState(true)
-  const [bboxes, setBboxes] = useState([])
 
-  // Fetch bboxes when modal opens or media changes
-  useEffect(() => {
-    if (!isOpen || !media?.mediaID || !studyId) {
-      setBboxes([])
-      return
-    }
-
-    async function fetchBboxes() {
-      try {
-        const response = await window.api.getMediaBboxes(studyId, media.mediaID)
-        if (response.data) {
-          setBboxes(response.data)
-        } else {
-          setBboxes([])
-        }
-      } catch (error) {
-        console.error('Error fetching bboxes:', error)
-        setBboxes([])
+  const { data: bboxes = [] } = useQuery({
+    queryKey: ['mediaBboxes', studyId, media?.mediaID],
+    queryFn: async () => {
+      const response = await window.api.getMediaBboxes(studyId, media.mediaID)
+      if (response.data) {
+        return response.data
       }
-    }
-
-    fetchBboxes()
-  }, [isOpen, media?.mediaID, studyId])
+      return []
+    },
+    enabled: isOpen && !!media?.mediaID && !!studyId
+  })
 
   useEffect(() => {
     if (!isOpen) return
