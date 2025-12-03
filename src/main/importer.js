@@ -265,55 +265,35 @@ async function insertPrediction(db, prediction) {
       ? prediction.prediction.split(';').at(-1)
       : scientificName
 
-  // Create one observation per detection (for bbox support)
+  // Create single observation per image with top-ranked detection bbox
   const detections = prediction.detections || []
 
-  if (detections.length === 0) {
-    // No detections - create a single observation without bbox
-    const observationData = {
-      observationID: crypto.randomUUID(),
-      mediaID: mediaRecord.mediaID,
-      deploymentID: mediaRecord.deploymentID,
-      eventID: crypto.randomUUID(),
-      eventStart: mediaRecord.timestamp,
-      eventEnd: mediaRecord.timestamp,
-      scientificName: resolvedScientificName,
-      confidence: prediction.prediction_score,
-      count: 1,
-      prediction: prediction.prediction,
-      bboxX: null,
-      bboxY: null,
-      bboxWidth: null,
-      bboxHeight: null
-    }
-    await db.insert(observations).values(observationData)
-  } else {
-    // Create one observation per detection with bbox data
-    const eventID = crypto.randomUUID() // Shared eventID for all detections in same image
+  // Get top detection (highest confidence) if any exist
+  const topDetection =
+    detections.length > 0
+      ? detections.reduce((best, d) => (d.conf > best.conf ? d : best), detections[0])
+      : null
 
-    for (const detection of detections) {
-      // Transform bbox from model format to Camtrap DP format
-      const bbox = transformBboxToCamtrapDP(detection, 'speciesnet')
+  const bbox = topDetection ? transformBboxToCamtrapDP(topDetection, 'speciesnet') : null
 
-      const observationData = {
-        observationID: crypto.randomUUID(),
-        mediaID: mediaRecord.mediaID,
-        deploymentID: mediaRecord.deploymentID,
-        eventID: eventID,
-        eventStart: mediaRecord.timestamp,
-        eventEnd: mediaRecord.timestamp,
-        scientificName: resolvedScientificName,
-        confidence: detection.conf ?? prediction.prediction_score,
-        count: 1,
-        prediction: prediction.prediction,
-        bboxX: bbox?.bboxX ?? null,
-        bboxY: bbox?.bboxY ?? null,
-        bboxWidth: bbox?.bboxWidth ?? null,
-        bboxHeight: bbox?.bboxHeight ?? null
-      }
-      await db.insert(observations).values(observationData)
-    }
+  const observationData = {
+    observationID: crypto.randomUUID(),
+    mediaID: mediaRecord.mediaID,
+    deploymentID: mediaRecord.deploymentID,
+    eventID: crypto.randomUUID(),
+    eventStart: mediaRecord.timestamp,
+    eventEnd: mediaRecord.timestamp,
+    scientificName: resolvedScientificName,
+    confidence: prediction.prediction_score,
+    count: 1,
+    prediction: prediction.prediction,
+    bboxX: bbox?.bboxX ?? null,
+    bboxY: bbox?.bboxY ?? null,
+    bboxWidth: bbox?.bboxWidth ?? null,
+    bboxHeight: bbox?.bboxHeight ?? null
   }
+
+  await db.insert(observations).values(observationData)
   // log.info(`Inserted prediction for ${mediaRecord.fileName} into database`)
 }
 
