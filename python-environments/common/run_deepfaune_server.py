@@ -741,6 +741,7 @@ def main(argv: list[str]) -> None:
         workers_per_device=_WORKERS_PER_DEVICE.value,
         model_metadata=model_metadata,
         timeout=_TIMEOUT.value,
+        enable_shutdown_api=True,
     )
     server.run(
         port=_PORT.value,

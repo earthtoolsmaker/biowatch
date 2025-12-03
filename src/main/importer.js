@@ -36,7 +36,7 @@ async function* walkImages(dir) {
   }
 }
 
-export async function* getPredictions(imagesPath, port) {
+export async function* getPredictions(imagesPath, port, signal = null) {
   try {
     // Send request and handle streaming response
     const response = await fetch(`http://localhost:${port}/predict`, {
@@ -44,7 +44,8 @@ export async function* getPredictions(imagesPath, port) {
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ instances: imagesPath.map((path) => ({ filepath: path })) })
+      body: JSON.stringify({ instances: imagesPath.map((path) => ({ filepath: path })) }),
+      signal
     })
 
     if (!response.ok) {
@@ -87,6 +88,11 @@ export async function* getPredictions(imagesPath, port) {
       }
     }
   } catch (error) {
+    // Don't log or throw if this was an intentional abort
+    if (error.name === 'AbortError') {
+      log.info('Prediction request was aborted')
+      return
+    }
     log.error('Error in prediction process:', error)
     throw error
   }
@@ -404,14 +410,28 @@ export class Importer {
     this.folder = folder
     this.country = country
     this.pythonProcess = null
+    this.pythonProcessPort = null
+    this.pythonProcessShutdownApiKey = null
+    this.abortController = null
     this.batchSize = batchSize
     this.dbPath = null
   }
 
   async cleanup() {
     log.info(`Cleaning up importer with ID ${this.id}`)
+
+    // Abort any in-flight fetch requests first
+    if (this.abortController) {
+      this.abortController.abort()
+      this.abortController = null
+    }
+
     if (this.pythonProcess) {
-      return await models.stopMLModelHTTPServer({ pid: this.pythonProcess.pid })
+      return await models.stopMLModelHTTPServer({
+        pid: this.pythonProcess.pid,
+        port: this.pythonProcessPort,
+        shutdownApiKey: this.pythonProcessShutdownApiKey
+      })
     }
     return Promise.resolve() // Return resolved promise if no process to kill
   }
@@ -496,9 +516,14 @@ export class Importer {
             modelReference: modelReference,
             country: this.country
           })
-          .then(async ({ port, process }) => {
+          .then(async ({ port, process, shutdownApiKey }) => {
             log.info('New python process', port, process.pid)
             this.pythonProcess = process
+            this.pythonProcessPort = port
+            this.pythonProcessShutdownApiKey = shutdownApiKey
+
+            // Create AbortController for cancelling in-flight requests
+            this.abortController = new AbortController()
 
             // Create a model run record for this processing session
             const runID = crypto.randomUUID()
@@ -515,6 +540,12 @@ export class Importer {
 
             try {
               while (true) {
+                // Check if we've been aborted before starting a new batch
+                if (!this.abortController || this.abortController.signal.aborted) {
+                  log.info('Processing aborted, stopping batch loop')
+                  break
+                }
+
                 const batchStart = DateTime.now()
                 const mediaBatch = await nextMediaToPredict(this.db, this.batchSize)
                 if (mediaBatch.length === 0) {
@@ -526,7 +557,11 @@ export class Importer {
 
                 log.info(`Processing batch of ${imageQueue.length} images`)
 
-                for await (const prediction of getPredictions(imageQueue, port)) {
+                for await (const prediction of getPredictions(
+                  imageQueue,
+                  port,
+                  this.abortController.signal
+                )) {
                   // Get the media record to get its mediaID
                   const mediaRecord = await getMedia(this.db, prediction.filepath)
                   if (!mediaRecord) {
@@ -563,21 +598,41 @@ export class Importer {
                 .where(eq(modelRuns.id, runID))
               log.info(`Model run ${runID} completed`)
             } catch (error) {
-              // Update model run status to failed
-              await this.db
-                .update(modelRuns)
-                .set({ status: 'failed' })
-                .where(eq(modelRuns.id, runID))
-              log.error(`Model run ${runID} failed:`, error)
-              throw error
+              // Handle AbortError gracefully - not a real error when stopping
+              if (error.name === 'AbortError') {
+                log.info('Background processing was aborted')
+                // Update model run status to aborted
+                await this.db
+                  .update(modelRuns)
+                  .set({ status: 'aborted' })
+                  .where(eq(modelRuns.id, runID))
+              } else {
+                // Update model run status to failed
+                await this.db
+                  .update(modelRuns)
+                  .set({ status: 'failed' })
+                  .where(eq(modelRuns.id, runID))
+                log.error(`Model run ${runID} failed:`, error)
+                throw error
+              }
             }
 
+            this.cleanup()
+          })
+          .catch(async (error) => {
+            // Handle AbortError gracefully - not a real error when stopping
+            if (error.name === 'AbortError') {
+              log.info('Background processing was aborted')
+              return
+            }
+            log.error('Error during background processing:', error)
+            await closeStudyDatabase(this.id, this.dbPath)
             this.cleanup()
           })
         //it's important to return after the db is created. Other parts of the app depend on this
         return this.id
       } catch (error) {
-        log.error('Error during background processing:', error)
+        log.error('Error starting ML model server:', error)
         await closeStudyDatabase(this.id, this.dbPath)
         this.cleanup()
       }
