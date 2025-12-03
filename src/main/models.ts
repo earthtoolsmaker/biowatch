@@ -12,6 +12,7 @@ import { spawn } from 'child_process'
 import { existsSync, readdir, promises as fsPromises } from 'fs'
 import log from 'electron-log'
 import kill from 'tree-kill'
+import crypto from 'crypto'
 import { findModel, findPythonEnvironment, platformToKey } from '../shared/mlmodels'
 import { modelZoo } from '../shared/mlmodels'
 import {
@@ -933,21 +934,21 @@ export function registerMLModelManagementIPCHandlers() {
   ipcMain.handle('model:download-python-environment', async (_, id, version) => {
     return await downloadPythonEnvironment({ id, version })
   })
-  ipcMain.handle('model:stop-http-server', async (_, pid, port) => {
-    return await stopMLModelHTTPServer({ pid, port })
+  ipcMain.handle('model:stop-http-server', async (_, pid, port, shutdownApiKey) => {
+    return await stopMLModelHTTPServer({ pid, port, shutdownApiKey })
   })
   ipcMain.handle(
     'model:start-http-server',
     async (_, modelReference, pythonEnvironment, country = null) => {
       try {
-        const { port, process } = await startMLModelHTTPServer({
+        const { port, process, shutdownApiKey } = await startMLModelHTTPServer({
           modelReference,
           pythonEnvironment,
           country
         })
         return {
           sucess: true,
-          process: { pid: process.pid, port: port },
+          process: { pid: process.pid, port: port, shutdownApiKey: shutdownApiKey },
           message: 'ML Model HTTP server successfully started'
         }
       } catch (error) {
@@ -1012,9 +1013,12 @@ async function startAndWaitTillServerHealty({
   scriptArgs,
   healthEndpoint,
   retryInterval = 1000,
-  maxRetries = 30
+  maxRetries = 30,
+  env = {}
 }) {
-  const pythonProcess = spawn(pythonInterpreter, [scriptPath, ...scriptArgs])
+  const pythonProcess = spawn(pythonInterpreter, [scriptPath, ...scriptArgs], {
+    env: { ...process.env, ...env }
+  })
 
   log.info('Python process started:', pythonProcess.pid)
 
@@ -1130,12 +1134,20 @@ async function startSpeciesNetHTTPServer({
   }
   log.info('Script args: ', scriptArgs)
   log.info('Formatted script args: ', [scriptPath, ...scriptArgs])
-  return await startAndWaitTillServerHealty({
+
+  // Generate shutdown API key for graceful shutdown
+  const shutdownApiKey = crypto.randomUUID()
+  log.info('Generated shutdown API key for SpeciesNet server')
+
+  const pythonProcess = await startAndWaitTillServerHealty({
     pythonInterpreter,
     scriptPath,
     scriptArgs,
-    healthEndpoint: `http://localhost:${port}/health`
+    healthEndpoint: `http://localhost:${port}/health`,
+    env: { LIT_SHUTDOWN_API_KEY: shutdownApiKey }
   })
+
+  return { process: pythonProcess, shutdownApiKey }
 }
 
 /**
@@ -1210,37 +1222,96 @@ async function startDeepFauneHTTPServer({
   ]
   log.info('Script args: ', scriptArgs)
   log.info('Formatted script args: ', [scriptPath, ...scriptArgs])
-  return await startAndWaitTillServerHealty({
+
+  // Generate shutdown API key for graceful shutdown
+  const shutdownApiKey = crypto.randomUUID()
+  log.info('Generated shutdown API key for DeepFaune server')
+
+  const pythonProcess = await startAndWaitTillServerHealty({
     pythonInterpreter,
     scriptPath,
     scriptArgs,
-    healthEndpoint: `http://localhost:${port}/health`
+    healthEndpoint: `http://localhost:${port}/health`,
+    env: { LIT_SHUTDOWN_API_KEY: shutdownApiKey }
   })
+
+  return { process: pythonProcess, shutdownApiKey }
 }
 
 /**
- * Stops the ML Model HTTP Server.
+ * Stops the ML Model HTTP Server using graceful shutdown via HTTP endpoint.
  *
- * This function sends a termination signal to the specified Python process running the ML Model HTTP server.
- * It logs the process ID and handles any errors that may occur while attempting to stop the process.
+ * This function first attempts to gracefully shut down the server by sending a POST request
+ * to the /shutdown endpoint with the provided API key. If the graceful shutdown fails or
+ * times out, it falls back to forcefully killing the process with SIGKILL.
  *
  * @async
  * @param {Object} params - The parameters for stopping the server.
  * @param {number} params.pid - The process ID of the ML Model HTTP server to be stopped.
+ * @param {number} params.port - The port the server is running on.
+ * @param {string} params.shutdownApiKey - The API key for authenticating the shutdown request.
  * @returns {Promise<Object>} A promise that resolves to an object indicating the success of the operation
  * and a corresponding message.
  * @throws {Error} Throws an error if the process cannot be stopped.
  */
-async function stopMLModelHTTPServer({ pid, port }) {
+async function stopMLModelHTTPServer({ pid, port, shutdownApiKey }) {
+  log.info(`Stopping ML Model HTTP Server running on port ${port} with pid ${pid}`)
+
+  // Try graceful shutdown first if we have an API key
+  if (shutdownApiKey) {
+    try {
+      log.info('Attempting graceful shutdown via /shutdown endpoint')
+      const shutdownResponse = await fetch(`http://localhost:${port}/shutdown`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${shutdownApiKey}`
+        }
+      })
+
+      if (shutdownResponse.ok) {
+        log.info('Graceful shutdown initiated successfully')
+
+        // Wait for the process to exit (up to 10 seconds)
+        const maxWaitTime = 10000
+        const checkInterval = 500
+        let waited = 0
+
+        while (waited < maxWaitTime) {
+          try {
+            // Check if process is still running by sending signal 0
+            process.kill(pid, 0)
+            // Process still running, wait and check again
+            await new Promise((resolve) => setTimeout(resolve, checkInterval))
+            waited += checkInterval
+          } catch {
+            // Process no longer exists - shutdown complete
+            log.info('Python process exited gracefully')
+            return {
+              success: true,
+              message: `Gracefully stopped ML Model within python process pid ${pid}`
+            }
+          }
+        }
+
+        log.warn('Graceful shutdown timed out, falling back to SIGKILL')
+      } else {
+        log.warn(`Graceful shutdown request failed with status ${shutdownResponse.status}`)
+      }
+    } catch (error) {
+      log.warn('Graceful shutdown failed, falling back to SIGKILL:', error.message)
+    }
+  }
+
+  // Fallback to SIGKILL
   try {
-    log.info(`Stopping ML Model HTTP Server running on port ${port} with pid ${pid}`)
     return new Promise((resolve, reject) => {
       kill(pid, 'SIGKILL', (err) => {
         if (err) {
           log.error('Error killing Python process:', err)
           reject(err)
         } else {
-          log.info('Python process killed successfully')
+          log.info('Python process killed with SIGKILL')
           resolve({ success: true, message: `Stopped ML Model within python process pid ${pid}` })
         }
       })
@@ -1272,7 +1343,7 @@ async function startMLModelHTTPServer({ pythonEnvironment, modelReference, count
       const port = is.dev ? 8000 : await findFreePort()
       const localInstallPath = getMLModelLocalInstallPath({ ...modelReference })
       log.info(`Local ML Model install path ${localInstallPath}`)
-      const pythonProcess = await startSpeciesNetHTTPServer({
+      const { process: pythonProcess, shutdownApiKey } = await startSpeciesNetHTTPServer({
         port,
         modelWeightsFilepath: localInstallPath,
         geofence: true,
@@ -1281,7 +1352,7 @@ async function startMLModelHTTPServer({ pythonEnvironment, modelReference, count
         country: country
       })
       log.info(`pythonProcess: ${JSON.stringify(pythonProcess)}`)
-      return { port: port, process: pythonProcess }
+      return { port: port, process: pythonProcess, shutdownApiKey }
     }
     case 'deepfaune': {
       const port = is.dev ? 8001 : await findFreePort()
@@ -1292,7 +1363,7 @@ async function startMLModelHTTPServer({ pythonEnvironment, modelReference, count
         'deepfaune-vit_large_patch14_dinov2.lvd142m.v3.pt'
       )
       const detectorWeightsFilepath = join(localInstallPath, 'MDV6-yolov10x.pt')
-      const pythonProcess = await startDeepFauneHTTPServer({
+      const { process: pythonProcess, shutdownApiKey } = await startDeepFauneHTTPServer({
         port,
         classifierWeightsFilepath: classifierWeightsFilepath,
         detectorWeightsFilepath: detectorWeightsFilepath,
@@ -1300,13 +1371,13 @@ async function startMLModelHTTPServer({ pythonEnvironment, modelReference, count
         pythonEnvironment: pythonEnvironment
       })
       log.info(`pythonProcess: ${JSON.stringify(pythonProcess)}`)
-      return { port: port, process: pythonProcess }
+      return { port: port, process: pythonProcess, shutdownApiKey }
     }
     default: {
       log.warn(
         `startMLModelHTTPServer: Not implemented for ${modelReference.id} version ${modelReference.version}`
       )
-      return { port: null, process: null }
+      return { port: null, process: null, shutdownApiKey: null }
     }
   }
 }

@@ -91,6 +91,33 @@ export const pythonEnvironments = [
         files: 53286
       }
     }
+  },
+  {
+    type: 'conda',
+    reference: { id: 'common', version: '0.1.3' },
+    platform: {
+      mac: {
+        downloadURL:
+          'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.3-macOS.tar.gz',
+        size_in_MiB: 354,
+        size_in_MiB_installed: 1300,
+        files: 55470
+      },
+      linux: {
+        downloadURL:
+          'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.3-Linux.tar.gz',
+        size_in_MiB: 3200,
+        size_in_MiB_installed: 6200,
+        files: 55869
+      },
+      windows: {
+        downloadURL:
+          'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.3-Windows.tar.gz',
+        size_in_MiB: 505,
+        size_in_MiB_installed: 2200,
+        files: 53286
+      }
+    }
   }
 ]
 
@@ -103,7 +130,7 @@ export const modelZoo = [
    */
   {
     reference: { id: 'speciesnet', version: '4.0.1a' },
-    pythonEnvironment: { id: 'common', version: '0.1.2' },
+    pythonEnvironment: { id: 'common', version: '0.1.3' },
     name: 'SpeciesNet',
     size_in_MiB: 468,
     files: 6,
@@ -115,7 +142,7 @@ export const modelZoo = [
   },
   {
     reference: { id: 'deepfaune', version: '1.3' },
-    pythonEnvironment: { id: 'common', version: '0.1.2' },
+    pythonEnvironment: { id: 'common', version: '0.1.3' },
     name: 'DeepFaune',
     size_in_MiB: 1200,
     files: 2,
