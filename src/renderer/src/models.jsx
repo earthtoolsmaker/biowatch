@@ -163,9 +163,15 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false, refreshK
     envStatus: modelDownloadStatus.pythonEnvironment,
     currentModelId: model.reference.id
   })
-  const classNameMainContainer = isDownloaded
-    ? 'min-w-[300px] flex flex-col border-gray-200 border p-4 rounded-md w-96 gap-2 shadow-sm relative h-full'
-    : 'min-w-[300px] flex bg-gray-50 flex-col border-gray-200 border p-4 rounded-md w-96 gap-2 shadow-sm relative h-full'
+  const baseClasses =
+    'min-w-[300px] flex flex-col border-gray-200 border p-4 rounded-md w-96 gap-2 shadow-sm relative h-full'
+  const classNameMainContainer = [
+    baseClasses,
+    !isDownloaded && 'bg-gray-50',
+    isDownloading && 'animate-pulse [animation-duration:2s]'
+  ]
+    .filter(Boolean)
+    .join(' ')
   return (
     <div className={classNameMainContainer}>
       {logo && MODEL_LOGOS[logo] && (
@@ -318,16 +324,22 @@ function CustomModelCard() {
         develop and integrate custom models directly into BioWatch for your unique species, regions,
         or use cases.
       </div>
-      <div className="mt-auto flex justify-center p-2 gap-2">
-        <a
-          href="https://www.earthtoolsmaker.org/contact"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="bg-blue-100 cursor-pointer w-[60%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-blue-200"
-        >
-          <Mail color="black" size={14} />
-          Contact Us
-        </a>
+      <ul className="text-sm p-2">
+        <li>&nbsp;</li>
+        <li>&nbsp;</li>
+      </ul>
+      <div className="mt-auto">
+        <div className="flex justify-center p-2 gap-2">
+          <a
+            href="https://www.earthtoolsmaker.org/contact"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-blue-100 cursor-pointer w-[60%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-blue-200"
+          >
+            <Mail color="black" size={14} />
+            Contact Us
+          </a>
+        </div>
       </div>
     </div>
   )
