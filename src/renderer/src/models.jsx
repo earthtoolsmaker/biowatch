@@ -198,7 +198,7 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false, refreshK
             <div className="flex justify-center p-2 gap-2">
               <button
                 onClick={() => handleDelete(reference)}
-                className={` bg-red-300 cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-red-400`}
+                className={`cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50`}
               >
                 <CircleX color="black" size={14} />
                 Delete
@@ -215,7 +215,7 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false, refreshK
                           port: portHTTPServer
                         })
                       }
-                      className={` bg-blue-300 cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-blue-400`}
+                      className={`cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50`}
                     >
                       <CircleOff color="black" size={14} />
                       Stop ML Server
@@ -228,7 +228,7 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false, refreshK
                           pythonEnvironment: pythonEnvironment
                         })
                       }
-                      className={` bg-blue-300 cursor-not-allowed w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md opacity-70`}
+                      className={`cursor-not-allowed w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md opacity-70`}
                     >
                       <LucideLoader color="black" size={14} />
                       <span className="animate-pulse">Starting Server</span>
@@ -241,7 +241,7 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false, refreshK
                           pythonEnvironment: pythonEnvironment
                         })
                       }
-                      className={` bg-blue-300 cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-blue-400`}
+                      className={`cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50`}
                     >
                       <PlayIcon color="black" size={14} />
                       Run
@@ -257,7 +257,7 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false, refreshK
               onClick={() =>
                 handleDownload({ modelReference: reference, pythonEnvironment: pythonEnvironment })
               }
-              className={` bg-blue-100 cursor-pointer w-[60%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-blue-200`}
+              className={`bg-white cursor-pointer w-[60%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50`}
             >
               <Download color="black" size={14} />
               Download
@@ -334,7 +334,7 @@ function CustomModelCard() {
             href="https://www.earthtoolsmaker.org/contact"
             target="_blank"
             rel="noopener noreferrer"
-            className="bg-blue-100 cursor-pointer w-[60%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-blue-200"
+            className="cursor-pointer w-[60%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50"
           >
             <Mail color="black" size={14} />
             Contact Us
