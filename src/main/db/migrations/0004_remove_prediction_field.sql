@@ -1,0 +1,1 @@
+ALTER TABLE `observations` DROP COLUMN `prediction`;

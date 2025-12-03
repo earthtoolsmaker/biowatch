@@ -4,11 +4,11 @@
  */
 
 import { getStudyDatabase, closeStudyDatabase, closeAllDatabases } from './manager.js'
-import { deployments, media, observations } from './schema.js'
+import { deployments, media, observations, modelRuns, modelOutputs } from './schema.js'
 import log from 'electron-log'
 
 // Re-export schema and manager functions
-export { deployments, media, observations }
+export { deployments, media, observations, modelRuns, modelOutputs }
 export { getStudyDatabase, closeStudyDatabase, closeAllDatabases }
 
 /**
