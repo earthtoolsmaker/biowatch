@@ -15,6 +15,7 @@ import {
   observations,
   closeStudyDatabase
 } from './db/index.js'
+import { transformBboxToCamtrapDP } from './transformers/index.js'
 import { eq, isNull, count } from 'drizzle-orm'
 import models from './models.js'
 import mlmodels from '../shared/mlmodels.js'
@@ -258,6 +259,23 @@ async function insertPrediction(db, prediction) {
   const scientificName =
     prediction.prediction.split(';').at(-3) + ' ' + prediction.prediction.split(';').at(-2)
 
+  const resolvedScientificName = isblank
+    ? null
+    : scientificName.trim() === ''
+      ? prediction.prediction.split(';').at(-1)
+      : scientificName
+
+  // Create single observation per image with top-ranked detection bbox
+  const detections = prediction.detections || []
+
+  // Get top detection (highest confidence) if any exist
+  const topDetection =
+    detections.length > 0
+      ? detections.reduce((best, d) => (d.conf > best.conf ? d : best), detections[0])
+      : null
+
+  const bbox = topDetection ? transformBboxToCamtrapDP(topDetection, 'speciesnet') : null
+
   const observationData = {
     observationID: crypto.randomUUID(),
     mediaID: mediaRecord.mediaID,
@@ -265,14 +283,14 @@ async function insertPrediction(db, prediction) {
     eventID: crypto.randomUUID(),
     eventStart: mediaRecord.timestamp,
     eventEnd: mediaRecord.timestamp,
-    scientificName: isblank
-      ? null
-      : scientificName.trim() === ''
-        ? prediction.prediction.split(';').at(-1)
-        : scientificName,
+    scientificName: resolvedScientificName,
     confidence: prediction.prediction_score,
     count: 1,
-    prediction: prediction.prediction
+    prediction: prediction.prediction,
+    bboxX: bbox?.bboxX ?? null,
+    bboxY: bbox?.bboxY ?? null,
+    bboxWidth: bbox?.bboxWidth ?? null,
+    bboxHeight: bbox?.bboxHeight ?? null
   }
 
   await db.insert(observations).values(observationData)

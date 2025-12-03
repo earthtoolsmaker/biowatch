@@ -36,7 +36,7 @@ beforeEach(async () => {
   testStudyId = `test-schema-${Date.now()}`
   testBiowatchDataPath = join(tmpdir(), 'biowatch-schema-test', testStudyId)
   testDbPath = join(testBiowatchDataPath, 'studies', testStudyId, 'study.db')
-  
+
   // Create directory structure
   mkdirSync(join(testBiowatchDataPath, 'studies', testStudyId), { recursive: true })
 })
@@ -84,10 +84,10 @@ function getForeignKeys(db, tableName) {
  */
 async function createComprehensiveTestData(dbPath) {
   const manager = await createImageDirectoryDatabase(dbPath)
-  
+
   // Create test deployments with edge cases
   const testDeployments = {
-    'deploy001': {
+    deploy001: {
       deploymentID: 'deploy001',
       locationID: 'loc001',
       locationName: 'Forest Site A',
@@ -96,7 +96,7 @@ async function createComprehensiveTestData(dbPath) {
       latitude: 46.7712,
       longitude: 6.6413
     },
-    'deploy002': {
+    deploy002: {
       deploymentID: 'deploy002',
       locationID: 'loc002',
       locationName: 'Site with Special Chars: "Test" & <Symbols>',
@@ -105,7 +105,7 @@ async function createComprehensiveTestData(dbPath) {
       latitude: -23.5505, // Negative latitude
       longitude: -46.6333 // Negative longitude
     },
-    'deploy003': {
+    deploy003: {
       deploymentID: 'deploy003',
       locationID: 'loc003',
       locationName: 'Edge Case Site',
@@ -115,9 +115,9 @@ async function createComprehensiveTestData(dbPath) {
       longitude: 180.0 // Maximum longitude
     }
   }
-  
+
   await insertDeployments(manager, testDeployments)
-  
+
   // Create test media with various edge cases
   const testMedia = {
     'media001.jpg': {
@@ -142,9 +142,9 @@ async function createComprehensiveTestData(dbPath) {
       fileName: 'unicode-émojis-🦌.jpg'
     }
   }
-  
+
   await insertMedia(manager, testMedia)
-  
+
   // Create test observations with comprehensive edge cases
   const testObservations = [
     {
@@ -187,9 +187,9 @@ async function createComprehensiveTestData(dbPath) {
       prediction: 'empty'
     }
   ]
-  
+
   await insertObservations(manager, testObservations)
-  
+
   return { manager, deployments: testDeployments, media: testMedia, observations: testObservations }
 }
 
@@ -197,27 +197,27 @@ describe('Database Schema and Integrity Tests', () => {
   describe('Schema Structure', () => {
     test('should create all required tables', async () => {
       await createImageDirectoryDatabase(testDbPath)
-      
+
       const db = getRawDatabase(testDbPath)
-      
+
       // Check that all tables exist
       const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all()
-      const tableNames = tables.map(t => t.name).sort()
-      
+      const tableNames = tables.map((t) => t.name).sort()
+
       // Expected tables (including Drizzle migration tracking)
       const expectedTables = ['__drizzle_migrations', 'deployments', 'media', 'observations'].sort()
-      
+
       assert.deepEqual(tableNames, expectedTables, 'Should create all required tables')
-      
+
       db.close()
     })
-    
+
     test('should have correct deployments table schema', async () => {
       await createImageDirectoryDatabase(testDbPath)
-      
+
       const db = getRawDatabase(testDbPath)
       const schema = getTableSchema(db, 'deployments')
-      
+
       // Expected columns
       const expectedColumns = [
         { name: 'deploymentID', type: 'TEXT', pk: 1 },
@@ -228,23 +228,31 @@ describe('Database Schema and Integrity Tests', () => {
         { name: 'latitude', type: 'REAL', pk: 0 },
         { name: 'longitude', type: 'REAL', pk: 0 }
       ]
-      
-      expectedColumns.forEach(expectedCol => {
-        const actualCol = schema.find(col => col.name === expectedCol.name)
+
+      expectedColumns.forEach((expectedCol) => {
+        const actualCol = schema.find((col) => col.name === expectedCol.name)
         assert(actualCol, `Column ${expectedCol.name} should exist`)
-        assert.equal(actualCol.type, expectedCol.type, `Column ${expectedCol.name} should have correct type`)
-        assert.equal(actualCol.pk, expectedCol.pk, `Column ${expectedCol.name} should have correct primary key setting`)
+        assert.equal(
+          actualCol.type,
+          expectedCol.type,
+          `Column ${expectedCol.name} should have correct type`
+        )
+        assert.equal(
+          actualCol.pk,
+          expectedCol.pk,
+          `Column ${expectedCol.name} should have correct primary key setting`
+        )
       })
-      
+
       db.close()
     })
-    
+
     test('should have correct media table schema', async () => {
       await createImageDirectoryDatabase(testDbPath)
-      
+
       const db = getRawDatabase(testDbPath)
       const schema = getTableSchema(db, 'media')
-      
+
       const expectedColumns = [
         { name: 'mediaID', type: 'TEXT', pk: 1 },
         { name: 'deploymentID', type: 'TEXT', pk: 0 },
@@ -252,22 +260,26 @@ describe('Database Schema and Integrity Tests', () => {
         { name: 'filePath', type: 'TEXT', pk: 0 },
         { name: 'fileName', type: 'TEXT', pk: 0 }
       ]
-      
-      expectedColumns.forEach(expectedCol => {
-        const actualCol = schema.find(col => col.name === expectedCol.name)
+
+      expectedColumns.forEach((expectedCol) => {
+        const actualCol = schema.find((col) => col.name === expectedCol.name)
         assert(actualCol, `Column ${expectedCol.name} should exist`)
-        assert.equal(actualCol.type, expectedCol.type, `Column ${expectedCol.name} should have correct type`)
+        assert.equal(
+          actualCol.type,
+          expectedCol.type,
+          `Column ${expectedCol.name} should have correct type`
+        )
       })
-      
+
       db.close()
     })
-    
+
     test('should have correct observations table schema', async () => {
       await createImageDirectoryDatabase(testDbPath)
-      
+
       const db = getRawDatabase(testDbPath)
       const schema = getTableSchema(db, 'observations')
-      
+
       const expectedColumns = [
         { name: 'observationID', type: 'TEXT', pk: 1 },
         { name: 'mediaID', type: 'TEXT', pk: 0 },
@@ -286,13 +298,17 @@ describe('Database Schema and Integrity Tests', () => {
         { name: 'sex', type: 'TEXT', pk: 0 },
         { name: 'behavior', type: 'TEXT', pk: 0 }
       ]
-      
-      expectedColumns.forEach(expectedCol => {
-        const actualCol = schema.find(col => col.name === expectedCol.name)
+
+      expectedColumns.forEach((expectedCol) => {
+        const actualCol = schema.find((col) => col.name === expectedCol.name)
         assert(actualCol, `Column ${expectedCol.name} should exist`)
-        assert.equal(actualCol.type, expectedCol.type, `Column ${expectedCol.name} should have correct type`)
+        assert.equal(
+          actualCol.type,
+          expectedCol.type,
+          `Column ${expectedCol.name} should have correct type`
+        )
       })
-      
+
       db.close()
     })
   })
@@ -300,37 +316,37 @@ describe('Database Schema and Integrity Tests', () => {
   describe('Foreign Key Constraints', () => {
     test('should have correct foreign key relationships', async () => {
       await createImageDirectoryDatabase(testDbPath)
-      
+
       const db = getRawDatabase(testDbPath)
-      
+
       // Check media table foreign keys
       const mediaForeignKeys = getForeignKeys(db, 'media')
-      const mediaToDeploymentFK = mediaForeignKeys.find(fk => fk.table === 'deployments')
-      
+      const mediaToDeploymentFK = mediaForeignKeys.find((fk) => fk.table === 'deployments')
+
       assert(mediaToDeploymentFK, 'Media should have foreign key to deployments')
       assert.equal(mediaToDeploymentFK.from, 'deploymentID', 'FK should be on deploymentID')
       assert.equal(mediaToDeploymentFK.to, 'deploymentID', 'FK should reference deploymentID')
-      
-      // Check observations table foreign keys  
+
+      // Check observations table foreign keys
       const observationsForeignKeys = getForeignKeys(db, 'observations')
-      const obsToMediaFK = observationsForeignKeys.find(fk => fk.table === 'media')
-      const obsToDeploymentFK = observationsForeignKeys.find(fk => fk.table === 'deployments')
-      
+      const obsToMediaFK = observationsForeignKeys.find((fk) => fk.table === 'media')
+      const obsToDeploymentFK = observationsForeignKeys.find((fk) => fk.table === 'deployments')
+
       assert(obsToMediaFK, 'Observations should have foreign key to media')
       assert.equal(obsToMediaFK.from, 'mediaID', 'FK should be on mediaID')
       assert.equal(obsToMediaFK.to, 'mediaID', 'FK should reference mediaID')
-      
+
       assert(obsToDeploymentFK, 'Observations should have foreign key to deployments')
       assert.equal(obsToDeploymentFK.from, 'deploymentID', 'FK should be on deploymentID')
       assert.equal(obsToDeploymentFK.to, 'deploymentID', 'FK should reference deploymentID')
-      
+
       db.close()
     })
-    
+
     test('should enforce foreign key constraints', async () => {
       const { manager } = await createComprehensiveTestData(testDbPath)
       const db = manager.getDb()
-      
+
       // Try to insert media with non-existent deployment
       try {
         await db.insert(media).values({
@@ -342,10 +358,12 @@ describe('Database Schema and Integrity Tests', () => {
         })
         assert.fail('Should throw error for invalid deployment reference')
       } catch (error) {
-        assert(error.message.includes('FOREIGN KEY constraint failed'), 
-          'Should fail with foreign key constraint error')
+        assert(
+          error.message.includes('FOREIGN KEY constraint failed'),
+          'Should fail with foreign key constraint error'
+        )
       }
-      
+
       // Try to insert observation with non-existent media
       try {
         await db.insert(observations).values({
@@ -358,8 +376,10 @@ describe('Database Schema and Integrity Tests', () => {
         })
         assert.fail('Should throw error for invalid media reference')
       } catch (error) {
-        assert(error.message.includes('FOREIGN KEY constraint failed'),
-          'Should fail with foreign key constraint error')
+        assert(
+          error.message.includes('FOREIGN KEY constraint failed'),
+          'Should fail with foreign key constraint error'
+        )
       }
     })
   })
@@ -367,9 +387,9 @@ describe('Database Schema and Integrity Tests', () => {
   describe('Data Type Validation', () => {
     test('should handle various coordinate formats', async () => {
       const manager = await createImageDirectoryDatabase(testDbPath)
-      
+
       const edgeCaseDeployments = {
-        'edge001': {
+        edge001: {
           deploymentID: 'edge001',
           locationID: 'edge_loc001',
           locationName: 'Edge Case Coordinates',
@@ -378,7 +398,7 @@ describe('Database Schema and Integrity Tests', () => {
           latitude: 90.0, // North pole
           longitude: -180.0 // International date line
         },
-        'edge002': {
+        edge002: {
           deploymentID: 'edge002',
           locationID: 'edge_loc002',
           locationName: 'South Pole',
@@ -388,26 +408,26 @@ describe('Database Schema and Integrity Tests', () => {
           longitude: 180.0 // International date line
         }
       }
-      
+
       await insertDeployments(manager, edgeCaseDeployments)
-      
+
       const db = manager.getDb()
       const results = await db.select().from(deployments).where()
-      
+
       assert.equal(results.length, 2, 'Should insert edge case coordinates')
-      
-      const northPole = results.find(d => d.deploymentID === 'edge001')
-      const southPole = results.find(d => d.deploymentID === 'edge002')
-      
+
+      const northPole = results.find((d) => d.deploymentID === 'edge001')
+      const southPole = results.find((d) => d.deploymentID === 'edge002')
+
       assert.equal(northPole.latitude, 90.0, 'Should handle maximum latitude')
       assert.equal(northPole.longitude, -180.0, 'Should handle minimum longitude')
       assert.equal(southPole.latitude, -90.0, 'Should handle minimum latitude')
       assert.equal(southPole.longitude, 180.0, 'Should handle maximum longitude')
     })
-    
+
     test('should handle edge cases in confidence values', async () => {
       const { manager } = await createComprehensiveTestData(testDbPath)
-      
+
       const edgeCaseObservations = [
         {
           observationID: 'conf001',
@@ -436,25 +456,27 @@ describe('Database Schema and Integrity Tests', () => {
           prediction: 'zero_species'
         }
       ]
-      
+
       await insertObservations(manager, edgeCaseObservations)
-      
+
       const db = manager.getDb()
-      const results = await db.select().from(observations)
+      const results = await db
+        .select()
+        .from(observations)
         .where(sql`${observations.observationID} IN ('conf001', 'conf002')`)
-      
+
       assert.equal(results.length, 2, 'Should insert edge case confidence values')
-      
-      const perfectConf = results.find(o => o.observationID === 'conf001')
-      const zeroConf = results.find(o => o.observationID === 'conf002')
-      
+
+      const perfectConf = results.find((o) => o.observationID === 'conf001')
+      const zeroConf = results.find((o) => o.observationID === 'conf002')
+
       assert.equal(perfectConf.confidence, 1.0, 'Should handle maximum confidence')
       assert.equal(zeroConf.confidence, 0.0, 'Should handle minimum confidence')
     })
-    
+
     test('should handle timestamp precision and edge cases', async () => {
       const manager = await createImageDirectoryDatabase(testDbPath)
-      
+
       const edgeCaseMedia = {
         'timestamp001.jpg': {
           mediaID: 'timestamp001',
@@ -464,17 +486,17 @@ describe('Database Schema and Integrity Tests', () => {
           fileName: 'epoch.jpg'
         },
         'timestamp002.jpg': {
-          mediaID: 'timestamp002', 
+          mediaID: 'timestamp002',
           deploymentID: 'deploy001',
           timestamp: DateTime.fromISO('2038-01-19T03:14:07.999Z'), // Near 32-bit limit
           filePath: 'images/future.jpg',
           fileName: 'future.jpg'
         }
       }
-      
+
       // First need a deployment
       await insertDeployments(manager, {
-        'deploy001': {
+        deploy001: {
           deploymentID: 'deploy001',
           locationID: 'loc001',
           locationName: 'Test Location',
@@ -484,17 +506,17 @@ describe('Database Schema and Integrity Tests', () => {
           longitude: 0.0
         }
       })
-      
+
       await insertMedia(manager, edgeCaseMedia)
-      
+
       const db = manager.getDb()
       const results = await db.select().from(media).where()
-      
+
       assert.equal(results.length, 2, 'Should insert edge case timestamps')
-      
-      const epochMedia = results.find(m => m.mediaID === 'timestamp001')
-      const futureMedia = results.find(m => m.mediaID === 'timestamp002')
-      
+
+      const epochMedia = results.find((m) => m.mediaID === 'timestamp001')
+      const futureMedia = results.find((m) => m.mediaID === 'timestamp002')
+
       assert(epochMedia.timestamp.includes('1970-01-01'), 'Should handle Unix epoch')
       assert(futureMedia.timestamp.includes('2038-01-19'), 'Should handle future timestamps')
     })
@@ -504,47 +526,55 @@ describe('Database Schema and Integrity Tests', () => {
     test('should maintain referential integrity on deletion', async () => {
       const { manager } = await createComprehensiveTestData(testDbPath)
       const db = manager.getDb()
-      
+
       // Try to delete a deployment that has media references
       // This should fail due to foreign key constraints (if enabled)
       try {
         await db.delete(deployments).where(eq(deployments.deploymentID, 'deploy001'))
-        
+
         // If deletion succeeded, verify that orphaned records don't exist
-        const orphanedMedia = await db.select().from(media)
+        const orphanedMedia = await db
+          .select()
+          .from(media)
           .where(eq(media.deploymentID, 'deploy001'))
-        const orphanedObs = await db.select().from(observations)
+        const orphanedObs = await db
+          .select()
+          .from(observations)
           .where(eq(observations.deploymentID, 'deploy001'))
-        
+
         // Depending on FK enforcement, either deletion should fail or orphans should be cleaned up
         if (orphanedMedia.length > 0 || orphanedObs.length > 0) {
           assert.fail('Should not have orphaned records after deployment deletion')
         }
       } catch (error) {
         // Foreign key constraint should prevent deletion
-        assert(error.message.includes('FOREIGN KEY constraint failed'),
-          'Should prevent deletion due to foreign key constraint')
+        assert(
+          error.message.includes('FOREIGN KEY constraint failed'),
+          'Should prevent deletion due to foreign key constraint'
+        )
       }
     })
-    
+
     test('should handle null values appropriately', async () => {
       const { manager } = await createComprehensiveTestData(testDbPath)
-      
+
       // Verify that null values are handled correctly
       const db = manager.getDb()
-      const nullObservation = await db.select().from(observations)
+      const nullObservation = await db
+        .select()
+        .from(observations)
         .where(eq(observations.observationID, 'obs003'))
         .get()
-      
+
       assert(nullObservation, 'Should find observation with null values')
       assert.equal(nullObservation.scientificName, null, 'Scientific name should be null')
       assert.equal(nullObservation.confidence, null, 'Confidence should be null')
       assert.equal(nullObservation.count, 0, 'Count should be zero')
     })
-    
+
     test('should handle large datasets without corruption', async () => {
       const manager = await createImageDirectoryDatabase(testDbPath)
-      
+
       // Create a deployment first
       await insertDeployments(manager, {
         'bulk-deploy': {
@@ -557,17 +587,17 @@ describe('Database Schema and Integrity Tests', () => {
           longitude: 7.0
         }
       })
-      
+
       // Create large dataset
       const bulkMedia = {}
       const bulkObservations = []
-      
+
       const batchSize = 100 // Reduced for testing
-      
+
       for (let i = 0; i < batchSize; i++) {
         const mediaId = `bulk-media-${i.toString().padStart(5, '0')}`
         const timestamp = DateTime.fromISO('2023-01-01T00:00:00Z').plus({ minutes: i })
-        
+
         bulkMedia[`${mediaId}.jpg`] = {
           mediaID: mediaId,
           deploymentID: 'bulk-deploy',
@@ -575,7 +605,7 @@ describe('Database Schema and Integrity Tests', () => {
           filePath: `images/bulk/${mediaId}.jpg`,
           fileName: `${mediaId}.jpg`
         }
-        
+
         bulkObservations.push({
           observationID: `bulk-obs-${i.toString().padStart(5, '0')}`,
           mediaID: mediaId,
@@ -590,26 +620,36 @@ describe('Database Schema and Integrity Tests', () => {
           prediction: i % 2 === 0 ? 'cervus_elaphus' : 'empty'
         })
       }
-      
+
       await insertMedia(manager, bulkMedia)
       await insertObservations(manager, bulkObservations)
-      
+
       // Verify data integrity
       const db = manager.getDb()
       const mediaCount = await db.select({ count: count() }).from(media).where()
       const obsCount = await db.select({ count: count() }).from(observations).where()
-      
-      assert.equal(mediaCount[0].count, batchSize, `Should have inserted ${batchSize} media records`)
-      assert.equal(obsCount[0].count, batchSize, `Should have inserted ${batchSize} observation records`)
-      
+
+      assert.equal(
+        mediaCount[0].count,
+        batchSize,
+        `Should have inserted ${batchSize} media records`
+      )
+      assert.equal(
+        obsCount[0].count,
+        batchSize,
+        `Should have inserted ${batchSize} observation records`
+      )
+
       // Verify no data corruption
-      const randomSample = await db.select().from(observations)
+      const randomSample = await db
+        .select()
+        .from(observations)
         .limit(10)
         .orderBy(sql`RANDOM()`)
-      
-      randomSample.forEach(obs => {
+
+      randomSample.forEach((obs) => {
         assert(obs.observationID, 'Observation should have valid ID')
-        assert(obs.mediaID, 'Observation should have valid media ID') 
+        assert(obs.mediaID, 'Observation should have valid media ID')
         assert(obs.deploymentID, 'Observation should have valid deployment ID')
         assert(obs.eventStart, 'Observation should have valid event start')
       })
@@ -619,10 +659,10 @@ describe('Database Schema and Integrity Tests', () => {
   describe('Performance and Indexing', () => {
     test('should perform well with complex queries', async () => {
       const { manager } = await createComprehensiveTestData(testDbPath)
-      
+
       // Test a complex query performance
       const startTime = Date.now()
-      
+
       const db = manager.getDb()
       const complexQuery = await db
         .select({
@@ -635,26 +675,26 @@ describe('Database Schema and Integrity Tests', () => {
         .leftJoin(media, eq(deployments.deploymentID, media.deploymentID))
         .leftJoin(observations, eq(media.mediaID, observations.mediaID))
         .groupBy(deployments.deploymentID, deployments.locationName)
-      
+
       const endTime = Date.now()
       const queryTime = endTime - startTime
-      
+
       assert(complexQuery.length > 0, 'Complex query should return results')
       assert(queryTime < 1000, 'Complex query should complete within 1 second') // Adjust threshold as needed
-      
+
       // Verify query results make sense
-      complexQuery.forEach(result => {
+      complexQuery.forEach((result) => {
         assert(result.deploymentID, 'Result should have deployment ID')
         assert(result.locationName, 'Result should have location name')
         assert(typeof result.mediaCount === 'number', 'Media count should be numeric')
         assert(typeof result.speciesCount === 'number', 'Species count should be numeric')
       })
     })
-    
+
     test('should handle concurrent access patterns', async () => {
       const { manager } = await createComprehensiveTestData(testDbPath)
       const db = manager.getDb()
-      
+
       // Simulate concurrent read operations
       const concurrentQueries = [
         db.select().from(deployments),
@@ -664,12 +704,12 @@ describe('Database Schema and Integrity Tests', () => {
         db.select({ count: count() }).from(media),
         db.select({ count: count() }).from(observations)
       ]
-      
+
       const results = await Promise.all(concurrentQueries)
-      
+
       // All queries should succeed
       assert.equal(results.length, 6, 'All concurrent queries should complete')
-      
+
       // Verify results are consistent
       assert(results[0].length > 0, 'Deployments query should return results')
       assert(results[1].length > 0, 'Media query should return results')
@@ -683,39 +723,43 @@ describe('Database Schema and Integrity Tests', () => {
   describe('Migration and Schema Evolution', () => {
     test('should have proper migration tracking', async () => {
       await createImageDirectoryDatabase(testDbPath)
-      
+
       const db = getRawDatabase(testDbPath)
-      
+
       // Check that Drizzle migration table exists and has records
-      const migrationTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='__drizzle_migrations'").get()
+      const migrationTable = db
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='__drizzle_migrations'"
+        )
+        .get()
       assert(migrationTable, 'Migration tracking table should exist')
-      
-      const migrations = db.prepare("SELECT * FROM __drizzle_migrations").all()
+
+      const migrations = db.prepare('SELECT * FROM __drizzle_migrations').all()
       assert(migrations.length > 0, 'Should have migration records')
-      
-      migrations.forEach(migration => {
+
+      migrations.forEach((migration) => {
         assert(migration.hash, 'Migration should have hash')
         assert(migration.created_at, 'Migration should have created timestamp')
       })
-      
+
       db.close()
     })
-    
+
     test('should handle database recreation idempotently', async () => {
       // Create database first time
       await createImageDirectoryDatabase(testDbPath)
-      
+
       const db1 = getRawDatabase(testDbPath)
       const initialTables = db1.prepare("SELECT name FROM sqlite_master WHERE type='table'").all()
       db1.close()
-      
+
       // Create database again (should be idempotent)
       await createImageDirectoryDatabase(testDbPath)
-      
+
       const db2 = getRawDatabase(testDbPath)
       const recreatedTables = db2.prepare("SELECT name FROM sqlite_master WHERE type='table'").all()
       db2.close()
-      
+
       assert.deepEqual(initialTables, recreatedTables, 'Database recreation should be idempotent')
     })
   })
