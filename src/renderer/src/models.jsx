@@ -11,6 +11,12 @@ import {
   Mail
 } from 'lucide-react'
 import { platformToKey, findPythonEnvironment } from '../../shared/mlmodels'
+import {
+  isOwnEnvironmentDownload,
+  isDownloadComplete,
+  determineInitialDownloadState,
+  calculateProgressInfo
+} from '../../shared/downloadState'
 import googleLogo from './assets/logos/google.png'
 import cnrsLogo from './assets/logos/cnrs_blue.png'
 import etmLogo from './assets/logos/earthtoolsmaker.png'
@@ -18,41 +24,6 @@ import etmLogo from './assets/logos/earthtoolsmaker.png'
 const MODEL_LOGOS = {
   google: googleLogo,
   cnrs: cnrsLogo
-}
-
-function modelDownloadStatusToInfo({ model, pythonEnvironment, currentModelId }) {
-  const envActiveModelId = pythonEnvironment['opts']?.activeDownloadModelId
-
-  // Check if this model owns the environment download
-  const isOwnEnvDownload = envActiveModelId === currentModelId || envActiveModelId === null
-
-  // Only show env progress if model is done AND we own the env download
-  const isPythonEnvironmentDownloading =
-    model['state'] === 'success' && pythonEnvironment['state'] !== 'success' && isOwnEnvDownload
-
-  const progress = isPythonEnvironmentDownloading
-    ? pythonEnvironment['progress']
-    : model['progress']
-
-  const getDownloadProgressMessage = (model, pythonEnvironment) => {
-    const { state } = isPythonEnvironmentDownloading ? pythonEnvironment : model
-    const suffix = isPythonEnvironmentDownloading ? 'the Python Environment' : 'the AI Model'
-    switch (state) {
-      case 'success':
-        return `Successfuly installed ${suffix}`
-      case 'failure':
-        return `Failed installing ${suffix}`
-      case 'download':
-        return `Downloading ${suffix}`
-      case 'extract':
-        return `Extracting ${suffix}`
-      default:
-        return `Downloading ${suffix}`
-    }
-  }
-
-  const message = getDownloadProgressMessage(model, pythonEnvironment)
-  return { downloadMessage: message, downloadProgress: progress }
 }
 
 /**
@@ -93,15 +64,9 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false, refreshK
         const envState = downloadStatus['pythonEnvironment']['state']
         const envActiveModelId = downloadStatus['pythonEnvironment']['opts']?.activeDownloadModelId
 
-        // Check if this model owns the environment download
-        const isOwnEnvDownload =
-          envActiveModelId === model.reference.id || envActiveModelId === null
+        const isOwnEnvDownload = isOwnEnvironmentDownload(envActiveModelId, model.reference.id)
 
-        // Complete if model is done AND (env is success OR env was already installed/not our download)
-        if (
-          modelState === 'success' &&
-          (envState === 'success' || (!isOwnEnvDownload && envState !== 'success'))
-        ) {
+        if (isDownloadComplete({ modelState, envState, isOwnEnvDownload })) {
           setIsDownloaded(true)
           setIsDownloading(false)
         }
@@ -120,53 +85,15 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false, refreshK
       })
       console.log(downloadStatus)
 
-      const modelState = downloadStatus['model']['state']
-      const envState = downloadStatus['pythonEnvironment']['state']
-      const envActiveModelId = downloadStatus['pythonEnvironment']['opts']?.activeDownloadModelId
-      const hasModelEntry = Object.keys(downloadStatus['model']).length !== 0
-      const hasEnvEntry = Object.keys(downloadStatus['pythonEnvironment']).length !== 0
+      const { isDownloaded: downloaded, isDownloading: downloading } =
+        determineInitialDownloadState({
+          modelStatus: downloadStatus['model'],
+          envStatus: downloadStatus['pythonEnvironment'],
+          currentModelId: model.reference.id
+        })
 
-      // Case 1: Both complete - model is downloaded
-      if (modelState === 'success' && envState === 'success') {
-        setIsDownloaded(true)
-        setIsDownloading(false)
-      }
-      // Case 2: Model is actively downloading (state is download/extract) - resume polling
-      else if (hasModelEntry && (modelState === 'download' || modelState === 'extract')) {
-        setIsDownloading(true)
-        setIsDownloaded(false)
-      }
-      // Case 3: Model done, env downloading BY THIS MODEL - resume polling
-      else if (
-        modelState === 'success' &&
-        hasEnvEntry &&
-        (envState === 'download' || envState === 'extract') &&
-        envActiveModelId === model.reference.id
-      ) {
-        setIsDownloading(true)
-        setIsDownloaded(false)
-      }
-      // Case 4: Model done, env downloading by ANOTHER model - don't show downloading for this card
-      else if (
-        modelState === 'success' &&
-        hasEnvEntry &&
-        (envState === 'download' || envState === 'extract') &&
-        envActiveModelId !== model.reference.id
-      ) {
-        setIsDownloading(false)
-        setIsDownloaded(false)
-      }
-      // Case 5: No entries at all - not downloaded
-      else if (!hasModelEntry || !hasEnvEntry) {
-        setIsDownloaded(false)
-        setIsDownloading(false)
-      }
-      // Case 6: Fallback - something unexpected
-      else {
-        console.warn('Unexpected download state, resetting...')
-        setIsDownloading(false)
-        setIsDownloaded(false)
-      }
+      setIsDownloaded(downloaded)
+      setIsDownloading(downloading)
       setModelDownloadStatus(downloadStatus)
     }
 
@@ -231,8 +158,9 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false, refreshK
   }
 
   const { name, description, reference, size_in_MiB, logo } = model
-  const { downloadMessage, downloadProgress } = modelDownloadStatusToInfo({
-    ...modelDownloadStatus,
+  const { downloadMessage, downloadProgress } = calculateProgressInfo({
+    modelStatus: modelDownloadStatus.model,
+    envStatus: modelDownloadStatus.pythonEnvironment,
     currentModelId: model.reference.id
   })
   const classNameMainContainer = isDownloaded
