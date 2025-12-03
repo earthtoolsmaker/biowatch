@@ -101,12 +101,12 @@ const api = {
     return await electronAPI.ipcRenderer.invoke('model:clear-all')
   },
 
-  downloadPythonEnvironment: async ({ id, version, downloadURL }) => {
+  downloadPythonEnvironment: async ({ id, version, requestingModelId }) => {
     return await electronAPI.ipcRenderer.invoke(
       'model:download-python-environment',
       id,
       version,
-      downloadURL
+      requestingModelId
     )
   },
 

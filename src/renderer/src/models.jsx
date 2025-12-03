@@ -7,36 +7,23 @@ import {
   PlayIcon,
   CpuIcon,
   Book,
-  Server
+  Server,
+  Mail
 } from 'lucide-react'
 import { platformToKey, findPythonEnvironment } from '../../shared/mlmodels'
+import {
+  isOwnEnvironmentDownload,
+  isDownloadComplete,
+  determineInitialDownloadState,
+  calculateProgressInfo
+} from '../../shared/downloadState'
+import googleLogo from './assets/logos/google.png'
+import cnrsLogo from './assets/logos/cnrs_blue.png'
+import etmLogo from './assets/logos/earthtoolsmaker.png'
 
-function modelDownloadStatusToInfo({ model, pythonEnvironment }) {
-  const isPythonEnvironmentDownloading =
-    model['state'] === 'success' && pythonEnvironment['state'] !== 'success'
-  const progress = isPythonEnvironmentDownloading
-    ? pythonEnvironment['progress']
-    : model['progress']
-
-  const getDownloadProgressMessage = (model, pythonEnvironment) => {
-    const { state } = isPythonEnvironmentDownloading ? pythonEnvironment : model
-    const suffix = isPythonEnvironmentDownloading ? 'the Python Environment' : 'the AI Model'
-    switch (state) {
-      case 'success':
-        return `Successfuly installed ${suffix}`
-      case 'failure':
-        return `Failed installing ${suffix}`
-      case 'download':
-        return `Downloading ${suffix}`
-      case 'extract':
-        return `Extracting ${suffix}`
-      default:
-        return `Downloading ${suffix}`
-    }
-  }
-
-  const message = getDownloadProgressMessage(model, pythonEnvironment)
-  return { downloadMessage: message, downloadProgress: progress }
+const MODEL_LOGOS = {
+  google: googleLogo,
+  cnrs: cnrsLogo
 }
 
 /**
@@ -51,7 +38,7 @@ function formatSizeInMiB(size_in_MiB) {
   return size_in_MiB + ' MiB'
 }
 
-function ModelCard({ model, pythonEnvironment, platform, isDev = false }) {
+function ModelCard({ model, pythonEnvironment, platform, isDev = false, refreshKey = 0 }) {
   const [modelDownloadStatus, setModelDownloadStatus] = useState({
     model: {},
     pythonEnvironment: {}
@@ -72,10 +59,14 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false }) {
           pythonEnvironmentReference: pythonEnvironment.reference
         })
         setModelDownloadStatus(downloadStatus)
-        if (
-          downloadStatus['model']['state'] === 'success' &&
-          downloadStatus['pythonEnvironment']['state'] === 'success'
-        ) {
+
+        const modelState = downloadStatus['model']['state']
+        const envState = downloadStatus['pythonEnvironment']['state']
+        const envActiveModelId = downloadStatus['pythonEnvironment']['opts']?.activeDownloadModelId
+
+        const isOwnEnvDownload = isOwnEnvironmentDownload(envActiveModelId, model.reference.id)
+
+        if (isDownloadComplete({ modelState, envState, isOwnEnvDownload })) {
           setIsDownloaded(true)
           setIsDownloading(false)
         }
@@ -84,7 +75,7 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false }) {
     return () => {
       if (intervalId) clearInterval(intervalId)
     }
-  }, [isDownloading])
+  }, [isDownloading, model.reference, pythonEnvironment.reference])
 
   useEffect(() => {
     const getMLModelDownloadStatus = async () => {
@@ -93,35 +84,21 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false }) {
         pythonEnvironmentReference: pythonEnvironment.reference
       })
       console.log(downloadStatus)
-      if (
-        downloadStatus['model']['state'] === 'success' &&
-        downloadStatus['pythonEnvironment']['state'] === 'success'
-      ) {
-        setIsDownloaded(true)
-        setIsDownloading(false)
-      } else if (
-        (downloadStatus['model']['state'] !== 'success' &&
-          Object.keys(downloadStatus['model']).length !== 0) ||
-        (downloadStatus['pythonEnvironment']['state'] !== 'success' &&
-          Object.keys(downloadStatus['pythonEnvironment']).length !== 0)
-      ) {
-        setIsDownloading(true)
-        setIsDownloaded(false)
-      } else if (
-        Object.keys(downloadStatus['pythonEnvironment']).length === 0 ||
-        Object.keys(downloadStatus['model']).length === 0
-      ) {
-        setIsDownloaded(false)
-      } else {
-        console.warn('The download or electron app probably crashed...')
-        setIsDownloading(false)
-        setIsDownloaded(true)
-      }
+
+      const { isDownloaded: downloaded, isDownloading: downloading } =
+        determineInitialDownloadState({
+          modelStatus: downloadStatus['model'],
+          envStatus: downloadStatus['pythonEnvironment'],
+          currentModelId: model.reference.id
+        })
+
+      setIsDownloaded(downloaded)
+      setIsDownloading(downloading)
       setModelDownloadStatus(downloadStatus)
     }
 
     getMLModelDownloadStatus()
-  }, [model.reference, pythonEnvironment.reference]) // Run this effect when the model reference changes
+  }, [model.reference, pythonEnvironment.reference, refreshKey]) // Run this effect when the model reference changes or refreshKey changes
 
   const handleRunHTTPServer = async ({ modelReference, pythonEnvironment }) => {
     setIsHTTPServerStarting(true)
@@ -162,7 +139,10 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false }) {
     try {
       await window.api.downloadMLModel(modelReference)
       console.log('downloading python environment')
-      await window.api.downloadPythonEnvironment({ ...pythonEnvironment.reference })
+      await window.api.downloadPythonEnvironment({
+        ...pythonEnvironment.reference,
+        requestingModelId: modelReference.id
+      })
       setIsDownloaded(true)
       const downloadStatus = await window.api.getMLModelDownloadStatus({
         modelReference: model.reference,
@@ -177,15 +157,32 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false }) {
     }
   }
 
-  const { name, description, reference, size_in_MiB } = model
-  const { downloadMessage, downloadProgress } = modelDownloadStatusToInfo(modelDownloadStatus)
-  const classNameMainContainer = isDownloaded
-    ? 'min-w-[300px] flex flex-col justify-around border-gray-200 border p-4 rounded-md w-96 gap-2 shadow-sm'
-    : 'min-w-[300px] flex bg-gray-50 flex-col justify-around border-gray-200 border p-4 rounded-md w-96 gap-2 shadow-sm'
+  const { name, description, reference, size_in_MiB, logo } = model
+  const { downloadMessage, downloadProgress } = calculateProgressInfo({
+    modelStatus: modelDownloadStatus.model,
+    envStatus: modelDownloadStatus.pythonEnvironment,
+    currentModelId: model.reference.id
+  })
+  const baseClasses =
+    'min-w-[300px] flex flex-col border-gray-200 border p-4 rounded-md w-96 gap-2 shadow-sm relative h-full'
+  const classNameMainContainer = [
+    baseClasses,
+    !isDownloaded && 'bg-gray-50',
+    isDownloading && 'animate-pulse [animation-duration:2s]'
+  ]
+    .filter(Boolean)
+    .join(' ')
   return (
     <div className={classNameMainContainer}>
+      {logo && MODEL_LOGOS[logo] && (
+        <img
+          src={MODEL_LOGOS[logo]}
+          alt={`${name} logo`}
+          className="absolute top-2 right-2 h-8 w-8 object-contain"
+        />
+      )}
       <div className="p-2 text-l text-center">{name}</div>
-      <div className="text-sm p-2">{description}</div>
+      <div className="text-sm p-2 flex-grow">{description}</div>
       <ul className="text-sm p-2">
         <li>🧠 Model Size: {formatSizeInMiB(size_in_MiB)}</li>
         <li>
@@ -193,7 +190,7 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false }) {
           {formatSizeInMiB(pythonEnvironment['platform'][platformToKey(platform)]['size_in_MiB'])}
         </li>
       </ul>
-      <div>
+      <div className="mt-auto">
         {isDownloading ? (
           <></>
         ) : isDownloaded ? (
@@ -201,7 +198,7 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false }) {
             <div className="flex justify-center p-2 gap-2">
               <button
                 onClick={() => handleDelete(reference)}
-                className={` bg-red-300 cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-red-400`}
+                className={`cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50`}
               >
                 <CircleX color="black" size={14} />
                 Delete
@@ -218,7 +215,7 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false }) {
                           port: portHTTPServer
                         })
                       }
-                      className={` bg-blue-300 cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-blue-400`}
+                      className={`cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50`}
                     >
                       <CircleOff color="black" size={14} />
                       Stop ML Server
@@ -231,7 +228,7 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false }) {
                           pythonEnvironment: pythonEnvironment
                         })
                       }
-                      className={` bg-blue-300 cursor-not-allowed w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md opacity-70`}
+                      className={`cursor-not-allowed w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md opacity-70`}
                     >
                       <LucideLoader color="black" size={14} />
                       <span className="animate-pulse">Starting Server</span>
@@ -244,7 +241,7 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false }) {
                           pythonEnvironment: pythonEnvironment
                         })
                       }
-                      className={` bg-blue-300 cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-blue-400`}
+                      className={`cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50`}
                     >
                       <PlayIcon color="black" size={14} />
                       Run
@@ -260,7 +257,7 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false }) {
               onClick={() =>
                 handleDownload({ modelReference: reference, pythonEnvironment: pythonEnvironment })
               }
-              className={` bg-blue-100 cursor-pointer w-[60%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-blue-200`}
+              className={`bg-white cursor-pointer w-[60%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50`}
             >
               <Download color="black" size={14} />
               Download
@@ -313,7 +310,44 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false }) {
   )
 }
 
+function CustomModelCard() {
+  return (
+    <div className="min-w-[300px] flex flex-col border-gray-200 border p-4 rounded-md w-96 gap-2 shadow-sm relative bg-gradient-to-br from-white to-blue-50 h-full">
+      <img
+        src={etmLogo}
+        alt="EarthToolsMaker logo"
+        className="absolute top-2 right-2 h-8 w-8 object-contain rounded-full"
+      />
+      <div className="p-2 text-l text-center">Your Custom Model</div>
+      <div className="text-sm p-2 flex-grow">
+        Need an AI model tailored to your specific wildlife monitoring needs? EarthToolsMaker can
+        develop and integrate custom models directly into BioWatch for your unique species, regions,
+        or use cases.
+      </div>
+      <ul className="text-sm p-2">
+        <li>&nbsp;</li>
+        <li>&nbsp;</li>
+      </ul>
+      <div className="mt-auto">
+        <div className="flex justify-center p-2 gap-2">
+          <a
+            href="https://www.earthtoolsmaker.org/contact"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="cursor-pointer w-[60%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50"
+          >
+            <Mail color="black" size={14} />
+            Contact Us
+          </a>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Zoo({ modelZoo }) {
+  const [refreshKey, setRefreshKey] = useState(0)
+
   const handleClearAllMLModels = async () => {
     console.log('[CLEAR ALL] Frontend: Starting clear all operation...')
     try {
@@ -323,6 +357,7 @@ export default function Zoo({ modelZoo }) {
 
       if (result && result.success) {
         console.log('[CLEAR ALL] Frontend: Clear all operation successful:', result.message)
+        setRefreshKey((prev) => prev + 1)
       } else {
         console.error(
           '[CLEAR ALL] Frontend: Clear all operation failed:',
@@ -336,16 +371,16 @@ export default function Zoo({ modelZoo }) {
   }
   return (
     <div className="h-full">
-      <div className="relative">
+      <div className="flex justify-end px-8 pt-4">
         <button
           onClick={() => handleClearAllMLModels()}
-          className={` absolute top-1 right-8 bg-white cursor-pointer w-32 transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50`}
+          className="bg-white cursor-pointer w-32 transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50"
         >
           <CircleX color="black" size={14} />
           Clear All
         </button>
       </div>
-      <div className="flex flex-wrap p-8 pt-6 gap-4 justify-start">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(384px,1fr))] px-8 pb-8 pt-4 gap-3">
         {modelZoo.map((entry) => (
           <ModelCard
             key={entry.reference.id}
@@ -353,8 +388,10 @@ export default function Zoo({ modelZoo }) {
             pythonEnvironment={findPythonEnvironment(entry.pythonEnvironment)}
             platform={window.electron.process.platform}
             isDev={window.electron.process.env.NODE_ENV == 'development'}
+            refreshKey={refreshKey}
           />
         ))}
+        <CustomModelCard />
       </div>
     </div>
   )

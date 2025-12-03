@@ -11,7 +11,7 @@ function SettingsFooter() {
         {/* TODO: serve and display ou own icon of ETM */}
         <div className="flex flex-col items-center mr-4">
           <img
-            className="w-14 mb-4"
+            className="w-14 mb-4 transition-transform duration-700 ease-in-out hover:rotate-[360deg]"
             src="https://avatars.githubusercontent.com/u/165696201?s=200&v=4"
           />
           <span>

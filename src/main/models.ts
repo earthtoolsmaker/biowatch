@@ -522,7 +522,7 @@ async function deleteLocalMLModel({ id, version }) {
  * of the operation and a corresponding message.
  * @throws {Error} Throws an error if the download or extraction process fails.
  */
-async function downloadPythonEnvironment({ id, version }) {
+async function downloadPythonEnvironment({ id, version, requestingModelId = null }) {
   const installationStateProgress = {
     [InstallationState.Failure]: 0,
     // The Download stage indicates that the model is currently being downloaded.
@@ -545,7 +545,7 @@ async function downloadPythonEnvironment({ id, version }) {
   const extractPath = getMLModelEnvironmentLocalInstallPath({ id, version })
   const localTarPath = getMLModelEnvironmentLocalTarPath({ id, version })
   const manifestFilepath = getMLEnvironmentDownloadManifest()
-  const manifestOpts = { archivePath: localTarPath, installPath: extractPath }
+  const manifestOpts = { archivePath: localTarPath, installPath: extractPath, activeDownloadModelId: requestingModelId }
 
   let previousDownloadProgress = 0
   const flushProgressDownloadIncrementThreshold = 1
@@ -642,12 +642,13 @@ async function downloadPythonEnvironment({ id, version }) {
       })
       log.info('Cleaning the local archive: ', localTarPath)
       await fsPromises.unlink(localTarPath)
+      // Clear activeDownloadModelId on success
       writeToManifest({
         manifestFilepath,
         id,
         version,
         state: InstallationState.Success,
-        opts: manifestOpts,
+        opts: { ...manifestOpts, activeDownloadModelId: null },
         progress: installationStateProgress[InstallationState.Success]
       })
       log.info('Done ✅')
@@ -658,12 +659,13 @@ async function downloadPythonEnvironment({ id, version }) {
     }
   } catch (error) {
     log.error('Failed to download the Python Environment:', error)
+    // Clear activeDownloadModelId on failure
     writeToManifest({
       manifestFilepath,
       id,
       version,
       state: InstallationState.Failure,
-      opts: manifestOpts,
+      opts: { ...manifestOpts, activeDownloadModelId: null },
       progress: installationStateProgress[InstallationState.Failure]
     })
     return {
@@ -931,8 +933,8 @@ export function registerMLModelManagementIPCHandlers() {
   ipcMain.handle('model:download', async (_, id, version) => {
     return await downloadMLModel({ id, version })
   })
-  ipcMain.handle('model:download-python-environment', async (_, id, version) => {
-    return await downloadPythonEnvironment({ id, version })
+  ipcMain.handle('model:download-python-environment', async (_, id, version, requestingModelId) => {
+    return await downloadPythonEnvironment({ id, version, requestingModelId })
   })
   ipcMain.handle('model:stop-http-server', async (_, pid, port, shutdownApiKey) => {
     return await stopMLModelHTTPServer({ pid, port, shutdownApiKey })
