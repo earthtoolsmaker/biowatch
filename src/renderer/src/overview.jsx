@@ -20,7 +20,12 @@ const commonNamesCache = {}
 
 function DeploymentMap({ deployments }) {
   if (!deployments || deployments.length === 0) {
-    return <div className="text-gray-500">No location data available for map</div>
+    return (
+      <div className="text-gray-500">
+        No data available. If you just started an image classification run, it may take up to 30s
+        for the process to start.
+      </div>
+    )
   }
 
   // Filter to include only deployments with valid coordinates
