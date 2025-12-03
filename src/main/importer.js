@@ -167,6 +167,32 @@ async function getMedia(db, filepath) {
 // }
 
 /**
+ * Parse scientific name from prediction based on model type
+ * @param {Object} prediction - Model prediction output
+ * @param {string} modelType - 'speciesnet' | 'deepfaune'
+ * @returns {string|null} Scientific name or null for blank predictions
+ */
+function parseScientificName(prediction, modelType) {
+  if (modelType === 'deepfaune') {
+    // DeepFaune: Simple label like "chamois", "blank", "empty"
+    const label = prediction.prediction
+    if (!label || label === 'blank' || label === 'empty') {
+      return null
+    }
+    return label
+  } else {
+    // SpeciesNet: Hierarchical "uuid;class;order;family;genus;species;common name"
+    const parts = prediction.prediction.split(';')
+    const isblank = ['blank', 'no cv result'].includes(parts.at(-1))
+    if (isblank) {
+      return null
+    }
+    const scientificName = parts.at(-3) + ' ' + parts.at(-2)
+    return scientificName.trim() === '' ? parts.at(-1) : scientificName
+  }
+}
+
+/**
  * Insert a prediction into the database with model provenance tracking
  * @param {Object} db - Drizzle database instance
  * @param {Object} prediction - Model prediction output
@@ -269,15 +295,9 @@ async function insertPrediction(db, prediction, modelInfo = {}) {
     }
   }
 
-  const isblank = ['blank', 'no cv result'].includes(prediction.prediction.split(';').at(-1))
-  const scientificName =
-    prediction.prediction.split(';').at(-3) + ' ' + prediction.prediction.split(';').at(-2)
-
-  const resolvedScientificName = isblank
-    ? null
-    : scientificName.trim() === ''
-      ? prediction.prediction.split(';').at(-1)
-      : scientificName
+  // Parse scientific name based on model type
+  const modelType = modelInfo.modelID || 'speciesnet'
+  const resolvedScientificName = parseScientificName(prediction, modelType)
 
   // Camtrap DP classification fields
   const classificationTimestamp = new Date().toISOString()
@@ -295,7 +315,7 @@ async function insertPrediction(db, prediction, modelInfo = {}) {
       ? detections.reduce((best, d) => (d.conf > best.conf ? d : best), detections[0])
       : null
 
-  const bbox = topDetection ? transformBboxToCamtrapDP(topDetection, 'speciesnet') : null
+  const bbox = topDetection ? transformBboxToCamtrapDP(topDetection, modelType) : null
 
   const observationData = {
     observationID: crypto.randomUUID(),
@@ -405,9 +425,10 @@ async function insertMediaBatch(sqlite, mediaDataArray) {
 }
 
 export class Importer {
-  constructor(id, folder, country = null) {
+  constructor(id, folder, modelReference, country = null) {
     this.id = id
     this.folder = folder
+    this.modelReference = modelReference
     this.country = country
     this.pythonProcess = null
     this.pythonProcessPort = null
@@ -509,10 +530,20 @@ export class Importer {
       // const temporalData = await getTemporalData(this.db)
 
       try {
-        const modelReference = mlmodels.modelZoo[0].reference
+        const modelReference = this.modelReference
+        const model = mlmodels.findModel(modelReference)
+        if (!model) {
+          throw new Error(`Model not found: ${modelReference.id} ${modelReference.version}`)
+        }
+        const pythonEnvironment = mlmodels.findPythonEnvironment(model.pythonEnvironment)
+        if (!pythonEnvironment) {
+          throw new Error(
+            `Python environment not found: ${model.pythonEnvironment.id} ${model.pythonEnvironment.version}`
+          )
+        }
         models
           .startMLModelHTTPServer({
-            pythonEnvironment: mlmodels.pythonEnvironments[2],
+            pythonEnvironment: pythonEnvironment,
             modelReference: modelReference,
             country: this.country
           })
@@ -694,52 +725,6 @@ ipcMain.handle('importer:get-status', async (event, id) => {
   return await status(id)
 })
 
-ipcMain.handle('importer:select-images-directory', async () => {
-  const result = await dialog.showOpenDialog({
-    properties: ['openDirectory'],
-    title: 'Select Images Directory'
-  })
-
-  if (result.canceled || result.filePaths.length === 0) {
-    return { success: false, message: 'Selection canceled' }
-  }
-
-  const directoryPath = result.filePaths[0]
-
-  try {
-    const id = crypto.randomUUID()
-    if (importers[id]) {
-      log.warn(`Importer with ID ${id} already exists, skipping creation`)
-      return { success: false, message: 'Importer already exists' }
-    }
-    log.info(`Creating new importer with ID ${id} for directory: ${directoryPath}`)
-    const importer = new Importer(id, directoryPath)
-    importers[id] = importer
-    await importer.start()
-    const data = {
-      path: directoryPath,
-      importerName: 'local/speciesnet',
-      name: path.basename(directoryPath),
-      data: {
-        name: path.basename(directoryPath)
-      },
-      id: id,
-      createdAt: new Date().toISOString()
-    }
-    fs.writeFileSync(
-      path.join(app.getPath('userData'), 'biowatch-data', 'studies', id, 'study.json'),
-      JSON.stringify(data, null, 2)
-    )
-    return data
-  } catch (error) {
-    log.error('Error processing images directory:', error)
-    return {
-      success: false,
-      error: error.message
-    }
-  }
-})
-
 ipcMain.handle('importer:select-images-directory-only', async () => {
   const result = await dialog.showOpenDialog({
     properties: ['openDirectory'],
@@ -755,8 +740,8 @@ ipcMain.handle('importer:select-images-directory-only', async () => {
 })
 
 ipcMain.handle(
-  'importer:select-images-directory-with-country',
-  async (event, directoryPath, countryCode) => {
+  'importer:select-images-directory-with-model',
+  async (event, directoryPath, modelReference, countryCode = null) => {
     try {
       const id = crypto.randomUUID()
       if (importers[id]) {
@@ -764,14 +749,15 @@ ipcMain.handle(
         return { success: false, message: 'Importer already exists' }
       }
       log.info(
-        `Creating new importer with ID ${id} for directory: ${directoryPath} with country: ${countryCode}`
+        `Creating new importer with ID ${id} for directory: ${directoryPath} with model: ${modelReference.id} and country: ${countryCode}`
       )
-      const importer = new Importer(id, directoryPath, countryCode)
+      const importer = new Importer(id, directoryPath, modelReference, countryCode)
       importers[id] = importer
       await importer.start()
       const data = {
         path: directoryPath,
-        importerName: 'local/speciesnet',
+        importerName: `local/${modelReference.id}`,
+        modelReference: modelReference,
         name: path.basename(directoryPath),
         country: countryCode,
         data: {
@@ -787,7 +773,7 @@ ipcMain.handle(
       )
       return data
     } catch (error) {
-      log.error('Error processing images directory with country:', error)
+      log.error('Error processing images directory with model:', error)
       return {
         success: false,
         error: error.message
@@ -798,8 +784,28 @@ ipcMain.handle(
 
 ipcMain.handle('importer:select-more-images-directory', async (event, id) => {
   if (importers[id]) {
-    log.warn(`No importer found with ID ${id}`)
+    log.warn(`Importer with ID ${id} is already running`)
     return { success: false, message: 'Importer already running' }
+  }
+
+  // Read study.json to get model reference
+  const studyJsonPath = path.join(
+    app.getPath('userData'),
+    'biowatch-data',
+    'studies',
+    id,
+    'study.json'
+  )
+  if (!fs.existsSync(studyJsonPath)) {
+    log.warn(`Study not found for ID ${id}`)
+    return { success: false, message: 'Study not found' }
+  }
+
+  const studyData = JSON.parse(fs.readFileSync(studyJsonPath, 'utf-8'))
+  const modelReference = studyData.modelReference
+  if (!modelReference) {
+    log.warn(`No model reference found for study ${id}`)
+    return { success: false, message: 'No model reference found for study' }
   }
 
   const result = await dialog.showOpenDialog({
@@ -812,7 +818,7 @@ ipcMain.handle('importer:select-more-images-directory', async (event, id) => {
   }
 
   const directoryPath = result.filePaths[0]
-  const importer = new Importer(id, directoryPath)
+  const importer = new Importer(id, directoryPath, modelReference, studyData.country)
   importers[id] = importer
   await importer.start(true)
   return { success: true, message: 'Importer started successfully' }
@@ -839,13 +845,33 @@ ipcMain.handle('importer:stop', async (event, id) => {
 ipcMain.handle('importer:resume', async (event, id) => {
   const dbPath = path.join(app.getPath('userData'), 'biowatch-data', 'studies', id, 'study.db')
 
-  //check if the database exists
+  // Check if the database exists
   if (!fs.existsSync(dbPath)) {
     log.warn(`No database found for importer with ID ${id}`)
     return { success: false, message: 'Importer not found' }
   }
 
-  importers[id] = new Importer(id)
+  // Read study.json to get model reference and folder
+  const studyJsonPath = path.join(
+    app.getPath('userData'),
+    'biowatch-data',
+    'studies',
+    id,
+    'study.json'
+  )
+  if (!fs.existsSync(studyJsonPath)) {
+    log.warn(`Study.json not found for ID ${id}`)
+    return { success: false, message: 'Study configuration not found' }
+  }
+
+  const studyData = JSON.parse(fs.readFileSync(studyJsonPath, 'utf-8'))
+  const modelReference = studyData.modelReference
+  if (!modelReference) {
+    log.warn(`No model reference found for study ${id}`)
+    return { success: false, message: 'No model reference found for study' }
+  }
+
+  importers[id] = new Importer(id, studyData.path, modelReference, studyData.country)
   importers[id].start()
   return { success: true, message: 'Importer resumed successfully' }
 })
