@@ -51,6 +51,7 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false, refreshK
   const [isDownloaded, setIsDownloaded] = useState(false)
   const [pidPythonProcess, setPidPythonProcess] = useState(null)
   const [portHTTPServer, setPortHTTPServer] = useState(null)
+  const [shutdownApiKey, setShutdownApiKey] = useState(null)
 
   useEffect(() => {
     let intervalId = null
@@ -115,15 +116,17 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false, refreshK
       setIsHTTPServerStarting(false)
       setPortHTTPServer(response.process.port)
       setPidPythonProcess(response.process.pid)
+      setShutdownApiKey(response.process.shutdownApiKey)
     } catch (error) {
       console.error('Failed to delete the local model:', error)
     }
   }
 
-  const handleStopHTTPServer = async ({ pid, port }) => {
+  const handleStopHTTPServer = async ({ pid, port, shutdownApiKey }) => {
     console.log(`Stopping HTTP server running with python process pid ${pid}`)
-    window.api.stopMLModelHTTPServer({ pid, port })
+    await window.api.stopMLModelHTTPServer({ pid, port, shutdownApiKey })
     setIsHTTPServerRunning(false)
+    setShutdownApiKey(null)
   }
 
   const handleDelete = async (reference) => {
@@ -212,7 +215,8 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false, refreshK
                       onClick={() =>
                         handleStopHTTPServer({
                           pid: pidPythonProcess,
-                          port: portHTTPServer
+                          port: portHTTPServer,
+                          shutdownApiKey: shutdownApiKey
                         })
                       }
                       className={`cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50`}
