@@ -217,7 +217,7 @@ function AppContent() {
             </NavLink>
           )}
           <NavLink
-            to="/settings/model_zoo"
+            to="/settings/ml_zoo"
             className={` bg-white cursor-pointer w-[20%] transition-colors flex justify-center flex-row items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50`}
           >
             <Settings className="text-gray-500" size={18} />

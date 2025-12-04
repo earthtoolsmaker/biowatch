@@ -163,7 +163,7 @@ export default function SettingsPage() {
             }
           />
           {/* Default route */}
-          <Route path="*" element={<Navigate to="/settings/info" replace />} />
+          <Route path="*" element={<Navigate to="/settings/ml_zoo" replace />} />
         </Routes>
       </div>
     </div>
