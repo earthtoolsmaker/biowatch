@@ -153,6 +153,19 @@ export const modelZoo = [
       "Launched in 2022, CNRS' DeepFaune is an open-source AI model developed to identify animal species from images captured by camera traps, focusing specifically on European fauna.",
     website: 'https://www.deepfaune.cnrs.fr/en/',
     logo: 'cnrs'
+  },
+  {
+    reference: { id: 'manas', version: '1.0' },
+    pythonEnvironment: { id: 'common', version: '0.1.3' },
+    name: 'Manas',
+    size_in_MiB: 502,
+    files: 3,
+    downloadURL:
+      'https://huggingface.co/earthtoolsmaker/manas/resolve/main/1.0.tar.gz?download=true',
+    description:
+      'Manas is an AI model developed by OSI-Panthera and Hex Data for classifying wildlife species from camera trap images in Kirghizistan, focusing on snow leopard (panthera uncia) and other regional fauna including 11 species classes.',
+    website: 'https://huggingface.co/Hex-Data/Panthera',
+    logo: 'osi-panthera'
   }
 ]
 

@@ -1241,6 +1241,83 @@ async function startDeepFauneHTTPServer({
 }
 
 /**
+ * Starts the Manas HTTP server using a specified Python environment and configuration.
+ *
+ * This function initializes a Python process that runs the Manas server script.
+ * It sets up the server with the provided parameters and checks its health status
+ * by polling the server endpoint until it is ready or the maximum number of retries is reached.
+ *
+ * @async
+ * @param {Object} options - The configuration options for starting the server.
+ * @param {number} options.port - The port on which the server will listen.
+ * @param {string} options.classifierWeightsFilepath - The file path to the classifier weights.
+ * @param {string} options.classesFilepath - The file path to the classes pickle file.
+ * @param {string} options.detectorWeightsFilepath - The file path to the detector weights.
+ * @param {number} options.timeout - The timeout duration for server operations.
+ * @param {Object} options.pythonEnvironment - The Python environment configuration.
+ *
+ * @returns {Promise<{process: ChildProcess, shutdownApiKey: string}>} The spawned process and shutdown key.
+ *
+ * @throws {Error} Throws an error if the server fails to start within the expected time.
+ */
+async function startManasHTTPServer({
+  port,
+  classifierWeightsFilepath,
+  classesFilepath,
+  detectorWeightsFilepath,
+  timeout,
+  pythonEnvironment
+}) {
+  log.info('StartManasHTTPServer initiated')
+  log.info(pythonEnvironment)
+  const localInstalRootDirPythonEnvironment = join(
+    getMLModelEnvironmentLocalInstallPath({
+      ...pythonEnvironment.reference
+    }),
+    pythonEnvironment.reference.id
+  )
+  log.info('Local Python Environment root dir is', localInstalRootDirPythonEnvironment)
+  const scriptPath = is.dev
+    ? join(__dirname, '../../python-environments/common/run_manas_server.py')
+    : join(process.resourcesPath, 'python-environments', 'common', 'run_manas_server.py')
+  const pythonInterpreter = is.dev
+    ? join(__dirname, '../../python-environments/common/.venv/bin/python')
+    : os.platform() === 'win32'
+      ? join(localInstalRootDirPythonEnvironment, 'python.exe')
+      : join(localInstalRootDirPythonEnvironment, 'bin', 'python')
+  log.info('Python Interpreter found in', pythonInterpreter)
+  log.info('Script path is', scriptPath)
+  const scriptArgs = [
+    '--port',
+    port,
+    '--filepath-classifier-weights',
+    classifierWeightsFilepath,
+    '--filepath-classes',
+    classesFilepath,
+    '--filepath-detector-weights',
+    detectorWeightsFilepath,
+    '--timeout',
+    timeout
+  ]
+  log.info('Script args: ', scriptArgs)
+  log.info('Formatted script args: ', [scriptPath, ...scriptArgs])
+
+  // Generate shutdown API key for graceful shutdown
+  const shutdownApiKey = crypto.randomUUID()
+  log.info('Generated shutdown API key for Manas server')
+
+  const pythonProcess = await startAndWaitTillServerHealty({
+    pythonInterpreter,
+    scriptPath,
+    scriptArgs,
+    healthEndpoint: `http://localhost:${port}/health`,
+    env: { LIT_SHUTDOWN_API_KEY: shutdownApiKey }
+  })
+
+  return { process: pythonProcess, shutdownApiKey }
+}
+
+/**
  * Stops the ML Model HTTP Server using graceful shutdown via HTTP endpoint.
  *
  * This function first attempts to gracefully shut down the server by sending a POST request
@@ -1368,6 +1445,30 @@ async function startMLModelHTTPServer({ pythonEnvironment, modelReference, count
       const { process: pythonProcess, shutdownApiKey } = await startDeepFauneHTTPServer({
         port,
         classifierWeightsFilepath: classifierWeightsFilepath,
+        detectorWeightsFilepath: detectorWeightsFilepath,
+        timeout: 30,
+        pythonEnvironment: pythonEnvironment
+      })
+      log.info(`pythonProcess: ${JSON.stringify(pythonProcess)}`)
+      return { port: port, process: pythonProcess, shutdownApiKey }
+    }
+    case 'manas': {
+      const port = is.dev ? 8002 : await findFreePort()
+      const localInstallPath = getMLModelLocalInstallPath({ ...modelReference })
+      log.info(`Local ML Model install path ${localInstallPath}`)
+      const classifierWeightsFilepath = join(
+        localInstallPath,
+        'best_model_Fri_Sep__1_18_50_55_2023.pt'
+      )
+      const classesFilepath = join(
+        localInstallPath,
+        'classes_Fri_Sep__1_18_50_55_2023.pickle'
+      )
+      const detectorWeightsFilepath = join(localInstallPath, 'MDV6-yolov10x.pt')
+      const { process: pythonProcess, shutdownApiKey } = await startManasHTTPServer({
+        port,
+        classifierWeightsFilepath: classifierWeightsFilepath,
+        classesFilepath: classesFilepath,
         detectorWeightsFilepath: detectorWeightsFilepath,
         timeout: 30,
         pythonEnvironment: pythonEnvironment

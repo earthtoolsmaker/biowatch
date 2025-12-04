@@ -20,10 +20,12 @@ import {
 import googleLogo from './assets/logos/google.png'
 import cnrsLogo from './assets/logos/cnrs_blue.png'
 import etmLogo from './assets/logos/earthtoolsmaker.png'
+import osiPantheraLogo from './assets/logos/osi-panthera.jpg'
 
 const MODEL_LOGOS = {
   google: googleLogo,
-  cnrs: cnrsLogo
+  cnrs: cnrsLogo,
+  'osi-panthera': osiPantheraLogo
 }
 
 /**
