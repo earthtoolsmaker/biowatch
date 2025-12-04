@@ -9,6 +9,41 @@ import {
 } from './db/index.js'
 import { eq, and, desc, count, sql, isNotNull, ne } from 'drizzle-orm'
 import log from 'electron-log'
+import { DateTime } from 'luxon'
+
+/**
+ * Detect timestamp format characteristics and format a DateTime to match the original format
+ * This preserves the original format (with/without milliseconds, timezone, seconds)
+ * @param {DateTime} newDateTime - Luxon DateTime object with the new time
+ * @param {string} originalString - Original timestamp string to match format from
+ * @returns {string} - Formatted timestamp string matching original format
+ */
+function formatToMatchOriginal(newDateTime, originalString) {
+  if (!originalString || !newDateTime || !newDateTime.isValid) {
+    return newDateTime?.toISO() || null
+  }
+
+  // Detect format characteristics from original string
+  const hasMilliseconds = /\.\d{3}/.test(originalString)
+  const hasTimezone = /Z|[+-]\d{2}:\d{2}$/.test(originalString)
+  const hasSeconds = /T\d{2}:\d{2}:\d{2}/.test(originalString)
+
+  // Build Luxon toISO options to match original format
+  const options = {
+    suppressMilliseconds: !hasMilliseconds,
+    suppressSeconds: !hasSeconds,
+    includeOffset: hasTimezone
+  }
+
+  let result = newDateTime.toISO(options)
+
+  // If original had no timezone indicator, remove it
+  if (!hasTimezone && result) {
+    result = result.replace(/Z|[+-]\d{2}:\d{2}$/, '')
+  }
+
+  return result
+}
 
 /**
  * Get species distribution from the database using Drizzle ORM
@@ -505,7 +540,7 @@ export async function getMedia(dbPath, options = {}) {
         m.deploymentID,
         o.scientificName
       FROM media m
-      JOIN observations o ON m.timestamp = o.eventStart
+      JOIN observations o ON m.mediaID = o.mediaID
       WHERE o.scientificName IS NOT NULL
         AND o.scientificName != ''
     `
@@ -1107,6 +1142,159 @@ export async function getMediaPredictions(dbPath, mediaID) {
     return rows
   } catch (error) {
     log.error(`Error querying media predictions: ${error.message}`)
+    throw error
+  }
+}
+
+/**
+ * Update media timestamp and propagate changes to related observations
+ * Observations are updated with the same offset to preserve duration
+ * @param {string} dbPath - Path to the SQLite database
+ * @param {string} mediaID - Media ID to update
+ * @param {string} newTimestamp - New timestamp in ISO 8601 format
+ * @returns {Promise<Object>} - Result with success status and updated counts
+ */
+export async function updateMediaTimestamp(dbPath, mediaID, newTimestamp) {
+  const startTime = Date.now()
+  log.info(`Updating timestamp for media ${mediaID} to ${newTimestamp}`)
+
+  try {
+    // Validate input parameters
+    if (!mediaID) {
+      throw new Error('Media ID is required')
+    }
+
+    if (!newTimestamp || typeof newTimestamp !== 'string') {
+      throw new Error('A valid timestamp string is required')
+    }
+
+    // Parse and validate the new timestamp
+    const newTimestampDT = DateTime.fromISO(newTimestamp)
+
+    if (!newTimestampDT.isValid) {
+      throw new Error(
+        `Invalid timestamp format: "${newTimestamp}". Please use ISO 8601 format (e.g., 2024-01-15T10:30:00.000Z)`
+      )
+    }
+
+    // Validate timestamp is within reasonable bounds (1970 to 2100)
+    const year = newTimestampDT.year
+    if (year < 1970 || year > 2100) {
+      throw new Error(`Timestamp year must be between 1970 and 2100, got ${year}`)
+    }
+
+    // Extract study ID from path
+    const pathParts = dbPath.split('/')
+    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+
+    const db = await getDrizzleDb(studyId, dbPath)
+
+    // 1. Get current media timestamp
+    const currentMedia = await db
+      .select({ timestamp: media.timestamp })
+      .from(media)
+      .where(eq(media.mediaID, mediaID))
+      .get()
+
+    if (!currentMedia) {
+      throw new Error(`Media not found: ${mediaID}`)
+    }
+
+    // Handle case where current timestamp is null or invalid
+    const oldTimestamp = currentMedia.timestamp ? DateTime.fromISO(currentMedia.timestamp) : null
+
+    if (!oldTimestamp || !oldTimestamp.isValid) {
+      // If no valid old timestamp, just set the new one without offset calculation
+      log.info(`No valid existing timestamp for media ${mediaID}, setting directly`)
+
+      await db.update(media).set({ timestamp: newTimestamp }).where(eq(media.mediaID, mediaID))
+
+      // Update observations with the new timestamp directly (no offset)
+      const relatedObservations = await db
+        .select({ observationID: observations.observationID })
+        .from(observations)
+        .where(eq(observations.mediaID, mediaID))
+
+      let updatedCount = 0
+      for (const obs of relatedObservations) {
+        await db
+          .update(observations)
+          .set({ eventStart: newTimestamp })
+          .where(eq(observations.observationID, obs.observationID))
+        updatedCount++
+      }
+
+      const elapsedTime = Date.now() - startTime
+      log.info(`Set media timestamp and ${updatedCount} observations in ${elapsedTime}ms`)
+
+      return {
+        success: true,
+        mediaID,
+        newTimestamp,
+        observationsUpdated: updatedCount
+      }
+    }
+
+    // Calculate the offset in milliseconds
+    const offsetMs = newTimestampDT.toMillis() - oldTimestamp.toMillis()
+
+    // 2. Update media.timestamp - format to match original
+    const formattedNewTimestamp = formatToMatchOriginal(newTimestampDT, currentMedia.timestamp)
+    await db.update(media).set({ timestamp: formattedNewTimestamp }).where(eq(media.mediaID, mediaID))
+
+    // 3. Get all related observations
+    const relatedObservations = await db
+      .select({
+        observationID: observations.observationID,
+        eventStart: observations.eventStart,
+        eventEnd: observations.eventEnd
+      })
+      .from(observations)
+      .where(eq(observations.mediaID, mediaID))
+
+    // 4. Update each observation with offset-preserved times (preserving original format)
+    let updatedCount = 0
+    for (const obs of relatedObservations) {
+      const updateData = {}
+
+      // Update eventStart with offset - preserve original format
+      if (obs.eventStart) {
+        const oldEventStart = DateTime.fromISO(obs.eventStart)
+        if (oldEventStart.isValid) {
+          const newEventStart = oldEventStart.plus({ milliseconds: offsetMs })
+          updateData.eventStart = formatToMatchOriginal(newEventStart, obs.eventStart)
+        }
+      }
+
+      // Update eventEnd with SAME offset (preserving duration) - preserve original format
+      if (obs.eventEnd) {
+        const oldEventEnd = DateTime.fromISO(obs.eventEnd)
+        if (oldEventEnd.isValid) {
+          const newEventEnd = oldEventEnd.plus({ milliseconds: offsetMs })
+          updateData.eventEnd = formatToMatchOriginal(newEventEnd, obs.eventEnd)
+        }
+      }
+
+      if (Object.keys(updateData).length > 0) {
+        await db
+          .update(observations)
+          .set(updateData)
+          .where(eq(observations.observationID, obs.observationID))
+        updatedCount++
+      }
+    }
+
+    const elapsedTime = Date.now() - startTime
+    log.info(`Updated media timestamp to "${formattedNewTimestamp}" and ${updatedCount} observations in ${elapsedTime}ms`)
+
+    return {
+      success: true,
+      mediaID,
+      newTimestamp: formattedNewTimestamp,
+      observationsUpdated: updatedCount
+    }
+  } catch (error) {
+    log.error(`Error updating media timestamp: ${error.message}`)
     throw error
   }
 }

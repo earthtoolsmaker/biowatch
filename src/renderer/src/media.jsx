@@ -1,10 +1,11 @@
-import { CameraOff, X, Square } from 'lucide-react'
+import { CameraOff, X, Square, Calendar, Pencil, Check } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'react-router'
 import CircularTimeFilter, { DailyActivityRadar } from './ui/clock'
 import SpeciesDistribution from './ui/speciesDistribution'
 import TimelineChart from './ui/timeseries'
+import DateTimePicker from './ui/DateTimePicker'
 
 function ImageModal({
   isOpen,
@@ -15,9 +16,27 @@ function ImageModal({
   onPrevious,
   hasNext,
   hasPrevious,
-  studyId
+  studyId,
+  onTimestampUpdate
 }) {
   const [showBboxes, setShowBboxes] = useState(true)
+  const [isEditingTimestamp, setIsEditingTimestamp] = useState(false)
+  const [showDatePicker, setShowDatePicker] = useState(false)
+  const [inlineTimestamp, setInlineTimestamp] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState(null)
+  const queryClient = useQueryClient()
+
+  // Initialize inline timestamp when media changes
+  useEffect(() => {
+    if (media?.timestamp) {
+      setInlineTimestamp(new Date(media.timestamp).toLocaleString())
+    }
+    // Reset editing state when media changes
+    setIsEditingTimestamp(false)
+    setShowDatePicker(false)
+    setError(null)
+  }, [media?.mediaID, media?.timestamp])
 
   const { data: bboxes = [] } = useQuery({
     queryKey: ['mediaBboxes', studyId, media?.mediaID],
@@ -31,10 +50,116 @@ function ImageModal({
     enabled: isOpen && !!media?.mediaID && !!studyId
   })
 
+  // Handle timestamp save
+  const handleTimestampSave = async (newTimestamp) => {
+    if (!media || !studyId) return
+
+    setIsSaving(true)
+    setError(null)
+
+    // Store old timestamp for rollback
+    const oldTimestamp = media.timestamp
+
+    // Optimistic update
+    if (onTimestampUpdate) {
+      onTimestampUpdate(media.mediaID, newTimestamp)
+    }
+
+    try {
+      const result = await window.api.setMediaTimestamp(studyId, media.mediaID, newTimestamp)
+
+      if (result.error) {
+        throw new Error(result.error)
+      }
+
+      // Update successful - use the formatted timestamp returned from backend
+      const savedTimestamp = result.newTimestamp || newTimestamp
+
+      // Update with the actual saved timestamp (preserves original format)
+      if (onTimestampUpdate) {
+        onTimestampUpdate(media.mediaID, savedTimestamp)
+      }
+
+      // Invalidate relevant queries
+      queryClient.invalidateQueries({ queryKey: ['media'] })
+      queryClient.invalidateQueries({ queryKey: ['mediaBboxes', studyId, media.mediaID] })
+
+      setShowDatePicker(false)
+      setIsEditingTimestamp(false)
+      setInlineTimestamp(new Date(savedTimestamp).toLocaleString())
+    } catch (err) {
+      // Rollback on error
+      if (onTimestampUpdate) {
+        onTimestampUpdate(media.mediaID, oldTimestamp)
+      }
+      setError(err.message || 'Failed to update timestamp')
+      console.error('Error updating timestamp:', err)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // Handle inline edit
+  const handleInlineEdit = () => {
+    setIsEditingTimestamp(true)
+    setError(null)
+  }
+
+  const handleInlineSave = () => {
+    try {
+      // Trim whitespace
+      const trimmedInput = inlineTimestamp.trim()
+      if (!trimmedInput) {
+        setError('Please enter a date and time')
+        return
+      }
+
+      const parsedDate = new Date(trimmedInput)
+      if (isNaN(parsedDate.getTime())) {
+        setError('Invalid date format. Try: "12/25/2024, 2:30:00 PM" or "2024-12-25T14:30:00"')
+        return
+      }
+
+      // Validate year is within reasonable bounds
+      const year = parsedDate.getFullYear()
+      if (year < 1970 || year > 2100) {
+        setError('Year must be between 1970 and 2100')
+        return
+      }
+
+      handleTimestampSave(parsedDate.toISOString())
+    } catch (err) {
+      setError('Invalid date format. Try: "12/25/2024, 2:30:00 PM"')
+    }
+  }
+
+  const handleInlineCancel = () => {
+    setIsEditingTimestamp(false)
+    if (media?.timestamp) {
+      setInlineTimestamp(new Date(media.timestamp).toLocaleString())
+    }
+    setError(null)
+  }
+
+  // Handle inline keyboard events
+  const handleInlineKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleInlineSave()
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      e.stopPropagation()
+      handleInlineCancel()
+    }
+  }
+
   useEffect(() => {
     if (!isOpen) return
 
     const handleKeyDown = (e) => {
+      // Don't handle navigation keys when editing
+      if (isEditingTimestamp || showDatePicker) return
+
       if (e.key === 'ArrowLeft' && hasPrevious) {
         onPrevious()
       } else if (e.key === 'ArrowRight' && hasNext) {
@@ -49,7 +174,7 @@ function ImageModal({
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, onNext, onPrevious, onClose, hasNext, hasPrevious])
+  }, [isOpen, onNext, onPrevious, onClose, hasNext, hasPrevious, isEditingTimestamp, showDatePicker])
 
   if (!isOpen || !media) return null
 
@@ -125,9 +250,84 @@ function ImageModal({
                 </span>
               )}
             </div>
-            <p className="text-sm text-gray-500 mt-1">
-              {new Date(media.timestamp).toLocaleString()}
-            </p>
+
+            {/* Editable Timestamp Section */}
+            <div className="relative mt-1">
+              {isEditingTimestamp ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={inlineTimestamp}
+                    onChange={(e) => setInlineTimestamp(e.target.value)}
+                    onKeyDown={handleInlineKeyDown}
+                    className="text-sm text-gray-700 border border-gray-300 rounded px-2 py-1 flex-1 focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent"
+                    autoFocus
+                    disabled={isSaving}
+                    placeholder="Enter date/time..."
+                  />
+                  <button
+                    onClick={handleInlineSave}
+                    disabled={isSaving}
+                    className="text-lime-600 hover:text-lime-700 disabled:opacity-50 p-1"
+                    title="Save (Enter)"
+                  >
+                    <Check size={18} />
+                  </button>
+                  <button
+                    onClick={handleInlineCancel}
+                    disabled={isSaving}
+                    className="text-gray-400 hover:text-gray-600 disabled:opacity-50 p-1"
+                    title="Cancel (Escape)"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 group">
+                  <p
+                    className="text-sm text-gray-500 cursor-pointer hover:text-gray-700 hover:underline"
+                    onClick={handleInlineEdit}
+                    title="Click to edit timestamp"
+                  >
+                    {media.timestamp ? new Date(media.timestamp).toLocaleString() : 'No timestamp'}
+                  </p>
+                  <button
+                    onClick={handleInlineEdit}
+                    className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity p-0.5"
+                    title="Edit timestamp inline"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                  <button
+                    onClick={() => setShowDatePicker(true)}
+                    className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity p-0.5"
+                    title="Open date picker"
+                  >
+                    <Calendar size={14} />
+                  </button>
+                </div>
+              )}
+
+              {/* Error Message */}
+              {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+
+              {/* Saving indicator */}
+              {isSaving && (
+                <p className="text-xs text-gray-400 mt-1 animate-pulse">Saving...</p>
+              )}
+
+              {/* Date Picker Popup */}
+              {showDatePicker && (
+                <div className="absolute left-0 bottom-full mb-2 z-50">
+                  <DateTimePicker
+                    value={media.timestamp}
+                    onChange={handleTimestampSave}
+                    onCancel={() => setShowDatePicker(false)}
+                  />
+                </div>
+              )}
+            </div>
+
             {media.fileName && (
               <p className="text-xs text-gray-400 mt-1 truncate">{media.fileName}</p>
             )}
@@ -298,6 +498,17 @@ function Gallery({ species, dateRange, timeRange }) {
     }
   }
 
+  // Handle optimistic timestamp update
+  const handleTimestampUpdate = useCallback((mediaID, newTimestamp) => {
+    setMediaFiles((prev) =>
+      prev.map((m) => (m.mediaID === mediaID ? { ...m, timestamp: newTimestamp } : m))
+    )
+    // Also update selectedMedia if it's the one being edited
+    setSelectedMedia((prev) =>
+      prev?.mediaID === mediaID ? { ...prev, timestamp: newTimestamp } : prev
+    )
+  }, [])
+
   const currentIndex = selectedMedia
     ? mediaFiles.findIndex((m) => m.mediaID === selectedMedia.mediaID)
     : -1
@@ -316,6 +527,7 @@ function Gallery({ species, dateRange, timeRange }) {
         hasNext={hasNext}
         hasPrevious={hasPrevious}
         studyId={id}
+        onTimestampUpdate={handleTimestampUpdate}
       />
       <div className="flex flex-wrap gap-[12px] h-full overflow-auto">
         {mediaFiles.map((media) => (
