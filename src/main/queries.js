@@ -964,13 +964,22 @@ export async function getFilesData(dbPath) {
 
     const db = await getDrizzleDb(studyId, dbPath)
 
-    // Query to get directory statistics
+    // Query to get directory statistics with most recent model used
     const rows = await db
       .select({
         folderName: media.folderName,
         importFolder: media.importFolder,
         imageCount: count(media.mediaID).as('imageCount'),
-        processedCount: count(observations.observationID).as('processedCount')
+        processedCount: count(observations.observationID).as('processedCount'),
+        lastModelUsed: sql`(
+          SELECT mr.modelID || ' ' || mr.modelVersion
+          FROM model_outputs mo
+          INNER JOIN media m2 ON mo.mediaID = m2.mediaID
+          INNER JOIN model_runs mr ON mo.runID = mr.id
+          WHERE m2.folderName = ${media.folderName}
+          ORDER BY mr.startedAt DESC
+          LIMIT 1
+        )`.as('lastModelUsed')
       })
       .from(media)
       .leftJoin(observations, eq(media.mediaID, observations.mediaID))
