@@ -98,6 +98,11 @@ export default function Files({ studyId }) {
                         <div className="text-sm font-medium text-gray-900 truncate">
                           {directory.folderName}
                         </div>
+                        {directory.lastModelUsed && (
+                          <div className="text-xs text-gray-500 truncate">
+                            Model: {directory.lastModelUsed}
+                          </div>
+                        )}
                       </div>
                     </div>
 
