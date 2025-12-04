@@ -179,7 +179,7 @@ describe('Import Methods Tests', () => {
       // Check for specific predictions from the test data
       const birdObservations = queryDatabase(
         dbPath,
-        `SELECT * FROM observations WHERE prediction = 'bird'`
+        `SELECT * FROM observations WHERE commonName = 'bird'`
       )
       assert(birdObservations.length === 2, 'Should have exactly 2 bird observations')
     })

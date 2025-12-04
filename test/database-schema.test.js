@@ -205,7 +205,7 @@ describe('Database Schema and Integrity Tests', () => {
       const tableNames = tables.map((t) => t.name).sort()
 
       // Expected tables (including Drizzle migration tracking)
-      const expectedTables = ['__drizzle_migrations', 'deployments', 'media', 'observations'].sort()
+      const expectedTables = ['__drizzle_migrations', 'deployments', 'media', 'model_outputs', 'model_runs', 'observations'].sort()
 
       assert.deepEqual(tableNames, expectedTables, 'Should create all required tables')
 
@@ -292,11 +292,18 @@ describe('Database Schema and Integrity Tests', () => {
         { name: 'commonName', type: 'TEXT', pk: 0 },
         { name: 'confidence', type: 'REAL', pk: 0 },
         { name: 'count', type: 'INTEGER', pk: 0 },
-        { name: 'prediction', type: 'TEXT', pk: 0 },
         { name: 'lifeStage', type: 'TEXT', pk: 0 },
         { name: 'age', type: 'TEXT', pk: 0 },
         { name: 'sex', type: 'TEXT', pk: 0 },
-        { name: 'behavior', type: 'TEXT', pk: 0 }
+        { name: 'behavior', type: 'TEXT', pk: 0 },
+        { name: 'bboxX', type: 'REAL', pk: 0 },
+        { name: 'bboxY', type: 'REAL', pk: 0 },
+        { name: 'bboxWidth', type: 'REAL', pk: 0 },
+        { name: 'bboxHeight', type: 'REAL', pk: 0 },
+        { name: 'modelOutputID', type: 'TEXT', pk: 0 },
+        { name: 'classificationMethod', type: 'TEXT', pk: 0 },
+        { name: 'classifiedBy', type: 'TEXT', pk: 0 },
+        { name: 'classificationTimestamp', type: 'TEXT', pk: 0 }
       ]
 
       expectedColumns.forEach((expectedCol) => {

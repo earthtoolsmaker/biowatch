@@ -90,7 +90,7 @@ describe('Wildlife Import Tests', () => {
       // Verify database tables exist (Drizzle also creates __drizzle_migrations table)
       const tables = queryDatabase(dbPath, "SELECT name FROM sqlite_master WHERE type='table'")
       const tableNames = tables.map((t) => t.name).sort()
-      const expectedTables = ['__drizzle_migrations', 'deployments', 'media', 'observations']
+      const expectedTables = ['__drizzle_migrations', 'deployments', 'media', 'model_outputs', 'model_runs', 'observations']
       assert.deepEqual(
         tableNames,
         expectedTables,
