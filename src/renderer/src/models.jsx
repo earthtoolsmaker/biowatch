@@ -167,11 +167,7 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false, refreshK
   })
   const baseClasses =
     'min-w-[300px] flex flex-col border-gray-200 border p-4 rounded-md w-96 gap-2 shadow-sm relative'
-  const classNameMainContainer = [
-    baseClasses,
-    !isDownloaded && 'bg-gray-50',
-    isDownloading && 'animate-pulse [animation-duration:2s]'
-  ]
+  const classNameMainContainer = [baseClasses, !isDownloaded && 'bg-gray-50']
     .filter(Boolean)
     .join(' ')
   return (
@@ -293,7 +289,7 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false, refreshK
           </div>
         )}
         {isDownloading && (
-          <div className="pl-6 pr-6 pb-4">
+          <div className="pl-6 pr-6 pb-4 animate-pulse [animation-duration:2s]">
             <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
               <div
                 className="h-full bg-blue-600 transition-all duration-500 ease-in-out"
