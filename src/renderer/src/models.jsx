@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import {
   Download,
   LucideLoader,
-  CircleX,
+  Trash2,
   CircleOff,
   PlayIcon,
   CpuIcon,
@@ -166,7 +166,7 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false, refreshK
     currentModelId: model.reference.id
   })
   const baseClasses =
-    'min-w-[300px] flex flex-col border-gray-200 border p-4 rounded-md w-96 gap-2 shadow-sm relative h-full'
+    'min-w-[300px] flex flex-col border-gray-200 border p-4 rounded-md w-96 gap-2 shadow-sm relative'
   const classNameMainContainer = [
     baseClasses,
     !isDownloaded && 'bg-gray-50',
@@ -176,15 +176,17 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false, refreshK
     .join(' ')
   return (
     <div className={classNameMainContainer}>
-      {logo && MODEL_LOGOS[logo] && (
-        <img
-          src={MODEL_LOGOS[logo]}
-          alt={`${name} logo`}
-          className="absolute top-2 right-2 h-8 w-8 object-contain"
-        />
-      )}
-      <div className="p-2 text-l text-center">{name}</div>
-      <div className="text-sm p-2 flex-grow">{description}</div>
+      <div className="flex items-center gap-3 p-2">
+        {logo && MODEL_LOGOS[logo] && (
+          <img
+            src={MODEL_LOGOS[logo]}
+            alt={`${name} logo`}
+            className="h-10 w-10 object-contain flex-shrink-0"
+          />
+        )}
+        <div className="text-base font-medium">{name}</div>
+      </div>
+      <div className="text-sm px-2 pb-2 flex-grow">{description}</div>
       <ul className="text-sm p-2">
         <li>🧠 Model Size: {formatSizeInMiB(size_in_MiB)}</li>
         <li>
@@ -202,7 +204,7 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false, refreshK
                 onClick={() => handleDelete(reference)}
                 className={`cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50`}
               >
-                <CircleX color="black" size={14} />
+                <Trash2 color="black" size={14} />
                 Delete
               </button>
               {!isDev ? (
@@ -266,35 +268,31 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false, refreshK
             </button>
           </div>
         )}
-      </div>
-      {isHTTPServerRunning ? (
-        <div className="p-4 text-sm">
-          <ul className="list-none space-y-0">
-            <li className="flex items-center gap-2">
-              <Server size={14}></Server>HTTP server port: {portHTTPServer}
-            </li>
-            <li className="flex items-center gap-2">
-              <CpuIcon size={14} />
-              process Id: {pidPythonProcess}
-            </li>
-            <li className="flex items-center gap-2">
-              <Book size={14} />
-              <a
-                href={`http://localhost:${portHTTPServer}/docs`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:underline"
-              >
-                API documentation
-              </a>
-            </li>
-          </ul>
-        </div>
-      ) : (
-        <span></span>
-      )}
-      {isDownloading ? (
-        <>
+        {isHTTPServerRunning && (
+          <div className="p-4 text-sm">
+            <ul className="list-none space-y-0">
+              <li className="flex items-center gap-2">
+                <Server size={14}></Server>HTTP server port: {portHTTPServer}
+              </li>
+              <li className="flex items-center gap-2">
+                <CpuIcon size={14} />
+                process Id: {pidPythonProcess}
+              </li>
+              <li className="flex items-center gap-2">
+                <Book size={14} />
+                <a
+                  href={`http://localhost:${portHTTPServer}/docs`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:underline"
+                >
+                  API documentation
+                </a>
+              </li>
+            </ul>
+          </div>
+        )}
+        {isDownloading && (
           <div className="pl-6 pr-6 pb-4">
             <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
               <div
@@ -304,24 +302,24 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false, refreshK
             </div>
             <div className="w-full text-sm text-center pt-2">{downloadMessage}</div>
           </div>
-        </>
-      ) : (
-        <></>
-      )}
+        )}
+      </div>
     </div>
   )
 }
 
 function CustomModelCard() {
   return (
-    <div className="min-w-[300px] flex flex-col border-gray-200 border p-4 rounded-md w-96 gap-2 shadow-sm relative bg-gradient-to-br from-white to-blue-50 h-full">
-      <img
-        src={etmLogo}
-        alt="EarthToolsMaker logo"
-        className="absolute top-2 right-2 h-8 w-8 object-contain rounded-full"
-      />
-      <div className="p-2 text-l text-center">Your Custom Model</div>
-      <div className="text-sm p-2 flex-grow">
+    <div className="min-w-[300px] flex flex-col border-gray-200 border p-4 rounded-md w-96 gap-2 shadow-sm bg-gradient-to-br from-white to-blue-50">
+      <div className="flex items-center gap-3 p-2">
+        <img
+          src={etmLogo}
+          alt="EarthToolsMaker logo"
+          className="h-10 w-10 object-contain flex-shrink-0 rounded-full"
+        />
+        <div className="text-base font-medium">Your Custom Model</div>
+      </div>
+      <div className="text-sm px-2 pb-2 flex-grow">
         Need an AI model tailored to your specific wildlife monitoring needs? EarthToolsMaker can
         develop and integrate custom models directly into BioWatch for your unique species, regions,
         or use cases.
@@ -336,7 +334,7 @@ function CustomModelCard() {
             href="https://www.earthtoolsmaker.org/contact"
             target="_blank"
             rel="noopener noreferrer"
-            className="cursor-pointer w-[60%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50"
+            className="bg-white cursor-pointer w-[60%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50"
           >
             <Mail color="black" size={14} />
             Contact Us
@@ -372,17 +370,17 @@ export default function Zoo({ modelZoo }) {
     }
   }
   return (
-    <div className="h-full">
+    <div>
       <div className="flex justify-end px-8 pt-4">
         <button
           onClick={() => handleClearAllMLModels()}
           className="bg-white cursor-pointer w-32 transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50"
         >
-          <CircleX color="black" size={14} />
+          <Trash2 color="black" size={14} />
           Clear All
         </button>
       </div>
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(384px,1fr))] px-8 pb-8 pt-4 gap-3">
+      <div className="grid grid-cols-[repeat(auto-fill,384px)] px-8 pb-8 pt-4 gap-3">
         {modelZoo.map((entry) => (
           <ModelCard
             key={entry.reference.id}

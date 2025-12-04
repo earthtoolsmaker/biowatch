@@ -4,28 +4,26 @@ import { BrainCircuit, Info, Github, Earth } from 'lucide-react'
 import Zoo from './models'
 import { modelZoo } from '../../shared/mlmodels'
 
-function SettingsFooter() {
+function SettingsFooter({ className }) {
   return (
-    <div className="relative">
-      <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2">
-        {/* TODO: serve and display ou own icon of ETM */}
-        <div className="flex flex-col items-center mr-4">
-          <img
-            className="w-14 mb-4 transition-transform duration-700 ease-in-out hover:rotate-[360deg]"
-            src="https://avatars.githubusercontent.com/u/165696201?s=200&v=4"
-          />
-          <span>
-            Made with 💙 by{' '}
-            <a
-              href="https://www.earthtoolsmaker.org/tools/biowatch/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 hover:underline"
-            >
-              EarthToolsMaker
-            </a>
-          </span>
-        </div>
+    <div className={`flex justify-center py-8 ${className || ''}`}>
+      <div className="flex flex-col items-center">
+        {/* TODO: serve and display our own icon of ETM */}
+        <img
+          className="w-14 mb-4 transition-transform duration-700 ease-in-out hover:rotate-[360deg]"
+          src="https://avatars.githubusercontent.com/u/165696201?s=200&v=4"
+        />
+        <span>
+          Made with 💙 by{' '}
+          <a
+            href="https://www.earthtoolsmaker.org/tools/biowatch/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:underline"
+          >
+            EarthToolsMaker
+          </a>
+        </span>
       </div>
     </div>
   )
@@ -33,7 +31,7 @@ function SettingsFooter() {
 
 function SettingsInfo({ version, platform }) {
   return (
-    <div className="p-4 h-full overflow-hidden">
+    <div className="p-4">
       <ul className="list-none space-y-2">
         <li className="flex items-center">
           <span className="font-semibold">
@@ -138,16 +136,16 @@ export default function SettingsPage() {
           AI Models
         </NavLink>
       </header>
-      <div className="flex-1 overflow-y-auto h-full pb-4">
+      <div className="flex-1 overflow-y-auto pb-4">
         <Routes>
           <Route
             path="ml_zoo"
             element={
               <ErrorBoundary FallbackComponent={ErrorFallback} key={'ml_zoo'}>
-                <>
+                <div className="min-h-full flex flex-col">
                   <Zoo modelZoo={modelZoo} />
-                  <SettingsFooter />
-                </>
+                  <SettingsFooter className="mt-auto" />
+                </div>
               </ErrorBoundary>
             }
           />
@@ -155,10 +153,10 @@ export default function SettingsPage() {
             path="info"
             element={
               <ErrorBoundary FallbackComponent={ErrorFallback} key={'info'}>
-                <>
+                <div className="min-h-full flex flex-col">
                   <SettingsInfo {...settingsParams} />
-                  <SettingsFooter />
-                </>
+                  <SettingsFooter className="mt-auto" />
+                </div>
               </ErrorBoundary>
             }
           />
