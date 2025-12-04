@@ -209,11 +209,13 @@ async function insertPrediction(db, prediction, modelInfo = {}) {
   if (!mediaRecord.timestamp || !mediaRecord.deploymentID) {
     let exifData = {}
     try {
-      exifData = await exifr.parse(prediction.filepath, {
+      const parsedExif = await exifr.parse(prediction.filepath, {
         gps: true,
         exif: true,
         reviveValues: true
       })
+      // exifr.parse() can return null for images without EXIF data
+      exifData = parsedExif || {}
     } catch (exifError) {
       log.warn(`Could not extract EXIF data from ${prediction.filepath}: ${exifError.message}`)
     }
