@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import ReactDOMServer from 'react-dom/server'
 import L from 'leaflet'
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
@@ -10,13 +10,26 @@ import {
   ChevronRight,
   Pencil,
   Check,
-  X
+  X,
+  Plus,
+  Trash2
 } from 'lucide-react'
 import { useImportStatus } from '@renderer/hooks/import'
 import { useQueryClient } from '@tanstack/react-query'
+import DateTimePicker from './ui/DateTimePicker'
 
 // Create a module-level cache for common names that persists across component unmounts
 const commonNamesCache = {}
+
+// Contributor roles per camtrap-dp spec
+const CONTRIBUTOR_ROLES = [
+  { value: 'contact', label: 'Contact' },
+  { value: 'principalInvestigator', label: 'Principal Investigator' },
+  { value: 'rightsHolder', label: 'Rights Holder' },
+  { value: 'publisher', label: 'Publisher' },
+  { value: 'contributor', label: 'Contributor' },
+  { value: 'author', label: 'Author' }
+]
 
 function DeploymentMap({ deployments }) {
   if (!deployments || deployments.length === 0) {
@@ -268,7 +281,62 @@ export default function Overview({ data, studyId, studyName }) {
   const [canScrollRight, setCanScrollRight] = useState(false)
   const { importStatus } = useImportStatus(studyId)
 
+  // Description editing state
+  const [isEditingDescription, setIsEditingDescription] = useState(false)
+  const [editedDescription, setEditedDescription] = useState('')
+
+  // Temporal dates editing state
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false)
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false)
+
+  // Compute min/max dates from deployments for pre-populating date pickers
+  // Excludes timestamps within last 24 hours (likely media without EXIF data defaulting to "now")
+  const { minDeploymentDate, maxDeploymentDate } = useMemo(() => {
+    if (!deploymentsData || deploymentsData.length === 0) {
+      return { minDeploymentDate: null, maxDeploymentDate: null }
+    }
+
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    let minDate = null
+    let maxDate = null
+
+    deploymentsData.forEach((deployment) => {
+      if (deployment.deploymentStart) {
+        const startDate = new Date(deployment.deploymentStart)
+        // Exclude timestamps within last 24 hours
+        if (startDate < oneDayAgo && (!minDate || startDate < minDate)) {
+          minDate = startDate
+        }
+      }
+      if (deployment.deploymentEnd) {
+        const endDate = new Date(deployment.deploymentEnd)
+        // Exclude timestamps within last 24 hours
+        if (endDate < oneDayAgo && (!maxDate || endDate > maxDate)) {
+          maxDate = endDate
+        }
+      }
+    })
+
+    return {
+      minDeploymentDate: minDate ? minDate.toISOString().split('T')[0] : null,
+      maxDeploymentDate: maxDate ? maxDate.toISOString().split('T')[0] : null
+    }
+  }, [deploymentsData])
+
+  // Contributors editing state
+  const [editingContributorIndex, setEditingContributorIndex] = useState(null)
+  const [editedContributor, setEditedContributor] = useState(null)
+  const [isAddingContributor, setIsAddingContributor] = useState(false)
+  const [newContributor, setNewContributor] = useState({
+    title: '',
+    role: '',
+    organization: '',
+    email: ''
+  })
+
   const contributorsRef = useRef(null)
+  const descriptionRef = useRef(null)
+  const [isDescriptionTruncated, setIsDescriptionTruncated] = useState(false)
   const queryClient = useQueryClient()
 
   const fetchData = useCallback(
@@ -343,6 +411,26 @@ export default function Overview({ data, studyId, studyName }) {
     }
   }, [data?.contributors])
 
+  // Check if description is truncated (overflow hidden with line-clamp)
+  useEffect(() => {
+    if (!descriptionRef.current || isEditingDescription) {
+      setIsDescriptionTruncated(false)
+      return
+    }
+
+    const checkTruncation = () => {
+      const element = descriptionRef.current
+      if (element) {
+        // Element is truncated if scrollHeight > clientHeight
+        setIsDescriptionTruncated(element.scrollHeight > element.clientHeight)
+      }
+    }
+
+    checkTruncation()
+    window.addEventListener('resize', checkTruncation)
+    return () => window.removeEventListener('resize', checkTruncation)
+  }, [data?.description, isDescriptionExpanded, isEditingDescription])
+
   const scrollContributors = (direction) => {
     if (!contributorsRef.current) return
 
@@ -388,14 +476,215 @@ export default function Overview({ data, studyId, studyName }) {
     }
   }
 
+  // Description editing handlers
+  const startEditingDescription = () => {
+    setEditedDescription(data?.description || '')
+    setIsEditingDescription(true)
+  }
+
+  const cancelEditingDescription = () => {
+    setIsEditingDescription(false)
+    setEditedDescription('')
+  }
+
+  const saveDescription = async () => {
+    try {
+      await window.api.updateStudy(studyId, {
+        data: { ...data, description: editedDescription.trim() }
+      })
+      queryClient.invalidateQueries({ queryKey: ['study'] })
+    } catch (error) {
+      console.error('Error saving description:', error)
+    } finally {
+      setIsEditingDescription(false)
+      setEditedDescription('')
+    }
+  }
+
+  const handleDescriptionKeyPress = (e) => {
+    if (e.key === 'Escape') {
+      cancelEditingDescription()
+    }
+  }
+
+  // Temporal dates editing handlers - uses DateTimePicker
+  const handleDateSave = async (type, isoTimestamp) => {
+    try {
+      // Extract just the date part (YYYY-MM-DD) from ISO timestamp
+      const dateOnly = isoTimestamp.split('T')[0]
+      const newTemporal = { ...(data?.temporal || {}) }
+      if (type === 'start') {
+        newTemporal.start = dateOnly
+        setShowStartDatePicker(false)
+      } else {
+        newTemporal.end = dateOnly
+        setShowEndDatePicker(false)
+      }
+
+      await window.api.updateStudy(studyId, {
+        data: { ...data, temporal: newTemporal }
+      })
+      queryClient.invalidateQueries({ queryKey: ['study'] })
+    } catch (error) {
+      console.error('Error saving date:', error)
+    }
+  }
+
+  // Contributors editing handlers
+  const startEditingContributor = (index) => {
+    setEditingContributorIndex(index)
+    setEditedContributor({ ...data.contributors[index] })
+  }
+
+  const cancelEditingContributor = () => {
+    setEditingContributorIndex(null)
+    setEditedContributor(null)
+  }
+
+  const saveContributor = async (index) => {
+    if (!editedContributor?.title?.trim()) {
+      return // Name is required
+    }
+
+    try {
+      const updatedContributors = [...data.contributors]
+      updatedContributors[index] = {
+        ...editedContributor,
+        title: editedContributor.title.trim(),
+        organization: editedContributor.organization?.trim() || undefined,
+        email: editedContributor.email?.trim() || undefined
+      }
+
+      await window.api.updateStudy(studyId, {
+        data: { ...data, contributors: updatedContributors }
+      })
+      queryClient.invalidateQueries({ queryKey: ['study'] })
+    } catch (error) {
+      console.error('Error saving contributor:', error)
+    } finally {
+      cancelEditingContributor()
+    }
+  }
+
+  const deleteContributor = async (index) => {
+    try {
+      const updatedContributors = data.contributors.filter((_, i) => i !== index)
+
+      await window.api.updateStudy(studyId, {
+        data: { ...data, contributors: updatedContributors }
+      })
+      queryClient.invalidateQueries({ queryKey: ['study'] })
+    } catch (error) {
+      console.error('Error deleting contributor:', error)
+    }
+  }
+
+  const cancelAddingContributor = () => {
+    setIsAddingContributor(false)
+    setNewContributor({ title: '', role: '', organization: '', email: '' })
+  }
+
+  const addContributor = async () => {
+    if (!newContributor?.title?.trim()) {
+      return // Name is required
+    }
+
+    try {
+      const contributorToAdd = {
+        title: newContributor.title.trim(),
+        role: newContributor.role || undefined,
+        organization: newContributor.organization?.trim() || undefined,
+        email: newContributor.email?.trim() || undefined
+      }
+
+      const updatedContributors = [...(data?.contributors || []), contributorToAdd]
+
+      await window.api.updateStudy(studyId, {
+        data: { ...data, contributors: updatedContributors }
+      })
+      queryClient.invalidateQueries({ queryKey: ['study'] })
+    } catch (error) {
+      console.error('Error adding contributor:', error)
+    } finally {
+      cancelAddingContributor()
+    }
+  }
+
   const taxonomicData = data?.taxonomic || null
 
-  // Temporal data is always shown when available
+  // Temporal data is always shown when available, with DateTimePicker for editing
   const renderTemporalData = () => {
-    if (!data.temporal) return null
     return (
-      <div className="text-gray-500 text-sm max-w-prose mb-2">
-        {data.temporal.start} to {data.temporal.end}
+      <div className="flex items-center gap-2 text-gray-500 text-sm max-w-prose mb-2">
+        {/* Start Date */}
+        <div className="relative group flex items-center gap-1">
+          <span
+            className="cursor-pointer hover:text-gray-700 hover:underline"
+            onClick={() => setShowStartDatePicker(true)}
+          >
+            {data?.temporal?.start || 'No start date'}
+          </span>
+          <button
+            onClick={() => setShowStartDatePicker(true)}
+            className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-100 rounded text-gray-500 transition-opacity"
+            title="Edit start date"
+          >
+            <Pencil size={10} />
+          </button>
+          {/* DateTimePicker Popup for Start Date */}
+          {showStartDatePicker && (
+            <div className="absolute left-0 top-full mt-2 z-50">
+              <DateTimePicker
+                value={
+                  data?.temporal?.start
+                    ? `${data.temporal.start}T00:00:00`
+                    : minDeploymentDate
+                      ? `${minDeploymentDate}T00:00:00`
+                      : new Date().toISOString()
+                }
+                onChange={(isoTimestamp) => handleDateSave('start', isoTimestamp)}
+                onCancel={() => setShowStartDatePicker(false)}
+                dateOnly
+              />
+            </div>
+          )}
+        </div>
+
+        <span>to</span>
+
+        {/* End Date */}
+        <div className="relative group flex items-center gap-1">
+          <span
+            className="cursor-pointer hover:text-gray-700 hover:underline"
+            onClick={() => setShowEndDatePicker(true)}
+          >
+            {data?.temporal?.end || 'No end date'}
+          </span>
+          <button
+            onClick={() => setShowEndDatePicker(true)}
+            className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-100 rounded text-gray-500 transition-opacity"
+            title="Edit end date"
+          >
+            <Pencil size={10} />
+          </button>
+          {/* DateTimePicker Popup for End Date */}
+          {showEndDatePicker && (
+            <div className="absolute left-0 top-full mt-2 z-50">
+              <DateTimePicker
+                value={
+                  data?.temporal?.end
+                    ? `${data.temporal.end}T00:00:00`
+                    : maxDeploymentDate
+                      ? `${maxDeploymentDate}T00:00:00`
+                      : new Date().toISOString()
+                }
+                onChange={(isoTimestamp) => handleDateSave('end', isoTimestamp)}
+                onCancel={() => setShowEndDatePicker(false)}
+                dateOnly
+              />
+            </div>
+          )}
+        </div>
       </div>
     )
   }
@@ -415,18 +704,18 @@ export default function Overview({ data, studyId, studyName }) {
                 autoFocus
               />
               <button
-                onClick={saveTitle}
-                className="p-1 hover:bg-green-100 rounded text-green-600"
-                title="Save"
-              >
-                <Check size={16} />
-              </button>
-              <button
                 onClick={cancelEditingTitle}
                 className="p-1 hover:bg-red-100 rounded text-red-600"
                 title="Cancel"
               >
                 <X size={16} />
+              </button>
+              <button
+                onClick={saveTitle}
+                className="p-1 hover:bg-green-100 rounded text-green-600"
+                title="Save"
+              >
+                <Check size={16} />
               </button>
             </div>
           ) : (
@@ -451,110 +740,309 @@ export default function Overview({ data, studyId, studyName }) {
           )}
         </div>
         {renderTemporalData()}
-        {data.description && (
-          <div className="relative">
-            <div
-              className={`text-gray-800 text-sm max-w-prose ${
-                !isDescriptionExpanded ? 'line-clamp-5 overflow-hidden' : ''
-              }`}
-            >
-              {data.description}
+        {/* Description with inline editing */}
+        <div className="relative group">
+          {isEditingDescription ? (
+            <div className="flex flex-col gap-2">
+              <textarea
+                value={editedDescription}
+                onChange={(e) => setEditedDescription(e.target.value)}
+                onKeyDown={handleDescriptionKeyPress}
+                className="text-gray-800 text-sm max-w-prose w-full border-2 border-blue-500 rounded p-2 focus:outline-none resize-y min-h-[100px]"
+                autoFocus
+                placeholder="Camera trap dataset containing deployment information, media files metadata, and species observations collected during wildlife monitoring."
+              />
+              <div className="flex gap-1">
+                <button
+                  onClick={cancelEditingDescription}
+                  className="p-1 hover:bg-red-100 rounded text-red-600"
+                  title="Cancel (Escape)"
+                >
+                  <X size={16} />
+                </button>
+                <button
+                  onClick={saveDescription}
+                  className="p-1 hover:bg-green-100 rounded text-green-600"
+                  title="Save"
+                >
+                  <Check size={16} />
+                </button>
+              </div>
             </div>
-            <button
-              onClick={toggleDescription}
-              className="text-gray-500 text-xs flex items-center hover:text-blue-700 transition-colors"
-            >
-              {isDescriptionExpanded ? (
-                <>
-                  <span>Show less</span>
-                  <ChevronUp size={16} className="ml-1" />
-                </>
-              ) : (
-                <>
-                  <span>Show more</span>
-                  <ChevronDown size={16} className="ml-1" />
-                </>
-              )}
-            </button>
-          </div>
-        )}
-      </header>
-
-      {data.contributors && data.contributors.length > 0 && (
-        <div className="relative">
-          {/* Left scroll button */}
-          {canScrollLeft && (
-            <button
-              className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white/90 rounded-full p-1 shadow-md border border-gray-200"
-              onClick={() => scrollContributors('left')}
-              aria-label="Scroll left"
-            >
-              <ChevronLeft size={20} />
-            </button>
-          )}
-
-          {/* Right scroll button */}
-          {canScrollRight && (
-            <button
-              className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-white/90 rounded-full p-1 shadow-md border border-gray-200"
-              onClick={() => scrollContributors('right')}
-              aria-label="Scroll right"
-            >
-              <ChevronRight size={20} />
-            </button>
-          )}
-
-          {/* Left fade effect */}
-          {canScrollLeft && (
-            <div className="absolute left-0 top-0 h-full w-12 bg-gradient-to-r from-white to-transparent z-[1] pointer-events-none"></div>
-          )}
-
-          {/* Right fade effect */}
-          {canScrollRight && (
-            <div className="absolute right-0 top-0 h-full w-12 bg-gradient-to-l from-white to-transparent z-[1] pointer-events-none"></div>
-          )}
-
-          <div
-            ref={contributorsRef}
-            className="flex overflow-x-auto gap-4 scrollbar-hide"
-            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-          >
-            {data.contributors.map((contributor, index) => (
+          ) : (
+            <>
               <div
-                key={index}
-                className="flex flex-col flex-shrink-0 w-64 p-4 border border-gray-200 rounded-md shadow-sm bg-white"
+                ref={descriptionRef}
+                className={`text-gray-800 text-sm max-w-prose ${
+                  !isDescriptionExpanded ? 'line-clamp-5 overflow-hidden' : ''
+                }`}
               >
-                <div className="">
-                  {contributor.title || `${contributor.firstName} ${contributor.lastName}`}
-                </div>
-                <div className="text-sm text-gray-600">
-                  {contributor.role &&
-                    contributor.role
-                      .replace(/([A-Z])/g, ' $1')
-                      .replace(/^./, (str) => str.toUpperCase())}
-                </div>
-                {contributor.organization && (
-                  <div className="text-sm text-gray-500 mt-2 mb-2 line-clamp-2 overflow-hidden relative">
-                    {contributor.organization}
-                    <div className="absolute bottom-0 right-0 bg-gradient-to-l from-white to-transparent w-8 h-4"></div>
-                  </div>
-                )}
-                {contributor.email && (
-                  <div className="text-sm text-blue-500 mt-2 truncate mt-auto">
-                    <a
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      href={`mailto:${contributor.email}`}
-                    >
-                      {contributor.email}
-                    </a>
-                  </div>
+                {data?.description || (
+                  <span className="text-gray-400 italic">
+                    Camera trap dataset containing deployment information, media files metadata, and
+                    species observations collected during wildlife monitoring.
+                  </span>
                 )}
               </div>
-            ))}
-          </div>
+              <div className="flex items-center gap-2">
+                {/* Only show expand/collapse when description is truncated or already expanded */}
+                {data?.description && (isDescriptionTruncated || isDescriptionExpanded) && (
+                  <button
+                    onClick={toggleDescription}
+                    className="text-gray-500 text-xs flex items-center hover:text-blue-700 transition-colors"
+                  >
+                    {isDescriptionExpanded ? (
+                      <>
+                        <span>Show less</span>
+                        <ChevronUp size={16} className="ml-1" />
+                      </>
+                    ) : (
+                      <>
+                        <span>Show more</span>
+                        <ChevronDown size={16} className="ml-1" />
+                      </>
+                    )}
+                  </button>
+                )}
+                <button
+                  onClick={startEditingDescription}
+                  className="opacity-0 group-hover:opacity-100 p-1 hover:bg-gray-100 rounded text-gray-500 transition-opacity focus:opacity-100"
+                  title="Edit description"
+                >
+                  <Pencil size={12} />
+                </button>
+              </div>
+            </>
+          )}
         </div>
-      )}
+      </header>
+
+      {/* Contributors section with CRUD */}
+      <div className="relative">
+        {/* Left scroll button */}
+        {canScrollLeft && (
+          <button
+            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white/90 rounded-full p-1 shadow-md border border-gray-200"
+            onClick={() => scrollContributors('left')}
+            aria-label="Scroll left"
+          >
+            <ChevronLeft size={20} />
+          </button>
+        )}
+
+        {/* Right scroll button */}
+        {canScrollRight && (
+          <button
+            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-white/90 rounded-full p-1 shadow-md border border-gray-200"
+            onClick={() => scrollContributors('right')}
+            aria-label="Scroll right"
+          >
+            <ChevronRight size={20} />
+          </button>
+        )}
+
+        {/* Left fade effect */}
+        {canScrollLeft && (
+          <div className="absolute left-0 top-0 h-full w-12 bg-gradient-to-r from-white to-transparent z-[1] pointer-events-none"></div>
+        )}
+
+        {/* Right fade effect */}
+        {canScrollRight && (
+          <div className="absolute right-0 top-0 h-full w-12 bg-gradient-to-l from-white to-transparent z-[1] pointer-events-none"></div>
+        )}
+
+        <div
+          ref={contributorsRef}
+          className="flex overflow-x-auto gap-4 scrollbar-hide"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        >
+          {/* Existing contributor cards */}
+          {data?.contributors?.map((contributor, index) => (
+            <div
+              key={index}
+              className="flex flex-col flex-shrink-0 w-64 p-4 border border-gray-200 rounded-md shadow-sm bg-white relative group"
+            >
+              {editingContributorIndex === index ? (
+                // Edit Mode
+                <div className="flex flex-col gap-2">
+                  <input
+                    type="text"
+                    value={editedContributor?.title || ''}
+                    onChange={(e) =>
+                      setEditedContributor({ ...editedContributor, title: e.target.value })
+                    }
+                    placeholder="Name *"
+                    className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    autoFocus
+                  />
+                  <select
+                    value={editedContributor?.role || ''}
+                    onChange={(e) =>
+                      setEditedContributor({ ...editedContributor, role: e.target.value })
+                    }
+                    className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select role...</option>
+                    {CONTRIBUTOR_ROLES.map((role) => (
+                      <option key={role.value} value={role.value}>
+                        {role.label}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    value={editedContributor?.organization || ''}
+                    onChange={(e) =>
+                      setEditedContributor({ ...editedContributor, organization: e.target.value })
+                    }
+                    placeholder="Organization"
+                    className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <input
+                    type="email"
+                    value={editedContributor?.email || ''}
+                    onChange={(e) =>
+                      setEditedContributor({ ...editedContributor, email: e.target.value })
+                    }
+                    placeholder="Email"
+                    className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      onClick={cancelEditingContributor}
+                      className="flex-1 px-2 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => saveContributor(index)}
+                      disabled={!editedContributor?.title?.trim()}
+                      className="flex-1 px-2 py-1 bg-green-500 text-white text-sm rounded hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                // Display Mode
+                <>
+                  {/* Edit/Delete buttons - visible on hover */}
+                  <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => startEditingContributor(index)}
+                      className="p-1 hover:bg-gray-100 rounded text-gray-500"
+                      title="Edit contributor"
+                    >
+                      <Pencil size={12} />
+                    </button>
+                    <button
+                      onClick={() => deleteContributor(index)}
+                      className="p-1 hover:bg-red-100 rounded text-red-500"
+                      title="Remove contributor"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+
+                  <div className="">
+                    {contributor.title || `${contributor.firstName} ${contributor.lastName}`}
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    {contributor.role &&
+                      contributor.role
+                        .replace(/([A-Z])/g, ' $1')
+                        .replace(/^./, (str) => str.toUpperCase())}
+                  </div>
+                  {contributor.organization && (
+                    <div className="text-sm text-gray-500 mt-2 mb-2 line-clamp-2 overflow-hidden relative">
+                      {contributor.organization}
+                      <div className="absolute bottom-0 right-0 bg-gradient-to-l from-white to-transparent w-8 h-4"></div>
+                    </div>
+                  )}
+                  {contributor.email && (
+                    <div className="text-sm text-blue-500 mt-2 truncate mt-auto">
+                      <a
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        href={`mailto:${contributor.email}`}
+                      >
+                        {contributor.email}
+                      </a>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          ))}
+
+          {/* Add Contributor Card */}
+          {isAddingContributor ? (
+            <div className="flex flex-col flex-shrink-0 w-64 p-4 border-2 border-dashed border-blue-300 rounded-md bg-blue-50">
+              <div className="flex flex-col gap-2">
+                <input
+                  type="text"
+                  value={newContributor.title}
+                  onChange={(e) => setNewContributor({ ...newContributor, title: e.target.value })}
+                  placeholder="Name *"
+                  className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  autoFocus
+                />
+                <select
+                  value={newContributor.role}
+                  onChange={(e) => setNewContributor({ ...newContributor, role: e.target.value })}
+                  className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                >
+                  <option value="">Select role...</option>
+                  {CONTRIBUTOR_ROLES.map((role) => (
+                    <option key={role.value} value={role.value}>
+                      {role.label}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="text"
+                  value={newContributor.organization}
+                  onChange={(e) =>
+                    setNewContributor({ ...newContributor, organization: e.target.value })
+                  }
+                  placeholder="Organization"
+                  className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                />
+                <input
+                  type="email"
+                  value={newContributor.email}
+                  onChange={(e) => setNewContributor({ ...newContributor, email: e.target.value })}
+                  placeholder="Email"
+                  className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                />
+                <div className="flex gap-2 mt-2">
+                  <button
+                    onClick={cancelAddingContributor}
+                    className="flex-1 px-2 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={addContributor}
+                    disabled={!newContributor.title?.trim()}
+                    className="flex-1 px-2 py-1 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setIsAddingContributor(true)}
+              className="flex flex-col items-center justify-center flex-shrink-0 w-64 p-4 border-2 border-dashed border-gray-300 rounded-md hover:border-blue-400 hover:bg-blue-50 transition-colors cursor-pointer min-h-[120px]"
+            >
+              <Plus size={24} className="text-gray-400" />
+              <span className="text-sm text-gray-500 mt-2">Add contributor</span>
+            </button>
+          )}
+        </div>
+      </div>
 
       {error ? (
         <div className="text-red-500 py-4">Error: {error}</div>

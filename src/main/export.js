@@ -273,25 +273,36 @@ function toCSV(rows, columns) {
 
 /**
  * Generate the datapackage.json content for Camtrap DP
+ * Uses study metadata for title, description, contributors, and temporal coverage
  */
-function generateDataPackage(studyId, studyName) {
+function generateDataPackage(studyId, studyName, studyData = {}) {
   const now = new Date().toISOString()
   const nameToSlugify = studyName || studyId
   const slugifiedName = nameToSlugify.replace(/[^a-z0-9-]/gi, '-').toLowerCase()
 
-  return {
+  // Use study metadata if available, otherwise use defaults
+  const description =
+    studyData.description ||
+    'Camera trap dataset exported from Biowatch. This dataset contains camera trap deployment information, media files metadata, and species observations collected during wildlife monitoring.'
+
+  const contributors =
+    studyData.contributors && studyData.contributors.length > 0
+      ? studyData.contributors
+      : [{ title: 'Biowatch User', role: 'author' }]
+
+  // Build temporal coverage if available
+  const temporal = studyData.temporal
+    ? { start: studyData.temporal.start, end: studyData.temporal.end }
+    : undefined
+
+  // Build the datapackage object
+  const dataPackage = {
     name: slugifiedName,
     title: studyName || 'Biowatch Camera Trap Dataset',
-    description:
-      'Camera trap dataset exported from Biowatch. This dataset contains camera trap deployment information, media files metadata, and species observations collected during wildlife monitoring.',
+    description,
     version: '1.0.0',
     created: now,
-    contributors: [
-      {
-        title: 'Biowatch User',
-        role: 'author'
-      }
-    ],
+    contributors,
     licenses: [
       {
         name: 'CC-BY-4.0',
@@ -365,6 +376,13 @@ function generateDataPackage(studyId, studyName) {
       }
     ]
   }
+
+  // Add temporal coverage if available
+  if (temporal) {
+    dataPackage.temporal = temporal
+  }
+
+  return dataPackage
 }
 
 /**
@@ -374,7 +392,7 @@ export async function exportCamtrapDP(studyId, options = {}) {
   const { includeMedia = false, selectedSpecies = null, includeBlank = false } = options
 
   try {
-    // Get study information
+    // Get study information including metadata
     const studyJsonPath = join(
       app.getPath('userData'),
       'biowatch-data',
@@ -383,12 +401,15 @@ export async function exportCamtrapDP(studyId, options = {}) {
       'study.json'
     )
     let studyName = 'Unknown'
+    let studyMetadata = {}
     if (existsSync(studyJsonPath)) {
       try {
         const studyData = JSON.parse(await fs.readFile(studyJsonPath, 'utf8'))
         studyName = studyData.name || 'Unknown'
+        // Extract metadata for export (description, contributors, temporal)
+        studyMetadata = studyData.data || {}
       } catch (error) {
-        log.warn(`Failed to read study name: ${error.message}`)
+        log.warn(`Failed to read study data: ${error.message}`)
       }
     }
 
@@ -634,8 +655,8 @@ export async function exportCamtrapDP(studyId, options = {}) {
       'classificationProbability'
     ])
 
-    // Generate datapackage.json
-    const dataPackage = generateDataPackage(studyId, studyName)
+    // Generate datapackage.json with study metadata
+    const dataPackage = generateDataPackage(studyId, studyName, studyMetadata)
 
     // Write all files
     await Promise.all([

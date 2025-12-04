@@ -18,7 +18,7 @@ import {
   closeStudyDatabase
 } from './db/index.js'
 import { transformBboxToCamtrapDP } from './transformers/index.js'
-import { eq, isNull, count } from 'drizzle-orm'
+import { eq, isNull, count, sql } from 'drizzle-orm'
 import models from './models.js'
 import mlmodels from '../shared/mlmodels.js'
 
@@ -634,6 +634,69 @@ export class Importer {
                 log.info(`Processed batch of ${imageQueue.length} images`)
                 const batchEnd = DateTime.now()
                 lastBatchDuration = batchEnd.diff(batchStart, 'seconds').seconds
+              }
+
+              // Auto-populate temporal dates from deployment timestamps (if not already set)
+              // This must happen BEFORE setting status to 'completed' so the renderer
+              // sees the updated dates when it invalidates the query
+              try {
+                log.info(`Attempting to auto-populate temporal dates for study ${this.id}`)
+
+                // Calculate cutoff date (24 hours ago) to exclude media without EXIF data
+                // (which default to DateTime.now())
+                const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+
+                const dateRange = await this.db
+                  .select({
+                    minDate: sql`MIN(CASE WHEN ${media.timestamp} < ${oneDayAgo} THEN ${media.timestamp} ELSE NULL END)`.as('minDate'),
+                    maxDate: sql`MAX(CASE WHEN ${media.timestamp} < ${oneDayAgo} THEN ${media.timestamp} ELSE NULL END)`.as('maxDate')
+                  })
+                  .from(media)
+                  .get()
+
+                log.info(`Date range query result: ${JSON.stringify(dateRange)}`)
+
+                if (dateRange && dateRange.minDate && dateRange.maxDate) {
+                  const studyJsonPath = path.join(
+                    app.getPath('userData'),
+                    'biowatch-data',
+                    'studies',
+                    this.id,
+                    'study.json'
+                  )
+
+                  if (fs.existsSync(studyJsonPath)) {
+                    const studyData = JSON.parse(fs.readFileSync(studyJsonPath, 'utf-8'))
+
+                    // Initialize data and temporal objects if needed
+                    if (!studyData.data) {
+                      studyData.data = {}
+                    }
+                    if (!studyData.data.temporal) {
+                      studyData.data.temporal = {}
+                    }
+
+                    // Only update if values are not already set (don't overwrite user edits)
+                    let updated = false
+                    if (!studyData.data.temporal.start) {
+                      studyData.data.temporal.start = dateRange.minDate.split('T')[0]
+                      updated = true
+                    }
+                    if (!studyData.data.temporal.end) {
+                      studyData.data.temporal.end = dateRange.maxDate.split('T')[0]
+                      updated = true
+                    }
+
+                    if (updated) {
+                      fs.writeFileSync(studyJsonPath, JSON.stringify(studyData, null, 2))
+                      log.info(
+                        `Updated temporal dates for study ${this.id}: ${studyData.data.temporal.start} to ${studyData.data.temporal.end}`
+                      )
+                    }
+                  }
+                }
+              } catch (temporalError) {
+                log.warn(`Could not auto-populate temporal dates: ${temporalError.message}`)
               }
 
               // Update model run status to completed
