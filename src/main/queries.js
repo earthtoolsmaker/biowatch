@@ -1240,7 +1240,10 @@ export async function updateMediaTimestamp(dbPath, mediaID, newTimestamp) {
 
     // 2. Update media.timestamp - format to match original
     const formattedNewTimestamp = formatToMatchOriginal(newTimestampDT, currentMedia.timestamp)
-    await db.update(media).set({ timestamp: formattedNewTimestamp }).where(eq(media.mediaID, mediaID))
+    await db
+      .update(media)
+      .set({ timestamp: formattedNewTimestamp })
+      .where(eq(media.mediaID, mediaID))
 
     // 3. Get all related observations
     const relatedObservations = await db
@@ -1285,7 +1288,9 @@ export async function updateMediaTimestamp(dbPath, mediaID, newTimestamp) {
     }
 
     const elapsedTime = Date.now() - startTime
-    log.info(`Updated media timestamp to "${formattedNewTimestamp}" and ${updatedCount} observations in ${elapsedTime}ms`)
+    log.info(
+      `Updated media timestamp to "${formattedNewTimestamp}" and ${updatedCount} observations in ${elapsedTime}ms`
+    )
 
     return {
       success: true,
@@ -1295,6 +1300,115 @@ export async function updateMediaTimestamp(dbPath, mediaID, newTimestamp) {
     }
   } catch (error) {
     log.error(`Error updating media timestamp: ${error.message}`)
+    throw error
+  }
+}
+
+/**
+ * Update an observation's classification (species) with CamTrap DP compliant fields.
+ * When a human updates the classification:
+ * - scientificName is updated to the new value
+ * - classificationMethod is set to 'human'
+ * - classifiedBy is set to 'User'
+ * - classificationTimestamp is set to current ISO 8601 timestamp
+ * - confidence is cleared (null) for human classifications per CamTrap DP spec
+ *
+ * @param {string} dbPath - Path to the SQLite database
+ * @param {string} observationID - The observation ID to update
+ * @param {Object} updates - The update values
+ * @param {string} updates.scientificName - The new scientific name (can be empty for blank)
+ * @param {string} [updates.commonName] - Optional common name
+ * @param {string} [updates.observationType] - Optional observation type (e.g., 'blank', 'animal')
+ * @returns {Promise<Object>} - The updated observation
+ */
+export async function updateObservationClassification(dbPath, observationID, updates) {
+  const startTime = Date.now()
+  log.info(`Updating observation classification: ${observationID}`)
+
+  try {
+    // Extract study ID from path
+    const pathParts = dbPath.split('/')
+    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+
+    const db = await getDrizzleDb(studyId, dbPath)
+
+    // Prepare update values following CamTrap DP specification
+    const updateValues = {
+      scientificName: updates.scientificName || null,
+      classificationMethod: 'human',
+      classifiedBy: 'User',
+      classificationTimestamp: new Date().toISOString(),
+      // Per CamTrap DP spec: "Omit or provide an approximate probability for human classifications"
+      // We set to null to indicate this is a human classification without probability
+      confidence: null
+    }
+
+    // Add optional fields if provided
+    if (updates.commonName !== undefined) {
+      updateValues.commonName = updates.commonName
+    }
+
+    if (updates.observationType !== undefined) {
+      updateValues.observationType = updates.observationType
+    }
+
+    // Perform the update
+    await db
+      .update(observations)
+      .set(updateValues)
+      .where(eq(observations.observationID, observationID))
+
+    // Fetch and return the updated observation
+    const updatedObservation = await db
+      .select()
+      .from(observations)
+      .where(eq(observations.observationID, observationID))
+      .get()
+
+    const elapsedTime = Date.now() - startTime
+    log.info(
+      `Updated observation ${observationID} to "${updates.scientificName || 'blank'}" in ${elapsedTime}ms`
+    )
+    return updatedObservation
+  } catch (error) {
+    log.error(`Error updating observation classification: ${error.message}`)
+    throw error
+  }
+}
+
+/**
+ * Get all distinct species names from the observations table
+ * Used to populate dropdowns for species selection
+ * @param {string} dbPath - Path to the SQLite database
+ * @returns {Promise<Array>} - Array of distinct species with scientificName and commonName
+ */
+export async function getDistinctSpecies(dbPath) {
+  const startTime = Date.now()
+  log.info(`Querying distinct species from: ${dbPath}`)
+
+  try {
+    // Extract study ID from path
+    const pathParts = dbPath.split('/')
+    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+
+    const query = `
+      SELECT DISTINCT
+        scientificName,
+        commonName,
+        COUNT(*) as observationCount
+      FROM observations
+      WHERE scientificName IS NOT NULL AND scientificName != ''
+      GROUP BY scientificName
+      ORDER BY observationCount DESC, scientificName ASC
+    `
+
+    const rows = await executeRawQuery(studyId, dbPath, query)
+
+    const elapsedTime = Date.now() - startTime
+    log.info(`Retrieved ${rows.length} distinct species in ${elapsedTime}ms`)
+    return rows
+  } catch (error) {
+    log.error(`Error querying distinct species: ${error.message}`)
     throw error
   }
 }

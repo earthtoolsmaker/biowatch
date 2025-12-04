@@ -172,6 +172,19 @@ const api = {
   },
   exportCamtrapDP: async (studyId, options = {}) => {
     return await electronAPI.ipcRenderer.invoke('export:camtrap-dp', studyId, options)
+  },
+  // Observation classification update (CamTrap DP compliant)
+  updateObservationClassification: async (studyId, observationID, updates) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'observations:update-classification',
+      studyId,
+      observationID,
+      updates
+    )
+  },
+  // Get distinct species for dropdown
+  getDistinctSpecies: async (studyId) => {
+    return await electronAPI.ipcRenderer.invoke('species:get-distinct', studyId)
   }
 }
 

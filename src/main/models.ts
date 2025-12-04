@@ -545,7 +545,11 @@ async function downloadPythonEnvironment({ id, version, requestingModelId = null
   const extractPath = getMLModelEnvironmentLocalInstallPath({ id, version })
   const localTarPath = getMLModelEnvironmentLocalTarPath({ id, version })
   const manifestFilepath = getMLEnvironmentDownloadManifest()
-  const manifestOpts = { archivePath: localTarPath, installPath: extractPath, activeDownloadModelId: requestingModelId }
+  const manifestOpts = {
+    archivePath: localTarPath,
+    installPath: extractPath,
+    activeDownloadModelId: requestingModelId
+  }
 
   let previousDownloadProgress = 0
   const flushProgressDownloadIncrementThreshold = 1
@@ -1460,10 +1464,7 @@ async function startMLModelHTTPServer({ pythonEnvironment, modelReference, count
         localInstallPath,
         'best_model_Fri_Sep__1_18_50_55_2023.pt'
       )
-      const classesFilepath = join(
-        localInstallPath,
-        'classes_Fri_Sep__1_18_50_55_2023.pickle'
-      )
+      const classesFilepath = join(localInstallPath, 'classes_Fri_Sep__1_18_50_55_2023.pickle')
       const detectorWeightsFilepath = join(localInstallPath, 'MDV6-yolov10x.pt')
       const { process: pythonProcess, shutdownApiKey } = await startManasHTTPServer({
         port,
