@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { countries, DEFAULT_COUNTRY } from '../../shared/countries.js'
 
 function CountryPickerModal({ isOpen, onConfirm, onCancel }) {
@@ -11,6 +11,20 @@ function CountryPickerModal({ isOpen, onConfirm, onCancel }) {
       country.code.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
+  // Handle Escape key
+  useEffect(() => {
+    if (!isOpen) return
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        onCancel()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onCancel])
+
   const handleConfirm = () => {
     onConfirm(selectedCountry)
   }
@@ -18,8 +32,14 @@ function CountryPickerModal({ isOpen, onConfirm, onCancel }) {
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[80vh] flex flex-col">
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      onClick={onCancel}
+    >
+      <div
+        className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[80vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="px-6 py-4 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">Select Country for SpeciesNet</h2>
           <p className="text-sm text-gray-500 mt-1">
