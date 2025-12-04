@@ -161,6 +161,9 @@ const api = {
       longitude
     )
   },
+  setMediaTimestamp: async (studyId, mediaID, timestamp) => {
+    return await electronAPI.ipcRenderer.invoke('media:set-timestamp', studyId, mediaID, timestamp)
+  },
   getFilesData: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('files:get-data', studyId)
   },

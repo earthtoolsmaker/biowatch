@@ -20,7 +20,8 @@ import {
   getSpeciesDistribution,
   getSpeciesHeatmapData,
   getSpeciesTimeseries,
-  getFilesData
+  getFilesData,
+  updateMediaTimestamp
 } from './queries'
 import { Importer } from './importer' //required to register handlers
 import studies from './studies'
@@ -1132,6 +1133,23 @@ ipcMain.handle('deployments:set-longitude', async (_, studyId, deploymentID, lon
     return { success: true }
   } catch (error) {
     log.error('Error updating deployment longitude:', error)
+    return { error: error.message }
+  }
+})
+
+ipcMain.handle('media:set-timestamp', async (_, studyId, mediaID, newTimestamp) => {
+  try {
+    const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+    if (!dbPath || !existsSync(dbPath)) {
+      log.warn(`Database not found for study ID: ${studyId}`)
+      return { error: 'Database not found for this study' }
+    }
+
+    const result = await updateMediaTimestamp(dbPath, mediaID, newTimestamp)
+    await closeStudyDatabase(studyId, dbPath)
+    return result
+  } catch (error) {
+    log.error('Error updating media timestamp:', error)
     return { error: error.message }
   }
 })
