@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { FolderTree, Package } from 'lucide-react'
+import CamtrapDPExportModal from './CamtrapDPExportModal'
 
 function ExportButton({ onClick, children, className = '', disabled = false }) {
   const [isExporting, setIsExporting] = useState(false)
@@ -28,6 +29,7 @@ function ExportButton({ onClick, children, className = '', disabled = false }) {
 
 export default function Export({ studyId, importerName }) {
   const [exportStatus, setExportStatus] = useState(null)
+  const [showCamtrapDPModal, setShowCamtrapDPModal] = useState(false)
 
   const isLocalStudy = importerName?.startsWith('local/')
 
@@ -59,18 +61,33 @@ export default function Export({ studyId, importerName }) {
     }
   }
 
-  const handleCamtrapDPExport = async () => {
+  const handleCamtrapDPExport = () => {
+    setShowCamtrapDPModal(true)
+  }
+
+  const handleCamtrapDPConfirm = async (options) => {
+    setShowCamtrapDPModal(false)
     setExportStatus(null)
-    const result = await window.api.exportCamtrapDP(studyId)
+
+    const result = await window.api.exportCamtrapDP(studyId, options)
 
     if (result.cancelled) {
       return
     }
 
     if (result.success) {
+      let message = `Successfully exported Camtrap DP package to "${result.exportFolderName}" with ${result.deploymentsCount} deployments, ${result.mediaCount} media files, and ${result.observationsCount} observations.`
+
+      if (options.includeMedia && result.copiedMediaCount !== undefined) {
+        message += ` Copied ${result.copiedMediaCount} media files.`
+        if (result.mediaErrorCount > 0) {
+          message += ` (${result.mediaErrorCount} errors)`
+        }
+      }
+
       setExportStatus({
         type: 'success',
-        message: `Successfully exported Camtrap DP package to "${result.exportFolderName}" with ${result.deploymentsCount} deployments, ${result.mediaCount} media files, and ${result.observationsCount} observations.`,
+        message,
         exportPath: result.exportPath
       })
     } else {
@@ -79,6 +96,10 @@ export default function Export({ studyId, importerName }) {
         message: result.error || 'Camtrap DP export failed'
       })
     }
+  }
+
+  const handleCamtrapDPCancel = () => {
+    setShowCamtrapDPModal(false)
   }
 
   return (
@@ -146,6 +167,12 @@ export default function Export({ studyId, importerName }) {
           </div>
         </div>
       </div>
+
+      <CamtrapDPExportModal
+        isOpen={showCamtrapDPModal}
+        onConfirm={handleCamtrapDPConfirm}
+        onCancel={handleCamtrapDPCancel}
+      />
     </div>
   )
 }

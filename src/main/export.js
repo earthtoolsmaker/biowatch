@@ -336,7 +336,9 @@ function generateDataPackage(studyId, studyName) {
 /**
  * Export study data to Camtrap DP format
  */
-export async function exportCamtrapDP(studyId) {
+export async function exportCamtrapDP(studyId, options = {}) {
+  const { includeMedia = false } = options
+
   try {
     // Get study information
     const studyJsonPath = join(
@@ -426,7 +428,7 @@ export async function exportCamtrapDP(studyId) {
       mediaID: m.mediaID,
       deploymentID: m.deploymentID,
       timestamp: m.timestamp,
-      filePath: m.filePath,
+      filePath: includeMedia ? `media/${m.fileName}` : m.filePath,
       filePublic: false,
       fileMediatype: inferMimeType(m.filePath),
       fileName: m.fileName
@@ -542,6 +544,42 @@ export async function exportCamtrapDP(studyId) {
       fs.writeFile(join(exportPath, 'observations.csv'), observationsCSV)
     ])
 
+    // Copy media files if requested
+    let copiedMediaCount = 0
+    let mediaErrorCount = 0
+
+    if (includeMedia && mediaData.length > 0) {
+      const mediaDir = join(exportPath, 'media')
+      await fs.mkdir(mediaDir, { recursive: true })
+
+      log.info(`Copying ${mediaData.length} media files to: ${mediaDir}`)
+
+      for (const mediaFile of mediaData) {
+        try {
+          const sourcePath = mediaFile.filePath
+
+          if (!existsSync(sourcePath)) {
+            log.warn(`Source file not found: ${sourcePath}`)
+            mediaErrorCount++
+            continue
+          }
+
+          const destPath = join(mediaDir, mediaFile.fileName)
+          await fs.copyFile(sourcePath, destPath)
+          copiedMediaCount++
+
+          if (copiedMediaCount % 100 === 0) {
+            log.info(`Copied ${copiedMediaCount}/${mediaData.length} media files...`)
+          }
+        } catch (error) {
+          log.error(`Failed to copy ${mediaFile.filePath}: ${error.message}`)
+          mediaErrorCount++
+        }
+      }
+
+      log.info(`Media copy complete: ${copiedMediaCount} files copied, ${mediaErrorCount} errors`)
+    }
+
     await closeStudyDatabase(studyIdFromPath, dbPath)
 
     log.info(
@@ -554,7 +592,11 @@ export async function exportCamtrapDP(studyId) {
       exportFolderName: parentDirName,
       deploymentsCount: deploymentsData.length,
       mediaCount: mediaData.length,
-      observationsCount: observationsData.length
+      observationsCount: observationsData.length,
+      ...(includeMedia && {
+        copiedMediaCount,
+        mediaErrorCount
+      })
     }
   } catch (error) {
     log.error('Error exporting Camtrap DP:', error)
@@ -570,7 +612,7 @@ export function registerExportIPCHandlers() {
     return await exportImageDirectories(studyId)
   })
 
-  ipcMain.handle('export:camtrap-dp', async (_, studyId) => {
-    return await exportCamtrapDP(studyId)
+  ipcMain.handle('export:camtrap-dp', async (_, studyId, options) => {
+    return await exportCamtrapDP(studyId, options)
   })
 }
