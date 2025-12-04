@@ -369,7 +369,7 @@ function generateDataPackage(studyId, studyName) {
  * Export study data to Camtrap DP format
  */
 export async function exportCamtrapDP(studyId, options = {}) {
-  const { includeMedia = false } = options
+  const { includeMedia = false, selectedSpecies = null, includeBlank = false } = options
 
   try {
     // Get study information
@@ -441,33 +441,25 @@ export async function exportCamtrapDP(studyId, options = {}) {
 
     log.info(`Found ${deploymentsData.length} deployments`)
 
-    // Query all media
-    const mediaData = await db
-      .select({
-        mediaID: media.mediaID,
-        deploymentID: media.deploymentID,
-        timestamp: media.timestamp,
-        filePath: media.filePath,
-        fileName: media.fileName
-      })
-      .from(media)
-      .orderBy(asc(media.mediaID))
+    // Build observation filter conditions
+    const obsConditions = []
 
-    log.info(`Found ${mediaData.length} media files`)
+    if (selectedSpecies && selectedSpecies.length > 0) {
+      // Filter to selected species only
+      obsConditions.push(inArray(observations.scientificName, selectedSpecies))
+    } else {
+      // Default: all species with valid names (non-blank)
+      obsConditions.push(isNotNull(observations.scientificName))
+      obsConditions.push(ne(observations.scientificName, ''))
+    }
 
-    // Transform media data for Camtrap DP
-    const mediaRows = mediaData.map((m) => ({
-      mediaID: m.mediaID,
-      deploymentID: m.deploymentID,
-      timestamp: m.timestamp,
-      filePath: includeMedia ? `media/${m.fileName}` : m.filePath,
-      filePublic: false,
-      fileMediatype: inferMimeType(m.filePath),
-      fileName: m.fileName
-    }))
+    // Exclude blanks from species query (blanks have NULL scientificName)
+    obsConditions.push(
+      or(isNull(observations.observationType), ne(observations.observationType, 'blank'))
+    )
 
-    // Query all observations
-    const observationsData = await db
+    // Query filtered observations (non-blank species)
+    let observationsData = await db
       .select({
         observationID: observations.observationID,
         deploymentID: observations.deploymentID,
@@ -491,9 +483,84 @@ export async function exportCamtrapDP(studyId, options = {}) {
         confidence: observations.confidence
       })
       .from(observations)
+      .where(and(...obsConditions))
       .orderBy(asc(observations.observationID))
 
-    log.info(`Found ${observationsData.length} observations`)
+    // Add blank observations if requested
+    if (includeBlank) {
+      const blankObservations = await db
+        .select({
+          observationID: observations.observationID,
+          deploymentID: observations.deploymentID,
+          mediaID: observations.mediaID,
+          eventID: observations.eventID,
+          eventStart: observations.eventStart,
+          eventEnd: observations.eventEnd,
+          observationType: observations.observationType,
+          scientificName: observations.scientificName,
+          count: observations.count,
+          lifeStage: observations.lifeStage,
+          sex: observations.sex,
+          behavior: observations.behavior,
+          bboxX: observations.bboxX,
+          bboxY: observations.bboxY,
+          bboxWidth: observations.bboxWidth,
+          bboxHeight: observations.bboxHeight,
+          classificationMethod: observations.classificationMethod,
+          classifiedBy: observations.classifiedBy,
+          classificationTimestamp: observations.classificationTimestamp,
+          confidence: observations.confidence
+        })
+        .from(observations)
+        .where(isNull(observations.scientificName))
+        .orderBy(asc(observations.observationID))
+
+      observationsData = [...observationsData, ...blankObservations]
+      log.info(`Added ${blankObservations.length} blank observations`)
+    }
+
+    log.info(`Found ${observationsData.length} observations after filtering`)
+
+    // Check if there's anything to export
+    if (observationsData.length === 0) {
+      await closeStudyDatabase(studyIdFromPath, dbPath)
+      return {
+        success: false,
+        error: 'No observations found matching the selected criteria'
+      }
+    }
+
+    // Get unique mediaIDs from filtered observations
+    const filteredMediaIDs = [...new Set(observationsData.map((o) => o.mediaID).filter(Boolean))]
+
+    // Query only media that has matching observations
+    let mediaData = []
+    if (filteredMediaIDs.length > 0) {
+      mediaData = await db
+        .select({
+          mediaID: media.mediaID,
+          deploymentID: media.deploymentID,
+          timestamp: media.timestamp,
+          filePath: media.filePath,
+          fileName: media.fileName
+        })
+        .from(media)
+        .where(inArray(media.mediaID, filteredMediaIDs))
+        .orderBy(asc(media.mediaID))
+    }
+
+    log.info(`Found ${mediaData.length} media files for filtered observations`)
+
+    // Transform media data for Camtrap DP
+    const mediaRows = mediaData.map((m) => ({
+      mediaID: m.mediaID,
+      deploymentID: m.deploymentID,
+      timestamp: m.timestamp,
+      filePath: includeMedia ? `media/${m.fileName}` : m.filePath,
+      filePublic: false,
+      fileMediatype: inferMimeType(m.filePath),
+      fileName: m.fileName
+    }))
 
     // Transform observations data for Camtrap DP
     const observationsRows = observationsData.map((o) => ({

@@ -190,6 +190,7 @@ export default function Export({ studyId, importerName }) {
         isOpen={showCamtrapDPModal}
         onConfirm={handleCamtrapDPConfirm}
         onCancel={handleCamtrapDPCancel}
+        studyId={studyId}
       />
 
       <ImageDirectoriesExportModal
