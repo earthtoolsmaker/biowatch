@@ -169,14 +169,14 @@ async function getMedia(db, filepath) {
 /**
  * Parse scientific name from prediction based on model type
  * @param {Object} prediction - Model prediction output
- * @param {string} modelType - 'speciesnet' | 'deepfaune'
+ * @param {string} modelType - 'speciesnet' | 'deepfaune' | 'manas'
  * @returns {string|null} Scientific name or null for blank predictions
  */
 function parseScientificName(prediction, modelType) {
-  if (modelType === 'deepfaune') {
-    // DeepFaune: Simple label like "chamois", "blank", "empty"
+  if (modelType === 'deepfaune' || modelType === 'manas') {
+    // DeepFaune/Manas: Simple label like "chamois", "panthera_uncia", "blank", "empty", "vide"
     const label = prediction.prediction
-    if (!label || label === 'blank' || label === 'empty') {
+    if (!label || label === 'blank' || label === 'empty' || label === 'vide') {
       return null
     }
     return label
@@ -588,33 +588,45 @@ export class Importer {
 
                 log.info(`Processing batch of ${imageQueue.length} images`)
 
-                for await (const prediction of getPredictions(
-                  imageQueue,
-                  port,
-                  this.abortController.signal
-                )) {
-                  // Get the media record to get its mediaID
-                  const mediaRecord = await getMedia(this.db, prediction.filepath)
-                  if (!mediaRecord) {
-                    log.warn(`No media found for prediction: ${prediction.filepath}`)
-                    continue
+                // Create a fresh AbortController for each batch to prevent listener accumulation
+                const batchAbortController = new AbortController()
+
+                // Link main abort to batch abort so external cancellation still works
+                const abortHandler = () => batchAbortController.abort()
+                this.abortController.signal.addEventListener('abort', abortHandler)
+
+                try {
+                  for await (const prediction of getPredictions(
+                    imageQueue,
+                    port,
+                    batchAbortController.signal
+                  )) {
+                    // Get the media record to get its mediaID
+                    const mediaRecord = await getMedia(this.db, prediction.filepath)
+                    if (!mediaRecord) {
+                      log.warn(`No media found for prediction: ${prediction.filepath}`)
+                      continue
+                    }
+
+                    // Create model_output record for this media
+                    const modelOutputID = crypto.randomUUID()
+                    await this.db.insert(modelOutputs).values({
+                      id: modelOutputID,
+                      mediaID: mediaRecord.mediaID,
+                      runID: runID,
+                      rawOutput: prediction // Store full prediction as JSON
+                    })
+
+                    // Insert prediction with model provenance
+                    await insertPrediction(this.db, prediction, {
+                      modelOutputID,
+                      modelID: modelReference.id,
+                      modelVersion: modelReference.version
+                    })
                   }
-
-                  // Create model_output record for this media
-                  const modelOutputID = crypto.randomUUID()
-                  await this.db.insert(modelOutputs).values({
-                    id: modelOutputID,
-                    mediaID: mediaRecord.mediaID,
-                    runID: runID,
-                    rawOutput: prediction // Store full prediction as JSON
-                  })
-
-                  // Insert prediction with model provenance
-                  await insertPrediction(this.db, prediction, {
-                    modelOutputID,
-                    modelID: modelReference.id,
-                    modelVersion: modelReference.version
-                  })
+                } finally {
+                  // Clean up listener to prevent memory leaks on the main abort controller
+                  this.abortController.signal.removeEventListener('abort', abortHandler)
                 }
 
                 log.info(`Processed batch of ${imageQueue.length} images`)

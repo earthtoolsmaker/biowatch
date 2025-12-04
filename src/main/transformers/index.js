@@ -11,7 +11,7 @@
 /**
  * Transform a model detection bbox to Camtrap DP format (top-left corner, normalized)
  * @param {Object} detection - Detection object from model
- * @param {string} modelType - 'speciesnet' | 'deepfaune'
+ * @param {string} modelType - 'speciesnet' | 'deepfaune' | 'manas'
  * @returns {{ bboxX: number, bboxY: number, bboxWidth: number, bboxHeight: number } | null}
  */
 export function transformBboxToCamtrapDP(detection, modelType) {
@@ -42,8 +42,9 @@ export function transformBboxToCamtrapDP(detection, modelType) {
       }
     }
 
+    case 'manas':
     case 'deepfaune': {
-      // DeepFaune xywhn format: [x_center, y_center, width, height] (normalized 0-1, center format)
+      // DeepFaune/Manas xywhn format: [x_center, y_center, width, height] (normalized 0-1, center format)
       if (!detection.xywhn || !Array.isArray(detection.xywhn) || detection.xywhn.length < 4) {
         return null
       }
@@ -86,6 +87,11 @@ export function detectModelType(prediction) {
   // SpeciesNet versions typically look like "4.0.1a", "4.0.0a"
   if (version.match(/^\d+\.\d+\.\d+[a-z]?$/)) {
     return 'speciesnet'
+  }
+
+  // Manas version is "1.0" and uses xywhn format
+  if (version === '1.0' && prediction.detections?.[0]?.xywhn) {
+    return 'manas'
   }
 
   // DeepFaune versions typically look like "1.3"
