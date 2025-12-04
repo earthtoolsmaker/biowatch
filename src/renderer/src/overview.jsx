@@ -558,6 +558,13 @@ export default function Overview({ data, studyId, studyName }) {
 
       {error ? (
         <div className="text-red-500 py-4">Error: {error}</div>
+      ) : importStatus?.isRunning && importStatus?.done === 0 ? (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-3 text-gray-500">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-600"></div>
+            <span>Loading model...</span>
+          </div>
+        </div>
       ) : (
         <>
           <div className="flex flex-row gap-4 flex-1 min-h-0 mt-2">
