@@ -21,7 +21,9 @@ import {
   getSpeciesHeatmapData,
   getSpeciesTimeseries,
   getFilesData,
-  updateMediaTimestamp
+  updateMediaTimestamp,
+  updateObservationClassification,
+  getDistinctSpecies
 } from './queries'
 import { Importer } from './importer' //required to register handlers
 import studies from './studies'
@@ -752,6 +754,47 @@ app.whenReady().then(async () => {
       return { data: bboxes }
     } catch (error) {
       log.error('Error getting media bboxes:', error)
+      return { error: error.message }
+    }
+  })
+
+  // Update observation classification (species) - CamTrap DP compliant
+  ipcMain.handle(
+    'observations:update-classification',
+    async (_, studyId, observationID, updates) => {
+      try {
+        const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+        if (!dbPath || !existsSync(dbPath)) {
+          log.warn(`Database not found for study ID: ${studyId}`)
+          return { error: 'Database not found for this study' }
+        }
+
+        const updatedObservation = await updateObservationClassification(
+          dbPath,
+          observationID,
+          updates
+        )
+        return { data: updatedObservation }
+      } catch (error) {
+        log.error('Error updating observation classification:', error)
+        return { error: error.message }
+      }
+    }
+  )
+
+  // Get distinct species for dropdown
+  ipcMain.handle('species:get-distinct', async (_, studyId) => {
+    try {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) {
+        log.warn(`Database not found for study ID: ${studyId}`)
+        return { error: 'Database not found for this study' }
+      }
+
+      const species = await getDistinctSpecies(dbPath)
+      return { data: species }
+    } catch (error) {
+      log.error('Error getting distinct species:', error)
       return { error: error.message }
     }
   })

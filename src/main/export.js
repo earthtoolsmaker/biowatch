@@ -85,7 +85,9 @@ export async function exportImageDirectories(studyId, options = {}) {
     }
 
     // Always exclude blanks from species query (handled separately)
-    conditions.push(or(isNull(observations.observationType), ne(observations.observationType, 'blank')))
+    conditions.push(
+      or(isNull(observations.observationType), ne(observations.observationType, 'blank'))
+    )
 
     // Query to get media files with their species using Drizzle
     const mediaFiles = await db
