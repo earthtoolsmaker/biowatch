@@ -4,7 +4,7 @@ import fs from 'fs/promises'
 import { join, extname } from 'path'
 import log from 'electron-log'
 import { getDrizzleDb, media, observations, deployments, closeStudyDatabase } from './db/index.js'
-import { eq, and, isNotNull, ne, or, isNull, asc } from 'drizzle-orm'
+import { eq, and, isNotNull, ne, or, isNull, asc, inArray } from 'drizzle-orm'
 
 function getStudyDatabasePath(userDataPath, studyId) {
   return join(getStudyPath(userDataPath, studyId), 'study.db')
@@ -17,7 +17,9 @@ function getStudyPath(userDataPath, studyId) {
 /**
  * Export images organized by species into separate directories
  */
-export async function exportImageDirectories(studyId) {
+export async function exportImageDirectories(studyId, options = {}) {
+  const { selectedSpecies = null, includeBlank = false } = options
+
   try {
     // Get study information to use in folder name
     const studyJsonPath = join(
@@ -70,7 +72,22 @@ export async function exportImageDirectories(studyId) {
     const studyIdFromPath = pathParts[pathParts.length - 2] || 'unknown'
     const db = await getDrizzleDb(studyIdFromPath, dbPath)
 
-    // Query to get all media files with their species using Drizzle
+    // Build query conditions for species media
+    const conditions = []
+
+    if (selectedSpecies && selectedSpecies.length > 0) {
+      // Filter to selected species only
+      conditions.push(inArray(observations.scientificName, selectedSpecies))
+    } else {
+      // Default: all species with valid names
+      conditions.push(isNotNull(observations.scientificName))
+      conditions.push(ne(observations.scientificName, ''))
+    }
+
+    // Always exclude blanks from species query (handled separately)
+    conditions.push(or(isNull(observations.observationType), ne(observations.observationType, 'blank')))
+
+    // Query to get media files with their species using Drizzle
     const mediaFiles = await db
       .selectDistinct({
         filePath: media.filePath,
@@ -79,23 +96,10 @@ export async function exportImageDirectories(studyId) {
       })
       .from(media)
       .innerJoin(observations, eq(media.timestamp, observations.eventStart))
-      .where(
-        and(
-          isNotNull(observations.scientificName),
-          ne(observations.scientificName, ''),
-          or(isNull(observations.observationType), ne(observations.observationType, 'blank'))
-        )
-      )
+      .where(and(...conditions))
       .orderBy(asc(observations.scientificName), asc(media.fileName))
 
     log.info(`Found ${mediaFiles.length} media files with species identifications`)
-
-    if (mediaFiles.length === 0) {
-      return {
-        success: false,
-        error: 'No media files with species identifications found in this study'
-      }
-    }
 
     // Group files by species
     const speciesGroups = {}
@@ -104,6 +108,34 @@ export async function exportImageDirectories(studyId) {
         speciesGroups[file.scientificName] = []
       }
       speciesGroups[file.scientificName].push(file)
+    }
+
+    // Query blank media separately if requested
+    // Blank observations are stored with scientificName = NULL (not observationType = 'blank')
+    if (includeBlank) {
+      const blankMedia = await db
+        .selectDistinct({
+          filePath: media.filePath,
+          fileName: media.fileName
+        })
+        .from(media)
+        .innerJoin(observations, eq(media.timestamp, observations.eventStart))
+        .where(isNull(observations.scientificName))
+        .orderBy(asc(media.fileName))
+
+      if (blankMedia.length > 0) {
+        speciesGroups['blank'] = blankMedia
+        log.info(`Found ${blankMedia.length} blank media files`)
+      }
+    }
+
+    // Check if there's anything to export
+    const totalGroups = Object.keys(speciesGroups).length
+    if (totalGroups === 0) {
+      return {
+        success: false,
+        error: 'No media files found matching the selected criteria'
+      }
     }
 
     log.info(
@@ -608,8 +640,8 @@ export async function exportCamtrapDP(studyId, options = {}) {
  * Register all export-related IPC handlers
  */
 export function registerExportIPCHandlers() {
-  ipcMain.handle('export:image-directories', async (_, studyId) => {
-    return await exportImageDirectories(studyId)
+  ipcMain.handle('export:image-directories', async (_, studyId, options) => {
+    return await exportImageDirectories(studyId, options)
   })
 
   ipcMain.handle('export:camtrap-dp', async (_, studyId, options) => {
