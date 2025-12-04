@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { FolderTree, Package } from 'lucide-react'
 import CamtrapDPExportModal from './CamtrapDPExportModal'
+import ImageDirectoriesExportModal from './ImageDirectoriesExportModal'
 
 function ExportButton({ onClick, children, className = '', disabled = false }) {
   const [isExporting, setIsExporting] = useState(false)
@@ -30,21 +31,34 @@ function ExportButton({ onClick, children, className = '', disabled = false }) {
 export default function Export({ studyId, importerName }) {
   const [exportStatus, setExportStatus] = useState(null)
   const [showCamtrapDPModal, setShowCamtrapDPModal] = useState(false)
+  const [showImageDirectoriesModal, setShowImageDirectoriesModal] = useState(false)
 
   const isLocalStudy = importerName?.startsWith('local/')
 
-  const handleImageDirectoriesExport = async () => {
+  const handleImageDirectoriesExport = () => {
+    setShowImageDirectoriesModal(true)
+  }
+
+  const handleImageDirectoriesConfirm = async (options) => {
+    setShowImageDirectoriesModal(false)
     setExportStatus(null)
-    const result = await window.api.exportImageDirectories(studyId)
+
+    const result = await window.api.exportImageDirectories(studyId, options)
 
     if (result.cancelled) {
       return
     }
 
     if (result.success) {
+      let message = `Successfully exported ${result.copiedCount} images to ${result.speciesCount} directories in "${result.exportFolderName}"`
+      if (result.errorCount > 0) {
+        message += ` (${result.errorCount} errors)`
+      }
+      message += '.'
+
       setExportStatus({
         type: 'success',
-        message: `Successfully exported ${result.copiedCount} images to ${result.speciesCount} species directories in "${result.exportFolderName}"${result.errorCount > 0 ? ` (${result.errorCount} errors)` : ''}.`,
+        message,
         exportPath: result.exportPath
       })
     } else {
@@ -53,6 +67,10 @@ export default function Export({ studyId, importerName }) {
         message: result.error || 'Export failed'
       })
     }
+  }
+
+  const handleImageDirectoriesCancel = () => {
+    setShowImageDirectoriesModal(false)
   }
 
   const handleOpenExportFolder = () => {
@@ -172,6 +190,13 @@ export default function Export({ studyId, importerName }) {
         isOpen={showCamtrapDPModal}
         onConfirm={handleCamtrapDPConfirm}
         onCancel={handleCamtrapDPCancel}
+      />
+
+      <ImageDirectoriesExportModal
+        isOpen={showImageDirectoriesModal}
+        onConfirm={handleImageDirectoriesConfirm}
+        onCancel={handleImageDirectoriesCancel}
+        studyId={studyId}
       />
     </div>
   )
