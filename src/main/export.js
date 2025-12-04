@@ -1,5 +1,6 @@
 import { app, dialog, ipcMain } from 'electron'
 import { existsSync } from 'fs'
+import fs from 'fs/promises'
 import { join } from 'path'
 import log from 'electron-log'
 import { getDrizzleDb, media, observations, closeStudyDatabase } from './db/index.js'
@@ -29,7 +30,6 @@ export async function exportImageDirectories(studyId) {
     let studyName = 'Unknown'
     if (existsSync(studyJsonPath)) {
       try {
-        const fs = await import('fs/promises')
         const studyData = JSON.parse(await fs.readFile(studyJsonPath, 'utf8'))
         studyName = studyData.name || 'Unknown'
       } catch (error) {
@@ -111,7 +111,6 @@ export async function exportImageDirectories(studyId) {
     )
 
     // Copy files to species directories
-    const fs = await import('fs/promises')
     let copiedCount = 0
     let errorCount = 0
 
