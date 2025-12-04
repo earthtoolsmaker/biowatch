@@ -8,7 +8,7 @@ import { join } from 'path'
 import icon from '../../resources/icon.png?asset'
 import { importCamTrapDataset } from './camtrap'
 import { registerMLModelManagementIPCHandlers, garbageCollect } from './models'
-import { getDrizzleDb, deployments, media, observations, closeStudyDatabase } from './db/index.js'
+import { getDrizzleDb, deployments, closeStudyDatabase } from './db/index.js'
 import { eq } from 'drizzle-orm'
 import {
   getDeployments,

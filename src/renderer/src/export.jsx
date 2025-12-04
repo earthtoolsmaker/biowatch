@@ -26,7 +26,7 @@ function ExportButton({ onClick, children, className = '', disabled = false }) {
   )
 }
 
-export default function Export({ studyId, studyName, importerName }) {
+export default function Export({ studyId, importerName }) {
   const [exportStatus, setExportStatus] = useState(null)
 
   const isLocalStudy = importerName?.startsWith('local/')
