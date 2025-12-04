@@ -8,7 +8,7 @@ import { join } from 'path'
 import icon from '../../resources/icon.png?asset'
 import { importCamTrapDataset } from './camtrap'
 import { registerMLModelManagementIPCHandlers, garbageCollect } from './models'
-import { getDrizzleDb, deployments, closeStudyDatabase } from './db/index.js'
+import { getDrizzleDb, deployments, media, observations, closeStudyDatabase } from './db/index.js'
 import { eq } from 'drizzle-orm'
 import {
   getDeployments,
@@ -28,6 +28,7 @@ import { importWildlifeDataset } from './wildlife'
 import { importDeepfauneDataset } from './deepfaune'
 import { extractZip, downloadFile } from './download'
 import migrations from './migrations/index.js'
+import { registerExportIPCHandlers } from './export.js'
 
 // Configure electron-log
 log.transports.file.level = 'info'
@@ -1053,6 +1054,7 @@ app.whenReady().then(async () => {
   })
 
   registerMLModelManagementIPCHandlers()
+  registerExportIPCHandlers()
 })
 
 // Quit when all windows are closed, except on macOS. There, it's common
@@ -1115,6 +1117,17 @@ ipcMain.handle('deployments:set-longitude', async (_, studyId, deploymentID, lon
     return { success: true }
   } catch (error) {
     log.error('Error updating deployment longitude:', error)
+    return { error: error.message }
+  }
+})
+
+ipcMain.handle('shell:open-path', async (_, path) => {
+  try {
+    await shell.openPath(path)
+    log.info(`Opened path: ${path}`)
+    return { success: true }
+  } catch (error) {
+    log.error('Error opening path:', error)
     return { error: error.message }
   }
 })
