@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { X } from 'lucide-react'
 
 function CamtrapDPExportModal({ isOpen, onConfirm, onCancel }) {
   const [includeMedia, setIncludeMedia] = useState(true)
@@ -23,13 +24,28 @@ function CamtrapDPExportModal({ isOpen, onConfirm, onCancel }) {
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Export Camtrap DP</h2>
-          <p className="text-sm text-gray-500 mt-1">
-            Configure export options for your Camera Trap Data Package
-          </p>
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      onClick={onCancel}
+    >
+      <div
+        className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-start">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Export Camtrap DP</h2>
+            <p className="text-sm text-gray-500 mt-1">
+              Configure export options for your Camera Trap Data Package
+            </p>
+          </div>
+          <button
+            onClick={onCancel}
+            className="p-1 hover:bg-gray-100 rounded text-gray-500 hover:text-gray-700 transition-colors"
+            aria-label="Close modal"
+          >
+            <X size={20} />
+          </button>
         </div>
 
         <div className="px-6 py-4">
