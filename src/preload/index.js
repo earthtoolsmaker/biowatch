@@ -163,6 +163,9 @@ const api = {
   },
   getFilesData: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('files:get-data', studyId)
+  },
+  exportImageDirectories: async (studyId) => {
+    return await electronAPI.ipcRenderer.invoke('export:image-directories', studyId)
   }
 }
 

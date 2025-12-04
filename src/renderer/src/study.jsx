@@ -1,5 +1,14 @@
 import 'leaflet/dist/leaflet.css'
-import { Cctv, ChartBar, Image, NotebookText, Download, Pause, FolderOpen } from 'lucide-react'
+import {
+  Cctv,
+  ChartBar,
+  Image,
+  NotebookText,
+  Download,
+  Pause,
+  FolderOpen,
+  Upload
+} from 'lucide-react'
 import { NavLink, Route, Routes, useParams } from 'react-router'
 import { ErrorBoundary } from 'react-error-boundary'
 import { useQuery } from '@tanstack/react-query'
@@ -8,6 +17,7 @@ import Overview from './overview'
 import Activity from './activity'
 import Media from './media'
 import Files from './files'
+import Export from './export'
 import { useImportStatus } from '@renderer/hooks/import'
 
 // Error fallback component
@@ -201,6 +211,15 @@ export default function Study() {
             Files
           </NavLink>
         )}
+        <NavLink
+          to={`/study/${id}/export`}
+          className={({ isActive }) =>
+            `${isActive ? 'bg-gray-100' : ''} cursor-pointer hover:bg-gray-100 transition-colors flex justify-center flex-row gap-2 items-center px-4 h-10 text-sm`
+          }
+        >
+          <Upload color="black" size={20} className="pb-[2px]" />
+          Export
+        </NavLink>
 
         <ImportStatus studyId={id} importerName={study?.importerName} />
       </header>
@@ -248,6 +267,14 @@ export default function Study() {
               }
             />
           )}
+          <Route
+            path="export"
+            element={
+              <ErrorBoundary FallbackComponent={ErrorFallback} key={'export'}>
+                <Export studyId={id} studyName={study.name} importerName={study?.importerName} />
+              </ErrorBoundary>
+            }
+          />
         </Routes>
       </div>
     </div>
