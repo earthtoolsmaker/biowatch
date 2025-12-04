@@ -60,9 +60,25 @@ export default function Export({ studyId, importerName }) {
   }
 
   const handleCamtrapDPExport = async () => {
-    // TODO: Implement Camtrap DP export
-    console.log('Exporting to Camtrap DP format...')
-    // This will call: await window.api.exportCamtrapDP(studyId)
+    setExportStatus(null)
+    const result = await window.api.exportCamtrapDP(studyId)
+
+    if (result.cancelled) {
+      return
+    }
+
+    if (result.success) {
+      setExportStatus({
+        type: 'success',
+        message: `Successfully exported Camtrap DP package to "${result.exportFolderName}" with ${result.deploymentsCount} deployments, ${result.mediaCount} media files, and ${result.observationsCount} observations.`,
+        exportPath: result.exportPath
+      })
+    } else {
+      setExportStatus({
+        type: 'error',
+        message: result.error || 'Camtrap DP export failed'
+      })
+    }
   }
 
   return (

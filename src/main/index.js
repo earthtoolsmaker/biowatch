@@ -344,13 +344,21 @@ app.whenReady().then(async () => {
   })
 
   // Add dataset selection handler (supports both directories and zip files)
+  // Note: On Linux, GTK file chooser cannot handle ['openFile', 'openDirectory'] together,
+  // so we use directory-only mode on Linux
   ipcMain.handle('import:select-camtrap-dp', async () => {
+    const isLinux = process.platform === 'linux'
+
     const result = await dialog.showOpenDialog({
-      properties: ['openFile', 'openDirectory'],
-      filters: [
-        { name: 'Datasets', extensions: ['zip'] },
-        { name: 'All Files', extensions: ['*'] }
-      ]
+      title: 'Select CamTrap DP Dataset',
+      defaultPath: app.getPath('home'),
+      properties: isLinux ? ['openDirectory'] : ['openFile', 'openDirectory'],
+      filters: isLinux
+        ? undefined
+        : [
+            { name: 'Datasets', extensions: ['zip'] },
+            { name: 'All Files', extensions: ['*'] }
+          ]
     })
 
     if (!result || result.canceled || result.filePaths.length === 0) return null
@@ -362,13 +370,20 @@ app.whenReady().then(async () => {
   })
 
   // Add Wildlife Insights dataset selection handler
+  // Note: On Linux, GTK file chooser cannot handle ['openFile', 'openDirectory'] together
   ipcMain.handle('import:select-wildlife', async () => {
+    const isLinux = process.platform === 'linux'
+
     const result = await dialog.showOpenDialog({
-      properties: ['openFile', 'openDirectory'],
-      filters: [
-        { name: 'Wildlife Datasets', extensions: ['zip'] },
-        { name: 'All Files', extensions: ['*'] }
-      ]
+      title: 'Select Wildlife Insights Dataset',
+      defaultPath: app.getPath('home'),
+      properties: isLinux ? ['openDirectory'] : ['openFile', 'openDirectory'],
+      filters: isLinux
+        ? undefined
+        : [
+            { name: 'Wildlife Datasets', extensions: ['zip'] },
+            { name: 'All Files', extensions: ['*'] }
+          ]
     })
 
     if (!result || result.canceled || result.filePaths.length === 0) return null

@@ -166,6 +166,9 @@ const api = {
   },
   exportImageDirectories: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('export:image-directories', studyId)
+  },
+  exportCamtrapDP: async (studyId) => {
+    return await electronAPI.ipcRenderer.invoke('export:camtrap-dp', studyId)
   }
 }
 

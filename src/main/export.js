@@ -1,9 +1,9 @@
 import { app, dialog, ipcMain } from 'electron'
 import { existsSync } from 'fs'
 import fs from 'fs/promises'
-import { join } from 'path'
+import { join, extname } from 'path'
 import log from 'electron-log'
-import { getDrizzleDb, media, observations, closeStudyDatabase } from './db/index.js'
+import { getDrizzleDb, media, observations, deployments, closeStudyDatabase } from './db/index.js'
 import { eq, and, isNotNull, ne, or, isNull, asc } from 'drizzle-orm'
 
 function getStudyDatabasePath(userDataPath, studyId) {
@@ -173,10 +173,404 @@ export async function exportImageDirectories(studyId) {
 }
 
 /**
+ * MIME type mapping for common media file extensions
+ */
+const MIME_TYPES = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.gif': 'image/gif',
+  '.bmp': 'image/bmp',
+  '.webp': 'image/webp',
+  '.tiff': 'image/tiff',
+  '.tif': 'image/tiff',
+  '.mp4': 'video/mp4',
+  '.avi': 'video/x-msvideo',
+  '.mov': 'video/quicktime',
+  '.mkv': 'video/x-matroska',
+  '.wmv': 'video/x-ms-wmv',
+  '.webm': 'video/webm'
+}
+
+/**
+ * Infer MIME type from file path
+ */
+function inferMimeType(filePath) {
+  if (!filePath) return 'application/octet-stream'
+  const ext = extname(filePath).toLowerCase()
+  return MIME_TYPES[ext] || 'application/octet-stream'
+}
+
+/**
+ * Map internal observationType to Camtrap DP vocabulary
+ * Valid values: animal, human, vehicle, blank, unknown, unclassified
+ */
+function mapObservationType(dbType, scientificName) {
+  // If scientificName is present, it's an animal observation
+  if (scientificName) return 'animal'
+  if (!dbType || dbType === 'blank') return 'blank'
+  if (dbType === 'machine' || dbType === 'human') return 'animal'
+  if (dbType === 'animal') return 'animal'
+  if (dbType === 'vehicle') return 'vehicle'
+  return 'unknown'
+}
+
+/**
+ * Escape a value for CSV output
+ */
+function escapeCSV(value) {
+  if (value === null || value === undefined) return ''
+  const str = String(value)
+  // If the value contains comma, quote, or newline, wrap in quotes and escape quotes
+  if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+    return '"' + str.replace(/"/g, '""') + '"'
+  }
+  return str
+}
+
+/**
+ * Convert an array of objects to CSV string
+ */
+function toCSV(rows, columns) {
+  const header = columns.join(',')
+  const lines = rows.map((row) => columns.map((col) => escapeCSV(row[col])).join(','))
+  return header + '\n' + lines.join('\n')
+}
+
+/**
+ * Generate the datapackage.json content for Camtrap DP
+ */
+function generateDataPackage(studyId, studyName) {
+  const now = new Date().toISOString()
+  const nameToSlugify = studyName || studyId
+  const slugifiedName = nameToSlugify.replace(/[^a-z0-9-]/gi, '-').toLowerCase()
+
+  return {
+    name: slugifiedName,
+    title: studyName || 'Biowatch Camera Trap Dataset',
+    description:
+      'Camera trap dataset exported from Biowatch. This dataset contains camera trap deployment information, media files metadata, and species observations collected during wildlife monitoring.',
+    version: '1.0.0',
+    created: now,
+    contributors: [
+      {
+        title: 'Biowatch User',
+        role: 'author'
+      }
+    ],
+    licenses: [
+      {
+        name: 'CC-BY-4.0',
+        title: 'Creative Commons Attribution 4.0',
+        path: 'https://creativecommons.org/licenses/by/4.0/'
+      }
+    ],
+    profile: 'tabular-data-package',
+    resources: [
+      {
+        name: 'deployments',
+        path: 'deployments.csv',
+        profile: 'tabular-data-resource',
+        schema: {
+          fields: [
+            { name: 'deploymentID', type: 'string' },
+            { name: 'locationID', type: 'string' },
+            { name: 'locationName', type: 'string' },
+            { name: 'latitude', type: 'number' },
+            { name: 'longitude', type: 'number' },
+            { name: 'deploymentStart', type: 'datetime' },
+            { name: 'deploymentEnd', type: 'datetime' }
+          ]
+        }
+      },
+      {
+        name: 'media',
+        path: 'media.csv',
+        profile: 'tabular-data-resource',
+        schema: {
+          fields: [
+            { name: 'mediaID', type: 'string' },
+            { name: 'deploymentID', type: 'string' },
+            { name: 'timestamp', type: 'datetime' },
+            { name: 'filePath', type: 'string' },
+            { name: 'filePublic', type: 'boolean' },
+            { name: 'fileMediatype', type: 'string' },
+            { name: 'fileName', type: 'string' }
+          ]
+        }
+      },
+      {
+        name: 'observations',
+        path: 'observations.csv',
+        profile: 'tabular-data-resource',
+        schema: {
+          fields: [
+            { name: 'observationID', type: 'string' },
+            { name: 'deploymentID', type: 'string' },
+            { name: 'mediaID', type: 'string' },
+            { name: 'eventID', type: 'string' },
+            { name: 'eventStart', type: 'datetime' },
+            { name: 'eventEnd', type: 'datetime' },
+            { name: 'observationLevel', type: 'string' },
+            { name: 'observationType', type: 'string' },
+            { name: 'scientificName', type: 'string' },
+            { name: 'count', type: 'integer' },
+            { name: 'lifeStage', type: 'string' },
+            { name: 'sex', type: 'string' },
+            { name: 'behavior', type: 'string' },
+            { name: 'bboxX', type: 'number' },
+            { name: 'bboxY', type: 'number' },
+            { name: 'bboxWidth', type: 'number' },
+            { name: 'bboxHeight', type: 'number' },
+            { name: 'classificationMethod', type: 'string' },
+            { name: 'classifiedBy', type: 'string' },
+            { name: 'classificationTimestamp', type: 'datetime' },
+            { name: 'classificationProbability', type: 'number' }
+          ]
+        }
+      }
+    ]
+  }
+}
+
+/**
+ * Export study data to Camtrap DP format
+ */
+export async function exportCamtrapDP(studyId) {
+  try {
+    // Get study information
+    const studyJsonPath = join(
+      app.getPath('userData'),
+      'biowatch-data',
+      'studies',
+      studyId,
+      'study.json'
+    )
+    let studyName = 'Unknown'
+    if (existsSync(studyJsonPath)) {
+      try {
+        const studyData = JSON.parse(await fs.readFile(studyJsonPath, 'utf8'))
+        studyName = studyData.name || 'Unknown'
+      } catch (error) {
+        log.warn(`Failed to read study name: ${error.message}`)
+      }
+    }
+
+    // Let user select destination directory
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory', 'createDirectory'],
+      title: 'Select Camtrap DP Export Destination',
+      buttonLabel: 'Export Here'
+    })
+
+    if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+      return { success: false, cancelled: true }
+    }
+
+    const baseExportPath = result.filePaths[0]
+
+    // Create unique parent directory with study name and date
+    const now = new Date()
+    const dateStr = now.toISOString().split('T')[0] // YYYY-MM-DD
+    const sanitizedStudyName = studyName.replace(/[/\\?%*:|"<>]/g, '_')
+    const parentDirName = `Biowatch export ${sanitizedStudyName} ${dateStr}`
+    const exportPath = join(baseExportPath, parentDirName)
+
+    log.info(`Exporting Camtrap DP to: ${exportPath}`)
+
+    // Create export directory
+    await fs.mkdir(exportPath, { recursive: true })
+
+    const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+    if (!dbPath || !existsSync(dbPath)) {
+      log.warn(`Database not found for study ID: ${studyId}`)
+      return { success: false, error: 'Database not found for this study' }
+    }
+
+    const pathParts = dbPath.split('/')
+    const studyIdFromPath = pathParts[pathParts.length - 2] || 'unknown'
+    const db = await getDrizzleDb(studyIdFromPath, dbPath)
+
+    // Query all deployments
+    const deploymentsData = await db
+      .select({
+        deploymentID: deployments.deploymentID,
+        locationID: deployments.locationID,
+        locationName: deployments.locationName,
+        latitude: deployments.latitude,
+        longitude: deployments.longitude,
+        deploymentStart: deployments.deploymentStart,
+        deploymentEnd: deployments.deploymentEnd
+      })
+      .from(deployments)
+      .orderBy(asc(deployments.deploymentID))
+
+    log.info(`Found ${deploymentsData.length} deployments`)
+
+    // Query all media
+    const mediaData = await db
+      .select({
+        mediaID: media.mediaID,
+        deploymentID: media.deploymentID,
+        timestamp: media.timestamp,
+        filePath: media.filePath,
+        fileName: media.fileName
+      })
+      .from(media)
+      .orderBy(asc(media.mediaID))
+
+    log.info(`Found ${mediaData.length} media files`)
+
+    // Transform media data for Camtrap DP
+    const mediaRows = mediaData.map((m) => ({
+      mediaID: m.mediaID,
+      deploymentID: m.deploymentID,
+      timestamp: m.timestamp,
+      filePath: m.filePath,
+      filePublic: false,
+      fileMediatype: inferMimeType(m.filePath),
+      fileName: m.fileName
+    }))
+
+    // Query all observations
+    const observationsData = await db
+      .select({
+        observationID: observations.observationID,
+        deploymentID: observations.deploymentID,
+        mediaID: observations.mediaID,
+        eventID: observations.eventID,
+        eventStart: observations.eventStart,
+        eventEnd: observations.eventEnd,
+        observationType: observations.observationType,
+        scientificName: observations.scientificName,
+        count: observations.count,
+        lifeStage: observations.lifeStage,
+        sex: observations.sex,
+        behavior: observations.behavior,
+        bboxX: observations.bboxX,
+        bboxY: observations.bboxY,
+        bboxWidth: observations.bboxWidth,
+        bboxHeight: observations.bboxHeight,
+        classificationMethod: observations.classificationMethod,
+        classifiedBy: observations.classifiedBy,
+        classificationTimestamp: observations.classificationTimestamp,
+        confidence: observations.confidence
+      })
+      .from(observations)
+      .orderBy(asc(observations.observationID))
+
+    log.info(`Found ${observationsData.length} observations`)
+
+    // Transform observations data for Camtrap DP
+    const observationsRows = observationsData.map((o) => ({
+      observationID: o.observationID,
+      deploymentID: o.deploymentID,
+      mediaID: o.mediaID,
+      eventID: o.eventID,
+      eventStart: o.eventStart,
+      eventEnd: o.eventEnd,
+      observationLevel: 'media',
+      observationType: mapObservationType(o.observationType, o.scientificName),
+      scientificName: o.scientificName,
+      count: o.count,
+      lifeStage: o.lifeStage,
+      sex: o.sex,
+      behavior: o.behavior,
+      bboxX: o.bboxX,
+      bboxY: o.bboxY,
+      bboxWidth: o.bboxWidth,
+      bboxHeight: o.bboxHeight,
+      classificationMethod: o.classificationMethod,
+      classifiedBy: o.classifiedBy,
+      classificationTimestamp: o.classificationTimestamp,
+      classificationProbability: o.confidence
+    }))
+
+    // Generate CSV files
+    const deploymentsCSV = toCSV(deploymentsData, [
+      'deploymentID',
+      'locationID',
+      'locationName',
+      'latitude',
+      'longitude',
+      'deploymentStart',
+      'deploymentEnd'
+    ])
+
+    const mediaCSV = toCSV(mediaRows, [
+      'mediaID',
+      'deploymentID',
+      'timestamp',
+      'filePath',
+      'filePublic',
+      'fileMediatype',
+      'fileName'
+    ])
+
+    const observationsCSV = toCSV(observationsRows, [
+      'observationID',
+      'deploymentID',
+      'mediaID',
+      'eventID',
+      'eventStart',
+      'eventEnd',
+      'observationLevel',
+      'observationType',
+      'scientificName',
+      'count',
+      'lifeStage',
+      'sex',
+      'behavior',
+      'bboxX',
+      'bboxY',
+      'bboxWidth',
+      'bboxHeight',
+      'classificationMethod',
+      'classifiedBy',
+      'classificationTimestamp',
+      'classificationProbability'
+    ])
+
+    // Generate datapackage.json
+    const dataPackage = generateDataPackage(studyId, studyName)
+
+    // Write all files
+    await Promise.all([
+      fs.writeFile(join(exportPath, 'datapackage.json'), JSON.stringify(dataPackage, null, 2)),
+      fs.writeFile(join(exportPath, 'deployments.csv'), deploymentsCSV),
+      fs.writeFile(join(exportPath, 'media.csv'), mediaCSV),
+      fs.writeFile(join(exportPath, 'observations.csv'), observationsCSV)
+    ])
+
+    await closeStudyDatabase(studyIdFromPath, dbPath)
+
+    log.info(
+      `Camtrap DP export complete: ${deploymentsData.length} deployments, ${mediaData.length} media, ${observationsData.length} observations`
+    )
+
+    return {
+      success: true,
+      exportPath,
+      exportFolderName: parentDirName,
+      deploymentsCount: deploymentsData.length,
+      mediaCount: mediaData.length,
+      observationsCount: observationsData.length
+    }
+  } catch (error) {
+    log.error('Error exporting Camtrap DP:', error)
+    return { success: false, error: error.message }
+  }
+}
+
+/**
  * Register all export-related IPC handlers
  */
 export function registerExportIPCHandlers() {
   ipcMain.handle('export:image-directories', async (_, studyId) => {
     return await exportImageDirectories(studyId)
+  })
+
+  ipcMain.handle('export:camtrap-dp', async (_, studyId) => {
+    return await exportCamtrapDP(studyId)
   })
 }
