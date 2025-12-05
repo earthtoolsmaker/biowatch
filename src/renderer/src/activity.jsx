@@ -7,6 +7,7 @@ import MarkerClusterGroup from 'react-leaflet-cluster'
 import { useParams } from 'react-router'
 import CircularTimeFilter, { DailyActivityRadar } from './ui/clock'
 import PlaceholderMap from './ui/PlaceholderMap'
+import SkeletonMap from './ui/SkeletonMap'
 import SpeciesDistribution from './ui/speciesDistribution'
 import TimelineChart from './ui/timeseries'
 import { useImportStatus } from './hooks/import'
@@ -381,8 +382,7 @@ export default function Activity({ studyData, studyId }) {
 
       // Determine status based on whether data has location points
       const hasPoints =
-        response.data &&
-        Object.values(response.data).some((points) => points && points.length > 0)
+        response.data && Object.values(response.data).some((points) => points && points.length > 0)
       setHeatmapStatus(hasPoints ? 'hasData' : 'noData')
     }
 
@@ -444,7 +444,9 @@ export default function Activity({ studyData, studyId }) {
 
             {/* Map - right side */}
             <div className="h-full flex-1">
-              {heatmapStatus === 'hasData' ? (
+              {heatmapStatus === 'loading' ? (
+                <SkeletonMap title="Loading Activity" message="Loading species distribution..." />
+              ) : heatmapStatus === 'hasData' ? (
                 <SpeciesMap
                   heatmapData={heatmapData}
                   selectedSpecies={selectedSpecies}
@@ -458,7 +460,7 @@ export default function Activity({ studyData, studyId }) {
                     timeRange.end
                   }
                 />
-              ) : heatmapStatus === 'noData' ? (
+              ) : (
                 <PlaceholderMap
                   title="No Species Location Data"
                   description="Select species from the list and set up deployment coordinates in the Deployments tab to view the species distribution map."
@@ -467,7 +469,7 @@ export default function Activity({ studyData, studyId }) {
                   icon={MapPin}
                   studyId={actualStudyId}
                 />
-              ) : null}
+              )}
             </div>
             <div className="h-full overflow-auto w-xs">
               {speciesDistributionData && (
