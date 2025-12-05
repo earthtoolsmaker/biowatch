@@ -382,8 +382,7 @@ export default function Activity({ studyData, studyId }) {
 
       // Determine status based on whether data has location points
       const hasPoints =
-        response.data &&
-        Object.values(response.data).some((points) => points && points.length > 0)
+        response.data && Object.values(response.data).some((points) => points && points.length > 0)
       setHeatmapStatus(hasPoints ? 'hasData' : 'noData')
     }
 
@@ -446,10 +445,7 @@ export default function Activity({ studyData, studyId }) {
             {/* Map - right side */}
             <div className="h-full flex-1">
               {heatmapStatus === 'loading' ? (
-                <SkeletonMap
-                  title="Loading Activity"
-                  message="Loading species distribution..."
-                />
+                <SkeletonMap title="Loading Activity" message="Loading species distribution..." />
               ) : heatmapStatus === 'hasData' ? (
                 <SpeciesMap
                   heatmapData={heatmapData}

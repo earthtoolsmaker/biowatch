@@ -346,10 +346,7 @@ export default function Deployments({ studyId }) {
     <div className="flex flex-col px-4 h-full gap-4">
       <div className="flex-[0.7]">
         {isLoading ? (
-          <SkeletonMap
-            title="Loading Deployments"
-            message="Loading deployment locations..."
-          />
+          <SkeletonMap title="Loading Deployments" message="Loading deployment locations..." />
         ) : activity ? (
           <LocationMap
             locations={activity.deployments}
