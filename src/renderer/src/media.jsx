@@ -1,5 +1,5 @@
 import { CameraOff, X, Square, Calendar, Pencil, Check, Search, Ban } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { useParams } from 'react-router'
 import CircularTimeFilter, { DailyActivityRadar } from './ui/clock'
@@ -237,7 +237,7 @@ function SpeciesSelector({ bbox, studyId, onClose, onUpdate }) {
  * - Labels near top edge are positioned below the bbox
  * - Labels near right edge are right-aligned
  */
-function BboxLabel({ bbox, isSelected, onClick, isHuman }) {
+const BboxLabel = forwardRef(function BboxLabel({ bbox, isSelected, onClick, isHuman }, ref) {
   const displayName = bbox.scientificName || 'Blank'
   const confidence = bbox.confidence ? `${Math.round(bbox.confidence * 100)}%` : null
 
@@ -266,6 +266,7 @@ function BboxLabel({ bbox, isSelected, onClick, isHuman }) {
 
   return (
     <button
+      ref={ref}
       onClick={(e) => {
         e.stopPropagation()
         onClick()
@@ -285,6 +286,45 @@ function BboxLabel({ bbox, isSelected, onClick, isHuman }) {
       {isHuman && <span className="ml-1">✓</span>}
     </button>
   )
+})
+
+/**
+ * Compute optimal position for the species selector relative to the label
+ * Tries to position below the label first, then above if no room
+ * Always constrained to stay within the image container bounds
+ */
+function computeSelectorPosition(labelRect, containerRect, selectorSize = { width: 288, height: 320 }) {
+  const MARGIN = 8
+  const PADDING = 16
+
+  // Try position below the label first (preferred)
+  let x = labelRect.left
+  let y = labelRect.bottom + MARGIN
+  let transform = 'none'
+
+  // Check if fits below within container
+  if (y + selectorSize.height > containerRect.bottom - PADDING) {
+    // Try above the label
+    y = labelRect.top - MARGIN
+    transform = 'translateY(-100%)'
+
+    // Check if fits above within container
+    if (y - selectorSize.height < containerRect.top + PADDING) {
+      // Fallback: position at container center vertically
+      y = containerRect.top + (containerRect.height - selectorSize.height) / 2
+      transform = 'none'
+    }
+  }
+
+  // Clamp horizontal to container bounds
+  if (x + selectorSize.width > containerRect.right - PADDING) {
+    x = containerRect.right - PADDING - selectorSize.width
+  }
+  if (x < containerRect.left + PADDING) {
+    x = containerRect.left + PADDING
+  }
+
+  return { x, y, transform }
 }
 
 function ImageModal({
@@ -306,7 +346,12 @@ function ImageModal({
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState(null)
   const [selectedBboxId, setSelectedBboxId] = useState(null)
+  const [selectorPosition, setSelectorPosition] = useState(null)
   const queryClient = useQueryClient()
+
+  // Refs for positioning the species selector near the label
+  const imageContainerRef = useRef(null)
+  const bboxLabelRefs = useRef({})
 
   // Initialize inline timestamp when media changes
   useEffect(() => {
@@ -318,6 +363,39 @@ function ImageModal({
     setShowDatePicker(false)
     setError(null)
   }, [media?.mediaID, media?.timestamp])
+
+  // Compute selector position when a bbox is selected
+  useEffect(() => {
+    if (!selectedBboxId || !bboxLabelRefs.current[selectedBboxId] || !imageContainerRef.current) {
+      setSelectorPosition(null)
+      return
+    }
+
+    const labelEl = bboxLabelRefs.current[selectedBboxId]
+    const labelRect = labelEl.getBoundingClientRect()
+    const containerRect = imageContainerRef.current.getBoundingClientRect()
+
+    const position = computeSelectorPosition(labelRect, containerRect)
+    setSelectorPosition(position)
+  }, [selectedBboxId])
+
+  // Recalculate position on window resize
+  useEffect(() => {
+    if (!selectedBboxId) return
+
+    const handleResize = () => {
+      if (bboxLabelRefs.current[selectedBboxId] && imageContainerRef.current) {
+        const labelEl = bboxLabelRefs.current[selectedBboxId]
+        const labelRect = labelEl.getBoundingClientRect()
+        const containerRect = imageContainerRef.current.getBoundingClientRect()
+        const position = computeSelectorPosition(labelRect, containerRect)
+        setSelectorPosition(position)
+      }
+    }
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [selectedBboxId])
 
   const { data: bboxes = [] } = useQuery({
     queryKey: ['mediaBboxes', studyId, media?.mediaID],
@@ -539,7 +617,10 @@ function ImageModal({
           className="bg-white rounded-lg overflow-hidden shadow-2xl max-h-[90vh] flex flex-col max-w-full"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="flex items-center justify-center bg-gray-100 overflow-hidden relative">
+          <div
+            ref={imageContainerRef}
+            className="flex items-center justify-center bg-gray-100 overflow-hidden relative"
+          >
             <img
               src={constructImageUrl(media.filePath)}
               alt={media.fileName || `Media ${media.mediaID}`}
@@ -577,6 +658,9 @@ function ImageModal({
                   {bboxes.map((bbox) => (
                     <div key={bbox.observationID} className="relative w-full h-full">
                       <BboxLabel
+                        ref={(el) => {
+                          bboxLabelRefs.current[bbox.observationID] = el
+                        }}
                         bbox={bbox}
                         isSelected={bbox.observationID === selectedBboxId}
                         isHuman={bbox.classificationMethod === 'human'}
@@ -697,20 +781,15 @@ function ImageModal({
           </div>
         </div>
 
-        {/* Species selector - positioned near bbox with smart clamping */}
-        {selectedBbox && (
+        {/* Species selector - positioned near the BboxLabel */}
+        {selectedBbox && selectorPosition && (
           <div className="fixed inset-0 z-[60]" onClick={() => setSelectedBboxId(null)}>
             <div
-              className="absolute"
+              className="fixed"
               style={{
-                // Position near bbox, clamped to stay within visible area
-                left: `clamp(16px, ${selectedBbox.bboxX * 100}%, calc(100% - 304px))`,
-                // Below bbox if in top 30%, otherwise above
-                top:
-                  selectedBbox.bboxY < 0.3
-                    ? `calc(${(selectedBbox.bboxY + selectedBbox.bboxHeight) * 100}% + 8px)`
-                    : `calc(${selectedBbox.bboxY * 100}% - 8px)`,
-                transform: selectedBbox.bboxY < 0.3 ? 'none' : 'translateY(-100%)'
+                left: `${selectorPosition.x}px`,
+                top: `${selectorPosition.y}px`,
+                transform: selectorPosition.transform
               }}
               onClick={(e) => e.stopPropagation()}
             >
