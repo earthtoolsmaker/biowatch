@@ -242,17 +242,39 @@ const BboxLabel = forwardRef(function BboxLabel({ bbox, isSelected, onClick, isH
   const confidence = bbox.confidence ? `${Math.round(bbox.confidence * 100)}%` : null
 
   // Smart positioning to avoid labels going outside visible area
-  const isNearTop = bbox.bboxY < 0.08
-  const isNearRight = bbox.bboxX + bbox.bboxWidth > 0.85
+  // Use label-size-aware thresholds
+  const LABEL_WIDTH_ESTIMATE = 0.15 // ~150px max-width as % of typical image
+  const LABEL_HEIGHT_ESTIMATE = 0.03 // ~24px label height as %
 
-  // Calculate position and transform based on bbox location
-  const leftPos = isNearRight ? `${(bbox.bboxX + bbox.bboxWidth) * 100}%` : `${bbox.bboxX * 100}%`
-  const topPos = isNearTop ? `${(bbox.bboxY + bbox.bboxHeight) * 100}%` : `${bbox.bboxY * 100}%`
-  const transformVal = isNearTop
-    ? 'translateY(4px)'
-    : isNearRight
-      ? 'translate(-100%, -100%)'
-      : 'translateY(-100%)'
+  const isNearTop = bbox.bboxY < LABEL_HEIGHT_ESTIMATE
+  const isNearRight = bbox.bboxX + bbox.bboxWidth > 1 - LABEL_WIDTH_ESTIMATE
+
+  // VERTICAL: prefer above bbox, fallback to below when near top
+  let topPos, verticalTransform
+  if (isNearTop) {
+    // Place below bbox
+    topPos = `${(bbox.bboxY + bbox.bboxHeight) * 100}%`
+    verticalTransform = 'translateY(4px)'
+  } else {
+    // Place above bbox (default)
+    topPos = `${bbox.bboxY * 100}%`
+    verticalTransform = 'translateY(-100%)'
+  }
+
+  // HORIZONTAL: prefer left-aligned, fallback to right-aligned when near right edge
+  let leftPos, horizontalTransform
+  if (isNearRight) {
+    // Right-align: anchor at bbox right edge, shift left by label width
+    leftPos = `${(bbox.bboxX + bbox.bboxWidth) * 100}%`
+    horizontalTransform = 'translateX(-100%)'
+  } else {
+    // Left-align (default)
+    leftPos = `${bbox.bboxX * 100}%`
+    horizontalTransform = ''
+  }
+
+  // Combine transforms (both horizontal and vertical are now independent)
+  const transformVal = [horizontalTransform, verticalTransform].filter(Boolean).join(' ')
 
   const style = {
     left: leftPos,
