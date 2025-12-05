@@ -223,3 +223,25 @@ input::-webkit-inner-spin-button {
 .animate-bar-glow {
   animation: bar-glow 2s ease-in-out infinite;
 }
+
+/* Place mode styles for deployments map */
+.place-mode-active .leaflet-container {
+  cursor: crosshair !important;
+}
+
+.place-mode-active .leaflet-interactive {
+  cursor: crosshair !important;
+}
+
+.place-mode-active .leaflet-marker-icon {
+  cursor: crosshair !important;
+}
+
+/* Ghost marker styling - ensure it doesn't capture events */
+.ghost-camera-icon {
+  pointer-events: none !important;
+}
+
+.ghost-camera-marker {
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15));
+}
