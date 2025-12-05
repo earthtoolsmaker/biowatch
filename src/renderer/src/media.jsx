@@ -1039,18 +1039,11 @@ export default function Activity({ studyData, studyId }) {
       dateRange[0] === null &&
       dateRange[1] === null
     ) {
-      const totalPeriods = timeseriesData.length
-      const startIndex = Math.max(totalPeriods - Math.max(Math.ceil(totalPeriods * 0.3), 2), 0)
-      const endIndex = totalPeriods - 1
+      const startIndex = 0
+      const endIndex = timeseriesData.length - 1
 
       let startDate = new Date(timeseriesData[startIndex].date)
       let endDate = new Date(timeseriesData[endIndex].date)
-
-      // Ensure a minimum range of 1 day if dates are the same
-      // if (startDate.getTime() === endDate.getTime()) {
-      //   endDate = new Date(startDate)
-      //   endDate.setDate(endDate.getDate() + 1) // Add one day to end date
-      // }
 
       setDateRange([startDate, endDate])
     }
