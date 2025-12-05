@@ -33,9 +33,6 @@ const api = {
   getDeployments: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('deployments:get', studyId)
   },
-  showStudyContextMenu: async (studyId) => {
-    return await electronAPI.ipcRenderer.invoke('study:show-context-menu', studyId)
-  },
   deleteStudyDatabase: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('study:delete-database', studyId)
   },
