@@ -6,11 +6,23 @@
 import { eq } from 'drizzle-orm'
 import { getStudyDatabase, closeStudyDatabase, closeAllDatabases } from './manager.js'
 import { deployments, media, observations, modelRuns, modelOutputs, metadata } from './schema.js'
+import { metadataSchema, metadataUpdateSchema } from './schemas.js'
 import log from 'electron-log'
 
 // Re-export schema and manager functions
 export { deployments, media, observations, modelRuns, modelOutputs, metadata }
 export { getStudyDatabase, closeStudyDatabase, closeAllDatabases }
+
+// Re-export Zod validation schemas
+export {
+  contributorSchema,
+  contributorsSchema,
+  metadataSchema,
+  metadataUpdateSchema,
+  metadataCreateSchema,
+  contributorRoles,
+  importerNames
+} from './schemas.js'
 
 /**
  * Helper function to get Drizzle database instance for a study
@@ -74,11 +86,20 @@ export async function insertMetadata(db, data) {
 /**
  * Get study metadata from the database
  * @param {Object} db - Drizzle database instance
- * @returns {Promise<Object|null>} Metadata object or null if not found
+ * @returns {Promise<Object|null>} Validated metadata object or null if not found
  */
 export async function getMetadata(db) {
   const result = await db.select().from(metadata).limit(1)
-  return result[0] || null
+  if (!result[0]) return null
+
+  // Validate the metadata structure
+  const parsed = metadataSchema.safeParse(result[0])
+  if (!parsed.success) {
+    log.warn('Invalid metadata in database:', parsed.error.format())
+    // Return raw data anyway to avoid breaking the app, but log the warning
+    return result[0]
+  }
+  return parsed.data
 }
 
 /**
@@ -87,11 +108,20 @@ export async function getMetadata(db) {
  * @param {string} id - Study ID
  * @param {Object} updates - Fields to update
  * @returns {Promise<Object>} Updated metadata
+ * @throws {Error} If updates don't match expected schema
  */
 export async function updateMetadata(db, id, updates) {
+  // Validate updates before writing
+  const parsed = metadataUpdateSchema.safeParse(updates)
+  if (!parsed.success) {
+    const errorMessage = `Invalid metadata update: ${JSON.stringify(parsed.error.format())}`
+    log.error(errorMessage)
+    throw new Error(errorMessage)
+  }
+
   const result = await db
     .update(metadata)
-    .set({ ...updates, updatedAt: new Date().toISOString() })
+    .set({ ...parsed.data, updatedAt: new Date().toISOString() })
     .where(eq(metadata.id, id))
     .returning()
   return result[0]
