@@ -85,8 +85,8 @@ function DeleteStudyModal({ isOpen, onConfirm, onCancel, studyName }) {
 
           <label className="block">
             <span className="text-sm font-medium text-gray-700">
-              Type{' '}
-              <span className="font-mono bg-gray-100 px-1 rounded">{confirmPhrase}</span> to confirm
+              Type <span className="font-mono bg-gray-100 px-1 rounded">{confirmPhrase}</span> to
+              confirm
             </span>
             <input
               type="text"
@@ -111,7 +111,9 @@ function DeleteStudyModal({ isOpen, onConfirm, onCancel, studyName }) {
             onClick={handleConfirm}
             disabled={!canDelete}
             className={`px-4 py-2 text-sm font-medium text-white rounded-md transition-colors ${
-              canDelete ? 'cursor-pointer bg-red-600 hover:bg-red-700' : 'bg-red-300 cursor-not-allowed'
+              canDelete
+                ? 'cursor-pointer bg-red-600 hover:bg-red-700'
+                : 'bg-red-300 cursor-not-allowed'
             }`}
           >
             Delete Study
