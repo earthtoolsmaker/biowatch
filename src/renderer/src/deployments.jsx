@@ -4,6 +4,10 @@ import { Camera } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import ReactDOMServer from 'react-dom/server'
 import { MapContainer, Marker, TileLayer } from 'react-leaflet'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useImportStatus } from '@renderer/hooks/import'
+import SkeletonMap from './ui/SkeletonMap'
+import SkeletonDeploymentsList from './ui/SkeletonDeploymentsList'
 
 // Fix the default marker icon issue in react-leaflet
 // This is needed because the CSS assets are not properly loaded
@@ -264,34 +268,32 @@ function LocationsList({
 }
 
 export default function Deployments({ studyId }) {
-  const [activity, setActivity] = useState(null)
   const [selectedLocation, setSelectedLocation] = useState(null)
+  const queryClient = useQueryClient()
+  const { importStatus } = useImportStatus(studyId)
 
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const activityResponse = await window.api.getDeploymentsActivity(studyId)
-        console.log('Activity response:', activityResponse)
-
-        if (activityResponse.error) {
-          console.error('Locations error:', activityResponse.error)
-          // Don't set main error if species data was successful
-        } else {
-          setActivity(activityResponse.data)
-        }
-      } catch (error) {
-        console.error('Error fetching activity data:', error)
+  const { data: activity, isLoading } = useQuery({
+    queryKey: ['deploymentsActivity', studyId],
+    queryFn: async () => {
+      const response = await window.api.getDeploymentsActivity(studyId)
+      console.log('Activity response:', response)
+      if (response.error) {
+        throw new Error(response.error)
       }
-    }
-
-    fetchData()
-  }, [studyId])
+      return response.data
+    },
+    refetchInterval: () => (importStatus?.isRunning ? 5000 : false),
+    enabled: !!studyId
+  })
 
   const onNewLatitude = async (deploymentID, latitude) => {
     try {
       const lat = parseFloat(latitude)
       const result = await window.api.setDeploymentLatitude(studyId, deploymentID, lat)
-      setActivity((prevActivity) => {
+
+      // Optimistic update via queryClient
+      queryClient.setQueryData(['deploymentsActivity', studyId], (prevActivity) => {
+        if (!prevActivity) return prevActivity
         const updatedDeployments = prevActivity.deployments.map((deployment) => {
           if (deployment.deploymentID === deploymentID) {
             return { ...deployment, latitude: lat }
@@ -300,6 +302,7 @@ export default function Deployments({ studyId }) {
         })
         return { ...prevActivity, deployments: updatedDeployments }
       })
+
       if (result.error) {
         console.error('Error updating latitude:', result.error)
       } else {
@@ -314,7 +317,10 @@ export default function Deployments({ studyId }) {
     try {
       const lng = parseFloat(longitude)
       const result = await window.api.setDeploymentLongitude(studyId, deploymentID, lng)
-      setActivity((prevActivity) => {
+
+      // Optimistic update via queryClient
+      queryClient.setQueryData(['deploymentsActivity', studyId], (prevActivity) => {
+        if (!prevActivity) return prevActivity
         const updatedDeployments = prevActivity.deployments.map((deployment) => {
           if (deployment.deploymentID === deploymentID) {
             return { ...deployment, longitude: lng }
@@ -323,6 +329,7 @@ export default function Deployments({ studyId }) {
         })
         return { ...prevActivity, deployments: updatedDeployments }
       })
+
       if (result.error) {
         console.error('Error updating longitude:', result.error)
       } else {
@@ -338,7 +345,12 @@ export default function Deployments({ studyId }) {
   return (
     <div className="flex flex-col px-4 h-full gap-4">
       <div className="flex-[0.7]">
-        {activity && (
+        {isLoading ? (
+          <SkeletonMap
+            title="Loading Deployments"
+            message="Loading deployment locations..."
+          />
+        ) : activity ? (
           <LocationMap
             locations={activity.deployments}
             selectedLocation={selectedLocation}
@@ -346,9 +358,11 @@ export default function Deployments({ studyId }) {
             onNewLatitude={onNewLatitude}
             onNewLongitude={onNewLongitude}
           />
-        )}
+        ) : null}
       </div>
-      {activity && (
+      {isLoading ? (
+        <SkeletonDeploymentsList itemCount={6} />
+      ) : activity ? (
         <LocationsList
           activity={activity}
           selectedLocation={selectedLocation}
@@ -356,7 +370,7 @@ export default function Deployments({ studyId }) {
           onNewLatitude={onNewLatitude}
           onNewLongitude={onNewLongitude}
         />
-      )}
+      ) : null}
     </div>
   )
 }
