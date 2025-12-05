@@ -11,7 +11,13 @@ import { ChevronLeft, ChevronRight, Clock } from 'lucide-react'
  * @param {string} [props.className] - Additional CSS classes
  * @param {boolean} [props.dateOnly] - If true, hides the time picker section
  */
-export default function DateTimePicker({ value, onChange, onCancel, className = '', dateOnly = false }) {
+export default function DateTimePicker({
+  value,
+  onChange,
+  onCancel,
+  className = '',
+  dateOnly = false
+}) {
   // Parse initial value
   const initialDate = value ? new Date(value) : new Date()
 
@@ -193,9 +199,7 @@ export default function DateTimePicker({ value, onChange, onCancel, className = 
               type="button"
               className={`text-center py-1.5 text-sm rounded transition-colors
                 ${
-                  day === i + 1
-                    ? 'bg-blue-600 text-white hover:bg-blue-700'
-                    : 'hover:bg-gray-100'
+                  day === i + 1 ? 'bg-blue-600 text-white hover:bg-blue-700' : 'hover:bg-gray-100'
                 }`}
             >
               {i + 1}

@@ -90,7 +90,14 @@ describe('CamTrapDP Import Tests', () => {
       // Verify database tables exist (Drizzle also creates __drizzle_migrations table)
       const tables = queryDatabase(dbPath, "SELECT name FROM sqlite_master WHERE type='table'")
       const tableNames = tables.map((t) => t.name).sort()
-      const expectedTables = ['__drizzle_migrations', 'deployments', 'media', 'model_outputs', 'model_runs', 'observations']
+      const expectedTables = [
+        '__drizzle_migrations',
+        'deployments',
+        'media',
+        'model_outputs',
+        'model_runs',
+        'observations'
+      ]
       assert.deepEqual(
         tableNames,
         expectedTables,
@@ -307,7 +314,10 @@ media001,deploy001,media/test-image.jpg,test-image.jpg,2023-03-20T14:30:15Z`
       await importCamTrapDatasetWithPath(tempCamtrapDir, testBiowatchDataPath, studyId)
 
       const dbPath = join(testBiowatchDataPath, 'studies', studyId, 'study.db')
-      const mediaRecords = queryDatabase(dbPath, "SELECT filePath FROM media WHERE mediaID = 'media001'")
+      const mediaRecords = queryDatabase(
+        dbPath,
+        "SELECT filePath FROM media WHERE mediaID = 'media001'"
+      )
 
       assert.equal(mediaRecords.length, 1, 'Should find the media record')
       // Should resolve to the camtrap directory (where file exists), not parent
@@ -315,7 +325,10 @@ media001,deploy001,media/test-image.jpg,test-image.jpg,2023-03-20T14:30:15Z`
         mediaRecords[0].filePath.includes(join('camtrap-with-media', 'media')),
         'FilePath should resolve relative to camtrap directory when file exists there'
       )
-      assert(existsSync(mediaRecords[0].filePath), 'Resolved file path should point to existing file')
+      assert(
+        existsSync(mediaRecords[0].filePath),
+        'Resolved file path should point to existing file'
+      )
     })
 
     test('should fall back to parent directory when media does not exist in camtrap directory', async () => {
@@ -347,7 +360,10 @@ media001,deploy001,sibling-media/sibling-image.jpg,sibling-image.jpg,2023-03-20T
       await importCamTrapDatasetWithPath(tempCamtrapDir, testBiowatchDataPath, studyId)
 
       const dbPath = join(testBiowatchDataPath, 'studies', studyId, 'study.db')
-      const mediaRecords = queryDatabase(dbPath, "SELECT filePath FROM media WHERE mediaID = 'media001'")
+      const mediaRecords = queryDatabase(
+        dbPath,
+        "SELECT filePath FROM media WHERE mediaID = 'media001'"
+      )
 
       assert.equal(mediaRecords.length, 1, 'Should find the media record')
       // Should fall back to parent directory (backward compatibility)
@@ -385,11 +401,17 @@ media001,deploy001,media/subfolder/nested-image.jpg,nested-image.jpg,2023-03-20T
       await importCamTrapDatasetWithPath(tempCamtrapDir, testBiowatchDataPath, studyId)
 
       const dbPath = join(testBiowatchDataPath, 'studies', studyId, 'study.db')
-      const mediaRecords = queryDatabase(dbPath, "SELECT filePath FROM media WHERE mediaID = 'media001'")
+      const mediaRecords = queryDatabase(
+        dbPath,
+        "SELECT filePath FROM media WHERE mediaID = 'media001'"
+      )
 
       assert.equal(mediaRecords.length, 1, 'Should find the media record')
       // The resolved path should exist regardless of OS
-      assert(existsSync(mediaRecords[0].filePath), 'Resolved file path should point to existing file')
+      assert(
+        existsSync(mediaRecords[0].filePath),
+        'Resolved file path should point to existing file'
+      )
       // Path should be properly formatted for the current OS
       assert(
         mediaRecords[0].filePath.includes('nested-image.jpg'),
@@ -422,11 +444,18 @@ media001,deploy001,${absolutePath},absolute-image.jpg,2023-03-20T14:30:15Z`
       await importCamTrapDatasetWithPath(tempCamtrapDir, testBiowatchDataPath, studyId)
 
       const dbPath = join(testBiowatchDataPath, 'studies', studyId, 'study.db')
-      const mediaRecords = queryDatabase(dbPath, "SELECT filePath FROM media WHERE mediaID = 'media001'")
+      const mediaRecords = queryDatabase(
+        dbPath,
+        "SELECT filePath FROM media WHERE mediaID = 'media001'"
+      )
 
       assert.equal(mediaRecords.length, 1, 'Should find the media record')
       // Absolute paths should be preserved unchanged
-      assert.equal(mediaRecords[0].filePath, absolutePath, 'Absolute path should be preserved unchanged')
+      assert.equal(
+        mediaRecords[0].filePath,
+        absolutePath,
+        'Absolute path should be preserved unchanged'
+      )
     })
 
     test('should preserve URLs unchanged', async () => {
@@ -454,7 +483,10 @@ media001,deploy001,${mediaUrl},image.jpg,2023-03-20T14:30:15Z`
       await importCamTrapDatasetWithPath(tempCamtrapDir, testBiowatchDataPath, studyId)
 
       const dbPath = join(testBiowatchDataPath, 'studies', studyId, 'study.db')
-      const mediaRecords = queryDatabase(dbPath, "SELECT filePath FROM media WHERE mediaID = 'media001'")
+      const mediaRecords = queryDatabase(
+        dbPath,
+        "SELECT filePath FROM media WHERE mediaID = 'media001'"
+      )
 
       assert.equal(mediaRecords.length, 1, 'Should find the media record')
       // URLs should be preserved unchanged
