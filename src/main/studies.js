@@ -54,7 +54,14 @@ app.whenReady().then(() => {
             createdAt: study.created,
             path: null,
             data: {
-              ...study,
+              id: study.id,
+              name: study.name,
+              title: study.title,
+              description: study.description,
+              created: study.created,
+              importerName: study.importerName,
+              contributors: study.contributors,
+              updatedAt: study.updatedAt,
               temporal:
                 study.startDate || study.endDate
                   ? { start: study.startDate || null, end: study.endDate || null }
