@@ -1,10 +1,12 @@
-import { app, dialog, ipcMain } from 'electron'
+import { app, dialog, ipcMain, BrowserWindow } from 'electron'
 import { existsSync } from 'fs'
 import fs from 'fs/promises'
-import { join, extname } from 'path'
+import { join, extname, basename } from 'path'
 import log from 'electron-log'
 import { getDrizzleDb, media, observations, deployments, closeStudyDatabase } from './db/index.js'
 import { eq, and, isNotNull, ne, or, isNull, asc, inArray } from 'drizzle-orm'
+import { downloadFileWithRetry } from './download.js'
+import crypto from 'crypto'
 
 function getStudyDatabasePath(userDataPath, studyId) {
   return join(getStudyPath(userDataPath, studyId), 'study.db')
@@ -12,6 +14,197 @@ function getStudyDatabasePath(userDataPath, studyId) {
 
 function getStudyPath(userDataPath, studyId) {
   return join(userDataPath, 'biowatch-data', 'studies', studyId)
+}
+
+// Module-level state for tracking active exports (for cancellation)
+let activeExport = {
+  isCancelled: false,
+  isActive: false
+}
+
+// Concurrency limit for parallel downloads
+const DOWNLOAD_CONCURRENCY = 5
+
+/**
+ * Cancel the currently active export
+ */
+function cancelActiveExport() {
+  if (activeExport.isActive) {
+    activeExport.isCancelled = true
+    log.info('Export cancellation requested')
+    return true
+  }
+  return false
+}
+
+/**
+ * Check if a file path is a remote HTTP/HTTPS URL
+ */
+function isRemoteUrl(filePath) {
+  return filePath && (filePath.startsWith('http://') || filePath.startsWith('https://'))
+}
+
+/**
+ * Extract a safe filename from a URL, with fallback to original filename or generated name
+ */
+function getFileNameFromUrl(url, originalFileName) {
+  try {
+    const urlObj = new URL(url)
+    const pathName = urlObj.pathname
+    const urlFileName = basename(pathName)
+
+    // If URL has a valid filename with extension, use it
+    if (urlFileName && extname(urlFileName)) {
+      return urlFileName
+    }
+
+    // Fall back to original filename from DB
+    if (originalFileName) {
+      return originalFileName
+    }
+
+    // Generate a unique filename if nothing else works
+    return `image_${crypto.randomUUID().slice(0, 8)}${extname(pathName) || '.jpg'}`
+  } catch {
+    return originalFileName || `image_${crypto.randomUUID().slice(0, 8)}.jpg`
+  }
+}
+
+/**
+ * Deduplicate filename if it already exists in the set
+ */
+function deduplicateFileName(fileName, existingNames) {
+  if (!existingNames.has(fileName)) {
+    existingNames.add(fileName)
+    return fileName
+  }
+
+  const ext = extname(fileName)
+  const base = basename(fileName, ext)
+  let counter = 1
+  let newName = `${base}_${counter}${ext}`
+
+  while (existingNames.has(newName)) {
+    counter++
+    newName = `${base}_${counter}${ext}`
+  }
+
+  existingNames.add(newName)
+  return newName
+}
+
+/**
+ * Send export progress to the focused window
+ */
+function sendExportProgress(progressData) {
+  const focusedWindow = BrowserWindow.getFocusedWindow()
+  if (focusedWindow && !focusedWindow.isDestroyed()) {
+    focusedWindow.webContents.send('export:progress', progressData)
+  }
+}
+
+/**
+ * Track progress state for parallel processing
+ */
+class ExportProgressTracker {
+  constructor(totalFiles) {
+    this.totalFiles = totalFiles
+    this.processedCount = 0
+    this.errorCount = 0
+    this.startTime = Date.now()
+    this.activeDownloads = new Map() // Track progress of concurrent downloads
+  }
+
+  incrementProcessed() {
+    this.processedCount++
+  }
+
+  incrementError() {
+    this.errorCount++
+  }
+
+  setDownloadProgress(fileId, percent) {
+    this.activeDownloads.set(fileId, percent)
+  }
+
+  removeDownload(fileId) {
+    this.activeDownloads.delete(fileId)
+  }
+
+  getEstimatedTimeRemaining() {
+    if (this.processedCount === 0) return null
+
+    const elapsedMs = Date.now() - this.startTime
+    const avgTimePerFile = elapsedMs / this.processedCount
+    const remainingFiles = this.totalFiles - this.processedCount
+    const estimatedRemainingMs = avgTimePerFile * remainingFiles
+
+    return Math.round(estimatedRemainingMs / 1000) // Return seconds
+  }
+
+  getOverallPercent() {
+    if (this.totalFiles === 0) return 0
+
+    // Calculate base progress from completed files
+    const completedProgress = (this.processedCount / this.totalFiles) * 100
+
+    // Add partial progress from active downloads
+    let activeProgress = 0
+    if (this.activeDownloads.size > 0) {
+      const avgActivePercent =
+        Array.from(this.activeDownloads.values()).reduce((a, b) => a + b, 0) /
+        this.activeDownloads.size
+      activeProgress = (avgActivePercent / 100 / this.totalFiles) * 100
+    }
+
+    return Math.min(Math.round(completedProgress + activeProgress), 100)
+  }
+}
+
+/**
+ * Process files in parallel with concurrency limit
+ * @param {Array} files - Array of file objects to process
+ * @param {Function} processFile - Async function to process each file, receives (file, index, tracker)
+ * @param {ExportProgressTracker} tracker - Progress tracker instance
+ * @param {number} concurrency - Maximum concurrent operations
+ * @returns {Promise<{successes: number, errors: number}>}
+ */
+async function processFilesInParallel(
+  files,
+  processFile,
+  tracker,
+  concurrency = DOWNLOAD_CONCURRENCY
+) {
+  let successes = 0
+  let errors = 0
+  let currentIndex = 0
+
+  const workers = Array(Math.min(concurrency, files.length))
+    .fill(null)
+    .map(async () => {
+      while (currentIndex < files.length) {
+        if (activeExport.isCancelled) {
+          break
+        }
+
+        const index = currentIndex++
+        const file = files[index]
+
+        try {
+          await processFile(file, index, tracker)
+          successes++
+          tracker.incrementProcessed()
+        } catch (error) {
+          log.error(`Failed to process file at index ${index}: ${error.message}`)
+          errors++
+          tracker.incrementError()
+          tracker.incrementProcessed()
+        }
+      }
+    })
+
+  await Promise.all(workers)
+  return { successes, errors }
 }
 
 /**
@@ -140,13 +333,21 @@ export async function exportImageDirectories(studyId, options = {}) {
       }
     }
 
+    // Calculate total files across all species groups
+    const allFiles = Object.values(speciesGroups).flat()
+    const totalFiles = allFiles.length
+
     log.info(
-      `Organizing ${mediaFiles.length} files into ${Object.keys(speciesGroups).length} species directories`
+      `Organizing ${totalFiles} files into ${Object.keys(speciesGroups).length} species directories`
     )
 
-    // Copy files to species directories
-    let copiedCount = 0
-    let errorCount = 0
+    // Initialize export state
+    activeExport.isActive = true
+    activeExport.isCancelled = false
+
+    // Pre-process: Create directories and prepare file list with deduplicated names
+    const preparedFiles = []
+    const usedFileNames = new Map() // Per-species filename tracking for deduplication
 
     for (const [scientificName, files] of Object.entries(speciesGroups)) {
       // Create directory for this species (sanitize name for filesystem)
@@ -158,46 +359,108 @@ export async function exportImageDirectories(studyId, options = {}) {
         log.info(`Created directory: ${speciesDir}`)
       } catch (error) {
         log.error(`Failed to create directory ${speciesDir}: ${error.message}`)
-        errorCount += files.length
         continue
       }
 
-      // Copy each file to the species directory
+      // Initialize filename set for this species (for deduplication)
+      if (!usedFileNames.has(scientificName)) {
+        usedFileNames.set(scientificName, new Set())
+      }
+      const speciesFileNames = usedFileNames.get(scientificName)
+
+      // Prepare each file with its destination
       for (const file of files) {
-        try {
-          const sourcePath = file.filePath
-          const destPath = join(speciesDir, file.fileName)
+        const sourcePath = file.filePath
+        const isRemote = isRemoteUrl(sourcePath)
 
-          // Check if source file exists
-          if (!existsSync(sourcePath)) {
-            log.warn(`Source file not found: ${sourcePath}`)
-            errorCount++
-            continue
-          }
+        // Determine and deduplicate filename
+        let fileName = isRemote ? getFileNameFromUrl(sourcePath, file.fileName) : file.fileName
+        fileName = deduplicateFileName(fileName, speciesFileNames)
 
-          await fs.copyFile(sourcePath, destPath)
-          copiedCount++
-
-          if (copiedCount % 100 === 0) {
-            log.info(`Copied ${copiedCount}/${mediaFiles.length} files...`)
-          }
-        } catch (error) {
-          log.error(`Failed to copy ${file.filePath}: ${error.message}`)
-          errorCount++
-        }
+        preparedFiles.push({
+          sourcePath,
+          destPath: join(speciesDir, fileName),
+          fileName,
+          isRemote,
+          id: `${scientificName}:${fileName}`,
+          speciesName: scientificName
+        })
       }
     }
 
+    // Create progress tracker
+    const tracker = new ExportProgressTracker(preparedFiles.length)
+
+    // Process files in parallel
+    const processFile = async (file, index, tracker) => {
+      const { sourcePath, destPath, fileName, isRemote, id, speciesName } = file
+
+      // Send progress update
+      sendExportProgress({
+        type: 'file',
+        currentFile: tracker.processedCount + 1,
+        totalFiles: tracker.totalFiles,
+        fileName,
+        speciesName,
+        isDownloading: isRemote,
+        downloadPercent: 0,
+        errorCount: tracker.errorCount,
+        estimatedTimeRemaining: tracker.getEstimatedTimeRemaining(),
+        overallPercent: tracker.getOverallPercent()
+      })
+
+      if (isRemote) {
+        tracker.setDownloadProgress(id, 0)
+        // Download remote file with progress callback
+        await downloadFileWithRetry(sourcePath, destPath, (progress) => {
+          tracker.setDownloadProgress(id, progress.percent || 0)
+          sendExportProgress({
+            type: 'download',
+            currentFile: tracker.processedCount + 1,
+            totalFiles: tracker.totalFiles,
+            fileName,
+            speciesName,
+            isDownloading: true,
+            downloadPercent: progress.percent || 0,
+            errorCount: tracker.errorCount,
+            estimatedTimeRemaining: tracker.getEstimatedTimeRemaining(),
+            overallPercent: tracker.getOverallPercent()
+          })
+        })
+        tracker.removeDownload(id)
+      } else {
+        // Check if local source file exists
+        if (!existsSync(sourcePath)) {
+          throw new Error(`Source file not found: ${sourcePath}`)
+        }
+        // Copy local file
+        await fs.copyFile(sourcePath, destPath)
+      }
+
+      // Log progress every 100 files
+      if ((tracker.processedCount + 1) % 100 === 0) {
+        log.info(`Processed ${tracker.processedCount + 1}/${tracker.totalFiles} files...`)
+      }
+    }
+
+    const { successes, errors } = await processFilesInParallel(
+      preparedFiles,
+      processFile,
+      tracker,
+      DOWNLOAD_CONCURRENCY
+    )
+
+    activeExport.isActive = false
     await closeStudyDatabase(studyIdFromPath, dbPath)
 
-    log.info(`Export complete: ${copiedCount} files copied, ${errorCount} errors`)
+    log.info(`Export complete: ${successes} files copied, ${errors} errors`)
 
     return {
       success: true,
       exportPath,
       exportFolderName: parentDirName,
-      copiedCount,
-      errorCount,
+      copiedCount: successes,
+      errorCount: errors,
       speciesCount: Object.keys(speciesGroups).length
     }
   } catch (error) {
@@ -574,16 +837,36 @@ export async function exportCamtrapDP(studyId, options = {}) {
 
     log.info(`Found ${mediaData.length} media files for filtered observations`)
 
+    // Build filename mapping for deduplication when includeMedia is true
+    const usedFileNames = new Set()
+    const mediaFileNameMap = new Map() // mediaID -> deduplicated fileName
+
+    if (includeMedia) {
+      for (const m of mediaData) {
+        const isRemote = isRemoteUrl(m.filePath)
+        let fileName = isRemote ? getFileNameFromUrl(m.filePath, m.fileName) : m.fileName
+        fileName = deduplicateFileName(fileName, usedFileNames)
+        mediaFileNameMap.set(m.mediaID, fileName)
+      }
+    }
+
     // Transform media data for Camtrap DP
-    const mediaRows = mediaData.map((m) => ({
-      mediaID: m.mediaID,
-      deploymentID: m.deploymentID,
-      timestamp: m.timestamp,
-      filePath: includeMedia ? `media/${m.fileName}` : m.filePath,
-      filePublic: false,
-      fileMediatype: inferMimeType(m.filePath),
-      fileName: m.fileName
-    }))
+    const mediaRows = mediaData.map((m) => {
+      // When includeMedia is true, use the deduplicated filename
+      // When includeMedia is false, keep the original filePath (which may be HTTP URL)
+      const exportFileName = includeMedia ? mediaFileNameMap.get(m.mediaID) : m.fileName
+      const exportFilePath = includeMedia ? `media/${exportFileName}` : m.filePath
+
+      return {
+        mediaID: m.mediaID,
+        deploymentID: m.deploymentID,
+        timestamp: m.timestamp,
+        filePath: exportFilePath,
+        filePublic: false,
+        fileMediatype: inferMimeType(m.filePath),
+        fileName: exportFileName
+      }
+    })
 
     // Transform observations data for Camtrap DP
     const observationsRows = observationsData.map((o) => ({
@@ -666,7 +949,7 @@ export async function exportCamtrapDP(studyId, options = {}) {
       fs.writeFile(join(exportPath, 'observations.csv'), observationsCSV)
     ])
 
-    // Copy media files if requested
+    // Copy/download media files if requested
     let copiedMediaCount = 0
     let mediaErrorCount = 0
 
@@ -674,32 +957,96 @@ export async function exportCamtrapDP(studyId, options = {}) {
       const mediaDir = join(exportPath, 'media')
       await fs.mkdir(mediaDir, { recursive: true })
 
-      log.info(`Copying ${mediaData.length} media files to: ${mediaDir}`)
+      log.info(`Processing ${mediaData.length} media files to: ${mediaDir}`)
 
-      for (const mediaFile of mediaData) {
-        try {
-          const sourcePath = mediaFile.filePath
+      // Initialize export state
+      activeExport.isActive = true
+      activeExport.isCancelled = false
 
+      // Prepare files for parallel processing
+      const preparedMediaFiles = mediaData.map((mediaFile) => {
+        const sourcePath = mediaFile.filePath
+        const isRemote = isRemoteUrl(sourcePath)
+        const destFileName = mediaFileNameMap.get(mediaFile.mediaID)
+
+        return {
+          sourcePath,
+          destPath: join(mediaDir, destFileName),
+          fileName: destFileName,
+          isRemote,
+          id: mediaFile.mediaID
+        }
+      })
+
+      // Create progress tracker
+      const tracker = new ExportProgressTracker(preparedMediaFiles.length)
+
+      // Process files in parallel
+      const processMediaFile = async (file, index, tracker) => {
+        const { sourcePath, destPath, fileName, isRemote, id } = file
+
+        // Send progress update (no species grouping in CamtrapDP export)
+        sendExportProgress({
+          type: 'file',
+          currentFile: tracker.processedCount + 1,
+          totalFiles: tracker.totalFiles,
+          fileName,
+          speciesName: null,
+          isDownloading: isRemote,
+          downloadPercent: 0,
+          errorCount: tracker.errorCount,
+          estimatedTimeRemaining: tracker.getEstimatedTimeRemaining(),
+          overallPercent: tracker.getOverallPercent()
+        })
+
+        if (isRemote) {
+          tracker.setDownloadProgress(id, 0)
+          // Download remote file with progress callback
+          await downloadFileWithRetry(sourcePath, destPath, (progress) => {
+            tracker.setDownloadProgress(id, progress.percent || 0)
+            sendExportProgress({
+              type: 'download',
+              currentFile: tracker.processedCount + 1,
+              totalFiles: tracker.totalFiles,
+              fileName,
+              speciesName: null,
+              isDownloading: true,
+              downloadPercent: progress.percent || 0,
+              errorCount: tracker.errorCount,
+              estimatedTimeRemaining: tracker.getEstimatedTimeRemaining(),
+              overallPercent: tracker.getOverallPercent()
+            })
+          })
+          tracker.removeDownload(id)
+        } else {
+          // Check if local source file exists
           if (!existsSync(sourcePath)) {
-            log.warn(`Source file not found: ${sourcePath}`)
-            mediaErrorCount++
-            continue
+            throw new Error(`Source file not found: ${sourcePath}`)
           }
-
-          const destPath = join(mediaDir, mediaFile.fileName)
+          // Copy local file
           await fs.copyFile(sourcePath, destPath)
-          copiedMediaCount++
+        }
 
-          if (copiedMediaCount % 100 === 0) {
-            log.info(`Copied ${copiedMediaCount}/${mediaData.length} media files...`)
-          }
-        } catch (error) {
-          log.error(`Failed to copy ${mediaFile.filePath}: ${error.message}`)
-          mediaErrorCount++
+        // Log progress every 100 files
+        if ((tracker.processedCount + 1) % 100 === 0) {
+          log.info(`Processed ${tracker.processedCount + 1}/${tracker.totalFiles} media files...`)
         }
       }
 
-      log.info(`Media copy complete: ${copiedMediaCount} files copied, ${mediaErrorCount} errors`)
+      const { successes, errors } = await processFilesInParallel(
+        preparedMediaFiles,
+        processMediaFile,
+        tracker,
+        DOWNLOAD_CONCURRENCY
+      )
+
+      copiedMediaCount = successes
+      mediaErrorCount = errors
+
+      activeExport.isActive = false
+      log.info(
+        `Media processing complete: ${copiedMediaCount} files copied, ${mediaErrorCount} errors`
+      )
     }
 
     await closeStudyDatabase(studyIdFromPath, dbPath)
@@ -736,5 +1083,9 @@ export function registerExportIPCHandlers() {
 
   ipcMain.handle('export:camtrap-dp', async (_, studyId, options) => {
     return await exportCamtrapDP(studyId, options)
+  })
+
+  ipcMain.handle('export:cancel', async () => {
+    return cancelActiveExport()
   })
 }

@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { FolderTree, Package } from 'lucide-react'
 import CamtrapDPExportModal from './CamtrapDPExportModal'
 import ImageDirectoriesExportModal from './ImageDirectoriesExportModal'
+import ExportProgressModal from './ExportProgressModal'
 
 function ExportButton({ onClick, children, className = '', disabled = false }) {
   const [isExporting, setIsExporting] = useState(false)
@@ -28,12 +29,20 @@ function ExportButton({ onClick, children, className = '', disabled = false }) {
   )
 }
 
-export default function Export({ studyId, importerName }) {
+export default function Export({ studyId }) {
   const [exportStatus, setExportStatus] = useState(null)
   const [showCamtrapDPModal, setShowCamtrapDPModal] = useState(false)
   const [showImageDirectoriesModal, setShowImageDirectoriesModal] = useState(false)
+  const [showProgressModal, setShowProgressModal] = useState(false)
+  const [exportProgress, setExportProgress] = useState(null)
 
-  const isLocalStudy = importerName?.startsWith('local/')
+  // Listen for export progress events
+  useEffect(() => {
+    const unsubscribe = window.api.onExportProgress((progress) => {
+      setExportProgress(progress)
+    })
+    return () => unsubscribe()
+  }, [])
 
   const handleImageDirectoriesExport = () => {
     setShowImageDirectoriesModal(true)
@@ -42,8 +51,13 @@ export default function Export({ studyId, importerName }) {
   const handleImageDirectoriesConfirm = async (options) => {
     setShowImageDirectoriesModal(false)
     setExportStatus(null)
+    setShowProgressModal(true)
+    setExportProgress(null)
 
     const result = await window.api.exportImageDirectories(studyId, options)
+
+    setShowProgressModal(false)
+    setExportProgress(null)
 
     if (result.cancelled) {
       return
@@ -87,7 +101,16 @@ export default function Export({ studyId, importerName }) {
     setShowCamtrapDPModal(false)
     setExportStatus(null)
 
+    // Show progress modal only when including media (which triggers downloads)
+    if (options.includeMedia) {
+      setShowProgressModal(true)
+      setExportProgress(null)
+    }
+
     const result = await window.api.exportCamtrapDP(studyId, options)
+
+    setShowProgressModal(false)
+    setExportProgress(null)
 
     if (result.cancelled) {
       return
@@ -120,6 +143,12 @@ export default function Export({ studyId, importerName }) {
     setShowCamtrapDPModal(false)
   }
 
+  const handleCancelExport = async () => {
+    await window.api.cancelExport()
+    setShowProgressModal(false)
+    setExportProgress(null)
+  }
+
   return (
     <div className="flex h-full p-8 overflow-auto">
       <div className="max-w-4xl w-full">
@@ -148,24 +177,22 @@ export default function Export({ studyId, importerName }) {
 
         {/* Export Methods Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-8">
-          {/* Image Directories Export Card - Only for local studies */}
-          {isLocalStudy && (
-            <div className="border border-gray-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-center gap-2 mb-2">
-                <FolderTree size={20} className="text-gray-700" />
-                <h3 className="text-lg font-semibold">Image Directories</h3>
-              </div>
-              <p className="text-sm text-gray-600 mb-4">
-                Export images organized into directories by species. Each species will have its own
-                folder containing all identified images.
-              </p>
-              <div className="flex justify-start">
-                <ExportButton onClick={handleImageDirectoriesExport} className="">
-                  Export Image Directories
-                </ExportButton>
-              </div>
+          {/* Image Directories Export Card */}
+          <div className="border border-gray-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center gap-2 mb-2">
+              <FolderTree size={20} className="text-gray-700" />
+              <h3 className="text-lg font-semibold">Image Directories</h3>
             </div>
-          )}
+            <p className="text-sm text-gray-600 mb-4">
+              Export images organized into directories by species. Each species will have its own
+              folder containing all identified images.
+            </p>
+            <div className="flex justify-start">
+              <ExportButton onClick={handleImageDirectoriesExport} className="">
+                Export Image Directories
+              </ExportButton>
+            </div>
+          </div>
 
           {/* Camtrap DP Export Card */}
           <div className="border border-gray-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
@@ -198,6 +225,12 @@ export default function Export({ studyId, importerName }) {
         onConfirm={handleImageDirectoriesConfirm}
         onCancel={handleImageDirectoriesCancel}
         studyId={studyId}
+      />
+
+      <ExportProgressModal
+        isOpen={showProgressModal}
+        onCancel={handleCancelExport}
+        progress={exportProgress}
       />
     </div>
   )

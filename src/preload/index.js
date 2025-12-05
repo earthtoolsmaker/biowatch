@@ -173,6 +173,15 @@ const api = {
   exportCamtrapDP: async (studyId, options = {}) => {
     return await electronAPI.ipcRenderer.invoke('export:camtrap-dp', studyId, options)
   },
+  // Export progress events
+  onExportProgress: (callback) => {
+    const handler = (_event, data) => callback(data)
+    electronAPI.ipcRenderer.on('export:progress', handler)
+    return () => electronAPI.ipcRenderer.removeListener('export:progress', handler)
+  },
+  cancelExport: async () => {
+    return await electronAPI.ipcRenderer.invoke('export:cancel')
+  },
   // Observation classification update (CamTrap DP compliant)
   updateObservationClassification: async (studyId, observationID, updates) => {
     return await electronAPI.ipcRenderer.invoke(
