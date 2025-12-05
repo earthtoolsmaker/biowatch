@@ -1,6 +1,6 @@
 import { test, beforeEach, afterEach, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdirSync, rmSync, existsSync, readFileSync } from 'fs'
+import { mkdirSync, rmSync, existsSync, readFileSync, writeFileSync, copyFileSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import Database from 'better-sqlite3'
@@ -279,9 +279,219 @@ describe('CamTrapDP Import Tests', () => {
 
       for (const media of mediaWithPaths) {
         // File paths should be transformed to absolute paths
-        assert(media.filePath.includes('images/'), 'FilePath should contain relative path')
+        assert(media.filePath.includes('images'), 'FilePath should contain relative path segment')
         assert(media.fileName.endsWith('.JPG'), 'FileName should have correct extension')
+        // The path should be absolute (starts with / on Unix or drive letter on Windows)
+        const isAbsolute = media.filePath.startsWith('/') || /^[A-Z]:/i.test(media.filePath)
+        assert(isAbsolute, 'FilePath should be transformed to an absolute path')
       }
+    })
+
+    test('should resolve relative paths to camtrap directory when media exists there', async () => {
+      // Create a temporary camtrap directory with media subfolder
+      const tempCamtrapDir = join(testBiowatchDataPath, 'camtrap-with-media')
+      const mediaDir = join(tempCamtrapDir, 'media')
+      mkdirSync(mediaDir, { recursive: true })
+
+      // Copy datapackage.json and deployments.csv only (no observations.csv to avoid FK issues)
+      copyFileSync(
+        join(testCamTrapDataPath, 'datapackage.json'),
+        join(tempCamtrapDir, 'datapackage.json')
+      )
+      copyFileSync(
+        join(testCamTrapDataPath, 'deployments.csv'),
+        join(tempCamtrapDir, 'deployments.csv')
+      )
+
+      // Create a media.csv with paths pointing to media/ subfolder (like our export does)
+      const mediaCsv = `mediaID,deploymentID,filePath,fileName,timestamp
+media001,deploy001,media/test-image.jpg,test-image.jpg,2023-03-20T14:30:15Z`
+      writeFileSync(join(tempCamtrapDir, 'media.csv'), mediaCsv)
+
+      // Create the actual media file in the media subfolder
+      writeFileSync(join(mediaDir, 'test-image.jpg'), 'fake image content')
+
+      const studyId = 'test-camtrap-media-subfolder'
+      await importCamTrapDatasetWithPath(tempCamtrapDir, testBiowatchDataPath, studyId)
+
+      const dbPath = join(testBiowatchDataPath, 'studies', studyId, 'study.db')
+      const mediaRecords = queryDatabase(
+        dbPath,
+        "SELECT filePath FROM media WHERE mediaID = 'media001'"
+      )
+
+      assert.equal(mediaRecords.length, 1, 'Should find the media record')
+      // Should resolve to the camtrap directory (where file exists), not parent
+      assert(
+        mediaRecords[0].filePath.includes(join('camtrap-with-media', 'media')),
+        'FilePath should resolve relative to camtrap directory when file exists there'
+      )
+      assert(
+        existsSync(mediaRecords[0].filePath),
+        'Resolved file path should point to existing file'
+      )
+    })
+
+    test('should fall back to parent directory when media does not exist in camtrap directory', async () => {
+      // Create a temporary camtrap directory WITHOUT media subfolder
+      const tempCamtrapDir = join(testBiowatchDataPath, 'camtrap-without-media')
+      mkdirSync(tempCamtrapDir, { recursive: true })
+
+      // Create media in the PARENT directory (sibling to camtrap dir)
+      const siblingMediaDir = join(testBiowatchDataPath, 'sibling-media')
+      mkdirSync(siblingMediaDir, { recursive: true })
+      writeFileSync(join(siblingMediaDir, 'sibling-image.jpg'), 'fake image content')
+
+      // Copy datapackage.json and deployments.csv only (no observations.csv to avoid FK issues)
+      copyFileSync(
+        join(testCamTrapDataPath, 'datapackage.json'),
+        join(tempCamtrapDir, 'datapackage.json')
+      )
+      copyFileSync(
+        join(testCamTrapDataPath, 'deployments.csv'),
+        join(tempCamtrapDir, 'deployments.csv')
+      )
+
+      // Create a media.csv with paths pointing to sibling directory
+      const mediaCsv = `mediaID,deploymentID,filePath,fileName,timestamp
+media001,deploy001,sibling-media/sibling-image.jpg,sibling-image.jpg,2023-03-20T14:30:15Z`
+      writeFileSync(join(tempCamtrapDir, 'media.csv'), mediaCsv)
+
+      const studyId = 'test-camtrap-sibling-media'
+      await importCamTrapDatasetWithPath(tempCamtrapDir, testBiowatchDataPath, studyId)
+
+      const dbPath = join(testBiowatchDataPath, 'studies', studyId, 'study.db')
+      const mediaRecords = queryDatabase(
+        dbPath,
+        "SELECT filePath FROM media WHERE mediaID = 'media001'"
+      )
+
+      assert.equal(mediaRecords.length, 1, 'Should find the media record')
+      // Should fall back to parent directory (backward compatibility)
+      assert(
+        mediaRecords[0].filePath.includes('sibling-media'),
+        'FilePath should fall back to parent directory when file does not exist in camtrap dir'
+      )
+    })
+
+    test('should handle cross-platform path separators correctly', async () => {
+      // Create a temporary camtrap directory with nested media structure
+      const tempCamtrapDir = join(testBiowatchDataPath, 'camtrap-cross-platform')
+      const nestedMediaDir = join(tempCamtrapDir, 'media', 'subfolder')
+      mkdirSync(nestedMediaDir, { recursive: true })
+
+      // Copy datapackage.json and deployments.csv only (no observations.csv to avoid FK issues)
+      copyFileSync(
+        join(testCamTrapDataPath, 'datapackage.json'),
+        join(tempCamtrapDir, 'datapackage.json')
+      )
+      copyFileSync(
+        join(testCamTrapDataPath, 'deployments.csv'),
+        join(tempCamtrapDir, 'deployments.csv')
+      )
+
+      // Create the actual media file
+      writeFileSync(join(nestedMediaDir, 'nested-image.jpg'), 'fake image content')
+
+      // Create a media.csv with forward slashes (standard Camtrap DP format)
+      const mediaCsv = `mediaID,deploymentID,filePath,fileName,timestamp
+media001,deploy001,media/subfolder/nested-image.jpg,nested-image.jpg,2023-03-20T14:30:15Z`
+      writeFileSync(join(tempCamtrapDir, 'media.csv'), mediaCsv)
+
+      const studyId = 'test-camtrap-cross-platform'
+      await importCamTrapDatasetWithPath(tempCamtrapDir, testBiowatchDataPath, studyId)
+
+      const dbPath = join(testBiowatchDataPath, 'studies', studyId, 'study.db')
+      const mediaRecords = queryDatabase(
+        dbPath,
+        "SELECT filePath FROM media WHERE mediaID = 'media001'"
+      )
+
+      assert.equal(mediaRecords.length, 1, 'Should find the media record')
+      // The resolved path should exist regardless of OS
+      assert(
+        existsSync(mediaRecords[0].filePath),
+        'Resolved file path should point to existing file'
+      )
+      // Path should be properly formatted for the current OS
+      assert(
+        mediaRecords[0].filePath.includes('nested-image.jpg'),
+        'FilePath should contain the filename'
+      )
+    })
+
+    test('should preserve absolute paths unchanged', async () => {
+      // Create a temporary camtrap directory
+      const tempCamtrapDir = join(testBiowatchDataPath, 'camtrap-absolute')
+      mkdirSync(tempCamtrapDir, { recursive: true })
+
+      // Copy datapackage.json and deployments.csv only (no observations.csv to avoid FK issues)
+      copyFileSync(
+        join(testCamTrapDataPath, 'datapackage.json'),
+        join(tempCamtrapDir, 'datapackage.json')
+      )
+      copyFileSync(
+        join(testCamTrapDataPath, 'deployments.csv'),
+        join(tempCamtrapDir, 'deployments.csv')
+      )
+
+      // Create a media.csv with absolute path
+      const absolutePath = join(testBiowatchDataPath, 'absolute-media', 'absolute-image.jpg')
+      const mediaCsv = `mediaID,deploymentID,filePath,fileName,timestamp
+media001,deploy001,${absolutePath},absolute-image.jpg,2023-03-20T14:30:15Z`
+      writeFileSync(join(tempCamtrapDir, 'media.csv'), mediaCsv)
+
+      const studyId = 'test-camtrap-absolute-path'
+      await importCamTrapDatasetWithPath(tempCamtrapDir, testBiowatchDataPath, studyId)
+
+      const dbPath = join(testBiowatchDataPath, 'studies', studyId, 'study.db')
+      const mediaRecords = queryDatabase(
+        dbPath,
+        "SELECT filePath FROM media WHERE mediaID = 'media001'"
+      )
+
+      assert.equal(mediaRecords.length, 1, 'Should find the media record')
+      // Absolute paths should be preserved unchanged
+      assert.equal(
+        mediaRecords[0].filePath,
+        absolutePath,
+        'Absolute path should be preserved unchanged'
+      )
+    })
+
+    test('should preserve URLs unchanged', async () => {
+      // Create a temporary camtrap directory
+      const tempCamtrapDir = join(testBiowatchDataPath, 'camtrap-url')
+      mkdirSync(tempCamtrapDir, { recursive: true })
+
+      // Copy datapackage.json and deployments.csv only (no observations.csv to avoid FK issues)
+      copyFileSync(
+        join(testCamTrapDataPath, 'datapackage.json'),
+        join(tempCamtrapDir, 'datapackage.json')
+      )
+      copyFileSync(
+        join(testCamTrapDataPath, 'deployments.csv'),
+        join(tempCamtrapDir, 'deployments.csv')
+      )
+
+      // Create a media.csv with URL
+      const mediaUrl = 'https://example.com/media/image.jpg'
+      const mediaCsv = `mediaID,deploymentID,filePath,fileName,timestamp
+media001,deploy001,${mediaUrl},image.jpg,2023-03-20T14:30:15Z`
+      writeFileSync(join(tempCamtrapDir, 'media.csv'), mediaCsv)
+
+      const studyId = 'test-camtrap-url-path'
+      await importCamTrapDatasetWithPath(tempCamtrapDir, testBiowatchDataPath, studyId)
+
+      const dbPath = join(testBiowatchDataPath, 'studies', studyId, 'study.db')
+      const mediaRecords = queryDatabase(
+        dbPath,
+        "SELECT filePath FROM media WHERE mediaID = 'media001'"
+      )
+
+      assert.equal(mediaRecords.length, 1, 'Should find the media record')
+      // URLs should be preserved unchanged
+      assert.equal(mediaRecords[0].filePath, mediaUrl, 'URL should be preserved unchanged')
     })
 
     test('should handle timestamps correctly', async () => {

@@ -1,10 +1,13 @@
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { MapPin } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { LayersControl, MapContainer, Marker, Popup, TileLayer } from 'react-leaflet'
 import MarkerClusterGroup from 'react-leaflet-cluster'
 import { useParams } from 'react-router'
 import CircularTimeFilter, { DailyActivityRadar } from './ui/clock'
+import PlaceholderMap from './ui/PlaceholderMap'
+import SkeletonMap from './ui/SkeletonMap'
 import SpeciesDistribution from './ui/speciesDistribution'
 import TimelineChart from './ui/timeseries'
 import { useImportStatus } from './hooks/import'
@@ -272,6 +275,7 @@ export default function Activity({ studyData, studyId }) {
   const [timeRange, setTimeRange] = useState({ start: 0, end: 24 })
   const [timeseriesData, setTimeseriesData] = useState(null)
   const [heatmapData, setHeatmapData] = useState(null)
+  const [heatmapStatus, setHeatmapStatus] = useState('loading') // 'loading' | 'hasData' | 'noData'
   const [speciesDistributionData, setSpeciesDistributionData] = useState(null)
   const [dailyActivityData, setDailyActivityData] = useState(null)
   const { importStatus } = useImportStatus(actualStudyId, 5000)
@@ -345,9 +349,8 @@ export default function Activity({ studyData, studyId }) {
       dateRange[0] === null &&
       dateRange[1] === null
     ) {
-      const totalPeriods = timeseriesData.length
-      const startIndex = Math.max(totalPeriods - Math.max(Math.ceil(totalPeriods * 0.3), 2), 0)
-      const endIndex = totalPeriods - 1
+      const startIndex = 0
+      const endIndex = timeseriesData.length - 1
 
       setDateRange([
         new Date(timeseriesData[startIndex].date),
@@ -376,6 +379,11 @@ export default function Activity({ studyData, studyId }) {
       }
 
       setHeatmapData(response.data)
+
+      // Determine status based on whether data has location points
+      const hasPoints =
+        response.data && Object.values(response.data).some((points) => points && points.length > 0)
+      setHeatmapStatus(hasPoints ? 'hasData' : 'noData')
     }
 
     fetchHeatmapData()
@@ -436,7 +444,9 @@ export default function Activity({ studyData, studyId }) {
 
             {/* Map - right side */}
             <div className="h-full flex-1">
-              {heatmapData && (
+              {heatmapStatus === 'loading' ? (
+                <SkeletonMap title="Loading Activity" message="Loading species distribution..." />
+              ) : heatmapStatus === 'hasData' ? (
                 <SpeciesMap
                   heatmapData={heatmapData}
                   selectedSpecies={selectedSpecies}
@@ -449,6 +459,15 @@ export default function Activity({ studyData, studyId }) {
                     timeRange.start +
                     timeRange.end
                   }
+                />
+              ) : (
+                <PlaceholderMap
+                  title="No Species Location Data"
+                  description="Select species from the list and set up deployment coordinates in the Deployments tab to view the species distribution map."
+                  linkTo="/deployments"
+                  linkText="Go to Deployments"
+                  icon={MapPin}
+                  studyId={actualStudyId}
                 />
               )}
             </div>
