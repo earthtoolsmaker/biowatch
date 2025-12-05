@@ -12,8 +12,10 @@ import {
   Check,
   X,
   Plus,
-  Trash2
+  Trash2,
+  MapPin
 } from 'lucide-react'
+import PlaceholderMap from './ui/PlaceholderMap'
 import { useImportStatus } from '@renderer/hooks/import'
 import { useQueryClient } from '@tanstack/react-query'
 import DateTimePicker from './ui/DateTimePicker'
@@ -31,13 +33,15 @@ const CONTRIBUTOR_ROLES = [
   { value: 'author', label: 'Author' }
 ]
 
-function DeploymentMap({ deployments }) {
+function DeploymentMap({ deployments, studyId }) {
   if (!deployments || deployments.length === 0) {
     return (
-      <div className="text-gray-500">
-        No data available. If you just started an image classification run, it may take up to 30s
-        for the process to start.
-      </div>
+      <PlaceholderMap
+        title="No Deployment Data"
+        description="Deployment data will appear here once image classification begins. This may take up to 30 seconds after starting a run."
+        icon={MapPin}
+        studyId={studyId}
+      />
     )
   }
 
@@ -48,7 +52,14 @@ function DeploymentMap({ deployments }) {
 
   if (validDeployments.length === 0) {
     return (
-      <div className="text-gray-500">No valid geographic coordinates found for deployments</div>
+      <PlaceholderMap
+        title="No Geographic Coordinates"
+        description="Set up deployment coordinates in the Deployments tab to see camera trap locations on this map."
+        linkTo="/deployments"
+        linkText="Go to Deployments"
+        icon={MapPin}
+        studyId={studyId}
+      />
     )
   }
 
@@ -1059,7 +1070,7 @@ export default function Overview({ data, studyId, studyName }) {
             {speciesData && speciesData.length > 0 && (
               <SpeciesDistribution data={speciesData} taxonomicData={taxonomicData} />
             )}
-            <DeploymentMap deployments={deploymentsData} />
+            <DeploymentMap deployments={deploymentsData} studyId={studyId} />
           </div>
         </>
       )}
