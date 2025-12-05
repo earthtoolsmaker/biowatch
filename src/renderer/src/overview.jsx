@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
 import ReactDOMServer from 'react-dom/server'
 import L from 'leaflet'
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
@@ -17,7 +17,7 @@ import {
 } from 'lucide-react'
 import PlaceholderMap from './ui/PlaceholderMap'
 import { useImportStatus } from '@renderer/hooks/import'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQueryClient, useQuery } from '@tanstack/react-query'
 import DateTimePicker from './ui/DateTimePicker'
 
 // Create a module-level cache for common names that persists across component unmounts
@@ -105,6 +105,7 @@ function DeploymentMap({ deployments, studyId }) {
   return (
     <div className="w-full h-full bg-white rounded border border-gray-200">
       <MapContainer
+        key={studyId}
         bounds={bounds}
         boundsOptions={{ padding: [50, 50] }}
         style={{ height: '100%', width: '100%' }}
@@ -282,15 +283,48 @@ function SpeciesDistribution({ data, taxonomicData }) {
 }
 
 export default function Overview({ data, studyId, studyName }) {
-  const [speciesData, setSpeciesData] = useState(null)
-  const [deploymentsData, setDeploymentsData] = useState(null)
-  const [error, setError] = useState(null)
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [editedTitle, setEditedTitle] = useState('')
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(false)
   const { importStatus } = useImportStatus(studyId)
+
+  // Use useQuery for deployments data - automatically handles caching per studyId
+  const {
+    data: deploymentsData,
+    error: deploymentsError
+  } = useQuery({
+    queryKey: ['deployments', studyId],
+    queryFn: async () => {
+      const response = await window.api.getDeployments(studyId)
+      if (response.error) {
+        throw new Error(response.error)
+      }
+      return response.data
+    },
+    enabled: !!studyId,
+    refetchInterval: importStatus?.isRunning ? 5000 : false
+  })
+
+  // Use useQuery for species data - automatically handles caching per studyId
+  const {
+    data: speciesData,
+    error: speciesError
+  } = useQuery({
+    queryKey: ['species', studyId],
+    queryFn: async () => {
+      const response = await window.api.getSpeciesDistribution(studyId)
+      if (response.error) {
+        throw new Error(response.error)
+      }
+      return response.data
+    },
+    enabled: !!studyId,
+    refetchInterval: importStatus?.isRunning ? 5000 : false
+  })
+
+  const error = speciesError?.message || deploymentsError?.message || null
 
   // Description editing state
   const [isEditingDescription, setIsEditingDescription] = useState(false)
@@ -299,40 +333,6 @@ export default function Overview({ data, studyId, studyName }) {
   // Temporal dates editing state
   const [showStartDatePicker, setShowStartDatePicker] = useState(false)
   const [showEndDatePicker, setShowEndDatePicker] = useState(false)
-
-  // Compute min/max dates from deployments for pre-populating date pickers
-  // Excludes timestamps within last 24 hours (likely media without EXIF data defaulting to "now")
-  const { minDeploymentDate, maxDeploymentDate } = useMemo(() => {
-    if (!deploymentsData || deploymentsData.length === 0) {
-      return { minDeploymentDate: null, maxDeploymentDate: null }
-    }
-
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
-    let minDate = null
-    let maxDate = null
-
-    deploymentsData.forEach((deployment) => {
-      if (deployment.deploymentStart) {
-        const startDate = new Date(deployment.deploymentStart)
-        // Exclude timestamps within last 24 hours
-        if (startDate < oneDayAgo && (!minDate || startDate < minDate)) {
-          minDate = startDate
-        }
-      }
-      if (deployment.deploymentEnd) {
-        const endDate = new Date(deployment.deploymentEnd)
-        // Exclude timestamps within last 24 hours
-        if (endDate < oneDayAgo && (!maxDate || endDate > maxDate)) {
-          maxDate = endDate
-        }
-      }
-    })
-
-    return {
-      minDeploymentDate: minDate ? minDate.toISOString().split('T')[0] : null,
-      maxDeploymentDate: maxDate ? maxDate.toISOString().split('T')[0] : null
-    }
-  }, [deploymentsData])
 
   // Contributors editing state
   const [editingContributorIndex, setEditingContributorIndex] = useState(null)
@@ -350,53 +350,38 @@ export default function Overview({ data, studyId, studyName }) {
   const [isDescriptionTruncated, setIsDescriptionTruncated] = useState(false)
   const queryClient = useQueryClient()
 
-  const fetchData = useCallback(
-    async function fetchData() {
-      try {
-        // Fetch both species and deployments data in parallel
-        const [speciesResponse, deploymentsResponse] = await Promise.all([
-          window.api.getSpeciesDistribution(studyId),
-          window.api.getDeployments(studyId)
-        ])
+  // Compute min/max dates from deployments for pre-populating date pickers
+  // Excludes timestamps within last 24 hours (likely media without EXIF data defaulting to "now")
+  const { minDeploymentDate, maxDeploymentDate } = useMemo(() => {
+    if (!deploymentsData || deploymentsData.length === 0) {
+      return { minDeploymentDate: null, maxDeploymentDate: null }
+    }
 
-        // Check for errors
-        if (speciesResponse.error) {
-          setError(speciesResponse.error)
-        } else {
-          setSpeciesData(speciesResponse.data)
-        }
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    let minDate = null
+    let maxDate = null
 
-        if (deploymentsResponse.error) {
-          console.error('Deployments error:', deploymentsResponse.error)
-          // Don't set main error if species data was successful
-        } else {
-          console.log('Deployments response:', deploymentsResponse)
-          setDeploymentsData(deploymentsResponse.data)
+    deploymentsData.forEach((deployment) => {
+      if (deployment.deploymentStart) {
+        const startDate = new Date(deployment.deploymentStart)
+        if (startDate < oneDayAgo && (!minDate || startDate < minDate)) {
+          minDate = startDate
         }
-      } catch (err) {
-        setError(err.message || 'Failed to fetch data')
       }
-    },
-    [studyId]
-  )
+      if (deployment.deploymentEnd) {
+        const endDate = new Date(deployment.deploymentEnd)
+        if (endDate < oneDayAgo && (!maxDate || endDate > maxDate)) {
+          maxDate = endDate
+        }
+      }
+    })
 
-  useEffect(() => {
-    console.log('fetch data for studyId:', studyId)
-    setError(null) // Reset error state on new fetch
-    fetchData()
-  }, [studyId, fetchData])
+    return {
+      minDeploymentDate: minDate ? minDate.toISOString().split('T')[0] : null,
+      maxDeploymentDate: maxDate ? maxDate.toISOString().split('T')[0] : null
+    }
+  }, [deploymentsData])
 
-  useEffect(() => {
-    let intervalId = null
-    if (importStatus?.isRunning) {
-      intervalId = setInterval(() => {
-        fetchData()
-      }, 5000)
-    }
-    return () => {
-      if (intervalId) clearInterval(intervalId)
-    }
-  }, [importStatus?.isRunning, studyId, fetchData])
 
   // Check scroll possibility
   useEffect(() => {
@@ -432,7 +417,6 @@ export default function Overview({ data, studyId, studyName }) {
     const checkTruncation = () => {
       const element = descriptionRef.current
       if (element) {
-        // Element is truncated if scrollHeight > clientHeight
         setIsDescriptionTruncated(element.scrollHeight > element.clientHeight)
       }
     }
@@ -472,8 +456,9 @@ export default function Overview({ data, studyId, studyName }) {
     if (editedTitle.trim() && editedTitle !== studyName) {
       await window.api.updateStudy(studyId, { name: editedTitle.trim() })
 
-      // Invalidate the study cache to refetch updated data
+      // Invalidate both study and studies cache to refetch updated data
       queryClient.invalidateQueries({ queryKey: ['study'] })
+      queryClient.invalidateQueries({ queryKey: ['studies'] })
     }
     setIsEditingTitle(false)
     setEditedTitle('')
@@ -518,10 +503,9 @@ export default function Overview({ data, studyId, studyName }) {
     }
   }
 
-  // Temporal dates editing handlers - uses DateTimePicker
+  // Temporal dates editing handlers
   const handleDateSave = async (type, isoTimestamp) => {
     try {
-      // Extract just the date part (YYYY-MM-DD) from ISO timestamp
       const dateOnly = isoTimestamp.split('T')[0]
       const newTemporal = { ...(data?.temporal || {}) }
       if (type === 'start') {
@@ -554,7 +538,7 @@ export default function Overview({ data, studyId, studyName }) {
 
   const saveContributor = async (index) => {
     if (!editedContributor?.title?.trim()) {
-      return // Name is required
+      return
     }
 
     try {
@@ -597,7 +581,7 @@ export default function Overview({ data, studyId, studyName }) {
 
   const addContributor = async () => {
     if (!newContributor?.title?.trim()) {
-      return // Name is required
+      return
     }
 
     try {
@@ -623,7 +607,7 @@ export default function Overview({ data, studyId, studyName }) {
 
   const taxonomicData = data?.taxonomic || null
 
-  // Temporal data is always shown when available, with DateTimePicker for editing
+  // Temporal data is always shown, with DateTimePicker for editing
   const renderTemporalData = () => {
     return (
       <div className="flex items-center gap-2 text-gray-500 text-sm max-w-prose mb-2">
@@ -633,16 +617,15 @@ export default function Overview({ data, studyId, studyName }) {
             className="cursor-pointer hover:text-gray-700 hover:underline"
             onClick={() => setShowStartDatePicker(true)}
           >
-            {data?.temporal?.start || 'No start date'}
+            {data?.temporal?.start || 'Start date'}
           </span>
           <button
             onClick={() => setShowStartDatePicker(true)}
-            className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-100 rounded text-gray-500 transition-opacity"
+            className="hidden group-hover:inline-flex p-0.5 hover:bg-gray-100 rounded text-gray-500"
             title="Edit start date"
           >
             <Pencil size={10} />
           </button>
-          {/* DateTimePicker Popup for Start Date */}
           {showStartDatePicker && (
             <div className="absolute left-0 top-full mt-2 z-50">
               <DateTimePicker
@@ -669,16 +652,15 @@ export default function Overview({ data, studyId, studyName }) {
             className="cursor-pointer hover:text-gray-700 hover:underline"
             onClick={() => setShowEndDatePicker(true)}
           >
-            {data?.temporal?.end || 'No end date'}
+            {data?.temporal?.end || 'End date'}
           </span>
           <button
             onClick={() => setShowEndDatePicker(true)}
-            className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-100 rounded text-gray-500 transition-opacity"
+            className="hidden group-hover:inline-flex p-0.5 hover:bg-gray-100 rounded text-gray-500"
             title="Edit end date"
           >
             <Pencil size={10} />
           </button>
-          {/* DateTimePicker Popup for End Date */}
           {showEndDatePicker && (
             <div className="absolute left-0 top-full mt-2 z-50">
               <DateTimePicker
@@ -715,18 +697,18 @@ export default function Overview({ data, studyId, studyName }) {
                 autoFocus
               />
               <button
-                onClick={cancelEditingTitle}
-                className="p-1 hover:bg-red-100 rounded text-red-600"
-                title="Cancel"
-              >
-                <X size={16} />
-              </button>
-              <button
                 onClick={saveTitle}
                 className="p-1 hover:bg-green-100 rounded text-green-600"
                 title="Save"
               >
                 <Check size={16} />
+              </button>
+              <button
+                onClick={cancelEditingTitle}
+                className="p-1 hover:bg-red-100 rounded text-red-600"
+                title="Cancel"
+              >
+                <X size={16} />
               </button>
             </div>
           ) : (
@@ -796,7 +778,6 @@ export default function Overview({ data, studyId, studyName }) {
                 )}
               </div>
               <div className="flex items-center gap-2">
-                {/* Only show expand/collapse when description is truncated or already expanded */}
                 {data?.description && (isDescriptionTruncated || isDescriptionExpanded) && (
                   <button
                     onClick={toggleDescription}
@@ -867,14 +848,14 @@ export default function Overview({ data, studyId, studyName }) {
           className="flex overflow-x-auto gap-4 scrollbar-hide"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
-          {/* Existing contributor cards */}
+          {/* Existing contributors */}
           {data?.contributors?.map((contributor, index) => (
             <div
               key={index}
-              className="flex flex-col flex-shrink-0 w-64 p-4 border border-gray-200 rounded-md shadow-sm bg-white relative group"
+              className="flex flex-col flex-shrink-0 w-64 p-4 border border-gray-200 rounded-md shadow-sm bg-white group relative"
             >
               {editingContributorIndex === index ? (
-                // Edit Mode
+                // Edit mode
                 <div className="flex flex-col gap-2">
                   <input
                     type="text"
@@ -882,8 +863,8 @@ export default function Overview({ data, studyId, studyName }) {
                     onChange={(e) =>
                       setEditedContributor({ ...editedContributor, title: e.target.value })
                     }
+                    className="border border-gray-300 rounded px-2 py-1 text-sm"
                     placeholder="Name *"
-                    className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     autoFocus
                   />
                   <select
@@ -891,7 +872,7 @@ export default function Overview({ data, studyId, studyName }) {
                     onChange={(e) =>
                       setEditedContributor({ ...editedContributor, role: e.target.value })
                     }
-                    className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="border border-gray-300 rounded px-2 py-1 text-sm"
                   >
                     <option value="">Select role...</option>
                     {CONTRIBUTOR_ROLES.map((role) => (
@@ -906,8 +887,8 @@ export default function Overview({ data, studyId, studyName }) {
                     onChange={(e) =>
                       setEditedContributor({ ...editedContributor, organization: e.target.value })
                     }
+                    className="border border-gray-300 rounded px-2 py-1 text-sm"
                     placeholder="Organization"
-                    className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                   <input
                     type="email"
@@ -915,46 +896,45 @@ export default function Overview({ data, studyId, studyName }) {
                     onChange={(e) =>
                       setEditedContributor({ ...editedContributor, email: e.target.value })
                     }
+                    className="border border-gray-300 rounded px-2 py-1 text-sm"
                     placeholder="Email"
-                    className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                  <div className="flex gap-2 mt-2">
+                  <div className="flex gap-1 mt-1">
                     <button
                       onClick={cancelEditingContributor}
-                      className="flex-1 px-2 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300"
+                      className="p-1 hover:bg-red-100 rounded text-red-600"
+                      title="Cancel"
                     >
-                      Cancel
+                      <X size={16} />
                     </button>
                     <button
                       onClick={() => saveContributor(index)}
-                      disabled={!editedContributor?.title?.trim()}
-                      className="flex-1 px-2 py-1 bg-green-500 text-white text-sm rounded hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="p-1 hover:bg-green-100 rounded text-green-600"
+                      title="Save"
                     >
-                      Save
+                      <Check size={16} />
                     </button>
                   </div>
                 </div>
               ) : (
-                // Display Mode
+                // View mode
                 <>
-                  {/* Edit/Delete buttons - visible on hover */}
-                  <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity">
                     <button
                       onClick={() => startEditingContributor(index)}
                       className="p-1 hover:bg-gray-100 rounded text-gray-500"
-                      title="Edit contributor"
+                      title="Edit"
                     >
                       <Pencil size={12} />
                     </button>
                     <button
                       onClick={() => deleteContributor(index)}
                       className="p-1 hover:bg-red-100 rounded text-red-500"
-                      title="Remove contributor"
+                      title="Delete"
                     >
                       <Trash2 size={12} />
                     </button>
                   </div>
-
                   <div className="">
                     {contributor.title || `${contributor.firstName} ${contributor.lastName}`}
                   </div>
@@ -986,22 +966,22 @@ export default function Overview({ data, studyId, studyName }) {
             </div>
           ))}
 
-          {/* Add Contributor Card */}
+          {/* Add contributor card */}
           {isAddingContributor ? (
-            <div className="flex flex-col flex-shrink-0 w-64 p-4 border-2 border-dashed border-blue-300 rounded-md bg-blue-50">
+            <div className="flex flex-col flex-shrink-0 w-64 p-4 border border-blue-300 rounded-md shadow-sm bg-blue-50">
               <div className="flex flex-col gap-2">
                 <input
                   type="text"
                   value={newContributor.title}
                   onChange={(e) => setNewContributor({ ...newContributor, title: e.target.value })}
+                  className="border border-gray-300 rounded px-2 py-1 text-sm"
                   placeholder="Name *"
-                  className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                   autoFocus
                 />
                 <select
                   value={newContributor.role}
                   onChange={(e) => setNewContributor({ ...newContributor, role: e.target.value })}
-                  className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  className="border border-gray-300 rounded px-2 py-1 text-sm"
                 >
                   <option value="">Select role...</option>
                   {CONTRIBUTOR_ROLES.map((role) => (
@@ -1016,29 +996,30 @@ export default function Overview({ data, studyId, studyName }) {
                   onChange={(e) =>
                     setNewContributor({ ...newContributor, organization: e.target.value })
                   }
+                  className="border border-gray-300 rounded px-2 py-1 text-sm"
                   placeholder="Organization"
-                  className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 />
                 <input
                   type="email"
                   value={newContributor.email}
                   onChange={(e) => setNewContributor({ ...newContributor, email: e.target.value })}
+                  className="border border-gray-300 rounded px-2 py-1 text-sm"
                   placeholder="Email"
-                  className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 />
-                <div className="flex gap-2 mt-2">
+                <div className="flex gap-1 mt-1">
                   <button
                     onClick={cancelAddingContributor}
-                    className="flex-1 px-2 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300"
+                    className="p-1 hover:bg-red-100 rounded text-red-600"
+                    title="Cancel"
                   >
-                    Cancel
+                    <X size={16} />
                   </button>
                   <button
                     onClick={addContributor}
-                    disabled={!newContributor.title?.trim()}
-                    className="flex-1 px-2 py-1 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="p-1 hover:bg-green-100 rounded text-green-600"
+                    title="Add"
                   >
-                    Add
+                    <Check size={16} />
                   </button>
                 </div>
               </div>
@@ -1046,10 +1027,10 @@ export default function Overview({ data, studyId, studyName }) {
           ) : (
             <button
               onClick={() => setIsAddingContributor(true)}
-              className="flex flex-col items-center justify-center flex-shrink-0 w-64 p-4 border-2 border-dashed border-gray-300 rounded-md hover:border-blue-400 hover:bg-blue-50 transition-colors cursor-pointer min-h-[120px]"
+              className="flex flex-col items-center justify-center flex-shrink-0 w-64 p-4 border border-dashed border-gray-300 rounded-md bg-gray-50 hover:bg-gray-100 hover:border-gray-400 transition-colors"
             >
               <Plus size={24} className="text-gray-400" />
-              <span className="text-sm text-gray-500 mt-2">Add contributor</span>
+              <span className="text-sm text-gray-500 mt-1">Add contributor</span>
             </button>
           )}
         </div>

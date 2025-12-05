@@ -94,6 +94,7 @@ describe('Wildlife Import Tests', () => {
         '__drizzle_migrations',
         'deployments',
         'media',
+        'metadata',
         'model_outputs',
         'model_runs',
         'observations'
@@ -292,8 +293,8 @@ describe('Wildlife Import Tests', () => {
       assert(specificRecord[0].timestamp.includes('12:15:36'), 'Should have correct time')
     })
 
-    test('study.json should be created with valid name', async () => {
-      const studyId = 'test-wildlife-study-json'
+    test('metadata should be stored in database with valid name', async () => {
+      const studyId = 'test-wildlife-metadata'
 
       // Import the test dataset
       const result = await importWildlifeDatasetWithPath(
@@ -302,47 +303,44 @@ describe('Wildlife Import Tests', () => {
         studyId
       )
 
-      // Check that study.json was created
-      const studyJsonPath = join(testBiowatchDataPath, 'studies', studyId, 'study.json')
-      assert(existsSync(studyJsonPath), 'study.json should be created')
+      // Check that metadata was stored in database
+      const dbPath = join(testBiowatchDataPath, 'studies', studyId, 'study.db')
+      assert(existsSync(dbPath), 'Database should be created')
 
-      // Read and parse the study.json file
-      const studyJsonContent = readFileSync(studyJsonPath, 'utf8')
-      const studyData = JSON.parse(studyJsonContent)
+      // Query the metadata table
+      const metadataRecords = queryDatabase(dbPath, 'SELECT * FROM metadata')
+      assert.equal(metadataRecords.length, 1, 'Should have one metadata record')
+
+      const metadata = metadataRecords[0]
 
       // Verify the structure and content
-      assert(studyData.name, 'study.json should contain a name property')
-      assert.equal(typeof studyData.name, 'string', 'name should be a string')
-      assert(studyData.name.length > 0, 'name should not be empty')
-      assert.equal(studyData.importerName, 'wildlife/folder', 'should have correct importer name')
-      assert(studyData.createdAt, 'study.json should contain a createdAt property')
-      assert.equal(typeof studyData.createdAt, 'string', 'createdAt should be a string')
-      assert(!isNaN(Date.parse(studyData.createdAt)), 'createdAt should be a valid ISO date string')
+      assert(metadata.name, 'metadata should contain a name property')
+      assert.equal(typeof metadata.name, 'string', 'name should be a string')
+      assert(metadata.name.length > 0, 'name should not be empty')
+      assert.equal(metadata.importerName, 'wildlife/folder', 'should have correct importer name')
+      assert(metadata.created, 'metadata should contain a created property')
+      assert.equal(typeof metadata.created, 'string', 'created should be a string')
+      assert(!isNaN(Date.parse(metadata.created)), 'created should be a valid ISO date string')
 
       // Should either have project name from CSV or fallback to directory name
       assert(
-        studyData.name === 'RafaBenjumea' || studyData.name === 'wildlife',
-        `name should be project name from CSV or fallback to directory name, got: ${studyData.name}`
+        metadata.name === 'RafaBenjumea' || metadata.name === 'wildlife',
+        `name should be project name from CSV or fallback to directory name, got: ${metadata.name}`
       )
 
-      assert(Array.isArray(studyData.data.contributors), 'Contributors should be an array')
-      assert.equal(studyData.data.contributors.length, 1, 'Should have one contributor')
+      // Check contributors stored as JSON string
+      const contributors = JSON.parse(metadata.contributors)
+      assert(Array.isArray(contributors), 'Contributors should be an array')
+      assert.equal(contributors.length, 1, 'Should have one contributor')
       assert.equal(
-        studyData.data.contributors[0].title,
+        contributors[0].title,
         'Rafa Benjumea',
         'Should have correct contributor name'
       )
 
-      // Should match the returned data (excluding createdAt which will be slightly different)
-      const { createdAt: studyCreatedAt, ...studyDataWithoutTimestamp } = studyData
-      const { createdAt: resultCreatedAt, ...resultDataWithoutTimestamp } = result.data
-      assert.deepEqual(
-        resultDataWithoutTimestamp,
-        studyDataWithoutTimestamp,
-        'returned data should match study.json content (excluding timestamp)'
-      )
-      assert(studyCreatedAt, 'study.json should have createdAt')
-      assert(resultCreatedAt, 'returned data should have createdAt')
+      // Verify returned data matches
+      assert(result.data, 'Should return data')
+      assert.equal(result.data.name, metadata.name, 'returned name should match metadata')
     })
   })
 })

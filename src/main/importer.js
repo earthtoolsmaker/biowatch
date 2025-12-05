@@ -15,7 +15,11 @@ import {
   observations,
   modelRuns,
   modelOutputs,
-  closeStudyDatabase
+  closeStudyDatabase,
+  insertMetadata,
+  getLatestModelRunRaw,
+  updateMetadata,
+  getMetadata
 } from './db/index.js'
 import { transformBboxToCamtrapDP } from './transformers/index.js'
 import { eq, isNull, count, sql } from 'drizzle-orm'
@@ -565,7 +569,9 @@ export class Importer {
               modelID: modelReference.id,
               modelVersion: modelReference.version,
               startedAt: new Date().toISOString(),
-              status: 'running'
+              status: 'running',
+              importPath: this.folder,
+              options: this.country ? { country: this.country } : null
             })
             log.info(
               `Created model run ${runID} for ${modelReference.id} v${modelReference.version}`
@@ -636,7 +642,7 @@ export class Importer {
                 lastBatchDuration = batchEnd.diff(batchStart, 'seconds').seconds
               }
 
-              // Auto-populate temporal dates from deployment timestamps (if not already set)
+              // Auto-populate temporal dates from media timestamps (if not already set)
               // This must happen BEFORE setting status to 'completed' so the renderer
               // sees the updated dates when it invalidates the query
               try {
@@ -663,42 +669,23 @@ export class Importer {
                 log.info(`Date range query result: ${JSON.stringify(dateRange)}`)
 
                 if (dateRange && dateRange.minDate && dateRange.maxDate) {
-                  const studyJsonPath = path.join(
-                    app.getPath('userData'),
-                    'biowatch-data',
-                    'studies',
-                    this.id,
-                    'study.json'
-                  )
+                  // Get current metadata to check if dates are already set
+                  const currentMetadata = await getMetadata(this.db)
 
-                  if (fs.existsSync(studyJsonPath)) {
-                    const studyData = JSON.parse(fs.readFileSync(studyJsonPath, 'utf-8'))
+                  // Only update if values are not already set (don't overwrite user edits)
+                  const updates = {}
+                  if (!currentMetadata?.startDate) {
+                    updates.startDate = dateRange.minDate.split('T')[0]
+                  }
+                  if (!currentMetadata?.endDate) {
+                    updates.endDate = dateRange.maxDate.split('T')[0]
+                  }
 
-                    // Initialize data and temporal objects if needed
-                    if (!studyData.data) {
-                      studyData.data = {}
-                    }
-                    if (!studyData.data.temporal) {
-                      studyData.data.temporal = {}
-                    }
-
-                    // Only update if values are not already set (don't overwrite user edits)
-                    let updated = false
-                    if (!studyData.data.temporal.start) {
-                      studyData.data.temporal.start = dateRange.minDate.split('T')[0]
-                      updated = true
-                    }
-                    if (!studyData.data.temporal.end) {
-                      studyData.data.temporal.end = dateRange.maxDate.split('T')[0]
-                      updated = true
-                    }
-
-                    if (updated) {
-                      fs.writeFileSync(studyJsonPath, JSON.stringify(studyData, null, 2))
-                      log.info(
-                        `Updated temporal dates for study ${this.id}: ${studyData.data.temporal.start} to ${studyData.data.temporal.end}`
-                      )
-                    }
+                  if (Object.keys(updates).length > 0) {
+                    await updateMetadata(this.db, this.id, updates)
+                    log.info(
+                      `Updated temporal dates for study ${this.id}: ${updates.startDate || 'unchanged'} to ${updates.endDate || 'unchanged'}`
+                    )
                   }
                 }
               } catch (temporalError) {
@@ -837,24 +824,23 @@ ipcMain.handle(
       const importer = new Importer(id, directoryPath, modelReference, countryCode)
       importers[id] = importer
       await importer.start()
-      const data = {
-        path: directoryPath,
-        importerName: `local/${modelReference.id}`,
-        modelReference: modelReference,
+
+      // Insert metadata into the database
+      const dbPath = path.join(app.getPath('userData'), 'biowatch-data', 'studies', id, 'study.db')
+      const db = await getDrizzleDb(id, dbPath)
+      const metadataRecord = {
+        id,
         name: path.basename(directoryPath),
-        country: countryCode,
-        data: {
-          name: path.basename(directoryPath),
-          country: countryCode
-        },
-        id: id,
-        createdAt: new Date().toISOString()
+        title: null,
+        description: null,
+        created: new Date().toISOString(),
+        importerName: `local/${modelReference.id}`,
+        contributors: null
       }
-      fs.writeFileSync(
-        path.join(app.getPath('userData'), 'biowatch-data', 'studies', id, 'study.json'),
-        JSON.stringify(data, null, 2)
-      )
-      return data
+      await insertMetadata(db, metadataRecord)
+      log.info('Inserted study metadata into database')
+
+      return metadataRecord
     } catch (error) {
       log.error('Error processing images directory with model:', error)
       return {
@@ -871,25 +857,22 @@ ipcMain.handle('importer:select-more-images-directory', async (event, id) => {
     return { success: false, message: 'Importer already running' }
   }
 
-  // Read study.json to get model reference
-  const studyJsonPath = path.join(
-    app.getPath('userData'),
-    'biowatch-data',
-    'studies',
-    id,
-    'study.json'
-  )
-  if (!fs.existsSync(studyJsonPath)) {
-    log.warn(`Study not found for ID ${id}`)
+  const dbPath = path.join(app.getPath('userData'), 'biowatch-data', 'studies', id, 'study.db')
+  if (!fs.existsSync(dbPath)) {
+    log.warn(`Study database not found for ID ${id}`)
     return { success: false, message: 'Study not found' }
   }
 
-  const studyData = JSON.parse(fs.readFileSync(studyJsonPath, 'utf-8'))
-  const modelReference = studyData.modelReference
-  if (!modelReference) {
-    log.warn(`No model reference found for study ${id}`)
-    return { success: false, message: 'No model reference found for study' }
+  // Get latest model run to retrieve model reference and options
+  const latestRun = await getLatestModelRunRaw(id, dbPath)
+  if (!latestRun) {
+    log.warn(`No model run found for study ${id}`)
+    return { success: false, message: 'No model run found for study' }
   }
+
+  const modelReference = { id: latestRun.modelID, version: latestRun.modelVersion }
+  const options = latestRun.options ? JSON.parse(latestRun.options) : {}
+  const country = options.country || null
 
   const result = await dialog.showOpenDialog({
     properties: ['openDirectory'],
@@ -901,7 +884,7 @@ ipcMain.handle('importer:select-more-images-directory', async (event, id) => {
   }
 
   const directoryPath = result.filePaths[0]
-  const importer = new Importer(id, directoryPath, modelReference, studyData.country)
+  const importer = new Importer(id, directoryPath, modelReference, country)
   importers[id] = importer
   await importer.start(true)
   return { success: true, message: 'Importer started successfully' }
@@ -934,27 +917,24 @@ ipcMain.handle('importer:resume', async (event, id) => {
     return { success: false, message: 'Importer not found' }
   }
 
-  // Read study.json to get model reference and folder
-  const studyJsonPath = path.join(
-    app.getPath('userData'),
-    'biowatch-data',
-    'studies',
-    id,
-    'study.json'
-  )
-  if (!fs.existsSync(studyJsonPath)) {
-    log.warn(`Study.json not found for ID ${id}`)
-    return { success: false, message: 'Study configuration not found' }
+  // Get latest model run to retrieve model reference, importPath and options
+  const latestRun = await getLatestModelRunRaw(id, dbPath)
+  if (!latestRun) {
+    log.warn(`No model run found for study ${id}`)
+    return { success: false, message: 'No model run found for study' }
   }
 
-  const studyData = JSON.parse(fs.readFileSync(studyJsonPath, 'utf-8'))
-  const modelReference = studyData.modelReference
-  if (!modelReference) {
-    log.warn(`No model reference found for study ${id}`)
-    return { success: false, message: 'No model reference found for study' }
+  const modelReference = { id: latestRun.modelID, version: latestRun.modelVersion }
+  const importPath = latestRun.importPath
+  if (!importPath) {
+    log.warn(`No import path found for study ${id}`)
+    return { success: false, message: 'No import path found for study' }
   }
 
-  importers[id] = new Importer(id, studyData.path, modelReference, studyData.country)
+  const options = latestRun.options ? JSON.parse(latestRun.options) : {}
+  const country = options.country || null
+
+  importers[id] = new Importer(id, importPath, modelReference, country)
   importers[id].start()
   return { success: true, message: 'Importer resumed successfully' }
 })

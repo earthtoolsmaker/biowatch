@@ -20,13 +20,29 @@ export const media = sqliteTable('media', {
   folderName: text('folderName')
 })
 
+// Study metadata (Camtrap DP aligned)
+export const metadata = sqliteTable('metadata', {
+  id: text('id').primaryKey(), // Study UUID
+  name: text('name'), // Package name/identifier
+  title: text('title'), // Human-readable title
+  description: text('description'), // Dataset description (Markdown)
+  created: text('created').notNull(), // ISO 8601 creation date
+  importerName: text('importerName').notNull(), // camtrap/datapackage, wildlife/folder, local/images, etc.
+  contributors: text('contributors', { mode: 'json' }), // JSON: [{title, email, role, organization, path}]
+  updatedAt: text('updatedAt'), // Last modification
+  startDate: text('startDate'), // Temporal start (ISO date)
+  endDate: text('endDate') // Temporal end (ISO date)
+})
+
 // Track model execution sessions
 export const modelRuns = sqliteTable('model_runs', {
   id: text('id').primaryKey(), // UUID via crypto.randomUUID()
   modelID: text('modelID').notNull(), // 'speciesnet', 'deepfaune'
   modelVersion: text('modelVersion').notNull(), // '4.0.1a', '1.3'
   startedAt: text('startedAt').notNull(), // ISO timestamp
-  status: text('status').default('running') // 'running', 'completed', 'failed'
+  status: text('status').default('running'), // 'running', 'completed', 'failed'
+  importPath: text('importPath'), // Directory path for this run
+  options: text('options', { mode: 'json' }) // JSON: {"country": "FR", "geofence": true, ...}
 })
 
 // Link media to model runs + store raw response

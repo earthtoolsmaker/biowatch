@@ -9,7 +9,7 @@ import { ChevronLeft, ChevronRight, Clock } from 'lucide-react'
  * @param {(newValue: string) => void} props.onChange - Called with new ISO timestamp on save
  * @param {() => void} props.onCancel - Called when picker is dismissed
  * @param {string} [props.className] - Additional CSS classes
- * @param {boolean} [props.dateOnly] - If true, hides the time picker section
+ * @param {boolean} [props.dateOnly] - If true, hide time inputs and only show calendar
  */
 export default function DateTimePicker({
   value,

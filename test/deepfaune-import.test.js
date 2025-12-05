@@ -78,10 +78,6 @@ describe('Import Methods Tests', () => {
       assert.equal(result.data.importerName, 'deepfaune/csv', 'Should use correct importer name')
       assert.equal(result.data.name, 'deepfaune-test', 'Should extract name from CSV filename')
 
-      // Check that study.json was created
-      const studyJsonPath = join(testUserDataPath, 'studies', studyId, 'study.json')
-      assert(existsSync(studyJsonPath), 'study.json should be created')
-
       // Check that database was created
       const dbPath = join(testUserDataPath, 'studies', studyId, 'study.db')
       assert(existsSync(dbPath), 'Database should be created')
@@ -184,29 +180,31 @@ describe('Import Methods Tests', () => {
       assert(birdObservations.length === 2, 'Should have exactly 2 bird observations')
     })
 
-    test('study.json should contain a valid name', async () => {
+    test('metadata should be stored in database with valid name', async () => {
       const studyId = 'test-study-name-validation'
 
       // Import the test dataset
       await importDeepfauneDatasetWithPath(testCsvPath, testUserDataPath, studyId)
 
-      // Check that study.json was created with proper content
-      const studyJsonPath = join(testUserDataPath, 'studies', studyId, 'study.json')
-      assert(existsSync(studyJsonPath), 'study.json should be created')
+      // Check that metadata was stored in database
+      const dbPath = join(testUserDataPath, 'studies', studyId, 'study.db')
+      assert(existsSync(dbPath), 'Database should be created')
 
-      // Read and parse the study.json file
-      const studyJsonContent = readFileSync(studyJsonPath, 'utf8')
-      const studyData = JSON.parse(studyJsonContent)
+      // Query the metadata table
+      const metadataRecords = queryDatabase(dbPath, 'SELECT * FROM metadata')
+      assert.equal(metadataRecords.length, 1, 'Should have one metadata record')
+
+      const metadata = metadataRecords[0]
 
       // Verify the structure and content
-      assert(studyData.name, 'study.json should contain a name property')
-      assert.equal(typeof studyData.name, 'string', 'name should be a string')
-      assert(studyData.name.length > 0, 'name should not be empty')
-      assert.equal(studyData.name, 'deepfaune-test', 'name should match CSV filename')
-      assert.equal(studyData.importerName, 'deepfaune/csv', 'should have correct importer name')
-      assert(studyData.createdAt, 'study.json should contain a createdAt property')
-      assert.equal(typeof studyData.createdAt, 'string', 'createdAt should be a string')
-      assert(!isNaN(Date.parse(studyData.createdAt)), 'createdAt should be a valid ISO date string')
+      assert(metadata.name, 'metadata should contain a name property')
+      assert.equal(typeof metadata.name, 'string', 'name should be a string')
+      assert(metadata.name.length > 0, 'name should not be empty')
+      assert.equal(metadata.name, 'deepfaune-test', 'name should match CSV filename')
+      assert.equal(metadata.importerName, 'deepfaune/csv', 'should have correct importer name')
+      assert(metadata.created, 'metadata should contain a created property')
+      assert.equal(typeof metadata.created, 'string', 'created should be a string')
+      assert(!isNaN(Date.parse(metadata.created)), 'created should be a valid ISO date string')
     })
   })
 

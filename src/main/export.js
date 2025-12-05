@@ -3,7 +3,15 @@ import { existsSync } from 'fs'
 import fs from 'fs/promises'
 import { join, extname, basename } from 'path'
 import log from 'electron-log'
-import { getDrizzleDb, media, observations, deployments, closeStudyDatabase } from './db/index.js'
+import {
+  getDrizzleDb,
+  getReadonlyDrizzleDb,
+  media,
+  observations,
+  deployments,
+  closeStudyDatabase,
+  getMetadata
+} from './db/index.js'
 import { eq, and, isNotNull, ne, or, isNull, asc, inArray } from 'drizzle-orm'
 import { downloadFileWithRetry } from './download.js'
 import crypto from 'crypto'
@@ -214,19 +222,14 @@ export async function exportImageDirectories(studyId, options = {}) {
   const { selectedSpecies = null, includeBlank = false } = options
 
   try {
-    // Get study information to use in folder name
-    const studyJsonPath = join(
-      app.getPath('userData'),
-      'biowatch-data',
-      'studies',
-      studyId,
-      'study.json'
-    )
+    // Get study information from database
+    const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
     let studyName = 'Unknown'
-    if (existsSync(studyJsonPath)) {
+    if (existsSync(dbPath)) {
       try {
-        const studyData = JSON.parse(await fs.readFile(studyJsonPath, 'utf8'))
-        studyName = studyData.name || 'Unknown'
+        const db = await getReadonlyDrizzleDb(studyId, dbPath)
+        const metadata = await getMetadata(db)
+        studyName = metadata?.name || 'Unknown'
       } catch (error) {
         log.warn(`Failed to read study name: ${error.message}`)
       }
@@ -254,8 +257,7 @@ export async function exportImageDirectories(studyId, options = {}) {
 
     log.info(`Exporting images to: ${exportPath}`)
 
-    const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
-    if (!dbPath || !existsSync(dbPath)) {
+    if (!existsSync(dbPath)) {
       log.warn(`Database not found for study ID: ${studyId}`)
       return { success: false, error: 'Database not found for this study' }
     }
@@ -536,32 +538,36 @@ function toCSV(rows, columns) {
 
 /**
  * Generate the datapackage.json content for Camtrap DP
- * Uses study metadata for title, description, contributors, and temporal coverage
+ * @param {string} studyId - Study ID
+ * @param {string} studyName - Study name
+ * @param {Object} metadata - Study metadata from database
  */
-function generateDataPackage(studyId, studyName, studyData = {}) {
+function generateDataPackage(studyId, studyName, metadata = null) {
   const now = new Date().toISOString()
   const nameToSlugify = studyName || studyId
   const slugifiedName = nameToSlugify.replace(/[^a-z0-9-]/gi, '-').toLowerCase()
 
-  // Use study metadata if available, otherwise use defaults
+  // Use metadata from DB if available, otherwise defaults
+  const contributors = metadata?.contributors || [
+    {
+      title: 'Biowatch User',
+      role: 'author'
+    }
+  ]
+  const title = metadata?.title || studyName || 'Biowatch Camera Trap Dataset'
   const description =
-    studyData.description ||
+    metadata?.description ||
     'Camera trap dataset exported from Biowatch. This dataset contains camera trap deployment information, media files metadata, and species observations collected during wildlife monitoring.'
 
-  const contributors =
-    studyData.contributors && studyData.contributors.length > 0
-      ? studyData.contributors
-      : [{ title: 'Biowatch User', role: 'author' }]
-
   // Build temporal coverage if available
-  const temporal = studyData.temporal
-    ? { start: studyData.temporal.start, end: studyData.temporal.end }
-    : undefined
+  const temporal =
+    metadata?.startDate && metadata?.endDate
+      ? { start: metadata.startDate, end: metadata.endDate }
+      : undefined
 
-  // Build the datapackage object
   const dataPackage = {
     name: slugifiedName,
-    title: studyName || 'Biowatch Camera Trap Dataset',
+    title,
     description,
     version: '1.0.0',
     created: now,
@@ -655,24 +661,17 @@ export async function exportCamtrapDP(studyId, options = {}) {
   const { includeMedia = false, selectedSpecies = null, includeBlank = false } = options
 
   try {
-    // Get study information including metadata
-    const studyJsonPath = join(
-      app.getPath('userData'),
-      'biowatch-data',
-      'studies',
-      studyId,
-      'study.json'
-    )
+    // Get study information from database
+    const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
     let studyName = 'Unknown'
-    let studyMetadata = {}
-    if (existsSync(studyJsonPath)) {
+    let studyMetadata = null
+    if (existsSync(dbPath)) {
       try {
-        const studyData = JSON.parse(await fs.readFile(studyJsonPath, 'utf8'))
-        studyName = studyData.name || 'Unknown'
-        // Extract metadata for export (description, contributors, temporal)
-        studyMetadata = studyData.data || {}
+        const db = await getReadonlyDrizzleDb(studyId, dbPath)
+        studyMetadata = await getMetadata(db)
+        studyName = studyMetadata?.name || 'Unknown'
       } catch (error) {
-        log.warn(`Failed to read study data: ${error.message}`)
+        log.warn(`Failed to read study name: ${error.message}`)
       }
     }
 
@@ -701,8 +700,7 @@ export async function exportCamtrapDP(studyId, options = {}) {
     // Create export directory
     await fs.mkdir(exportPath, { recursive: true })
 
-    const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
-    if (!dbPath || !existsSync(dbPath)) {
+    if (!existsSync(dbPath)) {
       log.warn(`Database not found for study ID: ${studyId}`)
       return { success: false, error: 'Database not found for this study' }
     }
@@ -938,7 +936,7 @@ export async function exportCamtrapDP(studyId, options = {}) {
       'classificationProbability'
     ])
 
-    // Generate datapackage.json with study metadata
+    // Generate datapackage.json
     const dataPackage = generateDataPackage(studyId, studyName, studyMetadata)
 
     // Write all files

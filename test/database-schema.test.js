@@ -209,6 +209,7 @@ describe('Database Schema and Integrity Tests', () => {
         '__drizzle_migrations',
         'deployments',
         'media',
+        'metadata',
         'model_outputs',
         'model_runs',
         'observations'

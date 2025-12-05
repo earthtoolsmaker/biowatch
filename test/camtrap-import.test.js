@@ -94,6 +94,7 @@ describe('CamTrapDP Import Tests', () => {
         '__drizzle_migrations',
         'deployments',
         'media',
+        'metadata',
         'model_outputs',
         'model_runs',
         'observations'
@@ -521,8 +522,8 @@ media001,deploy001,${mediaUrl},image.jpg,2023-03-20T14:30:15Z`
       assert(specificRecord[0].timestamp.includes('14:30:15'), 'Should have correct time')
     })
 
-    test('study.json should be created with valid CamTrapDP metadata', async () => {
-      const studyId = 'test-camtrap-study-json'
+    test('metadata should be stored in database with valid CamTrapDP info', async () => {
+      const studyId = 'test-camtrap-metadata'
 
       // Import the test dataset
       const result = await importCamTrapDatasetWithPath(
@@ -531,49 +532,42 @@ media001,deploy001,${mediaUrl},image.jpg,2023-03-20T14:30:15Z`
         studyId
       )
 
-      // Check that study.json was created
-      const studyJsonPath = join(testBiowatchDataPath, 'studies', studyId, 'study.json')
-      assert(existsSync(studyJsonPath), 'study.json should be created')
+      // Check that metadata was stored in database
+      const dbPath = join(testBiowatchDataPath, 'studies', studyId, 'study.db')
+      assert(existsSync(dbPath), 'Database should be created')
 
-      // Read and parse the study.json file
-      const studyJsonContent = readFileSync(studyJsonPath, 'utf8')
-      const studyData = JSON.parse(studyJsonContent)
+      // Query the metadata table
+      const metadataRecords = queryDatabase(dbPath, 'SELECT * FROM metadata')
+      assert.equal(metadataRecords.length, 1, 'Should have one metadata record')
+
+      const metadata = metadataRecords[0]
 
       // Verify the structure and content
-      assert(studyData.name, 'study.json should contain a name property')
-      assert.equal(typeof studyData.name, 'string', 'name should be a string')
-      assert(studyData.name.length > 0, 'name should not be empty')
+      assert(metadata.name, 'metadata should contain a name property')
+      assert.equal(typeof metadata.name, 'string', 'name should be a string')
+      assert(metadata.name.length > 0, 'name should not be empty')
       assert.equal(
-        studyData.importerName,
+        metadata.importerName,
         'camtrap/datapackage',
         'should have correct importer name'
       )
-      assert(studyData.createdAt, 'study.json should contain a createdAt property')
-      assert.equal(typeof studyData.createdAt, 'string', 'createdAt should be a string')
-      assert(!isNaN(Date.parse(studyData.createdAt)), 'createdAt should be a valid ISO date string')
+      assert(metadata.created, 'metadata should contain a created property')
+      assert.equal(typeof metadata.created, 'string', 'created should be a string')
+      assert(!isNaN(Date.parse(metadata.created)), 'created should be a valid ISO date string')
 
       // Should extract name from datapackage.json
-      assert.equal(studyData.name, 'test-camtrap-dataset', 'name should match datapackage name')
+      assert.equal(metadata.name, 'test-camtrap-dataset', 'name should match datapackage name')
 
       // Verify datapackage metadata is preserved
-      assert(studyData.data, 'Should contain datapackage data')
       assert.equal(
-        studyData.data.title,
+        metadata.title,
         'Test CamTrap Dataset',
         'Should preserve datapackage title'
       )
-      assert(studyData.data.resources, 'Should preserve resource definitions')
 
-      // Should match the returned data (excluding createdAt which will be slightly different)
-      const { createdAt: studyCreatedAt, ...studyDataWithoutTimestamp } = studyData
-      const { createdAt: resultCreatedAt, ...resultDataWithoutTimestamp } = result.data
-      assert.deepEqual(
-        resultDataWithoutTimestamp,
-        studyDataWithoutTimestamp,
-        'returned data should match study.json content (excluding timestamp)'
-      )
-      assert(studyCreatedAt, 'study.json should have createdAt')
-      assert(resultCreatedAt, 'returned data should have createdAt')
+      // Verify returned data matches
+      assert(result.data, 'Should return data')
+      assert.equal(result.data.name, metadata.name, 'returned name should match metadata')
     })
 
     test('should handle missing datapackage.json gracefully', async () => {

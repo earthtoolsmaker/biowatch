@@ -2,7 +2,14 @@ import fs from 'fs'
 import path from 'path'
 import csv from 'csv-parser'
 import { DateTime } from 'luxon'
-import { getDrizzleDb, deployments, media, observations, closeStudyDatabase } from './db/index.js'
+import {
+  getDrizzleDb,
+  deployments,
+  media,
+  observations,
+  closeStudyDatabase,
+  insertMetadata
+} from './db/index.js'
 
 // Conditionally import electron modules for production, use fallback for testing
 let app, log
@@ -144,19 +151,23 @@ export async function importWildlifeDatasetWithPath(directoryPath, biowatchDataP
     log.error('Error importing media data:', error)
   }
 
-  // Create study.json file with the data
-  data.createdAt = new Date().toISOString()
-  fs.writeFileSync(
-    path.join(biowatchDataPath, 'studies', id, 'study.json'),
-    JSON.stringify(data, null, 2)
-  )
-
-  console.log('returning Data:', data)
+  // Insert metadata into the database
+  const metadataRecord = {
+    id,
+    name: data.name || path.basename(directoryPath),
+    title: null,
+    description: data.data?.description || null,
+    created: new Date().toISOString(),
+    importerName: 'wildlife/folder',
+    contributors: data.data?.contributors || null
+  }
+  await insertMetadata(db, metadataRecord)
+  log.info('Inserted study metadata into database')
 
   await closeStudyDatabase(id, dbPath)
 
   return {
-    data
+    data: metadataRecord
   }
 }
 

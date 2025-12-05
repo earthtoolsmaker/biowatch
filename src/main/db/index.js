@@ -3,13 +3,26 @@
  * Replaces the old db.js with type-safe database operations
  */
 
+import { eq } from 'drizzle-orm'
 import { getStudyDatabase, closeStudyDatabase, closeAllDatabases } from './manager.js'
-import { deployments, media, observations, modelRuns, modelOutputs } from './schema.js'
+import { deployments, media, observations, modelRuns, modelOutputs, metadata } from './schema.js'
+import { metadataSchema, metadataUpdateSchema } from './schemas.js'
 import log from 'electron-log'
 
 // Re-export schema and manager functions
-export { deployments, media, observations, modelRuns, modelOutputs }
+export { deployments, media, observations, modelRuns, modelOutputs, metadata }
 export { getStudyDatabase, closeStudyDatabase, closeAllDatabases }
+
+// Re-export Zod validation schemas
+export {
+  contributorSchema,
+  contributorsSchema,
+  metadataSchema,
+  metadataUpdateSchema,
+  metadataCreateSchema,
+  contributorRoles,
+  importerNames
+} from './schemas.js'
 
 /**
  * Helper function to get Drizzle database instance for a study
@@ -53,4 +66,101 @@ export async function executeRawQuery(studyId, dbPath, query, params = []) {
     log.error(`[DB] Raw query failed for study ${studyId}:`, error)
     throw error
   }
+}
+
+// ============================================================================
+// Metadata CRUD operations
+// ============================================================================
+
+/**
+ * Insert study metadata into the database
+ * @param {Object} db - Drizzle database instance
+ * @param {Object} data - Metadata object
+ * @returns {Promise<Object>} Inserted metadata
+ */
+export async function insertMetadata(db, data) {
+  const result = await db.insert(metadata).values(data).returning()
+  return result[0]
+}
+
+/**
+ * Get study metadata from the database
+ * @param {Object} db - Drizzle database instance
+ * @returns {Promise<Object|null>} Validated metadata object or null if not found
+ */
+export async function getMetadata(db) {
+  const result = await db.select().from(metadata).limit(1)
+  if (!result[0]) return null
+
+  // Validate the metadata structure
+  const parsed = metadataSchema.safeParse(result[0])
+  if (!parsed.success) {
+    log.warn('Invalid metadata in database:', parsed.error.format())
+    // Return raw data anyway to avoid breaking the app, but log the warning
+    return result[0]
+  }
+  return parsed.data
+}
+
+/**
+ * Update study metadata in the database
+ * @param {Object} db - Drizzle database instance
+ * @param {string} id - Study ID
+ * @param {Object} updates - Fields to update
+ * @returns {Promise<Object>} Updated metadata
+ * @throws {Error} If updates don't match expected schema
+ */
+export async function updateMetadata(db, id, updates) {
+  // Validate updates before writing
+  const parsed = metadataUpdateSchema.safeParse(updates)
+  if (!parsed.success) {
+    const errorMessage = `Invalid metadata update: ${JSON.stringify(parsed.error.format())}`
+    log.error(errorMessage)
+    throw new Error(errorMessage)
+  }
+
+  const result = await db
+    .update(metadata)
+    .set({ ...parsed.data, updatedAt: new Date().toISOString() })
+    .where(eq(metadata.id, id))
+    .returning()
+  return result[0]
+}
+
+/**
+ * Insert a model run record with optional importPath and options
+ * @param {Object} db - Drizzle database instance
+ * @param {Object} data - Model run data including id, modelID, modelVersion, startedAt, status, importPath, options
+ * @returns {Promise<Object>} Inserted model run
+ */
+export async function insertModelRun(db, data) {
+  const result = await db.insert(modelRuns).values(data).returning()
+  return result[0]
+}
+
+/**
+ * Get the latest model run for a study (for resume functionality)
+ * @param {Object} db - Drizzle database instance
+ * @returns {Promise<Object|null>} Latest model run or null
+ */
+export async function getLatestModelRun(db) {
+  const result = await db.select().from(modelRuns).orderBy(modelRuns.startedAt).limit(1)
+  // Note: orderBy defaults to ASC, we need DESC for latest
+  // Using raw query for proper DESC ordering
+  return result[0] || null
+}
+
+/**
+ * Get the latest model run using raw SQL (proper DESC ordering)
+ * @param {string} studyId - Study identifier
+ * @param {string} dbPath - Path to database file
+ * @returns {Promise<Object|null>} Latest model run or null
+ */
+export async function getLatestModelRunRaw(studyId, dbPath) {
+  const result = await executeRawQuery(
+    studyId,
+    dbPath,
+    'SELECT * FROM model_runs ORDER BY startedAt DESC LIMIT 1'
+  )
+  return result[0] || null
 }
