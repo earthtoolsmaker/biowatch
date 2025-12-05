@@ -111,21 +111,12 @@ function ErrorFallback({ error, resetErrorBoundary }) {
 
 export default function SettingsPage() {
   const settingsParams = {
-    version: window.electron.process.env.npm_package_version,
+    version: window.api.getAppVersion(),
     platform: window.electron.process.platform
   }
   return (
     <div className="flex gap-4 flex-col h-full">
       <header className="w-full flex border-b border-gray-200 divide-gray-200 divide-x sticky top-0 bg-white z-10 rounded-tl-md rounded-tr-md [&>a:last-child]:rounded-tr-md [&>a:first-child]:rounded-tl-md">
-        <NavLink
-          to={`/settings/info`}
-          className={({ isActive }) =>
-            `${isActive ? 'bg-gray-100' : ''} hover:bg-gray-100 transition-colors flex justify-center flex-row gap-2 items-center px-4 h-10 text-sm`
-          }
-        >
-          <Info color="black" size={20} className="pb-[2px]" />
-          Info
-        </NavLink>
         <NavLink
           to={`/settings/ml_zoo`}
           className={({ isActive }) =>
@@ -134,6 +125,15 @@ export default function SettingsPage() {
         >
           <BrainCircuit color="black" size={20} className="pb-[2px]" />
           AI Models
+        </NavLink>
+        <NavLink
+          to={`/settings/info`}
+          className={({ isActive }) =>
+            `${isActive ? 'bg-gray-100' : ''} hover:bg-gray-100 transition-colors flex justify-center flex-row gap-2 items-center px-4 h-10 text-sm`
+          }
+        >
+          <Info color="black" size={20} className="pb-[2px]" />
+          Info
         </NavLink>
       </header>
       <div className="flex-1 overflow-y-auto pb-4">

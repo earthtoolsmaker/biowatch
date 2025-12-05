@@ -8,8 +8,8 @@ import { join } from 'path'
 import icon from '../../resources/icon.png?asset'
 import { importCamTrapDataset } from './camtrap'
 import { registerMLModelManagementIPCHandlers, garbageCollect } from './models'
-import { getDrizzleDb, deployments, closeStudyDatabase } from './db/index.js'
-import { eq } from 'drizzle-orm'
+import { getDrizzleDb, deployments, closeStudyDatabase, media } from './db/index.js'
+import { eq, sql } from 'drizzle-orm'
 import {
   getDeployments,
   getLocationsActivity,
@@ -1143,6 +1143,50 @@ ipcMain.handle('shell:open-path', async (_, path) => {
     return { success: true }
   } catch (error) {
     log.error('Error opening path:', error)
+    return { error: error.message }
+  }
+})
+
+ipcMain.handle('media:update-import-folder', async (_, studyId, oldImportFolder) => {
+  try {
+    // Prompt user to select new folder
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory'],
+      title: 'Select New Import Folder Location',
+      message: 'Select the new location of your import folder'
+    })
+
+    if (result.canceled || result.filePaths.length === 0) {
+      return { success: false, message: 'Selection canceled' }
+    }
+
+    const newImportFolder = result.filePaths[0]
+
+    // Get database instance
+    const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+    if (!existsSync(dbPath)) {
+      return { error: 'Study database not found' }
+    }
+
+    const db = await getDrizzleDb(studyId, dbPath)
+
+    // Update all media records with the old importFolder to the new path
+    // We need to update both importFolder and filePath
+    // filePath needs to have the old importFolder replaced with the new one
+    await db
+      .update(media)
+      .set({
+        importFolder: newImportFolder,
+        filePath: sql`${newImportFolder} || substr(${media.filePath}, ${oldImportFolder.length + 1})`
+      })
+      .where(eq(media.importFolder, oldImportFolder))
+
+    await closeStudyDatabase(studyId, dbPath)
+
+    log.info(`Updated import folder from ${oldImportFolder} to ${newImportFolder}`)
+    return { success: true, newImportFolder }
+  } catch (error) {
+    log.error('Error updating import folder:', error)
     return { error: error.message }
   }
 })

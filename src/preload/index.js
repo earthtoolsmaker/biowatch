@@ -1,5 +1,6 @@
 import { electronAPI } from '@electron-toolkit/preload'
 import { contextBridge } from 'electron'
+import packageJson from '../../package.json'
 
 // Custom APIs for renderer
 const api = {
@@ -145,6 +146,13 @@ const api = {
   selectMoreImagesDirectory: async (id) => {
     return await electronAPI.ipcRenderer.invoke('importer:select-more-images-directory', id)
   },
+  updateImportFolder: async (studyId, oldImportFolder) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'media:update-import-folder',
+      studyId,
+      oldImportFolder
+    )
+  },
   setDeploymentLatitude: async (studyId, deploymentID, latitude) => {
     return await electronAPI.ipcRenderer.invoke(
       'deployments:set-latitude',
@@ -169,7 +177,8 @@ const api = {
   },
   exportCamtrapDP: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('export:camtrap-dp', studyId)
-  }
+  },
+  getAppVersion: () => packageJson.version
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

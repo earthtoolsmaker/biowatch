@@ -380,7 +380,7 @@ export default function Zoo({ modelZoo }) {
           Clear All
         </button>
       </div>
-      <div className="grid grid-cols-[repeat(auto-fill,384px)] px-8 pb-8 pt-4 gap-3">
+      <div className="grid grid-cols-[repeat(auto-fill,384px)] px-8 pb-8 pt-4 gap-6">
         {modelZoo.map((entry) => (
           <ModelCard
             key={entry.reference.id}

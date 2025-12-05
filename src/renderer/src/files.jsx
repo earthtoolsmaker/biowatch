@@ -1,5 +1,5 @@
 import { useParams } from 'react-router'
-import { FolderIcon } from 'lucide-react'
+import { FolderIcon, PencilIcon } from 'lucide-react'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { useImportStatus } from '@renderer/hooks/import'
 
@@ -62,6 +62,15 @@ export default function Files({ studyId }) {
 
   console.log('Files data:', filesData, importFolders)
 
+  const handleUpdateImportFolder = async (oldImportFolder) => {
+    const result = await window.api.updateImportFolder(actualStudyId, oldImportFolder)
+    if (result.success) {
+      queryClient.invalidateQueries({ queryKey: ['filesData', actualStudyId] })
+    } else {
+      console.error('Failed to update import folder:', result.message)
+    }
+  }
+
   return (
     <div className="px-8 py-3 h-full overflow-y-auto space-y-6">
       <header>
@@ -80,9 +89,18 @@ export default function Files({ studyId }) {
         {Object.entries(importFolders).map(([importFolder, directories]) => (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200" key={importFolder}>
             <div className="px-6 py-4 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <div>{importFolder}</div>
-                <div className="text-sm text-gray-500">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start gap-2 min-w-0 flex-1">
+                  <div className="break-all">{importFolder}</div>
+                  <button
+                    onClick={() => handleUpdateImportFolder(importFolder)}
+                    className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors flex-shrink-0 mt-[-2px]"
+                    title="Update import folder location"
+                  >
+                    <PencilIcon className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="text-sm text-gray-500 flex-shrink-0">
                   {directories.length} {directories.length === 1 ? 'directory' : 'directories'}
                 </div>
               </div>
