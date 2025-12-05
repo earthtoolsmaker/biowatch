@@ -1,4 +1,15 @@
-import { CameraOff, X, Square, Calendar, Pencil, Check, Search, Trash2 } from 'lucide-react'
+import {
+  CameraOff,
+  X,
+  Square,
+  Calendar,
+  Pencil,
+  Check,
+  Search,
+  Trash2,
+  Grid3x3,
+  Crop
+} from 'lucide-react'
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { useParams } from 'react-router'
@@ -898,6 +909,226 @@ const palette = [
   'hsl(27 87% 67%)'
 ]
 
+/**
+ * Calculate the smallest rectangle that encompasses all bboxes
+ * Returns normalized coordinates (0-1) with padding
+ */
+function calculateEncompassingRect(bboxes) {
+  if (!bboxes || bboxes.length === 0) return null
+
+  let minX = 1,
+    minY = 1,
+    maxX = 0,
+    maxY = 0
+
+  for (const bbox of bboxes) {
+    minX = Math.min(minX, bbox.bboxX)
+    minY = Math.min(minY, bbox.bboxY)
+    maxX = Math.max(maxX, bbox.bboxX + bbox.bboxWidth)
+    maxY = Math.max(maxY, bbox.bboxY + bbox.bboxHeight)
+  }
+
+  // Add 10% padding on each side, clamped to valid range
+  const padding = 0.1
+  return {
+    x: Math.max(0, minX - padding),
+    y: Math.max(0, minY - padding),
+    width: Math.min(1, maxX + padding) - Math.max(0, minX - padding),
+    height: Math.min(1, maxY + padding) - Math.max(0, minY - padding)
+  }
+}
+
+/**
+ * Control bar for gallery view options
+ */
+function GalleryControls({
+  showBboxes,
+  onToggleBboxes,
+  gridColumns,
+  onCycleGrid,
+  cropMode,
+  onToggleCrop
+}) {
+  const gridLabels = { 3: '3x', 4: '4x', 5: '5x' }
+
+  return (
+    <div className="flex items-center gap-2 mb-3 pb-3 border-b border-gray-200">
+      {/* Show Bboxes Toggle */}
+      <button
+        onClick={onToggleBboxes}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+          showBboxes
+            ? 'bg-lime-500 text-white hover:bg-lime-600'
+            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+        }`}
+        title="Show bounding boxes on thumbnails"
+      >
+        <Square size={16} />
+        <span>Boxes</span>
+      </button>
+
+      {/* Grid Density Cycle */}
+      <button
+        onClick={onCycleGrid}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+        title={`Grid: ${gridColumns} columns (click to cycle)`}
+      >
+        <Grid3x3 size={16} />
+        <span>{gridLabels[gridColumns]}</span>
+      </button>
+
+      {/* Crop Mode Toggle */}
+      <button
+        onClick={onToggleCrop}
+        disabled={!showBboxes}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+          cropMode
+            ? 'bg-lime-500 text-white hover:bg-lime-600'
+            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+        } ${!showBboxes ? 'opacity-50 cursor-not-allowed' : ''}`}
+        title="Crop to bounding box region"
+      >
+        <Crop size={16} />
+        <span>Crop</span>
+      </button>
+    </div>
+  )
+}
+
+/**
+ * SVG overlay showing bboxes on a thumbnail
+ * Fetches bbox data independently using React Query
+ */
+function ThumbnailBboxOverlay({ mediaID, studyId, showBboxes, cropMode, onCropData }) {
+  const { data: bboxes = [] } = useQuery({
+    queryKey: ['thumbnailBboxes', studyId, mediaID],
+    queryFn: async () => {
+      const response = await window.api.getMediaBboxes(studyId, mediaID)
+      return response.data || []
+    },
+    enabled: showBboxes && !!studyId && !!mediaID,
+    staleTime: 60000
+  })
+
+  // Calculate and report encompassing rectangle for crop mode
+  useEffect(() => {
+    if (cropMode && bboxes.length > 0 && onCropData) {
+      onCropData(calculateEncompassingRect(bboxes))
+    } else if (onCropData) {
+      onCropData(null)
+    }
+  }, [cropMode, bboxes, onCropData])
+
+  if (!showBboxes || bboxes.length === 0) return null
+
+  return (
+    <svg
+      className="absolute inset-0 w-full h-full pointer-events-none z-10"
+      preserveAspectRatio="none"
+    >
+      {bboxes.map((bbox, index) => (
+        <rect
+          key={bbox.observationID || index}
+          x={`${bbox.bboxX * 100}%`}
+          y={`${bbox.bboxY * 100}%`}
+          width={`${bbox.bboxWidth * 100}%`}
+          height={`${bbox.bboxHeight * 100}%`}
+          stroke="#84cc16"
+          strokeWidth="2"
+          fill="none"
+        />
+      ))}
+    </svg>
+  )
+}
+
+/**
+ * Individual thumbnail card with optional bbox overlay and crop mode
+ */
+function ThumbnailCard({
+  media,
+  constructImageUrl,
+  onImageClick,
+  imageErrors,
+  setImageErrors,
+  showBboxes,
+  cropMode,
+  studyId,
+  widthClass
+}) {
+  const [cropData, setCropData] = useState(null)
+
+  // Calculate crop transform style
+  const getCropStyle = () => {
+    if (!cropMode || !cropData) return {}
+
+    const { x, y, width, height } = cropData
+    // Scale to fill the container based on the crop region
+    const scale = 1 / Math.max(width, height)
+    // Center the crop region
+    const translateX = -(x + width / 2 - 0.5) * 100 * scale
+    const translateY = -(y + height / 2 - 0.5) * 100 * scale
+
+    return {
+      transform: `scale(${scale}) translate(${translateX}%, ${translateY}%)`,
+      transformOrigin: 'center center'
+    }
+  }
+
+  // When crop mode is active with data, use fixed aspect ratio for proper clipping
+  const isCropping = cropMode && cropData
+
+  return (
+    <div
+      className={`border border-gray-300 rounded-lg overflow-hidden min-w-[150px] ${widthClass} flex flex-col h-max transition-all`}
+    >
+      <div
+        className={`relative bg-gray-100 flex items-center justify-center cursor-pointer hover:bg-gray-200 transition-colors overflow-hidden ${
+          isCropping ? 'aspect-video' : ''
+        }`}
+        onClick={() => onImageClick(media)}
+      >
+        <img
+          src={constructImageUrl(media.filePath)}
+          alt={media.fileName || `Media ${media.mediaID}`}
+          data-image={media.filePath}
+          className={`w-full transition-transform ${
+            isCropping ? 'object-cover h-full' : 'object-contain h-auto min-h-20'
+          } ${imageErrors[media.mediaID] ? 'hidden' : ''}`}
+          style={getCropStyle()}
+          onError={() => setImageErrors((prev) => ({ ...prev, [media.mediaID]: true }))}
+          loading="lazy"
+        />
+
+        {imageErrors[media.mediaID] && (
+          <div
+            className="flex items-center justify-center w-full h-full bg-gray-100 text-gray-400"
+            title="Image not available"
+          >
+            <CameraOff size={32} />
+          </div>
+        )}
+
+        {/* Bbox overlay */}
+        {showBboxes && (
+          <ThumbnailBboxOverlay
+            mediaID={media.mediaID}
+            studyId={studyId}
+            showBboxes={showBboxes}
+            cropMode={cropMode}
+            onCropData={setCropData}
+          />
+        )}
+      </div>
+
+      <div className="p-2">
+        <h3 className="text-sm font-semibold truncate">{media.scientificName}</h3>
+        <p className="text-xs text-gray-500">{new Date(media.timestamp).toLocaleString()}</p>
+      </div>
+    </div>
+  )
+}
+
 function Gallery({ species, dateRange, timeRange }) {
   const [mediaFiles, setMediaFiles] = useState([])
   const [loading, setLoading] = useState(true)
@@ -910,6 +1141,24 @@ function Gallery({ species, dateRange, timeRange }) {
   const loaderRef = useRef(null)
   const PAGE_SIZE = 15
   const debounceTimeoutRef = useRef(null)
+
+  // Grid controls state
+  const [showThumbnailBboxes, setShowThumbnailBboxes] = useState(false)
+  const [gridColumns, setGridColumns] = useState(3)
+  const [cropMode, setCropMode] = useState(false)
+
+  // Grid column CSS classes
+  const gridColumnClasses = {
+    3: 'w-[calc(33.333%-8px)]',
+    4: 'w-[calc(25%-9px)]',
+    5: 'w-[calc(20%-10px)]'
+  }
+  const thumbnailWidthClass = gridColumnClasses[gridColumns]
+
+  // Cycle grid density handler
+  const handleCycleGrid = useCallback(() => {
+    setGridColumns((prev) => (prev === 5 ? 3 : prev + 1))
+  }, [])
 
   const { id } = useParams()
 
@@ -1081,56 +1330,50 @@ function Gallery({ species, dateRange, timeRange }) {
         studyId={id}
         onTimestampUpdate={handleTimestampUpdate}
       />
-      <div className="flex flex-wrap gap-[12px] h-full overflow-auto">
-        {mediaFiles.map((media) => (
-          <div
-            key={media.mediaID}
-            className="border border-gray-300 rounded-lg overflow-hidden min-w-[200px] w-[calc(33%-7px)] flex flex-col h-max"
-          >
-            <div
-              className="bg-gray-100 flex items-center justify-center cursor-pointer hover:bg-gray-200 transition-colors"
-              onClick={() => handleImageClick(media)}
-            >
-              <img
-                src={constructImageUrl(media.filePath)}
-                alt={media.fileName || `Media ${media.mediaID}`}
-                data-image={media.filePath}
-                className={`object-contain w-full h-auto min-h-20 ${imageErrors[media.mediaID] ? 'hidden' : ''}`}
-                onError={() => {
-                  setImageErrors((prev) => ({ ...prev, [media.mediaID]: true }))
-                }}
-                loading="lazy"
-              />
-              {imageErrors[media.mediaID] && (
-                <div
-                  className="flex items-center justify-center w-full h-full bg-gray-100 text-gray-400 flex-1"
-                  title={`Image not available or failed to load because it's not public or has been deleted/moved locally ${media.filePath}`}
-                >
-                  <CameraOff size={32} />
-                </div>
-              )}
-            </div>
-            <div className="p-2">
-              <h3 className="text-sm font-semibold truncate">{media.scientificName}</h3>
-              <p className="text-xs text-gray-500">{new Date(media.timestamp).toLocaleString()}</p>
-            </div>
-          </div>
-        ))}
 
-        {/* Loading indicator and intersection target */}
-        <div ref={loaderRef} className="w-full flex justify-center p-4">
-          {loading && !initialLoad && (
-            <div className="flex items-center justify-center">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
-              <span className="ml-2">Loading more...</span>
-            </div>
-          )}
-          {!hasMore && mediaFiles.length > 0 && (
-            <p className="text-gray-500 text-sm">No more images to load</p>
-          )}
-          {!hasMore && mediaFiles.length === 0 && !loading && (
-            <p className="text-gray-500">No media files match the selected filters</p>
-          )}
+      <div className="flex flex-col h-full">
+        {/* Control Bar */}
+        <GalleryControls
+          showBboxes={showThumbnailBboxes}
+          onToggleBboxes={() => setShowThumbnailBboxes((prev) => !prev)}
+          gridColumns={gridColumns}
+          onCycleGrid={handleCycleGrid}
+          cropMode={cropMode}
+          onToggleCrop={() => setCropMode((prev) => !prev)}
+        />
+
+        {/* Grid */}
+        <div className="flex flex-wrap gap-[12px] flex-1 overflow-auto">
+          {mediaFiles.map((media) => (
+            <ThumbnailCard
+              key={media.mediaID}
+              media={media}
+              constructImageUrl={constructImageUrl}
+              onImageClick={handleImageClick}
+              imageErrors={imageErrors}
+              setImageErrors={setImageErrors}
+              showBboxes={showThumbnailBboxes}
+              cropMode={cropMode}
+              studyId={id}
+              widthClass={thumbnailWidthClass}
+            />
+          ))}
+
+          {/* Loading indicator and intersection target */}
+          <div ref={loaderRef} className="w-full flex justify-center p-4">
+            {loading && !initialLoad && (
+              <div className="flex items-center justify-center">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
+                <span className="ml-2">Loading more...</span>
+              </div>
+            )}
+            {!hasMore && mediaFiles.length > 0 && (
+              <p className="text-gray-500 text-sm">No more images to load</p>
+            )}
+            {!hasMore && mediaFiles.length === 0 && !loading && (
+              <p className="text-gray-500">No media files match the selected filters</p>
+            )}
+          </div>
         </div>
       </div>
     </>
