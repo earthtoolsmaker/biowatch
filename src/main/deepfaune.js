@@ -3,7 +3,14 @@ import path from 'path'
 import csv from 'csv-parser'
 import { DateTime } from 'luxon'
 import crypto from 'crypto'
-import { getDrizzleDb, deployments, media, observations, closeStudyDatabase } from './db/index.js'
+import {
+  getDrizzleDb,
+  deployments,
+  media,
+  observations,
+  closeStudyDatabase,
+  insertMetadata
+} from './db/index.js'
 import { eq } from 'drizzle-orm'
 
 // Conditionally import electron modules for production, use fallback for testing
@@ -70,19 +77,19 @@ export async function importDeepfauneDatasetWithPath(csvPath, biowatchDataPath, 
 
   // Extract study information from CSV file name and path
   const csvFileName = path.basename(csvPath, '.csv')
-  const data = {
-    name: csvFileName,
-    importerName: 'deepfaune/csv',
-    data: {
-      name: csvFileName
-    },
-    createdAt: new Date().toISOString()
-  }
 
-  fs.writeFileSync(
-    path.join(biowatchDataPath, 'studies', id, 'study.json'),
-    JSON.stringify(data, null, 2)
-  )
+  // Insert metadata into the database
+  const metadataRecord = {
+    id,
+    name: csvFileName,
+    title: null,
+    description: null,
+    created: new Date().toISOString(),
+    importerName: 'deepfaune/csv',
+    contributors: null
+  }
+  await insertMetadata(db, metadataRecord)
+  log.info('Inserted study metadata into database')
 
   try {
     log.info('Processing Deepfaune CSV data')
@@ -124,7 +131,7 @@ export async function importDeepfauneDatasetWithPath(csvPath, biowatchDataPath, 
   }
 
   await closeStudyDatabase(id, dbPath)
-  return { data }
+  return { data: metadataRecord }
 }
 
 /**

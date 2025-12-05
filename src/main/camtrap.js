@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import csv from 'csv-parser'
 import { DateTime } from 'luxon'
-import { getDrizzleDb, deployments, media, observations } from './db/index.js'
+import { getDrizzleDb, deployments, media, observations, insertMetadata } from './db/index.js'
 
 // Conditionally import electron modules for production, use fallback for testing
 let app, log
@@ -123,30 +123,25 @@ export async function importCamTrapDatasetWithPath(directoryPath, biowatchDataPa
     }
 
     log.info('CamTrap dataset import completed successfully')
-    const studyJsonPath = path.join(biowatchDataPath, 'studies', id, 'study.json')
-    fs.writeFileSync(
-      studyJsonPath,
-      JSON.stringify(
-        {
-          id,
-          data,
-          name: data.name,
-          importerName: 'camtrap/datapackage',
-          createdAt: new Date().toISOString()
-        },
-        null,
-        2
-      )
-    )
+
+    // Insert metadata into the database
+    const metadataRecord = {
+      id,
+      name: data.name || null,
+      title: data.title || null,
+      description: data.description || null,
+      created: new Date().toISOString(),
+      importerName: 'camtrap/datapackage',
+      contributors: data.contributors || null,
+      startDate: data.temporal?.start || null,
+      endDate: data.temporal?.end || null
+    }
+    await insertMetadata(db, metadataRecord)
+    log.info('Inserted study metadata into database')
+
     return {
       dbPath,
-      data: {
-        id,
-        data,
-        name: data.name,
-        importerName: 'camtrap/datapackage',
-        createdAt: new Date().toISOString()
-      }
+      data: metadataRecord
     }
   } catch (error) {
     log.error('Error importing dataset:', error)

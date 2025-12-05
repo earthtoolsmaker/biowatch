@@ -9,8 +9,15 @@ import { ChevronLeft, ChevronRight, Clock } from 'lucide-react'
  * @param {(newValue: string) => void} props.onChange - Called with new ISO timestamp on save
  * @param {() => void} props.onCancel - Called when picker is dismissed
  * @param {string} [props.className] - Additional CSS classes
+ * @param {boolean} [props.dateOnly] - If true, hide time inputs and only show calendar
  */
-export default function DateTimePicker({ value, onChange, onCancel, className = '' }) {
+export default function DateTimePicker({
+  value,
+  onChange,
+  onCancel,
+  className = '',
+  dateOnly = false
+}) {
   // Parse initial value
   const initialDate = value ? new Date(value) : new Date()
 
@@ -192,9 +199,7 @@ export default function DateTimePicker({ value, onChange, onCancel, className = 
               type="button"
               className={`text-center py-1.5 text-sm rounded transition-colors
                 ${
-                  day === i + 1
-                    ? 'bg-blue-600 text-white hover:bg-blue-700'
-                    : 'hover:bg-gray-100'
+                  day === i + 1 ? 'bg-blue-600 text-white hover:bg-blue-700' : 'hover:bg-gray-100'
                 }`}
             >
               {i + 1}
@@ -202,39 +207,41 @@ export default function DateTimePicker({ value, onChange, onCancel, className = 
           ))}
       </div>
 
-      {/* Time Inputs */}
-      <div className="flex items-center gap-2 mb-4 justify-center bg-gray-50 rounded-lg py-2">
-        <Clock size={16} className="text-gray-500" />
-        <input
-          type="number"
-          min="0"
-          max="23"
-          value={hours.toString().padStart(2, '0')}
-          onChange={handleTimeInputChange(setHours, 0, 23)}
-          className="w-12 text-center border border-gray-200 rounded px-1 py-1.5 text-sm font-mono"
-          title="Hours (0-23)"
-        />
-        <span className="text-gray-500 font-medium">:</span>
-        <input
-          type="number"
-          min="0"
-          max="59"
-          value={minutes.toString().padStart(2, '0')}
-          onChange={handleTimeInputChange(setMinutes, 0, 59)}
-          className="w-12 text-center border border-gray-200 rounded px-1 py-1.5 text-sm font-mono"
-          title="Minutes (0-59)"
-        />
-        <span className="text-gray-500 font-medium">:</span>
-        <input
-          type="number"
-          min="0"
-          max="59"
-          value={seconds.toString().padStart(2, '0')}
-          onChange={handleTimeInputChange(setSeconds, 0, 59)}
-          className="w-12 text-center border border-gray-200 rounded px-1 py-1.5 text-sm font-mono"
-          title="Seconds (0-59)"
-        />
-      </div>
+      {/* Time Inputs - hidden when dateOnly is true */}
+      {!dateOnly && (
+        <div className="flex items-center gap-2 mb-4 justify-center bg-gray-50 rounded-lg py-2">
+          <Clock size={16} className="text-gray-500" />
+          <input
+            type="number"
+            min="0"
+            max="23"
+            value={hours.toString().padStart(2, '0')}
+            onChange={handleTimeInputChange(setHours, 0, 23)}
+            className="w-12 text-center border border-gray-200 rounded px-1 py-1.5 text-sm font-mono"
+            title="Hours (0-23)"
+          />
+          <span className="text-gray-500 font-medium">:</span>
+          <input
+            type="number"
+            min="0"
+            max="59"
+            value={minutes.toString().padStart(2, '0')}
+            onChange={handleTimeInputChange(setMinutes, 0, 59)}
+            className="w-12 text-center border border-gray-200 rounded px-1 py-1.5 text-sm font-mono"
+            title="Minutes (0-59)"
+          />
+          <span className="text-gray-500 font-medium">:</span>
+          <input
+            type="number"
+            min="0"
+            max="59"
+            value={seconds.toString().padStart(2, '0')}
+            onChange={handleTimeInputChange(setSeconds, 0, 59)}
+            className="w-12 text-center border border-gray-200 rounded px-1 py-1.5 text-sm font-mono"
+            title="Seconds (0-59)"
+          />
+        </div>
+      )}
 
       {/* Validation Error */}
       {validationError && (

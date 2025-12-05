@@ -18,9 +18,6 @@ const api = {
   getStudies: async () => {
     return await electronAPI.ipcRenderer.invoke('studies:list')
   },
-  migratefromLocalStorage: async (studies) => {
-    return await electronAPI.ipcRenderer.invoke('studies:fromLocalStorage', studies)
-  },
   downloadDemoDataset: async () => {
     return await electronAPI.ipcRenderer.invoke('import:download-demo')
   },

@@ -4,16 +4,6 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import Base from './base'
 
-async function migrateStudies() {
-  const localStudies = localStorage.getItem('studies')
-  if (localStudies) {
-    console.log('migrating')
-    await window.api.migratefromLocalStorage(localStudies)
-  }
-}
-
-migrateStudies()
-
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <Base />

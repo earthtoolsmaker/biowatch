@@ -36,6 +36,13 @@
       "when": 1764347015055,
       "tag": "0004_remove_prediction_field",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1764928927800,
+      "tag": "0005_add_metadata_and_model_options",
+      "breakpoints": true
     }
   ]
 }

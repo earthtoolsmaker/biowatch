@@ -2,74 +2,109 @@ import { app, ipcMain } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import log from 'electron-log'
+import { getReadonlyDrizzleDb, getDrizzleDb, getMetadata, updateMetadata } from './db/index.js'
 
 const studiesPath = path.join(app.getPath('userData'), 'biowatch-data', 'studies')
 
-function getStudy(id) {
-  const studyJsonPath = path.join(studiesPath, id, 'study.json')
-  if (!fs.existsSync(studyJsonPath)) {
-    // console.log('Study JSON file does not exist for study ID:', id, studyJsonPath)
+/**
+ * Get study metadata from the database
+ * @param {string} studyId - Study ID
+ * @returns {Promise<Object|null>} Study metadata or null
+ */
+async function getStudyFromDb(studyId) {
+  const dbPath = path.join(studiesPath, studyId, 'study.db')
+  if (!fs.existsSync(dbPath)) {
     return null
-  } else {
-    return JSON.parse(fs.readFileSync(studyJsonPath, 'utf8'))
+  }
+
+  try {
+    const db = await getReadonlyDrizzleDb(studyId, dbPath)
+    const metadata = await getMetadata(db)
+    return metadata
+  } catch (error) {
+    log.error(`Error reading metadata for study ${studyId}:`, error)
+    return null
   }
 }
 
 app.whenReady().then(() => {
   ipcMain.handle('studies:list', async () => {
-    //read files from the studies directory
+    // Ensure studies directory exists
+    if (!fs.existsSync(studiesPath)) {
+      return []
+    }
 
-    //list directories in studiesPath
+    // List directories in studiesPath
     const studyDirs = fs
       .readdirSync(studiesPath, { withFileTypes: true })
       .filter((dirent) => dirent.isDirectory())
       .map((dirent) => dirent.name)
 
-    // Read study.json for each study directory
-    const studies = studyDirs
-      .map((studyId) => {
+    // Read metadata from DB for each study directory
+    const studies = await Promise.all(
+      studyDirs.map(async (studyId) => {
         try {
-          const study = getStudy(studyId)
-          if (!study) return
-          return { ...study, id: studyId }
+          const study = await getStudyFromDb(studyId)
+          if (!study) return null
+          // Wrap metadata in expected structure for frontend
+          return {
+            id: studyId,
+            name: study.name || study.title,
+            importerName: study.importerName,
+            createdAt: study.created,
+            path: null,
+            data: {
+              ...study,
+              temporal:
+                study.startDate || study.endDate
+                  ? { start: study.startDate || null, end: study.endDate || null }
+                  : null
+            }
+          }
         } catch (error) {
-          console.warn(`Failed to read study.json for study ${studyId}:`, error.message)
+          log.warn(`Failed to read metadata for study ${studyId}:`, error.message)
           return {
             id: studyId,
             error: 'Failed to load study data'
           }
         }
       })
-      .filter((study) => study)
+    )
 
-    return studies
-  })
-
-  ipcMain.handle('studies:fromLocalStorage', async (event, studiesString) => {
-    const studies = JSON.parse(studiesString)
-    for (const study of studies) {
-      const studyJsonPath = path.join(studiesPath, study.id, 'study.json')
-      fs.writeFileSync(studyJsonPath, JSON.stringify(study))
-    }
+    return studies.filter((study) => study)
   })
 
   ipcMain.handle('studies:update', async (event, id, update) => {
-    console.log('Updating study', id, 'with update:', update)
-    const study = getStudy(id)
+    log.info('Updating study', id, 'with update:', update)
 
-    if (!study) {
-      log.error("Can't update study with id", id)
+    const dbPath = path.join(studiesPath, id, 'study.db')
+    if (!fs.existsSync(dbPath)) {
+      log.error(`Can't update study with id ${id}: database not found`)
+      return null
     }
 
-    const studyJsonPath = path.join(studiesPath, id, 'study.json')
-    const updated = { ...study, ...update }
-    console.log('updated', updated)
+    try {
+      const db = await getDrizzleDb(id, dbPath)
 
-    // Write the updated study data
-    fs.writeFileSync(studyJsonPath, JSON.stringify(updated))
-    log.info(`Updated study ${id} at ${studyJsonPath}`)
+      // Extract fields from nested data structure (frontend sends { data: {...} })
+      const dbUpdate = {}
+      if (update.data) {
+        if (update.data.description !== undefined) dbUpdate.description = update.data.description
+        if (update.data.contributors !== undefined) dbUpdate.contributors = update.data.contributors
+        if (update.data.temporal?.start !== undefined)
+          dbUpdate.startDate = update.data.temporal.start
+        if (update.data.temporal?.end !== undefined) dbUpdate.endDate = update.data.temporal.end
+      }
+      // Also accept flat updates (e.g., name for title editing)
+      if (update.name !== undefined) dbUpdate.name = update.name
 
-    return study
+      const updated = await updateMetadata(db, id, dbUpdate)
+      log.info(`Updated study ${id}`)
+      return updated
+    } catch (error) {
+      log.error(`Error updating study ${id}:`, error)
+      return null
+    }
   })
 })
 

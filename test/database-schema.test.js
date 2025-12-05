@@ -205,7 +205,15 @@ describe('Database Schema and Integrity Tests', () => {
       const tableNames = tables.map((t) => t.name).sort()
 
       // Expected tables (including Drizzle migration tracking)
-      const expectedTables = ['__drizzle_migrations', 'deployments', 'media', 'model_outputs', 'model_runs', 'observations'].sort()
+      const expectedTables = [
+        '__drizzle_migrations',
+        'deployments',
+        'media',
+        'metadata',
+        'model_outputs',
+        'model_runs',
+        'observations'
+      ].sort()
 
       assert.deepEqual(tableNames, expectedTables, 'Should create all required tables')
 

@@ -487,7 +487,17 @@ function ImageModal({
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, onNext, onPrevious, onClose, hasNext, hasPrevious, isEditingTimestamp, showDatePicker, selectedBboxId])
+  }, [
+    isOpen,
+    onNext,
+    onPrevious,
+    onClose,
+    hasNext,
+    hasPrevious,
+    isEditingTimestamp,
+    showDatePicker,
+    selectedBboxId
+  ])
 
   // Reset selection when changing images
   useEffect(() => {
@@ -667,9 +677,7 @@ function ImageModal({
               {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
 
               {/* Saving indicator */}
-              {isSaving && (
-                <p className="text-xs text-gray-400 mt-1 animate-pulse">Saving...</p>
-              )}
+              {isSaving && <p className="text-xs text-gray-400 mt-1 animate-pulse">Saving...</p>}
 
               {/* Date Picker Popup */}
               {showDatePicker && (
