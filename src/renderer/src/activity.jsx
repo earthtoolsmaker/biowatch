@@ -1,10 +1,12 @@
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { MapPin } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { LayersControl, MapContainer, Marker, Popup, TileLayer } from 'react-leaflet'
 import MarkerClusterGroup from 'react-leaflet-cluster'
 import { useParams } from 'react-router'
 import CircularTimeFilter, { DailyActivityRadar } from './ui/clock'
+import PlaceholderMap from './ui/PlaceholderMap'
 import SpeciesDistribution from './ui/speciesDistribution'
 import TimelineChart from './ui/timeseries'
 import { useImportStatus } from './hooks/import'
@@ -423,6 +425,11 @@ export default function Activity({ studyData, studyId }) {
 
   console.log('Selected species:', selectedSpecies.map((s) => s.scientificName).join(', '))
 
+  // Check if heatmapData has any actual location points
+  const hasLocationData =
+    heatmapData && Object.values(heatmapData).some((points) => points && points.length > 0)
+  const isLoading = !dateRange[0] || !dateRange[1]
+
   return (
     <div className="px-4 flex flex-col h-full">
       {error ? (
@@ -435,7 +442,7 @@ export default function Activity({ studyData, studyId }) {
 
             {/* Map - right side */}
             <div className="h-full flex-1">
-              {heatmapData && (
+              {hasLocationData ? (
                 <SpeciesMap
                   heatmapData={heatmapData}
                   selectedSpecies={selectedSpecies}
@@ -448,6 +455,15 @@ export default function Activity({ studyData, studyId }) {
                     timeRange.start +
                     timeRange.end
                   }
+                />
+              ) : isLoading ? null : (
+                <PlaceholderMap
+                  title="No Species Location Data"
+                  description="Select species from the list and set up deployment coordinates in the Deployments tab to view the species distribution map."
+                  linkTo="/deployments"
+                  linkText="Go to Deployments"
+                  icon={MapPin}
+                  studyId={actualStudyId}
                 />
               )}
             </div>
