@@ -1,9 +1,9 @@
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { Camera } from 'lucide-react'
+import { Camera, MapPin, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import ReactDOMServer from 'react-dom/server'
-import { MapContainer, Marker, TileLayer } from 'react-leaflet'
+import { MapContainer, Marker, TileLayer, useMapEvents } from 'react-leaflet'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useImportStatus } from '@renderer/hooks/import'
 import SkeletonMap from './ui/SkeletonMap'
@@ -35,14 +35,38 @@ if (typeof document !== 'undefined' && !document.getElementById('invisible-marke
   document.head.appendChild(style)
 }
 
+// Component to handle map events for place mode
+function MapEventHandler({ isPlaceMode, onMapClick, onMouseMove, onMouseOut }) {
+  useMapEvents({
+    click: (e) => {
+      if (isPlaceMode) {
+        onMapClick(e.latlng)
+      }
+    },
+    mousemove: (e) => {
+      if (isPlaceMode) {
+        onMouseMove(e.latlng)
+      }
+    },
+    mouseout: () => {
+      onMouseOut()
+    }
+  })
+  return null
+}
+
 function LocationMap({
   locations,
   selectedLocation,
   setSelectedLocation,
   onNewLatitude,
-  onNewLongitude
+  onNewLongitude,
+  isPlaceMode,
+  onPlaceLocation,
+  onExitPlaceMode
 }) {
   const mapRef = useRef(null)
+  const [mousePosition, setMousePosition] = useState(null)
 
   // useEffect(() => {
   //   if (mapRef.current && selectedLocation) {
@@ -55,6 +79,17 @@ function LocationMap({
   useEffect(() => {
     console.log('mount')
   }, [])
+
+  // Escape key handler to exit place mode
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && isPlaceMode) {
+        onExitPlaceMode()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isPlaceMode, onExitPlaceMode])
 
   if (!locations || locations.length === 0) {
     return <div className="text-gray-500">No location data available for map</div>
@@ -100,8 +135,28 @@ function LocationMap({
   const cameraIcon = createCameraIcon(false)
   const activeCameraIcon = createCameraIcon(true)
 
+  // Create ghost camera icon for place mode preview
+  const createGhostCameraIcon = () => {
+    const ghostIcon = ReactDOMServer.renderToString(
+      <div className="ghost-camera-marker" style={{ opacity: 0.6 }}>
+        <Camera color="#1E40AF" fill="#93C5FD" size={28} />
+      </div>
+    )
+
+    return L.divIcon({
+      html: ghostIcon,
+      className: 'ghost-camera-icon',
+      iconSize: [18, 18],
+      iconAnchor: [14, 14]
+    })
+  }
+
+  const ghostCameraIcon = createGhostCameraIcon()
+
   return (
-    <div className="w-full h-full bg-white rounded border border-gray-200">
+    <div
+      className={`w-full h-full bg-white rounded border border-gray-200 relative ${isPlaceMode ? 'place-mode-active' : ''}`}
+    >
       <MapContainer
         {...(validLocations.length > 0
           ? { bounds: bounds, boundsOptions: { padding: [30, 30] } }
@@ -112,6 +167,14 @@ function LocationMap({
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+
+        {/* Map event handler for place mode */}
+        <MapEventHandler
+          isPlaceMode={isPlaceMode}
+          onMapClick={(latlng) => onPlaceLocation(latlng)}
+          onMouseMove={(latlng) => setMousePosition(latlng)}
+          onMouseOut={() => setMousePosition(null)}
         />
 
         {validLocations.map((location) => (
@@ -127,6 +190,9 @@ function LocationMap({
             eventHandlers={{
               click: () => {
                 console.log('clicked', location.locationID)
+                if (isPlaceMode) {
+                  onExitPlaceMode()
+                }
                 setSelectedLocation(location)
               },
               dragend: (e) => {
@@ -139,7 +205,36 @@ function LocationMap({
             }}
           />
         ))}
+
+        {/* Ghost marker for place mode preview */}
+        {isPlaceMode && mousePosition && (
+          <Marker
+            position={[mousePosition.lat, mousePosition.lng]}
+            icon={ghostCameraIcon}
+            interactive={false}
+            zIndexOffset={2000}
+          />
+        )}
       </MapContainer>
+
+      {/* Place mode indicator */}
+      {isPlaceMode && selectedLocation && (
+        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-[1000]">
+          <div className="bg-blue-600 text-white px-4 py-2 rounded-full shadow-lg text-sm font-medium flex items-center gap-2">
+            <MapPin size={16} />
+            <span>
+              Click to place: {selectedLocation?.locationName || selectedLocation?.locationID}
+            </span>
+            <button
+              onClick={onExitPlaceMode}
+              className="ml-2 hover:bg-blue-700 rounded-full p-1"
+              title="Cancel (Esc)"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -149,7 +244,8 @@ function LocationsList({
   selectedLocation,
   setSelectedLocation,
   onNewLatitude,
-  onNewLongitude
+  onNewLongitude,
+  onEnterPlaceMode
 }) {
   useEffect(() => {
     if (selectedLocation && selectedLocation) {
@@ -212,7 +308,7 @@ function LocationsList({
                   >
                     {location.locationName || location.locationID || 'Unnamed Location'}
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 items-center">
                     <input
                       type="number"
                       step={0.00001}
@@ -237,6 +333,17 @@ function LocationsList({
                       className="max-w-20 text-xs border border-zinc-950/10 rounded px-2 py-1"
                       name="longitude"
                     />
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setSelectedLocation(location)
+                        onEnterPlaceMode()
+                      }}
+                      className="p-1.5 rounded hover:bg-blue-100 text-gray-500 hover:text-blue-600 transition-colors"
+                      title="Click on map to set location"
+                    >
+                      <MapPin size={16} />
+                    </button>
                   </div>
                 </div>
                 <div className="flex gap-2 flex-1">
@@ -269,6 +376,7 @@ function LocationsList({
 
 export default function Deployments({ studyId }) {
   const [selectedLocation, setSelectedLocation] = useState(null)
+  const [isPlaceMode, setIsPlaceMode] = useState(false)
   const queryClient = useQueryClient()
   const { importStatus } = useImportStatus(studyId)
 
@@ -340,6 +448,26 @@ export default function Deployments({ studyId }) {
     }
   }
 
+  const handleEnterPlaceMode = () => {
+    if (!selectedLocation) {
+      console.warn('Please select a deployment first')
+      return
+    }
+    setIsPlaceMode(true)
+  }
+
+  const handleExitPlaceMode = () => {
+    setIsPlaceMode(false)
+  }
+
+  const handlePlaceLocation = (latlng) => {
+    if (selectedLocation) {
+      onNewLatitude(selectedLocation.deploymentID, latlng.lat.toFixed(6))
+      onNewLongitude(selectedLocation.deploymentID, latlng.lng.toFixed(6))
+      setIsPlaceMode(false)
+    }
+  }
+
   console.log('Activity data:', activity)
 
   return (
@@ -354,6 +482,9 @@ export default function Deployments({ studyId }) {
             setSelectedLocation={setSelectedLocation}
             onNewLatitude={onNewLatitude}
             onNewLongitude={onNewLongitude}
+            isPlaceMode={isPlaceMode}
+            onPlaceLocation={handlePlaceLocation}
+            onExitPlaceMode={handleExitPlaceMode}
           />
         ) : null}
       </div>
@@ -366,6 +497,7 @@ export default function Deployments({ studyId }) {
           setSelectedLocation={setSelectedLocation}
           onNewLatitude={onNewLatitude}
           onNewLongitude={onNewLongitude}
+          onEnterPlaceMode={handleEnterPlaceMode}
         />
       ) : null}
     </div>
