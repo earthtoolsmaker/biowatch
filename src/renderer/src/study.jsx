@@ -111,7 +111,9 @@ function ImportStatus({ studyId, importerName }) {
         {importStatus.done} / {importStatus.total}
       </span>
 
-      <div className={`w-20 bg-gray-200 rounded-full h-2 ${importStatus.isRunning ? 'animate-progress-pulse' : ''}`}>
+      <div
+        className={`w-20 bg-gray-200 rounded-full h-2 ${importStatus.isRunning ? 'animate-progress-pulse' : ''}`}
+      >
         <div
           className={`h-full bg-blue-600 transition-all duration-500 ease-in-out rounded-full ${importStatus.isRunning ? 'animate-bar-glow' : ''}`}
           style={{ width: `${progress}%` }}

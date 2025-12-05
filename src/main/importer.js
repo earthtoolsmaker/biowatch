@@ -648,8 +648,14 @@ export class Importer {
 
                 const dateRange = await this.db
                   .select({
-                    minDate: sql`MIN(CASE WHEN ${media.timestamp} < ${oneDayAgo} THEN ${media.timestamp} ELSE NULL END)`.as('minDate'),
-                    maxDate: sql`MAX(CASE WHEN ${media.timestamp} < ${oneDayAgo} THEN ${media.timestamp} ELSE NULL END)`.as('maxDate')
+                    minDate:
+                      sql`MIN(CASE WHEN ${media.timestamp} < ${oneDayAgo} THEN ${media.timestamp} ELSE NULL END)`.as(
+                        'minDate'
+                      ),
+                    maxDate:
+                      sql`MAX(CASE WHEN ${media.timestamp} < ${oneDayAgo} THEN ${media.timestamp} ELSE NULL END)`.as(
+                        'maxDate'
+                      )
                   })
                   .from(media)
                   .get()

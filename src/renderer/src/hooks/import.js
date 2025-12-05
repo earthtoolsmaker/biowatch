@@ -12,7 +12,12 @@ export function useImportStatus(id, interval = 1000) {
         const status = await window.api.getImportStatus(id)
 
         // Detect transition from running to completed and invalidate study query
-        if (wasRunningRef.current && !status.isRunning && status.done > 0 && status.done === status.total) {
+        if (
+          wasRunningRef.current &&
+          !status.isRunning &&
+          status.done > 0 &&
+          status.done === status.total
+        ) {
           console.log('Import completed, invalidating study query')
           queryClient.invalidateQueries({ queryKey: ['study'] })
         }
