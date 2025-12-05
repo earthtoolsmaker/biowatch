@@ -369,6 +369,7 @@ function transformDateField(dateValue) {
 
 /**
  * Transform file path field to absolute path
+ * Handles cross-platform path separators and smart detection for file location
  */
 function transformFilePathField(filePath, directoryPath) {
   if (!filePath) return null
@@ -378,7 +379,20 @@ function transformFilePathField(filePath, directoryPath) {
     return filePath
   }
 
-  // Convert relative path to absolute path relative to the parent of the CamTrapDP directory
+  // Normalize path separators for cross-platform compatibility
+  // Handle both forward and backward slashes from different OS exports
+  const normalizedPath = filePath.split(/[\\/]/).join(path.sep)
+
+  // Smart detection: try camtrap directory first, then fall back to parent
+  // This handles both:
+  // 1. Re-imported exports where media is in media/ subfolder (new behavior)
+  // 2. External datasets where media is in sibling directory (backward compat)
+  const directPath = path.join(directoryPath, normalizedPath)
+  if (fs.existsSync(directPath)) {
+    return directPath
+  }
+
+  // Fall back to parent directory (original behavior for backward compatibility)
   const parentDir = path.dirname(directoryPath)
-  return path.join(parentDir, filePath)
+  return path.join(parentDir, normalizedPath)
 }
