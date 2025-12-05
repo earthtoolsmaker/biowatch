@@ -1,4 +1,4 @@
-import { CameraOff, X, Square, Calendar, Pencil, Check, Search, Ban } from 'lucide-react'
+import { CameraOff, X, Square, Calendar, Pencil, Check, Search, Trash2 } from 'lucide-react'
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { useParams } from 'react-router'
@@ -6,12 +6,13 @@ import CircularTimeFilter, { DailyActivityRadar } from './ui/clock'
 import SpeciesDistribution from './ui/speciesDistribution'
 import TimelineChart from './ui/timeseries'
 import DateTimePicker from './ui/DateTimePicker'
+import EditableBbox from './ui/EditableBbox'
 import { computeBboxLabelPosition, computeSelectorPosition } from './utils/positioning'
 
 /**
  * Observation list panel - always visible list of all detections
  */
-function ObservationListPanel({ bboxes, selectedId, onSelect }) {
+function ObservationListPanel({ bboxes, selectedId, onSelect, onDelete }) {
   if (!bboxes || bboxes.length === 0) return null
 
   return (
@@ -23,17 +24,19 @@ function ObservationListPanel({ bboxes, selectedId, onSelect }) {
         <span className="text-gray-400">Click to edit</span>
       </div>
       {bboxes.map((bbox) => (
-        <button
+        <div
           key={bbox.observationID}
-          onClick={(e) => {
-            e.stopPropagation()
-            onSelect(bbox.observationID === selectedId ? null : bbox.observationID)
-          }}
           className={`w-full px-4 py-2 flex items-center justify-between hover:bg-gray-100 transition-colors ${
             selectedId === bbox.observationID ? 'bg-lime-100' : ''
           }`}
         >
-          <div className="flex items-center gap-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onSelect(bbox.observationID === selectedId ? null : bbox.observationID)
+            }}
+            className="flex items-center gap-2 flex-1 text-left"
+          >
             <span
               className={`w-2 h-2 rounded-full flex-shrink-0 ${
                 bbox.classificationMethod === 'human' ? 'bg-green-500' : 'bg-lime-500'
@@ -45,14 +48,24 @@ function ObservationListPanel({ bboxes, selectedId, onSelect }) {
             {bbox.classificationMethod === 'human' && (
               <span className="text-xs text-green-600">✓</span>
             )}
-          </div>
+          </button>
           <div className="flex items-center gap-2">
             {bbox.confidence && (
               <span className="text-xs text-gray-400">{Math.round(bbox.confidence * 100)}%</span>
             )}
             <Pencil size={14} className="text-gray-400" />
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onDelete(bbox.observationID)
+              }}
+              className="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-500 transition-colors"
+              title="Delete observation"
+            >
+              <Trash2 size={14} />
+            </button>
           </div>
-        </button>
+        </div>
       ))}
     </div>
   )
@@ -119,16 +132,6 @@ function SpeciesSelector({ bbox, studyId, onClose, onUpdate }) {
     onClose()
   }
 
-  const handleMarkAsBlank = () => {
-    onUpdate({
-      observationID: bbox.observationID,
-      scientificName: '',
-      commonName: null,
-      observationType: 'blank'
-    })
-    onClose()
-  }
-
   const handleCustomSubmit = (e) => {
     e.preventDefault()
     if (customSpecies.trim()) {
@@ -185,15 +188,6 @@ function SpeciesSelector({ bbox, studyId, onClose, onUpdate }) {
 
       {/* Species list */}
       <div className="max-h-52 overflow-y-auto">
-        {/* Mark as Blank option */}
-        <button
-          onClick={handleMarkAsBlank}
-          className="w-full px-3 py-2 text-left hover:bg-red-50 flex items-center gap-2 text-red-600 border-b border-gray-100"
-        >
-          <Ban size={16} />
-          <span className="text-sm font-medium">Mark as Blank (False Positive)</span>
-        </button>
-
         {/* Add Custom option */}
         {!showCustomInput && (
           <button
@@ -238,7 +232,10 @@ function SpeciesSelector({ bbox, studyId, onClose, onUpdate }) {
  * - Labels near top edge are positioned below the bbox
  * - Labels near right edge are right-aligned
  */
-const BboxLabel = forwardRef(function BboxLabel({ bbox, isSelected, onClick, isHuman }, ref) {
+const BboxLabel = forwardRef(function BboxLabel(
+  { bbox, isSelected, onClick, onDelete, isHuman },
+  ref
+) {
   const displayName = bbox.scientificName || 'Blank'
   const confidence = bbox.confidence ? `${Math.round(bbox.confidence * 100)}%` : null
 
@@ -249,33 +246,45 @@ const BboxLabel = forwardRef(function BboxLabel({ bbox, isSelected, onClick, isH
     left: leftPos,
     top: topPos,
     transform: transformVal,
-    maxWidth: '150px',
+    maxWidth: '200px',
     whiteSpace: 'nowrap',
     overflow: 'hidden',
     textOverflow: 'ellipsis'
   }
 
   return (
-    <button
-      ref={ref}
-      onClick={(e) => {
-        e.stopPropagation()
-        onClick()
-      }}
-      className={`absolute px-2 py-0.5 rounded text-xs font-medium transition-all cursor-pointer hover:scale-105 ${
-        isSelected
-          ? 'bg-lime-500 text-white ring-2 ring-lime-300'
-          : isHuman
-            ? 'bg-green-500 text-white hover:bg-green-600'
-            : 'bg-lime-500/90 text-white hover:bg-lime-600'
-      }`}
-      style={style}
-      title={`${displayName}${confidence ? ` (${confidence})` : ''} - Click to edit`}
-    >
-      {displayName}
-      {confidence && !isHuman && <span className="ml-1 opacity-75">{confidence}</span>}
-      {isHuman && <span className="ml-1">✓</span>}
-    </button>
+    <div ref={ref} className="absolute flex items-center gap-1 pointer-events-auto" style={style}>
+      <button
+        onClick={(e) => {
+          e.stopPropagation()
+          onClick()
+        }}
+        className={`px-2 py-0.5 rounded text-xs font-medium transition-all cursor-pointer hover:scale-105 ${
+          isSelected
+            ? 'bg-lime-500 text-white ring-2 ring-lime-300'
+            : isHuman
+              ? 'bg-green-500 text-white hover:bg-green-600'
+              : 'bg-lime-500/90 text-white hover:bg-lime-600'
+        }`}
+        title={`${displayName}${confidence ? ` (${confidence})` : ''} - Click to edit`}
+      >
+        {displayName}
+        {confidence && !isHuman && <span className="ml-1 opacity-75">{confidence}</span>}
+        {isHuman && <span className="ml-1">✓</span>}
+      </button>
+      {isSelected && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onDelete()
+          }}
+          className="p-1 rounded bg-red-500 text-white hover:bg-red-600 transition-colors"
+          title="Delete observation"
+        >
+          <Trash2 size={12} />
+        </button>
+      )}
+    </div>
   )
 })
 
@@ -298,12 +307,14 @@ function ImageModal({
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState(null)
   const [selectedBboxId, setSelectedBboxId] = useState(null)
+  const [showSpeciesSelector, setShowSpeciesSelector] = useState(false) // Only show when clicking label
   const [selectorPosition, setSelectorPosition] = useState(null)
   const queryClient = useQueryClient()
 
   // Refs for positioning the species selector near the label
   const imageContainerRef = useRef(null)
   const bboxLabelRefs = useRef({})
+  const imageRef = useRef(null)
 
   // Initialize inline timestamp when media changes
   useEffect(() => {
@@ -316,9 +327,14 @@ function ImageModal({
     setError(null)
   }, [media?.mediaID, media?.timestamp])
 
-  // Compute selector position when a bbox is selected
+  // Compute selector position when a bbox is selected AND species selector should be shown
   useEffect(() => {
-    if (!selectedBboxId || !bboxLabelRefs.current[selectedBboxId] || !imageContainerRef.current) {
+    if (
+      !selectedBboxId ||
+      !showSpeciesSelector ||
+      !bboxLabelRefs.current[selectedBboxId] ||
+      !imageContainerRef.current
+    ) {
       setSelectorPosition(null)
       return
     }
@@ -329,11 +345,11 @@ function ImageModal({
 
     const position = computeSelectorPosition(labelRect, containerRect)
     setSelectorPosition(position)
-  }, [selectedBboxId])
+  }, [selectedBboxId, showSpeciesSelector])
 
   // Recalculate position on window resize
   useEffect(() => {
-    if (!selectedBboxId) return
+    if (!selectedBboxId || !showSpeciesSelector) return
 
     const handleResize = () => {
       if (bboxLabelRefs.current[selectedBboxId] && imageContainerRef.current) {
@@ -347,7 +363,7 @@ function ImageModal({
 
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
-  }, [selectedBboxId])
+  }, [selectedBboxId, showSpeciesSelector])
 
   const { data: bboxes = [] } = useQuery({
     queryKey: ['mediaBboxes', studyId, media?.mediaID],
@@ -489,6 +505,98 @@ function ImageModal({
     updateMutation.mutate(updates)
   }
 
+  // Mutation for updating observation bounding box coordinates
+  const updateBboxMutation = useMutation({
+    mutationFn: async ({ observationID, bbox }) => {
+      const response = await window.api.updateObservationBbox(studyId, observationID, bbox)
+      if (response.error) {
+        throw new Error(response.error)
+      }
+      return response.data
+    },
+    onMutate: async ({ observationID, bbox }) => {
+      // Cancel outgoing queries
+      await queryClient.cancelQueries({ queryKey: ['mediaBboxes', studyId, media?.mediaID] })
+
+      // Snapshot previous value for rollback
+      const previous = queryClient.getQueryData(['mediaBboxes', studyId, media?.mediaID])
+
+      // Optimistically update the cache
+      queryClient.setQueryData(['mediaBboxes', studyId, media?.mediaID], (old) =>
+        old?.map((b) =>
+          b.observationID === observationID ? { ...b, ...bbox, classificationMethod: 'human' } : b
+        )
+      )
+
+      return { previous }
+    },
+    onError: (err, variables, context) => {
+      // Rollback on error
+      if (context?.previous) {
+        queryClient.setQueryData(['mediaBboxes', studyId, media?.mediaID], context.previous)
+      }
+    },
+    onSettled: () => {
+      // Refetch to ensure sync
+      queryClient.invalidateQueries({ queryKey: ['mediaBboxes', studyId, media?.mediaID] })
+    }
+  })
+
+  const handleBboxUpdate = useCallback(
+    (observationID, newBbox) => {
+      updateBboxMutation.mutate({ observationID, bbox: newBbox })
+    },
+    [updateBboxMutation]
+  )
+
+  // Mutation for deleting observation
+  const deleteMutation = useMutation({
+    mutationFn: async (observationID) => {
+      const response = await window.api.deleteObservation(studyId, observationID)
+      if (response.error) {
+        throw new Error(response.error)
+      }
+      return response.data
+    },
+    onMutate: async (observationID) => {
+      // Cancel outgoing queries
+      await queryClient.cancelQueries({ queryKey: ['mediaBboxes', studyId, media?.mediaID] })
+
+      // Snapshot previous value for rollback
+      const previous = queryClient.getQueryData(['mediaBboxes', studyId, media?.mediaID])
+
+      // Optimistically remove the observation from cache
+      queryClient.setQueryData(['mediaBboxes', studyId, media?.mediaID], (old) =>
+        old?.filter((b) => b.observationID !== observationID)
+      )
+
+      // Clear selection if deleted bbox was selected
+      if (selectedBboxId === observationID) {
+        setSelectedBboxId(null)
+        setShowSpeciesSelector(false)
+      }
+
+      return { previous }
+    },
+    onError: (err, variables, context) => {
+      // Rollback on error
+      if (context?.previous) {
+        queryClient.setQueryData(['mediaBboxes', studyId, media?.mediaID], context.previous)
+      }
+    },
+    onSettled: () => {
+      // Refetch to ensure sync
+      queryClient.invalidateQueries({ queryKey: ['mediaBboxes', studyId, media?.mediaID] })
+    }
+  })
+
+  const handleDeleteObservation = useCallback(
+    (observationID) => {
+      deleteMutation.mutate(observationID)
+    },
+    [deleteMutation]
+  )
+
   useEffect(() => {
     if (!isOpen) return
 
@@ -582,57 +690,62 @@ function ImageModal({
           <div
             ref={imageContainerRef}
             className="flex items-center justify-center bg-gray-100 overflow-hidden relative"
+            onClick={() => {
+              setSelectedBboxId(null)
+              setShowSpeciesSelector(false)
+            }}
           >
             <img
+              ref={imageRef}
               src={constructImageUrl(media.filePath)}
               alt={media.fileName || `Media ${media.mediaID}`}
               className="max-w-full max-h-[calc(90vh-120px)] w-auto h-auto object-contain"
             />
-            {/* Bbox overlay */}
+            {/* Bbox overlay - editable bounding boxes */}
             {showBboxes && hasBboxes && (
               <>
                 <svg
-                  className="absolute inset-0 w-full h-full pointer-events-none"
+                  className="absolute inset-0 w-full h-full"
                   style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
                 >
-                  {bboxes.map((bbox, index) => (
-                    <rect
-                      key={bbox.observationID || index}
-                      x={`${bbox.bboxX * 100}%`}
-                      y={`${bbox.bboxY * 100}%`}
-                      width={`${bbox.bboxWidth * 100}%`}
-                      height={`${bbox.bboxHeight * 100}%`}
-                      stroke={
-                        bbox.observationID === selectedBboxId
-                          ? '#22c55e'
-                          : bbox.classificationMethod === 'human'
-                            ? '#22c55e'
-                            : '#84cc16'
-                      }
-                      strokeWidth={bbox.observationID === selectedBboxId ? '4' : '3'}
-                      fill="none"
+                  {bboxes.map((bbox) => (
+                    <EditableBbox
+                      key={bbox.observationID}
+                      bbox={bbox}
+                      isSelected={bbox.observationID === selectedBboxId}
+                      onSelect={() => {
+                        // Clicking bbox selects it for geometry editing only, NOT species selector
+                        setSelectedBboxId(
+                          bbox.observationID === selectedBboxId ? null : bbox.observationID
+                        )
+                        setShowSpeciesSelector(false) // Close species selector when clicking bbox
+                      }}
+                      onUpdate={(newBbox) => handleBboxUpdate(bbox.observationID, newBbox)}
+                      imageRef={imageRef}
+                      containerRef={imageContainerRef}
+                      color={bbox.classificationMethod === 'human' ? '#22c55e' : '#84cc16'}
                     />
                   ))}
                 </svg>
 
-                {/* Clickable bbox labels */}
-                <div className="absolute inset-0 w-full h-full">
+                {/* Clickable bbox labels - clicking label opens species selector */}
+                <div className="absolute inset-0 w-full h-full pointer-events-none">
                   {bboxes.map((bbox) => (
-                    <div key={bbox.observationID} className="relative w-full h-full">
-                      <BboxLabel
-                        ref={(el) => {
-                          bboxLabelRefs.current[bbox.observationID] = el
-                        }}
-                        bbox={bbox}
-                        isSelected={bbox.observationID === selectedBboxId}
-                        isHuman={bbox.classificationMethod === 'human'}
-                        onClick={() =>
-                          setSelectedBboxId(
-                            bbox.observationID === selectedBboxId ? null : bbox.observationID
-                          )
-                        }
-                      />
-                    </div>
+                    <BboxLabel
+                      key={bbox.observationID}
+                      ref={(el) => {
+                        bboxLabelRefs.current[bbox.observationID] = el
+                      }}
+                      bbox={bbox}
+                      isSelected={bbox.observationID === selectedBboxId}
+                      isHuman={bbox.classificationMethod === 'human'}
+                      onClick={() => {
+                        // Clicking label selects bbox AND opens species selector
+                        setSelectedBboxId(bbox.observationID)
+                        setShowSpeciesSelector(true)
+                      }}
+                      onDelete={() => handleDeleteObservation(bbox.observationID)}
+                    />
                   ))}
                 </div>
               </>
@@ -644,6 +757,7 @@ function ImageModal({
             bboxes={bboxes}
             selectedId={selectedBboxId}
             onSelect={setSelectedBboxId}
+            onDelete={handleDeleteObservation}
           />
 
           {/* Footer with metadata */}
@@ -741,9 +855,15 @@ function ImageModal({
           </div>
         </div>
 
-        {/* Species selector - positioned near the BboxLabel */}
-        {selectedBbox && selectorPosition && (
-          <div className="fixed inset-0 z-[60]" onClick={() => setSelectedBboxId(null)}>
+        {/* Species selector - positioned near the BboxLabel, only shown when clicking label */}
+        {selectedBbox && showSpeciesSelector && selectorPosition && (
+          <div
+            className="fixed inset-0 z-[60]"
+            onClick={() => {
+              setShowSpeciesSelector(false)
+              setSelectedBboxId(null)
+            }}
+          >
             <div
               className="fixed"
               style={{
@@ -756,7 +876,10 @@ function ImageModal({
               <SpeciesSelector
                 bbox={selectedBbox}
                 studyId={studyId}
-                onClose={() => setSelectedBboxId(null)}
+                onClose={() => {
+                  setShowSpeciesSelector(false)
+                  setSelectedBboxId(null)
+                }}
                 onUpdate={handleUpdateObservation}
               />
             </div>

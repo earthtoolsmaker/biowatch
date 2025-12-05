@@ -23,6 +23,8 @@ import {
   getFilesData,
   updateMediaTimestamp,
   updateObservationClassification,
+  updateObservationBbox,
+  deleteObservation,
   getDistinctSpecies
 } from './queries'
 import { Importer } from './importer' //required to register handlers
@@ -750,6 +752,40 @@ app.whenReady().then(async () => {
       }
     }
   )
+
+  // Update observation bounding box coordinates
+  ipcMain.handle('observations:update-bbox', async (_, studyId, observationID, bboxUpdates) => {
+    try {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) {
+        log.warn(`Database not found for study ID: ${studyId}`)
+        return { error: 'Database not found for this study' }
+      }
+
+      const updatedObservation = await updateObservationBbox(dbPath, observationID, bboxUpdates)
+      return { data: updatedObservation }
+    } catch (error) {
+      log.error('Error updating observation bbox:', error)
+      return { error: error.message }
+    }
+  })
+
+  // Delete observation
+  ipcMain.handle('observations:delete', async (_, studyId, observationID) => {
+    try {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) {
+        log.warn(`Database not found for study ID: ${studyId}`)
+        return { error: 'Database not found for this study' }
+      }
+
+      const result = await deleteObservation(dbPath, observationID)
+      return { data: result }
+    } catch (error) {
+      log.error('Error deleting observation:', error)
+      return { error: error.message }
+    }
+  })
 
   // Get distinct species for dropdown
   ipcMain.handle('species:get-distinct', async (_, studyId) => {

@@ -185,6 +185,19 @@ const api = {
       updates
     )
   },
+  // Observation bbox update
+  updateObservationBbox: async (studyId, observationID, bboxUpdates) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'observations:update-bbox',
+      studyId,
+      observationID,
+      bboxUpdates
+    )
+  },
+  // Delete observation
+  deleteObservation: async (studyId, observationID) => {
+    return await electronAPI.ipcRenderer.invoke('observations:delete', studyId, observationID)
+  },
   // Get distinct species for dropdown
   getDistinctSpecies: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('species:get-distinct', studyId)

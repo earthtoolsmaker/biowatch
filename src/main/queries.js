@@ -1377,6 +1377,116 @@ export async function updateObservationClassification(dbPath, observationID, upd
 }
 
 /**
+ * Update an observation's bounding box coordinates.
+ * When a human updates the bbox:
+ * - Bbox coordinates are updated (bboxX, bboxY, bboxWidth, bboxHeight)
+ * - classificationMethod is set to 'human'
+ * - classifiedBy is set to 'User'
+ * - classificationTimestamp is updated
+ *
+ * @param {string} dbPath - Path to the SQLite database
+ * @param {string} observationID - The observation ID to update
+ * @param {Object} bboxUpdates - The new bbox coordinates
+ * @param {number} bboxUpdates.bboxX - Left edge (0-1 normalized)
+ * @param {number} bboxUpdates.bboxY - Top edge (0-1 normalized)
+ * @param {number} bboxUpdates.bboxWidth - Width (0-1 normalized)
+ * @param {number} bboxUpdates.bboxHeight - Height (0-1 normalized)
+ * @returns {Promise<Object>} - The updated observation
+ */
+export async function updateObservationBbox(dbPath, observationID, bboxUpdates) {
+  const startTime = Date.now()
+  log.info(`Updating observation bbox: ${observationID}`)
+
+  try {
+    // Extract study ID from path
+    const pathParts = dbPath.split('/')
+    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+
+    const db = await getDrizzleDb(studyId, dbPath)
+
+    const { bboxX, bboxY, bboxWidth, bboxHeight } = bboxUpdates
+
+    // Validate bbox values are in valid range
+    if (
+      bboxX < 0 ||
+      bboxX > 1 ||
+      bboxY < 0 ||
+      bboxY > 1 ||
+      bboxWidth <= 0 ||
+      bboxWidth > 1 ||
+      bboxHeight <= 0 ||
+      bboxHeight > 1 ||
+      bboxX + bboxWidth > 1.001 ||
+      bboxY + bboxHeight > 1.001
+    ) {
+      throw new Error('Invalid bbox coordinates: must be normalized (0-1) and within bounds')
+    }
+
+    // Prepare update values
+    const updateValues = {
+      bboxX,
+      bboxY,
+      bboxWidth,
+      bboxHeight,
+      classificationMethod: 'human',
+      classifiedBy: 'User',
+      classificationTimestamp: new Date().toISOString()
+    }
+
+    // Perform the update
+    await db
+      .update(observations)
+      .set(updateValues)
+      .where(eq(observations.observationID, observationID))
+
+    // Fetch and return the updated observation
+    const updatedObservation = await db
+      .select()
+      .from(observations)
+      .where(eq(observations.observationID, observationID))
+      .get()
+
+    const elapsedTime = Date.now() - startTime
+    log.info(`Updated observation ${observationID} bbox in ${elapsedTime}ms`)
+    return updatedObservation
+  } catch (error) {
+    log.error(`Error updating observation bbox: ${error.message}`)
+    throw error
+  }
+}
+
+/**
+ * Delete an observation from the database.
+ * This permanently removes the observation record.
+ *
+ * @param {string} dbPath - Path to the SQLite database
+ * @param {string} observationID - The observation ID to delete
+ * @returns {Promise<Object>} - Success indicator with deleted observationID
+ */
+export async function deleteObservation(dbPath, observationID) {
+  const startTime = Date.now()
+  log.info(`Deleting observation: ${observationID}`)
+
+  try {
+    // Extract study ID from path
+    const pathParts = dbPath.split('/')
+    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+
+    const db = await getDrizzleDb(studyId, dbPath)
+
+    // Delete the observation
+    await db.delete(observations).where(eq(observations.observationID, observationID))
+
+    const elapsedTime = Date.now() - startTime
+    log.info(`Deleted observation ${observationID} in ${elapsedTime}ms`)
+    return { success: true, observationID }
+  } catch (error) {
+    log.error(`Error deleting observation: ${error.message}`)
+    throw error
+  }
+}
+
+/**
  * Get all distinct species names from the observations table
  * Used to populate dropdowns for species selection
  * @param {string} dbPath - Path to the SQLite database
