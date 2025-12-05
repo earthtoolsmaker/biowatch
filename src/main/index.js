@@ -670,56 +670,25 @@ app.whenReady().then(async () => {
     }
   })
 
-  // Add handler for showing study context menu
-  ipcMain.handle('study:show-context-menu', (event, studyId) => {
-    const { Menu } = require('electron')
-    const targetWindow = BrowserWindow.fromWebContents(event.sender)
-
-    const menu = Menu.buildFromTemplate([
-      {
-        label: 'Delete study',
-        click: () => {
-          try {
-            log.info(`Deleting database for study: ${studyId}`)
-            const studyPath = getStudyPath(app.getPath('userData'), studyId)
-            event.sender.send('study:delete', studyId)
-
-            if (studyPath && existsSync(studyPath)) {
-              rmSync(studyPath, { recursive: true, force: true })
-              log.info(`Successfully deleted database: ${studyPath}`)
-              return { success: true }
-            } else {
-              log.warn(`Database not found for deletion: ${studyPath}`)
-              return { success: true, message: 'Database already deleted or not found' }
-            }
-          } catch (error) {
-            log.error('Error deleting study database:', error)
-            return { error: error.message, success: false }
-          }
-        }
-      }
-    ])
-
-    menu.popup({ window: targetWindow })
-    return true
-  })
-
-  // Add handler for deleting study database
-  ipcMain.handle('study:delete-database', async (_, studyId) => {
+  // Add handler for deleting study
+  ipcMain.handle('study:delete-database', async (event, studyId) => {
     try {
-      log.info(`Deleting database for study: ${studyId}`)
-      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      log.info(`Deleting study: ${studyId}`)
+      const studyPath = getStudyPath(app.getPath('userData'), studyId)
 
-      if (dbPath && existsSync(dbPath)) {
-        unlinkSync(dbPath)
-        log.info(`Successfully deleted database: ${dbPath}`)
+      // Notify renderer to update UI before deletion
+      event.sender.send('study:delete', studyId)
+
+      if (studyPath && existsSync(studyPath)) {
+        rmSync(studyPath, { recursive: true, force: true })
+        log.info(`Successfully deleted study: ${studyPath}`)
         return { success: true }
       } else {
-        log.warn(`Database not found for deletion: ${dbPath}`)
-        return { success: true, message: 'Database already deleted or not found' }
+        log.warn(`Study not found for deletion: ${studyPath}`)
+        return { success: true, message: 'Study already deleted or not found' }
       }
     } catch (error) {
-      log.error('Error deleting study database:', error)
+      log.error('Error deleting study:', error)
       return { error: error.message, success: false }
     }
   })

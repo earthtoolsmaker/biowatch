@@ -167,11 +167,6 @@ function AppContent() {
     queryClient.invalidateQueries(['studies'])
   }
 
-  const handleStudyContextMenu = (e, study) => {
-    e.preventDefault()
-    window.api.showStudyContextMenu(study.id)
-  }
-
   return (
     <div className={`relative flex h-svh flex-row`}>
       <div className="w-52 h-full p-2 fixed">
@@ -197,7 +192,6 @@ function AppContent() {
                     className={({ isActive }) =>
                       `break-anywhere flex w-full items-center text-sm hover:bg-gray-100 rounded-md px-2 py-1 ${isActive ? 'font-semibold' : ''}`
                     }
-                    onContextMenu={(e) => handleStudyContextMenu(e, study)}
                   >
                     {study.name}
                   </NavLink>

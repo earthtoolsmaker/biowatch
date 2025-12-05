@@ -7,7 +7,8 @@ import {
   Download,
   Pause,
   FolderOpen,
-  Upload
+  Upload,
+  Settings
 } from 'lucide-react'
 import { NavLink, Route, Routes, useParams } from 'react-router'
 import { ErrorBoundary } from 'react-error-boundary'
@@ -18,6 +19,7 @@ import Activity from './activity'
 import Media from './media'
 import Files from './files'
 import Export from './export'
+import StudySettings from './StudySettings'
 import { useImportStatus } from '@renderer/hooks/import'
 
 // Error fallback component
@@ -222,6 +224,15 @@ export default function Study() {
           <Upload color="black" size={20} className="pb-[2px]" />
           Export
         </NavLink>
+        <NavLink
+          to={`/study/${id}/settings`}
+          className={({ isActive }) =>
+            `${isActive ? 'bg-gray-100' : ''} cursor-pointer hover:bg-gray-100 transition-colors flex justify-center flex-row gap-2 items-center px-4 h-10 text-sm`
+          }
+        >
+          <Settings color="black" size={20} className="pb-[2px]" />
+          Settings
+        </NavLink>
 
         <ImportStatus studyId={id} importerName={study?.importerName} />
       </header>
@@ -274,6 +285,14 @@ export default function Study() {
             element={
               <ErrorBoundary FallbackComponent={ErrorFallback} key={'export'}>
                 <Export studyId={id} />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="settings"
+            element={
+              <ErrorBoundary FallbackComponent={ErrorFallback} key={'settings'}>
+                <StudySettings studyId={id} studyName={study.name} />
               </ErrorBoundary>
             }
           />
