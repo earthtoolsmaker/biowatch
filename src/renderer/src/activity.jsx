@@ -345,9 +345,8 @@ export default function Activity({ studyData, studyId }) {
       dateRange[0] === null &&
       dateRange[1] === null
     ) {
-      const totalPeriods = timeseriesData.length
-      const startIndex = Math.max(totalPeriods - Math.max(Math.ceil(totalPeriods * 0.3), 2), 0)
-      const endIndex = totalPeriods - 1
+      const startIndex = 0
+      const endIndex = timeseriesData.length - 1
 
       setDateRange([
         new Date(timeseriesData[startIndex].date),
