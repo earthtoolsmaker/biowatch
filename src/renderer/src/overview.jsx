@@ -445,8 +445,9 @@ export default function Overview({ data, studyId, studyName }) {
     if (editedTitle.trim() && editedTitle !== studyName) {
       await window.api.updateStudy(studyId, { name: editedTitle.trim() })
 
-      // Invalidate the study cache to refetch updated data
+      // Invalidate both study and studies cache to refetch updated data
       queryClient.invalidateQueries({ queryKey: ['study'] })
+      queryClient.invalidateQueries({ queryKey: ['studies'] })
     }
     setIsEditingTitle(false)
     setEditedTitle('')
