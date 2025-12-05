@@ -82,7 +82,7 @@ app.whenReady().then(() => {
   })
 
   ipcMain.handle('studies:update', async (event, id, update) => {
-    log.info('Updating study', id, 'with update:', update)
+    log.info('Updating study', id, 'with update:', JSON.stringify(update, null, 2))
 
     const dbPath = path.join(studiesPath, id, 'study.db')
     if (!fs.existsSync(dbPath)) {
