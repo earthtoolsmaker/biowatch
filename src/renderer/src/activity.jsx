@@ -274,6 +274,7 @@ export default function Activity({ studyData, studyId }) {
   const [timeRange, setTimeRange] = useState({ start: 0, end: 24 })
   const [timeseriesData, setTimeseriesData] = useState(null)
   const [heatmapData, setHeatmapData] = useState(null)
+  const [heatmapStatus, setHeatmapStatus] = useState('loading') // 'loading' | 'hasData' | 'noData'
   const [speciesDistributionData, setSpeciesDistributionData] = useState(null)
   const [dailyActivityData, setDailyActivityData] = useState(null)
   const { importStatus } = useImportStatus(actualStudyId, 5000)
@@ -377,6 +378,12 @@ export default function Activity({ studyData, studyId }) {
       }
 
       setHeatmapData(response.data)
+
+      // Determine status based on whether data has location points
+      const hasPoints =
+        response.data &&
+        Object.values(response.data).some((points) => points && points.length > 0)
+      setHeatmapStatus(hasPoints ? 'hasData' : 'noData')
     }
 
     fetchHeatmapData()
@@ -425,11 +432,6 @@ export default function Activity({ studyData, studyId }) {
 
   console.log('Selected species:', selectedSpecies.map((s) => s.scientificName).join(', '))
 
-  // Check if heatmapData has any actual location points
-  const hasLocationData =
-    heatmapData && Object.values(heatmapData).some((points) => points && points.length > 0)
-  const isLoading = !dateRange[0] || !dateRange[1]
-
   return (
     <div className="px-4 flex flex-col h-full">
       {error ? (
@@ -442,7 +444,7 @@ export default function Activity({ studyData, studyId }) {
 
             {/* Map - right side */}
             <div className="h-full flex-1">
-              {hasLocationData ? (
+              {heatmapStatus === 'hasData' ? (
                 <SpeciesMap
                   heatmapData={heatmapData}
                   selectedSpecies={selectedSpecies}
@@ -456,7 +458,7 @@ export default function Activity({ studyData, studyId }) {
                     timeRange.end
                   }
                 />
-              ) : isLoading ? null : (
+              ) : heatmapStatus === 'noData' ? (
                 <PlaceholderMap
                   title="No Species Location Data"
                   description="Select species from the list and set up deployment coordinates in the Deployments tab to view the species distribution map."
@@ -465,7 +467,7 @@ export default function Activity({ studyData, studyId }) {
                   icon={MapPin}
                   studyId={actualStudyId}
                 />
-              )}
+              ) : null}
             </div>
             <div className="h-full overflow-auto w-xs">
               {speciesDistributionData && (
