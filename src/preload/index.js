@@ -201,6 +201,10 @@ const api = {
   deleteObservation: async (studyId, observationID) => {
     return await electronAPI.ipcRenderer.invoke('observations:delete', studyId, observationID)
   },
+  // Create new observation with bbox
+  createObservation: async (studyId, observationData) => {
+    return await electronAPI.ipcRenderer.invoke('observations:create', studyId, observationData)
+  },
   // Get distinct species for dropdown
   getDistinctSpecies: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('species:get-distinct', studyId)

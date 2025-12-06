@@ -1543,6 +1543,110 @@ export async function deleteObservation(dbPath, observationID) {
 }
 
 /**
+ * Create a new observation with bounding box (human-drawn).
+ * Follows CamTrap DP specification for human classifications.
+ *
+ * @param {string} dbPath - Path to the SQLite database
+ * @param {Object} observationData - The observation data
+ * @param {string} observationData.mediaID - Associated media ID
+ * @param {string} observationData.deploymentID - Associated deployment ID
+ * @param {string} observationData.timestamp - Media timestamp (ISO 8601)
+ * @param {string|null} observationData.scientificName - Species (null for unknown)
+ * @param {string|null} observationData.commonName - Common name (optional)
+ * @param {number} observationData.bboxX - Left edge (0-1 normalized)
+ * @param {number} observationData.bboxY - Top edge (0-1 normalized)
+ * @param {number} observationData.bboxWidth - Width (0-1 normalized)
+ * @param {number} observationData.bboxHeight - Height (0-1 normalized)
+ * @returns {Promise<Object>} - The created observation
+ */
+export async function createObservation(dbPath, observationData) {
+  const startTime = Date.now()
+  log.info(`Creating new observation for media: ${observationData.mediaID}`)
+
+  try {
+    // Extract study ID from path
+    const pathParts = dbPath.split('/')
+    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+
+    const db = await getDrizzleDb(studyId, dbPath)
+
+    const {
+      mediaID,
+      deploymentID,
+      timestamp,
+      scientificName,
+      commonName,
+      bboxX,
+      bboxY,
+      bboxWidth,
+      bboxHeight
+    } = observationData
+
+    // Validate bbox values are in valid range
+    if (
+      bboxX < 0 ||
+      bboxX > 1 ||
+      bboxY < 0 ||
+      bboxY > 1 ||
+      bboxWidth <= 0 ||
+      bboxWidth > 1 ||
+      bboxHeight <= 0 ||
+      bboxHeight > 1 ||
+      bboxX + bboxWidth > 1.001 ||
+      bboxY + bboxHeight > 1.001
+    ) {
+      throw new Error('Invalid bbox coordinates: must be normalized (0-1) and within bounds')
+    }
+
+    // Generate IDs
+    const observationID = crypto.randomUUID()
+    const eventID = crypto.randomUUID()
+
+    // Prepare observation data following CamTrap DP specification
+    const newObservation = {
+      observationID,
+      mediaID,
+      deploymentID,
+      eventID,
+      eventStart: timestamp,
+      eventEnd: timestamp,
+      scientificName: scientificName || null,
+      commonName: commonName || null,
+      observationType: 'animal',
+      confidence: null, // Human classification - no confidence score
+      count: 1,
+      bboxX,
+      bboxY,
+      bboxWidth,
+      bboxHeight,
+      modelOutputID: null, // No model involved
+      classificationMethod: 'human',
+      classifiedBy: 'User',
+      classificationTimestamp: new Date().toISOString()
+    }
+
+    // Insert the observation
+    await db.insert(observations).values(newObservation)
+
+    // Fetch and return the created observation
+    const createdObservation = await db
+      .select()
+      .from(observations)
+      .where(eq(observations.observationID, observationID))
+      .get()
+
+    const elapsedTime = Date.now() - startTime
+    log.info(
+      `Created observation ${observationID} for species "${scientificName || 'unknown'}" in ${elapsedTime}ms`
+    )
+    return createdObservation
+  } catch (error) {
+    log.error(`Error creating observation: ${error.message}`)
+    throw error
+  }
+}
+
+/**
  * Get all distinct species names from the observations table
  * Used to populate dropdowns for species selection
  * @param {string} dbPath - Path to the SQLite database
