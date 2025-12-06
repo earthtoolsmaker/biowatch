@@ -303,6 +303,7 @@ const BboxLabel = forwardRef(function BboxLabel(
 /**
  * Overlay for drawing new bounding boxes.
  * Handles mouse events for click-drag bbox creation.
+ * Simple manual mode - when active, captures all mouse events for drawing.
  */
 function DrawingOverlay({ imageRef, containerRef, onComplete }) {
   const [drawStart, setDrawStart] = useState(null)
@@ -344,17 +345,18 @@ function DrawingOverlay({ imageRef, containerRef, onComplete }) {
   const handleMouseMove = useCallback(
     (e) => {
       if (!drawStart) return
+
       const bounds = imageBoundsRef.current
       if (!bounds) return
 
       const normalized = screenToNormalized(e.clientX, e.clientY, bounds)
-      if (normalized) {
-        // Clamp to image bounds
-        setDrawCurrent({
-          x: Math.max(0, Math.min(1, normalized.x)),
-          y: Math.max(0, Math.min(1, normalized.y))
-        })
-      }
+      if (!normalized) return
+
+      // Clamp to image bounds
+      setDrawCurrent({
+        x: Math.max(0, Math.min(1, normalized.x)),
+        y: Math.max(0, Math.min(1, normalized.y))
+      })
     },
     [drawStart]
   )
@@ -384,7 +386,6 @@ function DrawingOverlay({ imageRef, containerRef, onComplete }) {
         bboxHeight: height
       })
     }
-    // If too small, just clear - don't call onCancel to keep draw mode active
 
     setDrawStart(null)
     setDrawCurrent(null)
@@ -403,10 +404,9 @@ function DrawingOverlay({ imageRef, containerRef, onComplete }) {
 
   return (
     <>
-      {/* Transparent overlay to capture mouse events */}
+      {/* Transparent overlay to capture all mouse events for drawing */}
       <div
-        className="absolute inset-0 z-30"
-        style={{ cursor: 'crosshair' }}
+        className="absolute inset-0 z-30 cursor-crosshair"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
