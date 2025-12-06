@@ -198,9 +198,11 @@ function parseScientificName(prediction, modelType) {
 
 /**
  * Insert a prediction into the database with model provenance tracking
+ * Creates one observation per detection that passes the confidence threshold.
+ * If no detections pass the threshold, creates one observation with null bbox.
  * @param {Object} db - Drizzle database instance
  * @param {Object} prediction - Model prediction output
- * @param {Object} modelInfo - Model information { modelOutputID, modelID, modelVersion }
+ * @param {Object} modelInfo - Model information { modelOutputID, modelID, modelVersion, detectionConfidenceThreshold }
  */
 async function insertPrediction(db, prediction, modelInfo = {}) {
   const mediaRecord = await getMedia(db, prediction.filepath)
@@ -312,39 +314,68 @@ async function insertPrediction(db, prediction, modelInfo = {}) {
       ? `${modelInfo.modelID} ${modelInfo.modelVersion}`
       : null
 
-  // Create single observation per image with top-ranked detection bbox
+  // Create one observation per valid detection
+  // Best detection is always kept; threshold applies only to additional detections
   const detections = prediction.detections || []
+  const threshold = modelInfo.detectionConfidenceThreshold ?? 0.5
 
-  // Get top detection (highest confidence) if any exist
-  const topDetection =
-    detections.length > 0
-      ? detections.reduce((best, d) => (d.conf > best.conf ? d : best), detections[0])
-      : null
-
-  const bbox = topDetection ? transformBboxToCamtrapDP(topDetection, modelType) : null
-
-  const observationData = {
-    observationID: crypto.randomUUID(),
+  // Common observation data (shared across all observations for this media)
+  const eventID = crypto.randomUUID()
+  const baseObservationData = {
     mediaID: mediaRecord.mediaID,
     deploymentID: mediaRecord.deploymentID,
-    eventID: crypto.randomUUID(),
+    eventID: eventID,
     eventStart: mediaRecord.timestamp,
     eventEnd: mediaRecord.timestamp,
     scientificName: resolvedScientificName,
     confidence: prediction.prediction_score,
     count: 1,
-    bboxX: bbox?.bboxX ?? null,
-    bboxY: bbox?.bboxY ?? null,
-    bboxWidth: bbox?.bboxWidth ?? null,
-    bboxHeight: bbox?.bboxHeight ?? null,
-    // Model provenance fields
     modelOutputID: modelInfo.modelOutputID || null,
     classificationMethod: modelInfo.modelOutputID ? 'machine' : null,
     classifiedBy: classifiedBy,
     classificationTimestamp: classificationTimestamp
   }
 
-  await db.insert(observations).values(observationData)
+  if (detections.length > 0) {
+    // Sort detections by confidence descending
+    const sortedDetections = [...detections].sort((a, b) => b.conf - a.conf)
+
+    // Best detection is always kept (regardless of threshold)
+    const bestDetection = sortedDetections[0]
+
+    // Additional detections only if they pass threshold
+    const additionalDetections = sortedDetections.slice(1).filter((d) => d.conf >= threshold)
+
+    // Combine: best + filtered additional
+    const validDetections = [bestDetection, ...additionalDetections]
+
+    // Create one observation per valid detection
+    for (const detection of validDetections) {
+      const bbox = transformBboxToCamtrapDP(detection, modelType)
+      const observationData = {
+        ...baseObservationData,
+        observationID: crypto.randomUUID(),
+        bboxX: bbox?.bboxX ?? null,
+        bboxY: bbox?.bboxY ?? null,
+        bboxWidth: bbox?.bboxWidth ?? null,
+        bboxHeight: bbox?.bboxHeight ?? null,
+        detectionConfidence: detection.conf
+      }
+      await db.insert(observations).values(observationData)
+    }
+  } else {
+    // No detections at all: create one observation with null bbox
+    const observationData = {
+      ...baseObservationData,
+      observationID: crypto.randomUUID(),
+      bboxX: null,
+      bboxY: null,
+      bboxWidth: null,
+      bboxHeight: null,
+      detectionConfidence: null
+    }
+    await db.insert(observations).values(observationData)
+  }
   // log.info(`Inserted prediction for ${mediaRecord.fileName} into database`)
 }
 
@@ -629,7 +660,8 @@ export class Importer {
                     await insertPrediction(this.db, prediction, {
                       modelOutputID,
                       modelID: modelReference.id,
-                      modelVersion: modelReference.version
+                      modelVersion: modelReference.version,
+                      detectionConfidenceThreshold: model.detectionConfidenceThreshold
                     })
                   }
                 } finally {

@@ -43,6 +43,13 @@
       "when": 1764928927800,
       "tag": "0005_add_metadata_and_model_options",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1765038114335,
+      "tag": "0006_add_detection_confidence",
+      "breakpoints": true
     }
   ]
 }
