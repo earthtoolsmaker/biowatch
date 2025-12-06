@@ -7,8 +7,7 @@ import {
   Check,
   Search,
   Trash2,
-  Grid3x3,
-  Crop
+  Grid3x3
 } from 'lucide-react'
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
@@ -910,49 +909,13 @@ const palette = [
 ]
 
 /**
- * Calculate the smallest rectangle that encompasses all bboxes
- * Returns normalized coordinates (0-1) with padding
- */
-function calculateEncompassingRect(bboxes) {
-  if (!bboxes || bboxes.length === 0) return null
-
-  let minX = 1,
-    minY = 1,
-    maxX = 0,
-    maxY = 0
-
-  for (const bbox of bboxes) {
-    minX = Math.min(minX, bbox.bboxX)
-    minY = Math.min(minY, bbox.bboxY)
-    maxX = Math.max(maxX, bbox.bboxX + bbox.bboxWidth)
-    maxY = Math.max(maxY, bbox.bboxY + bbox.bboxHeight)
-  }
-
-  // Add 10% padding on each side, clamped to valid range
-  const padding = 0.1
-  return {
-    x: Math.max(0, minX - padding),
-    y: Math.max(0, minY - padding),
-    width: Math.min(1, maxX + padding) - Math.max(0, minX - padding),
-    height: Math.min(1, maxY + padding) - Math.max(0, minY - padding)
-  }
-}
-
-/**
  * Control bar for gallery view options
  */
-function GalleryControls({
-  showBboxes,
-  onToggleBboxes,
-  gridColumns,
-  onCycleGrid,
-  cropMode,
-  onToggleCrop
-}) {
+function GalleryControls({ showBboxes, onToggleBboxes, gridColumns, onCycleGrid }) {
   const gridLabels = { 3: '3x', 4: '4x', 5: '5x' }
 
   return (
-    <div className="flex items-center gap-2 mb-3 pb-3 border-b border-gray-200">
+    <div className="flex items-center justify-end gap-2 px-3 py-2 border-b border-gray-200 flex-shrink-0">
       {/* Show Bboxes Toggle */}
       <button
         onClick={onToggleBboxes}
@@ -976,49 +939,16 @@ function GalleryControls({
         <Grid3x3 size={16} />
         <span>{gridLabels[gridColumns]}</span>
       </button>
-
-      {/* Crop Mode Toggle */}
-      <button
-        onClick={onToggleCrop}
-        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-          cropMode
-            ? 'bg-lime-500 text-white hover:bg-lime-600'
-            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-        }`}
-        title="Crop to bounding box region"
-      >
-        <Crop size={16} />
-        <span>Crop</span>
-      </button>
     </div>
   )
 }
 
 /**
  * SVG overlay showing bboxes on a thumbnail
- * Fetches bbox data independently using React Query
+ * Receives bbox data as prop from parent (batch fetched at Gallery level)
  */
-function ThumbnailBboxOverlay({ mediaID, studyId, showBboxes, cropMode, onCropData }) {
-  const { data: bboxes = [] } = useQuery({
-    queryKey: ['thumbnailBboxes', studyId, mediaID],
-    queryFn: async () => {
-      const response = await window.api.getMediaBboxes(studyId, mediaID)
-      return response.data || []
-    },
-    enabled: (showBboxes || cropMode) && !!studyId && !!mediaID,
-    staleTime: 60000
-  })
-
-  // Calculate and report encompassing rectangle for crop mode
-  useEffect(() => {
-    if (cropMode && bboxes.length > 0 && onCropData) {
-      onCropData(calculateEncompassingRect(bboxes))
-    } else if (onCropData) {
-      onCropData(null)
-    }
-  }, [cropMode, bboxes, onCropData])
-
-  if (!showBboxes || bboxes.length === 0) return null
+function ThumbnailBboxOverlay({ bboxes }) {
+  if (!bboxes || bboxes.length === 0) return null
 
   return (
     <svg
@@ -1042,7 +972,7 @@ function ThumbnailBboxOverlay({ mediaID, studyId, showBboxes, cropMode, onCropDa
 }
 
 /**
- * Individual thumbnail card with optional bbox overlay and crop mode
+ * Individual thumbnail card with optional bbox overlay
  */
 function ThumbnailCard({
   media,
@@ -1051,68 +981,29 @@ function ThumbnailCard({
   imageErrors,
   setImageErrors,
   showBboxes,
-  cropMode,
-  studyId,
+  bboxes,
   widthClass
 }) {
-  const [cropData, setCropData] = useState(null)
-
-  // Calculate crop transform style
-  const getCropStyle = () => {
-    if (!cropMode || !cropData) return {}
-
-    const { x, y, width, height } = cropData
-    // Scale to fill the container based on the crop region
-    const scale = 1 / Math.max(width, height)
-    // Center the crop region
-    const translateX = -(x + width / 2 - 0.5) * 100 * scale
-    const translateY = -(y + height / 2 - 0.5) * 100 * scale
-
-    return {
-      transform: `scale(${scale}) translate(${translateX}%, ${translateY}%)`,
-      transformOrigin: 'center center'
-    }
-  }
-
-  // When crop mode is active with data, use fixed aspect ratio for proper clipping
-  const isCropping = cropMode && cropData
-
   return (
     <div
       className={`border border-gray-300 rounded-lg overflow-hidden min-w-[150px] ${widthClass} flex flex-col h-max transition-all`}
     >
       <div
-        className={`relative bg-gray-100 flex items-center justify-center cursor-pointer hover:bg-gray-200 transition-colors overflow-hidden ${
-          isCropping ? 'aspect-video' : ''
-        }`}
+        className="relative bg-gray-100 flex items-center justify-center cursor-pointer hover:bg-gray-200 transition-colors overflow-hidden"
         onClick={() => onImageClick(media)}
       >
-        {/* Wrapper for image + bbox - transforms together when cropping */}
-        <div
-          className={`relative ${isCropping ? 'w-full h-full' : 'w-full'} transition-transform`}
-          style={getCropStyle()}
-        >
+        <div className="relative w-full">
           <img
             src={constructImageUrl(media.filePath)}
             alt={media.fileName || `Media ${media.mediaID}`}
             data-image={media.filePath}
-            className={`w-full ${
-              isCropping ? 'object-cover h-full' : 'object-contain h-auto min-h-20'
-            } ${imageErrors[media.mediaID] ? 'hidden' : ''}`}
+            className={`w-full h-auto min-h-20 object-contain ${imageErrors[media.mediaID] ? 'hidden' : ''}`}
             onError={() => setImageErrors((prev) => ({ ...prev, [media.mediaID]: true }))}
             loading="lazy"
           />
 
-          {/* Bbox overlay - inside wrapper so it transforms with image */}
-          {showBboxes && (
-            <ThumbnailBboxOverlay
-              mediaID={media.mediaID}
-              studyId={studyId}
-              showBboxes={showBboxes}
-              cropMode={cropMode}
-              onCropData={setCropData}
-            />
-          )}
+          {/* Bbox overlay */}
+          {showBboxes && <ThumbnailBboxOverlay bboxes={bboxes} />}
         </div>
 
         {imageErrors[media.mediaID] && (
@@ -1149,7 +1040,6 @@ function Gallery({ species, dateRange, timeRange }) {
   // Grid controls state
   const [showThumbnailBboxes, setShowThumbnailBboxes] = useState(false)
   const [gridColumns, setGridColumns] = useState(3)
-  const [cropMode, setCropMode] = useState(false)
 
   // Grid column CSS classes
   const gridColumnClasses = {
@@ -1165,6 +1055,19 @@ function Gallery({ species, dateRange, timeRange }) {
   }, [])
 
   const { id } = useParams()
+
+  // Batch fetch bboxes for all visible media when showThumbnailBboxes is enabled
+  const mediaIDs = useMemo(() => mediaFiles.map((m) => m.mediaID), [mediaFiles])
+
+  const { data: bboxesByMedia = {} } = useQuery({
+    queryKey: ['thumbnailBboxesBatch', id, mediaIDs],
+    queryFn: async () => {
+      const response = await window.api.getMediaBboxesBatch(id, mediaIDs)
+      return response.data || {}
+    },
+    enabled: showThumbnailBboxes && mediaIDs.length > 0 && !!id,
+    staleTime: 60000
+  })
 
   // Debounce function
   const debounce = (func, delay) => {
@@ -1335,19 +1238,17 @@ function Gallery({ species, dateRange, timeRange }) {
         onTimestampUpdate={handleTimestampUpdate}
       />
 
-      <div className="flex flex-col h-full">
+      <div className="flex flex-col h-full bg-white rounded border border-gray-200 overflow-hidden">
         {/* Control Bar */}
         <GalleryControls
           showBboxes={showThumbnailBboxes}
           onToggleBboxes={() => setShowThumbnailBboxes((prev) => !prev)}
           gridColumns={gridColumns}
           onCycleGrid={handleCycleGrid}
-          cropMode={cropMode}
-          onToggleCrop={() => setCropMode((prev) => !prev)}
         />
 
         {/* Grid */}
-        <div className="flex flex-wrap gap-[12px] flex-1 overflow-auto">
+        <div className="flex flex-wrap gap-[12px] flex-1 overflow-auto p-3">
           {mediaFiles.map((media) => (
             <ThumbnailCard
               key={media.mediaID}
@@ -1357,8 +1258,7 @@ function Gallery({ species, dateRange, timeRange }) {
               imageErrors={imageErrors}
               setImageErrors={setImageErrors}
               showBboxes={showThumbnailBboxes}
-              cropMode={cropMode}
-              studyId={id}
+              bboxes={bboxesByMedia[media.mediaID] || []}
               widthClass={thumbnailWidthClass}
             />
           ))}

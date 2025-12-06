@@ -131,58 +131,69 @@ function SpeciesDistribution({ data, taxonomicData, selectedSpecies, onSpeciesCh
   }
 
   return (
-    <div className="w-full h-full bg-white rounded border border-gray-200 p-3 overflow-y-auto myscroll">
-      <div className="space-y-4">
-        {data.map((species, index) => {
-          // Try to get the common name from the taxonomic data first, then from the cache
-          const commonName =
-            scientificToCommonMap[species.scientificName] ||
-            commonNamesCache[species.scientificName]
+    <div className="w-full h-full bg-white rounded border border-gray-200 flex flex-col overflow-hidden">
+      {/* Header - matches GalleryControls height/style */}
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-200 flex-shrink-0">
+        <span className="text-sm font-medium text-gray-700">Species</span>
+        <span className="text-xs text-gray-400">({data.length})</span>
+      </div>
 
-          const isSelected = selectedSpecies.some(
-            (s) => s.scientificName === species.scientificName
-          )
-          const colorIndex = selectedSpecies.findIndex(
-            (s) => s.scientificName === species.scientificName
-          )
-          const color = colorIndex >= 0 ? palette[colorIndex % palette.length] : '#ccc'
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto p-3 myscroll">
+        <div className="space-y-4">
+          {data.map((species, index) => {
+            // Try to get the common name from the taxonomic data first, then from the cache
+            const commonName =
+              scientificToCommonMap[species.scientificName] ||
+              commonNamesCache[species.scientificName]
 
-          return (
-            <div
-              key={index}
-              className="cursor-pointer group"
-              onClick={() => handleSpeciesToggle(species)}
-            >
-              <div className="flex justify-between mb-1 items-center cursor-pointer">
-                <div className="flex items-center cursor-pointer">
+            const isSelected = selectedSpecies.some(
+              (s) => s.scientificName === species.scientificName
+            )
+            const colorIndex = selectedSpecies.findIndex(
+              (s) => s.scientificName === species.scientificName
+            )
+            const color = colorIndex >= 0 ? palette[colorIndex % palette.length] : '#ccc'
+
+            return (
+              <div
+                key={index}
+                className="cursor-pointer group"
+                onClick={() => handleSpeciesToggle(species)}
+              >
+                <div className="flex justify-between mb-1 items-center cursor-pointer">
+                  <div className="flex items-center cursor-pointer">
+                    <div
+                      className={`w-2 h-2 rounded-full mr-2 border cursor-pointer ${isSelected ? `border-transparent bg-[${color}]` : 'border-gray-300'} group-hover:bg-gray-800 `}
+                      style={{
+                        backgroundColor: isSelected ? color : null
+                      }}
+                    ></div>
+
+                    <span className="capitalize text-sm">
+                      {commonName || species.scientificName}
+                    </span>
+                    {species.scientificName && commonName !== undefined && (
+                      <span className="text-gray-500 text-sm italic ml-2">
+                        {species.scientificName}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-xs text-gray-500">{species.count}</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
                   <div
-                    className={`w-2 h-2 rounded-full mr-2 border cursor-pointer ${isSelected ? `border-transparent bg-[${color}]` : 'border-gray-300'} group-hover:bg-gray-800 `}
+                    className="h-2 rounded-full"
                     style={{
-                      backgroundColor: isSelected ? color : null
+                      width: `${(species.count / totalCount) * 100}%`,
+                      backgroundColor: isSelected ? color : '#ccc'
                     }}
                   ></div>
-
-                  <span className="capitalize text-sm">{commonName || species.scientificName}</span>
-                  {species.scientificName && commonName !== undefined && (
-                    <span className="text-gray-500 text-sm italic ml-2">
-                      {species.scientificName}
-                    </span>
-                  )}
                 </div>
-                <span className="text-xs text-gray-500">{species.count}</span>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="h-2 rounded-full"
-                  style={{
-                    width: `${(species.count / totalCount) * 100}%`,
-                    backgroundColor: isSelected ? color : '#ccc'
-                  }}
-                ></div>
-              </div>
-            </div>
-          )
-        })}
+            )
+          })}
+        </div>
       </div>
     </div>
   )
