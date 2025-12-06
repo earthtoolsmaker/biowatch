@@ -26,6 +26,7 @@ import {
   updateObservationClassification,
   updateObservationBbox,
   deleteObservation,
+  createObservation,
   getDistinctSpecies
 } from './queries'
 import { Importer } from './importer' //required to register handlers
@@ -801,6 +802,23 @@ app.whenReady().then(async () => {
       return { data: result }
     } catch (error) {
       log.error('Error deleting observation:', error)
+      return { error: error.message }
+    }
+  })
+
+  // Create new observation with bbox
+  ipcMain.handle('observations:create', async (_, studyId, observationData) => {
+    try {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) {
+        log.warn(`Database not found for study ID: ${studyId}`)
+        return { error: 'Database not found for this study' }
+      }
+
+      const newObservation = await createObservation(dbPath, observationData)
+      return { data: newObservation }
+    } catch (error) {
+      log.error('Error creating observation:', error)
       return { error: error.message }
     }
   })

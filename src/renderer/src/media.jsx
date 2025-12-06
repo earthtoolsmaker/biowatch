@@ -7,7 +7,8 @@ import {
   Check,
   Search,
   Trash2,
-  Grid3x3
+  Grid3x3,
+  Plus
 } from 'lucide-react'
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
@@ -18,6 +19,7 @@ import TimelineChart from './ui/timeseries'
 import DateTimePicker from './ui/DateTimePicker'
 import EditableBbox from './ui/EditableBbox'
 import { computeBboxLabelPosition, computeSelectorPosition } from './utils/positioning'
+import { getImageBounds, screenToNormalized } from './utils/bboxCoordinates'
 
 /**
  * Observation list panel - always visible list of all detections
@@ -298,6 +300,143 @@ const BboxLabel = forwardRef(function BboxLabel(
   )
 })
 
+/**
+ * Overlay for drawing new bounding boxes.
+ * Handles mouse events for click-drag bbox creation.
+ * Simple manual mode - when active, captures all mouse events for drawing.
+ */
+function DrawingOverlay({ imageRef, containerRef, onComplete }) {
+  const [drawStart, setDrawStart] = useState(null)
+  const [drawCurrent, setDrawCurrent] = useState(null)
+  const imageBoundsRef = useRef(null)
+
+  // Minimum bbox size (5% of image dimension)
+  const MIN_SIZE = 0.05
+
+  // Calculate image bounds when the overlay mounts or refs change
+  useEffect(() => {
+    const updateBounds = () => {
+      if (imageRef?.current && containerRef?.current) {
+        imageBoundsRef.current = getImageBounds(imageRef.current, containerRef.current)
+      }
+    }
+    updateBounds()
+
+    // Also update on resize
+    window.addEventListener('resize', updateBounds)
+    return () => window.removeEventListener('resize', updateBounds)
+  }, [imageRef, containerRef])
+
+  const handleMouseDown = useCallback((e) => {
+    e.stopPropagation()
+    const bounds = imageBoundsRef.current
+    if (!bounds) return
+
+    const normalized = screenToNormalized(e.clientX, e.clientY, bounds)
+    if (!normalized) return
+
+    // Only start if click is within image bounds (0-1)
+    if (normalized.x >= 0 && normalized.x <= 1 && normalized.y >= 0 && normalized.y <= 1) {
+      setDrawStart(normalized)
+      setDrawCurrent(normalized)
+    }
+  }, [])
+
+  const handleMouseMove = useCallback(
+    (e) => {
+      if (!drawStart) return
+
+      const bounds = imageBoundsRef.current
+      if (!bounds) return
+
+      const normalized = screenToNormalized(e.clientX, e.clientY, bounds)
+      if (!normalized) return
+
+      // Clamp to image bounds
+      setDrawCurrent({
+        x: Math.max(0, Math.min(1, normalized.x)),
+        y: Math.max(0, Math.min(1, normalized.y))
+      })
+    },
+    [drawStart]
+  )
+
+  const handleMouseUp = useCallback(() => {
+    if (!drawStart || !drawCurrent) {
+      setDrawStart(null)
+      setDrawCurrent(null)
+      return
+    }
+
+    // Calculate bbox from start and current points
+    const minX = Math.min(drawStart.x, drawCurrent.x)
+    const minY = Math.min(drawStart.y, drawCurrent.y)
+    const maxX = Math.max(drawStart.x, drawCurrent.x)
+    const maxY = Math.max(drawStart.y, drawCurrent.y)
+
+    const width = maxX - minX
+    const height = maxY - minY
+
+    // Minimum size check
+    if (width >= MIN_SIZE && height >= MIN_SIZE) {
+      onComplete({
+        bboxX: minX,
+        bboxY: minY,
+        bboxWidth: width,
+        bboxHeight: height
+      })
+    }
+
+    setDrawStart(null)
+    setDrawCurrent(null)
+  }, [drawStart, drawCurrent, onComplete])
+
+  // Calculate preview rect in percentages
+  const previewRect =
+    drawStart && drawCurrent
+      ? {
+          x: Math.min(drawStart.x, drawCurrent.x) * 100,
+          y: Math.min(drawStart.y, drawCurrent.y) * 100,
+          width: Math.abs(drawCurrent.x - drawStart.x) * 100,
+          height: Math.abs(drawCurrent.y - drawStart.y) * 100
+        }
+      : null
+
+  return (
+    <>
+      {/* Transparent overlay to capture all mouse events for drawing */}
+      <div
+        className="absolute inset-0 z-30 cursor-crosshair"
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+      />
+
+      {/* Drawing preview */}
+      {previewRect && (
+        <svg className="absolute inset-0 w-full h-full z-30 pointer-events-none">
+          <rect
+            x={`${previewRect.x}%`}
+            y={`${previewRect.y}%`}
+            width={`${previewRect.width}%`}
+            height={`${previewRect.height}%`}
+            stroke="#3b82f6"
+            strokeWidth="2"
+            strokeDasharray="5,5"
+            fill="rgba(59, 130, 246, 0.1)"
+          />
+        </svg>
+      )}
+
+      {/* Draw mode indicator */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 bg-blue-500 text-white px-3 py-1 rounded-full text-sm font-medium shadow-lg pointer-events-none">
+        Click and drag to draw a box
+      </div>
+    </>
+  )
+}
+
 function ImageModal({
   isOpen,
   onClose,
@@ -319,6 +458,8 @@ function ImageModal({
   const [selectedBboxId, setSelectedBboxId] = useState(null)
   const [showSpeciesSelector, setShowSpeciesSelector] = useState(false) // Only show when clicking label
   const [selectorPosition, setSelectorPosition] = useState(null)
+  // Draw mode state for creating new bboxes
+  const [isDrawMode, setIsDrawMode] = useState(false)
   const queryClient = useQueryClient()
 
   // Refs for positioning the species selector near the label
@@ -549,6 +690,8 @@ function ImageModal({
     onSettled: () => {
       // Refetch to ensure sync
       queryClient.invalidateQueries({ queryKey: ['mediaBboxes', studyId, media?.mediaID] })
+      // Also update thumbnail grid
+      queryClient.invalidateQueries({ queryKey: ['thumbnailBboxesBatch'] })
     }
   })
 
@@ -597,6 +740,8 @@ function ImageModal({
     onSettled: () => {
       // Refetch to ensure sync
       queryClient.invalidateQueries({ queryKey: ['mediaBboxes', studyId, media?.mediaID] })
+      // Also update thumbnail grid
+      queryClient.invalidateQueries({ queryKey: ['thumbnailBboxesBatch'] })
     }
   })
 
@@ -607,6 +752,75 @@ function ImageModal({
     [deleteMutation]
   )
 
+  // Mutation for creating new observation
+  const createMutation = useMutation({
+    mutationFn: async (observationData) => {
+      const response = await window.api.createObservation(studyId, observationData)
+      if (response.error) {
+        throw new Error(response.error)
+      }
+      return response.data
+    },
+    onSuccess: (data) => {
+      // Invalidate related queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['mediaBboxes', studyId, media?.mediaID] })
+      queryClient.invalidateQueries({ queryKey: ['distinctSpecies', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['speciesDistribution'] })
+      // Also update thumbnail grid
+      queryClient.invalidateQueries({ queryKey: ['thumbnailBboxesBatch'] })
+      // Exit draw mode and select the new observation
+      setIsDrawMode(false)
+      setSelectedBboxId(data.observationID)
+    }
+  })
+
+  // Get default species from existing bboxes (most confident)
+  const getDefaultSpecies = useCallback(() => {
+    if (!bboxes || bboxes.length === 0) return { scientificName: null, commonName: null }
+
+    // Find observation with highest confidence
+    const withConfidence = bboxes.filter((b) => b.confidence != null)
+    if (withConfidence.length === 0) {
+      // No confidence scores - use first with a species name
+      const withSpecies = bboxes.find((b) => b.scientificName)
+      return {
+        scientificName: withSpecies?.scientificName || null,
+        commonName: withSpecies?.commonName || null
+      }
+    }
+
+    const mostConfident = withConfidence.reduce((best, b) =>
+      b.confidence > best.confidence ? b : best
+    )
+    return {
+      scientificName: mostConfident.scientificName,
+      commonName: mostConfident.commonName || null
+    }
+  }, [bboxes])
+
+  // Handle draw completion - create new observation
+  const handleDrawComplete = useCallback(
+    (bbox) => {
+      if (!media) return
+
+      const defaultSpecies = getDefaultSpecies()
+      const observationData = {
+        mediaID: media.mediaID,
+        deploymentID: media.deploymentID,
+        timestamp: media.timestamp,
+        scientificName: defaultSpecies.scientificName,
+        commonName: defaultSpecies.commonName,
+        bboxX: bbox.bboxX,
+        bboxY: bbox.bboxY,
+        bboxWidth: bbox.bboxWidth,
+        bboxHeight: bbox.bboxHeight
+      }
+
+      createMutation.mutate(observationData)
+    },
+    [media, getDefaultSpecies, createMutation]
+  )
+
   useEffect(() => {
     if (!isOpen) return
 
@@ -614,17 +828,30 @@ function ImageModal({
       // Don't handle navigation keys when editing timestamp
       if (isEditingTimestamp || showDatePicker) return
 
-      // Don't handle navigation if a bbox is selected (user is editing)
+      // Handle escape in draw mode
+      if (isDrawMode) {
+        if (e.key === 'Escape') {
+          setIsDrawMode(false)
+        }
+        return
+      }
+
+      // Handle keys when a bbox is selected
       if (selectedBboxId) {
         if (e.key === 'Escape') {
           setSelectedBboxId(null)
+        } else if (e.key === 'Delete' || e.key === 'Backspace') {
+          e.preventDefault()
+          handleDeleteObservation(selectedBboxId)
         }
         return
       }
 
       if (e.key === 'ArrowLeft' && hasPrevious) {
+        setIsDrawMode(false)
         onPrevious()
       } else if (e.key === 'ArrowRight' && hasNext) {
+        setIsDrawMode(false)
         onNext()
       } else if (e.key === 'Escape') {
         onClose()
@@ -644,12 +871,15 @@ function ImageModal({
     hasPrevious,
     isEditingTimestamp,
     showDatePicker,
-    selectedBboxId
+    selectedBboxId,
+    isDrawMode,
+    handleDeleteObservation
   ])
 
-  // Reset selection when changing images
+  // Reset selection and draw mode when changing images
   useEffect(() => {
     setSelectedBboxId(null)
+    setIsDrawMode(false)
   }, [media?.mediaID])
 
   if (!isOpen || !media) return null
@@ -692,6 +922,26 @@ function ImageModal({
             <Square size={24} />
           </button>
         )}
+
+        {/* Add bbox button */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            setIsDrawMode(true)
+            setSelectedBboxId(null)
+            setShowSpeciesSelector(false)
+            setShowBboxes(true) // Ensure bboxes are visible when adding
+          }}
+          className={`absolute top-0 z-10 rounded-full p-2 transition-colors ${
+            hasBboxes ? 'right-24' : 'right-12'
+          } ${
+            isDrawMode ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-white hover:bg-gray-100'
+          }`}
+          aria-label="Add new bounding box"
+          title="Add new detection (click and drag on image)"
+        >
+          <Plus size={24} />
+        </button>
 
         <div
           className="bg-white rounded-lg overflow-hidden shadow-2xl max-h-[90vh] flex flex-col max-w-full"
@@ -759,6 +1009,15 @@ function ImageModal({
                   ))}
                 </div>
               </>
+            )}
+
+            {/* Drawing overlay - only show when in draw mode */}
+            {isDrawMode && (
+              <DrawingOverlay
+                imageRef={imageRef}
+                containerRef={imageContainerRef}
+                onComplete={handleDrawComplete}
+              />
             )}
           </div>
 
