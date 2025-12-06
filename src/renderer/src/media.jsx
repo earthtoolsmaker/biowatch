@@ -980,12 +980,11 @@ function GalleryControls({
       {/* Crop Mode Toggle */}
       <button
         onClick={onToggleCrop}
-        disabled={!showBboxes}
         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
           cropMode
             ? 'bg-lime-500 text-white hover:bg-lime-600'
             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-        } ${!showBboxes ? 'opacity-50 cursor-not-allowed' : ''}`}
+        }`}
         title="Crop to bounding box region"
       >
         <Crop size={16} />
@@ -1006,7 +1005,7 @@ function ThumbnailBboxOverlay({ mediaID, studyId, showBboxes, cropMode, onCropDa
       const response = await window.api.getMediaBboxes(studyId, mediaID)
       return response.data || []
     },
-    enabled: showBboxes && !!studyId && !!mediaID,
+    enabled: (showBboxes || cropMode) && !!studyId && !!mediaID,
     staleTime: 60000
   })
 
@@ -1088,36 +1087,41 @@ function ThumbnailCard({
         }`}
         onClick={() => onImageClick(media)}
       >
-        <img
-          src={constructImageUrl(media.filePath)}
-          alt={media.fileName || `Media ${media.mediaID}`}
-          data-image={media.filePath}
-          className={`w-full transition-transform ${
-            isCropping ? 'object-cover h-full' : 'object-contain h-auto min-h-20'
-          } ${imageErrors[media.mediaID] ? 'hidden' : ''}`}
+        {/* Wrapper for image + bbox - transforms together when cropping */}
+        <div
+          className={`relative ${isCropping ? 'w-full h-full' : 'w-full'} transition-transform`}
           style={getCropStyle()}
-          onError={() => setImageErrors((prev) => ({ ...prev, [media.mediaID]: true }))}
-          loading="lazy"
-        />
+        >
+          <img
+            src={constructImageUrl(media.filePath)}
+            alt={media.fileName || `Media ${media.mediaID}`}
+            data-image={media.filePath}
+            className={`w-full ${
+              isCropping ? 'object-cover h-full' : 'object-contain h-auto min-h-20'
+            } ${imageErrors[media.mediaID] ? 'hidden' : ''}`}
+            onError={() => setImageErrors((prev) => ({ ...prev, [media.mediaID]: true }))}
+            loading="lazy"
+          />
+
+          {/* Bbox overlay - inside wrapper so it transforms with image */}
+          {showBboxes && (
+            <ThumbnailBboxOverlay
+              mediaID={media.mediaID}
+              studyId={studyId}
+              showBboxes={showBboxes}
+              cropMode={cropMode}
+              onCropData={setCropData}
+            />
+          )}
+        </div>
 
         {imageErrors[media.mediaID] && (
           <div
-            className="flex items-center justify-center w-full h-full bg-gray-100 text-gray-400"
+            className="absolute inset-0 flex items-center justify-center bg-gray-100 text-gray-400"
             title="Image not available"
           >
             <CameraOff size={32} />
           </div>
-        )}
-
-        {/* Bbox overlay */}
-        {showBboxes && (
-          <ThumbnailBboxOverlay
-            mediaID={media.mediaID}
-            studyId={studyId}
-            showBboxes={showBboxes}
-            cropMode={cropMode}
-            onCropData={setCropData}
-          />
         )}
       </div>
 
