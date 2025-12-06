@@ -836,10 +836,13 @@ function ImageModal({
         return
       }
 
-      // Don't handle navigation if a bbox is selected (user is editing)
+      // Handle keys when a bbox is selected
       if (selectedBboxId) {
         if (e.key === 'Escape') {
           setSelectedBboxId(null)
+        } else if (e.key === 'Delete' || e.key === 'Backspace') {
+          e.preventDefault()
+          handleDeleteObservation(selectedBboxId)
         }
         return
       }
@@ -869,7 +872,8 @@ function ImageModal({
     isEditingTimestamp,
     showDatePicker,
     selectedBboxId,
-    isDrawMode
+    isDrawMode,
+    handleDeleteObservation
   ])
 
   // Reset selection and draw mode when changing images
