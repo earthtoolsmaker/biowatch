@@ -7,7 +7,7 @@ import {
   getStudyDatabase,
   executeRawQuery
 } from './db/index.js'
-import { eq, and, desc, count, sql, isNotNull, ne } from 'drizzle-orm'
+import { eq, and, desc, count, sql, isNotNull, ne, inArray } from 'drizzle-orm'
 import log from 'electron-log'
 import { DateTime } from 'luxon'
 
@@ -1074,6 +1074,62 @@ export async function getMediaBboxes(dbPath, mediaID) {
     return rows
   } catch (error) {
     log.error(`Error querying media bboxes: ${error.message}`)
+    throw error
+  }
+}
+
+/**
+ * Get bboxes for multiple media items in a single query
+ * @param {string} dbPath - Path to the SQLite database
+ * @param {string[]} mediaIDs - Array of media IDs to fetch bboxes for
+ * @returns {Promise<Object>} - Map of mediaID -> bboxes[]
+ */
+export async function getMediaBboxesBatch(dbPath, mediaIDs) {
+  if (!mediaIDs || mediaIDs.length === 0) return {}
+
+  const startTime = Date.now()
+  log.info(`Querying bboxes for ${mediaIDs.length} media items`)
+
+  try {
+    const pathParts = dbPath.split('/')
+    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+
+    const db = await getDrizzleDb(studyId, dbPath)
+
+    const rows = await db
+      .select({
+        mediaID: observations.mediaID,
+        observationID: observations.observationID,
+        scientificName: observations.scientificName,
+        confidence: observations.confidence,
+        bboxX: observations.bboxX,
+        bboxY: observations.bboxY,
+        bboxWidth: observations.bboxWidth,
+        bboxHeight: observations.bboxHeight,
+        classificationMethod: observations.classificationMethod,
+        classifiedBy: observations.classifiedBy,
+        classificationTimestamp: observations.classificationTimestamp
+      })
+      .from(observations)
+      .where(and(inArray(observations.mediaID, mediaIDs), isNotNull(observations.bboxX)))
+      .orderBy(observations.mediaID, desc(observations.confidence))
+
+    // Group results by mediaID
+    const bboxesByMedia = {}
+    for (const row of rows) {
+      if (!bboxesByMedia[row.mediaID]) {
+        bboxesByMedia[row.mediaID] = []
+      }
+      bboxesByMedia[row.mediaID].push(row)
+    }
+
+    const elapsedTime = Date.now() - startTime
+    log.info(
+      `Retrieved bboxes for ${Object.keys(bboxesByMedia).length} media items in ${elapsedTime}ms`
+    )
+    return bboxesByMedia
+  } catch (error) {
+    log.error(`Error querying media bboxes batch: ${error.message}`)
     throw error
   }
 }

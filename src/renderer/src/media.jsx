@@ -1,4 +1,14 @@
-import { CameraOff, X, Square, Calendar, Pencil, Check, Search, Trash2 } from 'lucide-react'
+import {
+  CameraOff,
+  X,
+  Square,
+  Calendar,
+  Pencil,
+  Check,
+  Search,
+  Trash2,
+  Grid3x3
+} from 'lucide-react'
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { useParams } from 'react-router'
@@ -898,6 +908,122 @@ const palette = [
   'hsl(27 87% 67%)'
 ]
 
+/**
+ * Control bar for gallery view options
+ */
+function GalleryControls({ showBboxes, onToggleBboxes, gridColumns, onCycleGrid }) {
+  const gridLabels = { 3: '3x', 4: '4x', 5: '5x' }
+
+  return (
+    <div className="flex items-center justify-end gap-2 px-3 py-2 border-b border-gray-200 flex-shrink-0">
+      {/* Show Bboxes Toggle */}
+      <button
+        onClick={onToggleBboxes}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+          showBboxes
+            ? 'bg-lime-500 text-white hover:bg-lime-600'
+            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+        }`}
+        title="Show bounding boxes on thumbnails"
+      >
+        <Square size={16} />
+        <span>Boxes</span>
+      </button>
+
+      {/* Grid Density Cycle */}
+      <button
+        onClick={onCycleGrid}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+        title={`Grid: ${gridColumns} columns (click to cycle)`}
+      >
+        <Grid3x3 size={16} />
+        <span>{gridLabels[gridColumns]}</span>
+      </button>
+    </div>
+  )
+}
+
+/**
+ * SVG overlay showing bboxes on a thumbnail
+ * Receives bbox data as prop from parent (batch fetched at Gallery level)
+ */
+function ThumbnailBboxOverlay({ bboxes }) {
+  if (!bboxes || bboxes.length === 0) return null
+
+  return (
+    <svg
+      className="absolute inset-0 w-full h-full pointer-events-none z-10"
+      preserveAspectRatio="none"
+    >
+      {bboxes.map((bbox, index) => (
+        <rect
+          key={bbox.observationID || index}
+          x={`${bbox.bboxX * 100}%`}
+          y={`${bbox.bboxY * 100}%`}
+          width={`${bbox.bboxWidth * 100}%`}
+          height={`${bbox.bboxHeight * 100}%`}
+          stroke="#84cc16"
+          strokeWidth="2"
+          fill="none"
+        />
+      ))}
+    </svg>
+  )
+}
+
+/**
+ * Individual thumbnail card with optional bbox overlay
+ */
+function ThumbnailCard({
+  media,
+  constructImageUrl,
+  onImageClick,
+  imageErrors,
+  setImageErrors,
+  showBboxes,
+  bboxes,
+  widthClass
+}) {
+  return (
+    <div
+      className={`border border-gray-300 rounded-lg overflow-hidden min-w-[150px] ${widthClass} flex flex-col h-max transition-all`}
+    >
+      <div
+        className="relative bg-gray-100 flex items-center justify-center cursor-pointer hover:bg-gray-200 transition-colors overflow-hidden"
+        onClick={() => onImageClick(media)}
+      >
+        <div className="relative w-full">
+          <img
+            src={constructImageUrl(media.filePath)}
+            alt={media.fileName || `Media ${media.mediaID}`}
+            data-image={media.filePath}
+            className={`w-full h-auto min-h-20 object-contain ${imageErrors[media.mediaID] ? 'hidden' : ''}`}
+            onError={() => setImageErrors((prev) => ({ ...prev, [media.mediaID]: true }))}
+            loading="lazy"
+          />
+
+          {/* Bbox overlay */}
+          {showBboxes && <ThumbnailBboxOverlay bboxes={bboxes} />}
+        </div>
+
+        {imageErrors[media.mediaID] && (
+          <div
+            className="absolute inset-0 flex items-center justify-center bg-gray-100 text-gray-400"
+            title="Image not available"
+          >
+            <CameraOff size={32} />
+          </div>
+        )}
+      </div>
+
+      <div className="p-2">
+        <h3 className="text-sm font-semibold truncate">{media.scientificName}</h3>
+        <p className="text-xs text-gray-500">{new Date(media.timestamp).toLocaleString()}</p>
+      </div>
+    </div>
+  )
+}
+
 function Gallery({ species, dateRange, timeRange }) {
   const [mediaFiles, setMediaFiles] = useState([])
   const [loading, setLoading] = useState(true)
@@ -911,7 +1037,37 @@ function Gallery({ species, dateRange, timeRange }) {
   const PAGE_SIZE = 15
   const debounceTimeoutRef = useRef(null)
 
+  // Grid controls state
+  const [showThumbnailBboxes, setShowThumbnailBboxes] = useState(false)
+  const [gridColumns, setGridColumns] = useState(3)
+
+  // Grid column CSS classes
+  const gridColumnClasses = {
+    3: 'w-[calc(33.333%-8px)]',
+    4: 'w-[calc(25%-9px)]',
+    5: 'w-[calc(20%-10px)]'
+  }
+  const thumbnailWidthClass = gridColumnClasses[gridColumns]
+
+  // Cycle grid density handler
+  const handleCycleGrid = useCallback(() => {
+    setGridColumns((prev) => (prev === 5 ? 3 : prev + 1))
+  }, [])
+
   const { id } = useParams()
+
+  // Batch fetch bboxes for all visible media when showThumbnailBboxes is enabled
+  const mediaIDs = useMemo(() => mediaFiles.map((m) => m.mediaID), [mediaFiles])
+
+  const { data: bboxesByMedia = {} } = useQuery({
+    queryKey: ['thumbnailBboxesBatch', id, mediaIDs],
+    queryFn: async () => {
+      const response = await window.api.getMediaBboxesBatch(id, mediaIDs)
+      return response.data || {}
+    },
+    enabled: showThumbnailBboxes && mediaIDs.length > 0 && !!id,
+    staleTime: 60000
+  })
 
   // Debounce function
   const debounce = (func, delay) => {
@@ -1081,56 +1237,47 @@ function Gallery({ species, dateRange, timeRange }) {
         studyId={id}
         onTimestampUpdate={handleTimestampUpdate}
       />
-      <div className="flex flex-wrap gap-[12px] h-full overflow-auto">
-        {mediaFiles.map((media) => (
-          <div
-            key={media.mediaID}
-            className="border border-gray-300 rounded-lg overflow-hidden min-w-[200px] w-[calc(33%-7px)] flex flex-col h-max"
-          >
-            <div
-              className="bg-gray-100 flex items-center justify-center cursor-pointer hover:bg-gray-200 transition-colors"
-              onClick={() => handleImageClick(media)}
-            >
-              <img
-                src={constructImageUrl(media.filePath)}
-                alt={media.fileName || `Media ${media.mediaID}`}
-                data-image={media.filePath}
-                className={`object-contain w-full h-auto min-h-20 ${imageErrors[media.mediaID] ? 'hidden' : ''}`}
-                onError={() => {
-                  setImageErrors((prev) => ({ ...prev, [media.mediaID]: true }))
-                }}
-                loading="lazy"
-              />
-              {imageErrors[media.mediaID] && (
-                <div
-                  className="flex items-center justify-center w-full h-full bg-gray-100 text-gray-400 flex-1"
-                  title={`Image not available or failed to load because it's not public or has been deleted/moved locally ${media.filePath}`}
-                >
-                  <CameraOff size={32} />
-                </div>
-              )}
-            </div>
-            <div className="p-2">
-              <h3 className="text-sm font-semibold truncate">{media.scientificName}</h3>
-              <p className="text-xs text-gray-500">{new Date(media.timestamp).toLocaleString()}</p>
-            </div>
-          </div>
-        ))}
 
-        {/* Loading indicator and intersection target */}
-        <div ref={loaderRef} className="w-full flex justify-center p-4">
-          {loading && !initialLoad && (
-            <div className="flex items-center justify-center">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
-              <span className="ml-2">Loading more...</span>
-            </div>
-          )}
-          {!hasMore && mediaFiles.length > 0 && (
-            <p className="text-gray-500 text-sm">No more images to load</p>
-          )}
-          {!hasMore && mediaFiles.length === 0 && !loading && (
-            <p className="text-gray-500">No media files match the selected filters</p>
-          )}
+      <div className="flex flex-col h-full bg-white rounded border border-gray-200 overflow-hidden">
+        {/* Control Bar */}
+        <GalleryControls
+          showBboxes={showThumbnailBboxes}
+          onToggleBboxes={() => setShowThumbnailBboxes((prev) => !prev)}
+          gridColumns={gridColumns}
+          onCycleGrid={handleCycleGrid}
+        />
+
+        {/* Grid */}
+        <div className="flex flex-wrap gap-[12px] flex-1 overflow-auto p-3">
+          {mediaFiles.map((media) => (
+            <ThumbnailCard
+              key={media.mediaID}
+              media={media}
+              constructImageUrl={constructImageUrl}
+              onImageClick={handleImageClick}
+              imageErrors={imageErrors}
+              setImageErrors={setImageErrors}
+              showBboxes={showThumbnailBboxes}
+              bboxes={bboxesByMedia[media.mediaID] || []}
+              widthClass={thumbnailWidthClass}
+            />
+          ))}
+
+          {/* Loading indicator and intersection target */}
+          <div ref={loaderRef} className="w-full flex justify-center p-4">
+            {loading && !initialLoad && (
+              <div className="flex items-center justify-center">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
+                <span className="ml-2">Loading more...</span>
+              </div>
+            )}
+            {!hasMore && mediaFiles.length > 0 && (
+              <p className="text-gray-500 text-sm">No more images to load</p>
+            )}
+            {!hasMore && mediaFiles.length === 0 && !loading && (
+              <p className="text-gray-500">No media files match the selected filters</p>
+            )}
+          </div>
         </div>
       </div>
     </>

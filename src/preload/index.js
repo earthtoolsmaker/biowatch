@@ -59,6 +59,9 @@ const api = {
   getMediaBboxes: async (studyId, mediaID) => {
     return await electronAPI.ipcRenderer.invoke('media:get-bboxes', studyId, mediaID)
   },
+  getMediaBboxesBatch: async (studyId, mediaIDs) => {
+    return await electronAPI.ipcRenderer.invoke('media:get-bboxes-batch', studyId, mediaIDs)
+  },
   getSpeciesDailyActivity: async (studyId, species, startDate, endDate) => {
     return await electronAPI.ipcRenderer.invoke(
       'activity:get-daily',

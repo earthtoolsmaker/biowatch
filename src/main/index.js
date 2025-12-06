@@ -16,6 +16,7 @@ import {
   getDeploymentsActivity,
   getMedia,
   getMediaBboxes,
+  getMediaBboxesBatch,
   getSpeciesDailyActivity,
   getSpeciesDistribution,
   getSpeciesHeatmapData,
@@ -725,6 +726,23 @@ app.whenReady().then(async () => {
       return { data: bboxes }
     } catch (error) {
       log.error('Error getting media bboxes:', error)
+      return { error: error.message }
+    }
+  })
+
+  // Get bounding boxes for multiple media files in a single batch
+  ipcMain.handle('media:get-bboxes-batch', async (_, studyId, mediaIDs) => {
+    try {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) {
+        log.warn(`Database not found for study ID: ${studyId}`)
+        return { error: 'Database not found for this study' }
+      }
+
+      const bboxesByMedia = await getMediaBboxesBatch(dbPath, mediaIDs)
+      return { data: bboxesByMedia }
+    } catch (error) {
+      log.error('Error getting media bboxes batch:', error)
       return { error: error.message }
     }
   })
