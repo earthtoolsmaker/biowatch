@@ -1050,6 +1050,7 @@ export async function getMediaBboxes(dbPath, mediaID) {
         o.observationID,
         o.scientificName,
         o.confidence,
+        o.detectionConfidence,
         o.bboxX,
         o.bboxY,
         o.bboxWidth,
@@ -1064,7 +1065,7 @@ export async function getMediaBboxes(dbPath, mediaID) {
       LEFT JOIN model_runs mr ON mo.runID = mr.id
       WHERE o.mediaID = ?
       AND o.bboxX IS NOT NULL
-      ORDER BY o.confidence DESC
+      ORDER BY o.detectionConfidence DESC
     `
 
     const rows = await executeRawQuery(studyId, dbPath, query, [mediaID])
@@ -1102,6 +1103,7 @@ export async function getMediaBboxesBatch(dbPath, mediaIDs) {
         observationID: observations.observationID,
         scientificName: observations.scientificName,
         confidence: observations.confidence,
+        detectionConfidence: observations.detectionConfidence,
         bboxX: observations.bboxX,
         bboxY: observations.bboxY,
         bboxWidth: observations.bboxWidth,
@@ -1112,7 +1114,7 @@ export async function getMediaBboxesBatch(dbPath, mediaIDs) {
       })
       .from(observations)
       .where(and(inArray(observations.mediaID, mediaIDs), isNotNull(observations.bboxX)))
-      .orderBy(observations.mediaID, desc(observations.confidence))
+      .orderBy(observations.mediaID, desc(observations.detectionConfidence))
 
     // Group results by mediaID
     const bboxesByMedia = {}

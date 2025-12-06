@@ -82,6 +82,8 @@ export const observations = sqliteTable('observations', {
   bboxY: real('bboxY'),
   bboxWidth: real('bboxWidth'),
   bboxHeight: real('bboxHeight'),
+  // Detection confidence (bbox confidence from model, separate from classification confidence)
+  detectionConfidence: real('detectionConfidence'),
   // Model output link (nullable - NULL if manual entry without model)
   modelOutputID: text('modelOutputID').references(() => modelOutputs.id),
   // Camtrap DP classification fields (all nullable)
