@@ -17,11 +17,8 @@ import {
 } from 'lucide-react'
 import PlaceholderMap from './ui/PlaceholderMap'
 import { useImportStatus } from '@renderer/hooks/import'
-import { useQueryClient, useQuery } from '@tanstack/react-query'
+import { useQueryClient, useQuery, useQueries } from '@tanstack/react-query'
 import DateTimePicker from './ui/DateTimePicker'
-
-// Create a module-level cache for common names that persists across component unmounts
-const commonNamesCache = {}
 
 // Contributor roles per camtrap-dp spec
 const CONTRIBUTOR_ROLES = [
@@ -138,109 +135,94 @@ function DeploymentMap({ deployments, studyId }) {
   )
 }
 
+// Helper function to fetch common name from GBIF API
+async function fetchGbifCommonName(scientificName) {
+  try {
+    // Step 1: Match the scientific name to get usageKey
+    const matchResponse = await fetch(
+      `https://api.gbif.org/v1/species/match?name=${encodeURIComponent(scientificName)}`
+    )
+    const matchData = await matchResponse.json()
+
+    // Check if we got a valid usageKey
+    if (!matchData.usageKey) {
+      return null
+    }
+
+    // Step 2: Use the usageKey to fetch vernacular names
+    const vernacularResponse = await fetch(
+      `https://api.gbif.org/v1/species/${matchData.usageKey}/vernacularNames`
+    )
+    const vernacularData = await vernacularResponse.json()
+
+    // Find English vernacular name if available
+    if (vernacularData && vernacularData.results && vernacularData.results.length > 0) {
+      // Prefer English names
+      const englishName = vernacularData.results.find(
+        (name) => name.language === 'eng' || name.language === 'en'
+      )
+
+      if (englishName) {
+        return englishName.vernacularName
+      }
+
+      // If no English name, return the first available name
+      return vernacularData.results[0].vernacularName
+    }
+
+    return null
+  } catch (error) {
+    console.error(`Error fetching common name for ${scientificName}:`, error)
+    return null
+  }
+}
+
 // Export SpeciesDistribution so it can be imported in activity.jsx
 function SpeciesDistribution({ data, taxonomicData }) {
   const totalCount = data.reduce((sum, item) => sum + item.count, 0)
 
   // Create a map of scientific names to common names from taxonomic data
-  const scientificToCommonMap = {}
-  if (taxonomicData && Array.isArray(taxonomicData)) {
-    taxonomicData.forEach((taxon) => {
-      if (taxon.scientificName && taxon?.vernacularNames?.eng) {
-        scientificToCommonMap[taxon.scientificName] = taxon.vernacularNames.eng
+  const scientificToCommonMap = useMemo(() => {
+    const map = {}
+    if (taxonomicData && Array.isArray(taxonomicData)) {
+      taxonomicData.forEach((taxon) => {
+        if (taxon.scientificName && taxon?.vernacularNames?.eng) {
+          map[taxon.scientificName] = taxon.vernacularNames.eng
+        }
+      })
+    }
+    return map
+  }, [taxonomicData])
+
+  // Find species that need GBIF lookup (not in taxonomic data)
+  const speciesNeedingLookup = useMemo(() => {
+    if (!data) return []
+    return data
+      .filter((species) => species.scientificName && !scientificToCommonMap[species.scientificName])
+      .map((species) => species.scientificName)
+  }, [data, scientificToCommonMap])
+
+  // Use useQueries to fetch common names for all species that need lookup
+  const gbifQueries = useQueries({
+    queries: speciesNeedingLookup.map((scientificName) => ({
+      queryKey: ['gbifCommonName', scientificName],
+      queryFn: () => fetchGbifCommonName(scientificName),
+      staleTime: 1000 * 60 * 60 * 24, // 24 hours - common names rarely change
+      retry: 1
+    }))
+  })
+
+  // Build a map of GBIF common names from query results
+  const gbifCommonNames = useMemo(() => {
+    const map = {}
+    speciesNeedingLookup.forEach((name, index) => {
+      const query = gbifQueries[index]
+      if (query.data) {
+        map[name] = query.data
       }
     })
-  }
-
-  // Function to fetch common names from Global Biodiversity Information Facility (GBIF)
-  // with caching implementation using module-level cache
-  async function fetchCommonName(scientificName) {
-    // Check cache first
-    if (commonNamesCache[scientificName] !== undefined) {
-      return commonNamesCache[scientificName]
-    }
-
-    try {
-      // Step 1: Match the scientific name to get usageKey
-      const matchResponse = await fetch(
-        `https://api.gbif.org/v1/species/match?name=${encodeURIComponent(scientificName)}`
-      )
-      const matchData = await matchResponse.json()
-
-      // Check if we got a valid usageKey
-      if (!matchData.usageKey) {
-        // Cache the null result to avoid future requests
-        commonNamesCache[scientificName] = null
-        return null
-      }
-
-      // Step 2: Use the usageKey to fetch vernacular names
-      const vernacularResponse = await fetch(
-        `https://api.gbif.org/v1/species/${matchData.usageKey}/vernacularNames`
-      )
-      const vernacularData = await vernacularResponse.json()
-
-      // Find English vernacular name if available
-      if (vernacularData && vernacularData.results && vernacularData.results.length > 0) {
-        // Prefer English names
-        const englishName = vernacularData.results.find(
-          (name) => name.language === 'eng' || name.language === 'en'
-        )
-
-        if (englishName) {
-          // Cache the result
-          commonNamesCache[scientificName] = englishName.vernacularName
-          return englishName.vernacularName
-        }
-
-        // If no English name, return the first available name
-        // Cache the result
-        commonNamesCache[scientificName] = vernacularData.results[0].vernacularName
-        return vernacularData.results[0].vernacularName
-      }
-
-      // Cache the null result
-      commonNamesCache[scientificName] = null
-      return null
-    } catch (error) {
-      console.error(`Error fetching common name for ${scientificName}:`, error)
-      // Cache the error as null to prevent repeated failed requests
-      commonNamesCache[scientificName] = null
-      return null
-    }
-  }
-
-  // Fetch missing common names
-  useEffect(() => {
-    const fetchMissingCommonNames = async () => {
-      if (!data) return
-
-      const missingCommonNames = data.filter(
-        (species) =>
-          species.scientificName &&
-          !scientificToCommonMap[species.scientificName] &&
-          commonNamesCache[species.scientificName] === undefined // Only fetch if not cached
-      )
-
-      if (missingCommonNames.length === 0) return
-
-      // No need to maintain state, just fetch and store in the cache
-      await Promise.all(
-        missingCommonNames.map(async (species) => {
-          await fetchCommonName(species.scientificName)
-        })
-      )
-
-      // Force re-render to pick up new cache entries
-      // Using an empty dependency array so it updates once after fetching
-      forceUpdate({})
-    }
-
-    fetchMissingCommonNames()
-  }, [data, taxonomicData]) // Remove commonNames from dependencies
-
-  // Add a simple state to force re-renders when cache is updated
-  const [, forceUpdate] = useState({})
+    return map
+  }, [speciesNeedingLookup, gbifQueries])
 
   if (!data || data.length === 0) {
     return <div className="text-gray-500">No species data available</div>
@@ -250,10 +232,9 @@ function SpeciesDistribution({ data, taxonomicData }) {
     <div className="w-1/2 bg-white rounded border border-gray-200 p-3 overflow-y-auto">
       <div className="space-y-4">
         {data.map((species) => {
-          // Try to get the common name from the taxonomic data first, then from the cache
+          // Try to get the common name from the taxonomic data first, then from GBIF query results
           const commonName =
-            scientificToCommonMap[species.scientificName] ||
-            commonNamesCache[species.scientificName]
+            scientificToCommonMap[species.scientificName] || gbifCommonNames[species.scientificName]
 
           return (
             <div key={species.scientificName} className="">

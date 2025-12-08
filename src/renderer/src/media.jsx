@@ -12,7 +12,7 @@ import {
   Layers
 } from 'lucide-react'
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
+import { useQuery, useQueryClient, useMutation, useInfiniteQuery } from '@tanstack/react-query'
 import { useParams } from 'react-router'
 import CircularTimeFilter, { DailyActivityRadar } from './ui/clock'
 import SpeciesDistribution from './ui/speciesDistribution'
@@ -1476,17 +1476,11 @@ function SequenceCard({
 }
 
 function Gallery({ species, dateRange, timeRange }) {
-  const [mediaFiles, setMediaFiles] = useState([])
-  const [loading, setLoading] = useState(true)
   const [imageErrors, setImageErrors] = useState({})
-  const [page, setPage] = useState(1)
-  const [hasMore, setHasMore] = useState(true)
-  const [initialLoad, setInitialLoad] = useState(true)
   const [selectedMedia, setSelectedMedia] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const loaderRef = useRef(null)
   const PAGE_SIZE = 15
-  const debounceTimeoutRef = useRef(null)
 
   // Grid controls state
   const [showThumbnailBboxes, setShowThumbnailBboxes] = useState(false)
@@ -1497,6 +1491,7 @@ function Gallery({ species, dateRange, timeRange }) {
   const [currentSequenceIndex, setCurrentSequenceIndex] = useState(0)
 
   const { id } = useParams()
+  const queryClient = useQueryClient()
 
   // Sequence gap - persisted per study in localStorage
   const sequenceGapKey = `sequenceGap:${id}`
@@ -1515,6 +1510,40 @@ function Gallery({ species, dateRange, timeRange }) {
     const saved = localStorage.getItem(sequenceGapKey)
     setSequenceGap(saved !== null ? Number(saved) : 120)
   }, [sequenceGapKey])
+
+  // Fetch media with infinite query for pagination
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useInfiniteQuery({
+    queryKey: [
+      'media',
+      id,
+      JSON.stringify(species),
+      dateRange[0]?.toISOString(),
+      dateRange[1]?.toISOString(),
+      timeRange.start,
+      timeRange.end
+    ],
+    queryFn: async ({ pageParam = 0 }) => {
+      const response = await window.api.getMedia(id, {
+        species,
+        dateRange: { start: dateRange[0], end: dateRange[1] },
+        timeRange,
+        limit: PAGE_SIZE,
+        offset: pageParam
+      })
+      if (response.error) throw new Error(response.error)
+      return response.data
+    },
+    getNextPageParam: (lastPage, allPages) => {
+      // If last page has PAGE_SIZE items, there might be more
+      return lastPage.length === PAGE_SIZE
+        ? allPages.length * PAGE_SIZE // offset = number of pages * page size
+        : undefined // no more pages
+    },
+    enabled: !!id && !!dateRange[0] && !!dateRange[1]
+  })
+
+  // Flatten all pages into a single array
+  const mediaFiles = useMemo(() => data?.pages.flat() ?? [], [data])
 
   // Group media into sequences using memoization
   const groupedMedia = useMemo(() => {
@@ -1547,108 +1576,29 @@ function Gallery({ species, dateRange, timeRange }) {
     staleTime: 60000
   })
 
-  // Debounce function
-  const debounce = (func, delay) => {
-    return (...args) => {
-      if (debounceTimeoutRef.current) {
-        clearTimeout(debounceTimeoutRef.current)
-      }
-      debounceTimeoutRef.current = setTimeout(() => {
-        func(...args)
-      }, delay)
-    }
-  }
-
   // Set up Intersection Observer for infinite scrolling
   useEffect(() => {
+    const currentLoader = loaderRef.current
+
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loading && !initialLoad) {
-          loadMoreMedia()
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage()
         }
       },
       { threshold: 0.1 }
     )
 
-    if (loaderRef.current) {
-      observer.observe(loaderRef.current)
+    if (currentLoader) {
+      observer.observe(currentLoader)
     }
 
     return () => {
-      if (loaderRef.current) {
-        observer.unobserve(loaderRef.current)
+      if (currentLoader) {
+        observer.unobserve(currentLoader)
       }
     }
-  }, [hasMore, loading, initialLoad, loaderRef])
-
-  // Create a memoized version of loadMedia to avoid recreating on each render
-  const loadMedia = useCallback(
-    async (pageNum, isNewSearch = false) => {
-      try {
-        setLoading(true)
-
-        console.log(
-          'Fetching media files for species:',
-          species,
-          dateRange,
-          timeRange,
-          'page:',
-          pageNum
-        )
-        const response = await window.api.getMedia(id, {
-          species,
-          dateRange: { start: dateRange[0], end: dateRange[1] },
-          timeRange,
-          limit: PAGE_SIZE,
-          offset: (pageNum - 1) * PAGE_SIZE
-        })
-
-        if (response.error) {
-          console.warn('Error fetching media files:', response.error)
-        } else {
-          if (isNewSearch) {
-            setMediaFiles(response.data)
-          } else {
-            setMediaFiles((prev) => [...prev, ...response.data])
-          }
-
-          setHasMore(response.data.length === PAGE_SIZE)
-        }
-      } catch (err) {
-        console.warn(err)
-      } finally {
-        setLoading(false)
-        setInitialLoad(false)
-      }
-    },
-    [id, species, dateRange, timeRange]
-  )
-
-  // Create a debounced version of loadMedia
-  const debouncedLoadMedia = useMemo(
-    () => debounce((pageNum, isNewSearch) => loadMedia(pageNum, isNewSearch), 100),
-    [loadMedia]
-  )
-
-  useEffect(() => {
-    // Reset pagination when filters change
-    // setMediaFiles([])
-    setPage(1)
-    setHasMore(true)
-    setInitialLoad(true)
-
-    if (!dateRange[0] || !dateRange[1]) return
-
-    debouncedLoadMedia(1, true)
-  }, [species, dateRange, timeRange, id, debouncedLoadMedia])
-
-  const loadMoreMedia = () => {
-    if (!loading && hasMore) {
-      const nextPage = page + 1
-      setPage(nextPage)
-      loadMedia(nextPage, false)
-    }
-  }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
 
   const constructImageUrl = (fullFilePath) => {
     if (fullFilePath.startsWith('http')) {
@@ -1732,15 +1682,25 @@ function Gallery({ species, dateRange, timeRange }) {
   }, [selectedMedia, groupedMedia])
 
   // Handle optimistic timestamp update
-  const handleTimestampUpdate = useCallback((mediaID, newTimestamp) => {
-    setMediaFiles((prev) =>
-      prev.map((m) => (m.mediaID === mediaID ? { ...m, timestamp: newTimestamp } : m))
-    )
-    // Also update selectedMedia if it's the one being edited
-    setSelectedMedia((prev) =>
-      prev?.mediaID === mediaID ? { ...prev, timestamp: newTimestamp } : prev
-    )
-  }, [])
+  const handleTimestampUpdate = useCallback(
+    (mediaID, newTimestamp) => {
+      // Update the infinite query cache
+      queryClient.setQueryData(['media', id, species, dateRange, timeRange], (oldData) => {
+        if (!oldData) return oldData
+        return {
+          ...oldData,
+          pages: oldData.pages.map((page) =>
+            page.map((m) => (m.mediaID === mediaID ? { ...m, timestamp: newTimestamp } : m))
+          )
+        }
+      })
+      // Also update selectedMedia if it's the one being edited
+      setSelectedMedia((prev) =>
+        prev?.mediaID === mediaID ? { ...prev, timestamp: newTimestamp } : prev
+      )
+    },
+    [queryClient, id, species, dateRange, timeRange]
+  )
 
   // Calculate navigation availability based on sequences
   const currentSeqIdx = selectedMedia
@@ -1826,16 +1786,16 @@ function Gallery({ species, dateRange, timeRange }) {
 
           {/* Loading indicator and intersection target */}
           <div ref={loaderRef} className="w-full flex justify-center p-4">
-            {loading && !initialLoad && (
+            {isFetchingNextPage && (
               <div className="flex items-center justify-center">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
                 <span className="ml-2">Loading more...</span>
               </div>
             )}
-            {!hasMore && mediaFiles.length > 0 && (
+            {!hasNextPage && mediaFiles.length > 0 && !isFetchingNextPage && (
               <p className="text-gray-500 text-sm">No more images to load</p>
             )}
-            {!hasMore && mediaFiles.length === 0 && !loading && (
+            {!hasNextPage && mediaFiles.length === 0 && !isLoading && (
               <p className="text-gray-500">No media files match the selected filters</p>
             )}
           </div>
@@ -1849,59 +1809,48 @@ export default function Activity({ studyData, studyId }) {
   const { id } = useParams()
   const actualStudyId = studyId || id // Use passed studyId or from params
 
-  const [error, setError] = useState(null)
   const [selectedSpecies, setSelectedSpecies] = useState([])
   const [dateRange, setDateRange] = useState([null, null])
   const [timeRange, setTimeRange] = useState({ start: 0, end: 24 })
-  const [timeseriesData, setTimeseriesData] = useState(null)
-  const [speciesDistributionData, setSpeciesDistributionData] = useState(null)
-  const [dailyActivityData, setDailyActivityData] = useState(null)
 
   const taxonomicData = studyData?.taxonomic || null
 
+  // Fetch species distribution data
+  const { data: speciesDistributionData, error: speciesDistributionError } = useQuery({
+    queryKey: ['speciesDistribution', actualStudyId],
+    queryFn: async () => {
+      const response = await window.api.getSpeciesDistribution(actualStudyId)
+      if (response.error) throw new Error(response.error)
+      return response.data
+    },
+    enabled: !!actualStudyId
+  })
+
+  // Initialize selectedSpecies when speciesDistributionData loads
   useEffect(() => {
-    async function fetchData() {
-      try {
-        const speciesResponse = await window.api.getSpeciesDistribution(actualStudyId)
-
-        if (speciesResponse.error) {
-          setError(speciesResponse.error)
-        } else {
-          setSpeciesDistributionData(speciesResponse.data)
-          setSelectedSpecies(speciesResponse.data.slice(0, 2))
-        }
-      } catch (err) {
-        setError(err.message || 'Failed to fetch activity data')
-      }
+    if (speciesDistributionData && selectedSpecies.length === 0) {
+      setSelectedSpecies(speciesDistributionData.slice(0, 2))
     }
+  }, [speciesDistributionData, selectedSpecies.length])
 
-    if (actualStudyId) {
-      fetchData()
-    }
-  }, [actualStudyId])
+  // Memoize speciesNames to avoid unnecessary re-renders
+  const speciesNames = useMemo(
+    () => selectedSpecies.map((s) => s.scientificName),
+    [selectedSpecies]
+  )
 
-  useEffect(() => {
-    async function fetchTimeseriesData() {
-      if (!selectedSpecies.length || !actualStudyId) return
+  // Fetch timeseries data
+  const { data: timeseriesData } = useQuery({
+    queryKey: ['speciesTimeseries', actualStudyId, speciesNames],
+    queryFn: async () => {
+      const response = await window.api.getSpeciesTimeseries(actualStudyId, speciesNames)
+      if (response.error) throw new Error(response.error)
+      return response.data.timeseries
+    },
+    enabled: !!actualStudyId && speciesNames.length > 0
+  })
 
-      try {
-        const speciesNames = selectedSpecies.map((s) => s.scientificName)
-        const response = await window.api.getSpeciesTimeseries(actualStudyId, speciesNames)
-
-        if (response.error) {
-          console.error('Error fetching species timeseries:', response.error)
-          return
-        }
-
-        setTimeseriesData(response.data.timeseries)
-      } catch (err) {
-        console.error('Failed to fetch species timeseries:', err)
-      }
-    }
-
-    fetchTimeseriesData()
-  }, [selectedSpecies, actualStudyId])
-
+  // Initialize dateRange from timeseries data (side effect, keep as useEffect)
   useEffect(() => {
     if (
       timeseriesData &&
@@ -1917,36 +1866,23 @@ export default function Activity({ studyData, studyId }) {
 
       setDateRange([startDate, endDate])
     }
-  }, [timeseriesData])
+  }, [timeseriesData, dateRange])
 
-  console.log('dateRange', dateRange)
-
-  useEffect(() => {
-    async function fetchDailyActivityData() {
-      if (!selectedSpecies.length || !dateRange[0] || !dateRange[1]) return
-
-      try {
-        const speciesNames = selectedSpecies.map((s) => s.scientificName)
-        const response = await window.api.getSpeciesDailyActivity(
-          actualStudyId,
-          speciesNames,
-          dateRange[0].toISOString(),
-          dateRange[1].toISOString()
-        )
-
-        if (response.error) {
-          console.error('Error fetching daily activity data:', response.error)
-          return
-        }
-
-        setDailyActivityData(response.data)
-      } catch (err) {
-        console.error('Failed to fetch daily activity data:', err)
-      }
-    }
-
-    fetchDailyActivityData()
-  }, [dateRange, selectedSpecies, actualStudyId])
+  // Fetch daily activity data
+  const { data: dailyActivityData } = useQuery({
+    queryKey: ['dailyActivity', actualStudyId, speciesNames, dateRange],
+    queryFn: async () => {
+      const response = await window.api.getSpeciesDailyActivity(
+        actualStudyId,
+        speciesNames,
+        dateRange[0].toISOString(),
+        dateRange[1].toISOString()
+      )
+      if (response.error) throw new Error(response.error)
+      return response.data
+    },
+    enabled: !!actualStudyId && speciesNames.length > 0 && !!dateRange[0] && !!dateRange[1]
+  })
 
   // Handle time range changes
   const handleTimeRangeChange = useCallback((newTimeRange) => {
@@ -1964,8 +1900,8 @@ export default function Activity({ studyData, studyId }) {
 
   return (
     <div className="px-4 flex flex-col h-full">
-      {error ? (
-        <div className="text-red-500 py-4">Error: {error}</div>
+      {speciesDistributionError ? (
+        <div className="text-red-500 py-4">Error: {speciesDistributionError.message}</div>
       ) : (
         <div className="flex flex-col h-full gap-4">
           {/* First row - takes remaining space */}

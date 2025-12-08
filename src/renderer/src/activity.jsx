@@ -1,7 +1,8 @@
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { MapPin } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { LayersControl, MapContainer, Marker, Popup, TileLayer } from 'react-leaflet'
 import MarkerClusterGroup from 'react-leaflet-cluster'
 import { useParams } from 'react-router'
@@ -269,79 +270,51 @@ export default function Activity({ studyData, studyId }) {
   const { id } = useParams()
   const actualStudyId = studyId || id // Use passed studyId or from params
 
-  const [error, setError] = useState(null)
   const [selectedSpecies, setSelectedSpecies] = useState([])
   const [dateRange, setDateRange] = useState([null, null])
   const [timeRange, setTimeRange] = useState({ start: 0, end: 24 })
-  const [timeseriesData, setTimeseriesData] = useState(null)
-  const [heatmapData, setHeatmapData] = useState(null)
-  const [heatmapStatus, setHeatmapStatus] = useState('loading') // 'loading' | 'hasData' | 'noData'
-  const [speciesDistributionData, setSpeciesDistributionData] = useState(null)
-  const [dailyActivityData, setDailyActivityData] = useState(null)
   const { importStatus } = useImportStatus(actualStudyId, 5000)
 
   // Get taxonomic data from studyData
   const taxonomicData = studyData?.taxonomic || null
 
+  // Fetch species distribution data
+  const { data: speciesDistributionData, error: speciesDistributionError } = useQuery({
+    queryKey: ['speciesDistribution', actualStudyId],
+    queryFn: async () => {
+      const response = await window.api.getSpeciesDistribution(actualStudyId)
+      if (response.error) throw new Error(response.error)
+      return response.data
+    },
+    enabled: !!actualStudyId,
+    refetchInterval: importStatus?.isRunning ? 5000 : false
+  })
+
+  // Initialize selectedSpecies when speciesDistributionData loads
   useEffect(() => {
-    async function fetchData() {
-      try {
-        const speciesResponse = await window.api.getSpeciesDistribution(actualStudyId)
-
-        if (speciesResponse.error) {
-          console.error('Error fetching species distribution:', speciesResponse.error)
-        } else {
-          setSpeciesDistributionData(speciesResponse.data)
-
-          setSelectedSpecies(speciesResponse.data.slice(0, 2))
-        }
-      } catch (err) {
-        setError(err.message || 'Failed to fetch activity data')
-      }
+    if (speciesDistributionData && selectedSpecies.length === 0) {
+      setSelectedSpecies(speciesDistributionData.slice(0, 2))
     }
+  }, [speciesDistributionData, selectedSpecies.length])
 
-    if (actualStudyId) {
-      console.log('Fetching data for study:', actualStudyId)
-      fetchData()
-    }
-    let intervalId
-    if (importStatus.isRunning) {
-      intervalId = setInterval(() => {
-        console.log('Import is running, fetching data...')
-        fetchData()
-      }, 5000)
-    }
-    return () => {
-      if (intervalId) clearInterval(intervalId)
-    }
-  }, [actualStudyId, importStatus.isRunning])
+  // Memoize speciesNames to avoid unnecessary re-renders
+  const speciesNames = useMemo(
+    () => selectedSpecies.map((s) => s.scientificName),
+    [selectedSpecies]
+  )
 
-  // console.log('selected', selectedSpecies)
+  // Fetch timeseries data
+  const { data: timeseriesData } = useQuery({
+    queryKey: ['speciesTimeseries', actualStudyId, speciesNames],
+    queryFn: async () => {
+      const response = await window.api.getSpeciesTimeseries(actualStudyId, speciesNames)
+      if (response.error) throw new Error(response.error)
+      return response.data.timeseries
+    },
+    enabled: !!actualStudyId && speciesNames.length > 0
+  })
 
-  useEffect(() => {
-    async function fetchTimeseriesData() {
-      if (!selectedSpecies.length || !actualStudyId) return
-
-      try {
-        const speciesNames = selectedSpecies.map((s) => s.scientificName)
-        const response = await window.api.getSpeciesTimeseries(actualStudyId, speciesNames)
-
-        if (response.error) {
-          console.error('Error fetching species timeseries:', response.error)
-          return
-        }
-
-        console.log('Timeseries response:', response.data)
-
-        setTimeseriesData(response.data.timeseries)
-      } catch (err) {
-        console.error('Failed to fetch species timeseries:', err)
-      }
-    }
-
-    fetchTimeseriesData()
-  }, [selectedSpecies, actualStudyId])
-
+  // Initialize dateRange from timeseries data (side effect, keep as useEffect)
   useEffect(() => {
     if (
       timeseriesData &&
@@ -359,62 +332,60 @@ export default function Activity({ studyData, studyId }) {
     }
   }, [timeseriesData, dateRange])
 
-  useEffect(() => {
-    async function fetchHeatmapData() {
-      if (!selectedSpecies.length || !dateRange[0] || !dateRange[1]) return
-
-      const speciesNames = selectedSpecies.map((s) => s.scientificName)
+  // Fetch heatmap data
+  const { data: heatmapData, isLoading: isHeatmapLoading } = useQuery({
+    queryKey: [
+      'heatmapData',
+      actualStudyId,
+      speciesNames,
+      dateRange[0]?.toISOString(),
+      dateRange[1]?.toISOString(),
+      timeRange.start,
+      timeRange.end
+    ],
+    queryFn: async () => {
       const response = await window.api.getSpeciesHeatmapData(
-        studyId,
+        actualStudyId,
         speciesNames,
         dateRange[0].toISOString(),
         dateRange[1].toISOString(),
         timeRange.start,
         timeRange.end
       )
+      if (response.error) throw new Error(response.error)
+      return response.data
+    },
+    enabled: !!actualStudyId && speciesNames.length > 0 && !!dateRange[0] && !!dateRange[1]
+  })
 
-      if (response.error) {
-        console.error('Error fetching heatmap data:', response.error)
-        return
-      }
+  // Derive heatmap status from query state and data
+  const heatmapStatus = useMemo(() => {
+    if (isHeatmapLoading || !heatmapData) return 'loading'
+    const hasPoints = Object.values(heatmapData).some((points) => points && points.length > 0)
+    return hasPoints ? 'hasData' : 'noData'
+  }, [heatmapData, isHeatmapLoading])
 
-      setHeatmapData(response.data)
-
-      // Determine status based on whether data has location points
-      const hasPoints =
-        response.data && Object.values(response.data).some((points) => points && points.length > 0)
-      setHeatmapStatus(hasPoints ? 'hasData' : 'noData')
-    }
-
-    fetchHeatmapData()
-  }, [dateRange, timeRange, selectedSpecies, actualStudyId, studyId])
-
-  useEffect(() => {
-    async function fetchDailyActivityData() {
-      if (!selectedSpecies.length || !dateRange[0] || !dateRange[1]) return
-
-      try {
-        const speciesNames = selectedSpecies.map((s) => s.scientificName)
-        const response = await window.api.getSpeciesDailyActivity(
-          actualStudyId,
-          speciesNames,
-          dateRange[0].toISOString(),
-          dateRange[1].toISOString()
-        )
-
-        if (response.error) {
-          console.error('Error fetching daily activity data:', response.error)
-          return
-        }
-
-        setDailyActivityData(response.data)
-      } catch (err) {
-        console.error('Failed to fetch daily activity data:', err)
-      }
-    }
-
-    fetchDailyActivityData()
-  }, [dateRange, selectedSpecies, actualStudyId])
+  // Fetch daily activity data
+  const { data: dailyActivityData } = useQuery({
+    queryKey: [
+      'dailyActivity',
+      actualStudyId,
+      speciesNames,
+      dateRange[0]?.toISOString(),
+      dateRange[1]?.toISOString()
+    ],
+    queryFn: async () => {
+      const response = await window.api.getSpeciesDailyActivity(
+        actualStudyId,
+        speciesNames,
+        dateRange[0].toISOString(),
+        dateRange[1].toISOString()
+      )
+      if (response.error) throw new Error(response.error)
+      return response.data
+    },
+    enabled: !!actualStudyId && speciesNames.length > 0 && !!dateRange[0] && !!dateRange[1]
+  })
 
   // Handle time range changes
   const handleTimeRangeChange = useCallback((newTimeRange) => {
@@ -430,12 +401,10 @@ export default function Activity({ studyData, studyId }) {
     setSelectedSpecies(newSelectedSpecies)
   }, [])
 
-  console.log('Selected species:', selectedSpecies.map((s) => s.scientificName).join(', '))
-
   return (
     <div className="px-4 flex flex-col h-full">
-      {error ? (
-        <div className="text-red-500 py-4">Error: {error}</div>
+      {speciesDistributionError ? (
+        <div className="text-red-500 py-4">Error: {speciesDistributionError.message}</div>
       ) : (
         <div className="flex flex-col h-full gap-4">
           {/* First row - takes remaining space */}
