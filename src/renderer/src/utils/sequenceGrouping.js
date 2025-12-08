@@ -1,0 +1,130 @@
+/**
+ * Groups media files into sequences based on timestamp proximity.
+ * Works correctly regardless of input sort order (ascending or descending).
+ * Output sequences have items sorted by timestamp (ascending - oldest first).
+ *
+ * @param {Array} mediaFiles - Array of media files
+ * @param {number} gapThresholdSeconds - Maximum gap in seconds to consider media as same sequence
+ * @returns {Array} Array of sequence objects { id, items, startTime, endTime }
+ */
+export function groupMediaIntoSequences(mediaFiles, gapThresholdSeconds) {
+  // Edge case: null, undefined, or empty array
+  if (!mediaFiles || mediaFiles.length === 0) {
+    return []
+  }
+
+  // Edge case: disabled (0 or negative threshold) - no grouping
+  if (gapThresholdSeconds <= 0) {
+    // Return each media as its own sequence (no grouping)
+    return mediaFiles.map((media) => ({
+      id: media.mediaID,
+      items: [media],
+      startTime: new Date(media.timestamp),
+      endTime: new Date(media.timestamp)
+    }))
+  }
+
+  const sequences = []
+  let currentSequence = null
+  const gapMs = gapThresholdSeconds * 1000
+
+  for (const media of mediaFiles) {
+    let mediaTime
+    try {
+      mediaTime = new Date(media.timestamp).getTime()
+      if (isNaN(mediaTime)) {
+        // Invalid timestamp - treat as separate item
+        if (currentSequence) {
+          sequences.push(currentSequence)
+        }
+        currentSequence = {
+          id: media.mediaID,
+          items: [media],
+          startTime: new Date(media.timestamp),
+          endTime: new Date(media.timestamp)
+        }
+        continue
+      }
+    } catch {
+      // Invalid timestamp - treat as separate item
+      if (currentSequence) {
+        sequences.push(currentSequence)
+      }
+      currentSequence = {
+        id: media.mediaID,
+        items: [media],
+        startTime: new Date(media.timestamp),
+        endTime: new Date(media.timestamp)
+      }
+      continue
+    }
+
+    if (!currentSequence) {
+      // Start first sequence
+      currentSequence = {
+        id: media.mediaID,
+        items: [media],
+        startTime: new Date(media.timestamp),
+        endTime: new Date(media.timestamp),
+        _minTime: mediaTime,
+        _maxTime: mediaTime
+      }
+    } else {
+      // Use Math.abs to handle both ascending and descending order
+      const gap = Math.abs(mediaTime - currentSequence._maxTime)
+      const gapFromMin = Math.abs(mediaTime - currentSequence._minTime)
+      const effectiveGap = Math.min(gap, gapFromMin)
+
+      if (effectiveGap <= gapMs) {
+        // Same sequence - add to current
+        currentSequence.items.push(media)
+        // Update time bounds
+        if (mediaTime < currentSequence._minTime) {
+          currentSequence._minTime = mediaTime
+          currentSequence.startTime = new Date(media.timestamp)
+        }
+        if (mediaTime > currentSequence._maxTime) {
+          currentSequence._maxTime = mediaTime
+          currentSequence.endTime = new Date(media.timestamp)
+        }
+      } else {
+        // New sequence - save current and start new
+        sequences.push(currentSequence)
+        currentSequence = {
+          id: media.mediaID,
+          items: [media],
+          startTime: new Date(media.timestamp),
+          endTime: new Date(media.timestamp),
+          _minTime: mediaTime,
+          _maxTime: mediaTime
+        }
+      }
+    }
+  }
+
+  // Don't forget the last sequence
+  if (currentSequence) {
+    sequences.push(currentSequence)
+  }
+
+  // Sort items within each sequence by timestamp (ascending - oldest first)
+  // and clean up internal tracking properties
+  return sequences.map((seq) => {
+    const sortedItems = [...seq.items].sort((a, b) => {
+      const timeA = new Date(a.timestamp).getTime()
+      const timeB = new Date(b.timestamp).getTime()
+      return timeA - timeB
+    })
+
+    // Update startTime/endTime based on sorted items
+    const firstItem = sortedItems[0]
+    const lastItem = sortedItems[sortedItems.length - 1]
+
+    return {
+      id: firstItem.mediaID, // Use first item's ID after sorting
+      items: sortedItems,
+      startTime: new Date(firstItem.timestamp),
+      endTime: new Date(lastItem.timestamp)
+    }
+  })
+}

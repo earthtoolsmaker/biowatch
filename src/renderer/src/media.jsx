@@ -8,7 +8,8 @@ import {
   Search,
   Trash2,
   Grid3x3,
-  Plus
+  Plus,
+  Layers
 } from 'lucide-react'
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
@@ -20,6 +21,7 @@ import DateTimePicker from './ui/DateTimePicker'
 import EditableBbox from './ui/EditableBbox'
 import { computeBboxLabelPosition, computeSelectorPosition } from './utils/positioning'
 import { getImageBounds, screenToNormalized } from './utils/bboxCoordinates'
+import { groupMediaIntoSequences } from './utils/sequenceGrouping'
 
 /**
  * Observation list panel - always visible list of all detections
@@ -447,7 +449,13 @@ function ImageModal({
   hasNext,
   hasPrevious,
   studyId,
-  onTimestampUpdate
+  onTimestampUpdate,
+  sequence,
+  sequenceIndex,
+  onSequenceNext,
+  onSequencePrevious,
+  hasNextInSequence,
+  hasPreviousInSequence
 }) {
   const [showBboxes, setShowBboxes] = useState(true)
   const [isEditingTimestamp, setIsEditingTimestamp] = useState(false)
@@ -847,12 +855,22 @@ function ImageModal({
         return
       }
 
-      if (e.key === 'ArrowLeft' && hasPrevious) {
+      if (e.key === 'ArrowLeft') {
         setIsDrawMode(false)
-        onPrevious()
-      } else if (e.key === 'ArrowRight' && hasNext) {
+        // Navigate within sequence first, then globally
+        if (hasPreviousInSequence) {
+          onSequencePrevious()
+        } else if (hasPrevious) {
+          onPrevious()
+        }
+      } else if (e.key === 'ArrowRight') {
         setIsDrawMode(false)
-        onNext()
+        // Navigate within sequence first, then globally
+        if (hasNextInSequence) {
+          onSequenceNext()
+        } else if (hasNext) {
+          onNext()
+        }
       } else if (e.key === 'Escape') {
         onClose()
       } else if (e.key === 'b' || e.key === 'B') {
@@ -869,6 +887,10 @@ function ImageModal({
     onClose,
     hasNext,
     hasPrevious,
+    hasNextInSequence,
+    hasPreviousInSequence,
+    onSequenceNext,
+    onSequencePrevious,
     isEditingTimestamp,
     showDatePicker,
     selectedBboxId,
@@ -899,6 +921,16 @@ function ImageModal({
       }}
     >
       <div className="relative max-w-7xl w-full h-full flex items-center justify-center">
+        {/* Sequence indicator */}
+        {sequence && sequence.items.length > 1 && (
+          <div className="absolute top-0 left-0 z-10 bg-black/70 text-white px-3 py-2 rounded-full text-sm font-medium flex items-center gap-2">
+            <Layers size={16} />
+            <span>
+              {sequenceIndex + 1} / {sequence.items.length}
+            </span>
+          </div>
+        )}
+
         {/* Close button */}
         <button
           onClick={onClose}
@@ -1168,36 +1200,71 @@ const palette = [
 ]
 
 /**
+ * Format sequence gap value for display
+ */
+function formatGapValue(seconds) {
+  if (seconds === 0) return 'Off'
+  if (seconds < 60) return `${seconds}s`
+  if (seconds < 120) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
+  return `${Math.round(seconds / 60)}m`
+}
+
+/**
  * Control bar for gallery view options
  */
-function GalleryControls({ showBboxes, onToggleBboxes, gridColumns, onCycleGrid }) {
+function GalleryControls({
+  showBboxes,
+  onToggleBboxes,
+  gridColumns,
+  onCycleGrid,
+  sequenceGap,
+  onSequenceGapChange
+}) {
   const gridLabels = { 3: '3x', 4: '4x', 5: '5x' }
 
   return (
-    <div className="flex items-center justify-end gap-2 px-3 py-2 border-b border-gray-200 flex-shrink-0">
-      {/* Show Bboxes Toggle */}
-      <button
-        onClick={onToggleBboxes}
-        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-          showBboxes
-            ? 'bg-lime-500 text-white hover:bg-lime-600'
-            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-        }`}
-        title="Show bounding boxes on thumbnails"
-      >
-        <Square size={16} />
-        <span>Boxes</span>
-      </button>
+    <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-gray-200 flex-shrink-0">
+      {/* Sequence Gap Slider */}
+      <div className="flex items-center gap-2">
+        <Layers size={16} className={sequenceGap > 0 ? 'text-blue-500' : 'text-gray-400'} />
+        <input
+          type="range"
+          min="0"
+          max="300"
+          step="10"
+          value={sequenceGap}
+          onChange={(e) => onSequenceGapChange(Number(e.target.value))}
+          className="w-24 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
+          title={`Sequence grouping: ${formatGapValue(sequenceGap)}`}
+        />
+        <span className="text-xs text-gray-600 w-12">{formatGapValue(sequenceGap)}</span>
+      </div>
 
-      {/* Grid Density Cycle */}
-      <button
-        onClick={onCycleGrid}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
-        title={`Grid: ${gridColumns} columns (click to cycle)`}
-      >
-        <Grid3x3 size={16} />
-        <span>{gridLabels[gridColumns]}</span>
-      </button>
+      <div className="flex items-center gap-2">
+        {/* Show Bboxes Toggle */}
+        <button
+          onClick={onToggleBboxes}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+            showBboxes
+              ? 'bg-lime-500 text-white hover:bg-lime-600'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+          title="Show bounding boxes on thumbnails"
+        >
+          <Square size={16} />
+          <span>Boxes</span>
+        </button>
+
+        {/* Grid Density Cycle */}
+        <button
+          onClick={onCycleGrid}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+          title={`Grid: ${gridColumns} columns (click to cycle)`}
+        >
+          <Grid3x3 size={16} />
+          <span>{gridLabels[gridColumns]}</span>
+        </button>
+      </div>
     </div>
   )
 }
@@ -1283,6 +1350,129 @@ function ThumbnailCard({
   )
 }
 
+/**
+ * Thumbnail card for a sequence of related media files.
+ * Auto-cycles through images with configurable interval.
+ */
+function SequenceCard({
+  sequence,
+  constructImageUrl,
+  onSequenceClick,
+  imageErrors,
+  setImageErrors,
+  showBboxes,
+  bboxesByMedia,
+  widthClass,
+  cycleInterval = 2000
+}) {
+  const [currentIndex, setCurrentIndex] = useState(0)
+  const [isPaused, setIsPaused] = useState(false)
+
+  const currentMedia = sequence.items[currentIndex]
+  const itemCount = sequence.items.length
+
+  // Auto-cycle effect
+  useEffect(() => {
+    if (isPaused || itemCount <= 1) return
+
+    const intervalId = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % itemCount)
+    }, cycleInterval)
+
+    return () => clearInterval(intervalId)
+  }, [itemCount, cycleInterval, isPaused])
+
+  // Reset index when sequence changes
+  useEffect(() => {
+    setCurrentIndex(0)
+  }, [sequence.id])
+
+  // Preload next image for smooth transitions
+  useEffect(() => {
+    if (itemCount <= 1) return
+    const nextIndex = (currentIndex + 1) % itemCount
+    const nextMedia = sequence.items[nextIndex]
+    const img = new Image()
+    img.src = constructImageUrl(nextMedia.filePath)
+  }, [currentIndex, sequence, constructImageUrl, itemCount])
+
+  const handleClick = () => {
+    onSequenceClick(sequence.items[0], sequence)
+  }
+
+  return (
+    <div
+      className={`border border-gray-300 rounded-lg overflow-hidden min-w-[150px] ${widthClass} flex flex-col h-max transition-all relative group`}
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+    >
+      {/* Sequence badge */}
+      <div className="absolute top-2 right-2 z-20 bg-black/70 text-white px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1">
+        <Layers size={12} />
+        <span>{itemCount}</span>
+      </div>
+
+      {/* Stacked effect (visual indicator) */}
+      <div className="absolute -top-1 -right-1 w-full h-full border border-gray-200 rounded-lg bg-gray-100 -z-10 transform translate-x-1 -translate-y-1" />
+
+      {/* Image container */}
+      <div
+        className="relative bg-gray-100 flex items-center justify-center cursor-pointer hover:bg-gray-200 transition-colors overflow-hidden"
+        onClick={handleClick}
+      >
+        <div className="relative w-full">
+          <img
+            src={constructImageUrl(currentMedia.filePath)}
+            alt={currentMedia.fileName || `Media ${currentMedia.mediaID}`}
+            className={`w-full h-auto min-h-20 object-contain transition-opacity duration-300 ${imageErrors[currentMedia.mediaID] ? 'hidden' : ''}`}
+            onError={() => setImageErrors((prev) => ({ ...prev, [currentMedia.mediaID]: true }))}
+            loading="lazy"
+          />
+
+          {/* Bbox overlay for current image */}
+          {showBboxes && (
+            <ThumbnailBboxOverlay bboxes={bboxesByMedia[currentMedia.mediaID] || []} />
+          )}
+        </div>
+
+        {imageErrors[currentMedia.mediaID] && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-100 text-gray-400">
+            <CameraOff size={32} />
+          </div>
+        )}
+
+        {/* Progress indicator */}
+        {itemCount > 1 && (
+          <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex gap-1">
+            {itemCount <= 8 ? (
+              // Dots for small sequences
+              sequence.items.map((_, idx) => (
+                <div
+                  key={idx}
+                  className={`w-1.5 h-1.5 rounded-full transition-colors ${
+                    idx === currentIndex ? 'bg-blue-500' : 'bg-white/60'
+                  }`}
+                />
+              ))
+            ) : (
+              // Counter text for large sequences
+              <span className="text-xs font-medium text-white bg-black/50 px-1.5 py-0.5 rounded">
+                {currentIndex + 1}/{itemCount}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Info section */}
+      <div className="p-2">
+        <h3 className="text-sm font-semibold truncate">{currentMedia.scientificName}</h3>
+        <p className="text-xs text-gray-500">{new Date(currentMedia.timestamp).toLocaleString()}</p>
+      </div>
+    </div>
+  )
+}
+
 function Gallery({ species, dateRange, timeRange }) {
   const [mediaFiles, setMediaFiles] = useState([])
   const [loading, setLoading] = useState(true)
@@ -1300,6 +1490,35 @@ function Gallery({ species, dateRange, timeRange }) {
   const [showThumbnailBboxes, setShowThumbnailBboxes] = useState(false)
   const [gridColumns, setGridColumns] = useState(3)
 
+  // Sequence grouping state
+  const [currentSequence, setCurrentSequence] = useState(null)
+  const [currentSequenceIndex, setCurrentSequenceIndex] = useState(0)
+
+  const { id } = useParams()
+
+  // Sequence gap - persisted per study in localStorage
+  const sequenceGapKey = `sequenceGap:${id}`
+  const [sequenceGap, setSequenceGap] = useState(() => {
+    const saved = localStorage.getItem(sequenceGapKey)
+    return saved !== null ? Number(saved) : 120
+  })
+
+  // Persist sequenceGap to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem(sequenceGapKey, sequenceGap.toString())
+  }, [sequenceGap, sequenceGapKey])
+
+  // Reset sequenceGap when study changes
+  useEffect(() => {
+    const saved = localStorage.getItem(sequenceGapKey)
+    setSequenceGap(saved !== null ? Number(saved) : 120)
+  }, [sequenceGapKey])
+
+  // Group media into sequences using memoization
+  const groupedMedia = useMemo(() => {
+    return groupMediaIntoSequences(mediaFiles, sequenceGap)
+  }, [mediaFiles, sequenceGap])
+
   // Grid column CSS classes
   const gridColumnClasses = {
     3: 'w-[calc(33.333%-8px)]',
@@ -1312,8 +1531,6 @@ function Gallery({ species, dateRange, timeRange }) {
   const handleCycleGrid = useCallback(() => {
     setGridColumns((prev) => (prev === 5 ? 3 : prev + 1))
   }, [])
-
-  const { id } = useParams()
 
   // Batch fetch bboxes for all visible media when showThumbnailBboxes is enabled
   const mediaIDs = useMemo(() => mediaFiles.map((m) => m.mediaID), [mediaFiles])
@@ -1439,31 +1656,78 @@ function Gallery({ species, dateRange, timeRange }) {
     return `local-file://get?path=${encodeURIComponent(fullFilePath)}`
   }
 
-  const handleImageClick = (media) => {
+  // Handle click on single image or sequence
+  const handleImageClick = (media, sequence = null) => {
     setSelectedMedia(media)
+    setCurrentSequence(sequence)
+    setCurrentSequenceIndex(
+      sequence ? sequence.items.findIndex((m) => m.mediaID === media.mediaID) : 0
+    )
     setIsModalOpen(true)
   }
 
   const handleCloseModal = () => {
     setIsModalOpen(false)
     setSelectedMedia(null)
+    setCurrentSequence(null)
+    setCurrentSequenceIndex(0)
   }
 
-  const handleNextImage = () => {
-    if (!selectedMedia) return
-    const currentIndex = mediaFiles.findIndex((m) => m.mediaID === selectedMedia.mediaID)
-    if (currentIndex < mediaFiles.length - 1) {
-      setSelectedMedia(mediaFiles[currentIndex + 1])
+  // Navigate within current sequence
+  const handleSequenceNext = useCallback(() => {
+    if (!currentSequence) return
+    const nextIndex = currentSequenceIndex + 1
+    if (nextIndex < currentSequence.items.length) {
+      setCurrentSequenceIndex(nextIndex)
+      setSelectedMedia(currentSequence.items[nextIndex])
     }
-  }
+  }, [currentSequence, currentSequenceIndex])
 
-  const handlePreviousImage = () => {
-    if (!selectedMedia) return
-    const currentIndex = mediaFiles.findIndex((m) => m.mediaID === selectedMedia.mediaID)
-    if (currentIndex > 0) {
-      setSelectedMedia(mediaFiles[currentIndex - 1])
+  const handleSequencePrevious = useCallback(() => {
+    if (!currentSequence) return
+    const prevIndex = currentSequenceIndex - 1
+    if (prevIndex >= 0) {
+      setCurrentSequenceIndex(prevIndex)
+      setSelectedMedia(currentSequence.items[prevIndex])
     }
-  }
+  }, [currentSequence, currentSequenceIndex])
+
+  // Navigate to next sequence/item globally
+  const handleNextImage = useCallback(() => {
+    if (!selectedMedia) return
+
+    // Find current sequence index in groupedMedia
+    const currentSeqIdx = groupedMedia.findIndex((s) =>
+      s.items.some((m) => m.mediaID === selectedMedia.mediaID)
+    )
+
+    if (currentSeqIdx < groupedMedia.length - 1) {
+      const nextSequence = groupedMedia[currentSeqIdx + 1]
+      const isMultiItem = nextSequence.items.length > 1
+      setCurrentSequence(isMultiItem ? nextSequence : null)
+      setCurrentSequenceIndex(0)
+      setSelectedMedia(nextSequence.items[0])
+    }
+  }, [selectedMedia, groupedMedia])
+
+  // Navigate to previous sequence/item globally
+  const handlePreviousImage = useCallback(() => {
+    if (!selectedMedia) return
+
+    const currentSeqIdx = groupedMedia.findIndex((s) =>
+      s.items.some((m) => m.mediaID === selectedMedia.mediaID)
+    )
+
+    if (currentSeqIdx > 0) {
+      const prevSequence = groupedMedia[currentSeqIdx - 1]
+      const isMultiItem = prevSequence.items.length > 1
+      setCurrentSequence(isMultiItem ? prevSequence : null)
+      // Start at end of previous sequence
+      const lastIndex = prevSequence.items.length - 1
+      setCurrentSequenceIndex(lastIndex)
+      setSelectedMedia(prevSequence.items[lastIndex])
+    }
+  }, [selectedMedia, groupedMedia])
 
   // Handle optimistic timestamp update
   const handleTimestampUpdate = useCallback((mediaID, newTimestamp) => {
@@ -1476,11 +1740,17 @@ function Gallery({ species, dateRange, timeRange }) {
     )
   }, [])
 
-  const currentIndex = selectedMedia
-    ? mediaFiles.findIndex((m) => m.mediaID === selectedMedia.mediaID)
+  // Calculate navigation availability based on sequences
+  const currentSeqIdx = selectedMedia
+    ? groupedMedia.findIndex((s) => s.items.some((m) => m.mediaID === selectedMedia.mediaID))
     : -1
-  const hasNext = currentIndex >= 0 && currentIndex < mediaFiles.length - 1
-  const hasPrevious = currentIndex > 0
+  const hasNextSequence = currentSeqIdx >= 0 && currentSeqIdx < groupedMedia.length - 1
+  const hasPreviousSequence = currentSeqIdx > 0
+
+  // For sequence navigation within modal
+  const hasNextInSequence =
+    currentSequence && currentSequenceIndex < currentSequence.items.length - 1
+  const hasPreviousInSequence = currentSequence && currentSequenceIndex > 0
 
   return (
     <>
@@ -1491,10 +1761,16 @@ function Gallery({ species, dateRange, timeRange }) {
         constructImageUrl={constructImageUrl}
         onNext={handleNextImage}
         onPrevious={handlePreviousImage}
-        hasNext={hasNext}
-        hasPrevious={hasPrevious}
+        hasNext={hasNextSequence}
+        hasPrevious={hasPreviousSequence}
         studyId={id}
         onTimestampUpdate={handleTimestampUpdate}
+        sequence={currentSequence}
+        sequenceIndex={currentSequenceIndex}
+        onSequenceNext={handleSequenceNext}
+        onSequencePrevious={handleSequencePrevious}
+        hasNextInSequence={hasNextInSequence}
+        hasPreviousInSequence={hasPreviousInSequence}
       />
 
       <div className="flex flex-col h-full bg-white rounded border border-gray-200 overflow-hidden">
@@ -1504,23 +1780,47 @@ function Gallery({ species, dateRange, timeRange }) {
           onToggleBboxes={() => setShowThumbnailBboxes((prev) => !prev)}
           gridColumns={gridColumns}
           onCycleGrid={handleCycleGrid}
+          sequenceGap={sequenceGap}
+          onSequenceGapChange={setSequenceGap}
         />
 
         {/* Grid */}
         <div className="flex flex-wrap gap-[12px] flex-1 overflow-auto p-3">
-          {mediaFiles.map((media) => (
-            <ThumbnailCard
-              key={media.mediaID}
-              media={media}
-              constructImageUrl={constructImageUrl}
-              onImageClick={handleImageClick}
-              imageErrors={imageErrors}
-              setImageErrors={setImageErrors}
-              showBboxes={showThumbnailBboxes}
-              bboxes={bboxesByMedia[media.mediaID] || []}
-              widthClass={thumbnailWidthClass}
-            />
-          ))}
+          {groupedMedia.map((sequence) => {
+            const isMultiItem = sequence.items.length > 1
+
+            if (isMultiItem) {
+              return (
+                <SequenceCard
+                  key={sequence.id}
+                  sequence={sequence}
+                  constructImageUrl={constructImageUrl}
+                  onSequenceClick={handleImageClick}
+                  imageErrors={imageErrors}
+                  setImageErrors={setImageErrors}
+                  showBboxes={showThumbnailBboxes}
+                  bboxesByMedia={bboxesByMedia}
+                  widthClass={thumbnailWidthClass}
+                />
+              )
+            }
+
+            // Single item - use existing ThumbnailCard
+            const media = sequence.items[0]
+            return (
+              <ThumbnailCard
+                key={media.mediaID}
+                media={media}
+                constructImageUrl={constructImageUrl}
+                onImageClick={(m) => handleImageClick(m, null)}
+                imageErrors={imageErrors}
+                setImageErrors={setImageErrors}
+                showBboxes={showThumbnailBboxes}
+                bboxes={bboxesByMedia[media.mediaID] || []}
+                widthClass={thumbnailWidthClass}
+              />
+            )
+          })}
 
           {/* Loading indicator and intersection target */}
           <div ref={loaderRef} className="w-full flex justify-center p-4">
