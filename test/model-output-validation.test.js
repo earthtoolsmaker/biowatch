@@ -562,7 +562,9 @@ describe('Model Output Zod Validation', () => {
             class: 0,
             conf: 0.9823879599571228,
             label: 'animal',
-            xywhn: [0.22008246183395386, 0.5234066247940063, 0.4399449825286865, 0.8540064692497253],
+            xywhn: [
+              0.22008246183395386, 0.5234066247940063, 0.4399449825286865, 0.8540064692497253
+            ],
             xyxy: [0.06298828125, 76.50860595703125, 441.640380859375, 713.3292846679688]
           }
         ],
@@ -641,9 +643,27 @@ describe('Model Output Zod Validation', () => {
           scores: [0.7, 0.3]
         },
         detections: [
-          { class: 0, label: 'animal', conf: 0.95, xywhn: [0.2, 0.3, 0.3, 0.4], xyxy: [10, 20, 30, 40] },
-          { class: 0, label: 'animal', conf: 0.88, xywhn: [0.6, 0.5, 0.2, 0.3], xyxy: [50, 60, 70, 80] },
-          { class: 0, label: 'animal', conf: 0.72, xywhn: [0.1, 0.8, 0.15, 0.2], xyxy: [5, 90, 15, 100] }
+          {
+            class: 0,
+            label: 'animal',
+            conf: 0.95,
+            xywhn: [0.2, 0.3, 0.3, 0.4],
+            xyxy: [10, 20, 30, 40]
+          },
+          {
+            class: 0,
+            label: 'animal',
+            conf: 0.88,
+            xywhn: [0.6, 0.5, 0.2, 0.3],
+            xyxy: [50, 60, 70, 80]
+          },
+          {
+            class: 0,
+            label: 'animal',
+            conf: 0.72,
+            xywhn: [0.1, 0.8, 0.15, 0.2],
+            xyxy: [5, 90, 15, 100]
+          }
         ],
         prediction: 'deer',
         prediction_score: 0.7,
