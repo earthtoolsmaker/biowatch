@@ -8,7 +8,20 @@ import {
   executeRawQuery
 } from './db/index.js'
 import { union } from 'drizzle-orm/sqlite-core'
-import { eq, and, desc, count, sql, isNotNull, ne, inArray, gte, lte, isNull, or } from 'drizzle-orm'
+import {
+  eq,
+  and,
+  desc,
+  count,
+  sql,
+  isNotNull,
+  ne,
+  inArray,
+  gte,
+  lte,
+  isNull,
+  or
+} from 'drizzle-orm'
 import log from 'electron-log'
 import { DateTime } from 'luxon'
 
@@ -506,7 +519,13 @@ export async function getSpeciesHeatmapData(
  * @returns {Promise<Array>} - Media files matching the criteria
  */
 export async function getMedia(dbPath, options = {}) {
-  const { limit: queryLimit = 10, offset: queryOffset = 0, species = [], dateRange = {}, timeRange = {} } = options
+  const {
+    limit: queryLimit = 10,
+    offset: queryOffset = 0,
+    species = [],
+    dateRange = {},
+    timeRange = {}
+  } = options
 
   const startTime = Date.now()
   log.info(`Querying media files from: ${dbPath} with filtering options`)
@@ -532,7 +551,10 @@ export async function getMedia(dbPath, options = {}) {
     const db = await getDrizzleDb(studyId, dbPath)
 
     // Build dynamic filter conditions array for base query
-    const baseConditions = [isNotNull(observations.scientificName), ne(observations.scientificName, '')]
+    const baseConditions = [
+      isNotNull(observations.scientificName),
+      ne(observations.scientificName, '')
+    ]
 
     // Add species filter if provided
     if (species.length > 0) {
@@ -555,8 +577,12 @@ export async function getMedia(dbPath, options = {}) {
     if (timeRange.start !== undefined && timeRange.end !== undefined) {
       if (timeRange.start < timeRange.end) {
         // Simple range (e.g., 8:00 to 17:00)
-        baseConditions.push(sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) >= ${timeRange.start}`)
-        baseConditions.push(sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) < ${timeRange.end}`)
+        baseConditions.push(
+          sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) >= ${timeRange.start}`
+        )
+        baseConditions.push(
+          sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) < ${timeRange.end}`
+        )
       } else if (timeRange.start > timeRange.end) {
         // Wrapping range (e.g., 22:00 to 6:00)
         baseConditions.push(
