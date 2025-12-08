@@ -23,64 +23,40 @@ analyze, visualize, and explore camera trap data with ease.
 
 ## Key Features
 
-- 🗺️ Interactive Maps: Visualize camera trap locations and wildlife sightings
+- Interactive Maps: Visualize camera trap locations and wildlife sightings
 with interactive maps and spatial analysis tools.
-- 📊 Data Analysis: Generate insights with powerful analytics tools, species
+- Data Analysis: Generate insights with powerful analytics tools, species
 identification, and temporal activity patterns.
-- 🗃️ Media Management: Organize, tag, and search through thousands of camera
+- Media Management: Organize, tag, and search through thousands of camera
 trap images and videos with ease.
 
-## Development
+## Documentation
 
-This section explains how to contribute to the Biowatch codebase.
+Full developer documentation is available in the [docs/](./docs/) folder:
 
-### Recommended IDE Setup
+- [Architecture](./docs/architecture.md) - System design and data flow
+- [Data Formats](./docs/data-formats.md) - CamTrap DP and import/export formats
+- [Database Schema](./docs/database-schema.md) - SQLite tables and relationships
+- [HTTP ML Servers](./docs/http-servers.md) - ML model integration
+- [Development](./docs/development.md) - Setup, testing, and building
+- [Contributing](./CONTRIBUTING.md) - How to contribute
 
-- [VSCode](https://code.visualstudio.com/) + [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint) + [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)
-
-### Project Setup
-
-#### Install
-
-```bash
-$ npm install
-```
-
-#### Development Server
+## Quick Start (Development)
 
 ```bash
-$ npm run dev
-```
+# Install dependencies
+npm install
 
-#### Build
-
-```bash
-# For windows
-$ npm run build:win
-
-# For macOS
-$ npm run build:mac
-
-# For Linux
-$ npm run build:linux
-```
-
-#### ML Models Integration
-
-The ML Models are integrated as [python environments](./python-environments/README.md)
-where each model can be spawn as an HTTP server that defines a `/predict`
-endpoint.
-
-Make sure to install all the python environments locally.
-
-Install `uv` with pipx:
-
-```bash
+# Build Python environment for ML models
 pipx install uv
-```
-
-Build the python environments:
-
-```bash
 npm run build:python-env-common
+
+# Start development server
+npm run dev
 ```
+
+See [Development Guide](./docs/development.md) for full details.
+
+## License
+
+[CC BY-NC 4.0](./LICENSE) - Free for non-commercial use with attribution.
