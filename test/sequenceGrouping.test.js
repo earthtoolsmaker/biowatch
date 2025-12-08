@@ -7,10 +7,16 @@ function createMedia(id, timestamp) {
   return { mediaID: id, timestamp }
 }
 
-// Helper: Create media at offset from base time
-function createMediaAtOffset(id, baseTime, offsetSeconds) {
+// Helper: Create media at offset from base time (with default deploymentID for grouping tests)
+function createMediaAtOffset(id, baseTime, offsetSeconds, deploymentID = 'default-deployment') {
   const time = new Date(baseTime.getTime() + offsetSeconds * 1000)
-  return { mediaID: id, timestamp: time.toISOString() }
+  return { mediaID: id, timestamp: time.toISOString(), deploymentID }
+}
+
+// Helper: Create media at offset from base time with explicit deploymentID (including null/undefined)
+function createMediaWithDeployment(id, baseTime, offsetSeconds, deploymentID) {
+  const time = new Date(baseTime.getTime() + offsetSeconds * 1000)
+  return { mediaID: id, timestamp: time.toISOString(), deploymentID }
 }
 
 // Helper: Assert two dates are equal
@@ -310,6 +316,122 @@ describe('groupMediaIntoSequences', () => {
 
       assert.equal(result.length, 1)
       assert.equal(result[0].items.length, 50)
+    })
+  })
+
+  describe('deployment-based grouping', () => {
+    test('media from same deployment within threshold are grouped', () => {
+      const media = [
+        createMediaWithDeployment('a', baseTime, 0, 'dep1'),
+        createMediaWithDeployment('b', baseTime, 30, 'dep1')
+      ]
+      const result = groupMediaIntoSequences(media, 60)
+
+      assert.equal(result.length, 1)
+      assert.equal(result[0].items.length, 2)
+    })
+
+    test('media from different deployments within threshold are NOT grouped', () => {
+      const media = [
+        createMediaWithDeployment('a', baseTime, 0, 'dep1'),
+        createMediaWithDeployment('b', baseTime, 5, 'dep2')
+      ]
+      const result = groupMediaIntoSequences(media, 60)
+
+      assert.equal(result.length, 2)
+      assert.equal(result[0].items.length, 1)
+      assert.equal(result[1].items.length, 1)
+    })
+
+    test('interleaved deployments by timestamp create separate sequences', () => {
+      const media = [
+        createMediaWithDeployment('a1', baseTime, 0, 'dep1'),
+        createMediaWithDeployment('b1', baseTime, 5, 'dep2'),
+        createMediaWithDeployment('a2', baseTime, 10, 'dep1'),
+        createMediaWithDeployment('b2', baseTime, 15, 'dep2')
+      ]
+      const result = groupMediaIntoSequences(media, 60)
+
+      // Each deployment change starts a new sequence
+      assert.equal(result.length, 4)
+    })
+
+    test('media with null deploymentID are treated as separate sequences', () => {
+      const media = [
+        createMediaWithDeployment('a', baseTime, 0, null),
+        createMediaWithDeployment('b', baseTime, 5, null)
+      ]
+      const result = groupMediaIntoSequences(media, 60)
+
+      assert.equal(result.length, 2)
+    })
+
+    test('media with undefined deploymentID are treated as separate sequences', () => {
+      const media = [
+        { mediaID: 'a', timestamp: baseTime.toISOString() }, // no deploymentID property
+        { mediaID: 'b', timestamp: new Date(baseTime.getTime() + 5000).toISOString() }
+      ]
+      const result = groupMediaIntoSequences(media, 60)
+
+      assert.equal(result.length, 2)
+    })
+
+    test('media with null deploymentID not grouped with valid deploymentID', () => {
+      const media = [
+        createMediaWithDeployment('a', baseTime, 0, 'dep1'),
+        createMediaWithDeployment('b', baseTime, 5, null)
+      ]
+      const result = groupMediaIntoSequences(media, 60)
+
+      assert.equal(result.length, 2)
+    })
+
+    test('cameras side by side with simultaneous triggers create separate sequences', () => {
+      const media = [
+        createMediaWithDeployment('cam_a_1', baseTime, 0, 'camera_A'),
+        createMediaWithDeployment('cam_a_2', baseTime, 1, 'camera_A'),
+        createMediaWithDeployment('cam_b_1', baseTime, 2, 'camera_B'),
+        createMediaWithDeployment('cam_b_2', baseTime, 3, 'camera_B')
+      ]
+      const result = groupMediaIntoSequences(media, 60)
+
+      assert.equal(result.length, 2)
+      assert.equal(result[0].items.length, 2)
+      assert.equal(result[0].items[0].deploymentID, 'camera_A')
+      assert.equal(result[1].items.length, 2)
+      assert.equal(result[1].items[0].deploymentID, 'camera_B')
+    })
+
+    test('multiple sequences per deployment are created correctly', () => {
+      const media = [
+        // Morning visit at camera A
+        createMediaWithDeployment('a1', baseTime, 0, 'dep1'),
+        createMediaWithDeployment('a2', baseTime, 5, 'dep1'),
+        // Later visit at camera A (2 hours later)
+        createMediaWithDeployment('a3', baseTime, 7200, 'dep1'),
+        createMediaWithDeployment('a4', baseTime, 7205, 'dep1')
+      ]
+      const result = groupMediaIntoSequences(media, 60)
+
+      assert.equal(result.length, 2)
+      assert.equal(result[0].items.length, 2)
+      assert.equal(result[1].items.length, 2)
+    })
+
+    test('same deployment in descending order groups correctly', () => {
+      const media = [
+        createMediaWithDeployment('c', baseTime, 50, 'dep1'),
+        createMediaWithDeployment('b', baseTime, 30, 'dep1'),
+        createMediaWithDeployment('a', baseTime, 0, 'dep1')
+      ]
+      const result = groupMediaIntoSequences(media, 60)
+
+      assert.equal(result.length, 1)
+      assert.equal(result[0].items.length, 3)
+      // Items should be sorted ascending
+      assert.equal(result[0].items[0].mediaID, 'a')
+      assert.equal(result[0].items[1].mediaID, 'b')
+      assert.equal(result[0].items[2].mediaID, 'c')
     })
   })
 })
