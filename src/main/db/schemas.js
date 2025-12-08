@@ -89,3 +89,103 @@ export const metadataCreateSchema = z.object({
     .nullable()
     .optional()
 })
+
+// ============================================================================
+// Model Run Options Schema
+// ============================================================================
+
+// Model run options schema (for geofencing configuration)
+export const modelRunOptionsSchema = z
+  .object({
+    country: z.string().length(3).optional() // ISO 3166-1 alpha-3 code (e.g., "FRA", "USA")
+  })
+  .strict()
+  .nullable()
+
+// ============================================================================
+// Raw Output Schemas (Permissive - ML model outputs vary)
+// ============================================================================
+
+// ---------- Permissive Raw Output Schema ----------
+
+// Single permissive schema that validates core fields only
+// Uses passthrough to allow model-specific extra fields
+export const rawOutputSchema = z
+  .object({
+    filepath: z.string(),
+    prediction: z.string(),
+    model_version: z.string(),
+    // Optional fields - use z.any() for maximum permissiveness (Zod v4 compatible)
+    classifications: z.any().optional(), // Any object structure (including empty {})
+    detections: z.any().optional(), // Any detection array structure
+    prediction_score: z.number().min(0).max(1).optional(),
+    prediction_source: z.string().optional()
+  })
+  .passthrough() // Allow any extra fields from ML models
+  .nullable()
+
+// ---------- Strict Schemas (for documentation/type inference) ----------
+
+// SpeciesNet detection (bbox format: [x_min, y_min, width, height] normalized 0-1)
+const speciesnetDetectionSchema = z.object({
+  category: z.string(),
+  label: z.string(),
+  conf: z.number().min(0).max(1),
+  bbox: z.tuple([z.number(), z.number(), z.number(), z.number()])
+})
+
+// DeepFaune/Manas detection (xywhn center format + xyxy absolute coords)
+const deepfauneDetectionSchema = z.object({
+  class: z.number().int(),
+  label: z.string(),
+  conf: z.number().min(0).max(1),
+  xywhn: z.tuple([z.number(), z.number(), z.number(), z.number()]),
+  xyxy: z.tuple([z.number(), z.number(), z.number(), z.number()])
+})
+
+// SpeciesNet classifications (hierarchical "uuid;class;order;family;genus;species;common name")
+const speciesnetClassificationsSchema = z.object({
+  classes: z.array(z.string()),
+  scores: z.array(z.number())
+})
+
+// DeepFaune/Manas classifications (simple labels like "chamois", "marmot")
+const deepfauneClassificationsSchema = z.object({
+  labels: z.array(z.string()),
+  scores: z.array(z.number())
+})
+
+// SpeciesNet raw output schema (strict - for type inference)
+export const speciesnetRawOutputSchema = z.object({
+  filepath: z.string(),
+  classifications: speciesnetClassificationsSchema.optional(),
+  detections: z.array(speciesnetDetectionSchema).optional().default([]),
+  prediction: z.string(),
+  prediction_score: z.number().min(0).max(1).optional(),
+  prediction_source: z.string().optional(),
+  model_version: z.string()
+})
+
+// DeepFaune raw output schema (strict - for type inference)
+export const deepfauneRawOutputSchema = z.object({
+  filepath: z.string(),
+  classifications: deepfauneClassificationsSchema.optional(),
+  detections: z.array(deepfauneDetectionSchema).optional().default([]),
+  prediction: z.string(),
+  prediction_score: z.number().min(0).max(1).optional(),
+  model_version: z.string()
+})
+
+// Manas uses same structure as DeepFaune
+export const manasRawOutputSchema = deepfauneRawOutputSchema
+
+// ============================================================================
+// JSDoc Type Exports (for IDE support)
+// ============================================================================
+
+/**
+ * @typedef {import('zod').infer<typeof modelRunOptionsSchema>} ModelRunOptionsType
+ * @typedef {import('zod').infer<typeof speciesnetRawOutputSchema>} SpeciesnetRawOutputType
+ * @typedef {import('zod').infer<typeof deepfauneRawOutputSchema>} DeepfauneRawOutputType
+ * @typedef {import('zod').infer<typeof rawOutputSchema>} RawOutputType
+ */

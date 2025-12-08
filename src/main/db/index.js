@@ -6,7 +6,12 @@
 import { eq } from 'drizzle-orm'
 import { getStudyDatabase, closeStudyDatabase, closeAllDatabases } from './manager.js'
 import { deployments, media, observations, modelRuns, modelOutputs, metadata } from './schema.js'
-import { metadataSchema, metadataUpdateSchema } from './schemas.js'
+import {
+  metadataSchema,
+  metadataUpdateSchema,
+  modelRunOptionsSchema,
+  rawOutputSchema
+} from './schemas.js'
 import log from 'electron-log'
 
 // Re-export schema and manager functions
@@ -21,7 +26,13 @@ export {
   metadataUpdateSchema,
   metadataCreateSchema,
   contributorRoles,
-  importerNames
+  importerNames,
+  // Model run and output schemas
+  modelRunOptionsSchema,
+  speciesnetRawOutputSchema,
+  deepfauneRawOutputSchema,
+  manasRawOutputSchema,
+  rawOutputSchema
 } from './schemas.js'
 
 /**
@@ -132,9 +143,42 @@ export async function updateMetadata(db, id, updates) {
  * @param {Object} db - Drizzle database instance
  * @param {Object} data - Model run data including id, modelID, modelVersion, startedAt, status, importPath, options
  * @returns {Promise<Object>} Inserted model run
+ * @throws {Error} If options don't match expected schema
  */
 export async function insertModelRun(db, data) {
+  // Validate options before insert (strict validation)
+  if (data.options !== undefined) {
+    const parsed = modelRunOptionsSchema.safeParse(data.options)
+    if (!parsed.success) {
+      const errorMessage = `Invalid model run options: ${JSON.stringify(parsed.error.format())}`
+      log.error(errorMessage)
+      throw new Error(errorMessage)
+    }
+  }
+
   const result = await db.insert(modelRuns).values(data).returning()
+  return result[0]
+}
+
+/**
+ * Insert a model output record with validated rawOutput
+ * @param {Object} db - Drizzle database instance
+ * @param {Object} data - Model output data including id, mediaID, runID, rawOutput
+ * @returns {Promise<Object>} Inserted model output
+ * @throws {Error} If rawOutput doesn't match expected schema
+ */
+export async function insertModelOutput(db, data) {
+  // Validate rawOutput before insert (strict validation)
+  if (data.rawOutput !== undefined && data.rawOutput !== null) {
+    const parsed = rawOutputSchema.safeParse(data.rawOutput)
+    if (!parsed.success) {
+      const errorMessage = `Invalid model output rawOutput: ${JSON.stringify(parsed.error.format())}`
+      log.error(errorMessage)
+      throw new Error(errorMessage)
+    }
+  }
+
+  const result = await db.insert(modelOutputs).values(data).returning()
   return result[0]
 }
 
