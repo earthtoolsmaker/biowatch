@@ -1368,8 +1368,10 @@ function SequenceCard({
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isPaused, setIsPaused] = useState(false)
 
-  const currentMedia = sequence.items[currentIndex]
   const itemCount = sequence.items.length
+  // Guard against currentIndex being out of bounds (can happen when sequence changes)
+  const safeIndex = Math.min(currentIndex, itemCount - 1)
+  const currentMedia = sequence.items[safeIndex]
 
   // Auto-cycle effect
   useEffect(() => {
@@ -1390,11 +1392,11 @@ function SequenceCard({
   // Preload next image for smooth transitions
   useEffect(() => {
     if (itemCount <= 1) return
-    const nextIndex = (currentIndex + 1) % itemCount
+    const nextIndex = (safeIndex + 1) % itemCount
     const nextMedia = sequence.items[nextIndex]
     const img = new Image()
     img.src = constructImageUrl(nextMedia.filePath)
-  }, [currentIndex, sequence, constructImageUrl, itemCount])
+  }, [safeIndex, sequence, constructImageUrl, itemCount])
 
   const handleClick = () => {
     onSequenceClick(sequence.items[0], sequence)
