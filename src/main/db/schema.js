@@ -17,7 +17,11 @@ export const media = sqliteTable('media', {
   filePath: text('filePath'),
   fileName: text('fileName'),
   importFolder: text('importFolder'),
-  folderName: text('folderName')
+  folderName: text('folderName'),
+  // Video support fields
+  mediaType: text('mediaType').default('image'), // 'image' | 'video' | 'audio' (future)
+  duration: real('duration'), // Duration in seconds (nullable, for video/audio)
+  fps: real('fps') // Frames per second (nullable, for video)
 })
 
 // Study metadata (Camtrap DP aligned)

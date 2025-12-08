@@ -137,6 +137,8 @@ from torch import tensor
 from torchvision.transforms import InterpolationMode, transforms
 from ultralytics import YOLO
 
+from video_utils import VideoCapableLitAPI, is_video_file
+
 CROP_SIZE = 182
 BACKBONE = "vit_large_patch14_dinov2.lvd142m"
 CLASS_LABEL_MAPPING = {
@@ -662,7 +664,13 @@ _EXTRA_FIELDS = flags.DEFINE_list(
 )
 
 
-class DeepFauneLitAPI(ls.LitAPI):
+class DeepFauneLitAPI(ls.LitAPI, VideoCapableLitAPI):
+    """DeepFaune API server with video support.
+
+    Video support is provided via the VideoCapableLitAPI mixin, which automatically
+    detects video files and processes them frame by frame at the specified sample_fps.
+    """
+
     def __init__(
         self,
         filepath_detector_weights: Path,
@@ -689,7 +697,8 @@ class DeepFauneLitAPI(ls.LitAPI):
     def decode_request(self, request, **kwargs):
         for instance in request["instances"]:
             filepath = instance["filepath"]
-            if not Path(filepath).exists():
+            # Skip file exists check for video files (they're processed frame by frame)
+            if not is_video_file(filepath) and not Path(filepath).exists():
                 raise HTTPException(400, f"Cannot access filepath: `{filepath}`")
         return request
 
@@ -706,19 +715,35 @@ class DeepFauneLitAPI(ls.LitAPI):
                     new_predictions[instance["filepath"]][field] = instance[field]
         return {"predictions": list(new_predictions.values())}
 
-    def predict(self, x, **kwargs):
+    def _predict_single_image(self, filepath: str, **kwargs) -> dict:
+        """Run DeepFaune inference on a single image.
 
-        for instance in x["instances"]:
-            filepath = instance["filepath"]
-            single_instances_dict = {"instances": [{"filepath": filepath}]}
-            single_predictions_dict = predict(
-                model=self.model,
-                filepath=filepath,
-            )
-            assert single_predictions_dict is not None
-            yield self._propagate_extra_fields(
-                single_instances_dict, single_predictions_dict
-            )
+        This method is called by VideoCapableLitAPI for both images and video frames.
+
+        Args:
+            filepath: Path to the image file (or temp frame file for videos)
+            **kwargs: Additional arguments (unused)
+
+        Returns:
+            Dictionary with "predictions" key containing model results
+        """
+        single_instances_dict = {"instances": [{"filepath": filepath}]}
+        single_predictions_dict = predict(
+            model=self.model,
+            filepath=filepath,
+        )
+        assert single_predictions_dict is not None
+        return self._propagate_extra_fields(
+            single_instances_dict, single_predictions_dict
+        )
+
+    def predict(self, x, **kwargs):
+        """Process prediction requests with automatic video support.
+
+        For images: Runs inference directly.
+        For videos: Extracts frames at sample_fps and runs inference on each.
+        """
+        yield from self.predict_with_video_support(x, **kwargs)
 
     def encode_response(self, output, **kwargs):
         for out in output:

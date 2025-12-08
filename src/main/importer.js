@@ -14,7 +14,6 @@ import {
   media,
   observations,
   modelRuns,
-  modelOutputs,
   closeStudyDatabase,
   insertMetadata,
   insertModelOutput,
@@ -28,28 +27,43 @@ import models from './models.js'
 import mlmodels from '../shared/mlmodels.js'
 
 const imageExtensions = new Set(['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'])
+const videoExtensions = new Set(['.mp4', '.mkv', '.mov', '.webm', '.avi', '.m4v'])
+const mediaExtensions = new Set([...imageExtensions, ...videoExtensions])
 
-async function* walkImages(dir) {
+function getMediaType(filePath) {
+  const ext = path.extname(filePath).toLowerCase()
+  if (videoExtensions.has(ext)) return 'video'
+  if (imageExtensions.has(ext)) return 'image'
+  return 'unknown'
+}
+
+async function* walkMediaFiles(dir) {
   const dirents = await fs.promises.opendir(dir)
   for await (const dirent of dirents) {
     const fullPath = path.join(dir, dirent.name)
     if (dirent.isDirectory()) {
-      yield* walkImages(fullPath)
-    } else if (dirent.isFile() && imageExtensions.has(path.extname(dirent.name).toLowerCase())) {
+      yield* walkMediaFiles(fullPath)
+    } else if (dirent.isFile() && mediaExtensions.has(path.extname(dirent.name).toLowerCase())) {
       yield fullPath
     }
   }
 }
 
-export async function* getPredictions(imagesPath, port, signal = null) {
+export async function* getPredictions(mediaPaths, port, signal = null, sampleFps = 1) {
   try {
     // Send request and handle streaming response
+    // Include sample_fps for video frame extraction (Python auto-detects video vs image)
     const response = await fetch(`http://localhost:${port}/predict`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ instances: imagesPath.map((path) => ({ filepath: path })) }),
+      body: JSON.stringify({
+        instances: mediaPaths.map((filepath) => ({
+          filepath,
+          sample_fps: sampleFps // Integer, always provided
+        }))
+      }),
       signal
     })
 
@@ -115,7 +129,10 @@ async function insertMedia(db, fullPath, importFolder) {
     filePath: fullPath,
     fileName: path.basename(fullPath),
     importFolder: importFolder,
-    folderName: folderName
+    folderName: folderName,
+    mediaType: getMediaType(fullPath),
+    duration: null, // Populated from Python response for videos
+    fps: null // Populated from Python response for videos
   }
 
   await db.insert(media).values(mediaData)
@@ -380,6 +397,155 @@ async function insertPrediction(db, prediction, modelInfo = {}) {
   // log.info(`Inserted prediction for ${mediaRecord.fileName} into database`)
 }
 
+/**
+ * Calculate ISO 8601 timestamp from base timestamp + frame offset
+ * @param {string} baseTimestamp - Base ISO timestamp (media capture time)
+ * @param {number} frameNumber - Frame index within video
+ * @param {number} fps - Frames per second of the video
+ * @returns {string} ISO 8601 timestamp
+ */
+function calculateTimestamp(baseTimestamp, frameNumber, fps) {
+  const baseDate = DateTime.fromISO(baseTimestamp)
+  const offsetSeconds = frameNumber / fps
+  return baseDate.plus({ seconds: offsetSeconds }).toISO()
+}
+
+/**
+ * Insert aggregated video predictions into the database.
+ * Creates ONE observation per unique species detected in the video (not per frame).
+ * Full frame-level data is preserved in modelOutputs.rawOutput for provenance.
+ *
+ * @param {Object} db - Drizzle database instance
+ * @param {Array} predictions - Array of frame predictions from Python server
+ * @param {Object} mediaRecord - Media record from database
+ * @param {Object} modelInfo - Model information { runID, modelID, modelVersion, detectionConfidenceThreshold }
+ */
+async function insertVideoPredictions(db, predictions, mediaRecord, modelInfo = {}) {
+  if (!predictions || predictions.length === 0) {
+    log.warn(`No predictions for video: ${mediaRecord.filePath}`)
+    return
+  }
+
+  // 1. Update media with duration/fps from first prediction's metadata
+  const firstPrediction = predictions[0]
+  if (firstPrediction?.metadata) {
+    await db
+      .update(media)
+      .set({
+        duration: firstPrediction.metadata.duration,
+        fps: firstPrediction.metadata.fps
+      })
+      .where(eq(media.mediaID, mediaRecord.mediaID))
+
+    // Update local mediaRecord for timestamp calculation
+    mediaRecord.fps = firstPrediction.metadata.fps
+    mediaRecord.duration = firstPrediction.metadata.duration
+  }
+
+  // 2. Store ALL frame predictions in modelOutputs.rawOutput (full provenance)
+  const modelOutputID = crypto.randomUUID()
+  await insertModelOutput(db, {
+    id: modelOutputID,
+    mediaID: mediaRecord.mediaID,
+    runID: modelInfo.runID,
+    rawOutput: { frames: predictions } // Complete frame-by-frame data
+  })
+
+  // 3. Aggregate species across all frames
+  const modelType = modelInfo.modelID || 'speciesnet'
+  const speciesMap = new Map() // scientificName -> { frames, bestScore, firstFrame, lastFrame }
+
+  for (const pred of predictions) {
+    const species = parseScientificName(pred, modelType)
+    if (!species) continue // Skip blank/empty predictions
+
+    if (!speciesMap.has(species)) {
+      speciesMap.set(species, {
+        frames: [],
+        bestScore: pred.prediction_score || 0,
+        firstFrame: pred.frame_number,
+        lastFrame: pred.frame_number
+      })
+    }
+    const entry = speciesMap.get(species)
+    entry.frames.push(pred.frame_number)
+    entry.bestScore = Math.max(entry.bestScore, pred.prediction_score || 0)
+    entry.firstFrame = Math.min(entry.firstFrame, pred.frame_number)
+    entry.lastFrame = Math.max(entry.lastFrame, pred.frame_number)
+  }
+
+  // 4. Create ONE observation per species (not per frame!)
+  const fps = mediaRecord.fps || 1
+  const classificationTimestamp = new Date().toISOString()
+  const classifiedBy =
+    modelInfo.modelID && modelInfo.modelVersion
+      ? `${modelInfo.modelID} ${modelInfo.modelVersion}`
+      : null
+
+  for (const [species, data] of speciesMap) {
+    // Calculate ISO 8601 timestamps from frame numbers
+    const eventStart = mediaRecord.timestamp
+      ? calculateTimestamp(mediaRecord.timestamp, data.firstFrame, fps)
+      : null
+    const eventEnd = mediaRecord.timestamp
+      ? calculateTimestamp(mediaRecord.timestamp, data.lastFrame, fps)
+      : null
+
+    const eventID = crypto.randomUUID()
+    await db.insert(observations).values({
+      observationID: crypto.randomUUID(),
+      mediaID: mediaRecord.mediaID,
+      deploymentID: mediaRecord.deploymentID,
+      eventID: eventID,
+      eventStart: eventStart,
+      eventEnd: eventEnd,
+      scientificName: species,
+      confidence: data.bestScore,
+      count: 1,
+      // No bbox for video (movement can't be represented by single bbox)
+      bboxX: null,
+      bboxY: null,
+      bboxWidth: null,
+      bboxHeight: null,
+      detectionConfidence: null,
+      modelOutputID: modelOutputID,
+      classificationMethod: 'machine',
+      classifiedBy: classifiedBy,
+      classificationTimestamp: classificationTimestamp
+    })
+  }
+
+  // If no species were detected, create a blank observation
+  if (speciesMap.size === 0) {
+    const eventID = crypto.randomUUID()
+    await db.insert(observations).values({
+      observationID: crypto.randomUUID(),
+      mediaID: mediaRecord.mediaID,
+      deploymentID: mediaRecord.deploymentID,
+      eventID: eventID,
+      eventStart: mediaRecord.timestamp,
+      eventEnd: mediaRecord.timestamp,
+      scientificName: null,
+      observationType: 'blank',
+      confidence: null,
+      count: 0,
+      bboxX: null,
+      bboxY: null,
+      bboxWidth: null,
+      bboxHeight: null,
+      detectionConfidence: null,
+      modelOutputID: modelOutputID,
+      classificationMethod: 'machine',
+      classifiedBy: classifiedBy,
+      classificationTimestamp: classificationTimestamp
+    })
+  }
+
+  log.info(
+    `Inserted ${speciesMap.size} species observations for video ${mediaRecord.fileName} (from ${predictions.length} frames)`
+  )
+}
+
 async function nextMediaToPredict(db, batchSize = 100) {
   try {
     const results = await db
@@ -388,7 +554,10 @@ async function nextMediaToPredict(db, batchSize = 100) {
         filePath: media.filePath,
         fileName: media.fileName,
         timestamp: media.timestamp,
-        deploymentID: media.deploymentID
+        deploymentID: media.deploymentID,
+        mediaType: media.mediaType,
+        fps: media.fps,
+        duration: media.duration
       })
       .from(media)
       .leftJoin(observations, eq(media.mediaID, observations.mediaID))
@@ -400,7 +569,10 @@ async function nextMediaToPredict(db, batchSize = 100) {
       deploymentID: row.deploymentID,
       timestamp: row.timestamp,
       filePath: row.filePath,
-      fileName: row.fileName
+      fileName: row.fileName,
+      mediaType: row.mediaType,
+      fps: row.fps,
+      duration: row.duration
     }))
   } catch (error) {
     log.error('Error getting next media to predict:', error)
@@ -451,7 +623,10 @@ async function insertMediaBatch(db, manager, mediaDataArray) {
               filePath: m.filePath,
               fileName: m.fileName,
               importFolder: m.importFolder,
-              folderName: m.folderName
+              folderName: m.folderName,
+              mediaType: m.mediaType,
+              duration: m.duration,
+              fps: m.fps
             }))
           )
           .run()
@@ -526,20 +701,23 @@ export class Importer {
         const mediaBatch = []
         const insertBatchSize = 100000
 
-        for await (const imagePath of walkImages(this.folder)) {
+        for await (const mediaPath of walkMediaFiles(this.folder)) {
           const folderName =
-            this.folder === path.dirname(imagePath)
+            this.folder === path.dirname(mediaPath)
               ? path.basename(this.folder)
-              : path.relative(this.folder, path.dirname(imagePath))
+              : path.relative(this.folder, path.dirname(mediaPath))
 
           const mediaData = {
             mediaID: crypto.randomUUID(),
             deploymentID: null,
             timestamp: null,
-            filePath: imagePath,
-            fileName: path.basename(imagePath),
+            filePath: mediaPath,
+            fileName: path.basename(mediaPath),
             importFolder: this.folder,
-            folderName: folderName
+            folderName: folderName,
+            mediaType: getMediaType(mediaPath),
+            duration: null, // Populated from Python response for videos
+            fps: null // Populated from Python response for videos
           }
 
           mediaBatch.push(mediaData)
@@ -559,10 +737,10 @@ export class Importer {
       } else {
         this.db = await getDrizzleDb(this.id, dbPath)
         if (addingMore) {
-          log.info('scanning images in folder:', this.folder)
+          log.info('scanning media files in folder:', this.folder)
 
-          for await (const imagePath of walkImages(this.folder)) {
-            await insertMedia(this.db, imagePath, this.folder)
+          for await (const mediaPath of walkMediaFiles(this.folder)) {
+            await insertMedia(this.db, mediaPath, this.folder)
           }
         }
       }
@@ -626,9 +804,14 @@ export class Importer {
                   break
                 }
 
-                const imageQueue = mediaBatch.map((m) => m.filePath)
+                // Separate images and videos for different processing
+                const images = mediaBatch.filter((m) => m.mediaType !== 'video')
+                const videos = mediaBatch.filter((m) => m.mediaType === 'video')
+                const mediaQueue = mediaBatch.map((m) => m.filePath)
 
-                log.info(`Processing batch of ${imageQueue.length} images`)
+                log.info(
+                  `Processing batch of ${mediaQueue.length} media files (${images.length} images, ${videos.length} videos)`
+                )
 
                 // Create a fresh AbortController for each batch to prevent listener accumulation
                 const batchAbortController = new AbortController()
@@ -638,30 +821,60 @@ export class Importer {
                 this.abortController.signal.addEventListener('abort', abortHandler)
 
                 try {
+                  // For videos, we need to collect all frame predictions before processing
+                  const videoPredictionsMap = new Map() // filepath -> predictions[]
+
                   for await (const prediction of getPredictions(
-                    imageQueue,
+                    mediaQueue,
                     port,
                     batchAbortController.signal
                   )) {
-                    // Get the media record to get its mediaID
-                    const mediaRecord = await getMedia(this.db, prediction.filepath)
+                    // Check if this is a video frame prediction
+                    const isVideoFrame = prediction.frame_number !== undefined
+
+                    if (isVideoFrame) {
+                      // Collect video frame predictions
+                      if (!videoPredictionsMap.has(prediction.filepath)) {
+                        videoPredictionsMap.set(prediction.filepath, [])
+                      }
+                      videoPredictionsMap.get(prediction.filepath).push(prediction)
+                    } else {
+                      // Process image prediction immediately (existing logic)
+                      const mediaRecord = await getMedia(this.db, prediction.filepath)
+                      if (!mediaRecord) {
+                        log.warn(`No media found for prediction: ${prediction.filepath}`)
+                        continue
+                      }
+
+                      // Create model_output record for this media (with validated rawOutput)
+                      const modelOutputID = crypto.randomUUID()
+                      await insertModelOutput(this.db, {
+                        id: modelOutputID,
+                        mediaID: mediaRecord.mediaID,
+                        runID: runID,
+                        rawOutput: prediction // Store full prediction as JSON
+                      })
+
+                      // Insert prediction with model provenance
+                      await insertPrediction(this.db, prediction, {
+                        modelOutputID,
+                        modelID: modelReference.id,
+                        modelVersion: modelReference.version,
+                        detectionConfidenceThreshold: model.detectionConfidenceThreshold
+                      })
+                    }
+                  }
+
+                  // Process collected video predictions (aggregate per video)
+                  for (const [filepath, predictions] of videoPredictionsMap) {
+                    const mediaRecord = await getMedia(this.db, filepath)
                     if (!mediaRecord) {
-                      log.warn(`No media found for prediction: ${prediction.filepath}`)
+                      log.warn(`No media found for video: ${filepath}`)
                       continue
                     }
 
-                    // Create model_output record for this media (with validated rawOutput)
-                    const modelOutputID = crypto.randomUUID()
-                    await insertModelOutput(this.db, {
-                      id: modelOutputID,
-                      mediaID: mediaRecord.mediaID,
+                    await insertVideoPredictions(this.db, predictions, mediaRecord, {
                       runID: runID,
-                      rawOutput: prediction // Store full prediction as JSON
-                    })
-
-                    // Insert prediction with model provenance
-                    await insertPrediction(this.db, prediction, {
-                      modelOutputID,
                       modelID: modelReference.id,
                       modelVersion: modelReference.version,
                       detectionConfidenceThreshold: model.detectionConfidenceThreshold
@@ -672,7 +885,7 @@ export class Importer {
                   this.abortController.signal.removeEventListener('abort', abortHandler)
                 }
 
-                log.info(`Processed batch of ${imageQueue.length} images`)
+                log.info(`Processed batch of ${mediaQueue.length} media files`)
                 const batchEnd = DateTime.now()
                 lastBatchDuration = batchEnd.diff(batchStart, 'seconds').seconds
               }
