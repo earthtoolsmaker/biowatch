@@ -1513,7 +1513,15 @@ function Gallery({ species, dateRange, timeRange }) {
 
   // Fetch media with infinite query for pagination
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useInfiniteQuery({
-    queryKey: ['media', id, species, dateRange, timeRange],
+    queryKey: [
+      'media',
+      id,
+      JSON.stringify(species),
+      dateRange[0]?.toISOString(),
+      dateRange[1]?.toISOString(),
+      timeRange.start,
+      timeRange.end
+    ],
     queryFn: async ({ pageParam = 0 }) => {
       const response = await window.api.getMedia(id, {
         species,
@@ -1528,7 +1536,7 @@ function Gallery({ species, dateRange, timeRange }) {
     getNextPageParam: (lastPage, allPages) => {
       // If last page has PAGE_SIZE items, there might be more
       return lastPage.length === PAGE_SIZE
-        ? allPages.flat().length // next offset = total items so far
+        ? allPages.length * PAGE_SIZE // offset = number of pages * page size
         : undefined // no more pages
     },
     enabled: !!id && !!dateRange[0] && !!dateRange[1]

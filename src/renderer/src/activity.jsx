@@ -334,7 +334,15 @@ export default function Activity({ studyData, studyId }) {
 
   // Fetch heatmap data
   const { data: heatmapData, isLoading: isHeatmapLoading } = useQuery({
-    queryKey: ['heatmapData', actualStudyId, speciesNames, dateRange, timeRange],
+    queryKey: [
+      'heatmapData',
+      actualStudyId,
+      speciesNames,
+      dateRange[0]?.toISOString(),
+      dateRange[1]?.toISOString(),
+      timeRange.start,
+      timeRange.end
+    ],
     queryFn: async () => {
       const response = await window.api.getSpeciesHeatmapData(
         actualStudyId,
@@ -359,7 +367,13 @@ export default function Activity({ studyData, studyId }) {
 
   // Fetch daily activity data
   const { data: dailyActivityData } = useQuery({
-    queryKey: ['dailyActivity', actualStudyId, speciesNames, dateRange],
+    queryKey: [
+      'dailyActivity',
+      actualStudyId,
+      speciesNames,
+      dateRange[0]?.toISOString(),
+      dateRange[1]?.toISOString()
+    ],
     queryFn: async () => {
       const response = await window.api.getSpeciesDailyActivity(
         actualStudyId,
