@@ -26,6 +26,92 @@ import {
 } from './download'
 import os from 'node:os'
 
+// ============================================================================
+// Active Server Registry
+// ============================================================================
+
+/**
+ * Represents an active ML model HTTP server process.
+ */
+interface ActiveServer {
+  pid: number
+  port: number
+  shutdownApiKey: string
+  modelId: string
+}
+
+/**
+ * Registry of all currently active ML model HTTP servers.
+ * Key is the process ID (pid).
+ */
+const activeServers: Map<number, ActiveServer> = new Map()
+
+/**
+ * Registers an ML server in the active servers registry.
+ * @param server - The server information to register.
+ */
+export function registerActiveServer(server: ActiveServer): void {
+  activeServers.set(server.pid, server)
+  log.info(
+    `[Server Registry] Registered server pid=${server.pid} port=${server.port} model=${server.modelId}`
+  )
+}
+
+/**
+ * Unregisters an ML server from the active servers registry.
+ * @param pid - The process ID of the server to unregister.
+ */
+export function unregisterActiveServer(pid: number): void {
+  if (activeServers.has(pid)) {
+    const server = activeServers.get(pid)
+    activeServers.delete(pid)
+    log.info(`[Server Registry] Unregistered server pid=${pid} model=${server?.modelId}`)
+  }
+}
+
+/**
+ * Returns all currently active servers.
+ * @returns Array of active server information.
+ */
+export function getActiveServers(): ActiveServer[] {
+  return Array.from(activeServers.values())
+}
+
+/**
+ * Gracefully shuts down all active ML servers.
+ * Attempts graceful shutdown first, then falls back to SIGKILL.
+ * @returns Promise that resolves when all servers are stopped.
+ */
+export async function shutdownAllServers(): Promise<void> {
+  const servers = getActiveServers()
+
+  if (servers.length === 0) {
+    log.info('[Shutdown] No active ML servers to shut down')
+    return
+  }
+
+  log.info(`[Shutdown] Initiating graceful shutdown of ${servers.length} ML server(s)`)
+
+  const shutdownPromises = servers.map(async (server) => {
+    try {
+      await stopMLModelHTTPServer({
+        pid: server.pid,
+        port: server.port,
+        shutdownApiKey: server.shutdownApiKey
+      })
+    } catch (error) {
+      log.error(`[Shutdown] Failed to stop server pid=${server.pid}:`, (error as Error).message)
+    }
+  })
+
+  await Promise.allSettled(shutdownPromises)
+  log.info('[Shutdown] All ML servers shutdown complete')
+}
+
+// ============================================================================
+// Directory and Path Utilities
+// ============================================================================
+
 /**
  * Lists all directories within a specified folder path.
  *
@@ -1370,6 +1456,7 @@ async function stopMLModelHTTPServer({ pid, port, shutdownApiKey }) {
           } catch {
             // Process no longer exists - shutdown complete
             log.info('Python process exited gracefully')
+            unregisterActiveServer(pid)
             return {
               success: true,
               message: `Gracefully stopped ML Model within python process pid ${pid}`
@@ -1395,6 +1482,7 @@ async function stopMLModelHTTPServer({ pid, port, shutdownApiKey }) {
           reject(err)
         } else {
           log.info('Python process killed with SIGKILL')
+          unregisterActiveServer(pid)
           resolve({ success: true, message: `Stopped ML Model within python process pid ${pid}` })
         }
       })
@@ -1435,6 +1523,12 @@ async function startMLModelHTTPServer({ pythonEnvironment, modelReference, count
         country: country
       })
       log.info(`pythonProcess: ${JSON.stringify(pythonProcess)}`)
+      registerActiveServer({
+        pid: pythonProcess.pid as number,
+        port,
+        shutdownApiKey,
+        modelId: modelReference.id
+      })
       return { port: port, process: pythonProcess, shutdownApiKey }
     }
     case 'deepfaune': {
@@ -1454,6 +1548,12 @@ async function startMLModelHTTPServer({ pythonEnvironment, modelReference, count
         pythonEnvironment: pythonEnvironment
       })
       log.info(`pythonProcess: ${JSON.stringify(pythonProcess)}`)
+      registerActiveServer({
+        pid: pythonProcess.pid as number,
+        port,
+        shutdownApiKey,
+        modelId: modelReference.id
+      })
       return { port: port, process: pythonProcess, shutdownApiKey }
     }
     case 'manas': {
@@ -1475,6 +1575,12 @@ async function startMLModelHTTPServer({ pythonEnvironment, modelReference, count
         pythonEnvironment: pythonEnvironment
       })
       log.info(`pythonProcess: ${JSON.stringify(pythonProcess)}`)
+      registerActiveServer({
+        pid: pythonProcess.pid as number,
+        port,
+        shutdownApiKey,
+        modelId: modelReference.id
+      })
       return { port: port, process: pythonProcess, shutdownApiKey }
     }
     default: {
@@ -1490,5 +1596,6 @@ export default {
   garbageCollect,
   registerMLModelManagementIPCHandlers,
   startMLModelHTTPServer,
-  stopMLModelHTTPServer
+  stopMLModelHTTPServer,
+  shutdownAllServers
 }

@@ -7,7 +7,7 @@ import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync, rmSync } from
 import { join } from 'path'
 import icon from '../../resources/icon.png?asset'
 import { importCamTrapDataset } from './camtrap'
-import { registerMLModelManagementIPCHandlers, garbageCollect } from './models'
+import { registerMLModelManagementIPCHandlers, garbageCollect, shutdownAllServers } from './models'
 import { getDrizzleDb, deployments, closeStudyDatabase } from './db/index.js'
 import { eq } from 'drizzle-orm'
 import {
@@ -41,8 +41,8 @@ import { registerExportIPCHandlers } from './export.js'
 log.transports.file.level = 'info'
 log.transports.console.level = 'info'
 
-let pythonProcess = null
-let serverPort = null
+// Track shutdown state to prevent multiple shutdown attempts
+let isShuttingDown = false
 
 autoUpdater.logger = log
 autoUpdater.checkForUpdatesAndNotify()
@@ -82,11 +82,9 @@ function createWindow() {
   // HMR for renderer base on electron-vite cli.
   // Load the remote URL for development or the local html file for production.
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + `?port=${serverPort}`)
+    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'), {
-      query: { port: serverPort }
-    })
+    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
 }
 
@@ -1161,14 +1159,57 @@ app.whenReady().then(async () => {
 // for applications and their menu bar to stay active until the user quits
 // explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
-  if (pythonProcess) {
-    pythonProcess.kill()
-    pythonProcess = null
-  }
   if (process.platform !== 'darwin') {
     app.quit()
   }
 })
+
+// Graceful shutdown handler - intercepts quit to clean up ML servers
+app.on('before-quit', async (event) => {
+  if (isShuttingDown) {
+    // Already shutting down, allow quit to proceed
+    return
+  }
+
+  // Prevent immediate quit
+  event.preventDefault()
+  isShuttingDown = true
+
+  log.info('[Shutdown] Graceful shutdown initiated')
+
+  try {
+    await shutdownAllServers()
+    log.info('[Shutdown] All ML servers stopped successfully')
+  } catch (error) {
+    log.error('[Shutdown] Error during graceful shutdown:', error)
+  }
+
+  // Now actually quit
+  app.quit()
+})
+
+// Handle Unix/macOS termination signals for graceful shutdown
+if (process.platform !== 'win32') {
+  const signals = ['SIGINT', 'SIGTERM', 'SIGQUIT', 'SIGHUP']
+
+  signals.forEach((signal) => {
+    process.on(signal, async () => {
+      log.info(`[Signal] Received ${signal}, initiating graceful shutdown`)
+
+      if (!isShuttingDown) {
+        isShuttingDown = true
+        try {
+          await shutdownAllServers()
+          log.info('[Signal] All ML servers stopped successfully')
+        } catch (error) {
+          log.error('[Signal] Error during shutdown:', error)
+        }
+      }
+
+      process.exit(0)
+    })
+  })
+}
 
 // In this file you can include the rest of your app's specific main process
 // code. You can also put them in separate files and require them here.
