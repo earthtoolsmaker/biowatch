@@ -15,6 +15,8 @@ import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'r
 import { useQuery, useQueryClient, useMutation, useInfiniteQuery } from '@tanstack/react-query'
 import { useParams } from 'react-router'
 import CircularTimeFilter, { DailyActivityRadar } from './ui/clock'
+import DeploymentMapFilter from './ui/DeploymentMapFilter'
+import DeploymentMapModal from './ui/DeploymentMapModal'
 import SpeciesDistribution from './ui/speciesDistribution'
 import TimelineChart from './ui/timeseries'
 import DateTimePicker from './ui/DateTimePicker'
@@ -1475,7 +1477,7 @@ function SequenceCard({
   )
 }
 
-function Gallery({ species, dateRange, timeRange }) {
+function Gallery({ species, dateRange, timeRange, deployments }) {
   const [imageErrors, setImageErrors] = useState({})
   const [selectedMedia, setSelectedMedia] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -1520,13 +1522,15 @@ function Gallery({ species, dateRange, timeRange }) {
       dateRange[0]?.toISOString(),
       dateRange[1]?.toISOString(),
       timeRange.start,
-      timeRange.end
+      timeRange.end,
+      JSON.stringify(deployments)
     ],
     queryFn: async ({ pageParam = 0 }) => {
       const response = await window.api.getMedia(id, {
         species,
         dateRange: { start: dateRange[0], end: dateRange[1] },
         timeRange,
+        deployments,
         limit: PAGE_SIZE,
         offset: pageParam
       })
@@ -1812,14 +1816,17 @@ export default function Activity({ studyData, studyId }) {
   const [selectedSpecies, setSelectedSpecies] = useState([])
   const [dateRange, setDateRange] = useState([null, null])
   const [timeRange, setTimeRange] = useState({ start: 0, end: 24 })
+  const [selectedDeployments, setSelectedDeployments] = useState(null) // null = all deployments
+  const [isMapModalOpen, setIsMapModalOpen] = useState(false)
+  const [mapView, setMapView] = useState(null) // Shared view (zoom + center) between mini-map and modal
 
   const taxonomicData = studyData?.taxonomic || null
 
   // Fetch species distribution data
   const { data: speciesDistributionData, error: speciesDistributionError } = useQuery({
-    queryKey: ['speciesDistribution', actualStudyId],
+    queryKey: ['speciesDistribution', actualStudyId, JSON.stringify(selectedDeployments)],
     queryFn: async () => {
-      const response = await window.api.getSpeciesDistribution(actualStudyId)
+      const response = await window.api.getSpeciesDistribution(actualStudyId, selectedDeployments)
       if (response.error) throw new Error(response.error)
       return response.data
     },
@@ -1841,9 +1848,18 @@ export default function Activity({ studyData, studyId }) {
 
   // Fetch timeseries data
   const { data: timeseriesData } = useQuery({
-    queryKey: ['speciesTimeseries', actualStudyId, speciesNames],
+    queryKey: [
+      'speciesTimeseries',
+      actualStudyId,
+      speciesNames,
+      JSON.stringify(selectedDeployments)
+    ],
     queryFn: async () => {
-      const response = await window.api.getSpeciesTimeseries(actualStudyId, speciesNames)
+      const response = await window.api.getSpeciesTimeseries(
+        actualStudyId,
+        speciesNames,
+        selectedDeployments
+      )
       if (response.error) throw new Error(response.error)
       return response.data.timeseries
     },
@@ -1870,13 +1886,20 @@ export default function Activity({ studyData, studyId }) {
 
   // Fetch daily activity data
   const { data: dailyActivityData } = useQuery({
-    queryKey: ['dailyActivity', actualStudyId, speciesNames, dateRange],
+    queryKey: [
+      'dailyActivity',
+      actualStudyId,
+      speciesNames,
+      dateRange,
+      JSON.stringify(selectedDeployments)
+    ],
     queryFn: async () => {
       const response = await window.api.getSpeciesDailyActivity(
         actualStudyId,
         speciesNames,
         dateRange[0].toISOString(),
-        dateRange[1].toISOString()
+        dateRange[1].toISOString(),
+        selectedDeployments
       )
       if (response.error) throw new Error(response.error)
       return response.data
@@ -1898,6 +1921,18 @@ export default function Activity({ studyData, studyId }) {
     setSelectedSpecies(newSelectedSpecies)
   }, [])
 
+  // Handle deployments selection changes (from map viewport)
+  const handleDeploymentsChange = useCallback((deploymentIDs) => {
+    // null means no filter (all deployments)
+    // empty array means no deployments selected (show nothing)
+    setSelectedDeployments(deploymentIDs.length === 0 ? null : deploymentIDs)
+  }, [])
+
+  // Handle map view change (sync between mini-map and modal via zoom + center)
+  const handleMapViewChange = useCallback((view) => {
+    setMapView(view)
+  }, [])
+
   return (
     <div className="px-4 flex flex-col h-full">
       {speciesDistributionError ? (
@@ -1908,12 +1943,13 @@ export default function Activity({ studyData, studyId }) {
           <div className="flex flex-row gap-4 flex-1 min-h-0">
             {/* Species Distribution - left side */}
 
-            {/* Map - right side */}
+            {/* Gallery - right side */}
             <div className="h-full flex-1">
               <Gallery
                 species={selectedSpecies.map((s) => s.scientificName)}
                 dateRange={dateRange}
                 timeRange={timeRange}
+                deployments={selectedDeployments}
               />
             </div>
             <div className="h-full overflow-auto w-xs">
@@ -1929,8 +1965,18 @@ export default function Activity({ studyData, studyId }) {
             </div>
           </div>
 
-          {/* Second row - fixed height with timeline and clock */}
-          <div className="w-full flex h-[130px] flex-shrink-0 gap-3">
+          {/* Second row - fixed height with deployment map, clock, and timeline */}
+          <div className="w-full flex h-[132px] flex-shrink-0 gap-3">
+            {/* Deployment map filter - leftmost */}
+            <div className="w-[162px] h-full rounded border border-gray-200 overflow-hidden">
+              <DeploymentMapFilter
+                studyId={actualStudyId}
+                onChange={handleDeploymentsChange}
+                onOpenModal={() => setIsMapModalOpen(true)}
+                externalView={mapView}
+                onViewChange={handleMapViewChange}
+              />
+            </div>
             <div className="w-[140px] h-full rounded border border-gray-200 flex items-center justify-center relative">
               <DailyActivityRadar
                 activityData={dailyActivityData}
@@ -1956,6 +2002,17 @@ export default function Activity({ studyData, studyId }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Deployment map modal */}
+      {isMapModalOpen && (
+        <DeploymentMapModal
+          studyId={actualStudyId}
+          onChange={handleDeploymentsChange}
+          onClose={() => setIsMapModalOpen(false)}
+          initialView={mapView}
+          onViewChange={handleMapViewChange}
+        />
       )}
     </div>
   )

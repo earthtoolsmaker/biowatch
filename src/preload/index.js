@@ -24,8 +24,8 @@ const api = {
   importGbifDataset: async (datasetKey) => {
     return await electronAPI.ipcRenderer.invoke('import:gbif-dataset', datasetKey)
   },
-  getSpeciesDistribution: async (studyId) => {
-    return await electronAPI.ipcRenderer.invoke('species:get-distribution', studyId)
+  getSpeciesDistribution: async (studyId, deployments) => {
+    return await electronAPI.ipcRenderer.invoke('species:get-distribution', studyId, deployments)
   },
   getDeployments: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('deployments:get', studyId)
@@ -33,8 +33,13 @@ const api = {
   deleteStudyDatabase: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('study:delete-database', studyId)
   },
-  getSpeciesTimeseries: async (studyId, species) => {
-    return await electronAPI.ipcRenderer.invoke('activity:get-timeseries', studyId, species)
+  getSpeciesTimeseries: async (studyId, species, deployments) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'activity:get-timeseries',
+      studyId,
+      species,
+      deployments
+    )
   },
   getSpeciesHeatmapData: async (studyId, species, startDate, endDate, startTime, endTime) => {
     return await electronAPI.ipcRenderer.invoke(
@@ -62,13 +67,14 @@ const api = {
   getMediaBboxesBatch: async (studyId, mediaIDs) => {
     return await electronAPI.ipcRenderer.invoke('media:get-bboxes-batch', studyId, mediaIDs)
   },
-  getSpeciesDailyActivity: async (studyId, species, startDate, endDate) => {
+  getSpeciesDailyActivity: async (studyId, species, startDate, endDate, deployments) => {
     return await electronAPI.ipcRenderer.invoke(
       'activity:get-daily',
       studyId,
       species,
       startDate,
-      endDate
+      endDate,
+      deployments
     )
   },
   // ML Model Management

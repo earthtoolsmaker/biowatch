@@ -178,11 +178,9 @@ function AppContent() {
         </header> */}
         <ul className="flex w-full min-w-0 flex-col gap-4 p-2">
           <li>
-            <div className="flex w-full items-center justify-between h-8 text-sm font-medium rounded-md p-2 cursor-default">
-              <div className="flex items-center gap-2">
-                <FolderOpen className="text-gray-500" size={16} />
-                <span>Studies</span>
-              </div>
+            <div className="flex w-full items-center h-8 text-sm font-medium rounded-md p-2 cursor-default gap-2">
+              <FolderOpen className="text-gray-500" size={16} />
+              <span className="flex-1">Studies</span>
               <NavLink
                 to="/import"
                 className="flex items-center justify-center w-5 h-5 rounded hover:bg-gray-200 transition-colors"
@@ -207,7 +205,7 @@ function AppContent() {
             </ul>
           </li>
         </ul>
-        <footer className="absolute left-0 bottom-8 w-full p-2">
+        <footer className="absolute left-0 bottom-0 w-full p-2">
           <NavLink
             to="/settings/ml_zoo"
             className={({ isActive }) =>

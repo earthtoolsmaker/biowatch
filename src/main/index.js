@@ -548,16 +548,16 @@ app.whenReady().then(async () => {
   })
 
   // Add species distribution handler
-  ipcMain.handle('species:get-distribution', async (_, studyId) => {
+  ipcMain.handle('species:get-distribution', async (_, studyId, deployments) => {
     try {
       const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
-      log.info('Dd path for study:', dbPath)
+      log.info('Db path for study:', dbPath)
       if (!dbPath || !existsSync(dbPath)) {
         log.warn(`Database not found for study ID: ${studyId}`)
         return { error: 'Database not found for this study' }
       }
 
-      const distribution = await getSpeciesDistribution(dbPath)
+      const distribution = await getSpeciesDistribution(dbPath, deployments)
       return { data: distribution }
     } catch (error) {
       log.error('Error getting species distribution:', error)
@@ -582,7 +582,7 @@ app.whenReady().then(async () => {
     }
   })
 
-  ipcMain.handle('activity:get-timeseries', async (_, studyId, species) => {
+  ipcMain.handle('activity:get-timeseries', async (_, studyId, species, deployments) => {
     try {
       const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
       if (!dbPath || !existsSync(dbPath)) {
@@ -590,7 +590,7 @@ app.whenReady().then(async () => {
         return { error: 'Database not found for this study' }
       }
 
-      const timeseriesData = await getSpeciesTimeseries(dbPath, species)
+      const timeseriesData = await getSpeciesTimeseries(dbPath, species, deployments)
       return { data: timeseriesData }
     } catch (error) {
       log.error('Error getting species timeseries:', error)
@@ -656,21 +656,30 @@ app.whenReady().then(async () => {
     }
   })
 
-  ipcMain.handle('activity:get-daily', async (_, studyId, species, startDate, endDate) => {
-    try {
-      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
-      if (!dbPath || !existsSync(dbPath)) {
-        log.warn(`Database not found for study ID: ${studyId}`)
-        return { error: 'Database not found for this study' }
-      }
+  ipcMain.handle(
+    'activity:get-daily',
+    async (_, studyId, species, startDate, endDate, deployments) => {
+      try {
+        const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+        if (!dbPath || !existsSync(dbPath)) {
+          log.warn(`Database not found for study ID: ${studyId}`)
+          return { error: 'Database not found for this study' }
+        }
 
-      const dailyActivity = await getSpeciesDailyActivity(dbPath, species, startDate, endDate)
-      return { data: dailyActivity }
-    } catch (error) {
-      log.error('Error getting species daily activity data:', error)
-      return { error: error.message }
+        const dailyActivity = await getSpeciesDailyActivity(
+          dbPath,
+          species,
+          startDate,
+          endDate,
+          deployments
+        )
+        return { data: dailyActivity }
+      } catch (error) {
+        log.error('Error getting species daily activity data:', error)
+        return { error: error.message }
+      }
     }
-  })
+  )
 
   // Add handler for deleting study
   ipcMain.handle('study:delete-database', async (event, studyId) => {

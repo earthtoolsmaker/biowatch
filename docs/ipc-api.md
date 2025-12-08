@@ -52,7 +52,7 @@ const { data, error } = await window.api.getMedia(studyId, { limit: 100 })
 
 | Method | Channel | Parameters | Returns |
 |--------|---------|------------|---------|
-| `getSpeciesDistribution(studyId)` | `species:get-distribution` | studyId | `{ data: Distribution[] }` |
+| `getSpeciesDistribution(studyId, deployments?)` | `species:get-distribution` | studyId, deployments? | `{ data: Distribution[] }` |
 | `getDistinctSpecies(studyId)` | `species:get-distinct` | studyId | `{ data: string[] }` |
 
 ### Deployments
@@ -74,18 +74,29 @@ const { data, error } = await window.api.getMedia(studyId, { limit: 100 })
 
 | Method | Channel | Parameters | Returns |
 |--------|---------|------------|---------|
-| `getSpeciesTimeseries(studyId, species)` | `activity:get-timeseries` | studyId, species | `{ data: TimeseriesPoint[] }` |
-| `getSpeciesDailyActivity(studyId, species, startDate, endDate)` | `activity:get-daily` | studyId, species, startDate?, endDate? | `{ data: DailyActivity[] }` |
+| `getSpeciesTimeseries(studyId, species, deployments?)` | `activity:get-timeseries` | studyId, species, deployments? | `{ data: TimeseriesPoint[] }` |
+| `getSpeciesDailyActivity(studyId, species, startDate, endDate, deployments?)` | `activity:get-daily` | studyId, species, startDate?, endDate?, deployments? | `{ data: DailyActivity[] }` |
 | `getSpeciesHeatmapData(studyId, species, startDate, endDate, startTime, endTime)` | `activity:get-heatmap-data` | studyId, species, filters... | `{ data: HeatmapData }` |
 
 ### Media
 
 | Method | Channel | Parameters | Returns |
 |--------|---------|------------|---------|
-| `getMedia(studyId, options)` | `media:get` | studyId, { limit?, offset?, filters? } | `{ data: Media[] }` |
+| `getMedia(studyId, options)` | `media:get` | studyId, { limit?, offset?, species?, dateRange?, timeRange?, deployments? } | `{ data: Media[] }` |
 | `getMediaBboxes(studyId, mediaID)` | `media:get-bboxes` | studyId, mediaID | `{ data: Bbox[] }` |
 | `getMediaBboxesBatch(studyId, mediaIDs)` | `media:get-bboxes-batch` | studyId, mediaID[] | `{ data: Map<mediaID, Bbox[]> }` |
 | `setMediaTimestamp(studyId, mediaID, timestamp)` | `media:set-timestamp` | studyId, mediaID, timestamp | `{ success: boolean }` |
+
+#### getMedia Options
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `limit` | `number` | Maximum number of results (default: 10) |
+| `offset` | `number` | Number of results to skip for pagination (default: 0) |
+| `species` | `string[]` | Filter by scientific names |
+| `dateRange` | `{ start: Date\|string, end: Date\|string }` | Filter by timestamp range |
+| `timeRange` | `{ start: number, end: number }` | Filter by hour of day (0-23) |
+| `deployments` | `string[]` | Filter by deployment IDs (geographic filter) |
 
 ### Files
 
