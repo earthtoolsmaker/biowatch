@@ -6,10 +6,10 @@ import geoTz from 'geo-tz'
 import luxon, { DateTime } from 'luxon'
 import path from 'path'
 import crypto from 'crypto'
-import Database from 'better-sqlite3'
 import {
   getDrizzleDb,
   getReadonlyDrizzleDb,
+  getStudyDatabase,
   deployments,
   media,
   observations,
@@ -18,7 +18,7 @@ import {
   closeStudyDatabase,
   insertMetadata,
   insertModelOutput,
-  getLatestModelRunRaw,
+  getLatestModelRun,
   updateMetadata,
   getMetadata
 } from './db/index.js'
@@ -425,40 +425,43 @@ async function getDeployment(db, locationID) {
 let lastBatchDuration = null
 const batchSize = 5
 
-async function insertMediaBatch(sqlite, mediaDataArray) {
+/**
+ * Insert media records in batch using Drizzle ORM with transaction for performance
+ * @param {Object} db - Drizzle database instance
+ * @param {Object} manager - StudyDatabaseManager instance for transaction support
+ * @param {Array} mediaDataArray - Array of media data objects to insert
+ */
+async function insertMediaBatch(db, manager, mediaDataArray) {
   if (mediaDataArray.length === 0) return
 
-  // Create a direct better-sqlite3 connection for bulk insert
-
   try {
-    // Prepare the insert statement
-    const insertStmt = sqlite.prepare(`
-      INSERT INTO media (mediaID, deploymentID, timestamp, filePath, fileName, importFolder, folderName)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `)
+    // Use transaction for bulk insert performance
+    // Insert in chunks to avoid SQLite parameter limits (999 per statement)
+    const CHUNK_SIZE = 100
 
-    // Create a transaction for maximum performance
-    const insertMany = sqlite.transaction((mediaArray) => {
-      for (const mediaData of mediaArray) {
-        insertStmt.run(
-          mediaData.mediaID,
-          mediaData.deploymentID,
-          mediaData.timestamp,
-          mediaData.filePath,
-          mediaData.fileName,
-          mediaData.importFolder,
-          mediaData.folderName
-        )
+    manager.transaction(() => {
+      for (let i = 0; i < mediaDataArray.length; i += CHUNK_SIZE) {
+        const chunk = mediaDataArray.slice(i, i + CHUNK_SIZE)
+        db.insert(media)
+          .values(
+            chunk.map((m) => ({
+              mediaID: m.mediaID,
+              deploymentID: m.deploymentID,
+              timestamp: m.timestamp,
+              filePath: m.filePath,
+              fileName: m.fileName,
+              importFolder: m.importFolder,
+              folderName: m.folderName
+            }))
+          )
+          .run()
       }
     })
 
-    insertMany(mediaDataArray)
-    log.info(`Inserted ${mediaDataArray.length} media records using prepared statement transaction`)
+    log.info(`Inserted ${mediaDataArray.length} media records using Drizzle transaction`)
   } catch (error) {
     log.error('Error inserting media batch:', error)
     throw error
-  } finally {
-    // sqlite.close()
   }
 }
 
@@ -512,15 +515,16 @@ export class Importer {
         if (!fs.existsSync(dbDir)) {
           fs.mkdirSync(dbDir, { recursive: true })
         }
-        this.db = await getDrizzleDb(this.id, dbPath)
+
+        // Get database manager for transaction support
+        const manager = await getStudyDatabase(this.id, dbPath)
+        this.db = manager.getDb()
 
         log.info('scanning images in folder:', this.folder)
         console.time('Insert media')
 
         const mediaBatch = []
-        const batchSize = 100000
-        const sqlite = new Database(dbPath)
-        // sqlite.pragma('journal_mode = WAL')
+        const insertBatchSize = 100000
 
         for await (const imagePath of walkImages(this.folder)) {
           const folderName =
@@ -540,18 +544,16 @@ export class Importer {
 
           mediaBatch.push(mediaData)
 
-          if (mediaBatch.length >= batchSize) {
-            await insertMediaBatch(sqlite, mediaBatch)
+          if (mediaBatch.length >= insertBatchSize) {
+            await insertMediaBatch(this.db, manager, mediaBatch)
             mediaBatch.length = 0 // Clear the array
           }
         }
 
         // Insert any remaining items
         if (mediaBatch.length > 0) {
-          await insertMediaBatch(sqlite, mediaBatch)
+          await insertMediaBatch(this.db, manager, mediaBatch)
         }
-
-        sqlite.close()
 
         console.timeEnd('Insert media')
       } else {
@@ -897,14 +899,15 @@ ipcMain.handle('importer:select-more-images-directory', async (event, id) => {
   }
 
   // Get latest model run to retrieve model reference and options
-  const latestRun = await getLatestModelRunRaw(id, dbPath)
+  const db = await getDrizzleDb(id, dbPath)
+  const latestRun = await getLatestModelRun(db)
   if (!latestRun) {
     log.warn(`No model run found for study ${id}`)
     return { success: false, message: 'No model run found for study' }
   }
 
   const modelReference = { id: latestRun.modelID, version: latestRun.modelVersion }
-  const options = latestRun.options ? JSON.parse(latestRun.options) : {}
+  const options = latestRun.options || {}
   const country = options.country || null
 
   const result = await dialog.showOpenDialog({
@@ -951,7 +954,8 @@ ipcMain.handle('importer:resume', async (event, id) => {
   }
 
   // Get latest model run to retrieve model reference, importPath and options
-  const latestRun = await getLatestModelRunRaw(id, dbPath)
+  const db = await getDrizzleDb(id, dbPath)
+  const latestRun = await getLatestModelRun(db)
   if (!latestRun) {
     log.warn(`No model run found for study ${id}`)
     return { success: false, message: 'No model run found for study' }
@@ -964,7 +968,7 @@ ipcMain.handle('importer:resume', async (event, id) => {
     return { success: false, message: 'No import path found for study' }
   }
 
-  const options = latestRun.options ? JSON.parse(latestRun.options) : {}
+  const options = latestRun.options || {}
   const country = options.country || null
 
   importers[id] = new Importer(id, importPath, modelReference, country)

@@ -4,6 +4,7 @@ import {
   media,
   observations,
   modelRuns,
+  modelOutputs,
   getStudyDatabase,
   executeRawQuery
 } from './db/index.js'
@@ -117,30 +118,35 @@ export async function getDeployments(dbPath) {
 
     const db = await getDrizzleDb(studyId, dbPath)
 
-    // Use raw SQL for complex GROUP BY query that's hard to express in Drizzle
-    const result = await db.all(sql`
-      SELECT DISTINCT
-        locationID,
-        locationName,
-        deploymentID,
-        deploymentStart,
-        deploymentEnd,
-        longitude,
-        latitude
-      FROM (
-        SELECT
-          locationName,
-          locationID,
-          deploymentID,
-          deploymentStart,
-          deploymentEnd,
-          longitude,
-          latitude
-        FROM deployments
-        ORDER BY locationID, deploymentStart DESC
-      )
-      GROUP BY locationID
-    `)
+    // Create subquery with ORDER BY to get deployments sorted by locationID and deploymentStart DESC
+    const subquery = db
+      .select({
+        locationName: deployments.locationName,
+        locationID: deployments.locationID,
+        deploymentID: deployments.deploymentID,
+        deploymentStart: deployments.deploymentStart,
+        deploymentEnd: deployments.deploymentEnd,
+        longitude: deployments.longitude,
+        latitude: deployments.latitude
+      })
+      .from(deployments)
+      .orderBy(deployments.locationID, desc(deployments.deploymentStart))
+      .as('subquery')
+
+    // Select distinct with GROUP BY to get one deployment per location
+    // SQLite returns the first row in each group based on the subquery's ORDER BY
+    const result = await db
+      .selectDistinct({
+        locationID: subquery.locationID,
+        locationName: subquery.locationName,
+        deploymentID: subquery.deploymentID,
+        deploymentStart: subquery.deploymentStart,
+        deploymentEnd: subquery.deploymentEnd,
+        longitude: subquery.longitude,
+        latitude: subquery.latitude
+      })
+      .from(subquery)
+      .groupBy(subquery.locationID)
 
     const elapsedTime = Date.now() - startTime
     log.info(`Retrieved distinct deployments: ${result.length} locations found in ${elapsedTime}ms`)
@@ -434,48 +440,48 @@ export async function getSpeciesHeatmapData(
 
     const db = await getDrizzleDb(studyId, dbPath)
 
-    // Extract species names for the IN clause with proper escaping
-    const speciesNames = species.map((s) => `'${s.replace(/'/g, "''")}'`).join(',')
+    // Build base conditions
+    const baseConditions = [
+      inArray(observations.scientificName, species),
+      gte(observations.eventStart, startDate),
+      lte(observations.eventStart, endDate),
+      isNotNull(deployments.latitude),
+      isNotNull(deployments.longitude)
+    ]
 
-    // Time of day query condition
-    let timeCondition = ''
+    // Add time-of-day condition using sql template for SQLite strftime
     if (startHour < endHour) {
       // Simple range (e.g., 8:00 to 17:00)
-      timeCondition = `
-        AND CAST(strftime('%H', o.eventStart) AS INTEGER) >= ${startHour}
-        AND CAST(strftime('%H', o.eventStart) AS INTEGER) < ${endHour}
-      `
+      baseConditions.push(
+        sql`CAST(strftime('%H', ${observations.eventStart}) AS INTEGER) >= ${startHour}`
+      )
+      baseConditions.push(
+        sql`CAST(strftime('%H', ${observations.eventStart}) AS INTEGER) < ${endHour}`
+      )
     } else if (startHour > endHour) {
       // Wrapping range (e.g., 22:00 to 6:00)
-      timeCondition = `
-        AND CAST(strftime('%H', o.eventStart) AS INTEGER) >= ${startHour}
-        OR CAST(strftime('%H', o.eventStart) AS INTEGER) < ${endHour}
-      `
+      baseConditions.push(
+        or(
+          sql`CAST(strftime('%H', ${observations.eventStart}) AS INTEGER) >= ${startHour}`,
+          sql`CAST(strftime('%H', ${observations.eventStart}) AS INTEGER) < ${endHour}`
+        )
+      )
     }
     // If startHour equals endHour, we include all hours (full day)
 
-    // Use raw SQL for complex time filtering that's easier to express in SQL
-    const query = `
-      SELECT
-        d.locationName,
-        d.latitude,
-        d.longitude,
-        o.scientificName,
-        COUNT(*) as count
-      FROM observations o
-      JOIN deployments d ON o.deploymentID = d.deploymentID
-      WHERE
-        o.scientificName IN (${speciesNames})
-        AND o.eventStart >= ?
-        AND o.eventStart <= ?
-        AND d.latitude IS NOT NULL
-        AND d.longitude IS NOT NULL
-        ${timeCondition}
-      GROUP BY d.latitude, d.longitude, o.scientificName
-      ORDER BY count DESC
-    `
-
-    const rows = await executeRawQuery(studyId, dbPath, query, [startDate, endDate])
+    const rows = await db
+      .select({
+        locationName: deployments.locationName,
+        latitude: deployments.latitude,
+        longitude: deployments.longitude,
+        scientificName: observations.scientificName,
+        count: count().as('count')
+      })
+      .from(observations)
+      .innerJoin(deployments, eq(observations.deploymentID, deployments.deploymentID))
+      .where(and(...baseConditions))
+      .groupBy(deployments.latitude, deployments.longitude, observations.scientificName)
+      .orderBy(desc(count()))
 
     // Process the data to create species-specific datasets
     const speciesData = {}
@@ -658,25 +664,25 @@ export async function getSpeciesDailyActivity(dbPath, species, startDate, endDat
 
     const db = await getDrizzleDb(studyId, dbPath)
 
-    // Extract species names for the IN clause with proper escaping
-    const speciesNames = species.map((s) => `'${s.replace(/'/g, "''")}'`).join(',')
+    // Use sql template for SQLite-specific hour extraction via strftime
+    const hourColumn = sql`CAST(strftime('%H', ${observations.eventStart}) AS INTEGER)`.as('hour')
 
-    // Use raw SQL for hour extraction which is easier in SQL
-    const query = `
-      SELECT
-        CAST(strftime('%H', eventStart) AS INTEGER) as hour,
-        scientificName,
-        COUNT(*) as count
-      FROM observations
-      WHERE
-        scientificName IN (${speciesNames})
-        AND eventStart >= ?
-        AND eventStart <= ?
-      GROUP BY hour, scientificName
-      ORDER BY hour, scientificName
-    `
-
-    const rows = await executeRawQuery(studyId, dbPath, query, [startDate, endDate])
+    const rows = await db
+      .select({
+        hour: hourColumn,
+        scientificName: observations.scientificName,
+        count: count().as('count')
+      })
+      .from(observations)
+      .where(
+        and(
+          inArray(observations.scientificName, species),
+          gte(observations.eventStart, startDate),
+          lte(observations.eventStart, endDate)
+        )
+      )
+      .groupBy(hourColumn, observations.scientificName)
+      .orderBy(hourColumn, observations.scientificName)
 
     // Process the data to create species-specific hourly patterns
     const hourlyData = Array(24)
@@ -1079,30 +1085,29 @@ export async function getMediaBboxes(dbPath, mediaID) {
     const pathParts = dbPath.split('/')
     const studyId = pathParts[pathParts.length - 2] || 'unknown'
 
-    const query = `
-      SELECT
-        o.observationID,
-        o.scientificName,
-        o.confidence,
-        o.detectionConfidence,
-        o.bboxX,
-        o.bboxY,
-        o.bboxWidth,
-        o.bboxHeight,
-        o.classificationMethod,
-        o.classifiedBy,
-        o.classificationTimestamp,
-        mr.modelID,
-        mr.modelVersion
-      FROM observations o
-      LEFT JOIN model_outputs mo ON o.modelOutputID = mo.id
-      LEFT JOIN model_runs mr ON mo.runID = mr.id
-      WHERE o.mediaID = ?
-      AND o.bboxX IS NOT NULL
-      ORDER BY o.detectionConfidence DESC
-    `
+    const db = await getDrizzleDb(studyId, dbPath)
 
-    const rows = await executeRawQuery(studyId, dbPath, query, [mediaID])
+    const rows = await db
+      .select({
+        observationID: observations.observationID,
+        scientificName: observations.scientificName,
+        confidence: observations.confidence,
+        detectionConfidence: observations.detectionConfidence,
+        bboxX: observations.bboxX,
+        bboxY: observations.bboxY,
+        bboxWidth: observations.bboxWidth,
+        bboxHeight: observations.bboxHeight,
+        classificationMethod: observations.classificationMethod,
+        classifiedBy: observations.classifiedBy,
+        classificationTimestamp: observations.classificationTimestamp,
+        modelID: modelRuns.modelID,
+        modelVersion: modelRuns.modelVersion
+      })
+      .from(observations)
+      .leftJoin(modelOutputs, eq(observations.modelOutputID, modelOutputs.id))
+      .leftJoin(modelRuns, eq(modelOutputs.runID, modelRuns.id))
+      .where(and(eq(observations.mediaID, mediaID), isNotNull(observations.bboxX)))
+      .orderBy(desc(observations.detectionConfidence))
 
     const elapsedTime = Date.now() - startTime
     log.info(`Retrieved ${rows.length} bboxes for media ${mediaID} in ${elapsedTime}ms`)
@@ -1212,22 +1217,47 @@ export async function getMediaPredictions(dbPath, mediaID) {
     const pathParts = dbPath.split('/')
     const studyId = pathParts[pathParts.length - 2] || 'unknown'
 
-    const query = `
-      SELECT
-        o.*,
-        mr.id as runID,
-        mr.modelID,
-        mr.modelVersion,
-        mr.startedAt as runStartedAt,
-        mr.status as runStatus
-      FROM observations o
-      LEFT JOIN model_outputs mo ON o.modelOutputID = mo.id
-      LEFT JOIN model_runs mr ON mo.runID = mr.id
-      WHERE o.mediaID = ?
-      ORDER BY mr.startedAt DESC, o.confidence DESC
-    `
+    const db = await getDrizzleDb(studyId, dbPath)
 
-    const rows = await executeRawQuery(studyId, dbPath, query, [mediaID])
+    const rows = await db
+      .select({
+        // All observation fields (22 columns from schema.js)
+        observationID: observations.observationID,
+        mediaID: observations.mediaID,
+        deploymentID: observations.deploymentID,
+        eventID: observations.eventID,
+        eventStart: observations.eventStart,
+        eventEnd: observations.eventEnd,
+        scientificName: observations.scientificName,
+        observationType: observations.observationType,
+        commonName: observations.commonName,
+        confidence: observations.confidence,
+        count: observations.count,
+        lifeStage: observations.lifeStage,
+        age: observations.age,
+        sex: observations.sex,
+        behavior: observations.behavior,
+        bboxX: observations.bboxX,
+        bboxY: observations.bboxY,
+        bboxWidth: observations.bboxWidth,
+        bboxHeight: observations.bboxHeight,
+        detectionConfidence: observations.detectionConfidence,
+        modelOutputID: observations.modelOutputID,
+        classificationMethod: observations.classificationMethod,
+        classifiedBy: observations.classifiedBy,
+        classificationTimestamp: observations.classificationTimestamp,
+        // Model run fields (aliased to match original query)
+        runID: modelRuns.id,
+        modelID: modelRuns.modelID,
+        modelVersion: modelRuns.modelVersion,
+        runStartedAt: modelRuns.startedAt,
+        runStatus: modelRuns.status
+      })
+      .from(observations)
+      .leftJoin(modelOutputs, eq(observations.modelOutputID, modelOutputs.id))
+      .leftJoin(modelRuns, eq(modelOutputs.runID, modelRuns.id))
+      .where(eq(observations.mediaID, mediaID))
+      .orderBy(desc(modelRuns.startedAt), desc(observations.confidence))
 
     const elapsedTime = Date.now() - startTime
     log.info(`Retrieved ${rows.length} predictions for media ${mediaID} in ${elapsedTime}ms`)
@@ -1697,18 +1727,18 @@ export async function getDistinctSpecies(dbPath) {
     const pathParts = dbPath.split('/')
     const studyId = pathParts[pathParts.length - 2] || 'unknown'
 
-    const query = `
-      SELECT DISTINCT
-        scientificName,
-        commonName,
-        COUNT(*) as observationCount
-      FROM observations
-      WHERE scientificName IS NOT NULL AND scientificName != ''
-      GROUP BY scientificName
-      ORDER BY observationCount DESC, scientificName ASC
-    `
+    const db = await getDrizzleDb(studyId, dbPath)
 
-    const rows = await executeRawQuery(studyId, dbPath, query)
+    const rows = await db
+      .select({
+        scientificName: observations.scientificName,
+        commonName: observations.commonName,
+        observationCount: count(observations.observationID).as('observationCount')
+      })
+      .from(observations)
+      .where(and(isNotNull(observations.scientificName), ne(observations.scientificName, '')))
+      .groupBy(observations.scientificName)
+      .orderBy(desc(count(observations.observationID)), observations.scientificName)
 
     const elapsedTime = Date.now() - startTime
     log.info(`Retrieved ${rows.length} distinct species in ${elapsedTime}ms`)
