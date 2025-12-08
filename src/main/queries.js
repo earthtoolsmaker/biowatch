@@ -530,64 +530,86 @@ export async function getMedia(dbPath, options = {}) {
 
     const db = await getDrizzleDb(studyId, dbPath)
 
-    // Build the query with optional filters using raw SQL for complex filtering
-    let query = `
-      SELECT DISTINCT
-        m.mediaID,
-        m.filePath,
-        m.fileName,
-        m.timestamp,
-        m.deploymentID,
-        o.scientificName
-      FROM media m
-      JOIN observations o ON m.mediaID = o.mediaID
-      WHERE o.scientificName IS NOT NULL
-        AND o.scientificName != ''
-    `
-
-    const queryParams = []
+    // Build filter conditions that apply to both branches
+    let filterConditions = ''
+    const filterParams = []
 
     // Add species filter if provided
     if (species.length > 0) {
       const placeholders = species.map(() => '?').join(',')
-      query += ` AND o.scientificName IN (${placeholders})`
-      queryParams.push(...species)
+      filterConditions += ` AND o.scientificName IN (${placeholders})`
+      filterParams.push(...species)
     }
 
     // Add date range filter if provided
+    let startDate, endDate
     if (dateRange.start && dateRange.end) {
-      // Format Date objects to ISO strings if they're not already
-      const startDate =
+      startDate =
         dateRange.start instanceof Date ? dateRange.start.toISOString() : dateRange.start
-      const endDate = dateRange.end instanceof Date ? dateRange.end.toISOString() : dateRange.end
+      endDate = dateRange.end instanceof Date ? dateRange.end.toISOString() : dateRange.end
 
       log.info(`Formatted date range: ${startDate} to ${endDate}`)
 
-      query += ` AND m.timestamp >= ? AND m.timestamp <= ?`
-      queryParams.push(startDate, endDate)
+      filterConditions += ` AND m.timestamp >= ? AND m.timestamp <= ?`
+      filterParams.push(startDate, endDate)
     }
 
     // Add time of day filter if provided
     if (timeRange.start !== undefined && timeRange.end !== undefined) {
       if (timeRange.start < timeRange.end) {
         // Simple range (e.g., 8:00 to 17:00)
-        query += ` AND CAST(strftime('%H', m.timestamp) AS INTEGER) >= ?
+        filterConditions += ` AND CAST(strftime('%H', m.timestamp) AS INTEGER) >= ?
                    AND CAST(strftime('%H', m.timestamp) AS INTEGER) < ?`
-        queryParams.push(timeRange.start, timeRange.end)
+        filterParams.push(timeRange.start, timeRange.end)
       } else if (timeRange.start > timeRange.end) {
         // Wrapping range (e.g., 22:00 to 6:00)
-        query += ` AND (CAST(strftime('%H', m.timestamp) AS INTEGER) >= ?
+        filterConditions += ` AND (CAST(strftime('%H', m.timestamp) AS INTEGER) >= ?
                    OR CAST(strftime('%H', m.timestamp) AS INTEGER) < ?)`
-        queryParams.push(timeRange.start, timeRange.end)
+        filterParams.push(timeRange.start, timeRange.end)
       }
     }
 
-    // Add ordering and limit with offset for pagination
-    query += `
-      ORDER BY m.timestamp DESC
+    // Use UNION to support both mediaID-based and timestamp-based joins efficiently
+    // OR conditions in JOINs cause full table scans, UNION allows each branch to use indexes
+    const query = `
+      SELECT DISTINCT mediaID, filePath, fileName, timestamp, deploymentID, scientificName FROM (
+        -- Branch 1: Direct mediaID link (for ML runs, Wildlife Insights, Deepfaune imports)
+        SELECT
+          m.mediaID,
+          m.filePath,
+          m.fileName,
+          m.timestamp,
+          m.deploymentID,
+          o.scientificName
+        FROM media m
+        JOIN observations o ON m.mediaID = o.mediaID
+        WHERE o.scientificName IS NOT NULL
+          AND o.scientificName != ''
+          ${filterConditions}
+
+        UNION
+
+        -- Branch 2: Timestamp link (for CamTrap DP datasets where observations have NULL mediaID)
+        SELECT
+          m.mediaID,
+          m.filePath,
+          m.fileName,
+          m.timestamp,
+          m.deploymentID,
+          o.scientificName
+        FROM media m
+        JOIN observations o ON m.timestamp = o.eventStart
+        WHERE o.mediaID IS NULL
+          AND o.scientificName IS NOT NULL
+          AND o.scientificName != ''
+          ${filterConditions}
+      )
+      ORDER BY timestamp DESC
       LIMIT ? OFFSET ?
     `
-    queryParams.push(limit, offset)
+
+    // Parameters are duplicated for both branches, then limit/offset at the end
+    const queryParams = [...filterParams, ...filterParams, limit, offset]
 
     // Use the executeRawQuery helper for complex parameterized queries
     const rows = await executeRawQuery(studyId, dbPath, query, queryParams)
