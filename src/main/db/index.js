@@ -3,7 +3,7 @@
  * Replaces the old db.js with type-safe database operations
  */
 
-import { eq } from 'drizzle-orm'
+import { eq, desc } from 'drizzle-orm'
 import { getStudyDatabase, closeStudyDatabase, closeAllDatabases } from './manager.js'
 import { deployments, media, observations, modelRuns, modelOutputs, metadata } from './schema.js'
 import {
@@ -188,23 +188,6 @@ export async function insertModelOutput(db, data) {
  * @returns {Promise<Object|null>} Latest model run or null
  */
 export async function getLatestModelRun(db) {
-  const result = await db.select().from(modelRuns).orderBy(modelRuns.startedAt).limit(1)
-  // Note: orderBy defaults to ASC, we need DESC for latest
-  // Using raw query for proper DESC ordering
-  return result[0] || null
-}
-
-/**
- * Get the latest model run using raw SQL (proper DESC ordering)
- * @param {string} studyId - Study identifier
- * @param {string} dbPath - Path to database file
- * @returns {Promise<Object|null>} Latest model run or null
- */
-export async function getLatestModelRunRaw(studyId, dbPath) {
-  const result = await executeRawQuery(
-    studyId,
-    dbPath,
-    'SELECT * FROM model_runs ORDER BY startedAt DESC LIMIT 1'
-  )
+  const result = await db.select().from(modelRuns).orderBy(desc(modelRuns.startedAt)).limit(1)
   return result[0] || null
 }
