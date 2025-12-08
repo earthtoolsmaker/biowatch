@@ -291,10 +291,7 @@ export default function Overview({ data, studyId, studyName }) {
   const { importStatus } = useImportStatus(studyId)
 
   // Use useQuery for deployments data - automatically handles caching per studyId
-  const {
-    data: deploymentsData,
-    error: deploymentsError
-  } = useQuery({
+  const { data: deploymentsData, error: deploymentsError } = useQuery({
     queryKey: ['deployments', studyId],
     queryFn: async () => {
       const response = await window.api.getDeployments(studyId)
@@ -308,10 +305,7 @@ export default function Overview({ data, studyId, studyName }) {
   })
 
   // Use useQuery for species data - automatically handles caching per studyId
-  const {
-    data: speciesData,
-    error: speciesError
-  } = useQuery({
+  const { data: speciesData, error: speciesError } = useQuery({
     queryKey: ['species', studyId],
     queryFn: async () => {
       const response = await window.api.getSpeciesDistribution(studyId)
@@ -381,7 +375,6 @@ export default function Overview({ data, studyId, studyName }) {
       maxDeploymentDate: maxDate ? maxDate.toISOString().split('T')[0] : null
     }
   }, [deploymentsData])
-
 
   // Check scroll possibility
   useEffect(() => {

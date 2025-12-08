@@ -332,11 +332,7 @@ describe('Wildlife Import Tests', () => {
       const contributors = JSON.parse(metadata.contributors)
       assert(Array.isArray(contributors), 'Contributors should be an array')
       assert.equal(contributors.length, 1, 'Should have one contributor')
-      assert.equal(
-        contributors[0].title,
-        'Rafa Benjumea',
-        'Should have correct contributor name'
-      )
+      assert.equal(contributors[0].title, 'Rafa Benjumea', 'Should have correct contributor name')
 
       // Verify returned data matches
       assert(result.data, 'Should return data')

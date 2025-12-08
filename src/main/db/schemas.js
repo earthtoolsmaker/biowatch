@@ -45,14 +45,8 @@ export const metadataSchema = z.object({
   importerName: z.string(),
   contributors: contributorsSchema,
   updatedAt: z.string().nullable(),
-  startDate: z
-    .string()
-    .regex(isoDatePattern, 'Must be ISO date format (YYYY-MM-DD)')
-    .nullable(),
-  endDate: z
-    .string()
-    .regex(isoDatePattern, 'Must be ISO date format (YYYY-MM-DD)')
-    .nullable()
+  startDate: z.string().regex(isoDatePattern, 'Must be ISO date format (YYYY-MM-DD)').nullable(),
+  endDate: z.string().regex(isoDatePattern, 'Must be ISO date format (YYYY-MM-DD)').nullable()
 })
 
 // Schema for updating metadata (all fields optional except what's being updated)

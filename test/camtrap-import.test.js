@@ -559,11 +559,7 @@ media001,deploy001,${mediaUrl},image.jpg,2023-03-20T14:30:15Z`
       assert.equal(metadata.name, 'test-camtrap-dataset', 'name should match datapackage name')
 
       // Verify datapackage metadata is preserved
-      assert.equal(
-        metadata.title,
-        'Test CamTrap Dataset',
-        'Should preserve datapackage title'
-      )
+      assert.equal(metadata.title, 'Test CamTrap Dataset', 'Should preserve datapackage title')
 
       // Verify returned data matches
       assert(result.data, 'Should return data')

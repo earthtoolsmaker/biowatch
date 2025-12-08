@@ -7,7 +7,21 @@ import {
   getStudyDatabase,
   executeRawQuery
 } from './db/index.js'
-import { eq, and, desc, count, sql, isNotNull, ne, inArray } from 'drizzle-orm'
+import { union } from 'drizzle-orm/sqlite-core'
+import {
+  eq,
+  and,
+  desc,
+  count,
+  sql,
+  isNotNull,
+  ne,
+  inArray,
+  gte,
+  lte,
+  isNull,
+  or
+} from 'drizzle-orm'
 import log from 'electron-log'
 import { DateTime } from 'luxon'
 
@@ -505,11 +519,17 @@ export async function getSpeciesHeatmapData(
  * @returns {Promise<Array>} - Media files matching the criteria
  */
 export async function getMedia(dbPath, options = {}) {
-  const { limit = 10, offset = 0, species = [], dateRange = {}, timeRange = {} } = options
+  const {
+    limit: queryLimit = 10,
+    offset: queryOffset = 0,
+    species = [],
+    dateRange = {},
+    timeRange = {}
+  } = options
 
   const startTime = Date.now()
   log.info(`Querying media files from: ${dbPath} with filtering options`)
-  log.info(`Pagination: limit ${limit}, offset ${offset}`)
+  log.info(`Pagination: limit ${queryLimit}, offset ${queryOffset}`)
 
   if (species.length > 0) {
     log.info(`Species filter: ${species.join(', ')}`)
@@ -530,71 +550,85 @@ export async function getMedia(dbPath, options = {}) {
 
     const db = await getDrizzleDb(studyId, dbPath)
 
-    // Build the query with optional filters using raw SQL for complex filtering
-    let query = `
-      SELECT DISTINCT
-        m.mediaID,
-        m.filePath,
-        m.fileName,
-        m.timestamp,
-        m.deploymentID,
-        o.scientificName
-      FROM media m
-      JOIN observations o ON m.mediaID = o.mediaID
-      WHERE o.scientificName IS NOT NULL
-        AND o.scientificName != ''
-    `
-
-    const queryParams = []
+    // Build dynamic filter conditions array for base query
+    const baseConditions = [
+      isNotNull(observations.scientificName),
+      ne(observations.scientificName, '')
+    ]
 
     // Add species filter if provided
     if (species.length > 0) {
-      const placeholders = species.map(() => '?').join(',')
-      query += ` AND o.scientificName IN (${placeholders})`
-      queryParams.push(...species)
+      baseConditions.push(inArray(observations.scientificName, species))
     }
 
     // Add date range filter if provided
     if (dateRange.start && dateRange.end) {
-      // Format Date objects to ISO strings if they're not already
       const startDate =
         dateRange.start instanceof Date ? dateRange.start.toISOString() : dateRange.start
       const endDate = dateRange.end instanceof Date ? dateRange.end.toISOString() : dateRange.end
 
       log.info(`Formatted date range: ${startDate} to ${endDate}`)
 
-      query += ` AND m.timestamp >= ? AND m.timestamp <= ?`
-      queryParams.push(startDate, endDate)
+      baseConditions.push(gte(media.timestamp, startDate))
+      baseConditions.push(lte(media.timestamp, endDate))
     }
 
     // Add time of day filter if provided
     if (timeRange.start !== undefined && timeRange.end !== undefined) {
       if (timeRange.start < timeRange.end) {
         // Simple range (e.g., 8:00 to 17:00)
-        query += ` AND CAST(strftime('%H', m.timestamp) AS INTEGER) >= ?
-                   AND CAST(strftime('%H', m.timestamp) AS INTEGER) < ?`
-        queryParams.push(timeRange.start, timeRange.end)
+        baseConditions.push(
+          sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) >= ${timeRange.start}`
+        )
+        baseConditions.push(
+          sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) < ${timeRange.end}`
+        )
       } else if (timeRange.start > timeRange.end) {
         // Wrapping range (e.g., 22:00 to 6:00)
-        query += ` AND (CAST(strftime('%H', m.timestamp) AS INTEGER) >= ?
-                   OR CAST(strftime('%H', m.timestamp) AS INTEGER) < ?)`
-        queryParams.push(timeRange.start, timeRange.end)
+        baseConditions.push(
+          or(
+            sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) >= ${timeRange.start}`,
+            sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) < ${timeRange.end}`
+          )
+        )
       }
     }
 
-    // Add ordering and limit with offset for pagination
-    query += `
-      ORDER BY m.timestamp DESC
-      LIMIT ? OFFSET ?
-    `
-    queryParams.push(limit, offset)
+    // Select fields for both branches
+    const selectFields = {
+      mediaID: media.mediaID,
+      filePath: media.filePath,
+      fileName: media.fileName,
+      timestamp: media.timestamp,
+      deploymentID: media.deploymentID,
+      scientificName: observations.scientificName
+    }
 
-    // Use the executeRawQuery helper for complex parameterized queries
-    const rows = await executeRawQuery(studyId, dbPath, query, queryParams)
+    // Branch 1: Direct mediaID link (for ML runs, Wildlife Insights, Deepfaune imports)
+    const branch1 = db
+      .selectDistinct(selectFields)
+      .from(media)
+      .innerJoin(observations, eq(media.mediaID, observations.mediaID))
+      .where(and(...baseConditions))
+
+    // Branch 2: Timestamp link (for CamTrap DP datasets where observations have NULL mediaID)
+    const branch2Conditions = [...baseConditions, isNull(observations.mediaID)]
+    const branch2 = db
+      .selectDistinct(selectFields)
+      .from(media)
+      .innerJoin(observations, eq(media.timestamp, observations.eventStart))
+      .where(and(...branch2Conditions))
+
+    // Combine with UNION, order, and paginate
+    // UNION deduplicates results and allows each branch to use indexes efficiently
+    const rows = await union(branch1, branch2)
+      .orderBy(desc(media.timestamp))
+      .limit(queryLimit)
+      .offset(queryOffset)
 
     const elapsedTime = Date.now() - startTime
     log.info(
-      `Retrieved ${rows.length} media files matching criteria (offset: ${offset}) in ${elapsedTime}ms`
+      `Retrieved ${rows.length} media files matching criteria (offset: ${queryOffset}) in ${elapsedTime}ms`
     )
     return rows
   } catch (error) {

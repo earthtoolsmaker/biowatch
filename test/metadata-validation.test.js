@@ -286,9 +286,7 @@ describe('Metadata Zod Validation', () => {
 
     test('should accept contributors update', () => {
       const contributorsUpdate = {
-        contributors: [
-          { title: 'New Contributor', email: 'new@example.com', role: 'author' }
-        ]
+        contributors: [{ title: 'New Contributor', email: 'new@example.com', role: 'author' }]
       }
 
       const result = metadataUpdateSchema.safeParse(contributorsUpdate)
