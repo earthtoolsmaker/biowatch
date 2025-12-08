@@ -116,11 +116,11 @@ export default function SettingsPage() {
   }
   return (
     <div className="flex gap-4 flex-col h-full">
-      <header className="w-full flex border-b border-gray-200 divide-gray-200 divide-x sticky top-0 bg-white z-10 rounded-tl-md rounded-tr-md [&>a:last-child]:rounded-tr-md [&>a:first-child]:rounded-tl-md">
+      <header className="w-full flex border-b border-gray-200 divide-gray-200 divide-x sticky top-0 z-10 rounded-tl-md rounded-tr-md [&>a:last-child]:rounded-tr-md [&>a:first-child]:rounded-tl-md">
         <NavLink
           to={`/settings/info`}
           className={({ isActive }) =>
-            `${isActive ? 'bg-gray-100' : ''} hover:bg-gray-100 transition-colors flex justify-center flex-row gap-2 items-center px-4 h-10 text-sm`
+            `${isActive ? 'bg-white' : 'bg-gray-100'} hover:bg-white transition-colors flex justify-center flex-row gap-2 items-center px-4 h-10 text-sm`
           }
         >
           <Info color="black" size={20} className="pb-[2px]" />
@@ -129,7 +129,7 @@ export default function SettingsPage() {
         <NavLink
           to={`/settings/ml_zoo`}
           className={({ isActive }) =>
-            `${isActive ? 'bg-gray-100' : ''} cursor-pointer hover:bg-gray-100 transition-colors flex justify-center flex-row gap-2 items-center px-4 h-10 text-sm`
+            `${isActive ? 'bg-white' : 'bg-gray-100'} cursor-pointer hover:bg-white transition-colors flex justify-center flex-row gap-2 items-center px-4 h-10 text-sm border-r border-gray-200`
           }
         >
           <BrainCircuit color="black" size={20} className="pb-[2px]" />

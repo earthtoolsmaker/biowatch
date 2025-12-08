@@ -171,7 +171,7 @@ export default function Study() {
           to={`/study/${id}`}
           end
           className={({ isActive }) =>
-            `${isActive ? 'bg-gray-100' : ''} hover:bg-gray-100 transition-colors flex justify-center flex-row gap-2 items-center px-4 h-10 text-sm`
+            `${isActive ? 'bg-white' : 'bg-gray-100'} hover:bg-white transition-colors flex justify-center flex-row gap-2 items-center px-4 h-10 text-sm`
           }
         >
           <NotebookText color="black" size={20} className="pb-[2px]" />
@@ -180,7 +180,7 @@ export default function Study() {
         <NavLink
           to={`/study/${id}/activity`}
           className={({ isActive }) =>
-            `${isActive ? 'bg-gray-100' : ''} cursor-pointer hover:bg-gray-100 transition-colors flex justify-center flex-row gap-2 items-center px-4 h-10 text-sm`
+            `${isActive ? 'bg-white' : 'bg-gray-100'} cursor-pointer hover:bg-white transition-colors flex justify-center flex-row gap-2 items-center px-4 h-10 text-sm`
           }
         >
           <ChartBar color="black" size={20} className="pb-[2px]" />
@@ -189,7 +189,7 @@ export default function Study() {
         <NavLink
           to={`/study/${id}/media`}
           className={({ isActive }) =>
-            `${isActive ? 'bg-gray-100' : ''} cursor-pointer hover:bg-gray-100 transition-colors flex justify-center flex-row gap-2 items-center px-4 h-10 text-sm`
+            `${isActive ? 'bg-white' : 'bg-gray-100'} cursor-pointer hover:bg-white transition-colors flex justify-center flex-row gap-2 items-center px-4 h-10 text-sm`
           }
         >
           <Image color="black" size={20} className="pb-[2px]" />
@@ -198,7 +198,7 @@ export default function Study() {
         <NavLink
           to={`/study/${id}/deployments`}
           className={({ isActive }) =>
-            `${isActive ? 'bg-gray-100' : ''} cursor-pointer hover:bg-gray-100 transition-colors flex justify-center flex-row gap-2 items-center px-4 h-10 text-sm`
+            `${isActive ? 'bg-white' : 'bg-gray-100'} cursor-pointer hover:bg-white transition-colors flex justify-center flex-row gap-2 items-center px-4 h-10 text-sm`
           }
         >
           <Cctv color="black" size={20} className="pb-[2px]" />
@@ -208,7 +208,7 @@ export default function Study() {
           <NavLink
             to={`/study/${id}/files`}
             className={({ isActive }) =>
-              `${isActive ? 'bg-gray-100' : ''} cursor-pointer hover:bg-gray-100 transition-colors flex justify-center flex-row gap-2 items-center px-4 h-10 text-sm`
+              `${isActive ? 'bg-white' : 'bg-gray-100'} cursor-pointer hover:bg-white transition-colors flex justify-center flex-row gap-2 items-center px-4 h-10 text-sm`
             }
           >
             <FolderOpen color="black" size={20} className="pb-[2px]" />
@@ -218,7 +218,7 @@ export default function Study() {
         <NavLink
           to={`/study/${id}/export`}
           className={({ isActive }) =>
-            `${isActive ? 'bg-gray-100' : ''} cursor-pointer hover:bg-gray-100 transition-colors flex justify-center flex-row gap-2 items-center px-4 h-10 text-sm`
+            `${isActive ? 'bg-white' : 'bg-gray-100'} cursor-pointer hover:bg-white transition-colors flex justify-center flex-row gap-2 items-center px-4 h-10 text-sm`
           }
         >
           <Upload color="black" size={20} className="pb-[2px]" />
@@ -227,7 +227,7 @@ export default function Study() {
         <NavLink
           to={`/study/${id}/settings`}
           className={({ isActive }) =>
-            `${isActive ? 'bg-gray-100' : ''} cursor-pointer hover:bg-gray-100 transition-colors flex justify-center flex-row gap-2 items-center px-4 h-10 text-sm`
+            `${isActive ? 'bg-white' : 'bg-gray-100'} cursor-pointer hover:bg-white transition-colors flex justify-center flex-row gap-2 items-center px-4 h-10 text-sm`
           }
         >
           <Settings color="black" size={20} className="pb-[2px]" />
