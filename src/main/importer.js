@@ -17,6 +17,7 @@ import {
   modelOutputs,
   closeStudyDatabase,
   insertMetadata,
+  insertModelOutput,
   getLatestModelRunRaw,
   updateMetadata,
   getMetadata
@@ -647,9 +648,9 @@ export class Importer {
                       continue
                     }
 
-                    // Create model_output record for this media
+                    // Create model_output record for this media (with validated rawOutput)
                     const modelOutputID = crypto.randomUUID()
-                    await this.db.insert(modelOutputs).values({
+                    await insertModelOutput(this.db, {
                       id: modelOutputID,
                       mediaID: mediaRecord.mediaID,
                       runID: runID,
