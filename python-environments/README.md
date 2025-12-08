@@ -6,6 +6,14 @@ the ML model predictions locally from within the Electron application.
 - [`common`](./common/README.md): Basic python environment that can run ML
 Models with a fastapi HTTP server.
 
+## Documentation
+
+For comprehensive documentation on ML model integration, see:
+
+- [HTTP ML Servers](../docs/http-servers.md) - How HTTP servers work, adding new models, API reference
+- [Architecture](../docs/architecture.md) - System overview and ML integration flow
+- [Development](../docs/development.md) - Building Python environments locally
+
 ## Environment Version Updates
 
 Whenever a dependency is updated, it's essential to increment the version
