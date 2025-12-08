@@ -1,9 +1,11 @@
 /**
- * Groups media files into sequences based on timestamp proximity.
+ * Groups media files into sequences based on timestamp proximity AND deployment.
+ * Media from different deployments are NEVER grouped into the same sequence.
+ * Items with null/undefined deploymentID are treated as unique (each becomes its own sequence).
  * Works correctly regardless of input sort order (ascending or descending).
  * Output sequences have items sorted by timestamp (ascending - oldest first).
  *
- * @param {Array} mediaFiles - Array of media files
+ * @param {Array} mediaFiles - Array of media files with mediaID, timestamp, and optionally deploymentID
  * @param {number} gapThresholdSeconds - Maximum gap in seconds to consider media as same sequence
  * @returns {Array} Array of sequence objects { id, items, startTime, endTime }
  */
@@ -41,7 +43,8 @@ export function groupMediaIntoSequences(mediaFiles, gapThresholdSeconds) {
           id: media.mediaID,
           items: [media],
           startTime: new Date(media.timestamp),
-          endTime: new Date(media.timestamp)
+          endTime: new Date(media.timestamp),
+          _deploymentID: media.deploymentID
         }
         continue
       }
@@ -54,7 +57,8 @@ export function groupMediaIntoSequences(mediaFiles, gapThresholdSeconds) {
         id: media.mediaID,
         items: [media],
         startTime: new Date(media.timestamp),
-        endTime: new Date(media.timestamp)
+        endTime: new Date(media.timestamp),
+        _deploymentID: media.deploymentID
       }
       continue
     }
@@ -67,15 +71,22 @@ export function groupMediaIntoSequences(mediaFiles, gapThresholdSeconds) {
         startTime: new Date(media.timestamp),
         endTime: new Date(media.timestamp),
         _minTime: mediaTime,
-        _maxTime: mediaTime
+        _maxTime: mediaTime,
+        _deploymentID: media.deploymentID
       }
     } else {
+      // Check if same deployment (both must be non-null and equal)
+      const sameDeployment =
+        currentSequence._deploymentID != null &&
+        media.deploymentID != null &&
+        currentSequence._deploymentID === media.deploymentID
+
       // Use Math.abs to handle both ascending and descending order
       const gap = Math.abs(mediaTime - currentSequence._maxTime)
       const gapFromMin = Math.abs(mediaTime - currentSequence._minTime)
       const effectiveGap = Math.min(gap, gapFromMin)
 
-      if (effectiveGap <= gapMs) {
+      if (effectiveGap <= gapMs && sameDeployment) {
         // Same sequence - add to current
         currentSequence.items.push(media)
         // Update time bounds
@@ -96,7 +107,8 @@ export function groupMediaIntoSequences(mediaFiles, gapThresholdSeconds) {
           startTime: new Date(media.timestamp),
           endTime: new Date(media.timestamp),
           _minTime: mediaTime,
-          _maxTime: mediaTime
+          _maxTime: mediaTime,
+          _deploymentID: media.deploymentID
         }
       }
     }
