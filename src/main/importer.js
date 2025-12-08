@@ -972,20 +972,26 @@ ipcMain.handle('importer:resume', async (event, id) => {
   return { success: true, message: 'Importer resumed successfully' }
 })
 
-app.on('will-quit', async (e) => {
+app.on('will-quit', async () => {
+  // Note: ML server cleanup is handled by the 'before-quit' handler via shutdownAllServers()
+  // This handler only needs to abort in-flight requests and clear importer references
+
   if (Object.keys(importers).length === 0) {
-    log.info('No importers to stop')
+    log.info('[Importer] No importers to clean up')
     return
   }
-  e.preventDefault()
 
   for (const id in importers) {
     if (importers[id]) {
-      await importers[id].cleanup()
+      // Only abort in-flight fetch requests; servers are cleaned up centrally
+      if (importers[id].abortController) {
+        log.info(`[Importer] Aborting in-flight requests for importer ${id}`)
+        importers[id].abortController.abort()
+        importers[id].abortController = null
+      }
       delete importers[id]
     }
   }
 
-  log.info('All importers stopped')
-  app.quit()
+  log.info('[Importer] All importers cleaned up')
 })
