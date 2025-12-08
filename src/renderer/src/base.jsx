@@ -1,4 +1,4 @@
-import { Plus, Settings } from 'lucide-react'
+import { FolderOpen, Plus, Settings } from 'lucide-react'
 import { ErrorBoundary } from 'react-error-boundary'
 import { HashRouter, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
@@ -178,12 +178,19 @@ function AppContent() {
         </header> */}
         <ul className="flex w-full min-w-0 flex-col gap-4 p-2">
           <li>
-            <NavLink
-              to="/import"
-              className="flex w-full items-center h-8 gap-2 text-sm font-medium hover:bg-gray-100 rounded-md p-2"
-            >
-              <span>Studies</span>
-            </NavLink>
+            <div className="flex w-full items-center justify-between h-8 text-sm font-medium rounded-md p-2 cursor-default">
+              <div className="flex items-center gap-2">
+                <FolderOpen className="text-gray-500" size={16} />
+                <span>Studies</span>
+              </div>
+              <NavLink
+                to="/import"
+                className="flex items-center justify-center w-5 h-5 rounded hover:bg-gray-200 transition-colors"
+                title="Add a new study"
+              >
+                <Plus color="black" size={14} />
+              </NavLink>
+            </div>
             <ul className="border-l mx-3.5 border-gray-200 flex w-full flex-col gap-2 px-1.5 py-0.5 text-[hsl(var(--sidebar-foreground))]">
               {studies.map((study) => (
                 <li key={study.id}>
@@ -200,21 +207,15 @@ function AppContent() {
             </ul>
           </li>
         </ul>
-        <footer className="absolute left-0 bottom-8 w-full flex justify-center p-2 gap-1">
-          {!(location.pathname === '/import' && studies.length === 0) && (
-            <NavLink
-              to="/import"
-              className={` bg-white cursor-pointer w-[72%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50`}
-            >
-              <Plus color="black" size={14} />
-              Add study
-            </NavLink>
-          )}
+        <footer className="absolute left-0 bottom-8 w-full p-2">
           <NavLink
             to="/settings/ml_zoo"
-            className={` bg-white cursor-pointer w-[20%] transition-colors flex justify-center flex-row items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50`}
+            className={({ isActive }) =>
+              `flex w-full items-center gap-2 text-sm hover:bg-gray-100 rounded-md p-2 ${isActive ? 'font-semibold' : ''}`
+            }
           >
-            <Settings className="text-gray-500" size={18} />
+            <Settings className="text-gray-500" size={16} />
+            <span>Settings</span>
           </NavLink>
         </footer>
       </div>
