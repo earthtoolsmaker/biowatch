@@ -1,0 +1,39 @@
+name: Python E2E Tests
+
+on:
+  pull_request:
+    paths:
+      - 'python-environments/common/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e-tests:
+    name: SpeciesNet E2E Tests
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Cache SpeciesNet model
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.keras
+            ~/.cache/kaggle
+          key: speciesnet-model-v4
+
+      - name: Install dependencies
+        working-directory: python-environments/common
+        run: uv sync --extra dev
+
+      - name: Run e2e tests
+        working-directory: python-environments/common
+        run: uv run pytest tests/ -v
