@@ -1416,11 +1416,11 @@ function SequenceCard({
   showBboxes,
   bboxesByMedia,
   widthClass,
-  cycleInterval = 2000,
+  cycleInterval = 1000,
   isVideoMedia
 }) {
   const [currentIndex, setCurrentIndex] = useState(0)
-  const [isPaused, setIsPaused] = useState(false)
+  const [isHovering, setIsHovering] = useState(false)
 
   const itemCount = sequence.items.length
   // Guard against currentIndex being out of bounds (can happen when sequence changes)
@@ -1428,25 +1428,25 @@ function SequenceCard({
   const currentMedia = sequence.items[safeIndex]
   const isVideo = isVideoMedia(currentMedia)
 
-  // Auto-cycle effect
+  // Auto-cycle effect - only runs when hovering
   useEffect(() => {
-    if (isPaused || itemCount <= 1) return
+    if (!isHovering || itemCount <= 1) return
 
     const intervalId = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % itemCount)
     }, cycleInterval)
 
     return () => clearInterval(intervalId)
-  }, [itemCount, cycleInterval, isPaused])
+  }, [itemCount, cycleInterval, isHovering])
 
   // Reset index when sequence changes
   useEffect(() => {
     setCurrentIndex(0)
   }, [sequence.id])
 
-  // Preload next media for smooth transitions (only for images)
+  // Preload next media for smooth transitions (only when hovering and for images)
   useEffect(() => {
-    if (itemCount <= 1) return
+    if (!isHovering || itemCount <= 1) return
     const nextIndex = (safeIndex + 1) % itemCount
     const nextMedia = sequence.items[nextIndex]
     // Only preload if next item is an image
@@ -1454,7 +1454,7 @@ function SequenceCard({
       const img = new Image()
       img.src = constructImageUrl(nextMedia.filePath)
     }
-  }, [safeIndex, sequence, constructImageUrl, itemCount, isVideoMedia])
+  }, [safeIndex, sequence, constructImageUrl, itemCount, isVideoMedia, isHovering])
 
   const handleClick = () => {
     onSequenceClick(sequence.items[0], sequence)
@@ -1463,8 +1463,11 @@ function SequenceCard({
   return (
     <div
       className={`border border-gray-300 rounded-lg overflow-hidden min-w-[150px] ${widthClass} flex flex-col h-max transition-all relative group`}
-      onMouseEnter={() => setIsPaused(true)}
-      onMouseLeave={() => setIsPaused(false)}
+      onMouseEnter={() => setIsHovering(true)}
+      onMouseLeave={() => {
+        setIsHovering(false)
+        setCurrentIndex(0)
+      }}
     >
       {/* Sequence badge */}
       <div className="absolute top-2 right-2 z-20 bg-black/70 text-white px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1">
