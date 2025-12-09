@@ -1923,6 +1923,19 @@ function SequenceCard({
   )
 }
 
+// Check if media item is a video based on fileMediatype or file extension
+// Defined at module level so it can be used in useMemo before component initialization
+function isVideoMedia(mediaItem) {
+  // Check IANA media type first
+  if (mediaItem?.fileMediatype?.startsWith('video/')) {
+    return true
+  }
+  // Fallback: check file extension for videos without fileMediatype set
+  const videoExtensions = ['.mp4', '.mkv', '.mov', '.webm', '.avi', '.m4v']
+  const ext = mediaItem?.fileName?.toLowerCase().match(/\.[^.]+$/)?.[0]
+  return ext ? videoExtensions.includes(ext) : false
+}
+
 function Gallery({ species, dateRange, timeRange }) {
   const [imageErrors, setImageErrors] = useState({})
   const [selectedMedia, setSelectedMedia] = useState(null)
@@ -1994,8 +2007,9 @@ function Gallery({ species, dateRange, timeRange }) {
   const mediaFiles = useMemo(() => data?.pages.flat() ?? [], [data])
 
   // Group media into sequences using memoization
+  // Videos are excluded from grouping - they always form their own sequence
   const groupedMedia = useMemo(() => {
-    return groupMediaIntoSequences(mediaFiles, sequenceGap)
+    return groupMediaIntoSequences(mediaFiles, sequenceGap, isVideoMedia)
   }, [mediaFiles, sequenceGap])
 
   // Grid column CSS classes
@@ -2054,18 +2068,6 @@ function Gallery({ species, dateRange, timeRange }) {
     }
 
     return `local-file://get?path=${encodeURIComponent(fullFilePath)}`
-  }
-
-  // Check if media item is a video based on fileMediatype or file extension
-  const isVideoMedia = (mediaItem) => {
-    // Check IANA media type first
-    if (mediaItem?.fileMediatype?.startsWith('video/')) {
-      return true
-    }
-    // Fallback: check file extension for videos without fileMediatype set
-    const videoExtensions = ['.mp4', '.mkv', '.mov', '.webm', '.avi', '.m4v']
-    const ext = mediaItem?.fileName?.toLowerCase().match(/\.[^.]+$/)?.[0]
-    return ext ? videoExtensions.includes(ext) : false
   }
 
   // Handle click on single image or sequence
