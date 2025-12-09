@@ -710,7 +710,7 @@ def main(argv: list[str]) -> None:
         api_path=_API_PATH.value,
         stream=True,
     )
-    model_metadata = {"version": "1.3", "type": "speciesnet"}
+    model_metadata = {"version": "1.3", "type": "deepfaune"}
     server = ls.LitServer(
         api,
         accelerator="auto",
