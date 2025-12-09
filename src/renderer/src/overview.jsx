@@ -737,7 +737,6 @@ export default function Overview({ data, studyId, studyName }) {
             </>
           )}
         </div>
-        {renderTemporalData()}
         {/* Description with inline editing */}
         <div className="relative group">
           {isEditingDescription ? (
