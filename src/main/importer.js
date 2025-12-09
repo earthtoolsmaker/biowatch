@@ -449,15 +449,22 @@ async function insertVideoPredictions(db, predictions, mediaRecord, modelInfo = 
       duration: firstPrediction.metadata.duration,
       frameCount: Math.round(firstPrediction.metadata.duration * firstPrediction.metadata.fps)
     }
-    await db
-      .update(media)
-      .set({
-        exifData: videoMetadata
-      })
-      .where(eq(media.mediaID, mediaRecord.mediaID))
 
-    // Update local mediaRecord for timestamp calculation
+    // Update media with exifData and set timestamp to now() if not already set
+    const updateData = { exifData: videoMetadata }
+    if (!mediaRecord.timestamp) {
+      // TODO: Extract proper timestamp from video EXIF metadata (e.g., using hachoir or ffmpeg-python)
+      // Currently defaults to import time as fallback
+      updateData.timestamp = new Date().toISOString()
+    }
+
+    await db.update(media).set(updateData).where(eq(media.mediaID, mediaRecord.mediaID))
+
+    // Update local mediaRecord for observation timestamp calculation
     mediaRecord.exifData = videoMetadata
+    if (updateData.timestamp) {
+      mediaRecord.timestamp = updateData.timestamp
+    }
   }
 
   // 2. Store ALL frame predictions in modelOutputs.rawOutput (full provenance)
