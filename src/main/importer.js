@@ -25,6 +25,7 @@ import { transformBboxToCamtrapDP } from './transformers/index.js'
 import { eq, isNull, count, sql } from 'drizzle-orm'
 import models from './models.js'
 import mlmodels from '../shared/mlmodels.js'
+import { selectVideoClassificationWinner } from './videoClassification.js'
 
 // Map file extensions to IANA media types (Camtrap DP compliant)
 const extensionToMediatype = {
@@ -476,9 +477,9 @@ async function insertVideoPredictions(db, predictions, mediaRecord, modelInfo = 
     rawOutput: { frames: predictions } // Complete frame-by-frame data
   })
 
-  // 3. Aggregate species across all frames
+  // 3. Aggregate species across all frames (skip blanks)
   const modelType = modelInfo.modelID || 'speciesnet'
-  const speciesMap = new Map() // scientificName -> { frames, bestScore, firstFrame, lastFrame }
+  const speciesMap = new Map() // scientificName -> { frames, scores, firstFrame, lastFrame }
 
   for (const pred of predictions) {
     const species = parseScientificName(pred, modelType)
@@ -487,19 +488,22 @@ async function insertVideoPredictions(db, predictions, mediaRecord, modelInfo = 
     if (!speciesMap.has(species)) {
       speciesMap.set(species, {
         frames: [],
-        bestScore: pred.prediction_score || 0,
+        scores: [], // Track all scores for averaging
         firstFrame: pred.frame_number,
         lastFrame: pred.frame_number
       })
     }
     const entry = speciesMap.get(species)
     entry.frames.push(pred.frame_number)
-    entry.bestScore = Math.max(entry.bestScore, pred.prediction_score || 0)
+    entry.scores.push(pred.prediction_score || 0) // Collect scores for averaging
     entry.firstFrame = Math.min(entry.firstFrame, pred.frame_number)
     entry.lastFrame = Math.max(entry.lastFrame, pred.frame_number)
   }
 
-  // 4. Create ONE observation per species (not per frame!)
+  // 4. Select winner using majority voting with average confidence tiebreaker
+  const { winner, winnerData } = selectVideoClassificationWinner(speciesMap)
+
+  // 5. Create exactly ONE observation (winner or blank)
   const fps = mediaRecord.exifData?.fps || 1
   const classificationTimestamp = new Date().toISOString()
   const classifiedBy =
@@ -507,16 +511,17 @@ async function insertVideoPredictions(db, predictions, mediaRecord, modelInfo = 
       ? `${modelInfo.modelID} ${modelInfo.modelVersion}`
       : null
 
-  for (const [species, data] of speciesMap) {
+  const eventID = crypto.randomUUID()
+
+  if (winner && winnerData) {
     // Calculate ISO 8601 timestamps from frame numbers
     const eventStart = mediaRecord.timestamp
-      ? calculateTimestamp(mediaRecord.timestamp, data.firstFrame, fps)
+      ? calculateTimestamp(mediaRecord.timestamp, winnerData.firstFrame, fps)
       : null
     const eventEnd = mediaRecord.timestamp
-      ? calculateTimestamp(mediaRecord.timestamp, data.lastFrame, fps)
+      ? calculateTimestamp(mediaRecord.timestamp, winnerData.lastFrame, fps)
       : null
 
-    const eventID = crypto.randomUUID()
     await db.insert(observations).values({
       observationID: crypto.randomUUID(),
       mediaID: mediaRecord.mediaID,
@@ -524,8 +529,8 @@ async function insertVideoPredictions(db, predictions, mediaRecord, modelInfo = 
       eventID: eventID,
       eventStart: eventStart,
       eventEnd: eventEnd,
-      scientificName: species,
-      confidence: data.bestScore,
+      scientificName: winner,
+      confidence: winnerData.avgConfidence, // Use average confidence
       count: 1,
       // No bbox for video (movement can't be represented by single bbox)
       bboxX: null,
@@ -538,11 +543,8 @@ async function insertVideoPredictions(db, predictions, mediaRecord, modelInfo = 
       classifiedBy: classifiedBy,
       classificationTimestamp: classificationTimestamp
     })
-  }
-
-  // If no species were detected, create a blank observation
-  if (speciesMap.size === 0) {
-    const eventID = crypto.randomUUID()
+  } else {
+    // No species detected in any frame -> blank observation
     await db.insert(observations).values({
       observationID: crypto.randomUUID(),
       mediaID: mediaRecord.mediaID,
@@ -567,7 +569,8 @@ async function insertVideoPredictions(db, predictions, mediaRecord, modelInfo = 
   }
 
   log.info(
-    `Inserted ${speciesMap.size} species observations for video ${mediaRecord.fileName} (from ${predictions.length} frames)`
+    `Inserted 1 observation for video ${mediaRecord.fileName}: ${winner || 'blank'} ` +
+      `(winner from ${speciesMap.size} species across ${predictions.length} frames)`
   )
 }
 
