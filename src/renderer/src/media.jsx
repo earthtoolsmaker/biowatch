@@ -1143,9 +1143,9 @@ function ImageModal({
             )}
           </div>
 
-          {/* Observation list panel - always visible */}
+          {/* Observation list panel - only for observations with bbox coordinates */}
           <ObservationListPanel
-            bboxes={bboxes}
+            bboxes={bboxesWithCoords}
             selectedId={selectedBboxId}
             onSelect={setSelectedBboxId}
             onDelete={handleDeleteObservation}
