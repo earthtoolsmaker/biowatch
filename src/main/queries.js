@@ -859,7 +859,7 @@ export async function insertObservations(manager, observationsData) {
             eventEnd: observation.eventEnd ? observation.eventEnd.toISO() : null,
             scientificName: observation.scientificName,
             commonName: observation.commonName,
-            confidence: observation.confidence !== undefined ? observation.confidence : null,
+            classificationProbability: observation.classificationProbability !== undefined ? observation.classificationProbability : null,
             count: observation.count !== undefined ? observation.count : null
           })
           .run()
@@ -1102,7 +1102,7 @@ export async function getMediaBboxes(dbPath, mediaID, includeWithoutBbox = false
       .select({
         observationID: observations.observationID,
         scientificName: observations.scientificName,
-        confidence: observations.confidence,
+        classificationProbability: observations.classificationProbability,
         detectionConfidence: observations.detectionConfidence,
         bboxX: observations.bboxX,
         bboxY: observations.bboxY,
@@ -1152,7 +1152,7 @@ export async function getMediaBboxesBatch(dbPath, mediaIDs) {
         mediaID: observations.mediaID,
         observationID: observations.observationID,
         scientificName: observations.scientificName,
-        confidence: observations.confidence,
+        classificationProbability: observations.classificationProbability,
         detectionConfidence: observations.detectionConfidence,
         bboxX: observations.bboxX,
         bboxY: observations.bboxY,
@@ -1242,7 +1242,7 @@ export async function getMediaPredictions(dbPath, mediaID) {
         scientificName: observations.scientificName,
         observationType: observations.observationType,
         commonName: observations.commonName,
-        confidence: observations.confidence,
+        classificationProbability: observations.classificationProbability,
         count: observations.count,
         lifeStage: observations.lifeStage,
         age: observations.age,
@@ -1268,7 +1268,7 @@ export async function getMediaPredictions(dbPath, mediaID) {
       .leftJoin(modelOutputs, eq(observations.modelOutputID, modelOutputs.id))
       .leftJoin(modelRuns, eq(modelOutputs.runID, modelRuns.id))
       .where(eq(observations.mediaID, mediaID))
-      .orderBy(desc(modelRuns.startedAt), desc(observations.confidence))
+      .orderBy(desc(modelRuns.startedAt), desc(observations.classificationProbability))
 
     const elapsedTime = Date.now() - startTime
     log.info(`Retrieved ${rows.length} predictions for media ${mediaID} in ${elapsedTime}ms`)
@@ -1444,7 +1444,7 @@ export async function updateMediaTimestamp(dbPath, mediaID, newTimestamp) {
  * - classificationMethod is set to 'human'
  * - classifiedBy is set to 'User'
  * - classificationTimestamp is set to current ISO 8601 timestamp
- * - confidence is cleared (null) for human classifications per CamTrap DP spec
+ * - classificationProbability is cleared (null) for human classifications per CamTrap DP spec
  *
  * @param {string} dbPath - Path to the SQLite database
  * @param {string} observationID - The observation ID to update
@@ -1473,7 +1473,7 @@ export async function updateObservationClassification(dbPath, observationID, upd
       classificationTimestamp: new Date().toISOString(),
       // Per CamTrap DP spec: "Omit or provide an approximate probability for human classifications"
       // We set to null to indicate this is a human classification without probability
-      confidence: null
+      classificationProbability: null
     }
 
     // Add optional fields if provided
@@ -1659,20 +1659,23 @@ export async function createObservation(dbPath, observationData) {
       bboxHeight
     } = observationData
 
-    // Validate bbox values are in valid range
-    if (
-      bboxX < 0 ||
-      bboxX > 1 ||
-      bboxY < 0 ||
-      bboxY > 1 ||
-      bboxWidth <= 0 ||
-      bboxWidth > 1 ||
-      bboxHeight <= 0 ||
-      bboxHeight > 1 ||
-      bboxX + bboxWidth > 1.001 ||
-      bboxY + bboxHeight > 1.001
-    ) {
-      throw new Error('Invalid bbox coordinates: must be normalized (0-1) and within bounds')
+    // Only validate bbox if coordinates are provided (allow null for observations without bbox)
+    const hasBbox = bboxX !== null && bboxX !== undefined
+    if (hasBbox) {
+      if (
+        bboxX < 0 ||
+        bboxX > 1 ||
+        bboxY < 0 ||
+        bboxY > 1 ||
+        bboxWidth <= 0 ||
+        bboxWidth > 1 ||
+        bboxHeight <= 0 ||
+        bboxHeight > 1 ||
+        bboxX + bboxWidth > 1.001 ||
+        bboxY + bboxHeight > 1.001
+      ) {
+        throw new Error('Invalid bbox coordinates: must be normalized (0-1) and within bounds')
+      }
     }
 
     // Generate IDs
@@ -1690,12 +1693,12 @@ export async function createObservation(dbPath, observationData) {
       scientificName: scientificName || null,
       commonName: commonName || null,
       observationType: 'animal',
-      confidence: null, // Human classification - no confidence score
+      classificationProbability: null, // Human classification - no classificationProbability score
       count: 1,
-      bboxX,
-      bboxY,
-      bboxWidth,
-      bboxHeight,
+      bboxX: hasBbox ? bboxX : null,
+      bboxY: hasBbox ? bboxY : null,
+      bboxWidth: hasBbox ? bboxWidth : null,
+      bboxHeight: hasBbox ? bboxHeight : null,
       modelOutputID: null, // No model involved
       classificationMethod: 'human',
       classifiedBy: 'User',

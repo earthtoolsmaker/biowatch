@@ -350,7 +350,7 @@ function transformObservationRow(row) {
     scientificName: row.scientificName || row.scientific_name || null,
     observationType: row.observationType || row.observation_type || null,
     commonName: row.commonName || row.common_name || null,
-    confidence: parseFloat(row.confidence) || null,
+    classificationProbability: parseFloat(row.classificationProbability) || null,
     count: parseInt(row.count) || null,
     prediction: row.prediction || null,
     lifeStage: row.lifeStage || row.life_stage || null,

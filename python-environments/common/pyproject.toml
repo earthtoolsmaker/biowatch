@@ -14,3 +14,18 @@ dependencies = [
     "torchvision>=0.21.0",
     "ultralytics>=8.3.151",
 ]
+
+[project.optional-dependencies]
+dev = ["ruff>=0.8.0"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+exclude = [".venv", "__pycache__", "data"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

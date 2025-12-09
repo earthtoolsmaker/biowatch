@@ -321,6 +321,8 @@ export default function Overview({ data, studyId, studyName }) {
   })
 
   const contributorsRef = useRef(null)
+  const addContributorRef = useRef(null)
+  const editingContributorRef = useRef(null)
   const descriptionRef = useRef(null)
   const [isDescriptionTruncated, setIsDescriptionTruncated] = useState(false)
   const queryClient = useQueryClient()
@@ -399,6 +401,35 @@ export default function Overview({ data, studyId, studyName }) {
     window.addEventListener('resize', checkTruncation)
     return () => window.removeEventListener('resize', checkTruncation)
   }, [data?.description, isDescriptionExpanded, isEditingDescription])
+
+  // Handle click outside to close add contributor form
+  useEffect(() => {
+    if (!isAddingContributor) return
+
+    const handleClickOutside = (e) => {
+      if (addContributorRef.current && !addContributorRef.current.contains(e.target)) {
+        cancelAddingContributor()
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isAddingContributor])
+
+  // Handle click outside to close editing contributor form
+  useEffect(() => {
+    if (editingContributorIndex === null) return
+
+    const handleClickOutside = (e) => {
+      if (
+        editingContributorRef.current &&
+        !editingContributorRef.current.contains(e.target)
+      ) {
+        cancelEditingContributor()
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [editingContributorIndex])
 
   const scrollContributors = (direction) => {
     if (!contributorsRef.current) return
@@ -706,7 +737,6 @@ export default function Overview({ data, studyId, studyName }) {
             </>
           )}
         </div>
-        {renderTemporalData()}
         {/* Description with inline editing */}
         <div className="relative group">
           {isEditingDescription ? (
@@ -826,7 +856,18 @@ export default function Overview({ data, studyId, studyName }) {
           {data?.contributors?.map((contributor, index) => (
             <div
               key={index}
+              ref={editingContributorIndex === index ? editingContributorRef : null}
               className="flex flex-col flex-shrink-0 w-64 p-4 border border-gray-200 rounded-md shadow-sm bg-white group relative"
+              onKeyDown={
+                editingContributorIndex === index
+                  ? (e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        saveContributor(index)
+                      }
+                    }
+                  : undefined
+              }
             >
               {editingContributorIndex === index ? (
                 // Edit mode
@@ -873,7 +914,7 @@ export default function Overview({ data, studyId, studyName }) {
                     className="border border-gray-300 rounded px-2 py-1 text-sm"
                     placeholder="Email"
                   />
-                  <div className="flex gap-1 mt-1">
+                  <div className="flex gap-1 mt-1 justify-end">
                     <button
                       onClick={cancelEditingContributor}
                       className="p-1 hover:bg-red-100 rounded text-red-600"
@@ -942,7 +983,16 @@ export default function Overview({ data, studyId, studyName }) {
 
           {/* Add contributor card */}
           {isAddingContributor ? (
-            <div className="flex flex-col flex-shrink-0 w-64 p-4 border border-blue-300 rounded-md shadow-sm bg-blue-50">
+            <div
+              ref={addContributorRef}
+              className="flex flex-col flex-shrink-0 w-64 p-4 border border-blue-300 rounded-md shadow-sm bg-blue-50"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  addContributor()
+                }
+              }}
+            >
               <div className="flex flex-col gap-2">
                 <input
                   type="text"
@@ -980,7 +1030,7 @@ export default function Overview({ data, studyId, studyName }) {
                   className="border border-gray-300 rounded px-2 py-1 text-sm"
                   placeholder="Email"
                 />
-                <div className="flex gap-1 mt-1">
+                <div className="flex gap-1 mt-1 justify-end">
                   <button
                     onClick={cancelAddingContributor}
                     className="p-1 hover:bg-red-100 rounded text-red-600"

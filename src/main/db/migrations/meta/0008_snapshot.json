@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "f9627794-31d8-4b1f-8373-745aa7d98a13",
-  "prevId": "205a6a00-1427-4dde-9e7e-2918d70f3aa9",
+  "id": "76d5f672-f40b-4a94-992b-285f0955aefa",
+  "prevId": "f9627794-31d8-4b1f-8373-745aa7d98a13",
   "tables": {
     "deployments": {
       "name": "deployments",
@@ -110,6 +110,21 @@
         },
         "folderName": {
           "name": "folderName",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "fileMediatype": {
+          "name": "fileMediatype",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": "'image/jpeg'"
+        },
+        "exifData": {
+          "name": "exifData",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -574,9 +589,7 @@
   "_meta": {
     "schemas": {},
     "tables": {},
-    "columns": {
-      "\"observations\".\"confidence\"": "\"observations\".\"classificationProbability\""
-    }
+    "columns": {}
   },
   "internal": {
     "indexes": {}

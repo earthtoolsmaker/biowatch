@@ -153,7 +153,7 @@ Combined media + observations in one file:
 | `filename` | fileName |
 | `genus` + `species` | scientificName |
 | `common_name` | commonName |
-| `cv_confidence` | confidence |
+| `cv_confidence` | classificationProbability |
 | `number_of_objects` | count |
 | `age` | lifeStage |
 | `sex` | sex |
@@ -176,7 +176,7 @@ Single CSV file with image paths and predictions.
 |--------|-------------|
 | `filename` | Image file path |
 | `prediction` | Species prediction |
-| `confidence` | Prediction confidence |
+| `score` | Classification probability |
 
 **Key file:** `src/main/deepfaune.js`
 

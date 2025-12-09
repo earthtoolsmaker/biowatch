@@ -70,7 +70,7 @@
           {"name": "eventEnd", "type": "datetime"},
           {"name": "scientificName", "type": "string"},
           {"name": "commonName", "type": "string"},
-          {"name": "confidence", "type": "number"},
+          {"name": "classificationProbability", "type": "number"},
           {"name": "count", "type": "integer"}
         ]
       }
