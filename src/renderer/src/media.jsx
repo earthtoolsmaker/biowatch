@@ -2258,7 +2258,7 @@ function Gallery({ species, dateRange, timeRange }) {
               </div>
             )}
             {!hasNextPage && mediaFiles.length > 0 && !isFetchingNextPage && (
-              <p className="text-gray-500 text-sm">No more images to load</p>
+              <p className="text-gray-500 text-sm">No more media to load</p>
             )}
             {!hasNextPage && mediaFiles.length === 0 && !isLoading && (
               <p className="text-gray-500">No media files match the selected filters</p>
