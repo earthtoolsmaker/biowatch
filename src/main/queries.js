@@ -1648,20 +1648,23 @@ export async function createObservation(dbPath, observationData) {
       bboxHeight
     } = observationData
 
-    // Validate bbox values are in valid range
-    if (
-      bboxX < 0 ||
-      bboxX > 1 ||
-      bboxY < 0 ||
-      bboxY > 1 ||
-      bboxWidth <= 0 ||
-      bboxWidth > 1 ||
-      bboxHeight <= 0 ||
-      bboxHeight > 1 ||
-      bboxX + bboxWidth > 1.001 ||
-      bboxY + bboxHeight > 1.001
-    ) {
-      throw new Error('Invalid bbox coordinates: must be normalized (0-1) and within bounds')
+    // Only validate bbox if coordinates are provided (allow null for observations without bbox)
+    const hasBbox = bboxX !== null && bboxX !== undefined
+    if (hasBbox) {
+      if (
+        bboxX < 0 ||
+        bboxX > 1 ||
+        bboxY < 0 ||
+        bboxY > 1 ||
+        bboxWidth <= 0 ||
+        bboxWidth > 1 ||
+        bboxHeight <= 0 ||
+        bboxHeight > 1 ||
+        bboxX + bboxWidth > 1.001 ||
+        bboxY + bboxHeight > 1.001
+      ) {
+        throw new Error('Invalid bbox coordinates: must be normalized (0-1) and within bounds')
+      }
     }
 
     // Generate IDs
@@ -1681,10 +1684,10 @@ export async function createObservation(dbPath, observationData) {
       observationType: 'animal',
       classificationProbability: null, // Human classification - no classificationProbability score
       count: 1,
-      bboxX,
-      bboxY,
-      bboxWidth,
-      bboxHeight,
+      bboxX: hasBbox ? bboxX : null,
+      bboxY: hasBbox ? bboxY : null,
+      bboxWidth: hasBbox ? bboxWidth : null,
+      bboxHeight: hasBbox ? bboxHeight : null,
       modelOutputID: null, // No model involved
       classificationMethod: 'human',
       classifiedBy: 'User',
