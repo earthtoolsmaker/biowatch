@@ -114,7 +114,7 @@ Species observations linked to media.
 | `scientificName` | TEXT | | Latin species name |
 | `observationType` | TEXT | | `animal`, `blank`, etc. |
 | `commonName` | TEXT | | Common name |
-| `confidence` | REAL | | Classification confidence (0-1) |
+| `classificationProbability` | REAL | | Classification probability (0-1) |
 | `count` | INTEGER | | Number of individuals |
 | `lifeStage` | TEXT | | `adult`, `juvenile`, etc. |
 | `age` | TEXT | | Age descriptor |
@@ -141,7 +141,7 @@ export const observations = sqliteTable('observations', {
   scientificName: text('scientificName'),
   observationType: text('observationType'),
   commonName: text('commonName'),
-  confidence: real('confidence'),
+  classificationProbability: real('classificationProbability'),
   count: integer('count'),
   lifeStage: text('lifeStage'),
   age: text('age'),

@@ -1,0 +1,1 @@
+ALTER TABLE `observations` RENAME COLUMN "confidence" TO "classificationProbability";

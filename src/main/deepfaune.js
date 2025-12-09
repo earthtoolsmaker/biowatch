@@ -254,7 +254,7 @@ async function insertDeepfauneData(db, csvPath) {
         // Prepare observation record if there's a prediction
         if (row.prediction && row.prediction !== '') {
           const observationID = `${mediaID}_obs`
-          const confidence = row.score ? parseFloat(row.score) : null
+          const classificationProbability = row.score ? parseFloat(row.score) : null
           const count = row.humancount ? parseInt(row.humancount) : 1
 
           observationRows.push({
@@ -267,7 +267,7 @@ async function insertDeepfauneData(db, csvPath) {
             scientificName: row.prediction, // Use prediction as scientificName
             observationType: null,
             commonName: row.prediction, // Use prediction as commonName too
-            confidence,
+            classificationProbability,
             count,
             prediction: row.prediction,
             lifeStage: null,

@@ -764,7 +764,7 @@ export async function exportCamtrapDP(studyId, options = {}) {
         classificationMethod: observations.classificationMethod,
         classifiedBy: observations.classifiedBy,
         classificationTimestamp: observations.classificationTimestamp,
-        confidence: observations.confidence
+        classificationProbability: observations.classificationProbability
       })
       .from(observations)
       .where(and(...obsConditions))
@@ -793,7 +793,7 @@ export async function exportCamtrapDP(studyId, options = {}) {
           classificationMethod: observations.classificationMethod,
           classifiedBy: observations.classifiedBy,
           classificationTimestamp: observations.classificationTimestamp,
-          confidence: observations.confidence
+          classificationProbability: observations.classificationProbability
         })
         .from(observations)
         .where(isNull(observations.scientificName))
@@ -888,7 +888,7 @@ export async function exportCamtrapDP(studyId, options = {}) {
       classificationMethod: o.classificationMethod,
       classifiedBy: o.classifiedBy,
       classificationTimestamp: o.classificationTimestamp,
-      classificationProbability: o.confidence
+      classificationProbability: o.classificationProbability
     }))
 
     // Generate CSV files

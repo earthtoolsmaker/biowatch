@@ -66,8 +66,8 @@ function ObservationListPanel({ bboxes, selectedId, onSelect, onDelete }) {
             )}
           </button>
           <div className="flex items-center gap-2">
-            {bbox.confidence && (
-              <span className="text-xs text-gray-400">{Math.round(bbox.confidence * 100)}%</span>
+            {bbox.classificationProbability && (
+              <span className="text-xs text-gray-400">{Math.round(bbox.classificationProbability * 100)}%</span>
             )}
             <Pencil size={14} className="text-gray-400" />
             <button
@@ -253,7 +253,7 @@ const BboxLabel = forwardRef(function BboxLabel(
   ref
 ) {
   const displayName = bbox.scientificName || 'Blank'
-  const confidence = bbox.confidence ? `${Math.round(bbox.confidence * 100)}%` : null
+  const confidence = bbox.classificationProbability ? `${Math.round(bbox.classificationProbability * 100)}%` : null
 
   // Use the extracted positioning function
   const { left: leftPos, top: topPos, transform: transformVal } = computeBboxLabelPosition(bbox)
@@ -788,10 +788,10 @@ function ImageModal({
   const getDefaultSpecies = useCallback(() => {
     if (!bboxes || bboxes.length === 0) return { scientificName: null, commonName: null }
 
-    // Find observation with highest confidence
-    const withConfidence = bboxes.filter((b) => b.confidence != null)
-    if (withConfidence.length === 0) {
-      // No confidence scores - use first with a species name
+    // Find observation with highest classificationProbability
+    const withProbability = bboxes.filter((b) => b.classificationProbability != null)
+    if (withProbability.length === 0) {
+      // No classification probability scores - use first with a species name
       const withSpecies = bboxes.find((b) => b.scientificName)
       return {
         scientificName: withSpecies?.scientificName || null,
@@ -799,8 +799,8 @@ function ImageModal({
       }
     }
 
-    const mostConfident = withConfidence.reduce((best, b) =>
-      b.confidence > best.confidence ? b : best
+    const mostConfident = withProbability.reduce((best, b) =>
+      b.classificationProbability > best.classificationProbability ? b : best
     )
     return {
       scientificName: mostConfident.scientificName,

@@ -158,7 +158,7 @@ async function createTestData(dbPath) {
       eventEnd: DateTime.fromISO('2023-03-20T14:30:45Z'),
       scientificName: 'Cervus elaphus',
       commonName: 'Red Deer',
-      confidence: 0.95,
+      classificationProbability: 0.95,
       count: 2,
       prediction: 'cervus_elaphus'
     },
@@ -171,7 +171,7 @@ async function createTestData(dbPath) {
       eventEnd: DateTime.fromISO('2023-03-25T16:46:00Z'),
       scientificName: 'Vulpes vulpes',
       commonName: 'Red Fox',
-      confidence: 0.87,
+      classificationProbability: 0.87,
       count: 1,
       prediction: 'vulpes_vulpes'
     },
@@ -184,7 +184,7 @@ async function createTestData(dbPath) {
       eventEnd: DateTime.fromISO('2023-04-05T12:15:30Z'),
       scientificName: 'Cervus elaphus',
       commonName: 'Red Deer',
-      confidence: 0.92,
+      classificationProbability: 0.92,
       count: 1,
       prediction: 'cervus_elaphus'
     },
@@ -197,7 +197,7 @@ async function createTestData(dbPath) {
       eventEnd: DateTime.fromISO('2023-04-10T08:31:15Z'),
       scientificName: null, // Empty observation
       commonName: 'Empty',
-      confidence: null,
+      classificationProbability: null,
       count: 0,
       prediction: 'empty'
     },
@@ -210,7 +210,7 @@ async function createTestData(dbPath) {
       eventEnd: DateTime.fromISO('2023-03-25T22:00:30Z'),
       scientificName: 'Sus scrofa',
       commonName: 'Wild Boar',
-      confidence: 0.78,
+      classificationProbability: 0.78,
       count: 3,
       prediction: 'sus_scrofa'
     }

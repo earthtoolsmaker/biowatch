@@ -329,7 +329,7 @@ async function insertObservations(db, csvPath) {
         scientificName: scientificName,
         observationType: null, // Not available in Wildlife Insights format
         commonName: row.common_name || null,
-        confidence: row.cv_confidence ? parseFloat(row.cv_confidence) : null,
+        classificationProbability: row.cv_confidence ? parseFloat(row.cv_confidence) : null,
         count: row.number_of_objects ? parseInt(row.number_of_objects) : 1,
         prediction: row.common_name || null,
         lifeStage: row.age || null,

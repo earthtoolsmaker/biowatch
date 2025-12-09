@@ -156,7 +156,7 @@ async function createComprehensiveTestData(dbPath) {
       eventEnd: DateTime.fromISO('2023-03-20T14:30:45.456Z'),
       scientificName: 'Cervus elaphus',
       commonName: 'Red Deer',
-      confidence: 0.95,
+      classificationProbability: 0.95,
       count: 2,
       prediction: 'cervus_elaphus'
     },
@@ -169,7 +169,7 @@ async function createComprehensiveTestData(dbPath) {
       eventEnd: DateTime.fromISO('2023-03-26T00:00:29.999Z'),
       scientificName: 'Species with "quotes" & special chars',
       commonName: 'Test Species',
-      confidence: 0.01, // Very low confidence
+      classificationProbability: 0.01, // Very low classificationProbability
       count: 100, // Large count
       prediction: 'test_species'
     },
@@ -182,7 +182,7 @@ async function createComprehensiveTestData(dbPath) {
       eventEnd: DateTime.fromISO('2023-04-05T00:00:00.001Z'), // Very short event
       scientificName: null, // Null scientific name
       commonName: 'Empty',
-      confidence: null, // Null confidence
+      classificationProbability: null, // Null classificationProbability
       count: 0, // Zero count
       prediction: 'empty'
     }
@@ -298,7 +298,7 @@ describe('Database Schema and Integrity Tests', () => {
         { name: 'scientificName', type: 'TEXT', pk: 0 },
         { name: 'observationType', type: 'TEXT', pk: 0 },
         { name: 'commonName', type: 'TEXT', pk: 0 },
-        { name: 'confidence', type: 'REAL', pk: 0 },
+        { name: 'classificationProbability', type: 'REAL', pk: 0 },
         { name: 'count', type: 'INTEGER', pk: 0 },
         { name: 'lifeStage', type: 'TEXT', pk: 0 },
         { name: 'age', type: 'TEXT', pk: 0 },
@@ -440,7 +440,7 @@ describe('Database Schema and Integrity Tests', () => {
       assert.equal(southPole.longitude, 180.0, 'Should handle maximum longitude')
     })
 
-    test('should handle edge cases in confidence values', async () => {
+    test('should handle edge cases in classificationProbability values', async () => {
       const { manager } = await createComprehensiveTestData(testDbPath)
 
       const edgeCaseObservations = [
@@ -453,7 +453,7 @@ describe('Database Schema and Integrity Tests', () => {
           eventEnd: DateTime.now().plus({ seconds: 10 }),
           scientificName: 'Perfect Confidence',
           commonName: 'Perfect Species',
-          confidence: 1.0, // Maximum confidence
+          classificationProbability: 1.0, // Maximum classificationProbability
           count: 1,
           prediction: 'perfect_species'
         },
@@ -466,7 +466,7 @@ describe('Database Schema and Integrity Tests', () => {
           eventEnd: DateTime.now().plus({ minutes: 1, seconds: 10 }),
           scientificName: 'Zero Confidence',
           commonName: 'Zero Species',
-          confidence: 0.0, // Minimum confidence
+          classificationProbability: 0.0, // Minimum classificationProbability
           count: 1,
           prediction: 'zero_species'
         }
@@ -480,13 +480,13 @@ describe('Database Schema and Integrity Tests', () => {
         .from(observations)
         .where(sql`${observations.observationID} IN ('conf001', 'conf002')`)
 
-      assert.equal(results.length, 2, 'Should insert edge case confidence values')
+      assert.equal(results.length, 2, 'Should insert edge case classificationProbability values')
 
       const perfectConf = results.find((o) => o.observationID === 'conf001')
       const zeroConf = results.find((o) => o.observationID === 'conf002')
 
-      assert.equal(perfectConf.confidence, 1.0, 'Should handle maximum confidence')
-      assert.equal(zeroConf.confidence, 0.0, 'Should handle minimum confidence')
+      assert.equal(perfectConf.classificationProbability, 1.0, 'Should handle maximum classificationProbability')
+      assert.equal(zeroConf.classificationProbability, 0.0, 'Should handle minimum classificationProbability')
     })
 
     test('should handle timestamp precision and edge cases', async () => {
@@ -583,7 +583,7 @@ describe('Database Schema and Integrity Tests', () => {
 
       assert(nullObservation, 'Should find observation with null values')
       assert.equal(nullObservation.scientificName, null, 'Scientific name should be null')
-      assert.equal(nullObservation.confidence, null, 'Confidence should be null')
+      assert.equal(nullObservation.classificationProbability, null, 'ClassificationProbability should be null')
       assert.equal(nullObservation.count, 0, 'Count should be zero')
     })
 
@@ -630,7 +630,7 @@ describe('Database Schema and Integrity Tests', () => {
           eventEnd: timestamp.plus({ seconds: 30 }),
           scientificName: i % 2 === 0 ? 'Cervus elaphus' : null,
           commonName: i % 2 === 0 ? 'Red Deer' : 'Empty',
-          confidence: i % 2 === 0 ? Math.random() : null,
+          classificationProbability: i % 2 === 0 ? Math.random() : null,
           count: i % 2 === 0 ? Math.floor(Math.random() * 5) + 1 : 0,
           prediction: i % 2 === 0 ? 'cervus_elaphus' : 'empty'
         })
