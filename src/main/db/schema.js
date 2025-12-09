@@ -18,10 +18,9 @@ export const media = sqliteTable('media', {
   fileName: text('fileName'),
   importFolder: text('importFolder'),
   folderName: text('folderName'),
-  // Video support fields
-  mediaType: text('mediaType').default('image'), // 'image' | 'video' | 'audio' (future)
-  duration: real('duration'), // Duration in seconds (nullable, for video/audio)
-  fps: real('fps') // Frames per second (nullable, for video)
+  // Camtrap DP compliant fields
+  fileMediatype: text('fileMediatype').default('image/jpeg'), // IANA media type (e.g. 'image/jpeg', 'video/mp4')
+  exifData: text('exifData', { mode: 'json' }) // Video/image metadata as JSON
 })
 
 // Study metadata (Camtrap DP aligned)

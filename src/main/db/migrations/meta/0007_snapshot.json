@@ -115,24 +115,17 @@
           "notNull": false,
           "autoincrement": false
         },
-        "mediaType": {
-          "name": "mediaType",
+        "fileMediatype": {
+          "name": "fileMediatype",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
-          "default": "'image'"
+          "default": "'image/jpeg'"
         },
-        "duration": {
-          "name": "duration",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "fps": {
-          "name": "fps",
-          "type": "real",
+        "exifData": {
+          "name": "exifData",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false

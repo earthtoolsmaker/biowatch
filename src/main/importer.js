@@ -26,15 +26,31 @@ import { eq, isNull, count, sql } from 'drizzle-orm'
 import models from './models.js'
 import mlmodels from '../shared/mlmodels.js'
 
-const imageExtensions = new Set(['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'])
-const videoExtensions = new Set(['.mp4', '.mkv', '.mov', '.webm', '.avi', '.m4v'])
-const mediaExtensions = new Set([...imageExtensions, ...videoExtensions])
+// Map file extensions to IANA media types (Camtrap DP compliant)
+const extensionToMediatype = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.gif': 'image/gif',
+  '.bmp': 'image/bmp',
+  '.webp': 'image/webp',
+  '.mp4': 'video/mp4',
+  '.mkv': 'video/x-matroska',
+  '.mov': 'video/quicktime',
+  '.webm': 'video/webm',
+  '.avi': 'video/x-msvideo',
+  '.m4v': 'video/x-m4v'
+}
 
-function getMediaType(filePath) {
+const mediaExtensions = new Set(Object.keys(extensionToMediatype))
+
+function getFileMediatype(filePath) {
   const ext = path.extname(filePath).toLowerCase()
-  if (videoExtensions.has(ext)) return 'video'
-  if (imageExtensions.has(ext)) return 'image'
-  return 'unknown'
+  return extensionToMediatype[ext] || 'application/octet-stream'
+}
+
+function isVideoMediatype(mediatype) {
+  return mediatype.startsWith('video/')
 }
 
 async function* walkMediaFiles(dir) {
@@ -130,9 +146,8 @@ async function insertMedia(db, fullPath, importFolder) {
     fileName: path.basename(fullPath),
     importFolder: importFolder,
     folderName: folderName,
-    mediaType: getMediaType(fullPath),
-    duration: null, // Populated from Python response for videos
-    fps: null // Populated from Python response for videos
+    fileMediatype: getFileMediatype(fullPath),
+    exifData: null // Populated from Python response for videos (fps, duration, etc.)
   }
 
   await db.insert(media).values(mediaData)
@@ -426,20 +441,23 @@ async function insertVideoPredictions(db, predictions, mediaRecord, modelInfo = 
     return
   }
 
-  // 1. Update media with duration/fps from first prediction's metadata
+  // 1. Update media with video metadata in exifData field (Camtrap DP compliant)
   const firstPrediction = predictions[0]
   if (firstPrediction?.metadata) {
+    const videoMetadata = {
+      fps: firstPrediction.metadata.fps,
+      duration: firstPrediction.metadata.duration,
+      frameCount: Math.round(firstPrediction.metadata.duration * firstPrediction.metadata.fps)
+    }
     await db
       .update(media)
       .set({
-        duration: firstPrediction.metadata.duration,
-        fps: firstPrediction.metadata.fps
+        exifData: videoMetadata
       })
       .where(eq(media.mediaID, mediaRecord.mediaID))
 
     // Update local mediaRecord for timestamp calculation
-    mediaRecord.fps = firstPrediction.metadata.fps
-    mediaRecord.duration = firstPrediction.metadata.duration
+    mediaRecord.exifData = videoMetadata
   }
 
   // 2. Store ALL frame predictions in modelOutputs.rawOutput (full provenance)
@@ -475,7 +493,7 @@ async function insertVideoPredictions(db, predictions, mediaRecord, modelInfo = 
   }
 
   // 4. Create ONE observation per species (not per frame!)
-  const fps = mediaRecord.fps || 1
+  const fps = mediaRecord.exifData?.fps || 1
   const classificationTimestamp = new Date().toISOString()
   const classifiedBy =
     modelInfo.modelID && modelInfo.modelVersion
@@ -555,9 +573,8 @@ async function nextMediaToPredict(db, batchSize = 100) {
         fileName: media.fileName,
         timestamp: media.timestamp,
         deploymentID: media.deploymentID,
-        mediaType: media.mediaType,
-        fps: media.fps,
-        duration: media.duration
+        fileMediatype: media.fileMediatype,
+        exifData: media.exifData
       })
       .from(media)
       .leftJoin(observations, eq(media.mediaID, observations.mediaID))
@@ -570,9 +587,8 @@ async function nextMediaToPredict(db, batchSize = 100) {
       timestamp: row.timestamp,
       filePath: row.filePath,
       fileName: row.fileName,
-      mediaType: row.mediaType,
-      fps: row.fps,
-      duration: row.duration
+      fileMediatype: row.fileMediatype,
+      exifData: row.exifData
     }))
   } catch (error) {
     log.error('Error getting next media to predict:', error)
@@ -624,9 +640,8 @@ async function insertMediaBatch(db, manager, mediaDataArray) {
               fileName: m.fileName,
               importFolder: m.importFolder,
               folderName: m.folderName,
-              mediaType: m.mediaType,
-              duration: m.duration,
-              fps: m.fps
+              fileMediatype: m.fileMediatype,
+              exifData: m.exifData
             }))
           )
           .run()
@@ -715,9 +730,8 @@ export class Importer {
             fileName: path.basename(mediaPath),
             importFolder: this.folder,
             folderName: folderName,
-            mediaType: getMediaType(mediaPath),
-            duration: null, // Populated from Python response for videos
-            fps: null // Populated from Python response for videos
+            fileMediatype: getFileMediatype(mediaPath),
+            exifData: null // Populated from Python response for videos (fps, duration, etc.)
           }
 
           mediaBatch.push(mediaData)
@@ -805,8 +819,8 @@ export class Importer {
                 }
 
                 // Separate images and videos for different processing
-                const images = mediaBatch.filter((m) => m.mediaType !== 'video')
-                const videos = mediaBatch.filter((m) => m.mediaType === 'video')
+                const images = mediaBatch.filter((m) => !isVideoMediatype(m.fileMediatype))
+                const videos = mediaBatch.filter((m) => isVideoMediatype(m.fileMediatype))
                 const mediaQueue = mediaBatch.map((m) => m.filePath)
 
                 log.info(

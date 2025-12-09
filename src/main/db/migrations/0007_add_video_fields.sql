@@ -1,3 +1,2 @@
-ALTER TABLE `media` ADD `mediaType` text DEFAULT 'image';--> statement-breakpoint
-ALTER TABLE `media` ADD `duration` real;--> statement-breakpoint
-ALTER TABLE `media` ADD `fps` real;
+ALTER TABLE `media` ADD `fileMediatype` text DEFAULT 'image/jpeg';--> statement-breakpoint
+ALTER TABLE `media` ADD `exifData` text;
