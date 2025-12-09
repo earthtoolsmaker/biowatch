@@ -9,7 +9,8 @@ import {
   Trash2,
   Grid3x3,
   Plus,
-  Layers
+  Layers,
+  Play
 } from 'lucide-react'
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient, useMutation, useInfiniteQuery } from '@tanstack/react-query'
@@ -455,7 +456,8 @@ function ImageModal({
   onSequenceNext,
   onSequencePrevious,
   hasNextInSequence,
-  hasPreviousInSequence
+  hasPreviousInSequence,
+  isVideoMedia
 }) {
   const [showBboxes, setShowBboxes] = useState(true)
   const [isEditingTimestamp, setIsEditingTimestamp] = useState(false)
@@ -468,6 +470,7 @@ function ImageModal({
   const [selectorPosition, setSelectorPosition] = useState(null)
   // Draw mode state for creating new bboxes
   const [isDrawMode, setIsDrawMode] = useState(false)
+  const [videoError, setVideoError] = useState(false)
   const queryClient = useQueryClient()
 
   // Refs for positioning the species selector near the label
@@ -484,6 +487,7 @@ function ImageModal({
     setIsEditingTimestamp(false)
     setShowDatePicker(false)
     setError(null)
+    setVideoError(false)
   }, [media?.mediaID, media?.timestamp])
 
   // Compute selector position when a bbox is selected AND species selector should be shown
@@ -987,69 +991,92 @@ function ImageModal({
               setShowSpeciesSelector(false)
             }}
           >
-            <img
-              ref={imageRef}
-              src={constructImageUrl(media.filePath)}
-              alt={media.fileName || `Media ${media.mediaID}`}
-              className="max-w-full max-h-[calc(90vh-120px)] w-auto h-auto object-contain"
-            />
-            {/* Bbox overlay - editable bounding boxes */}
-            {showBboxes && hasBboxes && (
-              <>
-                <svg
-                  className="absolute inset-0 w-full h-full"
-                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
-                >
-                  {bboxes.map((bbox) => (
-                    <EditableBbox
-                      key={bbox.observationID}
-                      bbox={bbox}
-                      isSelected={bbox.observationID === selectedBboxId}
-                      onSelect={() => {
-                        // Clicking bbox selects it for geometry editing only, NOT species selector
-                        setSelectedBboxId(
-                          bbox.observationID === selectedBboxId ? null : bbox.observationID
-                        )
-                        setShowSpeciesSelector(false) // Close species selector when clicking bbox
-                      }}
-                      onUpdate={(newBbox) => handleBboxUpdate(bbox.observationID, newBbox)}
-                      imageRef={imageRef}
-                      containerRef={imageContainerRef}
-                      color={bbox.classificationMethod === 'human' ? '#22c55e' : '#84cc16'}
-                    />
-                  ))}
-                </svg>
-
-                {/* Clickable bbox labels - clicking label opens species selector */}
-                <div className="absolute inset-0 w-full h-full pointer-events-none">
-                  {bboxes.map((bbox) => (
-                    <BboxLabel
-                      key={bbox.observationID}
-                      ref={(el) => {
-                        bboxLabelRefs.current[bbox.observationID] = el
-                      }}
-                      bbox={bbox}
-                      isSelected={bbox.observationID === selectedBboxId}
-                      isHuman={bbox.classificationMethod === 'human'}
-                      onClick={() => {
-                        // Clicking label selects bbox AND opens species selector
-                        setSelectedBboxId(bbox.observationID)
-                        setShowSpeciesSelector(true)
-                      }}
-                      onDelete={() => handleDeleteObservation(bbox.observationID)}
-                    />
-                  ))}
+            {isVideoMedia(media) ? (
+              videoError ? (
+                <div className="flex flex-col items-center justify-center p-8 text-gray-500 min-h-[300px]">
+                  <Play size={64} />
+                  <span className="mt-4 text-lg font-medium">Video</span>
+                  <span className="mt-2 text-sm text-gray-400">
+                    Format not supported by browser
+                  </span>
+                  <span className="mt-1 text-xs text-gray-400">{media.fileName}</span>
                 </div>
-              </>
-            )}
+              ) : (
+                <video
+                  src={constructImageUrl(media.filePath)}
+                  className="max-w-full max-h-[calc(90vh-120px)] w-auto h-auto object-contain"
+                  controls
+                  autoPlay
+                  onError={() => setVideoError(true)}
+                />
+              )
+            ) : (
+              <>
+                <img
+                  ref={imageRef}
+                  src={constructImageUrl(media.filePath)}
+                  alt={media.fileName || `Media ${media.mediaID}`}
+                  className="max-w-full max-h-[calc(90vh-120px)] w-auto h-auto object-contain"
+                />
+                {/* Bbox overlay - editable bounding boxes (only for images) */}
+                {showBboxes && hasBboxes && (
+                  <>
+                    <svg
+                      className="absolute inset-0 w-full h-full"
+                      style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
+                    >
+                      {bboxes.map((bbox) => (
+                        <EditableBbox
+                          key={bbox.observationID}
+                          bbox={bbox}
+                          isSelected={bbox.observationID === selectedBboxId}
+                          onSelect={() => {
+                            // Clicking bbox selects it for geometry editing only, NOT species selector
+                            setSelectedBboxId(
+                              bbox.observationID === selectedBboxId ? null : bbox.observationID
+                            )
+                            setShowSpeciesSelector(false) // Close species selector when clicking bbox
+                          }}
+                          onUpdate={(newBbox) => handleBboxUpdate(bbox.observationID, newBbox)}
+                          imageRef={imageRef}
+                          containerRef={imageContainerRef}
+                          color={bbox.classificationMethod === 'human' ? '#22c55e' : '#84cc16'}
+                        />
+                      ))}
+                    </svg>
 
-            {/* Drawing overlay - only show when in draw mode */}
-            {isDrawMode && (
-              <DrawingOverlay
-                imageRef={imageRef}
-                containerRef={imageContainerRef}
-                onComplete={handleDrawComplete}
-              />
+                    {/* Clickable bbox labels - clicking label opens species selector */}
+                    <div className="absolute inset-0 w-full h-full pointer-events-none">
+                      {bboxes.map((bbox) => (
+                        <BboxLabel
+                          key={bbox.observationID}
+                          ref={(el) => {
+                            bboxLabelRefs.current[bbox.observationID] = el
+                          }}
+                          bbox={bbox}
+                          isSelected={bbox.observationID === selectedBboxId}
+                          isHuman={bbox.classificationMethod === 'human'}
+                          onClick={() => {
+                            // Clicking label selects bbox AND opens species selector
+                            setSelectedBboxId(bbox.observationID)
+                            setShowSpeciesSelector(true)
+                          }}
+                          onDelete={() => handleDeleteObservation(bbox.observationID)}
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {/* Drawing overlay - only show when in draw mode (images only) */}
+                {isDrawMode && (
+                  <DrawingOverlay
+                    imageRef={imageRef}
+                    containerRef={imageContainerRef}
+                    onComplete={handleDrawComplete}
+                  />
+                )}
+              </>
             )}
           </div>
 
@@ -1308,33 +1335,59 @@ function ThumbnailCard({
   setImageErrors,
   showBboxes,
   bboxes,
-  widthClass
+  widthClass,
+  isVideoMedia
 }) {
+  const isVideo = isVideoMedia(media)
+
   return (
     <div
       className={`border border-gray-300 rounded-lg overflow-hidden min-w-[150px] ${widthClass} flex flex-col h-max transition-all`}
     >
       <div
-        className="relative bg-gray-100 flex items-center justify-center cursor-pointer hover:bg-gray-200 transition-colors overflow-hidden"
+        className="relative bg-gray-100 flex items-center justify-center cursor-pointer hover:bg-gray-200 transition-colors overflow-hidden min-h-20"
         onClick={() => onImageClick(media)}
       >
-        <div className="relative w-full">
-          <img
-            src={constructImageUrl(media.filePath)}
-            alt={media.fileName || `Media ${media.mediaID}`}
-            data-image={media.filePath}
-            className={`w-full h-auto min-h-20 object-contain ${imageErrors[media.mediaID] ? 'hidden' : ''}`}
-            onError={() => setImageErrors((prev) => ({ ...prev, [media.mediaID]: true }))}
-            loading="lazy"
-          />
+        <div className="relative w-full min-h-20">
+          {isVideo ? (
+            <>
+              {/* Video placeholder background - always visible */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-200 text-gray-500 min-h-20">
+                <Play size={32} />
+                <span className="text-xs mt-1">Video</span>
+              </div>
+              {/* Video element - overlays placeholder when it loads successfully */}
+              <video
+                src={constructImageUrl(media.filePath)}
+                className={`relative z-10 w-full h-auto min-h-20 object-contain bg-black ${imageErrors[media.mediaID] ? 'hidden' : ''}`}
+                onError={() => setImageErrors((prev) => ({ ...prev, [media.mediaID]: true }))}
+                muted
+                preload="metadata"
+              />
+              {/* Video indicator badge */}
+              <div className="absolute bottom-2 right-2 z-20 bg-black/70 text-white px-1.5 py-0.5 rounded text-xs flex items-center gap-1">
+                <Play size={12} />
+              </div>
+            </>
+          ) : (
+            <img
+              src={constructImageUrl(media.filePath)}
+              alt={media.fileName || `Media ${media.mediaID}`}
+              data-image={media.filePath}
+              className={`w-full h-auto min-h-20 object-contain ${imageErrors[media.mediaID] ? 'hidden' : ''}`}
+              onError={() => setImageErrors((prev) => ({ ...prev, [media.mediaID]: true }))}
+              loading="lazy"
+            />
+          )}
 
-          {/* Bbox overlay */}
-          {showBboxes && <ThumbnailBboxOverlay bboxes={bboxes} />}
+          {/* Bbox overlay - only for images */}
+          {showBboxes && !isVideo && <ThumbnailBboxOverlay bboxes={bboxes} />}
         </div>
 
-        {imageErrors[media.mediaID] && (
+        {/* Image error fallback - only for non-video */}
+        {!isVideo && imageErrors[media.mediaID] && (
           <div
-            className="absolute inset-0 flex items-center justify-center bg-gray-100 text-gray-400"
+            className="absolute inset-0 flex flex-col items-center justify-center bg-gray-200 text-gray-500"
             title="Image not available"
           >
             <CameraOff size={32} />
@@ -1363,7 +1416,8 @@ function SequenceCard({
   showBboxes,
   bboxesByMedia,
   widthClass,
-  cycleInterval = 2000
+  cycleInterval = 2000,
+  isVideoMedia
 }) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isPaused, setIsPaused] = useState(false)
@@ -1372,6 +1426,7 @@ function SequenceCard({
   // Guard against currentIndex being out of bounds (can happen when sequence changes)
   const safeIndex = Math.min(currentIndex, itemCount - 1)
   const currentMedia = sequence.items[safeIndex]
+  const isVideo = isVideoMedia(currentMedia)
 
   // Auto-cycle effect
   useEffect(() => {
@@ -1389,14 +1444,17 @@ function SequenceCard({
     setCurrentIndex(0)
   }, [sequence.id])
 
-  // Preload next image for smooth transitions
+  // Preload next media for smooth transitions (only for images)
   useEffect(() => {
     if (itemCount <= 1) return
     const nextIndex = (safeIndex + 1) % itemCount
     const nextMedia = sequence.items[nextIndex]
-    const img = new Image()
-    img.src = constructImageUrl(nextMedia.filePath)
-  }, [safeIndex, sequence, constructImageUrl, itemCount])
+    // Only preload if next item is an image
+    if (!isVideoMedia(nextMedia)) {
+      const img = new Image()
+      img.src = constructImageUrl(nextMedia.filePath)
+    }
+  }, [safeIndex, sequence, constructImageUrl, itemCount, isVideoMedia])
 
   const handleClick = () => {
     onSequenceClick(sequence.items[0], sequence)
@@ -1417,28 +1475,58 @@ function SequenceCard({
       {/* Stacked effect (visual indicator) */}
       <div className="absolute -top-1 -right-1 w-full h-full border border-gray-200 rounded-lg bg-gray-100 -z-10 transform translate-x-1 -translate-y-1" />
 
-      {/* Image container */}
+      {/* Media container */}
       <div
-        className="relative bg-gray-100 flex items-center justify-center cursor-pointer hover:bg-gray-200 transition-colors overflow-hidden"
+        className="relative bg-gray-100 flex items-center justify-center cursor-pointer hover:bg-gray-200 transition-colors overflow-hidden min-h-20"
         onClick={handleClick}
       >
-        <div className="relative w-full">
-          <img
-            src={constructImageUrl(currentMedia.filePath)}
-            alt={currentMedia.fileName || `Media ${currentMedia.mediaID}`}
-            className={`w-full h-auto min-h-20 object-contain transition-opacity duration-300 ${imageErrors[currentMedia.mediaID] ? 'hidden' : ''}`}
-            onError={() => setImageErrors((prev) => ({ ...prev, [currentMedia.mediaID]: true }))}
-            loading="lazy"
-          />
+        <div className="relative w-full min-h-20">
+          {isVideo ? (
+            <>
+              {/* Video placeholder background - always visible */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-200 text-gray-500 min-h-20">
+                <Play size={32} />
+                <span className="text-xs mt-1">Video</span>
+              </div>
+              {/* Video element - overlays placeholder when it loads successfully */}
+              <video
+                src={constructImageUrl(currentMedia.filePath)}
+                className={`relative z-10 w-full h-auto min-h-20 object-contain bg-black transition-opacity duration-300 ${imageErrors[currentMedia.mediaID] ? 'hidden' : ''}`}
+                onError={() =>
+                  setImageErrors((prev) => ({ ...prev, [currentMedia.mediaID]: true }))
+                }
+                muted
+                preload="metadata"
+              />
+              {/* Video indicator badge */}
+              <div className="absolute bottom-2 right-2 z-20 bg-black/70 text-white px-1.5 py-0.5 rounded text-xs flex items-center gap-1">
+                <Play size={12} />
+              </div>
+            </>
+          ) : (
+            <img
+              src={constructImageUrl(currentMedia.filePath)}
+              alt={currentMedia.fileName || `Media ${currentMedia.mediaID}`}
+              className={`w-full h-auto min-h-20 object-contain transition-opacity duration-300 ${imageErrors[currentMedia.mediaID] ? 'hidden' : ''}`}
+              onError={() =>
+                setImageErrors((prev) => ({ ...prev, [currentMedia.mediaID]: true }))
+              }
+              loading="lazy"
+            />
+          )}
 
-          {/* Bbox overlay for current image */}
-          {showBboxes && (
+          {/* Bbox overlay for current image - only for images */}
+          {showBboxes && !isVideo && (
             <ThumbnailBboxOverlay bboxes={bboxesByMedia[currentMedia.mediaID] || []} />
           )}
         </div>
 
-        {imageErrors[currentMedia.mediaID] && (
-          <div className="absolute inset-0 flex items-center justify-center bg-gray-100 text-gray-400">
+        {/* Image error fallback - only for non-video */}
+        {!isVideo && imageErrors[currentMedia.mediaID] && (
+          <div
+            className="absolute inset-0 flex flex-col items-center justify-center bg-gray-200 text-gray-500"
+            title="Image not available"
+          >
             <CameraOff size={32} />
           </div>
         )}
@@ -1608,6 +1696,18 @@ function Gallery({ species, dateRange, timeRange }) {
     return `local-file://get?path=${encodeURIComponent(fullFilePath)}`
   }
 
+  // Check if media item is a video based on fileMediatype or file extension
+  const isVideoMedia = (mediaItem) => {
+    // Check IANA media type first
+    if (mediaItem?.fileMediatype?.startsWith('video/')) {
+      return true
+    }
+    // Fallback: check file extension for videos without fileMediatype set
+    const videoExtensions = ['.mp4', '.mkv', '.mov', '.webm', '.avi', '.m4v']
+    const ext = mediaItem?.fileName?.toLowerCase().match(/\.[^.]+$/)?.[0]
+    return ext ? videoExtensions.includes(ext) : false
+  }
+
   // Handle click on single image or sequence
   const handleImageClick = (media, sequence = null) => {
     setSelectedMedia(media)
@@ -1733,6 +1833,7 @@ function Gallery({ species, dateRange, timeRange }) {
         onSequencePrevious={handleSequencePrevious}
         hasNextInSequence={hasNextInSequence}
         hasPreviousInSequence={hasPreviousInSequence}
+        isVideoMedia={isVideoMedia}
       />
 
       <div className="flex flex-col h-full bg-white rounded border border-gray-200 overflow-hidden">
@@ -1763,6 +1864,7 @@ function Gallery({ species, dateRange, timeRange }) {
                   showBboxes={showThumbnailBboxes}
                   bboxesByMedia={bboxesByMedia}
                   widthClass={thumbnailWidthClass}
+                  isVideoMedia={isVideoMedia}
                 />
               )
             }
@@ -1780,6 +1882,7 @@ function Gallery({ species, dateRange, timeRange }) {
                 showBboxes={showThumbnailBboxes}
                 bboxes={bboxesByMedia[media.mediaID] || []}
                 widthClass={thumbnailWidthClass}
+                isVideoMedia={isVideoMedia}
               />
             )
           })}

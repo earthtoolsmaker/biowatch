@@ -607,7 +607,8 @@ export async function getMedia(dbPath, options = {}) {
       fileName: media.fileName,
       timestamp: media.timestamp,
       deploymentID: media.deploymentID,
-      scientificName: observations.scientificName
+      scientificName: observations.scientificName,
+      fileMediatype: media.fileMediatype
     }
 
     // Branch 1: Direct mediaID link (for ML runs, Wildlife Insights, Deepfaune imports)
