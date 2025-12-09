@@ -9,7 +9,9 @@ import {
   Trash2,
   Grid3x3,
   Plus,
-  Layers
+  Layers,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react'
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient, useMutation, useInfiniteQuery } from '@tanstack/react-query'
@@ -1210,7 +1212,7 @@ function formatGapValue(seconds) {
 }
 
 /**
- * Control bar for gallery view options
+ * Collapsible control bar for gallery view options
  */
 function GalleryControls({
   showBboxes,
@@ -1218,10 +1220,28 @@ function GalleryControls({
   gridColumns,
   onCycleGrid,
   sequenceGap,
-  onSequenceGapChange
+  onSequenceGapChange,
+  isExpanded,
+  onToggleExpanded
 }) {
   const gridLabels = { 3: '3x', 4: '4x', 5: '5x' }
 
+  // Collapsed state: tiny chevron on the right
+  if (!isExpanded) {
+    return (
+      <div className="flex items-center justify-end px-3 py-1 border-b border-gray-200 flex-shrink-0">
+        <button
+          onClick={onToggleExpanded}
+          className="p-1 text-gray-300 hover:text-gray-400 hover:bg-gray-100 rounded transition-colors"
+          title="Show gallery controls"
+        >
+          <ChevronDown size={14} />
+        </button>
+      </div>
+    )
+  }
+
+  // Expanded state: full controls with chevron-up on the right
   return (
     <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-gray-200 flex-shrink-0">
       {/* Sequence Gap Slider */}
@@ -1263,6 +1283,15 @@ function GalleryControls({
         >
           <Grid3x3 size={16} />
           <span>{gridLabels[gridColumns]}</span>
+        </button>
+
+        {/* Collapse toggle - chevron-up on the right */}
+        <button
+          onClick={onToggleExpanded}
+          className="p-1 text-gray-300 hover:text-gray-400 hover:bg-gray-100 rounded transition-colors"
+          title="Hide gallery controls"
+        >
+          <ChevronUp size={14} />
         </button>
       </div>
     </div>
@@ -1485,6 +1514,7 @@ function Gallery({ species, dateRange, timeRange }) {
   // Grid controls state
   const [showThumbnailBboxes, setShowThumbnailBboxes] = useState(false)
   const [gridColumns, setGridColumns] = useState(3)
+  const [controlsExpanded, setControlsExpanded] = useState(false)
 
   // Sequence grouping state
   const [currentSequence, setCurrentSequence] = useState(null)
@@ -1736,7 +1766,7 @@ function Gallery({ species, dateRange, timeRange }) {
       />
 
       <div className="flex flex-col h-full bg-white rounded border border-gray-200 overflow-hidden">
-        {/* Control Bar */}
+        {/* Collapsible Control Bar */}
         <GalleryControls
           showBboxes={showThumbnailBboxes}
           onToggleBboxes={() => setShowThumbnailBboxes((prev) => !prev)}
@@ -1744,6 +1774,8 @@ function Gallery({ species, dateRange, timeRange }) {
           onCycleGrid={handleCycleGrid}
           sequenceGap={sequenceGap}
           onSequenceGapChange={setSequenceGap}
+          isExpanded={controlsExpanded}
+          onToggleExpanded={() => setControlsExpanded((prev) => !prev)}
         />
 
         {/* Grid */}
