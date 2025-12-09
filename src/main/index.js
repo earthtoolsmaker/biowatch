@@ -783,7 +783,8 @@ app.whenReady().then(async () => {
   })
 
   // Get bounding boxes for a specific media file
-  ipcMain.handle('media:get-bboxes', async (_, studyId, mediaID) => {
+  // includeWithoutBbox: true to include observations without bbox (for videos)
+  ipcMain.handle('media:get-bboxes', async (_, studyId, mediaID, includeWithoutBbox = false) => {
     try {
       const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
       if (!dbPath || !existsSync(dbPath)) {
@@ -791,7 +792,7 @@ app.whenReady().then(async () => {
         return { error: 'Database not found for this study' }
       }
 
-      const bboxes = await getMediaBboxes(dbPath, mediaID)
+      const bboxes = await getMediaBboxes(dbPath, mediaID, includeWithoutBbox)
       return { data: bboxes }
     } catch (error) {
       log.error('Error getting media bboxes:', error)

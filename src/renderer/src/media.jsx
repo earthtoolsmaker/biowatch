@@ -483,6 +483,7 @@ function ImageModal({
   const imageContainerRef = useRef(null)
   const bboxLabelRefs = useRef({})
   const imageRef = useRef(null)
+  const videoSpeciesLabelRef = useRef(null) // For video footer species label
 
   // Initialize inline timestamp when media changes
   useEffect(() => {
@@ -595,12 +596,29 @@ function ImageModal({
 
   // Compute selector position when a bbox is selected AND species selector should be shown
   useEffect(() => {
-    if (
-      !selectedBboxId ||
-      !showSpeciesSelector ||
-      !bboxLabelRefs.current[selectedBboxId] ||
-      !imageContainerRef.current
-    ) {
+    if (!selectedBboxId || !showSpeciesSelector) {
+      setSelectorPosition(null)
+      return
+    }
+
+    // For videos, use the footer species label ref
+    if (isVideoMedia(media) && videoSpeciesLabelRef.current) {
+      const labelRect = videoSpeciesLabelRef.current.getBoundingClientRect()
+      const containerRect = imageContainerRef.current?.getBoundingClientRect() || {
+        top: 0,
+        bottom: window.innerHeight,
+        left: 0,
+        right: window.innerWidth,
+        height: window.innerHeight,
+        width: window.innerWidth
+      }
+      const position = computeSelectorPosition(labelRect, containerRect)
+      setSelectorPosition(position)
+      return
+    }
+
+    // For images, use the bbox label ref
+    if (!bboxLabelRefs.current[selectedBboxId] || !imageContainerRef.current) {
       setSelectorPosition(null)
       return
     }
@@ -611,13 +629,30 @@ function ImageModal({
 
     const position = computeSelectorPosition(labelRect, containerRect)
     setSelectorPosition(position)
-  }, [selectedBboxId, showSpeciesSelector])
+  }, [selectedBboxId, showSpeciesSelector, media, isVideoMedia])
 
   // Recalculate position on window resize
   useEffect(() => {
     if (!selectedBboxId || !showSpeciesSelector) return
 
     const handleResize = () => {
+      // For videos, use footer label ref
+      if (isVideoMedia(media) && videoSpeciesLabelRef.current) {
+        const labelRect = videoSpeciesLabelRef.current.getBoundingClientRect()
+        const containerRect = imageContainerRef.current?.getBoundingClientRect() || {
+          top: 0,
+          bottom: window.innerHeight,
+          left: 0,
+          right: window.innerWidth,
+          height: window.innerHeight,
+          width: window.innerWidth
+        }
+        const position = computeSelectorPosition(labelRect, containerRect)
+        setSelectorPosition(position)
+        return
+      }
+
+      // For images, use bbox label ref
       if (bboxLabelRefs.current[selectedBboxId] && imageContainerRef.current) {
         const labelEl = bboxLabelRefs.current[selectedBboxId]
         const labelRect = labelEl.getBoundingClientRect()
@@ -629,12 +664,15 @@ function ImageModal({
 
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
-  }, [selectedBboxId, showSpeciesSelector])
+  }, [selectedBboxId, showSpeciesSelector, media, isVideoMedia])
 
+  // For videos, include observations without bbox geometry
+  const isVideo = isVideoMedia(media)
   const { data: bboxes = [] } = useQuery({
-    queryKey: ['mediaBboxes', studyId, media?.mediaID],
+    queryKey: ['mediaBboxes', studyId, media?.mediaID, isVideo],
     queryFn: async () => {
-      const response = await window.api.getMediaBboxes(studyId, media.mediaID)
+      // Pass true for videos to include observations without bbox
+      const response = await window.api.getMediaBboxes(studyId, media.mediaID, isVideo)
       if (response.data) {
         return response.data
       }
@@ -1186,7 +1224,13 @@ function ImageModal({
                   <>
                     <svg
                       className="absolute inset-0 w-full h-full"
-                      style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%'
+                      }}
                     >
                       {bboxes.map((bbox) => (
                         <EditableBbox
@@ -1254,7 +1298,29 @@ function ImageModal({
           {/* Footer with metadata */}
           <div className="px-4 py-3 bg-white flex-shrink-0 border-t border-gray-100">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">{media.scientificName}</h3>
+              {isVideoMedia(media) && bboxes.length > 0 ? (
+                <button
+                  ref={videoSpeciesLabelRef}
+                  onClick={() => {
+                    // Select the video's observation (first/only one)
+                    setSelectedBboxId(bboxes[0].observationID)
+                    setShowSpeciesSelector(true)
+                  }}
+                  className="text-lg font-semibold text-left hover:text-lime-600 cursor-pointer flex items-center gap-2 group"
+                  title="Click to edit species"
+                >
+                  <span>{media.scientificName || 'No species'}</span>
+                  <Pencil
+                    size={16}
+                    className="text-gray-400 group-hover:text-lime-600 transition-colors"
+                  />
+                  {bboxes[0]?.classificationMethod === 'human' && (
+                    <span className="text-xs text-green-600">✓</span>
+                  )}
+                </button>
+              ) : (
+                <h3 className="text-lg font-semibold">{media.scientificName}</h3>
+              )}
             </div>
 
             {/* Editable Timestamp Section */}
@@ -1678,7 +1744,10 @@ function SequenceCard({
           setExtractingThumbnails((prev) => ({ ...prev, [media.mediaID]: true }))
           const result = await window.api.thumbnail.extract(media.filePath)
           if (result.success && !cancelled) {
-            setVideoThumbnails((prev) => ({ ...prev, [media.mediaID]: constructImageUrl(result.path) }))
+            setVideoThumbnails((prev) => ({
+              ...prev,
+              [media.mediaID]: constructImageUrl(result.path)
+            }))
           }
         } catch (error) {
           console.error('Failed to extract thumbnail for sequence item:', error)
@@ -1799,9 +1868,7 @@ function SequenceCard({
               src={constructImageUrl(currentMedia.filePath)}
               alt={currentMedia.fileName || `Media ${currentMedia.mediaID}`}
               className={`w-full h-auto min-h-20 object-contain transition-opacity duration-300 ${imageErrors[currentMedia.mediaID] ? 'hidden' : ''}`}
-              onError={() =>
-                setImageErrors((prev) => ({ ...prev, [currentMedia.mediaID]: true }))
-              }
+              onError={() => setImageErrors((prev) => ({ ...prev, [currentMedia.mediaID]: true }))}
               loading="lazy"
             />
           )}
