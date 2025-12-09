@@ -858,6 +858,16 @@ export default function Overview({ data, studyId, studyName }) {
               key={index}
               ref={editingContributorIndex === index ? editingContributorRef : null}
               className="flex flex-col flex-shrink-0 w-64 p-4 border border-gray-200 rounded-md shadow-sm bg-white group relative"
+              onKeyDown={
+                editingContributorIndex === index
+                  ? (e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        saveContributor(index)
+                      }
+                    }
+                  : undefined
+              }
             >
               {editingContributorIndex === index ? (
                 // Edit mode
@@ -976,6 +986,12 @@ export default function Overview({ data, studyId, studyName }) {
             <div
               ref={addContributorRef}
               className="flex flex-col flex-shrink-0 w-64 p-4 border border-blue-300 rounded-md shadow-sm bg-blue-50"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  addContributor()
+                }
+              }}
             >
               <div className="flex flex-col gap-2">
                 <input
