@@ -504,9 +504,7 @@ def predict(
 
     if not selected_detection_record:
         # No animal detected - return "vide" if available, else "blank"
-        vide_prediction = (
-            "vide" if "vide" in class_label_mapping.values() else "blank"
-        )
+        vide_prediction = "vide" if "vide" in class_label_mapping.values() else "blank"
         if not detection_records:
             return {
                 "predictions": [
@@ -535,9 +533,7 @@ def predict(
 
     # Crop and classify
     xyxy = selected_detection_record["xyxy"]
-    imagecv = cv2.imdecode(
-        np.fromfile(filepath, dtype=np.uint8), cv2.IMREAD_UNCHANGED
-    )
+    imagecv = cv2.imdecode(np.fromfile(filepath, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
     croppedimage = crop_square_cv_to_pil(imagecv, xyxy)
     cropped_tensor = model.classifier.preprocess_image(croppedimage)
     scores = model.classifier.predict(cropped_tensor)

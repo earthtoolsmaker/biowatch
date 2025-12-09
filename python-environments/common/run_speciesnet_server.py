@@ -240,7 +240,6 @@ class SpeciesNetLitAPI(ls.LitAPI):
         return {"predictions": list(new_predictions.values())}
 
     def predict(self, x, **kwargs):
-
         for instance in x["instances"]:
             filepath = instance["filepath"]
 
