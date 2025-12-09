@@ -65,9 +65,13 @@ function formatToMatchOriginal(newDateTime, originalString) {
  * @param {string} dbPath - Path to the SQLite database
  * @returns {Promise<Array>} - Species distribution data
  */
-export async function getSpeciesDistribution(dbPath) {
+export async function getSpeciesDistribution(dbPath, deploymentsFilter = []) {
   const startTime = Date.now()
   log.info(`Querying species distribution from: ${dbPath}`)
+
+  if (deploymentsFilter && deploymentsFilter.length > 0) {
+    log.info(`Deployments filter: ${deploymentsFilter.length} deployments`)
+  }
 
   try {
     // Extract study ID from path
@@ -76,19 +80,25 @@ export async function getSpeciesDistribution(dbPath) {
 
     const db = await getDrizzleDb(studyId, dbPath)
 
+    // Build dynamic conditions
+    const conditions = [
+      isNotNull(observations.scientificName),
+      ne(observations.scientificName, ''),
+      sql`(${observations.observationType} IS NULL OR ${observations.observationType} != 'blank')`
+    ]
+
+    // Add deployments filter if provided
+    if (deploymentsFilter && deploymentsFilter.length > 0) {
+      conditions.push(inArray(observations.deploymentID, deploymentsFilter))
+    }
+
     const result = await db
       .select({
         scientificName: observations.scientificName,
         count: count(observations.observationID).as('count')
       })
       .from(observations)
-      .where(
-        and(
-          isNotNull(observations.scientificName),
-          ne(observations.scientificName, ''),
-          sql`(${observations.observationType} IS NULL OR ${observations.observationType} != 'blank')`
-        )
-      )
+      .where(and(...conditions))
       .groupBy(observations.scientificName)
       .orderBy(desc(count(observations.observationID)))
 
@@ -303,12 +313,17 @@ export async function getLocationsActivity(dbPath) {
  * Get daily timeseries data for specific species
  * @param {string} dbPath - Path to the SQLite database
  * @param {Array<string>} speciesNames - List of scientific names to include
+ * @param {Array<string>} deploymentsFilter - List of deployment IDs to filter by
  * @returns {Promise<Object>} - Timeseries data for specified species
  */
-export async function getSpeciesTimeseries(dbPath, speciesNames = []) {
+export async function getSpeciesTimeseries(dbPath, speciesNames = [], deploymentsFilter = []) {
   const startTime = Date.now()
   log.info(`Querying species timeseries from: ${dbPath} for specific species`)
   log.info(`Selected species: ${speciesNames.join(', ')}`)
+
+  if (deploymentsFilter && deploymentsFilter.length > 0) {
+    log.info(`Deployments filter: ${deploymentsFilter.length} deployments`)
+  }
 
   try {
     // Extract study ID from path
@@ -322,6 +337,15 @@ export async function getSpeciesTimeseries(dbPath, speciesNames = []) {
       speciesFilter = `AND scientificName IN (${quotedSpecies})`
     }
 
+    // Prepare deployments filter
+    let deploymentsFilterSql = ''
+    if (deploymentsFilter && deploymentsFilter.length > 0) {
+      const quotedDeployments = deploymentsFilter
+        .map((id) => `'${id.replace(/'/g, "''")}'`)
+        .join(',')
+      deploymentsFilterSql = `AND deploymentID IN (${quotedDeployments})`
+    }
+
     // Use raw SQL for complex CTE query that's difficult to express in Drizzle
     const timeseriesQuery = `
       WITH date_range AS (
@@ -330,6 +354,7 @@ export async function getSpeciesTimeseries(dbPath, speciesNames = []) {
           date(max(substr(eventStart, 1, 10)), 'weekday 0') AS end_week
         FROM observations
         WHERE substr(eventStart, 1, 4) > '1970'
+        ${deploymentsFilterSql}
       ),
       weeks(week_start) AS (
         SELECT start_week FROM date_range
@@ -345,6 +370,7 @@ export async function getSpeciesTimeseries(dbPath, speciesNames = []) {
         FROM observations
         WHERE scientificName IS NOT NULL AND scientificName != ''
         ${speciesFilter}
+        ${deploymentsFilterSql}
         GROUP BY scientificName
       ),
       week_species_combinations AS (
@@ -362,6 +388,7 @@ export async function getSpeciesTimeseries(dbPath, speciesNames = []) {
         FROM observations
         WHERE scientificName IS NOT NULL AND scientificName != ''
         ${speciesFilter}
+        ${deploymentsFilterSql}
         GROUP BY week_start, scientificName
       )
       SELECT
@@ -530,7 +557,8 @@ export async function getMedia(dbPath, options = {}) {
     offset: queryOffset = 0,
     species = [],
     dateRange = {},
-    timeRange = {}
+    timeRange = {},
+    deployments: deploymentsFilter = []
   } = options
 
   const startTime = Date.now()
@@ -547,6 +575,10 @@ export async function getMedia(dbPath, options = {}) {
 
   if (timeRange.start !== undefined && timeRange.end !== undefined) {
     log.info(`Time range: ${timeRange.start}:00 to ${timeRange.end}:00`)
+  }
+
+  if (deploymentsFilter && deploymentsFilter.length > 0) {
+    log.info(`Deployments filter: ${deploymentsFilter.length} deployments`)
   }
 
   try {
@@ -600,6 +632,11 @@ export async function getMedia(dbPath, options = {}) {
       }
     }
 
+    // Add deployments filter if provided
+    if (deploymentsFilter && deploymentsFilter.length > 0) {
+      baseConditions.push(inArray(media.deploymentID, deploymentsFilter))
+    }
+
     // Select fields for both branches
     const selectFields = {
       mediaID: media.mediaID,
@@ -649,13 +686,24 @@ export async function getMedia(dbPath, options = {}) {
  * @param {Array<string>} species - List of scientific names to include
  * @param {string} startDate - ISO date string for range start
  * @param {string} endDate - ISO date string for range end
+ * @param {Array<string>} deploymentsFilter - List of deployment IDs to filter by
  * @returns {Promise<Object>} - Hourly activity data for specified species
  */
-export async function getSpeciesDailyActivity(dbPath, species, startDate, endDate) {
+export async function getSpeciesDailyActivity(
+  dbPath,
+  species,
+  startDate,
+  endDate,
+  deploymentsFilter = []
+) {
   const startTime = Date.now()
   log.info(`Querying species daily activity from: ${dbPath}`)
   log.info(`Date range: ${startDate} to ${endDate}`)
   log.info(`Species: ${species.join(', ')}`)
+
+  if (deploymentsFilter && deploymentsFilter.length > 0) {
+    log.info(`Deployments filter: ${deploymentsFilter.length} deployments`)
+  }
 
   try {
     // Extract study ID from path
@@ -667,6 +715,18 @@ export async function getSpeciesDailyActivity(dbPath, species, startDate, endDat
     // Use sql template for SQLite-specific hour extraction via strftime
     const hourColumn = sql`CAST(strftime('%H', ${observations.eventStart}) AS INTEGER)`.as('hour')
 
+    // Build dynamic conditions
+    const conditions = [
+      inArray(observations.scientificName, species),
+      gte(observations.eventStart, startDate),
+      lte(observations.eventStart, endDate)
+    ]
+
+    // Add deployments filter if provided
+    if (deploymentsFilter && deploymentsFilter.length > 0) {
+      conditions.push(inArray(observations.deploymentID, deploymentsFilter))
+    }
+
     const rows = await db
       .select({
         hour: hourColumn,
@@ -674,13 +734,7 @@ export async function getSpeciesDailyActivity(dbPath, species, startDate, endDat
         count: count().as('count')
       })
       .from(observations)
-      .where(
-        and(
-          inArray(observations.scientificName, species),
-          gte(observations.eventStart, startDate),
-          lte(observations.eventStart, endDate)
-        )
-      )
+      .where(and(...conditions))
       .groupBy(hourColumn, observations.scientificName)
       .orderBy(hourColumn, observations.scientificName)
 
