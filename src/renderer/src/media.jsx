@@ -11,7 +11,9 @@ import {
   Plus,
   Layers,
   Play,
-  Loader2
+  Loader2,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react'
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient, useMutation, useInfiniteQuery } from '@tanstack/react-query'
@@ -1468,7 +1470,7 @@ function formatGapValue(seconds) {
 }
 
 /**
- * Control bar for gallery view options
+ * Collapsible control bar for gallery view options
  */
 function GalleryControls({
   showBboxes,
@@ -1476,10 +1478,28 @@ function GalleryControls({
   gridColumns,
   onCycleGrid,
   sequenceGap,
-  onSequenceGapChange
+  onSequenceGapChange,
+  isExpanded,
+  onToggleExpanded
 }) {
   const gridLabels = { 3: '3x', 4: '4x', 5: '5x' }
 
+  // Collapsed state: tiny chevron on the right
+  if (!isExpanded) {
+    return (
+      <div className="flex items-center justify-end px-3 py-1 border-b border-gray-200 flex-shrink-0">
+        <button
+          onClick={onToggleExpanded}
+          className="p-1 text-gray-300 hover:text-gray-400 hover:bg-gray-100 rounded transition-colors"
+          title="Show gallery controls"
+        >
+          <ChevronDown size={14} />
+        </button>
+      </div>
+    )
+  }
+
+  // Expanded state: full controls with chevron-up on the right
   return (
     <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-gray-200 flex-shrink-0">
       {/* Sequence Gap Slider */}
@@ -1521,6 +1541,15 @@ function GalleryControls({
         >
           <Grid3x3 size={16} />
           <span>{gridLabels[gridColumns]}</span>
+        </button>
+
+        {/* Collapse toggle - chevron-up on the right */}
+        <button
+          onClick={onToggleExpanded}
+          className="p-1 text-gray-300 hover:text-gray-400 hover:bg-gray-100 rounded transition-colors"
+          title="Hide gallery controls"
+        >
+          <ChevronUp size={14} />
         </button>
       </div>
     </div>
@@ -1709,11 +1738,11 @@ function SequenceCard({
   showBboxes,
   bboxesByMedia,
   widthClass,
-  cycleInterval = 2000,
+  cycleInterval = 1000,
   isVideoMedia
 }) {
   const [currentIndex, setCurrentIndex] = useState(0)
-  const [isPaused, setIsPaused] = useState(false)
+  const [isHovering, setIsHovering] = useState(false)
   const [videoThumbnails, setVideoThumbnails] = useState({}) // Map of mediaID -> thumbnailUrl
   const [extractingThumbnails, setExtractingThumbnails] = useState({})
 
@@ -1768,16 +1797,16 @@ function SequenceCard({
     }
   }, [sequence.id, sequence.items, constructImageUrl, isVideoMedia])
 
-  // Auto-cycle effect
+  // Auto-cycle effect - only runs when hovering
   useEffect(() => {
-    if (isPaused || itemCount <= 1) return
+    if (!isHovering || itemCount <= 1) return
 
     const intervalId = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % itemCount)
     }, cycleInterval)
 
     return () => clearInterval(intervalId)
-  }, [itemCount, cycleInterval, isPaused])
+  }, [itemCount, cycleInterval, isHovering])
 
   // Reset index when sequence changes
   useEffect(() => {
@@ -1786,7 +1815,7 @@ function SequenceCard({
 
   // Preload next media for smooth transitions (only for images)
   useEffect(() => {
-    if (itemCount <= 1) return
+    if (!isHovering || itemCount <= 1) return
     const nextIndex = (safeIndex + 1) % itemCount
     const nextMedia = sequence.items[nextIndex]
     // Only preload if next item is an image
@@ -1794,7 +1823,7 @@ function SequenceCard({
       const img = new Image()
       img.src = constructImageUrl(nextMedia.filePath)
     }
-  }, [safeIndex, sequence, constructImageUrl, itemCount, isVideoMedia])
+  }, [safeIndex, sequence, constructImageUrl, itemCount, isVideoMedia, isHovering])
 
   const handleClick = () => {
     onSequenceClick(sequence.items[0], sequence)
@@ -1806,8 +1835,11 @@ function SequenceCard({
   return (
     <div
       className={`border border-gray-300 rounded-lg overflow-hidden min-w-[150px] ${widthClass} flex flex-col h-max transition-all relative group`}
-      onMouseEnter={() => setIsPaused(true)}
-      onMouseLeave={() => setIsPaused(false)}
+      onMouseEnter={() => setIsHovering(true)}
+      onMouseLeave={() => {
+        setIsHovering(false)
+        setCurrentIndex(0)
+      }}
     >
       {/* Sequence badge */}
       <div className="absolute top-2 right-2 z-20 bg-black/70 text-white px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1">
@@ -1946,6 +1978,7 @@ function Gallery({ species, dateRange, timeRange }) {
   // Grid controls state
   const [showThumbnailBboxes, setShowThumbnailBboxes] = useState(false)
   const [gridColumns, setGridColumns] = useState(3)
+  const [controlsExpanded, setControlsExpanded] = useState(false)
 
   // Sequence grouping state
   const [currentSequence, setCurrentSequence] = useState(null)
@@ -2199,7 +2232,7 @@ function Gallery({ species, dateRange, timeRange }) {
       />
 
       <div className="flex flex-col h-full bg-white rounded border border-gray-200 overflow-hidden">
-        {/* Control Bar */}
+        {/* Collapsible Control Bar */}
         <GalleryControls
           showBboxes={showThumbnailBboxes}
           onToggleBboxes={() => setShowThumbnailBboxes((prev) => !prev)}
@@ -2207,6 +2240,8 @@ function Gallery({ species, dateRange, timeRange }) {
           onCycleGrid={handleCycleGrid}
           sequenceGap={sequenceGap}
           onSequenceGapChange={setSequenceGap}
+          isExpanded={controlsExpanded}
+          onToggleExpanded={() => setControlsExpanded((prev) => !prev)}
         />
 
         {/* Grid */}
