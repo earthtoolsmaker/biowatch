@@ -71,7 +71,7 @@ export const observations = sqliteTable('observations', {
   scientificName: text('scientificName'),
   observationType: text('observationType'),
   commonName: text('commonName'),
-  confidence: real('confidence'),
+  classificationProbability: real('classificationProbability'),
   count: integer('count'),
   lifeStage: text('lifeStage'),
   age: text('age'),

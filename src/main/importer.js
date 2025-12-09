@@ -329,7 +329,7 @@ async function insertPrediction(db, prediction, modelInfo = {}) {
     eventStart: mediaRecord.timestamp,
     eventEnd: mediaRecord.timestamp,
     scientificName: resolvedScientificName,
-    confidence: prediction.prediction_score,
+    classificationProbability: prediction.prediction_score,
     count: 1,
     modelOutputID: modelInfo.modelOutputID || null,
     classificationMethod: modelInfo.modelOutputID ? 'machine' : null,

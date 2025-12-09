@@ -208,7 +208,7 @@ describe('CamTrapDP Import Tests', () => {
         'Should have correct scientific name'
       )
       assert.equal(redDeerObs.count, 2, 'Should have correct count')
-      assert.equal(redDeerObs.confidence, 0.95, 'Should have correct confidence')
+      assert.equal(redDeerObs.classificationProbability, 0.95, 'Should have correct classificationProbability')
     })
 
     test('should handle scientific name and empty observations correctly', async () => {
