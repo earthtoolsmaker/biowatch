@@ -122,7 +122,6 @@ import logging
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 import cv2
 import litserve as ls
@@ -262,9 +261,7 @@ class Model(nn.Module):
         nbclasses (int): The number of output classes for the model.
     """
 
-    def __init__(
-        self, filepath_weights: Path, backbone: str, crop_size: int, num_classes: int
-    ):
+    def __init__(self, filepath_weights: Path, backbone: str, crop_size: int, num_classes: int):
         """
         Initialize the Classifier with the specified model parameters.
 
@@ -281,9 +278,7 @@ class Model(nn.Module):
             num_classes=num_classes,
             dynamic_img_size=True,
         )
-        logging.info(
-            f"Using {backbone} with weights at {filepath_weights}, in resolution {crop_size}x{crop_size}"
-        )
+        logging.info(f"Using {backbone} with weights at {filepath_weights}, in resolution {crop_size}x{crop_size}")
         self.backbone = backbone
         self.nbclasses = num_classes
 
@@ -317,10 +312,7 @@ class Model(nn.Module):
         total_output = []
         with torch.no_grad():
             x = data.to(device)
-            if withsoftmax:
-                output = self.forward(x).softmax(dim=1)
-            else:
-                output = self.forward(x)
+            output = self.forward(x).softmax(dim=1) if withsoftmax else self.forward(x)
             total_output += output.tolist()
 
         return np.array(total_output)
@@ -346,16 +338,15 @@ class Model(nn.Module):
             args = params["args"]
             if self.nbclasses != args["num_classes"]:
                 raise Exception(
-                    "You load a model ({}) that does not have the same number of class"
-                    "({})".format(args["num_classes"], self.nbclasses)
+                    "You load a model ({}) that does not have the same number of class({})".format(
+                        args["num_classes"], self.nbclasses
+                    )
                 )
             self.backbone = args["backbone"]
             self.nbclasses = args["num_classes"]
             self.load_state_dict(params["state_dict"])
         except Exception as e:
-            print(
-                "Can't load checkpoint model because :\n\n " + str(e), file=sys.stderr
-            )
+            print("Can't load checkpoint model because :\n\n " + str(e), file=sys.stderr)
             raise e
 
 
@@ -445,9 +436,7 @@ def select_best_animal_detection(detection_records: list[dict]) -> dict | None:
         or None if no such record exists.
     """
     animal_records = [r for r in detection_records if r["label"] == "animal"]
-    sorted_animal_records = sorted(
-        animal_records, key=lambda r: r["conf"], reverse=True
-    )
+    sorted_animal_records = sorted(animal_records, key=lambda r: r["conf"], reverse=True)
     if not sorted_animal_records:
         return None
     else:
@@ -476,12 +465,8 @@ def crop_square_cv_to_pil(array_image: np.ndarray, xyxy: list[float]):
         x1 = x1 - int((ysize - xsize) / 2)
         x2 = x2 + int((ysize - xsize) / 2)
     height, width, _ = array_image.shape
-    croppedimagecv = array_image[
-        max(0, int(y1)) : min(int(y2), height), max(0, int(x1)) : min(int(x2), width)
-    ]
-    return Image.fromarray(
-        croppedimagecv[:, :, (2, 1, 0)]
-    )  # converted to PIL BGR image
+    croppedimagecv = array_image[max(0, int(y1)) : min(int(y2), height), max(0, int(x1)) : min(int(x2), width)]
+    return Image.fromarray(croppedimagecv[:, :, (2, 1, 0)])  # converted to PIL BGR image
 
 
 def to_classifications_record(
@@ -500,9 +485,7 @@ def to_classifications_record(
     Returns:
         dict: A dictionary containing the top-k labels and their corresponding scores.
     """
-    top_k_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[
-        :k
-    ]
+    top_k_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:k]
     top_k_labels = [class_label_mapping[i] for i in top_k_indices]
     top_k_scores = [scores[i] for i in top_k_indices]
     return {
@@ -555,6 +538,7 @@ def predict(
             bboxes.cls.cpu().numpy().astype(int).tolist(),
             bboxes.xywhn.cpu().numpy().tolist(),
             bboxes.xyxy.cpu().numpy().tolist(),
+            strict=True,
         )
     ]
     selected_detection_record = select_best_animal_detection(detection_records)
@@ -587,9 +571,7 @@ def predict(
 
     else:
         xyxy = selected_detection_record["xyxy"]
-        imagecv = cv2.imdecode(
-            np.fromfile(filepath, dtype=np.uint8), cv2.IMREAD_UNCHANGED
-        )
+        imagecv = cv2.imdecode(np.fromfile(filepath, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
         croppedimage = crop_square_cv_to_pil(imagecv, xyxy)
         cropped_tensor = torch.ones((1, 3, crop_size, crop_size))
         cropped_tensor[0, :, :, :] = model.classifier.preprocess_image(croppedimage)
@@ -599,9 +581,7 @@ def predict(
             if not xyxy
             else to_classifications_record(
                 scores[0].tolist(),
-                class_label_mapping={
-                    idx: label for idx, label in class_label_mapping.items()
-                },
+                class_label_mapping=dict(class_label_mapping.items()),
             )
         )
         return {
@@ -667,7 +647,7 @@ class DeepFauneLitAPI(ls.LitAPI):
         self,
         filepath_detector_weights: Path,
         filepath_classifier_weights: Path,
-        extra_fields: Optional[list[str]] = None,
+        extra_fields: list[str] | None = None,
         *args,
         **kwargs,
     ) -> None:
@@ -715,9 +695,7 @@ class DeepFauneLitAPI(ls.LitAPI):
                 filepath=filepath,
             )
             assert single_predictions_dict is not None
-            yield self._propagate_extra_fields(
-                single_instances_dict, single_predictions_dict
-            )
+            yield self._propagate_extra_fields(single_instances_dict, single_predictions_dict)
 
     def encode_response(self, output, **kwargs):
         for out in output:

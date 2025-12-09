@@ -82,8 +82,8 @@ $ curl -X POST http://localhost:${port}/predict \
       {
         "classifications": {
           "classes": [
-            "a8479038-dd45-40b3-bd78-dd07c2763153;mammalia;dasyuromorphia;dasyuridae;dasyurus;maculatus;spotted-tailed quoll",
-            "e88777aa-294e-47ec-8c8a-d4081c0abaff;mammalia;dasyuromorphia;dasyuridae;dasyurus;hallucatus;northern quoll",
+            "a8479038-dd45-40b3-bd78-...;spotted-tailed quoll",
+            "e88777aa-294e-47ec-8c8a-...;northern quoll",
             "32c0147f-1967-4644-b107-8133ae1f020a;mammalia;rodentia;cuniculidae;cuniculus;paca;spotted paca",
             "4c88622d-efe4-42af-9a54-e3b7a76c3b85;mammalia;rodentia;nesomyidae;cricetomys;gambianus;gambian rat",
             "f2d233e3-80e3-433d-9687-e29ecc7a467a;mammalia;;;;;mammal"
@@ -120,8 +120,6 @@ $ curl -X POST http://localhost:${port}/predict \
 }
 ```
 """
-
-from typing import Optional
 
 import litserve as ls
 from absl import app, flags
@@ -188,8 +186,8 @@ class SpeciesNetLitAPI(ls.LitAPI):
         self,
         model_name: str,
         geofence: bool = True,
-        country: Optional[str] = None,
-        extra_fields: Optional[list[str]] = None,
+        country: str | None = None,
+        extra_fields: list[str] | None = None,
         *args,
         **kwargs,
     ) -> None:
@@ -250,13 +248,9 @@ class SpeciesNetLitAPI(ls.LitAPI):
 
             single_instances_dict = {"instances": [instance_data]}
 
-            single_predictions_dict = self.model.predict(
-                instances_dict=single_instances_dict
-            )
+            single_predictions_dict = self.model.predict(instances_dict=single_instances_dict)
             assert single_predictions_dict is not None
-            yield self._propagate_extra_fields(
-                single_instances_dict, single_predictions_dict
-            )
+            yield self._propagate_extra_fields(single_instances_dict, single_predictions_dict)
 
     def encode_response(self, output, **kwargs):
         for out in output:
