@@ -1324,6 +1324,7 @@ function formatGapValue(seconds) {
 function GalleryControls({
   showBboxes,
   onToggleBboxes,
+  hasBboxes,
   gridColumns,
   onCycleGrid,
   sequenceGap,
@@ -1368,19 +1369,21 @@ function GalleryControls({
       </div>
 
       <div className="flex items-center gap-2">
-        {/* Show Bboxes Toggle */}
-        <button
-          onClick={onToggleBboxes}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-            showBboxes
-              ? 'bg-lime-500 text-white hover:bg-lime-600'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-          title="Show bounding boxes on thumbnails"
-        >
-          <Square size={16} />
-          <span>Boxes</span>
-        </button>
+        {/* Show Bboxes Toggle - only render if bboxes exist */}
+        {hasBboxes && (
+          <button
+            onClick={onToggleBboxes}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              showBboxes
+                ? 'bg-lime-500 text-white hover:bg-lime-600'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+            title="Show bounding boxes on thumbnails"
+          >
+            <Square size={16} />
+            <span>Boxes</span>
+          </button>
+        )}
 
         {/* Grid Density Cycle */}
         <button
@@ -1716,6 +1719,17 @@ function Gallery({ species, dateRange, timeRange }) {
     staleTime: 60000
   })
 
+  // Check if any media have bboxes (lightweight check for showing/hiding toggle)
+  const { data: anyMediaHaveBboxes = false } = useQuery({
+    queryKey: ['mediaHaveBboxes', id, mediaIDs],
+    queryFn: async () => {
+      const response = await window.api.checkMediaHaveBboxes(id, mediaIDs)
+      return response.data || false
+    },
+    enabled: mediaIDs.length > 0 && !!id,
+    staleTime: 60000
+  })
+
   // Set up Intersection Observer for infinite scrolling
   useEffect(() => {
     const currentLoader = loaderRef.current
@@ -1880,6 +1894,7 @@ function Gallery({ species, dateRange, timeRange }) {
         <GalleryControls
           showBboxes={showThumbnailBboxes}
           onToggleBboxes={() => setShowThumbnailBboxes((prev) => !prev)}
+          hasBboxes={anyMediaHaveBboxes}
           gridColumns={gridColumns}
           onCycleGrid={handleCycleGrid}
           sequenceGap={sequenceGap}

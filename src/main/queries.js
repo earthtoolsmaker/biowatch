@@ -1176,6 +1176,42 @@ export async function getMediaBboxesBatch(dbPath, mediaIDs) {
 }
 
 /**
+ * Check if any observations with bboxes exist for the given media IDs
+ * Lightweight query that returns only a boolean (uses LIMIT 1 for efficiency)
+ * @param {string} dbPath - Path to the SQLite database
+ * @param {string[]} mediaIDs - Array of media IDs to check
+ * @returns {Promise<boolean>} - True if at least one media has bboxes
+ */
+export async function checkMediaHaveBboxes(dbPath, mediaIDs) {
+  if (!mediaIDs || mediaIDs.length === 0) return false
+
+  const startTime = Date.now()
+  log.info(`Checking bbox existence for ${mediaIDs.length} media items`)
+
+  try {
+    const pathParts = dbPath.split('/')
+    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+
+    const db = await getDrizzleDb(studyId, dbPath)
+
+    const result = await db
+      .select({ exists: sql`1` })
+      .from(observations)
+      .where(and(inArray(observations.mediaID, mediaIDs), isNotNull(observations.bboxX)))
+      .limit(1)
+
+    const hasBboxes = result.length > 0
+    const elapsedTime = Date.now() - startTime
+    log.info(`Bbox existence check completed in ${elapsedTime}ms: ${hasBboxes}`)
+
+    return hasBboxes
+  } catch (error) {
+    log.error(`Error checking bbox existence: ${error.message}`)
+    throw error
+  }
+}
+
+/**
  * Get all model runs for a study
  * @param {string} dbPath - Path to the SQLite database
  * @returns {Promise<Array>} - Array of model run records
