@@ -71,8 +71,9 @@ dataset/
 | `timestamp` | datetime | Capture timestamp (ISO 8601) |
 | `filePath` | string | Relative path to media file or HTTP URL |
 | `filePublic` | boolean | Whether file is publicly accessible |
-| `fileMediatype` | string | MIME type (e.g., `image/jpeg`) |
+| `fileMediatype` | string | MIME type (e.g., `image/jpeg`, `video/mp4`) |
 | `fileName` | string | Original file name |
+| `exifData` | object | EXIF/metadata as JSON (e.g., `{"fps": 30, "duration": 60}` for videos) |
 
 ### observations.csv
 

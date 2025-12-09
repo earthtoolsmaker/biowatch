@@ -64,7 +64,7 @@ export default function Export({ studyId }) {
     }
 
     if (result.success) {
-      let message = `Successfully exported ${result.copiedCount} images to ${result.speciesCount} directories in "${result.exportFolderName}"`
+      let message = `Successfully exported ${result.copiedCount} media files to ${result.speciesCount} directories in "${result.exportFolderName}"`
       if (result.errorCount > 0) {
         message += ` (${result.errorCount} errors)`
       }
@@ -181,15 +181,15 @@ export default function Export({ studyId }) {
           <div className="border border-gray-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center gap-2 mb-2">
               <FolderTree size={20} className="text-gray-700" />
-              <h3 className="text-lg font-semibold">Image Directories</h3>
+              <h3 className="text-lg font-semibold">Media Directories</h3>
             </div>
             <p className="text-sm text-gray-600 mb-4">
-              Export images organized into directories by species. Each species will have its own
-              folder containing all identified images.
+              Export media organized into directories by species. Each species will have its own
+              folder containing all identified media.
             </p>
             <div className="flex justify-start">
               <ExportButton onClick={handleImageDirectoriesExport} className="">
-                Export Image Directories
+                Export Media Directories
               </ExportButton>
             </div>
           </div>
