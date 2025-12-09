@@ -136,6 +136,33 @@ const { data, error } = await window.api.getMedia(studyId, { limit: 100 })
 | `resumeImport(id)` | `importer:resume` | import id | `{ success: boolean }` |
 | `selectMoreImagesDirectory(id)` | `importer:select-more-images-directory` | study id | `{ success: boolean }` |
 
+### Video Transcoding
+
+| Method | Channel | Parameters | Returns |
+|--------|---------|------------|---------|
+| `transcode.needsTranscoding(filePath)` | `transcode:needs-transcoding` | filePath | `boolean` |
+| `transcode.getCached(filePath)` | `transcode:get-cached` | filePath | `string \| null` (cached path) |
+| `transcode.start(filePath)` | `transcode:start` | filePath | `{ success, path? } \| { success: false, error }` |
+| `transcode.cancel(filePath)` | `transcode:cancel` | filePath | `boolean` |
+| `transcode.getCacheStats()` | `transcode:cache-stats` | - | `{ size: number, count: number }` |
+| `transcode.clearCache()` | `transcode:clear-cache` | - | `{ cleared: number, freedBytes: number }` |
+| `transcode.onProgress(callback)` | `transcode:progress` | callback function | unsubscribe function |
+
+**Notes:**
+- Transcoding converts unsupported video formats (AVI, MKV, MOV, etc.) to browser-playable MP4 (H.264)
+- Uses bundled FFmpeg via `ffmpeg-static` npm package
+- Transcoded files are cached in `~/.config/biowatch/biowatch-data/transcode-cache/`
+- Cache key is SHA256 hash of (filePath + mtime) to detect file changes
+
+**Progress event:**
+```javascript
+// Subscribe to progress updates
+const unsubscribe = window.api.transcode.onProgress(({ filePath, progress }) => {
+  console.log(`Transcoding ${filePath}: ${progress}%`)
+})
+// Later: unsubscribe()
+```
+
 ### Utilities
 
 | Method | Channel | Parameters | Returns |
@@ -226,3 +253,4 @@ const data = response.data
 | `src/main/queries.js` | Database query implementations |
 | `src/main/export.js` | Export handler implementations |
 | `src/main/models.ts` | ML model handler implementations |
+| `src/main/transcoder.js` | Video transcoding with FFmpeg |

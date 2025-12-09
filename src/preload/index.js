@@ -208,6 +208,52 @@ const api = {
   // Get distinct species for dropdown
   getDistinctSpecies: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('species:get-distinct', studyId)
+  },
+
+  // Video transcoding
+  transcode: {
+    // Check if a video file needs transcoding (unsupported format)
+    needsTranscoding: async (filePath) => {
+      return await electronAPI.ipcRenderer.invoke('transcode:needs-transcoding', filePath)
+    },
+    // Get cached transcoded version if it exists
+    getCached: async (filePath) => {
+      return await electronAPI.ipcRenderer.invoke('transcode:get-cached', filePath)
+    },
+    // Start transcoding a video file
+    start: async (filePath) => {
+      return await electronAPI.ipcRenderer.invoke('transcode:start', filePath)
+    },
+    // Cancel an active transcode
+    cancel: async (filePath) => {
+      return await electronAPI.ipcRenderer.invoke('transcode:cancel', filePath)
+    },
+    // Get cache statistics
+    getCacheStats: async () => {
+      return await electronAPI.ipcRenderer.invoke('transcode:cache-stats')
+    },
+    // Clear the transcode cache
+    clearCache: async () => {
+      return await electronAPI.ipcRenderer.invoke('transcode:clear-cache')
+    },
+    // Listen for transcode progress updates
+    onProgress: (callback) => {
+      const handler = (_event, data) => callback(data)
+      electronAPI.ipcRenderer.on('transcode:progress', handler)
+      return () => electronAPI.ipcRenderer.removeListener('transcode:progress', handler)
+    }
+  },
+
+  // Video thumbnail extraction
+  thumbnail: {
+    // Get cached thumbnail for a video file if it exists
+    getCached: async (filePath) => {
+      return await electronAPI.ipcRenderer.invoke('thumbnail:get-cached', filePath)
+    },
+    // Extract thumbnail from video file (extracts first frame)
+    extract: async (filePath) => {
+      return await electronAPI.ipcRenderer.invoke('thumbnail:extract', filePath)
+    }
   }
 }
 

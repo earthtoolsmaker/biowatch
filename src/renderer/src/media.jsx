@@ -10,7 +10,8 @@ import {
   Grid3x3,
   Plus,
   Layers,
-  Play
+  Play,
+  Loader2
 } from 'lucide-react'
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient, useMutation, useInfiniteQuery } from '@tanstack/react-query'
@@ -471,6 +472,11 @@ function ImageModal({
   // Draw mode state for creating new bboxes
   const [isDrawMode, setIsDrawMode] = useState(false)
   const [videoError, setVideoError] = useState(false)
+  // Transcoding state: 'idle' | 'checking' | 'transcoding' | 'ready' | 'error'
+  const [transcodeState, setTranscodeState] = useState('idle')
+  const [transcodeProgress, setTranscodeProgress] = useState(0)
+  const [transcodedUrl, setTranscodedUrl] = useState(null)
+  const [transcodeError, setTranscodeError] = useState(null)
   const queryClient = useQueryClient()
 
   // Refs for positioning the species selector near the label
@@ -488,7 +494,104 @@ function ImageModal({
     setShowDatePicker(false)
     setError(null)
     setVideoError(false)
+    // Reset transcoding state
+    setTranscodeState('idle')
+    setTranscodeProgress(0)
+    setTranscodedUrl(null)
+    setTranscodeError(null)
   }, [media?.mediaID, media?.timestamp])
+
+  // Video transcoding effect - check if video needs transcoding and handle it
+  useEffect(() => {
+    if (!isOpen || !media || !isVideoMedia(media)) return
+
+    let cancelled = false
+    let unsubscribeProgress = null
+
+    const handleTranscoding = async () => {
+      console.log('=== TRANSCODE FLOW START ===')
+      console.log('media.filePath:', media.filePath)
+      setTranscodeState('checking')
+
+      try {
+        // Check if video needs transcoding (unsupported format)
+        const needsTranscode = await window.api.transcode.needsTranscoding(media.filePath)
+        console.log('needsTranscode:', needsTranscode)
+
+        if (cancelled) return
+
+        if (!needsTranscode) {
+          // Video is browser-compatible, no transcoding needed
+          console.log('Video is browser-compatible, no transcoding needed')
+          setTranscodeState('idle')
+          return
+        }
+
+        // Check if we have a cached transcoded version
+        const cachedPath = await window.api.transcode.getCached(media.filePath)
+        console.log('cachedPath:', cachedPath)
+
+        if (cancelled) return
+
+        if (cachedPath) {
+          // Use cached transcoded file
+          const url = `local-file://get?path=${encodeURIComponent(cachedPath)}`
+          console.log('Using cached transcoded file, URL:', url)
+          setTranscodedUrl(url)
+          setTranscodeState('ready')
+          return
+        }
+
+        // Need to transcode - set up progress listener
+        console.log('Starting transcoding...')
+        setTranscodeState('transcoding')
+        setTranscodeProgress(0)
+
+        unsubscribeProgress = window.api.transcode.onProgress(({ filePath, progress }) => {
+          if (filePath === media.filePath) {
+            setTranscodeProgress(progress)
+          }
+        })
+
+        // Start transcoding
+        const result = await window.api.transcode.start(media.filePath)
+        console.log('Transcoding result:', result)
+
+        if (cancelled) return
+
+        if (result.success) {
+          const url = `local-file://get?path=${encodeURIComponent(result.path)}`
+          console.log('Transcoding succeeded, URL:', url)
+          setTranscodedUrl(url)
+          setTranscodeState('ready')
+        } else {
+          console.error('Transcoding failed:', result.error)
+          setTranscodeError(result.error || 'Transcoding failed')
+          setTranscodeState('error')
+        }
+      } catch (err) {
+        console.error('Transcoding exception:', err)
+        if (!cancelled) {
+          setTranscodeError(err.message || 'Transcoding failed')
+          setTranscodeState('error')
+        }
+      }
+    }
+
+    handleTranscoding()
+
+    // Cleanup - cancel transcode if modal closes or media changes
+    return () => {
+      cancelled = true
+      if (unsubscribeProgress) {
+        unsubscribeProgress()
+      }
+      // Cancel any active transcode for this file
+      if (media?.filePath) {
+        window.api.transcode.cancel(media.filePath)
+      }
+    }
+  }, [isOpen, media?.mediaID, media?.filePath, isVideoMedia])
 
   // Compute selector position when a bbox is selected AND species selector should be shown
   useEffect(() => {
@@ -992,7 +1095,41 @@ function ImageModal({
             }}
           >
             {isVideoMedia(media) ? (
-              videoError ? (
+              // Transcoding states
+              transcodeState === 'checking' ? (
+                <div className="flex flex-col items-center justify-center p-8 text-gray-500 min-h-[300px]">
+                  <Loader2 size={48} className="animate-spin text-blue-500" />
+                  <span className="mt-4 text-lg font-medium">Checking video format...</span>
+                </div>
+              ) : transcodeState === 'transcoding' ? (
+                <div className="flex flex-col items-center justify-center p-8 text-gray-500 min-h-[300px]">
+                  <div className="relative">
+                    <Loader2 size={64} className="animate-spin text-blue-500" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-sm font-bold text-blue-600">{transcodeProgress}%</span>
+                    </div>
+                  </div>
+                  <span className="mt-4 text-lg font-medium">Converting video...</span>
+                  <span className="mt-2 text-sm text-gray-400">
+                    This format requires conversion for browser playback
+                  </span>
+                  {/* Progress bar */}
+                  <div className="mt-4 w-64 h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-blue-500 transition-all duration-300"
+                      style={{ width: `${transcodeProgress}%` }}
+                    />
+                  </div>
+                  <span className="mt-2 text-xs text-gray-400">{media.fileName}</span>
+                </div>
+              ) : transcodeState === 'error' ? (
+                <div className="flex flex-col items-center justify-center p-8 text-gray-500 min-h-[300px]">
+                  <Play size={64} className="text-red-400" />
+                  <span className="mt-4 text-lg font-medium text-red-500">Conversion failed</span>
+                  <span className="mt-2 text-sm text-gray-400">{transcodeError}</span>
+                  <span className="mt-1 text-xs text-gray-400">{media.fileName}</span>
+                </div>
+              ) : videoError && transcodeState !== 'ready' ? (
                 <div className="flex flex-col items-center justify-center p-8 text-gray-500 min-h-[300px]">
                   <Play size={64} />
                   <span className="mt-4 text-lg font-medium">Video</span>
@@ -1003,11 +1140,37 @@ function ImageModal({
                 </div>
               ) : (
                 <video
-                  src={constructImageUrl(media.filePath)}
+                  key={transcodedUrl || media.filePath} // Force new element when source changes
+                  src={(() => {
+                    const videoSrc = transcodedUrl || constructImageUrl(media.filePath)
+                    console.log('=== VIDEO ELEMENT ===')
+                    console.log('transcodeState:', transcodeState)
+                    console.log('transcodedUrl:', transcodedUrl)
+                    console.log('media.filePath:', media.filePath)
+                    console.log('Final video src:', videoSrc)
+                    return videoSrc
+                  })()}
                   className="max-w-full max-h-[calc(90vh-120px)] w-auto h-auto object-contain"
                   controls
                   autoPlay
-                  onError={() => setVideoError(true)}
+                  onLoadStart={(e) => {
+                    console.log('Video onLoadStart:', e.target.src)
+                  }}
+                  onLoadedData={(e) => {
+                    console.log('Video onLoadedData:', e.target.src, 'duration:', e.target.duration)
+                  }}
+                  onCanPlay={(e) => {
+                    console.log('Video onCanPlay:', e.target.src)
+                  }}
+                  onError={(e) => {
+                    console.error('Video onError:', e.target.src)
+                    console.error('Video error details:', e.target.error)
+                    // Only set videoError if we're not in a transcoding state
+                    // (to avoid showing error during transcoding)
+                    if (transcodeState === 'idle' || transcodeState === 'ready') {
+                      setVideoError(true)
+                    }
+                  }}
                 />
               )
             ) : (
@@ -1339,6 +1502,49 @@ function ThumbnailCard({
   isVideoMedia
 }) {
   const isVideo = isVideoMedia(media)
+  const [thumbnailUrl, setThumbnailUrl] = useState(null)
+  const [isExtractingThumbnail, setIsExtractingThumbnail] = useState(false)
+
+  // Extract thumbnail for videos that need transcoding
+  useEffect(() => {
+    if (!isVideo || !media?.filePath) return
+
+    let cancelled = false
+
+    const extractThumbnail = async () => {
+      try {
+        // Check if video needs transcoding (unsupported format)
+        const needsTranscode = await window.api.transcode.needsTranscoding(media.filePath)
+        if (!needsTranscode || cancelled) return
+
+        // Check for cached thumbnail first
+        const cached = await window.api.thumbnail.getCached(media.filePath)
+        if (cached && !cancelled) {
+          setThumbnailUrl(constructImageUrl(cached))
+          return
+        }
+
+        // Extract thumbnail
+        setIsExtractingThumbnail(true)
+        const result = await window.api.thumbnail.extract(media.filePath)
+        if (result.success && !cancelled) {
+          setThumbnailUrl(constructImageUrl(result.path))
+        }
+      } catch (error) {
+        console.error('Failed to extract thumbnail:', error)
+      } finally {
+        if (!cancelled) {
+          setIsExtractingThumbnail(false)
+        }
+      }
+    }
+
+    extractThumbnail()
+
+    return () => {
+      cancelled = true
+    }
+  }, [isVideo, media?.filePath, media?.mediaID, constructImageUrl])
 
   return (
     <div
@@ -1353,17 +1559,36 @@ function ThumbnailCard({
             <>
               {/* Video placeholder background - always visible */}
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-200 text-gray-500 min-h-20">
-                <Play size={32} />
-                <span className="text-xs mt-1">Video</span>
+                {isExtractingThumbnail ? (
+                  <>
+                    <Loader2 size={32} className="animate-spin" />
+                    <span className="text-xs mt-1">Loading...</span>
+                  </>
+                ) : (
+                  <>
+                    <Play size={32} />
+                    <span className="text-xs mt-1">Video</span>
+                  </>
+                )}
               </div>
-              {/* Video element - overlays placeholder when it loads successfully */}
-              <video
-                src={constructImageUrl(media.filePath)}
-                className={`relative z-10 w-full h-auto min-h-20 object-contain bg-black ${imageErrors[media.mediaID] ? 'hidden' : ''}`}
-                onError={() => setImageErrors((prev) => ({ ...prev, [media.mediaID]: true }))}
-                muted
-                preload="metadata"
-              />
+              {/* Show extracted thumbnail for unsupported formats */}
+              {thumbnailUrl ? (
+                <img
+                  src={thumbnailUrl}
+                  alt={media.fileName || `Video ${media.mediaID}`}
+                  className="relative z-10 w-full h-auto min-h-20 object-contain"
+                  loading="lazy"
+                />
+              ) : (
+                /* Video element - overlays placeholder when it loads successfully */
+                <video
+                  src={constructImageUrl(media.filePath)}
+                  className={`relative z-10 w-full h-auto min-h-20 object-contain bg-black ${imageErrors[media.mediaID] ? 'hidden' : ''}`}
+                  onError={() => setImageErrors((prev) => ({ ...prev, [media.mediaID]: true }))}
+                  muted
+                  preload="metadata"
+                />
+              )}
               {/* Video indicator badge */}
               <div className="absolute bottom-2 right-2 z-20 bg-black/70 text-white px-1.5 py-0.5 rounded text-xs flex items-center gap-1">
                 <Play size={12} />
@@ -1421,12 +1646,56 @@ function SequenceCard({
 }) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isPaused, setIsPaused] = useState(false)
+  const [videoThumbnails, setVideoThumbnails] = useState({}) // Map of mediaID -> thumbnailUrl
+  const [extractingThumbnails, setExtractingThumbnails] = useState({})
 
   const itemCount = sequence.items.length
   // Guard against currentIndex being out of bounds (can happen when sequence changes)
   const safeIndex = Math.min(currentIndex, itemCount - 1)
   const currentMedia = sequence.items[safeIndex]
   const isVideo = isVideoMedia(currentMedia)
+
+  // Extract thumbnails for videos that need transcoding
+  useEffect(() => {
+    let cancelled = false
+
+    const extractThumbnails = async () => {
+      for (const media of sequence.items) {
+        if (!isVideoMedia(media) || cancelled) continue
+
+        try {
+          const needsTranscode = await window.api.transcode.needsTranscoding(media.filePath)
+          if (!needsTranscode || cancelled) continue
+
+          // Check for cached thumbnail first
+          const cached = await window.api.thumbnail.getCached(media.filePath)
+          if (cached && !cancelled) {
+            setVideoThumbnails((prev) => ({ ...prev, [media.mediaID]: constructImageUrl(cached) }))
+            continue
+          }
+
+          // Extract thumbnail
+          setExtractingThumbnails((prev) => ({ ...prev, [media.mediaID]: true }))
+          const result = await window.api.thumbnail.extract(media.filePath)
+          if (result.success && !cancelled) {
+            setVideoThumbnails((prev) => ({ ...prev, [media.mediaID]: constructImageUrl(result.path) }))
+          }
+        } catch (error) {
+          console.error('Failed to extract thumbnail for sequence item:', error)
+        } finally {
+          if (!cancelled) {
+            setExtractingThumbnails((prev) => ({ ...prev, [media.mediaID]: false }))
+          }
+        }
+      }
+    }
+
+    extractThumbnails()
+
+    return () => {
+      cancelled = true
+    }
+  }, [sequence.id, sequence.items, constructImageUrl, isVideoMedia])
 
   // Auto-cycle effect
   useEffect(() => {
@@ -1460,6 +1729,9 @@ function SequenceCard({
     onSequenceClick(sequence.items[0], sequence)
   }
 
+  const currentThumbnailUrl = videoThumbnails[currentMedia.mediaID]
+  const isExtractingCurrentThumbnail = extractingThumbnails[currentMedia.mediaID]
+
   return (
     <div
       className={`border border-gray-300 rounded-lg overflow-hidden min-w-[150px] ${widthClass} flex flex-col h-max transition-all relative group`}
@@ -1485,19 +1757,38 @@ function SequenceCard({
             <>
               {/* Video placeholder background - always visible */}
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-200 text-gray-500 min-h-20">
-                <Play size={32} />
-                <span className="text-xs mt-1">Video</span>
+                {isExtractingCurrentThumbnail ? (
+                  <>
+                    <Loader2 size={32} className="animate-spin" />
+                    <span className="text-xs mt-1">Loading...</span>
+                  </>
+                ) : (
+                  <>
+                    <Play size={32} />
+                    <span className="text-xs mt-1">Video</span>
+                  </>
+                )}
               </div>
-              {/* Video element - overlays placeholder when it loads successfully */}
-              <video
-                src={constructImageUrl(currentMedia.filePath)}
-                className={`relative z-10 w-full h-auto min-h-20 object-contain bg-black transition-opacity duration-300 ${imageErrors[currentMedia.mediaID] ? 'hidden' : ''}`}
-                onError={() =>
-                  setImageErrors((prev) => ({ ...prev, [currentMedia.mediaID]: true }))
-                }
-                muted
-                preload="metadata"
-              />
+              {/* Show extracted thumbnail for unsupported formats */}
+              {currentThumbnailUrl ? (
+                <img
+                  src={currentThumbnailUrl}
+                  alt={currentMedia.fileName || `Video ${currentMedia.mediaID}`}
+                  className="relative z-10 w-full h-auto min-h-20 object-contain transition-opacity duration-300"
+                  loading="lazy"
+                />
+              ) : (
+                /* Video element - overlays placeholder when it loads successfully */
+                <video
+                  src={constructImageUrl(currentMedia.filePath)}
+                  className={`relative z-10 w-full h-auto min-h-20 object-contain bg-black transition-opacity duration-300 ${imageErrors[currentMedia.mediaID] ? 'hidden' : ''}`}
+                  onError={() =>
+                    setImageErrors((prev) => ({ ...prev, [currentMedia.mediaID]: true }))
+                  }
+                  muted
+                  preload="metadata"
+                />
+              )}
               {/* Video indicator badge */}
               <div className="absolute bottom-2 right-2 z-20 bg-black/70 text-white px-1.5 py-0.5 rounded text-xs flex items-center gap-1">
                 <Play size={12} />
