@@ -108,7 +108,7 @@ const { data, error } = await window.api.getMedia(studyId, { limit: 100 })
 | Method | Channel | Parameters | Returns |
 |--------|---------|------------|---------|
 | `exportImageDirectories(studyId, options)` | `export:image-directories` | studyId, { selectedSpecies?, includeBlank? } | `{ success, exportPath, copiedCount }` |
-| `exportCamtrapDP(studyId, options)` | `export:camtrap-dp` | studyId, { includeMedia?, selectedSpecies?, includeBlank? } | `{ success, exportPath, counts... }` |
+| `exportCamtrapDP(studyId, options)` | `export:camtrap-dp` | studyId, { includeMedia?, selectedSpecies?, includeBlank?, sequenceGap? } | `{ success, exportPath, counts... }` |
 | `cancelExport()` | `export:cancel` | - | `boolean` |
 | `onExportProgress(callback)` | `export:progress` | callback function | unsubscribe function |
 
