@@ -9,6 +9,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  SPECIESNET_MODEL_PATH: /tmp/speciesnet-model/4.0.1a
+
 jobs:
   e2e-tests:
     name: SpeciesNet E2E Tests
@@ -23,12 +26,33 @@ jobs:
         uses: astral-sh/setup-uv@v4
 
       - name: Cache SpeciesNet model
+        id: cache-model
         uses: actions/cache@v4
         with:
-          path: |
-            ~/.keras
-            ~/.cache/kaggle
-          key: speciesnet-model-v4
+          path: /tmp/speciesnet-model
+          key: speciesnet-model-v4.0.1a
+
+      - name: Download and extract SpeciesNet model
+        if: steps.cache-model.outputs.cache-hit != 'true'
+        run: |
+          pip install huggingface_hub
+          python -c "
+          from huggingface_hub import hf_hub_download
+          import tarfile
+          import os
+
+          # Download tar file
+          tar_path = hf_hub_download(
+              repo_id='earthtoolsmaker/speciesnet',
+              filename='4.0.1a.tar.gz',
+              repo_type='model'
+          )
+
+          # Extract to target directory
+          os.makedirs('/tmp/speciesnet-model', exist_ok=True)
+          with tarfile.open(tar_path, 'r:gz') as tar:
+              tar.extractall('/tmp/speciesnet-model')
+          "
 
       - name: Install dependencies
         working-directory: python-environments/common

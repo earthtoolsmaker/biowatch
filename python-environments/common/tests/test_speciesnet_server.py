@@ -1,9 +1,14 @@
 """End-to-end tests for SpeciesNet ML server."""
 
+import os
+
 import httpx
 import pytest
 
 from tests.conftest import ServerProcess, find_free_port, parse_streaming_response
+
+# Model path: use env var if set, otherwise default to Kaggle
+SPECIESNET_MODEL = os.environ.get("SPECIESNET_MODEL_PATH", "kaggle:google/speciesnet/keras/v4.0.0a")
 
 
 @pytest.fixture(scope="module")
@@ -19,6 +24,8 @@ def speciesnet_server():
         str(port),
         "--timeout",
         "60",
+        "--model",
+        SPECIESNET_MODEL,
     ]
     with ServerProcess(command, port, startup_timeout=300) as server:
         yield server
