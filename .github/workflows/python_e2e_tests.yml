@@ -10,13 +10,15 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  SPECIESNET_MODEL_PATH: /tmp/speciesnet-model/4.0.1a
+  SPECIESNET_MODEL_PATH: /tmp/models/speciesnet/4.0.1a
+  DEEPFAUNE_DETECTOR_WEIGHTS: /tmp/models/deepfaune/1.3/MDV6-yolov10x.pt
+  DEEPFAUNE_CLASSIFIER_WEIGHTS: /tmp/models/deepfaune/1.3/deepfaune-vit_large_patch14_dinov2.lvd142m.v3.pt
 
 jobs:
   e2e-tests:
-    name: SpeciesNet E2E Tests
+    name: ML Server E2E Tests
     runs-on: ubuntu-22.04
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Check out Git repository
@@ -25,15 +27,23 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v4
 
-      - name: Cache SpeciesNet model
-        id: cache-model
+      - name: Cache uv dependencies
         uses: actions/cache@v4
         with:
-          path: /tmp/speciesnet-model
-          key: speciesnet-model-v4.0.1a
+          path: ~/.cache/uv
+          key: uv-${{ hashFiles('python-environments/common/uv.lock') }}
+          restore-keys: |
+            uv-
 
-      - name: Download and extract SpeciesNet model
-        if: steps.cache-model.outputs.cache-hit != 'true'
+      - name: Cache ML models
+        id: cache-models
+        uses: actions/cache@v4
+        with:
+          path: /tmp/models
+          key: ml-models-speciesnet-v4.0.1a-deepfaune-v1.3
+
+      - name: Download and extract ML models
+        if: steps.cache-models.outputs.cache-hit != 'true'
         run: |
           pip install huggingface_hub
           python -c "
@@ -41,17 +51,29 @@ jobs:
           import tarfile
           import os
 
-          # Download tar file
-          tar_path = hf_hub_download(
+          # Download and extract SpeciesNet
+          print('Downloading SpeciesNet...')
+          speciesnet_tar = hf_hub_download(
               repo_id='earthtoolsmaker/speciesnet',
               filename='4.0.1a.tar.gz',
               repo_type='model'
           )
+          os.makedirs('/tmp/models/speciesnet', exist_ok=True)
+          with tarfile.open(speciesnet_tar, 'r:gz') as tar:
+              tar.extractall('/tmp/models/speciesnet')
+          print('SpeciesNet extracted.')
 
-          # Extract to target directory
-          os.makedirs('/tmp/speciesnet-model', exist_ok=True)
-          with tarfile.open(tar_path, 'r:gz') as tar:
-              tar.extractall('/tmp/speciesnet-model')
+          # Download and extract DeepFaune
+          print('Downloading DeepFaune...')
+          deepfaune_tar = hf_hub_download(
+              repo_id='earthtoolsmaker/deepfaune',
+              filename='1.3.tar.gz',
+              repo_type='model'
+          )
+          os.makedirs('/tmp/models/deepfaune', exist_ok=True)
+          with tarfile.open(deepfaune_tar, 'r:gz') as tar:
+              tar.extractall('/tmp/models/deepfaune')
+          print('DeepFaune extracted.')
           "
 
       - name: Install dependencies
