@@ -1287,13 +1287,15 @@ function ImageModal({
             )}
           </div>
 
-          {/* Observation list panel - always visible */}
-          <ObservationListPanel
-            bboxes={bboxes}
-            selectedId={selectedBboxId}
-            onSelect={setSelectedBboxId}
-            onDelete={handleDeleteObservation}
-          />
+          {/* Observation list panel - only for images */}
+          {!isVideoMedia(media) && (
+            <ObservationListPanel
+              bboxes={bboxes}
+              selectedId={selectedBboxId}
+              onSelect={setSelectedBboxId}
+              onDelete={handleDeleteObservation}
+            />
+          )}
 
           {/* Footer with metadata */}
           <div className="px-4 py-3 bg-white flex-shrink-0 border-t border-gray-100">
