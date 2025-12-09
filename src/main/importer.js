@@ -245,95 +245,17 @@ async function insertPrediction(db, prediction, modelInfo = {}) {
     return
   }
 
-  // If media hasn't been processed yet (no timestamp/deploymentID), process EXIF data
+  // If media hasn't been processed yet, extract metadata and associate with deployment
   if (!mediaRecord.timestamp || !mediaRecord.deploymentID) {
-    let exifData = {}
-    try {
-      const parsedExif = await exifr.parse(prediction.filepath, {
-        gps: true,
-        exif: true,
-        reviveValues: true
-      })
-      // exifr.parse() can return null for images without EXIF data
-      exifData = parsedExif || {}
-    } catch (exifError) {
-      log.warn(`Could not extract EXIF data from ${prediction.filepath}: ${exifError.message}`)
-    }
-
-    let latitude = null
-    let longitude = null
-    if (exifData && exifData.latitude && exifData.longitude) {
-      latitude = exifData.latitude.toFixed(6)
-      longitude = exifData.longitude.toFixed(6)
-    }
-
-    const zones = latitude && longitude ? geoTz.find(latitude, longitude) : null
-    const date = exifData.DateTimeOriginal
-      ? luxon.DateTime.fromJSDate(exifData.DateTimeOriginal, { zone: zones?.[0] })
-      : luxon.DateTime.now()
-
-    const parentFolder =
-      mediaRecord.importFolder === path.dirname(prediction.filepath)
-        ? path.basename(mediaRecord.importFolder)
-        : path.relative(mediaRecord.importFolder, path.dirname(prediction.filepath))
-
-    console.log('Parent folder:', mediaRecord.importFolder, prediction.filepath, parentFolder)
-    console.log('dir name:', path.dirname(prediction.filepath))
-
-    let deployment
-    try {
-      deployment = await getDeployment(db, parentFolder)
-
-      console.log('Found deployment:', deployment)
-
-      if (deployment) {
-        await db
-          .update(deployments)
-          .set({
-            deploymentStart: DateTime.min(
-              date,
-              DateTime.fromISO(deployment.deploymentStart)
-            ).toISO(),
-            deploymentEnd: DateTime.max(date, DateTime.fromISO(deployment.deploymentEnd)).toISO()
-          })
-          .where(eq(deployments.deploymentID, deployment.deploymentID))
-      } else {
-        // If no deployment exists, create a new one
-        const deploymentID = crypto.randomUUID()
-        const locationID = parentFolder
-        log.info('Creating new deployment with at: ', locationID, latitude, longitude)
-
-        await db.insert(deployments).values({
-          deploymentID,
-          locationID,
-          locationName: locationID,
-          deploymentStart: date.toISO(),
-          deploymentEnd: date.toISO(),
-          latitude: parseFloat(latitude),
-          longitude: parseFloat(longitude)
-        })
-
-        deployment = {
-          deploymentID,
-          latitude,
-          longitude
-        }
-      }
-
-      // Update local media object for observation creation
-      mediaRecord.timestamp = date.toISO()
-      mediaRecord.deploymentID = deployment.deploymentID
-
-      await db
-        .update(media)
-        .set({
-          timestamp: date.toISO(),
-          deploymentID: deployment.deploymentID
-        })
-        .where(eq(media.mediaID, mediaRecord.mediaID))
-    } catch (error) {
-      log.error(`Error processing EXIF data for ${prediction.filepath}:`, error)
-      return
+    const result = await processMediaDeployment(db, {
+      ...mediaRecord,
+      filePath: prediction.filepath // Image uses prediction.filepath
+    })
+    if (result) {
+      mediaRecord.timestamp = result.timestamp
+      mediaRecord.deploymentID = result.deploymentID
+    } else {
+      return // Skip this prediction if deployment processing failed
     }
   }
 
@@ -442,6 +364,16 @@ async function insertVideoPredictions(db, predictions, mediaRecord, modelInfo = 
     return
   }
 
+  // If media hasn't been processed yet, extract metadata and associate with deployment
+  if (!mediaRecord.timestamp || !mediaRecord.deploymentID) {
+    const result = await processMediaDeployment(db, mediaRecord)
+    if (result) {
+      mediaRecord.timestamp = result.timestamp
+      mediaRecord.deploymentID = result.deploymentID
+    }
+    // Continue even if deployment processing failed - video can still create observations
+  }
+
   // 1. Update media with video metadata in exifData field (Camtrap DP compliant)
   const firstPrediction = predictions[0]
   if (firstPrediction?.metadata) {
@@ -451,11 +383,10 @@ async function insertVideoPredictions(db, predictions, mediaRecord, modelInfo = 
       frameCount: Math.round(firstPrediction.metadata.duration * firstPrediction.metadata.fps)
     }
 
-    // Update media with exifData and set timestamp to now() if not already set
+    // Update media with exifData (timestamp is now extracted in deployment handling above)
     const updateData = { exifData: videoMetadata }
     if (!mediaRecord.timestamp) {
-      // TODO: Extract proper timestamp from video EXIF metadata (e.g., using hachoir or ffmpeg-python)
-      // Currently defaults to import time as fallback
+      // Fallback if deployment handling didn't set timestamp (shouldn't happen normally)
       updateData.timestamp = new Date().toISOString()
     }
 
@@ -616,6 +547,95 @@ async function getDeployment(db, locationID) {
     return result[0] || null
   } catch (error) {
     log.error(`Error getting deployment for locationID ${locationID}:`, error)
+    return null
+  }
+}
+
+/**
+ * Extract metadata from media file and associate with deployment
+ * Works for both images and videos
+ * @param {Object} db - Database instance
+ * @param {Object} mediaRecord - Media record (must have filePath, importFolder, mediaID)
+ * @returns {Promise<{timestamp: string, deploymentID: string}|null>} - Updated values or null on error
+ */
+async function processMediaDeployment(db, mediaRecord) {
+  // 1. Extract metadata using exifr (works for images and videos)
+  let exifData = {}
+  try {
+    const parsedExif = await exifr.parse(mediaRecord.filePath, {
+      gps: true,
+      exif: true,
+      reviveValues: true
+    })
+    exifData = parsedExif || {}
+  } catch (exifError) {
+    log.warn(`Could not extract metadata from ${mediaRecord.filePath}: ${exifError.message}`)
+  }
+
+  // 2. Extract GPS coordinates
+  let latitude = null
+  let longitude = null
+  if (exifData.latitude && exifData.longitude) {
+    latitude = exifData.latitude.toFixed(6)
+    longitude = exifData.longitude.toFixed(6)
+  }
+
+  // 3. Determine timestamp (support both image and video metadata fields)
+  const zones = latitude && longitude ? geoTz.find(latitude, longitude) : null
+  const captureDate = exifData.DateTimeOriginal || exifData.CreateDate || exifData.MediaCreateDate
+  const date = captureDate
+    ? luxon.DateTime.fromJSDate(captureDate, { zone: zones?.[0] })
+    : luxon.DateTime.now()
+
+  // 4. Calculate parentFolder for deployment lookup
+  const parentFolder =
+    mediaRecord.importFolder === path.dirname(mediaRecord.filePath)
+      ? path.basename(mediaRecord.importFolder)
+      : path.relative(mediaRecord.importFolder, path.dirname(mediaRecord.filePath))
+
+  // 5. Look up or create deployment
+  try {
+    let deployment = await getDeployment(db, parentFolder)
+
+    if (deployment) {
+      // Expand date range if this media extends it
+      await db
+        .update(deployments)
+        .set({
+          deploymentStart: DateTime.min(date, DateTime.fromISO(deployment.deploymentStart)).toISO(),
+          deploymentEnd: DateTime.max(date, DateTime.fromISO(deployment.deploymentEnd)).toISO()
+        })
+        .where(eq(deployments.deploymentID, deployment.deploymentID))
+    } else {
+      // Create new deployment
+      const deploymentID = crypto.randomUUID()
+      log.info(`Creating new deployment at: ${parentFolder}`)
+
+      await db.insert(deployments).values({
+        deploymentID,
+        locationID: parentFolder,
+        locationName: parentFolder,
+        deploymentStart: date.toISO(),
+        deploymentEnd: date.toISO(),
+        latitude: parseFloat(latitude),
+        longitude: parseFloat(longitude)
+      })
+
+      deployment = { deploymentID, latitude, longitude }
+    }
+
+    // 6. Update database
+    const timestamp = date.toISO()
+    await db
+      .update(media)
+      .set({ timestamp, deploymentID: deployment.deploymentID })
+      .where(eq(media.mediaID, mediaRecord.mediaID))
+
+    log.info(`Media ${mediaRecord.mediaID} associated with deployment ${deployment.deploymentID}`)
+
+    return { timestamp, deploymentID: deployment.deploymentID }
+  } catch (error) {
+    log.error(`Error processing deployment for ${mediaRecord.filePath}:`, error)
     return null
   }
 }
