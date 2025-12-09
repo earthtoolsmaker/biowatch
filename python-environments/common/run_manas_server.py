@@ -127,17 +127,13 @@ $ curl -X POST http://localhost:${port}/predict \
 
 import logging
 import pickle
-import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 import cv2
 import litserve as ls
 import numpy as np
-import timm
 import torch
-import torch.nn as nn
 from absl import app, flags
 from fastapi import HTTPException
 from PIL import Image
@@ -173,7 +169,7 @@ def load_class_mapping(filepath_classes: Path) -> dict[int, str]:
         classes = pickle.load(f)
 
     if isinstance(classes, list):
-        return {idx: label for idx, label in enumerate(classes)}
+        return dict(enumerate(classes))
     elif isinstance(classes, dict):
         return classes
     else:
@@ -238,8 +234,7 @@ class ManasClassifier:
         )
 
         logging.info(
-            f"Initialized Manas classifier with {self.num_classes} classes: "
-            f"{list(self.class_label_mapping.values())}"
+            f"Initialized Manas classifier with {self.num_classes} classes: {list(self.class_label_mapping.values())}"
         )
 
     def _load_model(self, filepath_weights: Path):
@@ -259,10 +254,7 @@ class ManasClassifier:
             # Load TorchScript model directly
             model = torch.jit.load(filepath_weights, map_location=self.device)
             model.eval()
-            logging.info(
-                f"Loaded Manas TorchScript model from {filepath_weights} "
-                f"on device {self.device}"
-            )
+            logging.info(f"Loaded Manas TorchScript model from {filepath_weights} on device {self.device}")
             return model
         except Exception as e:
             logging.error(f"Failed to load model from {filepath_weights}: {e}")
@@ -382,9 +374,7 @@ def select_best_animal_detection(detection_records: list[dict]) -> dict | None:
         or None if no such record exists.
     """
     animal_records = [r for r in detection_records if r["label"] == "animal"]
-    sorted_animal_records = sorted(
-        animal_records, key=lambda r: r["conf"], reverse=True
-    )
+    sorted_animal_records = sorted(animal_records, key=lambda r: r["conf"], reverse=True)
     if not sorted_animal_records:
         return None
     else:
@@ -412,9 +402,7 @@ def crop_square_cv_to_pil(array_image: np.ndarray, xyxy: list[float]) -> Image.I
         x1 = x1 - int((ysize - xsize) / 2)
         x2 = x2 + int((ysize - xsize) / 2)
     height, width, _ = array_image.shape
-    croppedimagecv = array_image[
-        max(0, int(y1)) : min(int(y2), height), max(0, int(x1)) : min(int(x2), width)
-    ]
+    croppedimagecv = array_image[max(0, int(y1)) : min(int(y2), height), max(0, int(x1)) : min(int(x2), width)]
     return Image.fromarray(croppedimagecv[:, :, (2, 1, 0)])  # BGR to RGB
 
 
@@ -434,9 +422,7 @@ def to_classifications_record(
     Returns:
         dict: A dictionary containing the top-k labels and their scores.
     """
-    top_k_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[
-        :k
-    ]
+    top_k_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:k]
     top_k_labels = [class_label_mapping[i] for i in top_k_indices]
     top_k_scores = [scores[i] for i in top_k_indices]
     return {
@@ -476,9 +462,7 @@ def predict(
     class_label_mapping = model.classifier.class_label_mapping
 
     # Run detector
-    ultralytics_results = model.detector(
-        filepath, verbose=False, conf=detection_threshold
-    )
+    ultralytics_results = model.detector(filepath, verbose=False, conf=detection_threshold)
     detections = ultralytics_results[0]
     bboxes = detections.boxes
     class_names = detections.names
@@ -497,6 +481,7 @@ def predict(
             bboxes.cls.cpu().numpy().astype(int).tolist(),
             bboxes.xywhn.cpu().numpy().tolist(),
             bboxes.xyxy.cpu().numpy().tolist(),
+            strict=True,
         )
     ]
 
@@ -504,9 +489,7 @@ def predict(
 
     if not selected_detection_record:
         # No animal detected - return "vide" if available, else "blank"
-        vide_prediction = (
-            "vide" if "vide" in class_label_mapping.values() else "blank"
-        )
+        vide_prediction = "vide" if "vide" in class_label_mapping.values() else "blank"
         if not detection_records:
             return {
                 "predictions": [
@@ -535,9 +518,7 @@ def predict(
 
     # Crop and classify
     xyxy = selected_detection_record["xyxy"]
-    imagecv = cv2.imdecode(
-        np.fromfile(filepath, dtype=np.uint8), cv2.IMREAD_UNCHANGED
-    )
+    imagecv = cv2.imdecode(np.fromfile(filepath, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
     croppedimage = crop_square_cv_to_pil(imagecv, xyxy)
     cropped_tensor = model.classifier.preprocess_image(croppedimage)
     scores = model.classifier.predict(cropped_tensor)
@@ -625,7 +606,7 @@ class ManasLitAPI(ls.LitAPI):
         filepath_detector_weights: Path,
         filepath_classifier_weights: Path,
         filepath_classes: Path,
-        extra_fields: Optional[list[str]] = None,
+        extra_fields: list[str] | None = None,
         *args,
         **kwargs,
     ) -> None:
@@ -718,9 +699,7 @@ class ManasLitAPI(ls.LitAPI):
                 filepath=filepath,
             )
             assert single_predictions_dict is not None
-            yield self._propagate_extra_fields(
-                single_instances_dict, single_predictions_dict
-            )
+            yield self._propagate_extra_fields(single_instances_dict, single_predictions_dict)
 
     def encode_response(self, output, **kwargs):
         """
