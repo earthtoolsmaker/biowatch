@@ -904,7 +904,7 @@ export default function Overview({ data, studyId, studyName }) {
                     className="border border-gray-300 rounded px-2 py-1 text-sm"
                     placeholder="Email"
                   />
-                  <div className="flex gap-1 mt-1">
+                  <div className="flex gap-1 mt-1 justify-end">
                     <button
                       onClick={cancelEditingContributor}
                       className="p-1 hover:bg-red-100 rounded text-red-600"
@@ -1014,7 +1014,7 @@ export default function Overview({ data, studyId, studyName }) {
                   className="border border-gray-300 rounded px-2 py-1 text-sm"
                   placeholder="Email"
                 />
-                <div className="flex gap-1 mt-1">
+                <div className="flex gap-1 mt-1 justify-end">
                   <button
                     onClick={cancelAddingContributor}
                     className="p-1 hover:bg-red-100 rounded text-red-600"
