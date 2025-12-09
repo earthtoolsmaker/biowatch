@@ -707,9 +707,7 @@ class ManasLitAPI(ls.LitAPI, VideoCapableLitAPI):
             filepath=filepath,
         )
         assert single_predictions_dict is not None
-        return self._propagate_extra_fields(
-            single_instances_dict, single_predictions_dict
-        )
+        return self._propagate_extra_fields(single_instances_dict, single_predictions_dict)
 
     def predict(self, x, **kwargs):
         """

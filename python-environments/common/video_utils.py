@@ -6,15 +6,17 @@ including frame extraction, metadata retrieval, and a mixin class for adding
 video support to LitServe APIs.
 """
 
-import cv2
 import os
 import tempfile
-from pathlib import Path
-from typing import Generator, Tuple, Any, Dict
 from abc import ABC, abstractmethod
+from collections.abc import Generator
+from pathlib import Path
+from typing import Any
+
+import cv2
 
 # Video file extensions supported by Biowatch
-VIDEO_EXTENSIONS = {'.mp4', '.mkv', '.mov', '.webm', '.avi', '.m4v'}
+VIDEO_EXTENSIONS = {".mp4", ".mkv", ".mov", ".webm", ".avi", ".m4v"}
 
 
 def is_video_file(filepath: str) -> bool:
@@ -30,7 +32,7 @@ def is_video_file(filepath: str) -> bool:
     return Path(filepath).suffix.lower() in VIDEO_EXTENSIONS
 
 
-def get_video_metadata(video_path: str) -> Dict[str, float]:
+def get_video_metadata(video_path: str) -> dict[str, float]:
     """
     Extract video metadata (duration and FPS) using OpenCV.
 
@@ -52,10 +54,7 @@ def get_video_metadata(video_path: str) -> Dict[str, float]:
     return {"fps": fps, "duration": duration}
 
 
-def extract_frames_at_fps(
-    video_path: str,
-    target_fps: int = 1
-) -> Generator[Tuple[int, Any], None, None]:
+def extract_frames_at_fps(video_path: str, target_fps: int = 1) -> Generator[tuple[int, Any], None, None]:
     """
     Extract frames from a video at a specified sampling rate.
 
@@ -178,7 +177,7 @@ class VideoCapableLitAPI(ABC):
 
         for frame_number, frame in extract_frames_at_fps(video_path, sample_fps):
             # Save frame to temp file for model inference
-            with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
+            with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
                 temp_path = tmp.name
                 cv2.imwrite(temp_path, frame)
 

@@ -262,13 +262,9 @@ class SpeciesNetLitAPI(ls.LitAPI, VideoCapableLitAPI):
 
         single_instances_dict = {"instances": [instance_data]}
 
-        single_predictions_dict = self.model.predict(
-            instances_dict=single_instances_dict
-        )
+        single_predictions_dict = self.model.predict(instances_dict=single_instances_dict)
         assert single_predictions_dict is not None
-        return self._propagate_extra_fields(
-            single_instances_dict, single_predictions_dict
-        )
+        return self._propagate_extra_fields(single_instances_dict, single_predictions_dict)
 
     def predict(self, x, **kwargs):
         """Process prediction requests with automatic video support.
