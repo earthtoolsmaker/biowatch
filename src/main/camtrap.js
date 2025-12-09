@@ -306,12 +306,25 @@ function transformMediaRow(row, directoryPath) {
     return null
   }
 
+  // Parse exifData if present (can be JSON string in CSV)
+  let exifData = null
+  const rawExifData = row.exifData || row.exif_data
+  if (rawExifData) {
+    try {
+      exifData = typeof rawExifData === 'string' ? JSON.parse(rawExifData) : rawExifData
+    } catch {
+      log.warn(`Failed to parse exifData for mediaID ${mediaID}`)
+    }
+  }
+
   return {
     mediaID,
     deploymentID: row.deploymentID || row.deployment_id || null,
     timestamp: transformDateField(row.timestamp),
     filePath: transformFilePathField(row.filePath || row.file_path, directoryPath),
-    fileName: row.fileName || row.file_name || path.basename(row.filePath || row.file_path || '')
+    fileName: row.fileName || row.file_name || path.basename(row.filePath || row.file_path || ''),
+    fileMediatype: row.fileMediatype || row.file_mediatype || null,
+    exifData
   }
 }
 
