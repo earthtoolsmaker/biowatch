@@ -476,6 +476,7 @@ function ImageModal({
   const imageContainerRef = useRef(null)
   const bboxLabelRefs = useRef({})
   const imageRef = useRef(null)
+  const imageSpeciesLabelRef = useRef(null) // For images without bboxes (footer species label)
 
   // Initialize inline timestamp when media changes
   useEffect(() => {
@@ -490,12 +491,32 @@ function ImageModal({
 
   // Compute selector position when a bbox is selected AND species selector should be shown
   useEffect(() => {
+    if (!selectedBboxId || !showSpeciesSelector) {
+      setSelectorPosition(null)
+      return
+    }
+
+    // For images without bboxes (using footer species label), use imageSpeciesLabelRef
     if (
-      !selectedBboxId ||
-      !showSpeciesSelector ||
-      !bboxLabelRefs.current[selectedBboxId] ||
-      !imageContainerRef.current
+      (selectedBboxId === 'new-observation' || !bboxLabelRefs.current[selectedBboxId]) &&
+      imageSpeciesLabelRef.current
     ) {
+      const labelRect = imageSpeciesLabelRef.current.getBoundingClientRect()
+      const containerRect = imageContainerRef.current?.getBoundingClientRect() || {
+        top: 0,
+        bottom: window.innerHeight,
+        left: 0,
+        right: window.innerWidth,
+        height: window.innerHeight,
+        width: window.innerWidth
+      }
+      const position = computeSelectorPosition(labelRect, containerRect)
+      setSelectorPosition(position)
+      return
+    }
+
+    // For images with bboxes, use the bbox label ref
+    if (!bboxLabelRefs.current[selectedBboxId] || !imageContainerRef.current) {
       setSelectorPosition(null)
       return
     }
@@ -513,6 +534,26 @@ function ImageModal({
     if (!selectedBboxId || !showSpeciesSelector) return
 
     const handleResize = () => {
+      // For images without bboxes, use footer label ref
+      if (
+        (selectedBboxId === 'new-observation' || !bboxLabelRefs.current[selectedBboxId]) &&
+        imageSpeciesLabelRef.current
+      ) {
+        const labelRect = imageSpeciesLabelRef.current.getBoundingClientRect()
+        const containerRect = imageContainerRef.current?.getBoundingClientRect() || {
+          top: 0,
+          bottom: window.innerHeight,
+          left: 0,
+          right: window.innerWidth,
+          height: window.innerHeight,
+          width: window.innerWidth
+        }
+        const position = computeSelectorPosition(labelRect, containerRect)
+        setSelectorPosition(position)
+        return
+      }
+
+      // For images with bboxes, use bbox label ref
       if (bboxLabelRefs.current[selectedBboxId] && imageContainerRef.current) {
         const labelEl = bboxLabelRefs.current[selectedBboxId]
         const labelRect = labelEl.getBoundingClientRect()
@@ -526,14 +567,18 @@ function ImageModal({
     return () => window.removeEventListener('resize', handleResize)
   }, [selectedBboxId, showSpeciesSelector])
 
+  // Fetch observations - first try with bbox coordinates, then include those without
   const { data: bboxes = [] } = useQuery({
     queryKey: ['mediaBboxes', studyId, media?.mediaID],
     queryFn: async () => {
-      const response = await window.api.getMediaBboxes(studyId, media.mediaID)
-      if (response.data) {
+      // First try to get bboxes with coordinates
+      const response = await window.api.getMediaBboxes(studyId, media.mediaID, false)
+      if (response.data && response.data.length > 0) {
         return response.data
       }
-      return []
+      // If no bboxes with coordinates, try to get observations without bbox (for class editing)
+      const responseWithoutBbox = await window.api.getMediaBboxes(studyId, media.mediaID, true)
+      return responseWithoutBbox.data || []
     },
     enabled: isOpen && !!media?.mediaID && !!studyId
   })
@@ -663,8 +708,39 @@ function ImageModal({
   })
 
   const handleUpdateObservation = (updates) => {
-    updateMutation.mutate(updates)
+    if (updates.observationID === 'new-observation') {
+      // Create new observation without bbox for images without bboxes
+      const observationData = {
+        mediaID: media.mediaID,
+        deploymentID: media.deploymentID,
+        timestamp: media.timestamp,
+        scientificName: updates.scientificName,
+        commonName: updates.commonName,
+        bboxX: null,
+        bboxY: null,
+        bboxWidth: null,
+        bboxHeight: null
+      }
+      createMutation.mutate(observationData)
+    } else {
+      updateMutation.mutate(updates)
+    }
   }
+
+  // Handler for clicking the species label on images without bboxes
+  const handleImageWithoutBboxClick = useCallback(() => {
+    // Find observation without bbox coordinates for this image
+    const obsWithoutBbox = bboxes.find((b) => b.bboxX === null || b.bboxX === undefined)
+    if (obsWithoutBbox) {
+      // Existing observation - select it and show species selector
+      setSelectedBboxId(obsWithoutBbox.observationID)
+      setShowSpeciesSelector(true)
+    } else {
+      // No observation exists - we'll create one when species is selected
+      setSelectedBboxId('new-observation')
+      setShowSpeciesSelector(true)
+    }
+  }, [bboxes])
 
   // Mutation for updating observation bounding box coordinates
   const updateBboxMutation = useMutation({
@@ -908,8 +984,20 @@ function ImageModal({
 
   if (!isOpen || !media) return null
 
-  const hasBboxes = bboxes.length > 0
-  const selectedBbox = bboxes.find((b) => b.observationID === selectedBboxId)
+  // Check if there are actual bboxes with coordinates (not just observations without bbox)
+  const bboxesWithCoords = bboxes.filter((b) => b.bboxX !== null && b.bboxX !== undefined)
+  const hasBboxes = bboxesWithCoords.length > 0
+
+  // Get the observation for images without bboxes (for class editing)
+  const observationWithoutBbox = !hasBboxes
+    ? bboxes.find((b) => b.bboxX === null || b.bboxX === undefined)
+    : null
+
+  // Get selectedBbox - for 'new-observation' create a synthetic object
+  const selectedBbox =
+    selectedBboxId === 'new-observation'
+      ? { observationID: 'new-observation', scientificName: null }
+      : bboxes.find((b) => b.observationID === selectedBboxId)
 
   return (
     <div
@@ -1066,7 +1154,26 @@ function ImageModal({
           {/* Footer with metadata */}
           <div className="px-4 py-3 bg-white flex-shrink-0 border-t border-gray-100">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">{media.scientificName}</h3>
+              {/* Show editable species for images without bboxes (always show pencil, even for blank images) */}
+              {!hasBboxes ? (
+                <button
+                  ref={imageSpeciesLabelRef}
+                  onClick={handleImageWithoutBboxClick}
+                  className="text-lg font-semibold text-left hover:text-lime-600 cursor-pointer flex items-center gap-2 group"
+                  title="Click to edit species"
+                >
+                  <span>{media.scientificName || 'No species'}</span>
+                  <Pencil
+                    size={16}
+                    className="text-gray-400 group-hover:text-lime-600 transition-colors"
+                  />
+                  {observationWithoutBbox?.classificationMethod === 'human' && (
+                    <span className="text-xs text-green-600">✓</span>
+                  )}
+                </button>
+              ) : (
+                <h3 className="text-lg font-semibold">{media.scientificName}</h3>
+              )}
             </div>
 
             {/* Editable Timestamp Section */}
