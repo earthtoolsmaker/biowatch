@@ -1,5 +1,6 @@
 """Shared pytest fixtures for ML server e2e tests."""
 
+import contextlib
 import json
 import os
 import signal
@@ -67,8 +68,13 @@ class ServerProcess:
             cwd=str(COMMON_DIR),
         )
         if not wait_for_server(self.base_url, timeout=self.startup_timeout):
+            # Capture stderr for debugging
+            stderr = ""
+            if self.process and self.process.stderr:
+                with contextlib.suppress(Exception):
+                    stderr = self.process.stderr.read().decode("utf-8", errors="replace")
             self.stop()
-            raise RuntimeError(f"Server failed to start on port {self.port}")
+            raise RuntimeError(f"Server failed to start on port {self.port}. Stderr:\n{stderr[:2000]}")
         return self
 
     def stop(self):

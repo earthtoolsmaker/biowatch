@@ -13,12 +13,15 @@ env:
   SPECIESNET_MODEL_PATH: /tmp/models/speciesnet/4.0.1a
   DEEPFAUNE_DETECTOR_WEIGHTS: /tmp/models/deepfaune/1.3/MDV6-yolov10x.pt
   DEEPFAUNE_CLASSIFIER_WEIGHTS: /tmp/models/deepfaune/1.3/deepfaune-vit_large_patch14_dinov2.lvd142m.v3.pt
+  MANAS_DETECTOR_WEIGHTS: /tmp/models/manas/1.0/MDV6-yolov10x.pt
+  MANAS_CLASSIFIER_WEIGHTS: /tmp/models/manas/1.0/best_model_Fri_Sep__1_18_50_55_2023.pt
+  MANAS_CLASSES: /tmp/models/manas/1.0/classes_Fri_Sep__1_18_50_55_2023.pickle
 
 jobs:
   e2e-tests:
     name: ML Server E2E Tests
     runs-on: ubuntu-22.04
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Check out Git repository
@@ -40,7 +43,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/models
-          key: ml-models-speciesnet-v4.0.1a-deepfaune-v1.3
+          key: ml-models-speciesnet-v4.0.1a-deepfaune-v1.3-manas-v1.0
 
       - name: Download and extract ML models
         if: steps.cache-models.outputs.cache-hit != 'true'
@@ -74,6 +77,18 @@ jobs:
           with tarfile.open(deepfaune_tar, 'r:gz') as tar:
               tar.extractall('/tmp/models/deepfaune')
           print('DeepFaune extracted.')
+
+          # Download and extract Manas
+          print('Downloading Manas...')
+          manas_tar = hf_hub_download(
+              repo_id='earthtoolsmaker/manas',
+              filename='1.0.tar.gz',
+              repo_type='model'
+          )
+          os.makedirs('/tmp/models/manas', exist_ok=True)
+          with tarfile.open(manas_tar, 'r:gz') as tar:
+              tar.extractall('/tmp/models/manas')
+          print('Manas extracted.')
           "
 
       - name: Install dependencies
