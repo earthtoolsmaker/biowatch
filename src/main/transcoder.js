@@ -176,7 +176,7 @@ export async function extractThumbnail(inputPath) {
         if (existsSync(outputPath)) {
           try {
             unlinkSync(outputPath)
-          } catch (e) {
+          } catch {
             // Ignore cleanup errors
           }
         }
@@ -250,7 +250,7 @@ async function getVideoDuration(filePath) {
       }
     })
 
-    ffprobe.on('close', (code) => {
+    ffprobe.on('close', () => {
       // Try to parse output if we didn't get duration from stderr
       const duration = parseFloat(output.trim())
       if (!isNaN(duration)) {
@@ -340,7 +340,7 @@ export async function transcodeVideo(inputPath, onProgress = () => {}, signal = 
         if (existsSync(outputPath)) {
           try {
             unlinkSync(outputPath)
-          } catch (e) {
+          } catch {
             // Ignore cleanup errors
           }
         }
@@ -363,7 +363,7 @@ export async function transcodeVideo(inputPath, onProgress = () => {}, signal = 
         if (existsSync(outputPath)) {
           try {
             unlinkSync(outputPath)
-          } catch (e) {
+          } catch {
             // Ignore cleanup errors
           }
         }
@@ -388,7 +388,7 @@ export function cancelTranscode(filePath) {
     if (existsSync(job.outputPath)) {
       try {
         unlinkSync(job.outputPath)
-      } catch (e) {
+      } catch {
         // Ignore cleanup errors
       }
     }

@@ -1,6 +1,6 @@
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { spawn } from 'child_process'
-import { app, BrowserWindow, dialog, net as electronNet, ipcMain, protocol, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, protocol, shell } from 'electron'
 import log from 'electron-log'
 import { autoUpdater } from 'electron-updater'
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, rmSync } from 'fs'
@@ -29,8 +29,8 @@ import {
   createObservation,
   getDistinctSpecies
 } from './queries'
-import { Importer } from './importer' //required to register handlers
-import studies from './studies'
+import './importer.js' // Side-effect: registers IPC handlers
+import './studies.js' // Side-effect: registers IPC handlers
 import { importWildlifeDataset } from './wildlife'
 import { importDeepfauneDataset } from './deepfaune'
 import { extractZip, downloadFile } from './download'

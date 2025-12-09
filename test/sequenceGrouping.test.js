@@ -437,7 +437,13 @@ describe('groupMediaIntoSequences', () => {
 
   describe('video exclusion', () => {
     // Helper: Create media with video flag
-    function createMediaWithVideo(id, baseTime, offsetSeconds, isVideo, deploymentID = 'default-deployment') {
+    function createMediaWithVideo(
+      id,
+      baseTime,
+      offsetSeconds,
+      isVideo,
+      deploymentID = 'default-deployment'
+    ) {
       const time = new Date(baseTime.getTime() + offsetSeconds * 1000)
       return { mediaID: id, timestamp: time.toISOString(), deploymentID, isVideo }
     }

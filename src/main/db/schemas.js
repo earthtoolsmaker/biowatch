@@ -151,9 +151,7 @@ const videoRawOutputSchema = z.object({
 })
 
 // Combined schema: either image prediction or video output
-export const rawOutputSchema = z
-  .union([imagePredictionSchema, videoRawOutputSchema])
-  .nullable()
+export const rawOutputSchema = z.union([imagePredictionSchema, videoRawOutputSchema]).nullable()
 
 // ---------- Strict Schemas (for documentation/type inference) ----------
 

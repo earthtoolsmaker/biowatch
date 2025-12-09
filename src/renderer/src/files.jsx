@@ -109,7 +109,8 @@ export default function Files({ studyId }) {
                     <div className="flex items-center space-x-6 ml-4">
                       <div className="text-right">
                         <div className="text-sm font-medium text-gray-900">
-                          {directory.imageCount} images{directory.videoCount > 0 && `, ${directory.videoCount} videos`}
+                          {directory.imageCount} images
+                          {directory.videoCount > 0 && `, ${directory.videoCount} videos`}
                         </div>
                         <div className="text-sm text-gray-500">
                           {directory.processedCount} processed
@@ -118,14 +119,19 @@ export default function Files({ studyId }) {
 
                       <div className="text-right min-w-[60px]">
                         <div className="text-sm font-medium text-gray-900">
-                          {formatPercentage(directory.processedCount, directory.imageCount + (directory.videoCount || 0))}
+                          {formatPercentage(
+                            directory.processedCount,
+                            directory.imageCount + (directory.videoCount || 0)
+                          )}
                         </div>
                         <div className="w-16 bg-gray-200 rounded-full h-2 mt-1">
                           <div
                             className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                             style={{
                               width: `${Math.min(
-                                (directory.processedCount / (directory.imageCount + (directory.videoCount || 0))) * 100,
+                                (directory.processedCount /
+                                  (directory.imageCount + (directory.videoCount || 0))) *
+                                  100,
                                 100
                               )}%`
                             }}

@@ -167,9 +167,7 @@ function ImageDirectoriesExportModal({ isOpen, onConfirm, onCancel, studyId }) {
                 <span className="text-sm font-medium text-gray-900">
                   Include blank media (no detections)
                 </span>
-                <p className="text-xs text-gray-500">
-                  Export media where no animals were detected
-                </p>
+                <p className="text-xs text-gray-500">Export media where no animals were detected</p>
               </div>
             </label>
           </div>
