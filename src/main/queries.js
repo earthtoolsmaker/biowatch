@@ -1045,7 +1045,8 @@ export async function getFilesData(dbPath) {
       .select({
         folderName: media.folderName,
         importFolder: media.importFolder,
-        imageCount: count(media.mediaID).as('imageCount'),
+        imageCount: count(sql`CASE WHEN ${media.fileMediatype} NOT LIKE 'video/%' THEN 1 END`).as('imageCount'),
+        videoCount: count(sql`CASE WHEN ${media.fileMediatype} LIKE 'video/%' THEN 1 END`).as('videoCount'),
         processedCount: count(observations.observationID).as('processedCount'),
         lastModelUsed: sql`(
           SELECT mr.modelID || ' ' || mr.modelVersion
