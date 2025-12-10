@@ -14,14 +14,15 @@ import pytest
 
 COMMON_DIR = Path(__file__).parent.parent
 DATA_DIR = COMMON_DIR / "data"
+IMAGES_DIR = DATA_DIR / "images"
 
 TEST_IMAGES = {
-    "badger": DATA_DIR / "badger.JPG",
-    "fox": DATA_DIR / "fox1.JPG",
-    "chamois": DATA_DIR / "chamois1.JPG",
-    "empty": DATA_DIR / "empty1.JPG",
-    "human": DATA_DIR / "human11.JPG",
-    "vehicle": DATA_DIR / "vehicle.JPG",
+    "badger": IMAGES_DIR / "badger.JPG",
+    "fox": IMAGES_DIR / "fox1.JPG",
+    "chamois": IMAGES_DIR / "chamois1.JPG",
+    "empty": IMAGES_DIR / "empty1.JPG",
+    "human": IMAGES_DIR / "human11.JPG",
+    "hedgehog": IMAGES_DIR / "hedgehog.JPG",
 }
 
 
