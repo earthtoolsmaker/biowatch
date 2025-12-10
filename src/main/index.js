@@ -17,6 +17,7 @@ import {
   getMedia,
   getMediaBboxes,
   getMediaBboxesBatch,
+  checkMediaHaveBboxes,
   getSpeciesDailyActivity,
   getSpeciesDistribution,
   getSpeciesHeatmapData,
@@ -27,7 +28,8 @@ import {
   updateObservationBbox,
   deleteObservation,
   createObservation,
-  getDistinctSpecies
+  getDistinctSpecies,
+  checkStudyHasEventIDs
 } from './queries'
 import './importer.js' // Side-effect: registers IPC handlers
 import './studies.js' // Side-effect: registers IPC handlers
@@ -765,6 +767,23 @@ app.whenReady().then(async () => {
     }
   })
 
+  // Check if study has observations with eventIDs (for sequence grouping default)
+  ipcMain.handle('study:has-event-ids', async (_, studyId) => {
+    try {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) {
+        log.warn(`Database not found for study ID: ${studyId}`)
+        return { data: false }
+      }
+
+      const hasEventIDs = await checkStudyHasEventIDs(dbPath)
+      return { data: hasEventIDs }
+    } catch (error) {
+      log.error('Error checking study eventIDs:', error)
+      return { error: error.message, data: false }
+    }
+  })
+
   // Update media handler to use the new getMedia function with options
   ipcMain.handle('media:get', async (_, studyId, options = {}) => {
     try {
@@ -813,6 +832,23 @@ app.whenReady().then(async () => {
       return { data: bboxesByMedia }
     } catch (error) {
       log.error('Error getting media bboxes batch:', error)
+      return { error: error.message }
+    }
+  })
+
+  // Check if any media have bboxes (lightweight boolean check)
+  ipcMain.handle('media:have-bboxes', async (_, studyId, mediaIDs) => {
+    try {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) {
+        log.warn(`Database not found for study ID: ${studyId}`)
+        return { error: 'Database not found for this study' }
+      }
+
+      const hasBboxes = await checkMediaHaveBboxes(dbPath, mediaIDs)
+      return { data: hasBboxes }
+    } catch (error) {
+      log.error('Error checking media bboxes existence:', error)
       return { error: error.message }
     }
   })

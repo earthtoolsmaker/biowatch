@@ -151,3 +151,65 @@ export function groupMediaIntoSequences(mediaFiles, gapThresholdSeconds, isVideo
     }
   })
 }
+
+/**
+ * Groups media files by their associated observation eventIDs.
+ * Media without an eventID appear as individual items (not grouped).
+ * Media sharing the same eventID are grouped together.
+ * Used when the sequence slider is set to "Off" (0) for CamtrapDP datasets with imported events.
+ *
+ * @param {Array} mediaFiles - Array of media files with mediaID, timestamp, eventID
+ * @returns {Array} Array of sequence objects { id, items, startTime, endTime }
+ */
+export function groupMediaByEventID(mediaFiles) {
+  if (!mediaFiles || mediaFiles.length === 0) {
+    return []
+  }
+
+  const eventGroups = new Map()
+  const noEventItems = []
+
+  for (const media of mediaFiles) {
+    if (media.eventID && media.eventID !== '') {
+      if (!eventGroups.has(media.eventID)) {
+        eventGroups.set(media.eventID, [])
+      }
+      eventGroups.get(media.eventID).push(media)
+    } else {
+      // Media without eventID becomes its own sequence
+      noEventItems.push(media)
+    }
+  }
+
+  const sequences = []
+
+  // Convert event groups to sequences
+  for (const [eventID, items] of eventGroups) {
+    // Sort items by timestamp within each group (ascending - oldest first)
+    const sortedItems = [...items].sort((a, b) => {
+      const timeA = new Date(a.timestamp).getTime()
+      const timeB = new Date(b.timestamp).getTime()
+      return timeA - timeB
+    })
+
+    sequences.push({
+      id: eventID,
+      items: sortedItems,
+      startTime: new Date(sortedItems[0].timestamp),
+      endTime: new Date(sortedItems[sortedItems.length - 1].timestamp)
+    })
+  }
+
+  // Add individual items for media without eventID
+  for (const media of noEventItems) {
+    sequences.push({
+      id: media.mediaID,
+      items: [media],
+      startTime: new Date(media.timestamp),
+      endTime: new Date(media.timestamp)
+    })
+  }
+
+  // Sort all sequences by startTime (descending to match gallery display)
+  return sequences.sort((a, b) => b.startTime.getTime() - a.startTime.getTime())
+}

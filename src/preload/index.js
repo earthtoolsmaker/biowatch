@@ -33,6 +33,9 @@ const api = {
   deleteStudyDatabase: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('study:delete-database', studyId)
   },
+  checkStudyHasEventIDs: async (studyId) => {
+    return await electronAPI.ipcRenderer.invoke('study:has-event-ids', studyId)
+  },
   getSpeciesTimeseries: async (studyId, species) => {
     return await electronAPI.ipcRenderer.invoke('activity:get-timeseries', studyId, species)
   },
@@ -66,6 +69,9 @@ const api = {
   },
   getMediaBboxesBatch: async (studyId, mediaIDs) => {
     return await electronAPI.ipcRenderer.invoke('media:get-bboxes-batch', studyId, mediaIDs)
+  },
+  checkMediaHaveBboxes: async (studyId, mediaIDs) => {
+    return await electronAPI.ipcRenderer.invoke('media:have-bboxes', studyId, mediaIDs)
   },
   getSpeciesDailyActivity: async (studyId, species, startDate, endDate) => {
     return await electronAPI.ipcRenderer.invoke(

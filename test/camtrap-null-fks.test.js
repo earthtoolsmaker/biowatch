@@ -160,7 +160,11 @@ describe('CamTrapDP NULL Foreign Keys Tests', () => {
       const standalone = completelyStandalone[0]
       assert.equal(standalone.observationID, 'obs004', 'Should find completely standalone obs004')
       assert.equal(standalone.commonName, 'European Hare', 'Should have species data')
-      assert.equal(standalone.classificationProbability, 0.92, 'Should have classificationProbability value')
+      assert.equal(
+        standalone.classificationProbability,
+        0.92,
+        'Should have classificationProbability value'
+      )
     })
 
     test('should maintain referential integrity for non-NULL foreign keys', async () => {

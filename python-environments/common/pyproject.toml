@@ -16,7 +16,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["ruff>=0.8.0"]
+dev = [
+    "ruff>=0.8.0",
+    "pytest>=8.0.0",
+    "pytest-timeout>=2.3.0",
+    "httpx>=0.28.0",
+]
 
 [tool.ruff]
 target-version = "py312"
@@ -29,3 +34,7 @@ select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+timeout = 300

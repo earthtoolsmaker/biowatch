@@ -515,6 +515,102 @@ function mapObservationType(dbType, scientificName) {
 }
 
 /**
+ * Group observations into sequences based on deployment and timestamp gap.
+ * When gapThresholdSeconds <= 0, returns null to signal that existing eventIDs should be preserved.
+ *
+ * @param {Array} observations - Observations with eventStart/timestamp and deploymentID
+ * @param {number} gapThresholdSeconds - Maximum gap in seconds for grouping (0 = preserve existing)
+ * @returns {Map|null} Map of observationID -> {eventID, eventStart, eventEnd}, or null to preserve existing
+ */
+function groupObservationsIntoSequences(observations, gapThresholdSeconds) {
+  if (gapThresholdSeconds <= 0) {
+    // No grouping - preserve existing eventID/eventStart/eventEnd from database
+    return null
+  }
+
+  // Group observations by deployment first
+  const byDeployment = {}
+  for (const obs of observations) {
+    const depId = obs.deploymentID || '__none__'
+    if (!byDeployment[depId]) byDeployment[depId] = []
+    byDeployment[depId].push(obs)
+  }
+
+  // Build mapping of observationID -> sequence data
+  const eventMapping = new Map()
+
+  for (const [depId, depObs] of Object.entries(byDeployment)) {
+    // Sort by timestamp (using eventStart or fallback to timestamp field)
+    depObs.sort((a, b) => {
+      const timeA = new Date(a.eventStart || a.timestamp || 0).getTime()
+      const timeB = new Date(b.eventStart || b.timestamp || 0).getTime()
+      return timeA - timeB
+    })
+
+    let currentSeq = null
+    let seqCounter = 0
+    const gapMs = gapThresholdSeconds * 1000
+
+    for (const obs of depObs) {
+      const obsTime = new Date(obs.eventStart || obs.timestamp || 0).getTime()
+
+      // Check if we should start a new sequence
+      const shouldStartNew = !currentSeq || isNaN(obsTime) || obsTime - currentSeq.maxTime > gapMs
+
+      if (shouldStartNew) {
+        // Save previous sequence
+        if (currentSeq) {
+          finalizeSequence(currentSeq, eventMapping)
+        }
+
+        seqCounter++
+        const sanitizedDepId = depId === '__none__' ? 'unknown' : depId
+        currentSeq = {
+          eventID: `${sanitizedDepId}_seq_${String(seqCounter).padStart(4, '0')}`,
+          minTime: isNaN(obsTime) ? null : obsTime,
+          maxTime: isNaN(obsTime) ? null : obsTime,
+          observations: [obs]
+        }
+      } else {
+        // Add to current sequence
+        currentSeq.observations.push(obs)
+        if (!isNaN(obsTime)) {
+          if (currentSeq.minTime === null || obsTime < currentSeq.minTime) {
+            currentSeq.minTime = obsTime
+          }
+          if (currentSeq.maxTime === null || obsTime > currentSeq.maxTime) {
+            currentSeq.maxTime = obsTime
+          }
+        }
+      }
+    }
+
+    // Don't forget the last sequence
+    if (currentSeq) {
+      finalizeSequence(currentSeq, eventMapping)
+    }
+  }
+
+  return eventMapping
+}
+
+/**
+ * Helper to finalize a sequence and add all its observations to the mapping
+ */
+function finalizeSequence(seq, eventMapping) {
+  const eventStart = seq.minTime ? new Date(seq.minTime).toISOString() : null
+  const eventEnd = seq.maxTime ? new Date(seq.maxTime).toISOString() : null
+
+  for (const obs of seq.observations) {
+    eventMapping.set(obs.observationID, {
+      eventID: seq.eventID,
+      eventStart,
+      eventEnd
+    })
+  }
+}
+
+/**
  * Escape a value for CSV output
  */
 function escapeCSV(value) {
@@ -659,7 +755,12 @@ function generateDataPackage(studyId, studyName, metadata = null) {
  * Export study data to Camtrap DP format
  */
 export async function exportCamtrapDP(studyId, options = {}) {
-  const { includeMedia = false, selectedSpecies = null, includeBlank = false } = options
+  const {
+    includeMedia = false,
+    selectedSpecies = null,
+    includeBlank = false,
+    sequenceGap = 0
+  } = options
 
   try {
     // Get study information from database
@@ -869,30 +970,45 @@ export async function exportCamtrapDP(studyId, options = {}) {
       }
     })
 
+    // Generate sequence grouping if sequenceGap > 0
+    // Returns null when sequenceGap <= 0, signaling to preserve existing eventIDs
+    const eventMapping = groupObservationsIntoSequences(observationsData, sequenceGap)
+
+    log.info(
+      eventMapping
+        ? `Generated ${new Set([...eventMapping.values()].map((v) => v.eventID)).size} sequences with gap ${sequenceGap}s`
+        : `Preserving existing eventIDs (sequenceGap=0)`
+    )
+
     // Transform observations data for Camtrap DP
-    const observationsRows = observationsData.map((o) => ({
-      observationID: o.observationID,
-      deploymentID: o.deploymentID,
-      mediaID: o.mediaID,
-      eventID: o.eventID,
-      eventStart: o.eventStart,
-      eventEnd: o.eventEnd,
-      observationLevel: 'media',
-      observationType: mapObservationType(o.observationType, o.scientificName),
-      scientificName: o.scientificName,
-      count: o.count,
-      lifeStage: o.lifeStage,
-      sex: o.sex,
-      behavior: o.behavior,
-      bboxX: o.bboxX,
-      bboxY: o.bboxY,
-      bboxWidth: o.bboxWidth,
-      bboxHeight: o.bboxHeight,
-      classificationMethod: o.classificationMethod,
-      classifiedBy: o.classifiedBy,
-      classificationTimestamp: o.classificationTimestamp,
-      classificationProbability: o.classificationProbability
-    }))
+    const observationsRows = observationsData.map((o) => {
+      // Use generated event data if available, otherwise preserve existing
+      const eventData = eventMapping?.get(o.observationID)
+
+      return {
+        observationID: o.observationID,
+        deploymentID: o.deploymentID,
+        mediaID: o.mediaID,
+        eventID: eventData ? eventData.eventID : o.eventID,
+        eventStart: eventData ? eventData.eventStart : o.eventStart,
+        eventEnd: eventData ? eventData.eventEnd : o.eventEnd,
+        observationLevel: 'media',
+        observationType: mapObservationType(o.observationType, o.scientificName),
+        scientificName: o.scientificName,
+        count: o.count,
+        lifeStage: o.lifeStage,
+        sex: o.sex,
+        behavior: o.behavior,
+        bboxX: o.bboxX,
+        bboxY: o.bboxY,
+        bboxWidth: o.bboxWidth,
+        bboxHeight: o.bboxHeight,
+        classificationMethod: o.classificationMethod,
+        classifiedBy: o.classifiedBy,
+        classificationTimestamp: o.classificationTimestamp,
+        classificationProbability: o.classificationProbability
+      }
+    })
 
     // Generate CSV files
     const deploymentsCSV = toCSV(deploymentsData, [

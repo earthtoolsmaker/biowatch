@@ -358,10 +358,12 @@ function transformObservationRow(row) {
     sex: row.sex || null,
     behavior: row.behavior || null,
     // Bounding box fields (Camtrap DP format)
-    bboxX: parseFloat(row.bboxX || row.bbox_x) || null,
-    bboxY: parseFloat(row.bboxY || row.bbox_y) || null,
-    bboxWidth: parseFloat(row.bboxWidth || row.bbox_width) || null,
-    bboxHeight: parseFloat(row.bboxHeight || row.bbox_height) || null
+    // Use ?? (nullish coalescing) to prefer the first column name, falling back to snake_case
+    // Use parseFloatOrNull to properly handle 0 values (which are falsy but valid coordinates)
+    bboxX: parseFloatOrNull(row.bboxX ?? row.bbox_x),
+    bboxY: parseFloatOrNull(row.bboxY ?? row.bbox_y),
+    bboxWidth: parseFloatOrNull(row.bboxWidth ?? row.bbox_width),
+    bboxHeight: parseFloatOrNull(row.bboxHeight ?? row.bbox_height)
   }
 }
 
@@ -373,6 +375,19 @@ function transformDateField(dateValue) {
 
   const date = DateTime.fromISO(dateValue)
   return date.isValid ? date.toUTC().toISO() : null
+}
+
+/**
+ * Safely parse a float value, preserving 0 as a valid value
+ * @param {*} value - The value to parse
+ * @returns {number|null} - Parsed float or null if invalid/missing
+ */
+function parseFloatOrNull(value) {
+  if (value === null || value === undefined || value === '') {
+    return null
+  }
+  const parsed = parseFloat(value)
+  return Number.isNaN(parsed) ? null : parsed
 }
 
 /**

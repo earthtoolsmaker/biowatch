@@ -25,7 +25,7 @@ import DateTimePicker from './ui/DateTimePicker'
 import EditableBbox from './ui/EditableBbox'
 import { computeBboxLabelPosition, computeSelectorPosition } from './utils/positioning'
 import { getImageBounds, screenToNormalized } from './utils/bboxCoordinates'
-import { groupMediaIntoSequences } from './utils/sequenceGrouping'
+import { groupMediaIntoSequences, groupMediaByEventID } from './utils/sequenceGrouping'
 
 /**
  * Observation list panel - always visible list of all detections
@@ -69,7 +69,9 @@ function ObservationListPanel({ bboxes, selectedId, onSelect, onDelete }) {
           </button>
           <div className="flex items-center gap-2">
             {bbox.classificationProbability && (
-              <span className="text-xs text-gray-400">{Math.round(bbox.classificationProbability * 100)}%</span>
+              <span className="text-xs text-gray-400">
+                {Math.round(bbox.classificationProbability * 100)}%
+              </span>
             )}
             <Pencil size={14} className="text-gray-400" />
             <button
@@ -255,7 +257,9 @@ const BboxLabel = forwardRef(function BboxLabel(
   ref
 ) {
   const displayName = bbox.scientificName || 'Blank'
-  const confidence = bbox.classificationProbability ? `${Math.round(bbox.classificationProbability * 100)}%` : null
+  const confidence = bbox.classificationProbability
+    ? `${Math.round(bbox.classificationProbability * 100)}%`
+    : null
 
   // Use the extracted positioning function
   const { left: leftPos, top: topPos, transform: transformVal } = computeBboxLabelPosition(bbox)
@@ -1584,6 +1588,7 @@ function formatGapValue(seconds) {
 function GalleryControls({
   showBboxes,
   onToggleBboxes,
+  hasBboxes,
   gridColumns,
   onCycleGrid,
   sequenceGap,
@@ -1628,19 +1633,21 @@ function GalleryControls({
       </div>
 
       <div className="flex items-center gap-2">
-        {/* Show Bboxes Toggle */}
-        <button
-          onClick={onToggleBboxes}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-            showBboxes
-              ? 'bg-lime-500 text-white hover:bg-lime-600'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-          title="Show bounding boxes on thumbnails"
-        >
-          <Square size={16} />
-          <span>Boxes</span>
-        </button>
+        {/* Show Bboxes Toggle - only render if bboxes exist */}
+        {hasBboxes && (
+          <button
+            onClick={onToggleBboxes}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              showBboxes
+                ? 'bg-lime-500 text-white hover:bg-lime-600'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+            title="Show bounding boxes on thumbnails"
+          >
+            <Square size={16} />
+            <span>Boxes</span>
+          </button>
+        )}
 
         {/* Grid Density Cycle */}
         <button
@@ -2096,6 +2103,17 @@ function Gallery({ species, dateRange, timeRange }) {
   const { id } = useParams()
   const queryClient = useQueryClient()
 
+  // Check if study has observations with eventIDs (for default slider value)
+  const { data: hasEventIDs = false } = useQuery({
+    queryKey: ['studyHasEventIDs', id],
+    queryFn: async () => {
+      const response = await window.api.checkStudyHasEventIDs(id)
+      return response.data || false
+    },
+    enabled: !!id,
+    staleTime: Infinity // Cache permanently per study
+  })
+
   // Sequence gap - persisted per study in localStorage
   const sequenceGapKey = `sequenceGap:${id}`
   const [sequenceGap, setSequenceGap] = useState(() => {
@@ -2108,11 +2126,18 @@ function Gallery({ species, dateRange, timeRange }) {
     localStorage.setItem(sequenceGapKey, sequenceGap.toString())
   }, [sequenceGap, sequenceGapKey])
 
-  // Reset sequenceGap when study changes
+  // Reset sequenceGap when study changes, and set default based on hasEventIDs
   useEffect(() => {
     const saved = localStorage.getItem(sequenceGapKey)
-    setSequenceGap(saved !== null ? Number(saved) : 120)
-  }, [sequenceGapKey])
+    if (saved !== null) {
+      setSequenceGap(Number(saved))
+    } else if (hasEventIDs) {
+      // Default to "Off" (0) if study has eventIDs and no saved preference
+      setSequenceGap(0)
+    } else {
+      setSequenceGap(120)
+    }
+  }, [sequenceGapKey, hasEventIDs])
 
   // Fetch media with infinite query for pagination
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useInfiniteQuery({
@@ -2150,7 +2175,12 @@ function Gallery({ species, dateRange, timeRange }) {
 
   // Group media into sequences using memoization
   // Videos are excluded from grouping - they always form their own sequence
+  // When sequenceGap is 0 (Off), use eventID-based grouping for CamtrapDP datasets
+  // When sequenceGap > 0, use timestamp-based grouping
   const groupedMedia = useMemo(() => {
+    if (sequenceGap === 0) {
+      return groupMediaByEventID(mediaFiles)
+    }
     return groupMediaIntoSequences(mediaFiles, sequenceGap, isVideoMedia)
   }, [mediaFiles, sequenceGap])
 
@@ -2177,6 +2207,17 @@ function Gallery({ species, dateRange, timeRange }) {
       return response.data || {}
     },
     enabled: showThumbnailBboxes && mediaIDs.length > 0 && !!id,
+    staleTime: 60000
+  })
+
+  // Check if any media have bboxes (lightweight check for showing/hiding toggle)
+  const { data: anyMediaHaveBboxes = false } = useQuery({
+    queryKey: ['mediaHaveBboxes', id, mediaIDs],
+    queryFn: async () => {
+      const response = await window.api.checkMediaHaveBboxes(id, mediaIDs)
+      return response.data || false
+    },
+    enabled: mediaIDs.length > 0 && !!id,
     staleTime: 60000
   })
 
@@ -2345,6 +2386,7 @@ function Gallery({ species, dateRange, timeRange }) {
         <GalleryControls
           showBboxes={showThumbnailBboxes}
           onToggleBboxes={() => setShowThumbnailBboxes((prev) => !prev)}
+          hasBboxes={anyMediaHaveBboxes}
           gridColumns={gridColumns}
           onCycleGrid={handleCycleGrid}
           sequenceGap={sequenceGap}

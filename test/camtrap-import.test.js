@@ -208,7 +208,99 @@ describe('CamTrapDP Import Tests', () => {
         'Should have correct scientific name'
       )
       assert.equal(redDeerObs.count, 2, 'Should have correct count')
-      assert.equal(redDeerObs.classificationProbability, 0.95, 'Should have correct classificationProbability')
+      assert.equal(
+        redDeerObs.classificationProbability,
+        0.95,
+        'Should have correct classificationProbability'
+      )
+    })
+
+    test('should import bounding boxes correctly including zero values', async () => {
+      const studyId = 'test-camtrap-bboxes'
+      await importCamTrapDatasetWithPath(testCamTrapDataPath, testBiowatchDataPath, studyId)
+
+      const dbPath = join(testBiowatchDataPath, 'studies', studyId, 'study.db')
+
+      // Test obs001: normal bbox values (0.1, 0.2, 0.3, 0.4)
+      const obs001 = queryDatabase(
+        dbPath,
+        "SELECT bboxX, bboxY, bboxWidth, bboxHeight FROM observations WHERE observationID = 'obs001'"
+      )
+      assert.equal(obs001.length, 1, 'Should find obs001')
+      assert.equal(obs001[0].bboxX, 0.1, 'obs001: bboxX should be 0.1')
+      assert.equal(obs001[0].bboxY, 0.2, 'obs001: bboxY should be 0.2')
+      assert.equal(obs001[0].bboxWidth, 0.3, 'obs001: bboxWidth should be 0.3')
+      assert.equal(obs001[0].bboxHeight, 0.4, 'obs001: bboxHeight should be 0.4')
+
+      // Test obs002: bboxX=0 (edge case - should NOT be null)
+      const obs002 = queryDatabase(
+        dbPath,
+        "SELECT bboxX, bboxY, bboxWidth, bboxHeight FROM observations WHERE observationID = 'obs002'"
+      )
+      assert.equal(obs002.length, 1, 'Should find obs002')
+      assert.equal(obs002[0].bboxX, 0, 'obs002: bboxX=0 should be preserved as 0, not null')
+      assert.equal(obs002[0].bboxY, 0.5, 'obs002: bboxY should be 0.5')
+      assert.equal(obs002[0].bboxWidth, 0.25, 'obs002: bboxWidth should be 0.25')
+      assert.equal(obs002[0].bboxHeight, 0.35, 'obs002: bboxHeight should be 0.35')
+
+      // Test obs004: bboxY=0 (edge case - should NOT be null)
+      const obs004 = queryDatabase(
+        dbPath,
+        "SELECT bboxX, bboxY, bboxWidth, bboxHeight FROM observations WHERE observationID = 'obs004'"
+      )
+      assert.equal(obs004.length, 1, 'Should find obs004')
+      assert.equal(obs004[0].bboxX, 0.15, 'obs004: bboxX should be 0.15')
+      assert.equal(obs004[0].bboxY, 0, 'obs004: bboxY=0 should be preserved as 0, not null')
+      assert.equal(obs004[0].bboxWidth, 0.2, 'obs004: bboxWidth should be 0.2')
+      assert.equal(obs004[0].bboxHeight, 0.3, 'obs004: bboxHeight should be 0.3')
+
+      // Test obs006: both bboxX=0 AND bboxY=0 (double edge case)
+      const obs006 = queryDatabase(
+        dbPath,
+        "SELECT bboxX, bboxY, bboxWidth, bboxHeight FROM observations WHERE observationID = 'obs006'"
+      )
+      assert.equal(obs006.length, 1, 'Should find obs006')
+      assert.equal(obs006[0].bboxX, 0, 'obs006: bboxX=0 should be preserved as 0, not null')
+      assert.equal(obs006[0].bboxY, 0, 'obs006: bboxY=0 should be preserved as 0, not null')
+      assert.equal(obs006[0].bboxWidth, 0.5, 'obs006: bboxWidth should be 0.5')
+      assert.equal(obs006[0].bboxHeight, 0.6, 'obs006: bboxHeight should be 0.6')
+
+      // Test obs003: empty observation (no bbox values - should all be null)
+      const obs003 = queryDatabase(
+        dbPath,
+        "SELECT bboxX, bboxY, bboxWidth, bboxHeight FROM observations WHERE observationID = 'obs003'"
+      )
+      assert.equal(obs003.length, 1, 'Should find obs003')
+      assert.equal(obs003[0].bboxX, null, 'obs003: bboxX should be null for empty observation')
+      assert.equal(obs003[0].bboxY, null, 'obs003: bboxY should be null for empty observation')
+      assert.equal(
+        obs003[0].bboxWidth,
+        null,
+        'obs003: bboxWidth should be null for empty observation'
+      )
+      assert.equal(
+        obs003[0].bboxHeight,
+        null,
+        'obs003: bboxHeight should be null for empty observation'
+      )
+
+      // Verify count of observations with valid bboxes (where bboxX IS NOT NULL)
+      const bboxCount = queryDatabase(
+        dbPath,
+        'SELECT COUNT(*) as count FROM observations WHERE bboxX IS NOT NULL'
+      )
+      assert.equal(bboxCount[0].count, 8, 'Should have 8 observations with bounding boxes')
+
+      // Verify count of observations without bboxes
+      const noBboxCount = queryDatabase(
+        dbPath,
+        'SELECT COUNT(*) as count FROM observations WHERE bboxX IS NULL'
+      )
+      assert.equal(
+        noBboxCount[0].count,
+        2,
+        'Should have 2 observations without bounding boxes (Empty observations)'
+      )
     })
 
     test('should handle scientific name and empty observations correctly', async () => {

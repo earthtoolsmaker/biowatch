@@ -37,6 +37,7 @@ const { data, error } = await window.api.getMedia(studyId, { limit: 100 })
 | `getStudies()` | `studies:list` | - | `Study[]` |
 | `updateStudy(id, update)` | `studies:update` | studyId, update object | `Study` |
 | `deleteStudyDatabase(studyId)` | `study:delete-database` | studyId | `{ success: boolean }` |
+| `checkStudyHasEventIDs(studyId)` | `study:has-event-ids` | studyId | `{ data: boolean }` |
 
 ### Data Import
 
@@ -85,6 +86,7 @@ const { data, error } = await window.api.getMedia(studyId, { limit: 100 })
 | `getMedia(studyId, options)` | `media:get` | studyId, { limit?, offset?, filters? } | `{ data: Media[] }` |
 | `getMediaBboxes(studyId, mediaID)` | `media:get-bboxes` | studyId, mediaID | `{ data: Bbox[] }` |
 | `getMediaBboxesBatch(studyId, mediaIDs)` | `media:get-bboxes-batch` | studyId, mediaID[] | `{ data: Map<mediaID, Bbox[]> }` |
+| `checkMediaHaveBboxes(studyId, mediaIDs)` | `media:have-bboxes` | studyId, mediaID[] | `{ data: boolean }` |
 | `setMediaTimestamp(studyId, mediaID, timestamp)` | `media:set-timestamp` | studyId, mediaID, timestamp | `{ success: boolean }` |
 
 ### Files
@@ -107,7 +109,7 @@ const { data, error } = await window.api.getMedia(studyId, { limit: 100 })
 | Method | Channel | Parameters | Returns |
 |--------|---------|------------|---------|
 | `exportImageDirectories(studyId, options)` | `export:image-directories` | studyId, { selectedSpecies?, includeBlank? } | `{ success, exportPath, copiedCount }` |
-| `exportCamtrapDP(studyId, options)` | `export:camtrap-dp` | studyId, { includeMedia?, selectedSpecies?, includeBlank? } | `{ success, exportPath, counts... }` |
+| `exportCamtrapDP(studyId, options)` | `export:camtrap-dp` | studyId, { includeMedia?, selectedSpecies?, includeBlank?, sequenceGap? } | `{ success, exportPath, counts... }` |
 | `cancelExport()` | `export:cancel` | - | `boolean` |
 | `onExportProgress(callback)` | `export:progress` | callback function | unsubscribe function |
 
