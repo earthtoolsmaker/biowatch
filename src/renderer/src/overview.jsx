@@ -313,6 +313,7 @@ export default function Overview({ data, studyId, studyName }) {
   const [editingContributorIndex, setEditingContributorIndex] = useState(null)
   const [editedContributor, setEditedContributor] = useState(null)
   const [isAddingContributor, setIsAddingContributor] = useState(false)
+  const [deletingContributorIndex, setDeletingContributorIndex] = useState(null)
   const [newContributor, setNewContributor] = useState({
     title: '',
     role: '',
@@ -324,6 +325,8 @@ export default function Overview({ data, studyId, studyName }) {
   const addContributorRef = useRef(null)
   const editingContributorRef = useRef(null)
   const descriptionRef = useRef(null)
+  const titleEditRef = useRef(null)
+  const descriptionEditRef = useRef(null)
   const [isDescriptionTruncated, setIsDescriptionTruncated] = useState(false)
   const queryClient = useQueryClient()
 
@@ -428,6 +431,43 @@ export default function Overview({ data, studyId, studyName }) {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [editingContributorIndex])
 
+  // Handle click outside to save and close title editing
+  useEffect(() => {
+    if (!isEditingTitle) return
+
+    const handleClickOutside = (e) => {
+      if (titleEditRef.current && !titleEditRef.current.contains(e.target)) {
+        saveTitle()
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside, true)  // capture phase
+    return () => document.removeEventListener('mousedown', handleClickOutside, true)
+  }, [isEditingTitle, editedTitle, studyName])
+
+  // Handle click outside to save and Escape key to cancel description editing
+  useEffect(() => {
+    if (!isEditingDescription) return
+
+    const handleClickOutside = (e) => {
+      if (descriptionEditRef.current && !descriptionEditRef.current.contains(e.target)) {
+        saveDescription()
+      }
+    }
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        cancelEditingDescription()
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside, true)  // capture phase
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside, true)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isEditingDescription, editedDescription, data, studyId])
+
   const scrollContributors = (direction) => {
     if (!contributorsRef.current) return
 
@@ -502,6 +542,9 @@ export default function Overview({ data, studyId, studyName }) {
   const handleDescriptionKeyPress = (e) => {
     if (e.key === 'Escape') {
       cancelEditingDescription()
+    } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault()
+      saveDescription()
     }
   }
 
@@ -689,7 +732,7 @@ export default function Overview({ data, studyId, studyName }) {
       <header className="flex flex-col">
         <div className="flex gap-2 items-center group">
           {isEditingTitle ? (
-            <div className="flex items-center gap-1 flex-1">
+            <div ref={titleEditRef} className="flex items-center gap-1 flex-1">
               <input
                 type="text"
                 value={editedTitle}
@@ -698,20 +741,6 @@ export default function Overview({ data, studyId, studyName }) {
                 className="max-w-prose text-balance font-medium capitalize bg-transparent border-b-2 border-blue-500 focus:outline-none"
                 autoFocus
               />
-              <button
-                onClick={saveTitle}
-                className="p-1 hover:bg-green-100 rounded text-green-600"
-                title="Save"
-              >
-                <Check size={16} />
-              </button>
-              <button
-                onClick={cancelEditingTitle}
-                className="p-1 hover:bg-red-100 rounded text-red-600"
-                title="Cancel"
-              >
-                <X size={16} />
-              </button>
             </div>
           ) : (
             <>
@@ -737,7 +766,7 @@ export default function Overview({ data, studyId, studyName }) {
         {/* Description with inline editing */}
         <div className="relative group">
           {isEditingDescription ? (
-            <div className="flex flex-col gap-2">
+            <div ref={descriptionEditRef}>
               <textarea
                 value={editedDescription}
                 onChange={(e) => setEditedDescription(e.target.value)}
@@ -746,22 +775,6 @@ export default function Overview({ data, studyId, studyName }) {
                 autoFocus
                 placeholder="Camera trap dataset containing deployment information, media files metadata, and species observations collected during wildlife monitoring."
               />
-              <div className="flex gap-1">
-                <button
-                  onClick={cancelEditingDescription}
-                  className="p-1 hover:bg-red-100 rounded text-red-600"
-                  title="Cancel (Escape)"
-                >
-                  <X size={16} />
-                </button>
-                <button
-                  onClick={saveDescription}
-                  className="p-1 hover:bg-green-100 rounded text-green-600"
-                  title="Save"
-                >
-                  <Check size={16} />
-                </button>
-              </div>
             </div>
           ) : (
             <>
@@ -940,7 +953,7 @@ export default function Overview({ data, studyId, studyName }) {
                       <Pencil size={12} />
                     </button>
                     <button
-                      onClick={() => deleteContributor(index)}
+                      onClick={() => setDeletingContributorIndex(index)}
                       className="p-1 hover:bg-red-100 rounded text-red-500"
                       title="Delete"
                     >
@@ -982,11 +995,13 @@ export default function Overview({ data, studyId, studyName }) {
           {isAddingContributor ? (
             <div
               ref={addContributorRef}
-              className="flex flex-col flex-shrink-0 w-64 p-4 border border-blue-300 rounded-md shadow-sm bg-blue-50"
+              className="flex flex-col flex-shrink-0 w-64 p-4 border border-gray-200 rounded-md shadow-sm bg-white"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault()
                   addContributor()
+                } else if (e.key === 'Escape') {
+                  cancelAddingContributor()
                 }
               }}
             >
@@ -1075,6 +1090,44 @@ export default function Overview({ data, studyId, studyName }) {
             <DeploymentMap deployments={deploymentsData} studyId={studyId} />
           </div>
         </>
+      )}
+
+      {/* Delete contributor confirmation modal */}
+      {deletingContributorIndex !== null && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000]"
+          onClick={() => setDeletingContributorIndex(null)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setDeletingContributorIndex(null)
+          }}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl max-w-sm w-full mx-4 p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-medium mb-2">Delete Contributor</h3>
+            <p className="text-gray-600 text-sm mb-4">
+              Are you sure you want to delete this contributor?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setDeletingContributorIndex(null)}
+                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  deleteContributor(deletingContributorIndex)
+                  setDeletingContributorIndex(null)
+                }}
+                className="px-4 py-2 text-sm bg-red-600 text-white hover:bg-red-700 rounded"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
