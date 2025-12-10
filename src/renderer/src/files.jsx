@@ -109,8 +109,13 @@ export default function Files({ studyId }) {
                     <div className="flex items-center space-x-6 ml-4">
                       <div className="text-right">
                         <div className="text-sm font-medium text-gray-900">
-                          {directory.imageCount} images
-                          {directory.videoCount > 0 && `, ${directory.videoCount} videos`}
+                          {directory.imageCount === 0 && directory.videoCount === 0
+                            ? '0 media files'
+                            : directory.imageCount === 0
+                              ? `${directory.videoCount} videos`
+                              : directory.videoCount > 0
+                                ? `${directory.imageCount} images, ${directory.videoCount} videos`
+                                : `${directory.imageCount} images`}
                         </div>
                         <div className="text-sm text-gray-500">
                           {directory.processedCount} processed
