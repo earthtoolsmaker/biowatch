@@ -17,8 +17,6 @@ export default function StudySettings({ studyId, studyName }) {
 
   return (
     <div className="px-4">
-      <h1 className="text-2xl font-semibold text-gray-900 mb-6">Settings</h1>
-
       <div className="border border-red-200 rounded-lg">
         <div className="px-4 py-3 bg-red-50 border-b border-red-200 rounded-t-lg">
           <h2 className="text-lg font-medium text-red-800">Danger Zone</h2>
