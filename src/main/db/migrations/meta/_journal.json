@@ -64,6 +64,13 @@
       "when": 1765317645285,
       "tag": "0008_add_video_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1765378641492,
+      "tag": "0009_add_indices",
+      "breakpoints": true
     }
   ]
 }
