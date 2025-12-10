@@ -54,6 +54,28 @@ function isVideoMediatype(mediatype) {
   return mediatype.startsWith('video/')
 }
 
+/**
+ * Serialize EXIF data for JSON storage, converting Date objects to ISO strings
+ * @param {Object} exifData - Raw exifr output
+ * @returns {Object|null} - Serialized EXIF data safe for JSON storage
+ */
+function serializeExifData(exifData) {
+  if (!exifData || typeof exifData !== 'object') return null
+  try {
+    return JSON.parse(
+      JSON.stringify(exifData, (key, value) => {
+        if (value instanceof Date) {
+          return value.toISOString()
+        }
+        return value
+      })
+    )
+  } catch (error) {
+    log.warn(`Failed to serialize EXIF data: ${error.message}`)
+    return null
+  }
+}
+
 async function* walkMediaFiles(dir) {
   const dirents = await fs.promises.opendir(dir)
   for await (const dirent of dirents) {
@@ -624,11 +646,17 @@ async function processMediaDeployment(db, mediaRecord) {
       deployment = { deploymentID, latitude, longitude }
     }
 
-    // 6. Update database
+    // 6. Update database with timestamp, deployment, and EXIF data
     const timestamp = date.toISO()
+    const serializedExifData = serializeExifData(exifData)
+
     await db
       .update(media)
-      .set({ timestamp, deploymentID: deployment.deploymentID })
+      .set({
+        timestamp,
+        deploymentID: deployment.deploymentID,
+        exifData: serializedExifData
+      })
       .where(eq(media.mediaID, mediaRecord.mediaID))
 
     log.info(`Media ${mediaRecord.mediaID} associated with deployment ${deployment.deploymentID}`)

@@ -84,6 +84,8 @@ Media file metadata.
 | `fileName` | TEXT | | Original file name |
 | `importFolder` | TEXT | | Source import folder |
 | `folderName` | TEXT | | Subfolder name within import |
+| `fileMediatype` | TEXT | | IANA media type (e.g., `image/jpeg`, `video/mp4`) |
+| `exifData` | TEXT | JSON | EXIF/metadata as JSON (see below) |
 
 ```javascript
 export const media = sqliteTable('media', {
@@ -93,8 +95,41 @@ export const media = sqliteTable('media', {
   filePath: text('filePath'),
   fileName: text('fileName'),
   importFolder: text('importFolder'),
-  folderName: text('folderName')
+  folderName: text('folderName'),
+  fileMediatype: text('fileMediatype').default('image/jpeg'),
+  exifData: text('exifData', { mode: 'json' })
 })
+```
+
+#### exifData Field
+
+The `exifData` field stores extracted metadata as JSON. All Date values are serialized as ISO 8601 strings.
+
+**For images** (full EXIF extracted via exifr):
+```json
+{
+  "Make": "RECONYX",
+  "Model": "HP2X",
+  "DateTimeOriginal": "2024-03-20T14:30:15.000Z",
+  "ExposureTime": 0.004,
+  "FNumber": 2.8,
+  "ISO": 400,
+  "FocalLength": 3.1,
+  "latitude": 46.7712,
+  "longitude": 6.6413,
+  "GPSAltitude": 1250,
+  "ImageWidth": 3840,
+  "ImageHeight": 2160
+}
+```
+
+**For videos** (extracted from ML model response):
+```json
+{
+  "fps": 30,
+  "duration": 60.5,
+  "frameCount": 1815
+}
 ```
 
 ---
