@@ -109,11 +109,14 @@ describe('CamTrapDP NULL Foreign Keys Tests', () => {
       assert.equal(standaloneObs.length, 2, 'Should have 2 standalone observations')
 
       // Verify standalone observation details
-      const standalone = standaloneObs[0]
-      assert.equal(standalone.observationID, 'obs002', 'Should find standalone obs002')
-      assert.equal(standalone.commonName, 'Wild Boar', 'Standalone obs should have correct species')
+      const standalone1 = standaloneObs.find((o) => o.observationID === 'obs002')
+      const standalone2 = standaloneObs.find((o) => o.observationID === 'obs004')
+
+      assert(standalone1, 'Should find standalone obs002')
+      assert(standalone2, 'Should find standalone obs004')
+      assert.equal(standalone1.commonName, 'Wild Boar', 'Standalone obs should have correct species')
       assert.equal(
-        standalone.deploymentID,
+        standalone1.deploymentID,
         'deploy001',
         'Standalone obs can still have deploymentID'
       )
@@ -133,8 +136,8 @@ describe('CamTrapDP NULL Foreign Keys Tests', () => {
       assert.equal(noDeploymentObs.length, 2, 'Should have 2 observations without deploymentID')
 
       // Verify observation without deploymentID
-      const noDeployment = noDeploymentObs[0]
-      assert.equal(noDeployment.observationID, 'obs003', 'Should find obs003 without deploymentID')
+      const noDeployment = noDeploymentObs.find((o) => o.observationID === 'obs003')
+      assert(noDeployment, 'Should find obs003 without deploymentID')
       assert.equal(noDeployment.mediaID, 'media003', 'Should still have mediaID')
       assert.equal(noDeployment.commonName, 'Empty', 'Should have correct species data')
     })
