@@ -440,8 +440,8 @@ export default function Overview({ data, studyId, studyName }) {
         saveTitle()
       }
     }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
+    document.addEventListener('mousedown', handleClickOutside, true)  // capture phase
+    return () => document.removeEventListener('mousedown', handleClickOutside, true)
   }, [isEditingTitle, editedTitle, studyName])
 
   // Handle click outside to save and Escape key to cancel description editing
@@ -460,10 +460,10 @@ export default function Overview({ data, studyId, studyName }) {
       }
     }
 
-    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('mousedown', handleClickOutside, true)  // capture phase
     document.addEventListener('keydown', handleKeyDown)
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('mousedown', handleClickOutside, true)
       document.removeEventListener('keydown', handleKeyDown)
     }
   }, [isEditingDescription, editedDescription, data, studyId])
@@ -766,7 +766,7 @@ export default function Overview({ data, studyId, studyName }) {
         {/* Description with inline editing */}
         <div className="relative group">
           {isEditingDescription ? (
-            <div ref={descriptionEditRef} className="flex flex-col gap-2">
+            <div ref={descriptionEditRef}>
               <textarea
                 value={editedDescription}
                 onChange={(e) => setEditedDescription(e.target.value)}
@@ -775,22 +775,6 @@ export default function Overview({ data, studyId, studyName }) {
                 autoFocus
                 placeholder="Camera trap dataset containing deployment information, media files metadata, and species observations collected during wildlife monitoring."
               />
-              <div className="flex gap-1">
-                <button
-                  onClick={cancelEditingDescription}
-                  className="p-1 hover:bg-red-100 rounded text-red-600"
-                  title="Cancel (Escape)"
-                >
-                  <X size={16} />
-                </button>
-                <button
-                  onClick={saveDescription}
-                  className="p-1 hover:bg-green-100 rounded text-green-600"
-                  title="Save (Cmd+Enter)"
-                >
-                  <Check size={16} />
-                </button>
-              </div>
             </div>
           ) : (
             <>
