@@ -417,6 +417,8 @@ export default function Deployments({ studyId }) {
         console.log('Latitude updated successfully')
         // Invalidate the Overview tab's deployments cache so map updates
         queryClient.invalidateQueries({ queryKey: ['deployments', studyId] })
+        // Invalidate the Activity tab's heatmap cache so map updates
+        queryClient.invalidateQueries({ queryKey: ['heatmapData', studyId] })
       }
     } catch (error) {
       console.error('Error updating latitude:', error)
@@ -446,6 +448,8 @@ export default function Deployments({ studyId }) {
         console.log('Longitude updated successfully')
         // Invalidate the Overview tab's deployments cache so map updates
         queryClient.invalidateQueries({ queryKey: ['deployments', studyId] })
+        // Invalidate the Activity tab's heatmap cache so map updates
+        queryClient.invalidateQueries({ queryKey: ['heatmapData', studyId] })
       }
     } catch (error) {
       console.error('Error updating longitude:', error)
