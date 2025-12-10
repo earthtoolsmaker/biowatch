@@ -1,6 +1,7 @@
 import { Umzug, JSONStorage } from 'umzug'
 import { join } from 'path'
 import { fileSystemRestructureMigration } from './v1.0.15-filesystem-restructure.js'
+import { studyJsonToDbMigration } from './v1.0.16-study-json-to-db.js'
 
 /**
  * Create and configure Umzug instance for managing migrations
@@ -25,6 +26,21 @@ export function createUmzug(userDataPath, logger = console) {
             throw new Error(
               `Migration ${fileSystemRestructureMigration.version} does not support rollback`
             )
+          }
+        }
+      },
+      {
+        name: studyJsonToDbMigration.version,
+        async up({ context }) {
+          const { userDataPath } = context
+          await studyJsonToDbMigration.up(userDataPath)
+        },
+        async down({ context }) {
+          const { userDataPath } = context
+          if (studyJsonToDbMigration.down) {
+            await studyJsonToDbMigration.down(userDataPath)
+          } else {
+            throw new Error(`Migration ${studyJsonToDbMigration.version} does not support rollback`)
           }
         }
       }
