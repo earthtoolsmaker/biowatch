@@ -36,9 +36,7 @@ def crop_square_cv_to_pil(array_image: np.ndarray, xyxy: list[float]) -> Image.I
         x1 = x1 - int((ysize - xsize) / 2)
         x2 = x2 + int((ysize - xsize) / 2)
     height, width, _ = array_image.shape
-    croppedimagecv = array_image[
-        max(0, int(y1)) : min(int(y2), height), max(0, int(x1)) : min(int(x2), width)
-    ]
+    croppedimagecv = array_image[max(0, int(y1)) : min(int(y2), height), max(0, int(x1)) : min(int(x2), width)]
     return Image.fromarray(croppedimagecv[:, :, (2, 1, 0)])  # BGR to RGB
 
 
