@@ -420,10 +420,7 @@ export default function Overview({ data, studyId, studyName }) {
     if (editingContributorIndex === null) return
 
     const handleClickOutside = (e) => {
-      if (
-        editingContributorRef.current &&
-        !editingContributorRef.current.contains(e.target)
-      ) {
+      if (editingContributorRef.current && !editingContributorRef.current.contains(e.target)) {
         cancelEditingContributor()
       }
     }

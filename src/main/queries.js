@@ -607,7 +607,8 @@ export async function getMedia(dbPath, options = {}) {
       fileName: media.fileName,
       timestamp: media.timestamp,
       deploymentID: media.deploymentID,
-      scientificName: observations.scientificName
+      scientificName: observations.scientificName,
+      eventID: observations.eventID
     }
 
     // Branch 1: Direct mediaID link (for ML runs, Wildlife Insights, Deepfaune imports)
@@ -858,7 +859,10 @@ export async function insertObservations(manager, observationsData) {
             eventEnd: observation.eventEnd ? observation.eventEnd.toISO() : null,
             scientificName: observation.scientificName,
             commonName: observation.commonName,
-            classificationProbability: observation.classificationProbability !== undefined ? observation.classificationProbability : null,
+            classificationProbability:
+              observation.classificationProbability !== undefined
+                ? observation.classificationProbability
+                : null,
             count: observation.count !== undefined ? observation.count : null
           })
           .run()
@@ -1784,6 +1788,35 @@ export async function getDistinctSpecies(dbPath) {
     return rows
   } catch (error) {
     log.error(`Error querying distinct species: ${error.message}`)
+    throw error
+  }
+}
+
+/**
+ * Check if a study has observations with non-null eventIDs (imported from CamtrapDP)
+ * Used to determine default sequence grouping behavior in the UI
+ */
+export async function checkStudyHasEventIDs(dbPath) {
+  const startTime = Date.now()
+  log.info(`Checking if study has eventIDs: ${dbPath}`)
+
+  try {
+    const pathParts = dbPath.split('/')
+    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+    const db = await getDrizzleDb(studyId, dbPath)
+
+    const result = await db
+      .select({ eventID: observations.eventID })
+      .from(observations)
+      .where(and(isNotNull(observations.eventID), ne(observations.eventID, '')))
+      .limit(1)
+
+    const hasEventIDs = result.length > 0
+    const elapsedTime = Date.now() - startTime
+    log.info(`Study has eventIDs: ${hasEventIDs} (checked in ${elapsedTime}ms)`)
+    return hasEventIDs
+  } catch (error) {
+    log.error(`Error checking study eventIDs: ${error.message}`)
     throw error
   }
 }

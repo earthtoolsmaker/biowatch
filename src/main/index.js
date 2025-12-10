@@ -28,7 +28,8 @@ import {
   updateObservationBbox,
   deleteObservation,
   createObservation,
-  getDistinctSpecies
+  getDistinctSpecies,
+  checkStudyHasEventIDs
 } from './queries'
 import { Importer } from './importer' //required to register handlers
 import studies from './studies'
@@ -693,6 +694,23 @@ app.whenReady().then(async () => {
     } catch (error) {
       log.error('Error deleting study:', error)
       return { error: error.message, success: false }
+    }
+  })
+
+  // Check if study has observations with eventIDs (for sequence grouping default)
+  ipcMain.handle('study:has-event-ids', async (_, studyId) => {
+    try {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) {
+        log.warn(`Database not found for study ID: ${studyId}`)
+        return { data: false }
+      }
+
+      const hasEventIDs = await checkStudyHasEventIDs(dbPath)
+      return { data: hasEventIDs }
+    } catch (error) {
+      log.error('Error checking study eventIDs:', error)
+      return { error: error.message, data: false }
     }
   })
 
