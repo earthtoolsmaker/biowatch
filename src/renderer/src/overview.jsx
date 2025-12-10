@@ -16,6 +16,7 @@ import {
   MapPin
 } from 'lucide-react'
 import PlaceholderMap from './ui/PlaceholderMap'
+import BestMediaCarousel from './ui/BestMediaCarousel'
 import { useImportStatus } from '@renderer/hooks/import'
 import { useQueryClient, useQuery, useQueries } from '@tanstack/react-query'
 import DateTimePicker from './ui/DateTimePicker'
@@ -867,7 +868,7 @@ export default function Overview({ data, studyId, studyName }) {
             <div
               key={index}
               ref={editingContributorIndex === index ? editingContributorRef : null}
-              className="flex flex-col flex-shrink-0 w-64 p-4 border border-gray-200 rounded-md shadow-sm bg-white group relative"
+              className="flex flex-col flex-shrink-0 w-48 p-3 border border-gray-200 rounded-lg shadow-sm bg-white group relative"
               onKeyDown={
                 editingContributorIndex === index
                   ? (e) => {
@@ -995,7 +996,7 @@ export default function Overview({ data, studyId, studyName }) {
           {isAddingContributor ? (
             <div
               ref={addContributorRef}
-              className="flex flex-col flex-shrink-0 w-64 p-4 border border-gray-200 rounded-md shadow-sm bg-white"
+              className="flex flex-col flex-shrink-0 w-48 p-3 border border-gray-200 rounded-lg shadow-sm bg-white"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault()
@@ -1063,7 +1064,7 @@ export default function Overview({ data, studyId, studyName }) {
           ) : (
             <button
               onClick={() => setIsAddingContributor(true)}
-              className="flex flex-col items-center justify-center flex-shrink-0 w-64 p-4 border border-dashed border-gray-300 rounded-md bg-gray-50 hover:bg-gray-100 hover:border-gray-400 transition-colors"
+              className="flex flex-col items-center justify-center flex-shrink-0 w-48 h-36 border border-dashed border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 hover:border-gray-400 transition-colors"
             >
               <Plus size={24} className="text-gray-400" />
               <span className="text-sm text-gray-500 mt-1">Add contributor</span>
@@ -1071,6 +1072,9 @@ export default function Overview({ data, studyId, studyName }) {
           )}
         </div>
       </div>
+
+      {/* Best Media Carousel */}
+      <BestMediaCarousel studyId={studyId} />
 
       {error ? (
         <div className="text-red-500 py-4">Error: {error}</div>

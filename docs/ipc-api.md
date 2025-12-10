@@ -87,7 +87,18 @@ const { data, error } = await window.api.getMedia(studyId, { limit: 100 })
 | `getMediaBboxes(studyId, mediaID)` | `media:get-bboxes` | studyId, mediaID | `{ data: Bbox[] }` |
 | `getMediaBboxesBatch(studyId, mediaIDs)` | `media:get-bboxes-batch` | studyId, mediaID[] | `{ data: Map<mediaID, Bbox[]> }` |
 | `checkMediaHaveBboxes(studyId, mediaIDs)` | `media:have-bboxes` | studyId, mediaID[] | `{ data: boolean }` |
+| `getBestMedia(studyId, options)` | `media:get-best` | studyId, { limit? } | `{ data: ScoredMedia[] }` |
 | `setMediaTimestamp(studyId, mediaID, timestamp)` | `media:set-timestamp` | studyId, mediaID, timestamp | `{ success: boolean }` |
+
+**Best Media Scoring:**
+The `getBestMedia` endpoint returns media files scored by a bbox quality heuristic. Higher scores indicate better wildlife captures. The scoring formula prioritizes:
+- **Bbox area (30%)**: Sweet spot is 10-60% of image area
+- **Fully visible (25%)**: Bbox not cut off at edges
+- **Padding (20%)**: Distance from bbox to nearest edge
+- **Detection confidence (15%)**: Model confidence in bbox detection
+- **Classification confidence (10%)**: Model confidence in species ID
+
+Returns images only (excludes videos), filtered to those with valid bbox data.
 
 ### Files
 
