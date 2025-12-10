@@ -2095,17 +2095,37 @@ function Gallery({ species, dateRange, timeRange }) {
   const loaderRef = useRef(null)
   const PAGE_SIZE = 15
 
-  // Grid controls state
-  const [showThumbnailBboxes, setShowThumbnailBboxes] = useState(false)
-  const [gridColumns, setGridColumns] = useState(3)
-  const [controlsExpanded, setControlsExpanded] = useState(false)
-
   // Sequence grouping state
   const [currentSequence, setCurrentSequence] = useState(null)
   const [currentSequenceIndex, setCurrentSequenceIndex] = useState(0)
 
   const { id } = useParams()
   const queryClient = useQueryClient()
+
+  // Grid controls state - persisted per study in localStorage
+  const showBboxesKey = `showBboxes:${id}`
+  const [showThumbnailBboxes, setShowThumbnailBboxes] = useState(() => {
+    const saved = localStorage.getItem(showBboxesKey)
+    return saved !== null ? JSON.parse(saved) : false
+  })
+
+  const gridColumnsKey = `gridColumns:${id}`
+  const [gridColumns, setGridColumns] = useState(() => {
+    const saved = localStorage.getItem(gridColumnsKey)
+    return saved !== null ? Number(saved) : 3
+  })
+
+  const [controlsExpanded, setControlsExpanded] = useState(false)
+
+  // Persist showThumbnailBboxes to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem(showBboxesKey, JSON.stringify(showThumbnailBboxes))
+  }, [showThumbnailBboxes, showBboxesKey])
+
+  // Persist gridColumns to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem(gridColumnsKey, gridColumns.toString())
+  }, [gridColumns, gridColumnsKey])
 
   // Check if study has observations with eventIDs (for default slider value)
   const { data: hasEventIDs = false } = useQuery({
