@@ -485,8 +485,16 @@ describe('Database Schema and Integrity Tests', () => {
       const perfectConf = results.find((o) => o.observationID === 'conf001')
       const zeroConf = results.find((o) => o.observationID === 'conf002')
 
-      assert.equal(perfectConf.classificationProbability, 1.0, 'Should handle maximum classificationProbability')
-      assert.equal(zeroConf.classificationProbability, 0.0, 'Should handle minimum classificationProbability')
+      assert.equal(
+        perfectConf.classificationProbability,
+        1.0,
+        'Should handle maximum classificationProbability'
+      )
+      assert.equal(
+        zeroConf.classificationProbability,
+        0.0,
+        'Should handle minimum classificationProbability'
+      )
     })
 
     test('should handle timestamp precision and edge cases', async () => {
@@ -583,7 +591,11 @@ describe('Database Schema and Integrity Tests', () => {
 
       assert(nullObservation, 'Should find observation with null values')
       assert.equal(nullObservation.scientificName, null, 'Scientific name should be null')
-      assert.equal(nullObservation.classificationProbability, null, 'ClassificationProbability should be null')
+      assert.equal(
+        nullObservation.classificationProbability,
+        null,
+        'ClassificationProbability should be null'
+      )
       assert.equal(nullObservation.count, 0, 'Count should be zero')
     })
 

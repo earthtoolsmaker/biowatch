@@ -245,6 +245,10 @@ Export Request
 - `includeMedia` - Copy media files to export
 - `selectedSpecies` - Filter to specific species
 - `includeBlank` - Include blank observations
+- `sequenceGap` - Sequence grouping gap in seconds (default: 0)
+  - When `0` (Off): Preserves existing `eventID`, `eventStart`, `eventEnd` from database (imported values)
+  - When `> 0`: Generates new sequences by grouping observations within the gap threshold per deployment
+  - Generated eventID format: `{deploymentID}_seq_{paddedIndex}` (e.g., `CAM001_seq_0001`)
 
 **Output structure:**
 ```

@@ -1,5 +1,15 @@
 import { useState, useEffect } from 'react'
-import { X } from 'lucide-react'
+import { X, Layers } from 'lucide-react'
+
+/**
+ * Format sequence gap value for display
+ */
+function formatGapValue(seconds) {
+  if (seconds === 0) return 'Off'
+  if (seconds < 60) return `${seconds}s`
+  if (seconds < 120) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
+  return `${Math.round(seconds / 60)}m`
+}
 
 function CamtrapDPExportModal({ isOpen, onConfirm, onCancel, studyId }) {
   const [includeMedia, setIncludeMedia] = useState(true)
@@ -8,6 +18,13 @@ function CamtrapDPExportModal({ isOpen, onConfirm, onCancel, studyId }) {
   const [includeBlank, setIncludeBlank] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+
+  // Sequence gap state - initialized from localStorage
+  const sequenceGapKey = `sequenceGap:${studyId}`
+  const [sequenceGap, setSequenceGap] = useState(() => {
+    const saved = localStorage.getItem(sequenceGapKey)
+    return saved !== null ? Number(saved) : 120 // Default 2 minutes
+  })
 
   // Fetch species list when modal opens
   useEffect(() => {
@@ -51,7 +68,8 @@ function CamtrapDPExportModal({ isOpen, onConfirm, onCancel, studyId }) {
     onConfirm({
       includeMedia,
       selectedSpecies: Array.from(selectedSpecies),
-      includeBlank
+      includeBlank,
+      sequenceGap
     })
   }
 
@@ -176,6 +194,38 @@ function CamtrapDPExportModal({ isOpen, onConfirm, onCancel, studyId }) {
                 </p>
               </div>
             </label>
+          </div>
+
+          {/* Sequence Gap Slider */}
+          <div className="px-6 py-3 border-t border-gray-100">
+            <div className="p-2">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Layers
+                    size={16}
+                    className={sequenceGap > 0 ? 'text-blue-500' : 'text-gray-400'}
+                  />
+                  <span className="text-sm font-medium text-gray-900">Sequence grouping</span>
+                </div>
+                <span className="text-sm font-medium text-blue-600">
+                  {formatGapValue(sequenceGap)}
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="300"
+                step="10"
+                value={sequenceGap}
+                onChange={(e) => setSequenceGap(Number(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
+              />
+              <p className="text-xs text-gray-500 mt-2">
+                {sequenceGap === 0
+                  ? 'Preserves imported event groupings (eventID from original data)'
+                  : `Groups observations within ${formatGapValue(sequenceGap)} into sequences (generates new eventIDs)`}
+              </p>
+            </div>
           </div>
 
           <div className="px-6 py-3 border-t border-gray-100">
