@@ -730,20 +730,6 @@ export default function Overview({ data, studyId, studyName }) {
                 className="max-w-prose text-balance font-medium capitalize bg-transparent border-b-2 border-blue-500 focus:outline-none"
                 autoFocus
               />
-              <button
-                onClick={saveTitle}
-                className="p-1 hover:bg-green-100 rounded text-green-600"
-                title="Save"
-              >
-                <Check size={16} />
-              </button>
-              <button
-                onClick={cancelEditingTitle}
-                className="p-1 hover:bg-red-100 rounded text-red-600"
-                title="Cancel"
-              >
-                <X size={16} />
-              </button>
             </div>
           ) : (
             <>
