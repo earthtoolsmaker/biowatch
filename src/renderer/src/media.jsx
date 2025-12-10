@@ -1674,23 +1674,54 @@ function GalleryControls({
 
 /**
  * SVG overlay showing bboxes on a thumbnail
- * Receives bbox data as prop from parent (batch fetched at Gallery level)
+ * Handles letterboxing by calculating actual image bounds within the container.
+ * Receives bbox data and refs as props from parent.
  */
-function ThumbnailBboxOverlay({ bboxes }) {
-  if (!bboxes || bboxes.length === 0) return null
+function ThumbnailBboxOverlay({ bboxes, imageRef, containerRef }) {
+  const [imageBounds, setImageBounds] = useState(null)
+
+  useEffect(() => {
+    const updateBounds = () => {
+      if (imageRef?.current && containerRef?.current) {
+        setImageBounds(getImageBounds(imageRef.current, containerRef.current))
+      }
+    }
+
+    updateBounds()
+
+    // Update on resize
+    const resizeObserver = new ResizeObserver(updateBounds)
+    if (containerRef?.current) {
+      resizeObserver.observe(containerRef.current)
+    }
+
+    // Update when image loads
+    const img = imageRef?.current
+    if (img) {
+      img.addEventListener('load', updateBounds)
+    }
+
+    return () => {
+      resizeObserver.disconnect()
+      if (img) {
+        img.removeEventListener('load', updateBounds)
+      }
+    }
+  }, [imageRef, containerRef])
+
+  if (!bboxes?.length || !imageBounds) return null
+
+  const { offsetX, offsetY, renderedWidth, renderedHeight } = imageBounds
 
   return (
-    <svg
-      className="absolute inset-0 w-full h-full pointer-events-none z-10"
-      preserveAspectRatio="none"
-    >
+    <svg className="absolute inset-0 w-full h-full pointer-events-none z-10">
       {bboxes.map((bbox, index) => (
         <rect
           key={bbox.observationID || index}
-          x={`${bbox.bboxX * 100}%`}
-          y={`${bbox.bboxY * 100}%`}
-          width={`${bbox.bboxWidth * 100}%`}
-          height={`${bbox.bboxHeight * 100}%`}
+          x={offsetX + bbox.bboxX * renderedWidth}
+          y={offsetY + bbox.bboxY * renderedHeight}
+          width={bbox.bboxWidth * renderedWidth}
+          height={bbox.bboxHeight * renderedHeight}
           stroke="#84cc16"
           strokeWidth="2"
           fill="none"
@@ -1718,6 +1749,9 @@ function ThumbnailCard({
   const isVideo = isVideoMedia(media)
   const [thumbnailUrl, setThumbnailUrl] = useState(null)
   const [isExtractingThumbnail, setIsExtractingThumbnail] = useState(false)
+  const [isImageLoading, setIsImageLoading] = useState(true)
+  const imageRef = useRef(null)
+  const containerRef = useRef(null)
 
   // Extract thumbnail for videos that need transcoding
   useEffect(() => {
@@ -1762,71 +1796,87 @@ function ThumbnailCard({
 
   return (
     <div
-      className={`border border-gray-300 rounded-lg overflow-hidden min-w-[150px] ${widthClass} flex flex-col h-max transition-all`}
+      className={`border border-gray-300 rounded-lg overflow-hidden min-w-[150px] ${widthClass} flex flex-col transition-all`}
     >
       <div
-        className="relative bg-gray-100 flex items-center justify-center cursor-pointer hover:bg-gray-200 transition-colors overflow-hidden min-h-20"
+        ref={containerRef}
+        className="relative bg-black flex items-center justify-center cursor-pointer hover:bg-gray-900 transition-colors overflow-hidden aspect-[4/3]"
         onClick={() => onImageClick(media)}
       >
-        <div className="relative w-full min-h-20">
-          {isVideo ? (
-            <>
-              {/* Video placeholder background - always visible */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-200 text-gray-500 min-h-20">
-                {isExtractingThumbnail ? (
-                  <>
-                    <Loader2 size={32} className="animate-spin" />
-                    <span className="text-xs mt-1">Loading...</span>
-                  </>
-                ) : (
-                  <>
-                    <Play size={32} />
-                    <span className="text-xs mt-1">Video</span>
-                  </>
-                )}
-              </div>
-              {/* Show extracted thumbnail for unsupported formats */}
-              {thumbnailUrl ? (
-                <img
-                  src={thumbnailUrl}
-                  alt={media.fileName || `Video ${media.mediaID}`}
-                  className="relative z-10 w-full h-auto min-h-20 object-contain"
-                  loading="lazy"
-                />
+        {isVideo ? (
+          <>
+            {/* Video placeholder background - always visible */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-800 text-gray-400">
+              {isExtractingThumbnail ? (
+                <>
+                  <Loader2 size={32} className="animate-spin" />
+                  <span className="text-xs mt-1">Loading...</span>
+                </>
               ) : (
-                /* Video element - overlays placeholder when it loads successfully */
-                <video
-                  src={constructImageUrl(media.filePath)}
-                  className={`relative z-10 w-full h-auto min-h-20 object-contain bg-black ${imageErrors[media.mediaID] ? 'hidden' : ''}`}
-                  onError={() => setImageErrors((prev) => ({ ...prev, [media.mediaID]: true }))}
-                  muted
-                  preload="metadata"
-                />
+                <>
+                  <Play size={32} />
+                  <span className="text-xs mt-1">Video</span>
+                </>
               )}
-              {/* Video indicator badge */}
-              <div className="absolute bottom-2 right-2 z-20 bg-black/70 text-white px-1.5 py-0.5 rounded text-xs flex items-center gap-1">
-                <Play size={12} />
+            </div>
+            {/* Show extracted thumbnail for unsupported formats */}
+            {thumbnailUrl ? (
+              <img
+                ref={imageRef}
+                src={thumbnailUrl}
+                alt={media.fileName || `Video ${media.mediaID}`}
+                className="relative z-10 w-full h-full object-contain"
+                loading="lazy"
+              />
+            ) : (
+              /* Video element - overlays placeholder when it loads successfully */
+              <video
+                ref={imageRef}
+                src={constructImageUrl(media.filePath)}
+                className={`relative z-10 w-full h-full object-contain ${imageErrors[media.mediaID] ? 'hidden' : ''}`}
+                onError={() => setImageErrors((prev) => ({ ...prev, [media.mediaID]: true }))}
+                muted
+                preload="metadata"
+              />
+            )}
+            {/* Video indicator badge */}
+            <div className="absolute bottom-2 right-2 z-20 bg-black/70 text-white px-1.5 py-0.5 rounded text-xs flex items-center gap-1">
+              <Play size={12} />
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Loading placeholder for images */}
+            {isImageLoading && !imageErrors[media.mediaID] && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black text-gray-400 z-0">
+                <Loader2 size={32} className="animate-spin" />
               </div>
-            </>
-          ) : (
+            )}
             <img
+              ref={imageRef}
               src={constructImageUrl(media.filePath)}
               alt={media.fileName || `Media ${media.mediaID}`}
               data-image={media.filePath}
-              className={`w-full h-auto min-h-20 object-contain ${imageErrors[media.mediaID] ? 'hidden' : ''}`}
-              onError={() => setImageErrors((prev) => ({ ...prev, [media.mediaID]: true }))}
+              className={`w-full h-full object-contain ${imageErrors[media.mediaID] ? 'hidden' : ''} ${isImageLoading ? 'opacity-0' : 'opacity-100'} transition-opacity duration-200`}
+              onLoad={() => setIsImageLoading(false)}
+              onError={() => {
+                setImageErrors((prev) => ({ ...prev, [media.mediaID]: true }))
+                setIsImageLoading(false)
+              }}
               loading="lazy"
             />
-          )}
+          </>
+        )}
 
-          {/* Bbox overlay - only for images */}
-          {showBboxes && !isVideo && <ThumbnailBboxOverlay bboxes={bboxes} />}
-        </div>
+        {/* Bbox overlay - only for images */}
+        {showBboxes && !isVideo && (
+          <ThumbnailBboxOverlay bboxes={bboxes} imageRef={imageRef} containerRef={containerRef} />
+        )}
 
         {/* Image error fallback - only for non-video */}
         {!isVideo && imageErrors[media.mediaID] && (
           <div
-            className="absolute inset-0 flex flex-col items-center justify-center bg-gray-200 text-gray-500"
+            className="absolute inset-0 flex flex-col items-center justify-center bg-gray-800 text-gray-400"
             title="Image not available"
           >
             <CameraOff size={32} />
@@ -1863,6 +1913,9 @@ function SequenceCard({
   const [isHovering, setIsHovering] = useState(false)
   const [videoThumbnails, setVideoThumbnails] = useState({}) // Map of mediaID -> thumbnailUrl
   const [extractingThumbnails, setExtractingThumbnails] = useState({})
+  const [loadedImages, setLoadedImages] = useState({}) // Map of mediaID -> loaded status
+  const imageRef = useRef(null)
+  const containerRef = useRef(null)
 
   const itemCount = sequence.items.length
   // Guard against currentIndex being out of bounds (can happen when sequence changes)
@@ -1954,7 +2007,7 @@ function SequenceCard({
 
   return (
     <div
-      className={`border border-gray-300 rounded-lg overflow-hidden min-w-[150px] ${widthClass} flex flex-col h-max transition-all relative group`}
+      className={`border border-gray-300 rounded-lg overflow-hidden min-w-[150px] ${widthClass} flex flex-col transition-all relative group`}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => {
         setIsHovering(false)
@@ -1972,71 +2025,89 @@ function SequenceCard({
 
       {/* Media container */}
       <div
-        className="relative bg-gray-100 flex items-center justify-center cursor-pointer hover:bg-gray-200 transition-colors overflow-hidden min-h-20"
+        ref={containerRef}
+        className="relative bg-black flex items-center justify-center cursor-pointer hover:bg-gray-900 transition-colors overflow-hidden aspect-[4/3]"
         onClick={handleClick}
       >
-        <div className="relative w-full min-h-20">
-          {isVideo ? (
-            <>
-              {/* Video placeholder background - always visible */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-200 text-gray-500 min-h-20">
-                {isExtractingCurrentThumbnail ? (
-                  <>
-                    <Loader2 size={32} className="animate-spin" />
-                    <span className="text-xs mt-1">Loading...</span>
-                  </>
-                ) : (
-                  <>
-                    <Play size={32} />
-                    <span className="text-xs mt-1">Video</span>
-                  </>
-                )}
-              </div>
-              {/* Show extracted thumbnail for unsupported formats */}
-              {currentThumbnailUrl ? (
-                <img
-                  src={currentThumbnailUrl}
-                  alt={currentMedia.fileName || `Video ${currentMedia.mediaID}`}
-                  className="relative z-10 w-full h-auto min-h-20 object-contain transition-opacity duration-300"
-                  loading="lazy"
-                />
+        {isVideo ? (
+          <>
+            {/* Video placeholder background - always visible */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-800 text-gray-400">
+              {isExtractingCurrentThumbnail ? (
+                <>
+                  <Loader2 size={32} className="animate-spin" />
+                  <span className="text-xs mt-1">Loading...</span>
+                </>
               ) : (
-                /* Video element - overlays placeholder when it loads successfully */
-                <video
-                  src={constructImageUrl(currentMedia.filePath)}
-                  className={`relative z-10 w-full h-auto min-h-20 object-contain bg-black transition-opacity duration-300 ${imageErrors[currentMedia.mediaID] ? 'hidden' : ''}`}
-                  onError={() =>
-                    setImageErrors((prev) => ({ ...prev, [currentMedia.mediaID]: true }))
-                  }
-                  muted
-                  preload="metadata"
-                />
+                <>
+                  <Play size={32} />
+                  <span className="text-xs mt-1">Video</span>
+                </>
               )}
-              {/* Video indicator badge */}
-              <div className="absolute bottom-2 right-2 z-20 bg-black/70 text-white px-1.5 py-0.5 rounded text-xs flex items-center gap-1">
-                <Play size={12} />
+            </div>
+            {/* Show extracted thumbnail for unsupported formats */}
+            {currentThumbnailUrl ? (
+              <img
+                ref={imageRef}
+                src={currentThumbnailUrl}
+                alt={currentMedia.fileName || `Video ${currentMedia.mediaID}`}
+                className="relative z-10 w-full h-full object-contain transition-opacity duration-300"
+                loading="lazy"
+              />
+            ) : (
+              /* Video element - overlays placeholder when it loads successfully */
+              <video
+                ref={imageRef}
+                src={constructImageUrl(currentMedia.filePath)}
+                className={`relative z-10 w-full h-full object-contain transition-opacity duration-300 ${imageErrors[currentMedia.mediaID] ? 'hidden' : ''}`}
+                onError={() =>
+                  setImageErrors((prev) => ({ ...prev, [currentMedia.mediaID]: true }))
+                }
+                muted
+                preload="metadata"
+              />
+            )}
+            {/* Video indicator badge */}
+            <div className="absolute bottom-2 right-2 z-20 bg-black/70 text-white px-1.5 py-0.5 rounded text-xs flex items-center gap-1">
+              <Play size={12} />
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Loading placeholder for images */}
+            {!loadedImages[currentMedia.mediaID] && !imageErrors[currentMedia.mediaID] && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black text-gray-400 z-0">
+                <Loader2 size={32} className="animate-spin" />
               </div>
-            </>
-          ) : (
+            )}
             <img
+              ref={imageRef}
               src={constructImageUrl(currentMedia.filePath)}
               alt={currentMedia.fileName || `Media ${currentMedia.mediaID}`}
-              className={`w-full h-auto min-h-20 object-contain transition-opacity duration-300 ${imageErrors[currentMedia.mediaID] ? 'hidden' : ''}`}
-              onError={() => setImageErrors((prev) => ({ ...prev, [currentMedia.mediaID]: true }))}
+              className={`w-full h-full object-contain transition-opacity duration-300 ${imageErrors[currentMedia.mediaID] ? 'hidden' : ''} ${!loadedImages[currentMedia.mediaID] ? 'opacity-0' : 'opacity-100'}`}
+              onLoad={() => setLoadedImages((prev) => ({ ...prev, [currentMedia.mediaID]: true }))}
+              onError={() => {
+                setImageErrors((prev) => ({ ...prev, [currentMedia.mediaID]: true }))
+                setLoadedImages((prev) => ({ ...prev, [currentMedia.mediaID]: true }))
+              }}
               loading="lazy"
             />
-          )}
+          </>
+        )}
 
-          {/* Bbox overlay for current image - only for images */}
-          {showBboxes && !isVideo && (
-            <ThumbnailBboxOverlay bboxes={bboxesByMedia[currentMedia.mediaID] || []} />
-          )}
-        </div>
+        {/* Bbox overlay for current image - only for images */}
+        {showBboxes && !isVideo && (
+          <ThumbnailBboxOverlay
+            bboxes={bboxesByMedia[currentMedia.mediaID] || []}
+            imageRef={imageRef}
+            containerRef={containerRef}
+          />
+        )}
 
         {/* Image error fallback - only for non-video */}
         {!isVideo && imageErrors[currentMedia.mediaID] && (
           <div
-            className="absolute inset-0 flex flex-col items-center justify-center bg-gray-200 text-gray-500"
+            className="absolute inset-0 flex flex-col items-center justify-center bg-gray-800 text-gray-400"
             title="Image not available"
           >
             <CameraOff size={32} />
