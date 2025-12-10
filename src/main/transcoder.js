@@ -325,13 +325,12 @@ export async function transcodeVideo(studyId, inputPath, onProgress = () => {}, 
       '-i',
       inputPath,
       '-c:v',
-      'libx264', // H.264 video codec
+      'libx264', // H.264 video codec (browser compatible)
       '-preset',
-      'fast', // Good speed/quality balance
+      'medium', // Better compression than 'fast' (~10-15% smaller files)
       '-crf',
-      '23', // Quality level (lower = better, 23 is default)
-      '-c:a',
-      'aac', // AAC audio codec
+      '28', // Higher CRF for review purposes (~50% smaller than CRF 23)
+      '-an', // Strip audio (not needed for camera trap review)
       '-movflags',
       '+faststart', // Optimize for web playback
       '-y', // Overwrite output
