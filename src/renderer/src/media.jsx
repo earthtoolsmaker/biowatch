@@ -536,7 +536,7 @@ function ImageModal({
         }
 
         // Check if we have a cached transcoded version
-        const cachedPath = await window.api.transcode.getCached(media.filePath)
+        const cachedPath = await window.api.transcode.getCached(studyId, media.filePath)
         console.log('cachedPath:', cachedPath)
 
         if (cancelled) return
@@ -562,7 +562,7 @@ function ImageModal({
         })
 
         // Start transcoding
-        const result = await window.api.transcode.start(media.filePath)
+        const result = await window.api.transcode.start(studyId, media.filePath)
         console.log('Transcoding result:', result)
 
         if (cancelled) return
@@ -599,7 +599,7 @@ function ImageModal({
         window.api.transcode.cancel(media.filePath)
       }
     }
-  }, [isOpen, media?.mediaID, media?.filePath, isVideoMedia])
+  }, [isOpen, media, isVideoMedia, studyId])
 
   // Compute selector position when a bbox is selected AND species selector should be shown
   useEffect(() => {
@@ -1712,7 +1712,8 @@ function ThumbnailCard({
   showBboxes,
   bboxes,
   widthClass,
-  isVideoMedia
+  isVideoMedia,
+  studyId
 }) {
   const isVideo = isVideoMedia(media)
   const [thumbnailUrl, setThumbnailUrl] = useState(null)
@@ -1720,7 +1721,7 @@ function ThumbnailCard({
 
   // Extract thumbnail for videos that need transcoding
   useEffect(() => {
-    if (!isVideo || !media?.filePath) return
+    if (!isVideo || !media?.filePath || !studyId) return
 
     let cancelled = false
 
@@ -1731,7 +1732,7 @@ function ThumbnailCard({
         if (!needsTranscode || cancelled) return
 
         // Check for cached thumbnail first
-        const cached = await window.api.thumbnail.getCached(media.filePath)
+        const cached = await window.api.thumbnail.getCached(studyId, media.filePath)
         if (cached && !cancelled) {
           setThumbnailUrl(constructImageUrl(cached))
           return
@@ -1739,7 +1740,7 @@ function ThumbnailCard({
 
         // Extract thumbnail
         setIsExtractingThumbnail(true)
-        const result = await window.api.thumbnail.extract(media.filePath)
+        const result = await window.api.thumbnail.extract(studyId, media.filePath)
         if (result.success && !cancelled) {
           setThumbnailUrl(constructImageUrl(result.path))
         }
@@ -1757,7 +1758,7 @@ function ThumbnailCard({
     return () => {
       cancelled = true
     }
-  }, [isVideo, media?.filePath, media?.mediaID, constructImageUrl])
+  }, [isVideo, media?.filePath, media?.mediaID, constructImageUrl, studyId])
 
   return (
     <div
@@ -1855,7 +1856,8 @@ function SequenceCard({
   bboxesByMedia,
   widthClass,
   cycleInterval = 1000,
-  isVideoMedia
+  isVideoMedia,
+  studyId
 }) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isHovering, setIsHovering] = useState(false)
@@ -1870,6 +1872,8 @@ function SequenceCard({
 
   // Extract thumbnails for videos that need transcoding
   useEffect(() => {
+    if (!studyId) return
+
     let cancelled = false
 
     const extractThumbnails = async () => {
@@ -1881,7 +1885,7 @@ function SequenceCard({
           if (!needsTranscode || cancelled) continue
 
           // Check for cached thumbnail first
-          const cached = await window.api.thumbnail.getCached(media.filePath)
+          const cached = await window.api.thumbnail.getCached(studyId, media.filePath)
           if (cached && !cancelled) {
             setVideoThumbnails((prev) => ({ ...prev, [media.mediaID]: constructImageUrl(cached) }))
             continue
@@ -1889,7 +1893,7 @@ function SequenceCard({
 
           // Extract thumbnail
           setExtractingThumbnails((prev) => ({ ...prev, [media.mediaID]: true }))
-          const result = await window.api.thumbnail.extract(media.filePath)
+          const result = await window.api.thumbnail.extract(studyId, media.filePath)
           if (result.success && !cancelled) {
             setVideoThumbnails((prev) => ({
               ...prev,
@@ -1911,7 +1915,7 @@ function SequenceCard({
     return () => {
       cancelled = true
     }
-  }, [sequence.id, sequence.items, constructImageUrl, isVideoMedia])
+  }, [sequence.id, sequence.items, constructImageUrl, isVideoMedia, studyId])
 
   // Auto-cycle effect - only runs when hovering
   useEffect(() => {
@@ -2413,6 +2417,7 @@ function Gallery({ species, dateRange, timeRange }) {
                   bboxesByMedia={bboxesByMedia}
                   widthClass={thumbnailWidthClass}
                   isVideoMedia={isVideoMedia}
+                  studyId={id}
                 />
               )
             }
@@ -2431,6 +2436,7 @@ function Gallery({ species, dateRange, timeRange }) {
                 bboxes={bboxesByMedia[media.mediaID] || []}
                 widthClass={thumbnailWidthClass}
                 isVideoMedia={isVideoMedia}
+                studyId={id}
               />
             )
           })}

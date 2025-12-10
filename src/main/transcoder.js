@@ -20,11 +20,32 @@ const BROWSER_COMPATIBLE_FORMATS = new Set(['.mp4', '.webm', '.ogg', '.ogv'])
 // Formats that need transcoding
 const TRANSCODE_FORMATS = new Set(['.avi', '.mkv', '.mov', '.m4v', '.wmv', '.flv', '.3gp'])
 
-// Cache directory for transcoded videos
-const TRANSCODE_CACHE_DIR = join(app.getPath('userData'), 'biowatch-data', 'transcode-cache')
+/**
+ * Get the cache directory for a specific study.
+ * @param {string} studyId - The study ID
+ * @returns {string} Path to the study's cache directory
+ */
+function getStudyCacheDir(studyId) {
+  return join(app.getPath('userData'), 'biowatch-data', 'studies', studyId, 'cache')
+}
 
-// Cache directory for video thumbnails
-const THUMBNAIL_CACHE_DIR = join(app.getPath('userData'), 'biowatch-data', 'thumbnail-cache')
+/**
+ * Get the transcode cache directory for a specific study.
+ * @param {string} studyId - The study ID
+ * @returns {string} Path to the study's transcode cache directory
+ */
+function getTranscodeCacheDir(studyId) {
+  return join(getStudyCacheDir(studyId), 'transcodes')
+}
+
+/**
+ * Get the thumbnail cache directory for a specific study.
+ * @param {string} studyId - The study ID
+ * @returns {string} Path to the study's thumbnail cache directory
+ */
+function getThumbnailCacheDir(studyId) {
+  return join(getStudyCacheDir(studyId), 'thumbnails')
+}
 
 // Active transcoding jobs (for progress tracking and cancellation)
 const activeJobs = new Map()
@@ -62,76 +83,85 @@ function getCacheKey(filePath) {
 
 /**
  * Get the cache path for a transcoded video.
+ * @param {string} studyId - The study ID
  * @param {string} filePath - Original video file path
  * @returns {string} Path to the cached transcoded file
  */
-export function getTranscodedPath(filePath) {
+export function getTranscodedPath(studyId, filePath) {
   const cacheKey = getCacheKey(filePath)
   const originalName = basename(filePath, extname(filePath))
-  return join(TRANSCODE_CACHE_DIR, `${cacheKey}_${originalName}.mp4`)
+  return join(getTranscodeCacheDir(studyId), `${cacheKey}_${originalName}.mp4`)
 }
 
 /**
  * Check if a transcoded version exists in cache.
+ * @param {string} studyId - The study ID
  * @param {string} filePath - Original video file path
  * @returns {string|null} Path to cached file if exists, null otherwise
  */
-export function getCachedTranscode(filePath) {
-  const transcodedPath = getTranscodedPath(filePath)
+export function getCachedTranscode(studyId, filePath) {
+  const transcodedPath = getTranscodedPath(studyId, filePath)
   return existsSync(transcodedPath) ? transcodedPath : null
 }
 
 /**
- * Ensure the cache directory exists.
+ * Ensure the transcode cache directory exists for a study.
+ * @param {string} studyId - The study ID
  */
-function ensureCacheDir() {
-  if (!existsSync(TRANSCODE_CACHE_DIR)) {
-    mkdirSync(TRANSCODE_CACHE_DIR, { recursive: true })
-    log.info(`[Transcoder] Created cache directory: ${TRANSCODE_CACHE_DIR}`)
+function ensureCacheDir(studyId) {
+  const transcodeCacheDir = getTranscodeCacheDir(studyId)
+  if (!existsSync(transcodeCacheDir)) {
+    mkdirSync(transcodeCacheDir, { recursive: true })
+    log.info(`[Transcoder] Created transcode cache directory: ${transcodeCacheDir}`)
   }
 }
 
 /**
- * Ensure the thumbnail cache directory exists.
+ * Ensure the thumbnail cache directory exists for a study.
+ * @param {string} studyId - The study ID
  */
-function ensureThumbnailCacheDir() {
-  if (!existsSync(THUMBNAIL_CACHE_DIR)) {
-    mkdirSync(THUMBNAIL_CACHE_DIR, { recursive: true })
-    log.info(`[Transcoder] Created thumbnail cache directory: ${THUMBNAIL_CACHE_DIR}`)
+function ensureThumbnailCacheDir(studyId) {
+  const thumbnailCacheDir = getThumbnailCacheDir(studyId)
+  if (!existsSync(thumbnailCacheDir)) {
+    mkdirSync(thumbnailCacheDir, { recursive: true })
+    log.info(`[Transcoder] Created thumbnail cache directory: ${thumbnailCacheDir}`)
   }
 }
 
 /**
  * Get the cache path for a video thumbnail.
+ * @param {string} studyId - The study ID
  * @param {string} filePath - Original video file path
  * @returns {string} Path to the cached thumbnail file
  */
-export function getThumbnailPath(filePath) {
+export function getThumbnailPath(studyId, filePath) {
   const cacheKey = getCacheKey(filePath)
   const originalName = basename(filePath, extname(filePath))
-  return join(THUMBNAIL_CACHE_DIR, `${cacheKey}_${originalName}.jpg`)
+  return join(getThumbnailCacheDir(studyId), `${cacheKey}_${originalName}.jpg`)
 }
 
 /**
  * Check if a cached thumbnail exists for a video.
+ * @param {string} studyId - The study ID
  * @param {string} filePath - Original video file path
  * @returns {string|null} Path to cached thumbnail if exists, null otherwise
  */
-export function getCachedThumbnail(filePath) {
-  const thumbnailPath = getThumbnailPath(filePath)
+export function getCachedThumbnail(studyId, filePath) {
+  const thumbnailPath = getThumbnailPath(studyId, filePath)
   return existsSync(thumbnailPath) ? thumbnailPath : null
 }
 
 /**
  * Extract a thumbnail from a video using FFmpeg.
  * Extracts the first frame (or frame at 1 second for longer videos).
+ * @param {string} studyId - The study ID
  * @param {string} inputPath - Path to video file
  * @returns {Promise<string>} Path to extracted thumbnail
  */
-export async function extractThumbnail(inputPath) {
-  ensureThumbnailCacheDir()
+export async function extractThumbnail(studyId, inputPath) {
+  ensureThumbnailCacheDir(studyId)
 
-  const outputPath = getThumbnailPath(inputPath)
+  const outputPath = getThumbnailPath(studyId, inputPath)
 
   // Check if already cached
   if (existsSync(outputPath)) {
@@ -267,15 +297,16 @@ async function getVideoDuration(filePath) {
 
 /**
  * Transcode a video to browser-compatible MP4 format.
+ * @param {string} studyId - The study ID
  * @param {string} inputPath - Path to input video
  * @param {function} onProgress - Progress callback (percentage 0-100)
  * @param {AbortSignal} signal - Optional abort signal for cancellation
  * @returns {Promise<string>} Path to transcoded file
  */
-export async function transcodeVideo(inputPath, onProgress = () => {}, signal = null) {
-  ensureCacheDir()
+export async function transcodeVideo(studyId, inputPath, onProgress = () => {}, signal = null) {
+  ensureCacheDir(studyId)
 
-  const outputPath = getTranscodedPath(inputPath)
+  const outputPath = getTranscodedPath(studyId, inputPath)
 
   // Check if already cached
   if (existsSync(outputPath)) {
@@ -398,23 +429,26 @@ export function cancelTranscode(filePath) {
 }
 
 /**
- * Get cache statistics.
+ * Get cache statistics for a study.
+ * @param {string} studyId - The study ID
  * @returns {{ size: number, count: number }} Cache size in bytes and file count
  */
-export function getCacheStats() {
-  ensureCacheDir()
+export function getCacheStats(studyId) {
+  const transcodeCacheDir = getTranscodeCacheDir(studyId)
 
   let totalSize = 0
   let count = 0
 
   try {
-    const files = readdirSync(TRANSCODE_CACHE_DIR)
-    for (const file of files) {
-      if (file.endsWith('.mp4')) {
-        const filePath = join(TRANSCODE_CACHE_DIR, file)
-        const stats = statSync(filePath)
-        totalSize += stats.size
-        count++
+    if (existsSync(transcodeCacheDir)) {
+      const files = readdirSync(transcodeCacheDir)
+      for (const file of files) {
+        if (file.endsWith('.mp4')) {
+          const filePath = join(transcodeCacheDir, file)
+          const stats = statSync(filePath)
+          totalSize += stats.size
+          count++
+        }
       }
     }
   } catch (e) {
@@ -425,16 +459,18 @@ export function getCacheStats() {
 }
 
 /**
- * Clear the entire transcode cache.
+ * Clear the transcode cache for a study.
+ * @param {string} studyId - The study ID
  * @returns {{ cleared: number, freedBytes: number }} Number of files cleared and bytes freed
  */
-export function clearCache() {
-  const stats = getCacheStats()
+export function clearCache(studyId) {
+  const transcodeCacheDir = getTranscodeCacheDir(studyId)
+  const stats = getCacheStats(studyId)
 
   try {
-    if (existsSync(TRANSCODE_CACHE_DIR)) {
-      rmSync(TRANSCODE_CACHE_DIR, { recursive: true, force: true })
-      mkdirSync(TRANSCODE_CACHE_DIR, { recursive: true })
+    if (existsSync(transcodeCacheDir)) {
+      rmSync(transcodeCacheDir, { recursive: true, force: true })
+      mkdirSync(transcodeCacheDir, { recursive: true })
     }
   } catch (e) {
     log.error(`[Transcoder] Error clearing cache: ${e.message}`)
@@ -447,22 +483,22 @@ export function clearCache() {
  * Register IPC handlers for transcoding operations.
  */
 export function registerTranscodeIPCHandlers() {
-  // Check if transcoding is needed for a file
+  // Check if transcoding is needed for a file (no studyId needed - only checks extension)
   ipcMain.handle('transcode:needs-transcoding', (event, filePath) => {
     return needsTranscoding(filePath)
   })
 
   // Check if a cached version exists
-  ipcMain.handle('transcode:get-cached', (event, filePath) => {
-    return getCachedTranscode(filePath)
+  ipcMain.handle('transcode:get-cached', (event, studyId, filePath) => {
+    return getCachedTranscode(studyId, filePath)
   })
 
   // Start transcoding with progress updates
-  ipcMain.handle('transcode:start', async (event, filePath) => {
+  ipcMain.handle('transcode:start', async (event, studyId, filePath) => {
     const sender = event.sender
 
     try {
-      const transcodedPath = await transcodeVideo(filePath, (progress) => {
+      const transcodedPath = await transcodeVideo(studyId, filePath, (progress) => {
         // Send progress update to renderer
         if (!sender.isDestroyed()) {
           sender.send('transcode:progress', { filePath, progress })
@@ -475,30 +511,30 @@ export function registerTranscodeIPCHandlers() {
     }
   })
 
-  // Cancel an active transcode
+  // Cancel an active transcode (no studyId needed - uses filePath for job lookup)
   ipcMain.handle('transcode:cancel', (event, filePath) => {
     return cancelTranscode(filePath)
   })
 
-  // Get cache statistics
-  ipcMain.handle('transcode:cache-stats', () => {
-    return getCacheStats()
+  // Get cache statistics for a study
+  ipcMain.handle('transcode:cache-stats', (event, studyId) => {
+    return getCacheStats(studyId)
   })
 
-  // Clear the cache
-  ipcMain.handle('transcode:clear-cache', () => {
-    return clearCache()
+  // Clear the cache for a study
+  ipcMain.handle('transcode:clear-cache', (event, studyId) => {
+    return clearCache(studyId)
   })
 
   // Get cached thumbnail for a video
-  ipcMain.handle('thumbnail:get-cached', (event, filePath) => {
-    return getCachedThumbnail(filePath)
+  ipcMain.handle('thumbnail:get-cached', (event, studyId, filePath) => {
+    return getCachedThumbnail(studyId, filePath)
   })
 
   // Extract thumbnail from video
-  ipcMain.handle('thumbnail:extract', async (event, filePath) => {
+  ipcMain.handle('thumbnail:extract', async (event, studyId, filePath) => {
     try {
-      const thumbnailPath = await extractThumbnail(filePath)
+      const thumbnailPath = await extractThumbnail(studyId, filePath)
       return { success: true, path: thumbnailPath }
     } catch (error) {
       return { success: false, error: error.message }

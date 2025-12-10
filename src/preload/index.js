@@ -228,24 +228,24 @@ const api = {
       return await electronAPI.ipcRenderer.invoke('transcode:needs-transcoding', filePath)
     },
     // Get cached transcoded version if it exists
-    getCached: async (filePath) => {
-      return await electronAPI.ipcRenderer.invoke('transcode:get-cached', filePath)
+    getCached: async (studyId, filePath) => {
+      return await electronAPI.ipcRenderer.invoke('transcode:get-cached', studyId, filePath)
     },
     // Start transcoding a video file
-    start: async (filePath) => {
-      return await electronAPI.ipcRenderer.invoke('transcode:start', filePath)
+    start: async (studyId, filePath) => {
+      return await electronAPI.ipcRenderer.invoke('transcode:start', studyId, filePath)
     },
     // Cancel an active transcode
     cancel: async (filePath) => {
       return await electronAPI.ipcRenderer.invoke('transcode:cancel', filePath)
     },
-    // Get cache statistics
-    getCacheStats: async () => {
-      return await electronAPI.ipcRenderer.invoke('transcode:cache-stats')
+    // Get cache statistics for a study
+    getCacheStats: async (studyId) => {
+      return await electronAPI.ipcRenderer.invoke('transcode:cache-stats', studyId)
     },
-    // Clear the transcode cache
-    clearCache: async () => {
-      return await electronAPI.ipcRenderer.invoke('transcode:clear-cache')
+    // Clear the transcode cache for a study
+    clearCache: async (studyId) => {
+      return await electronAPI.ipcRenderer.invoke('transcode:clear-cache', studyId)
     },
     // Listen for transcode progress updates
     onProgress: (callback) => {
@@ -258,12 +258,12 @@ const api = {
   // Video thumbnail extraction
   thumbnail: {
     // Get cached thumbnail for a video file if it exists
-    getCached: async (filePath) => {
-      return await electronAPI.ipcRenderer.invoke('thumbnail:get-cached', filePath)
+    getCached: async (studyId, filePath) => {
+      return await electronAPI.ipcRenderer.invoke('thumbnail:get-cached', studyId, filePath)
     },
     // Extract thumbnail from video file (extracts first frame)
-    extract: async (filePath) => {
-      return await electronAPI.ipcRenderer.invoke('thumbnail:extract', filePath)
+    extract: async (studyId, filePath) => {
+      return await electronAPI.ipcRenderer.invoke('thumbnail:extract', studyId, filePath)
     }
   }
 }

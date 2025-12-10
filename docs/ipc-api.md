@@ -143,17 +143,27 @@ const { data, error } = await window.api.getMedia(studyId, { limit: 100 })
 | Method | Channel | Parameters | Returns |
 |--------|---------|------------|---------|
 | `transcode.needsTranscoding(filePath)` | `transcode:needs-transcoding` | filePath | `boolean` |
-| `transcode.getCached(filePath)` | `transcode:get-cached` | filePath | `string \| null` (cached path) |
-| `transcode.start(filePath)` | `transcode:start` | filePath | `{ success, path? } \| { success: false, error }` |
+| `transcode.getCached(studyId, filePath)` | `transcode:get-cached` | studyId, filePath | `string \| null` (cached path) |
+| `transcode.start(studyId, filePath)` | `transcode:start` | studyId, filePath | `{ success, path? } \| { success: false, error }` |
 | `transcode.cancel(filePath)` | `transcode:cancel` | filePath | `boolean` |
-| `transcode.getCacheStats()` | `transcode:cache-stats` | - | `{ size: number, count: number }` |
-| `transcode.clearCache()` | `transcode:clear-cache` | - | `{ cleared: number, freedBytes: number }` |
+| `transcode.getCacheStats(studyId)` | `transcode:cache-stats` | studyId | `{ size: number, count: number }` |
+| `transcode.clearCache(studyId)` | `transcode:clear-cache` | studyId | `{ cleared: number, freedBytes: number }` |
 | `transcode.onProgress(callback)` | `transcode:progress` | callback function | unsubscribe function |
+
+### Video Thumbnails
+
+| Method | Channel | Parameters | Returns |
+|--------|---------|------------|---------|
+| `thumbnail.getCached(studyId, filePath)` | `thumbnail:get-cached` | studyId, filePath | `string \| null` (cached path) |
+| `thumbnail.extract(studyId, filePath)` | `thumbnail:extract` | studyId, filePath | `{ success, path? } \| { success: false, error }` |
 
 **Notes:**
 - Transcoding converts unsupported video formats (AVI, MKV, MOV, etc.) to browser-playable MP4 (H.264)
 - Uses bundled FFmpeg via `ffmpeg-static` npm package
-- Transcoded files are cached in `~/.config/biowatch/biowatch-data/transcode-cache/`
+- **Per-study caching:** Transcoded files and thumbnails are cached within each study folder:
+  - Transcodes: `studies/{studyId}/cache/transcodes/`
+  - Thumbnails: `studies/{studyId}/cache/thumbnails/`
+- When a study is deleted, its cache is automatically cleaned up
 - Cache key is SHA256 hash of (filePath + mtime) to detect file changes
 
 **Progress event:**
