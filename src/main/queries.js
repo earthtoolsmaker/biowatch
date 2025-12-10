@@ -1831,3 +1831,141 @@ export async function checkStudyHasEventIDs(dbPath) {
     throw error
   }
 }
+
+/**
+ * Get "best" media files scored by bbox quality heuristic.
+ * Prioritizes images with large, fully-visible bboxes with good padding.
+ *
+ * Scoring formula (weights):
+ * - 30%: Bbox area (sweet spot 10-60% of image)
+ * - 25%: Fully visible (not cut off at edges)
+ * - 20%: Padding (distance to nearest edge)
+ * - 15%: Detection confidence
+ * - 10%: Classification probability
+ *
+ * @param {string} dbPath - Path to the SQLite database
+ * @param {Object} options - Query options
+ * @param {number} options.limit - Maximum number of media to return (default: 12)
+ * @returns {Promise<Array>} - Media files with scores, sorted by score descending
+ */
+export async function getBestMedia(dbPath, options = {}) {
+  const { limit = 12 } = options
+  const startTime = Date.now()
+  log.info(`Querying best media from: ${dbPath}`)
+
+  try {
+    const pathParts = dbPath.split('/')
+    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+
+    // Use raw SQL for complex scoring calculation
+    const query = `
+      WITH scored_observations AS (
+        SELECT
+          o.mediaID,
+          o.observationID,
+          o.scientificName,
+          o.bboxX,
+          o.bboxY,
+          o.bboxWidth,
+          o.bboxHeight,
+          o.detectionConfidence,
+          o.classificationProbability,
+          -- Calculate bbox area
+          (o.bboxWidth * o.bboxHeight) as bboxArea,
+          -- Check if fully visible (1 = yes, 0 = no)
+          CASE WHEN o.bboxX >= 0 AND o.bboxY >= 0
+               AND (o.bboxX + o.bboxWidth) <= 1.0
+               AND (o.bboxY + o.bboxHeight) <= 1.0
+          THEN 1.0 ELSE 0.0 END as isFullyVisible,
+          -- Calculate padding (minimum distance to any edge)
+          MIN(o.bboxX, o.bboxY, 1.0 - o.bboxX - o.bboxWidth, 1.0 - o.bboxY - o.bboxHeight) as padding
+        FROM observations o
+        INNER JOIN media m ON o.mediaID = m.mediaID
+        WHERE o.bboxX IS NOT NULL
+          AND o.bboxWidth IS NOT NULL
+          AND o.bboxWidth > 0
+          AND o.bboxHeight > 0
+          AND o.scientificName IS NOT NULL
+          AND o.scientificName != ''
+          -- Exclude videos (images only)
+          AND (m.fileMediatype IS NULL OR m.fileMediatype NOT LIKE 'video/%')
+          -- Exclude blanks
+          AND (o.observationType IS NULL OR o.observationType != 'blank')
+          -- Exclude humans/persons (case-insensitive)
+          AND LOWER(o.scientificName) NOT IN ('homo sapiens', 'human', 'person', 'people')
+          AND LOWER(o.scientificName) NOT LIKE '%human%'
+          AND LOWER(o.scientificName) NOT LIKE '%person%'
+          -- Exclude vehicles
+          AND LOWER(o.scientificName) NOT IN ('vehicle', 'car', 'truck', 'motorcycle', 'bike', 'bicycle')
+          AND LOWER(o.scientificName) NOT LIKE '%vehicle%'
+      ),
+      scored_with_formula AS (
+        SELECT
+          *,
+          -- Final composite score
+          (
+            -- Area component (30%) - sweet spot 10-60%
+            CASE
+              WHEN bboxArea < 0.05 THEN bboxArea / 0.05 * 0.3
+              WHEN bboxArea < 0.10 THEN 0.3 + (bboxArea - 0.05) / 0.05 * 0.3
+              WHEN bboxArea <= 0.60 THEN 0.6 + (bboxArea - 0.10) / 0.50 * 0.4
+              WHEN bboxArea <= 0.90 THEN 1.0 - (bboxArea - 0.60) / 0.30 * 0.3
+              ELSE 0.7 - (bboxArea - 0.90) / 0.10 * 0.4
+            END * 0.30
+            -- Visibility component (25%)
+            + isFullyVisible * 0.25
+            -- Padding component (20%), capped at padding >= 0.20
+            + MIN(MAX(padding, 0) * 5, 1.0) * 0.20
+            -- Detection confidence (15%)
+            + COALESCE(detectionConfidence, 0.5) * 0.15
+            -- Classification probability (10%)
+            + COALESCE(classificationProbability, 0.5) * 0.10
+          ) as compositeScore
+        FROM scored_observations
+      ),
+      -- Get best observation per media (avoid duplicates)
+      best_per_media AS (
+        SELECT
+          mediaID,
+          observationID,
+          scientificName,
+          bboxX, bboxY, bboxWidth, bboxHeight,
+          detectionConfidence, classificationProbability,
+          compositeScore,
+          ROW_NUMBER() OVER (PARTITION BY mediaID ORDER BY compositeScore DESC) as rn
+        FROM scored_with_formula
+      )
+      SELECT
+        m.mediaID,
+        m.filePath,
+        m.fileName,
+        m.timestamp,
+        m.deploymentID,
+        m.fileMediatype,
+        b.observationID,
+        b.scientificName,
+        b.bboxX,
+        b.bboxY,
+        b.bboxWidth,
+        b.bboxHeight,
+        b.detectionConfidence,
+        b.classificationProbability,
+        b.compositeScore
+      FROM best_per_media b
+      INNER JOIN media m ON b.mediaID = m.mediaID
+      WHERE b.rn = 1
+      ORDER BY b.compositeScore DESC
+      LIMIT ?
+    `
+
+    const results = await executeRawQuery(studyId, dbPath, query, [limit])
+
+    const elapsedTime = Date.now() - startTime
+    log.info(`Retrieved ${results.length} best media in ${elapsedTime}ms`)
+
+    return results
+  } catch (error) {
+    log.error(`Error querying best media: ${error.message}`)
+    throw error
+  }
+}

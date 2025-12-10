@@ -29,7 +29,8 @@ import {
   deleteObservation,
   createObservation,
   getDistinctSpecies,
-  checkStudyHasEventIDs
+  checkStudyHasEventIDs,
+  getBestMedia
 } from './queries'
 import './importer.js' // Side-effect: registers IPC handlers
 import './studies.js' // Side-effect: registers IPC handlers
@@ -852,6 +853,23 @@ app.whenReady().then(async () => {
       return { data: hasBboxes }
     } catch (error) {
       log.error('Error checking media bboxes existence:', error)
+      return { error: error.message }
+    }
+  })
+
+  // Get best media files scored by bbox quality heuristic
+  ipcMain.handle('media:get-best', async (_, studyId, options = {}) => {
+    try {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) {
+        log.warn(`Database not found for study ID: ${studyId}`)
+        return { error: 'Database not found for this study' }
+      }
+
+      const bestMedia = await getBestMedia(dbPath, options)
+      return { data: bestMedia }
+    } catch (error) {
+      log.error('Error getting best media:', error)
       return { error: error.message }
     }
   })
