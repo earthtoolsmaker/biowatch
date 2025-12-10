@@ -440,7 +440,7 @@ export default function Overview({ data, studyId, studyName }) {
         saveTitle()
       }
     }
-    document.addEventListener('mousedown', handleClickOutside, true)  // capture phase
+    document.addEventListener('mousedown', handleClickOutside, true) // capture phase
     return () => document.removeEventListener('mousedown', handleClickOutside, true)
   }, [isEditingTitle, editedTitle, studyName])
 
@@ -460,7 +460,7 @@ export default function Overview({ data, studyId, studyName }) {
       }
     }
 
-    document.addEventListener('mousedown', handleClickOutside, true)  // capture phase
+    document.addEventListener('mousedown', handleClickOutside, true) // capture phase
     document.addEventListener('keydown', handleKeyDown)
     return () => {
       document.removeEventListener('mousedown', handleClickOutside, true)
