@@ -11,8 +11,12 @@ import { createHash } from 'crypto'
 import { app, ipcMain } from 'electron'
 import log from 'electron-log'
 import { existsSync, mkdirSync, statSync, readdirSync, unlinkSync, rmSync } from 'fs'
+import { readdir, stat as statAsync, unlink } from 'fs/promises'
 import { join, basename, extname } from 'path'
 import ffmpegPath from 'ffmpeg-static'
+
+// Cache expiration in milliseconds (30 days)
+const CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000
 
 // Browser-compatible video formats (don't need transcoding)
 const BROWSER_COMPATIBLE_FORMATS = new Set(['.mp4', '.webm', '.ogg', '.ogv'])
@@ -476,6 +480,85 @@ export function clearCache(studyId) {
   }
 
   return { cleared: stats.count, freedBytes: stats.size }
+}
+
+/**
+ * Helper to yield to event loop between operations.
+ * Prevents blocking the main thread during cache cleanup.
+ */
+function yieldToEventLoop() {
+  return new Promise((resolve) => setImmediate(resolve))
+}
+
+/**
+ * Clean expired transcode cache files across all studies.
+ * Runs asynchronously in background without blocking app startup.
+ * Deletes .mp4 files older than CACHE_MAX_AGE_MS (30 days).
+ */
+export async function cleanExpiredTranscodeCache() {
+  const studiesPath = join(app.getPath('userData'), 'biowatch-data', 'studies')
+  const now = Date.now()
+  let deletedCount = 0
+  let freedBytes = 0
+
+  try {
+    // Check if studies directory exists
+    try {
+      await statAsync(studiesPath)
+    } catch {
+      return // No studies directory yet
+    }
+
+    // Get all study directories
+    const entries = await readdir(studiesPath, { withFileTypes: true })
+    const studyDirs = entries.filter((dirent) => dirent.isDirectory()).map((dirent) => dirent.name)
+
+    for (const studyId of studyDirs) {
+      const transcodeCacheDir = getTranscodeCacheDir(studyId)
+
+      // Check if cache dir exists
+      try {
+        await statAsync(transcodeCacheDir)
+      } catch {
+        continue // No cache for this study
+      }
+
+      const files = await readdir(transcodeCacheDir)
+
+      for (const file of files) {
+        if (!file.endsWith('.mp4')) continue
+
+        const filePath = join(transcodeCacheDir, file)
+
+        try {
+          const fileStat = await statAsync(filePath)
+          const age = now - fileStat.mtime.getTime()
+
+          if (age > CACHE_MAX_AGE_MS) {
+            freedBytes += fileStat.size
+            await unlink(filePath)
+            deletedCount++
+
+            // Yield to event loop after each deletion to avoid blocking
+            await yieldToEventLoop()
+          }
+        } catch {
+          // File may have been deleted or inaccessible, skip
+        }
+      }
+
+      // Small yield between studies to spread I/O load
+      await yieldToEventLoop()
+    }
+
+    if (deletedCount > 0) {
+      log.info(
+        `[Transcoder] Cache cleanup: deleted ${deletedCount} expired files, freed ${(freedBytes / 1024 / 1024).toFixed(2)} MB`
+      )
+    }
+  } catch (e) {
+    log.error(`[Transcoder] Error during cache cleanup: ${e.message}`)
+  }
 }
 
 /**

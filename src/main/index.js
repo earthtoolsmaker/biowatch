@@ -38,7 +38,7 @@ import { importDeepfauneDataset } from './deepfaune'
 import { extractZip, downloadFile } from './download'
 import migrations from './migrations/index.js'
 import { registerExportIPCHandlers } from './export.js'
-import { registerTranscodeIPCHandlers } from './transcoder.js'
+import { registerTranscodeIPCHandlers, cleanExpiredTranscodeCache } from './transcoder.js'
 
 // Configure electron-log
 log.transports.file.level = 'info'
@@ -391,6 +391,9 @@ app.whenReady().then(async () => {
 
   // Garbage collect stale ML Models and environments
   garbageCollect()
+
+  // Clean expired transcode cache in background (fire-and-forget, don't await)
+  cleanExpiredTranscodeCache()
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
