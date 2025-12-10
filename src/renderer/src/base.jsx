@@ -1,11 +1,12 @@
-import { FolderOpen, Plus, Settings } from 'lucide-react'
+import { FolderOpen, Pencil, Plus, Settings, Trash2 } from 'lucide-react'
 import { ErrorBoundary } from 'react-error-boundary'
 import { HashRouter, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import Import from './import'
 import Study from './study'
 import SettingsPage from './settings'
-import { useEffect } from 'react'
+import DeleteStudyModal from './DeleteStudyModal'
+import { useEffect, useState, useRef } from 'react'
 
 // Create a client outside the component to avoid recreation
 const queryClient = new QueryClient({
@@ -87,6 +88,13 @@ function AppContent() {
   const navigate = useNavigate()
   const location = useLocation()
 
+  // Context menu state
+  const [contextMenu, setContextMenu] = useState(null) // { study, x, y }
+  const [renamingStudyId, setRenamingStudyId] = useState(null)
+  const [renameValue, setRenameValue] = useState('')
+  const [deleteModalStudy, setDeleteModalStudy] = useState(null)
+  const renameInputRef = useRef(null)
+
   const { data: studies = [], isLoading } = useQuery({
     queryKey: ['studies'],
     queryFn: async () => {
@@ -167,6 +175,88 @@ function AppContent() {
     queryClient.invalidateQueries(['studies'])
   }
 
+  // Context menu handlers
+  const handleContextMenu = (e, study) => {
+    e.preventDefault()
+    setContextMenu({ study, x: e.clientX, y: e.clientY })
+  }
+
+  const closeContextMenu = () => {
+    setContextMenu(null)
+  }
+
+  // Close context menu on click outside or Escape
+  useEffect(() => {
+    if (!contextMenu) return
+
+    const handleClickOutside = () => closeContextMenu()
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') closeContextMenu()
+    }
+
+    document.addEventListener('click', handleClickOutside)
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.removeEventListener('click', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [contextMenu])
+
+  // Rename handlers
+  const startRename = (study) => {
+    closeContextMenu()
+    setRenamingStudyId(study.id)
+    setRenameValue(study.name)
+  }
+
+  const cancelRename = () => {
+    setRenamingStudyId(null)
+    setRenameValue('')
+  }
+
+  const saveRename = async () => {
+    const study = studies.find((s) => s.id === renamingStudyId)
+    if (renameValue.trim() && renameValue.trim() !== study?.name) {
+      await window.api.updateStudy(renamingStudyId, { name: renameValue.trim() })
+      queryClient.invalidateQueries(['studies'])
+    }
+    cancelRename()
+  }
+
+  const handleRenameKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      saveRename()
+    } else if (e.key === 'Escape') {
+      cancelRename()
+    }
+  }
+
+  // Focus rename input when it appears
+  useEffect(() => {
+    if (renamingStudyId && renameInputRef.current) {
+      renameInputRef.current.focus()
+      renameInputRef.current.select()
+    }
+  }, [renamingStudyId])
+
+  // Delete handlers
+  const startDelete = (study) => {
+    closeContextMenu()
+    setDeleteModalStudy(study)
+  }
+
+  const confirmDelete = async () => {
+    if (deleteModalStudy) {
+      await window.api.deleteStudyDatabase(deleteModalStudy.id)
+      setDeleteModalStudy(null)
+    }
+  }
+
+  const cancelDelete = () => {
+    setDeleteModalStudy(null)
+  }
+
   return (
     <div className={`relative flex h-svh flex-row`}>
       <div className="w-52 h-full p-2 fixed">
@@ -193,15 +283,27 @@ function AppContent() {
             </div>
             <ul className="border-l mx-3.5 border-gray-200 flex w-full flex-col gap-2 px-1.5 py-0.5 text-[hsl(var(--sidebar-foreground))]">
               {studies.map((study) => (
-                <li key={study.id}>
-                  <NavLink
-                    to={`/study/${study.id}`}
-                    className={({ isActive }) =>
-                      `break-anywhere flex w-full items-center text-sm hover:bg-gray-100 rounded-md px-2 py-1 ${isActive ? 'font-semibold' : ''}`
-                    }
-                  >
-                    {study.name}
-                  </NavLink>
+                <li key={study.id} onContextMenu={(e) => handleContextMenu(e, study)}>
+                  {renamingStudyId === study.id ? (
+                    <input
+                      ref={renameInputRef}
+                      type="text"
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onKeyDown={handleRenameKeyDown}
+                      onBlur={saveRename}
+                      className="w-full text-sm rounded-md px-2 py-1 border border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  ) : (
+                    <NavLink
+                      to={`/study/${study.id}`}
+                      className={({ isActive }) =>
+                        `break-anywhere flex w-full items-center text-sm hover:bg-gray-100 rounded-md px-2 py-1 ${isActive ? 'font-semibold' : ''}`
+                      }
+                    >
+                      {study.name}
+                    </NavLink>
+                  )}
                 </li>
               ))}
             </ul>
@@ -228,6 +330,38 @@ function AppContent() {
           </Routes>
         </div>
       </main>
+
+      {/* Context Menu */}
+      {contextMenu && (
+        <div
+          className="fixed z-50 bg-white rounded-md shadow-lg border border-gray-200 py-1 min-w-[140px]"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => startRename(contextMenu.study)}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 text-left"
+          >
+            <Pencil size={14} />
+            Rename
+          </button>
+          <button
+            onClick={() => startDelete(contextMenu.study)}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-gray-100 text-left"
+          >
+            <Trash2 size={14} />
+            Delete
+          </button>
+        </div>
+      )}
+
+      {/* Delete Study Modal */}
+      <DeleteStudyModal
+        isOpen={deleteModalStudy !== null}
+        onConfirm={confirmDelete}
+        onCancel={cancelDelete}
+        studyName={deleteModalStudy?.name}
+      />
     </div>
   )
 }
