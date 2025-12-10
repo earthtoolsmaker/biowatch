@@ -143,6 +143,10 @@ from ultralytics import YOLO
 
 from video_utils import VideoCapableLitAPI, is_video_file
 
+# Configure logging for diagnostic output
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
+
 # Constants
 CROP_SIZE = 480  # EfficientNet V2 Large default input size
 BACKBONE = "tf_efficientnetv2_l"  # timm model name for EfficientNet V2 Large
@@ -520,7 +524,9 @@ def predict(
 
     # Crop and classify
     xyxy = selected_detection_record["xyxy"]
-    imagecv = cv2.imdecode(np.fromfile(filepath, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
+    # Use IMREAD_COLOR to ensure we always get a 3-channel BGR image
+    # (IMREAD_UNCHANGED can return grayscale for some images, causing shape errors)
+    imagecv = cv2.imdecode(np.fromfile(filepath, dtype=np.uint8), cv2.IMREAD_COLOR)
     croppedimage = crop_square_cv_to_pil(imagecv, xyxy)
     cropped_tensor = model.classifier.preprocess_image(croppedimage)
     scores = model.classifier.predict(cropped_tensor)
@@ -716,7 +722,13 @@ class ManasLitAPI(ls.LitAPI, VideoCapableLitAPI):
         For images: Runs inference directly.
         For videos: Extracts frames at sample_fps and runs inference on each.
         """
-        yield from self.predict_with_video_support(x, **kwargs)
+        instances = x.get("instances", [])
+        logger.info(f"[Manas] Processing {len(instances)} instances")
+        try:
+            yield from self.predict_with_video_support(x, **kwargs)
+        except Exception as e:
+            logger.error(f"[Manas] Prediction failed: {e}", exc_info=True)
+            raise
 
     def encode_response(self, output, **kwargs):
         """

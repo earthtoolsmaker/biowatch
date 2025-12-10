@@ -6,6 +6,7 @@ including frame extraction, metadata retrieval, and a mixin class for adding
 video support to LitServe APIs.
 """
 
+import logging
 import os
 import tempfile
 from abc import ABC, abstractmethod
@@ -14,6 +15,9 @@ from pathlib import Path
 from typing import Any
 
 import cv2
+
+# Configure logging for diagnostic output
+logger = logging.getLogger(__name__)
 
 # Video file extensions supported by Biowatch
 VIDEO_EXTENSIONS = {".mp4", ".mkv", ".mov", ".webm", ".avi", ".m4v"}
@@ -174,8 +178,11 @@ class VideoCapableLitAPI(ABC):
         """
         # Get video metadata once
         metadata = get_video_metadata(video_path)
+        logger.info(f"[Video] Processing {video_path} ({metadata['duration']:.1f}s at {sample_fps} fps)")
 
+        frame_count = 0
         for frame_number, frame in extract_frames_at_fps(video_path, sample_fps):
+            frame_count += 1
             # Save frame to temp file for model inference
             with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
                 temp_path = tmp.name
@@ -198,3 +205,5 @@ class VideoCapableLitAPI(ABC):
                 # Clean up temp file
                 if os.path.exists(temp_path):
                     os.unlink(temp_path)
+
+        logger.info(f"[Video] Completed {frame_count} frames from {video_path}")

@@ -138,6 +138,10 @@ from ultralytics import YOLO
 
 from video_utils import VideoCapableLitAPI, is_video_file
 
+# Configure logging for diagnostic output
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
+
 CROP_SIZE = 182
 BACKBONE = "vit_large_patch14_dinov2.lvd142m"
 CLASS_LABEL_MAPPING = {
@@ -573,7 +577,9 @@ def predict(
 
     else:
         xyxy = selected_detection_record["xyxy"]
-        imagecv = cv2.imdecode(np.fromfile(filepath, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
+        # Use IMREAD_COLOR to ensure we always get a 3-channel BGR image
+        # (IMREAD_UNCHANGED can return grayscale for some images, causing shape errors)
+        imagecv = cv2.imdecode(np.fromfile(filepath, dtype=np.uint8), cv2.IMREAD_COLOR)
         croppedimage = crop_square_cv_to_pil(imagecv, xyxy)
         cropped_tensor = torch.ones((1, 3, crop_size, crop_size))
         cropped_tensor[0, :, :, :] = model.classifier.preprocess_image(croppedimage)
@@ -721,7 +727,13 @@ class DeepFauneLitAPI(ls.LitAPI, VideoCapableLitAPI):
         For images: Runs inference directly.
         For videos: Extracts frames at sample_fps and runs inference on each.
         """
-        yield from self.predict_with_video_support(x, **kwargs)
+        instances = x.get("instances", [])
+        logger.info(f"[DeepFaune] Processing {len(instances)} instances")
+        try:
+            yield from self.predict_with_video_support(x, **kwargs)
+        except Exception as e:
+            logger.error(f"[DeepFaune] Prediction failed: {e}", exc_info=True)
+            raise
 
     def encode_response(self, output, **kwargs):
         for out in output:
