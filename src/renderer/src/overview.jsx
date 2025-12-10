@@ -444,7 +444,7 @@ export default function Overview({ data, studyId, studyName }) {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [isEditingTitle, editedTitle, studyName])
 
-  // Handle click outside to save and close description editing
+  // Handle click outside to save and Escape key to cancel description editing
   useEffect(() => {
     if (!isEditingDescription) return
 
@@ -453,9 +453,20 @@ export default function Overview({ data, studyId, studyName }) {
         saveDescription()
       }
     }
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        cancelEditingDescription()
+      }
+    }
+
     document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [isEditingDescription, editedDescription, data])
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isEditingDescription, editedDescription, data, studyId])
 
   const scrollContributors = (direction) => {
     if (!contributorsRef.current) return
