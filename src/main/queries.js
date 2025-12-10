@@ -608,6 +608,7 @@ export async function getMedia(dbPath, options = {}) {
       timestamp: media.timestamp,
       deploymentID: media.deploymentID,
       scientificName: observations.scientificName,
+      fileMediatype: media.fileMediatype,
       eventID: observations.eventID
     }
 
@@ -1048,7 +1049,12 @@ export async function getFilesData(dbPath) {
       .select({
         folderName: media.folderName,
         importFolder: media.importFolder,
-        imageCount: count(media.mediaID).as('imageCount'),
+        imageCount: count(sql`CASE WHEN ${media.fileMediatype} NOT LIKE 'video/%' THEN 1 END`).as(
+          'imageCount'
+        ),
+        videoCount: count(sql`CASE WHEN ${media.fileMediatype} LIKE 'video/%' THEN 1 END`).as(
+          'videoCount'
+        ),
         processedCount: count(observations.observationID).as('processedCount'),
         lastModelUsed: sql`(
           SELECT mr.modelID || ' ' || mr.modelVersion
@@ -1080,9 +1086,9 @@ export async function getFilesData(dbPath) {
  * @param {string} mediaID - The media ID to get bboxes for
  * @returns {Promise<Array>} - Array of observations with bbox data and model info
  */
-export async function getMediaBboxes(dbPath, mediaID) {
+export async function getMediaBboxes(dbPath, mediaID, includeWithoutBbox = false) {
   const startTime = Date.now()
-  log.info(`Querying bboxes for media: ${mediaID}`)
+  log.info(`Querying bboxes for media: ${mediaID} (includeWithoutBbox: ${includeWithoutBbox})`)
 
   try {
     // Extract study ID from path
@@ -1090,6 +1096,11 @@ export async function getMediaBboxes(dbPath, mediaID) {
     const studyId = pathParts[pathParts.length - 2] || 'unknown'
 
     const db = await getDrizzleDb(studyId, dbPath)
+
+    // Build where clause - optionally include observations without bbox (for videos)
+    const whereClause = includeWithoutBbox
+      ? eq(observations.mediaID, mediaID)
+      : and(eq(observations.mediaID, mediaID), isNotNull(observations.bboxX))
 
     const rows = await db
       .select({
@@ -1110,7 +1121,7 @@ export async function getMediaBboxes(dbPath, mediaID) {
       .from(observations)
       .leftJoin(modelOutputs, eq(observations.modelOutputID, modelOutputs.id))
       .leftJoin(modelRuns, eq(modelOutputs.runID, modelRuns.id))
-      .where(and(eq(observations.mediaID, mediaID), isNotNull(observations.bboxX)))
+      .where(whereClause)
       .orderBy(desc(observations.detectionConfidence))
 
     const elapsedTime = Date.now() - startTime

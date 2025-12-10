@@ -88,7 +88,7 @@ function ImageDirectoriesExportModal({ isOpen, onConfirm, onCancel, studyId }) {
       >
         <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-start">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Export Image Directories</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Export Media Directories</h2>
             <p className="text-sm text-gray-500 mt-1">Select species to export</p>
           </div>
           <button
@@ -146,7 +146,7 @@ function ImageDirectoriesExportModal({ isOpen, onConfirm, onCancel, studyId }) {
                       />
                       <div className="flex-1 flex justify-between items-center">
                         <span className="text-sm text-gray-900">{s.scientificName}</span>
-                        <span className="text-xs text-gray-500">{s.count} images</span>
+                        <span className="text-xs text-gray-500">{s.count} media</span>
                       </div>
                     </label>
                   ))}
@@ -165,11 +165,9 @@ function ImageDirectoriesExportModal({ isOpen, onConfirm, onCancel, studyId }) {
               />
               <div className="flex-1">
                 <span className="text-sm font-medium text-gray-900">
-                  Include blank images (no detections)
+                  Include blank media (no detections)
                 </span>
-                <p className="text-xs text-gray-500">
-                  Export images where no animals were detected
-                </p>
+                <p className="text-xs text-gray-500">Export media where no animals were detected</p>
               </div>
             </label>
           </div>

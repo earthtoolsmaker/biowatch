@@ -141,6 +141,12 @@ from torch import tensor
 from torchvision.transforms import InterpolationMode, transforms
 from ultralytics import YOLO
 
+from video_utils import VideoCapableLitAPI, is_video_file
+
+# Configure logging for diagnostic output
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
+
 # Constants
 CROP_SIZE = 480  # EfficientNet V2 Large default input size
 BACKBONE = "tf_efficientnetv2_l"  # timm model name for EfficientNet V2 Large
@@ -518,7 +524,9 @@ def predict(
 
     # Crop and classify
     xyxy = selected_detection_record["xyxy"]
-    imagecv = cv2.imdecode(np.fromfile(filepath, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
+    # Use IMREAD_COLOR to ensure we always get a 3-channel BGR image
+    # (IMREAD_UNCHANGED can return grayscale for some images, causing shape errors)
+    imagecv = cv2.imdecode(np.fromfile(filepath, dtype=np.uint8), cv2.IMREAD_COLOR)
     croppedimage = crop_square_cv_to_pil(imagecv, xyxy)
     cropped_tensor = model.classifier.preprocess_image(croppedimage)
     scores = model.classifier.predict(cropped_tensor)
@@ -593,12 +601,16 @@ _EXTRA_FIELDS = flags.DEFINE_list(
 )
 
 
-class ManasLitAPI(ls.LitAPI):
+class ManasLitAPI(ls.LitAPI, VideoCapableLitAPI):
     """
-    LitServe API implementation for the Manas model.
+    LitServe API implementation for the Manas model with video support.
 
     This class implements the server side of Manas by implementing the LitAPI
-    interface required by the `litserve` library.
+    interface required by the `litserve` library. It handles request parsing,
+    model loading, inference, and response formatting.
+
+    Video support is provided via the VideoCapableLitAPI mixin, which automatically
+    detects video files and processes them frame by frame at the specified sample_fps.
     """
 
     def __init__(
@@ -654,7 +666,8 @@ class ManasLitAPI(ls.LitAPI):
         """
         for instance in request["instances"]:
             filepath = instance["filepath"]
-            if not Path(filepath).exists():
+            # Skip file_exists check for video files (they're processed frame by frame)
+            if not is_video_file(filepath) and not Path(filepath).exists():
                 raise HTTPException(400, f"Cannot access filepath: `{filepath}`")
         return request
 
@@ -681,25 +694,41 @@ class ManasLitAPI(ls.LitAPI):
                     new_predictions[instance["filepath"]][field] = instance[field]
         return {"predictions": list(new_predictions.values())}
 
-    def predict(self, x, **kwargs):
+    def _predict_single_image(self, filepath: str, **kwargs) -> dict:
         """
-        Core inference logic - yields predictions for streaming.
+        Run Manas inference on a single image.
+
+        This method is called by VideoCapableLitAPI for both images and video frames.
 
         Args:
-            x: The decoded request containing instances.
+            filepath: Path to the image file (or temp frame file for videos)
+            **kwargs: Additional arguments (unused)
 
-        Yields:
-            Prediction results for each instance.
+        Returns:
+            Dictionary with "predictions" key containing model results
         """
-        for instance in x["instances"]:
-            filepath = instance["filepath"]
-            single_instances_dict = {"instances": [{"filepath": filepath}]}
-            single_predictions_dict = predict(
-                model=self.model,
-                filepath=filepath,
-            )
-            assert single_predictions_dict is not None
-            yield self._propagate_extra_fields(single_instances_dict, single_predictions_dict)
+        single_instances_dict = {"instances": [{"filepath": filepath}]}
+        single_predictions_dict = predict(
+            model=self.model,
+            filepath=filepath,
+        )
+        assert single_predictions_dict is not None
+        return self._propagate_extra_fields(single_instances_dict, single_predictions_dict)
+
+    def predict(self, x, **kwargs):
+        """
+        Process prediction requests with automatic video support.
+
+        For images: Runs inference directly.
+        For videos: Extracts frames at sample_fps and runs inference on each.
+        """
+        instances = x.get("instances", [])
+        logger.info(f"[Manas] Processing {len(instances)} instances")
+        try:
+            yield from self.predict_with_video_support(x, **kwargs)
+        except Exception as e:
+            logger.error(f"[Manas] Prediction failed: {e}", exc_info=True)
+            raise
 
     def encode_response(self, output, **kwargs):
         """

@@ -124,7 +124,7 @@ function ImportStatus({ studyId, importerName }) {
 
       <span
         className="text-xs text-gray-600 text-right"
-        title={`${importStatus.speed} images/minute`}
+        title={`${importStatus.speed} media/minute`}
       >
         {importStatus.estimatedMinutesRemaining
           ? importStatus.estimatedMinutesRemaining > 60

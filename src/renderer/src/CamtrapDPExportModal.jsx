@@ -168,7 +168,7 @@ function CamtrapDPExportModal({ isOpen, onConfirm, onCancel, studyId }) {
                       />
                       <div className="flex-1 flex justify-between items-center">
                         <span className="text-sm text-gray-900">{s.scientificName}</span>
-                        <span className="text-xs text-gray-500">{s.count} images</span>
+                        <span className="text-xs text-gray-500">{s.count} media</span>
                       </div>
                     </label>
                   ))}

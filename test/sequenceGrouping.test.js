@@ -437,6 +437,121 @@ describe('groupMediaIntoSequences', () => {
       assert.equal(result[0].items[2].mediaID, 'c')
     })
   })
+
+  describe('video exclusion', () => {
+    // Helper: Create media with video flag
+    function createMediaWithVideo(
+      id,
+      baseTime,
+      offsetSeconds,
+      isVideo,
+      deploymentID = 'default-deployment'
+    ) {
+      const time = new Date(baseTime.getTime() + offsetSeconds * 1000)
+      return { mediaID: id, timestamp: time.toISOString(), deploymentID, isVideo }
+    }
+
+    // Video detection function for tests
+    const isVideoFn = (media) => media.isVideo === true
+
+    test('videos are never grouped with images', () => {
+      const media = [
+        createMediaWithVideo('img1', baseTime, 0, false),
+        createMediaWithVideo('vid1', baseTime, 5, true),
+        createMediaWithVideo('img2', baseTime, 10, false)
+      ]
+      const result = groupMediaIntoSequences(media, 60, isVideoFn)
+
+      // Should have 3 sequences: img1+img2 grouped, vid1 separate
+      // Actually since vid1 breaks the chain, we get: img1, vid1, img2 as separate
+      // Wait - img1 and img2 are 10 seconds apart but vid1 in between breaks them
+      assert.equal(result.length, 3)
+      assert.equal(result[0].items[0].mediaID, 'img1')
+      assert.equal(result[1].items[0].mediaID, 'vid1')
+      assert.equal(result[2].items[0].mediaID, 'img2')
+    })
+
+    test('videos are never grouped with other videos', () => {
+      const media = [
+        createMediaWithVideo('vid1', baseTime, 0, true),
+        createMediaWithVideo('vid2', baseTime, 5, true),
+        createMediaWithVideo('vid3', baseTime, 10, true)
+      ]
+      const result = groupMediaIntoSequences(media, 60, isVideoFn)
+
+      // Each video should be its own sequence
+      assert.equal(result.length, 3)
+      assert.equal(result[0].items.length, 1)
+      assert.equal(result[1].items.length, 1)
+      assert.equal(result[2].items.length, 1)
+    })
+
+    test('images still group normally when no videos present', () => {
+      const media = [
+        createMediaWithVideo('img1', baseTime, 0, false),
+        createMediaWithVideo('img2', baseTime, 5, false),
+        createMediaWithVideo('img3', baseTime, 10, false)
+      ]
+      const result = groupMediaIntoSequences(media, 60, isVideoFn)
+
+      // All images should be grouped together
+      assert.equal(result.length, 1)
+      assert.equal(result[0].items.length, 3)
+    })
+
+    test('images group correctly around isolated videos', () => {
+      const media = [
+        createMediaWithVideo('img1', baseTime, 0, false),
+        createMediaWithVideo('img2', baseTime, 5, false),
+        createMediaWithVideo('vid1', baseTime, 100, true),
+        createMediaWithVideo('img3', baseTime, 200, false),
+        createMediaWithVideo('img4', baseTime, 205, false)
+      ]
+      const result = groupMediaIntoSequences(media, 60, isVideoFn)
+
+      // img1+img2 grouped, vid1 alone, img3+img4 grouped
+      assert.equal(result.length, 3)
+      assert.equal(result[0].items.length, 2) // img1, img2
+      assert.equal(result[1].items.length, 1) // vid1
+      assert.equal(result[2].items.length, 2) // img3, img4
+    })
+
+    test('without isVideoFn, videos group normally (backwards compatible)', () => {
+      const media = [
+        createMediaWithVideo('vid1', baseTime, 0, true),
+        createMediaWithVideo('vid2', baseTime, 5, true)
+      ]
+      // No isVideoFn passed - should group normally
+      const result = groupMediaIntoSequences(media, 60)
+
+      assert.equal(result.length, 1)
+      assert.equal(result[0].items.length, 2)
+    })
+
+    test('video at start of sequence prevents grouping', () => {
+      const media = [
+        createMediaWithVideo('vid1', baseTime, 0, true),
+        createMediaWithVideo('img1', baseTime, 5, false)
+      ]
+      const result = groupMediaIntoSequences(media, 60, isVideoFn)
+
+      assert.equal(result.length, 2)
+      assert.equal(result[0].items[0].mediaID, 'vid1')
+      assert.equal(result[1].items[0].mediaID, 'img1')
+    })
+
+    test('video at end prevents being added to sequence', () => {
+      const media = [
+        createMediaWithVideo('img1', baseTime, 0, false),
+        createMediaWithVideo('vid1', baseTime, 5, true)
+      ]
+      const result = groupMediaIntoSequences(media, 60, isVideoFn)
+
+      assert.equal(result.length, 2)
+      assert.equal(result[0].items[0].mediaID, 'img1')
+      assert.equal(result[1].items[0].mediaID, 'vid1')
+    })
+  })
 })
 
 // Helper: Create media with eventID

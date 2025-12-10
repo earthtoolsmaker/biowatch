@@ -1,10 +1,10 @@
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { spawn } from 'child_process'
-import { app, BrowserWindow, dialog, net as electronNet, ipcMain, protocol, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, protocol, shell } from 'electron'
 import log from 'electron-log'
 import { autoUpdater } from 'electron-updater'
-import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync, rmSync } from 'fs'
-import { join } from 'path'
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, rmSync } from 'fs'
+import { extname, join } from 'path'
 import icon from '../../resources/icon.png?asset'
 import { importCamTrapDataset } from './camtrap'
 import { registerMLModelManagementIPCHandlers, garbageCollect, shutdownAllServers } from './models'
@@ -31,13 +31,14 @@ import {
   getDistinctSpecies,
   checkStudyHasEventIDs
 } from './queries'
-import { Importer } from './importer' //required to register handlers
-import studies from './studies'
+import './importer.js' // Side-effect: registers IPC handlers
+import './studies.js' // Side-effect: registers IPC handlers
 import { importWildlifeDataset } from './wildlife'
 import { importDeepfauneDataset } from './deepfaune'
 import { extractZip, downloadFile } from './download'
 import migrations from './migrations/index.js'
 import { registerExportIPCHandlers } from './export.js'
+import { registerTranscodeIPCHandlers, cleanExpiredTranscodeCache } from './transcoder.js'
 
 // Configure electron-log
 log.transports.file.level = 'info'
@@ -147,13 +148,82 @@ async function initializeMigrations() {
 // Add this before app.whenReady()
 function registerLocalFileProtocol() {
   protocol.handle('local-file', (request) => {
-    log.info('local-file protocol request:', request.url, request.URLSearchParams)
     const url = new URL(request.url)
     const filePath = url.searchParams.get('path')
 
-    log.info('Original path:', filePath)
+    log.info('=== local-file protocol request ===')
+    log.info('File path:', filePath)
 
-    return electronNet.fetch(`file://${filePath}`)
+    // Check if file exists
+    if (!filePath || !existsSync(filePath)) {
+      log.error('File not found:', filePath)
+      return new Response('File not found', { status: 404 })
+    }
+
+    try {
+      const stats = statSync(filePath)
+      const fileSize = stats.size
+      const rangeHeader = request.headers.get('range')
+
+      // Determine content type
+      const ext = extname(filePath).toLowerCase()
+      const mimeTypes = {
+        '.mp4': 'video/mp4',
+        '.webm': 'video/webm',
+        '.mkv': 'video/x-matroska',
+        '.avi': 'video/x-msvideo',
+        '.mov': 'video/quicktime',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png',
+        '.gif': 'image/gif',
+        '.webp': 'image/webp'
+      }
+      const contentType = mimeTypes[ext] || 'application/octet-stream'
+
+      // Read entire file into buffer (simpler approach for now)
+      const buffer = readFileSync(filePath)
+
+      // Handle Range requests for video streaming
+      if (rangeHeader) {
+        const rangeMatch = rangeHeader.match(/bytes=(\d*)-(\d*)/)
+        if (rangeMatch) {
+          const start = rangeMatch[1] ? parseInt(rangeMatch[1], 10) : 0
+          const end = rangeMatch[2] ? parseInt(rangeMatch[2], 10) : fileSize - 1
+          const chunkSize = end - start + 1
+
+          log.info(`Range request: bytes=${start}-${end}/${fileSize}`)
+
+          // Slice the buffer to get the requested range
+          const chunk = buffer.slice(start, end + 1)
+
+          return new Response(chunk, {
+            status: 206,
+            headers: {
+              'Content-Type': contentType,
+              'Content-Length': String(chunkSize),
+              'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+              'Accept-Ranges': 'bytes'
+            }
+          })
+        }
+      }
+
+      // Non-range request: return full file
+      log.info(`Full file request: ${fileSize} bytes`)
+
+      return new Response(buffer, {
+        status: 200,
+        headers: {
+          'Content-Type': contentType,
+          'Content-Length': String(fileSize),
+          'Accept-Ranges': 'bytes'
+        }
+      })
+    } catch (error) {
+      log.error('Error serving file:', error)
+      return new Response('Error serving file', { status: 500 })
+    }
   })
 }
 
@@ -321,6 +391,9 @@ app.whenReady().then(async () => {
 
   // Garbage collect stale ML Models and environments
   garbageCollect()
+
+  // Clean expired transcode cache in background (fire-and-forget, don't await)
+  cleanExpiredTranscodeCache()
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
@@ -732,7 +805,8 @@ app.whenReady().then(async () => {
   })
 
   // Get bounding boxes for a specific media file
-  ipcMain.handle('media:get-bboxes', async (_, studyId, mediaID) => {
+  // includeWithoutBbox: true to include observations without bbox (for videos)
+  ipcMain.handle('media:get-bboxes', async (_, studyId, mediaID, includeWithoutBbox = false) => {
     try {
       const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
       if (!dbPath || !existsSync(dbPath)) {
@@ -740,7 +814,7 @@ app.whenReady().then(async () => {
         return { error: 'Database not found for this study' }
       }
 
-      const bboxes = await getMediaBboxes(dbPath, mediaID)
+      const bboxes = await getMediaBboxes(dbPath, mediaID, includeWithoutBbox)
       return { data: bboxes }
     } catch (error) {
       log.error('Error getting media bboxes:', error)
@@ -1189,6 +1263,7 @@ app.whenReady().then(async () => {
 
   registerMLModelManagementIPCHandlers()
   registerExportIPCHandlers()
+  registerTranscodeIPCHandlers()
 })
 
 // Quit when all windows are closed, except on macOS. There, it's common

@@ -126,6 +126,8 @@ from absl import app, flags
 from fastapi import HTTPException
 from speciesnet import DEFAULT_MODEL, SpeciesNet, file_exists
 
+from video_utils import VideoCapableLitAPI, is_video_file
+
 _PORT = flags.DEFINE_integer(
     "port",
     8000,
@@ -173,13 +175,16 @@ _COUNTRY = flags.DEFINE_string(
 )
 
 
-class SpeciesNetLitAPI(ls.LitAPI):
-    """Core API to serve the SpeciesNet model.
+class SpeciesNetLitAPI(ls.LitAPI, VideoCapableLitAPI):
+    """Core API to serve the SpeciesNet model with video support.
 
     This class implements the server side of SpeciesNet by implementing LitAPI interface
     required by the `litserve` library. It handles request parsing, model loading,
     inference, and response formatting. This is a bridge between HTTP requests and the
     internal Python API for SpeciesNet.
+
+    Video support is provided via the VideoCapableLitAPI mixin, which automatically
+    detects video files and processes them frame by frame at the specified sample_fps.
     """
 
     def __init__(
@@ -220,7 +225,8 @@ class SpeciesNetLitAPI(ls.LitAPI):
     def decode_request(self, request, **kwargs):
         for instance in request["instances"]:
             filepath = instance["filepath"]
-            if not file_exists(filepath):
+            # Skip file_exists check for video files (they're processed frame by frame)
+            if not is_video_file(filepath) and not file_exists(filepath):
                 raise HTTPException(400, f"Cannot access filepath: `{filepath}`")
         return request
 
@@ -237,20 +243,36 @@ class SpeciesNetLitAPI(ls.LitAPI):
                     new_predictions[instance["filepath"]][field] = instance[field]
         return {"predictions": list(new_predictions.values())}
 
+    def _predict_single_image(self, filepath: str, **kwargs) -> dict:
+        """Run SpeciesNet inference on a single image.
+
+        This method is called by VideoCapableLitAPI for both images and video frames.
+
+        Args:
+            filepath: Path to the image file (or temp frame file for videos)
+            **kwargs: Additional arguments (unused)
+
+        Returns:
+            Dictionary with "predictions" key containing model results
+        """
+        # Create instance dict with filepath and optionally country
+        instance_data = {"filepath": filepath}
+        if self.country:
+            instance_data["country"] = self.country
+
+        single_instances_dict = {"instances": [instance_data]}
+
+        single_predictions_dict = self.model.predict(instances_dict=single_instances_dict)
+        assert single_predictions_dict is not None
+        return self._propagate_extra_fields(single_instances_dict, single_predictions_dict)
+
     def predict(self, x, **kwargs):
-        for instance in x["instances"]:
-            filepath = instance["filepath"]
+        """Process prediction requests with automatic video support.
 
-            # Create instance dict with filepath and optionally country
-            instance_data = {"filepath": filepath}
-            if self.country:
-                instance_data["country"] = self.country
-
-            single_instances_dict = {"instances": [instance_data]}
-
-            single_predictions_dict = self.model.predict(instances_dict=single_instances_dict)
-            assert single_predictions_dict is not None
-            yield self._propagate_extra_fields(single_instances_dict, single_predictions_dict)
+        For images: Runs inference directly.
+        For videos: Extracts frames at sample_fps and runs inference on each.
+        """
+        yield from self.predict_with_video_support(x, **kwargs)
 
     def encode_response(self, output, **kwargs):
         for out in output:

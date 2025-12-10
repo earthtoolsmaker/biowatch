@@ -2,14 +2,16 @@
  * Groups media files into sequences based on timestamp proximity AND deployment.
  * Media from different deployments are NEVER grouped into the same sequence.
  * Items with null/undefined deploymentID are treated as unique (each becomes its own sequence).
+ * Videos (when isVideoFn is provided) are NEVER grouped - each video forms its own sequence.
  * Works correctly regardless of input sort order (ascending or descending).
  * Output sequences have items sorted by timestamp (ascending - oldest first).
  *
  * @param {Array} mediaFiles - Array of media files with mediaID, timestamp, and optionally deploymentID
  * @param {number} gapThresholdSeconds - Maximum gap in seconds to consider media as same sequence
+ * @param {Function} [isVideoFn] - Optional function to check if a media item is a video (videos are never grouped)
  * @returns {Array} Array of sequence objects { id, items, startTime, endTime }
  */
-export function groupMediaIntoSequences(mediaFiles, gapThresholdSeconds) {
+export function groupMediaIntoSequences(mediaFiles, gapThresholdSeconds, isVideoFn) {
   // Edge case: null, undefined, or empty array
   if (!mediaFiles || mediaFiles.length === 0) {
     return []
@@ -44,7 +46,8 @@ export function groupMediaIntoSequences(mediaFiles, gapThresholdSeconds) {
           items: [media],
           startTime: new Date(media.timestamp),
           endTime: new Date(media.timestamp),
-          _deploymentID: media.deploymentID
+          _deploymentID: media.deploymentID,
+          _hasVideo: isVideoFn && isVideoFn(media)
         }
         continue
       }
@@ -58,7 +61,8 @@ export function groupMediaIntoSequences(mediaFiles, gapThresholdSeconds) {
         items: [media],
         startTime: new Date(media.timestamp),
         endTime: new Date(media.timestamp),
-        _deploymentID: media.deploymentID
+        _deploymentID: media.deploymentID,
+        _hasVideo: isVideoFn && isVideoFn(media)
       }
       continue
     }
@@ -72,7 +76,8 @@ export function groupMediaIntoSequences(mediaFiles, gapThresholdSeconds) {
         endTime: new Date(media.timestamp),
         _minTime: mediaTime,
         _maxTime: mediaTime,
-        _deploymentID: media.deploymentID
+        _deploymentID: media.deploymentID,
+        _hasVideo: isVideoFn && isVideoFn(media)
       }
     } else {
       // Check if same deployment (both must be non-null and equal)
@@ -81,12 +86,17 @@ export function groupMediaIntoSequences(mediaFiles, gapThresholdSeconds) {
         media.deploymentID != null &&
         currentSequence._deploymentID === media.deploymentID
 
+      // Check if current item is a video (videos are never grouped)
+      const isCurrentVideo = isVideoFn && isVideoFn(media)
+      // Check if current sequence contains a video (videos are never grouped with anything)
+      const sequenceHasVideo = isVideoFn && currentSequence._hasVideo
+
       // Use Math.abs to handle both ascending and descending order
       const gap = Math.abs(mediaTime - currentSequence._maxTime)
       const gapFromMin = Math.abs(mediaTime - currentSequence._minTime)
       const effectiveGap = Math.min(gap, gapFromMin)
 
-      if (effectiveGap <= gapMs && sameDeployment) {
+      if (effectiveGap <= gapMs && sameDeployment && !isCurrentVideo && !sequenceHasVideo) {
         // Same sequence - add to current
         currentSequence.items.push(media)
         // Update time bounds
@@ -108,7 +118,8 @@ export function groupMediaIntoSequences(mediaFiles, gapThresholdSeconds) {
           endTime: new Date(media.timestamp),
           _minTime: mediaTime,
           _maxTime: mediaTime,
-          _deploymentID: media.deploymentID
+          _deploymentID: media.deploymentID,
+          _hasVideo: isVideoFn && isVideoFn(media)
         }
       }
     }

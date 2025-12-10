@@ -138,6 +138,43 @@ const { data, error } = await window.api.getMedia(studyId, { limit: 100 })
 | `resumeImport(id)` | `importer:resume` | import id | `{ success: boolean }` |
 | `selectMoreImagesDirectory(id)` | `importer:select-more-images-directory` | study id | `{ success: boolean }` |
 
+### Video Transcoding
+
+| Method | Channel | Parameters | Returns |
+|--------|---------|------------|---------|
+| `transcode.needsTranscoding(filePath)` | `transcode:needs-transcoding` | filePath | `boolean` |
+| `transcode.getCached(studyId, filePath)` | `transcode:get-cached` | studyId, filePath | `string \| null` (cached path) |
+| `transcode.start(studyId, filePath)` | `transcode:start` | studyId, filePath | `{ success, path? } \| { success: false, error }` |
+| `transcode.cancel(filePath)` | `transcode:cancel` | filePath | `boolean` |
+| `transcode.getCacheStats(studyId)` | `transcode:cache-stats` | studyId | `{ size: number, count: number }` |
+| `transcode.clearCache(studyId)` | `transcode:clear-cache` | studyId | `{ cleared: number, freedBytes: number }` |
+| `transcode.onProgress(callback)` | `transcode:progress` | callback function | unsubscribe function |
+
+### Video Thumbnails
+
+| Method | Channel | Parameters | Returns |
+|--------|---------|------------|---------|
+| `thumbnail.getCached(studyId, filePath)` | `thumbnail:get-cached` | studyId, filePath | `string \| null` (cached path) |
+| `thumbnail.extract(studyId, filePath)` | `thumbnail:extract` | studyId, filePath | `{ success, path? } \| { success: false, error }` |
+
+**Notes:**
+- Transcoding converts unsupported video formats (AVI, MKV, MOV, etc.) to browser-playable MP4 (H.264)
+- Uses bundled FFmpeg via `ffmpeg-static` npm package
+- **Per-study caching:** Transcoded files and thumbnails are cached within each study folder:
+  - Transcodes: `studies/{studyId}/cache/transcodes/`
+  - Thumbnails: `studies/{studyId}/cache/thumbnails/`
+- When a study is deleted, its cache is automatically cleaned up
+- Cache key is SHA256 hash of (filePath + mtime) to detect file changes
+
+**Progress event:**
+```javascript
+// Subscribe to progress updates
+const unsubscribe = window.api.transcode.onProgress(({ filePath, progress }) => {
+  console.log(`Transcoding ${filePath}: ${progress}%`)
+})
+// Later: unsubscribe()
+```
+
 ### Utilities
 
 | Method | Channel | Parameters | Returns |
@@ -228,3 +265,4 @@ const data = response.data
 | `src/main/queries.js` | Database query implementations |
 | `src/main/export.js` | Export handler implementations |
 | `src/main/models.ts` | ML model handler implementations |
+| `src/main/transcoder.js` | Video transcoding with FFmpeg |

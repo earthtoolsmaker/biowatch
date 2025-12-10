@@ -108,9 +108,9 @@ export const modelRunOptionsSchema = z
 
 // ---------- Permissive Raw Output Schema ----------
 
-// Single permissive schema that validates core fields only
+// Single image prediction schema that validates core fields only
 // Uses passthrough to allow model-specific extra fields
-export const rawOutputSchema = z
+const imagePredictionSchema = z
   .object({
     filepath: z.string(),
     prediction: z.string(),
@@ -122,7 +122,36 @@ export const rawOutputSchema = z
     prediction_source: z.string().optional()
   })
   .passthrough() // Allow any extra fields from ML models
-  .nullable()
+
+// Video frame prediction schema (includes frame_number and metadata)
+const videoFramePredictionSchema = z
+  .object({
+    filepath: z.string(),
+    prediction: z.string(),
+    model_version: z.string(),
+    frame_number: z.number().int().min(0),
+    metadata: z
+      .object({
+        fps: z.number(),
+        duration: z.number()
+      })
+      .passthrough()
+      .optional(),
+    // Optional fields
+    classifications: z.any().optional(),
+    detections: z.any().optional(),
+    prediction_score: z.number().min(0).max(1).optional(),
+    prediction_source: z.string().optional()
+  })
+  .passthrough()
+
+// Video raw output schema (array of frame predictions wrapped in 'frames' key)
+const videoRawOutputSchema = z.object({
+  frames: z.array(videoFramePredictionSchema)
+})
+
+// Combined schema: either image prediction or video output
+export const rawOutputSchema = z.union([imagePredictionSchema, videoRawOutputSchema]).nullable()
 
 // ---------- Strict Schemas (for documentation/type inference) ----------
 

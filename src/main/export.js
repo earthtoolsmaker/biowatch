@@ -705,7 +705,8 @@ function generateDataPackage(studyId, studyName, metadata = null) {
             { name: 'filePath', type: 'string' },
             { name: 'filePublic', type: 'boolean' },
             { name: 'fileMediatype', type: 'string' },
-            { name: 'fileName', type: 'string' }
+            { name: 'fileName', type: 'string' },
+            { name: 'exifData', type: 'object' }
           ]
         }
       },
@@ -927,7 +928,8 @@ export async function exportCamtrapDP(studyId, options = {}) {
           deploymentID: media.deploymentID,
           timestamp: media.timestamp,
           filePath: media.filePath,
-          fileName: media.fileName
+          fileName: media.fileName,
+          exifData: media.exifData
         })
         .from(media)
         .where(inArray(media.mediaID, filteredMediaIDs))
@@ -963,7 +965,8 @@ export async function exportCamtrapDP(studyId, options = {}) {
         filePath: exportFilePath,
         filePublic: false,
         fileMediatype: inferMimeType(m.filePath),
-        fileName: exportFileName
+        fileName: exportFileName,
+        exifData: m.exifData ? JSON.stringify(m.exifData) : ''
       }
     })
 
@@ -1025,7 +1028,8 @@ export async function exportCamtrapDP(studyId, options = {}) {
       'filePath',
       'filePublic',
       'fileMediatype',
-      'fileName'
+      'fileName',
+      'exifData'
     ])
 
     const observationsCSV = toCSV(observationsRows, [

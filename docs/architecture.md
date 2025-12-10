@@ -86,6 +86,7 @@ src/
 │   ├── deepfaune.js         # DeepFaune CSV importer
 │   ├── importer.js          # Image folder importer with ML
 │   ├── export.js            # Export handlers
+│   ├── transcoder.js        # Video transcoding with FFmpeg
 │   ├── models.ts            # ML model management
 │   ├── studies.js           # Study metadata management
 │   ├── download.ts          # File download utilities
@@ -248,6 +249,7 @@ function getStudyPath(userDataPath, studyId) {
 | `src/main/importer.js` | Image import with ML inference |
 | `src/main/camtrap.js` | CamTrap DP format importer |
 | `src/main/export.js` | CamTrap DP exporter |
+| `src/main/transcoder.js` | Video format conversion for browser playback |
 | `src/main/transformers/index.js` | Bbox format conversions |
 
 ## IPC Pattern

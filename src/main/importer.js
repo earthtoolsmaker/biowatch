@@ -14,7 +14,6 @@ import {
   media,
   observations,
   modelRuns,
-  modelOutputs,
   closeStudyDatabase,
   insertMetadata,
   insertModelOutput,
@@ -26,30 +25,62 @@ import { transformBboxToCamtrapDP } from './transformers/index.js'
 import { eq, isNull, count, sql } from 'drizzle-orm'
 import models from './models.js'
 import mlmodels from '../shared/mlmodels.js'
+import { selectVideoClassificationWinner } from './videoClassification.js'
 
-const imageExtensions = new Set(['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'])
+// Map file extensions to IANA media types (Camtrap DP compliant)
+const extensionToMediatype = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.gif': 'image/gif',
+  '.bmp': 'image/bmp',
+  '.webp': 'image/webp',
+  '.mp4': 'video/mp4',
+  '.mkv': 'video/x-matroska',
+  '.mov': 'video/quicktime',
+  '.webm': 'video/webm',
+  '.avi': 'video/x-msvideo',
+  '.m4v': 'video/x-m4v'
+}
 
-async function* walkImages(dir) {
+const mediaExtensions = new Set(Object.keys(extensionToMediatype))
+
+function getFileMediatype(filePath) {
+  const ext = path.extname(filePath).toLowerCase()
+  return extensionToMediatype[ext] || 'application/octet-stream'
+}
+
+function isVideoMediatype(mediatype) {
+  return mediatype.startsWith('video/')
+}
+
+async function* walkMediaFiles(dir) {
   const dirents = await fs.promises.opendir(dir)
   for await (const dirent of dirents) {
     const fullPath = path.join(dir, dirent.name)
     if (dirent.isDirectory()) {
-      yield* walkImages(fullPath)
-    } else if (dirent.isFile() && imageExtensions.has(path.extname(dirent.name).toLowerCase())) {
+      yield* walkMediaFiles(fullPath)
+    } else if (dirent.isFile() && mediaExtensions.has(path.extname(dirent.name).toLowerCase())) {
       yield fullPath
     }
   }
 }
 
-export async function* getPredictions(imagesPath, port, signal = null) {
+export async function* getPredictions(mediaPaths, port, signal = null, sampleFps = 1) {
   try {
     // Send request and handle streaming response
+    // Include sample_fps for video frame extraction (Python auto-detects video vs image)
     const response = await fetch(`http://localhost:${port}/predict`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ instances: imagesPath.map((path) => ({ filepath: path })) }),
+      body: JSON.stringify({
+        instances: mediaPaths.map((filepath) => ({
+          filepath,
+          sample_fps: sampleFps // Integer, always provided
+        }))
+      }),
       signal
     })
 
@@ -115,7 +146,9 @@ async function insertMedia(db, fullPath, importFolder) {
     filePath: fullPath,
     fileName: path.basename(fullPath),
     importFolder: importFolder,
-    folderName: folderName
+    folderName: folderName,
+    fileMediatype: getFileMediatype(fullPath),
+    exifData: null // Populated from Python response for videos (fps, duration, etc.)
   }
 
   await db.insert(media).values(mediaData)
@@ -212,95 +245,17 @@ async function insertPrediction(db, prediction, modelInfo = {}) {
     return
   }
 
-  // If media hasn't been processed yet (no timestamp/deploymentID), process EXIF data
+  // If media hasn't been processed yet, extract metadata and associate with deployment
   if (!mediaRecord.timestamp || !mediaRecord.deploymentID) {
-    let exifData = {}
-    try {
-      const parsedExif = await exifr.parse(prediction.filepath, {
-        gps: true,
-        exif: true,
-        reviveValues: true
-      })
-      // exifr.parse() can return null for images without EXIF data
-      exifData = parsedExif || {}
-    } catch (exifError) {
-      log.warn(`Could not extract EXIF data from ${prediction.filepath}: ${exifError.message}`)
-    }
-
-    let latitude = null
-    let longitude = null
-    if (exifData && exifData.latitude && exifData.longitude) {
-      latitude = exifData.latitude.toFixed(6)
-      longitude = exifData.longitude.toFixed(6)
-    }
-
-    const zones = latitude && longitude ? geoTz.find(latitude, longitude) : null
-    const date = exifData.DateTimeOriginal
-      ? luxon.DateTime.fromJSDate(exifData.DateTimeOriginal, { zone: zones?.[0] })
-      : luxon.DateTime.now()
-
-    const parentFolder =
-      mediaRecord.importFolder === path.dirname(prediction.filepath)
-        ? path.basename(mediaRecord.importFolder)
-        : path.relative(mediaRecord.importFolder, path.dirname(prediction.filepath))
-
-    console.log('Parent folder:', mediaRecord.importFolder, prediction.filepath, parentFolder)
-    console.log('dir name:', path.dirname(prediction.filepath))
-
-    let deployment
-    try {
-      deployment = await getDeployment(db, parentFolder)
-
-      console.log('Found deployment:', deployment)
-
-      if (deployment) {
-        await db
-          .update(deployments)
-          .set({
-            deploymentStart: DateTime.min(
-              date,
-              DateTime.fromISO(deployment.deploymentStart)
-            ).toISO(),
-            deploymentEnd: DateTime.max(date, DateTime.fromISO(deployment.deploymentEnd)).toISO()
-          })
-          .where(eq(deployments.deploymentID, deployment.deploymentID))
-      } else {
-        // If no deployment exists, create a new one
-        const deploymentID = crypto.randomUUID()
-        const locationID = parentFolder
-        log.info('Creating new deployment with at: ', locationID, latitude, longitude)
-
-        await db.insert(deployments).values({
-          deploymentID,
-          locationID,
-          locationName: locationID,
-          deploymentStart: date.toISO(),
-          deploymentEnd: date.toISO(),
-          latitude: parseFloat(latitude),
-          longitude: parseFloat(longitude)
-        })
-
-        deployment = {
-          deploymentID,
-          latitude,
-          longitude
-        }
-      }
-
-      // Update local media object for observation creation
-      mediaRecord.timestamp = date.toISO()
-      mediaRecord.deploymentID = deployment.deploymentID
-
-      await db
-        .update(media)
-        .set({
-          timestamp: date.toISO(),
-          deploymentID: deployment.deploymentID
-        })
-        .where(eq(media.mediaID, mediaRecord.mediaID))
-    } catch (error) {
-      log.error(`Error processing EXIF data for ${prediction.filepath}:`, error)
-      return
+    const result = await processMediaDeployment(db, {
+      ...mediaRecord,
+      filePath: prediction.filepath // Image uses prediction.filepath
+    })
+    if (result) {
+      mediaRecord.timestamp = result.timestamp
+      mediaRecord.deploymentID = result.deploymentID
+    } else {
+      return // Skip this prediction if deployment processing failed
     }
   }
 
@@ -380,6 +335,176 @@ async function insertPrediction(db, prediction, modelInfo = {}) {
   // log.info(`Inserted prediction for ${mediaRecord.fileName} into database`)
 }
 
+/**
+ * Calculate ISO 8601 timestamp from base timestamp + frame offset
+ * @param {string} baseTimestamp - Base ISO timestamp (media capture time)
+ * @param {number} frameNumber - Frame index within video
+ * @param {number} fps - Frames per second of the video
+ * @returns {string} ISO 8601 timestamp
+ */
+function calculateTimestamp(baseTimestamp, frameNumber, fps) {
+  const baseDate = DateTime.fromISO(baseTimestamp)
+  const offsetSeconds = frameNumber / fps
+  return baseDate.plus({ seconds: offsetSeconds }).toISO()
+}
+
+/**
+ * Insert aggregated video predictions into the database.
+ * Creates ONE observation per unique species detected in the video (not per frame).
+ * Full frame-level data is preserved in modelOutputs.rawOutput for provenance.
+ *
+ * @param {Object} db - Drizzle database instance
+ * @param {Array} predictions - Array of frame predictions from Python server
+ * @param {Object} mediaRecord - Media record from database
+ * @param {Object} modelInfo - Model information { runID, modelID, modelVersion, detectionConfidenceThreshold }
+ */
+async function insertVideoPredictions(db, predictions, mediaRecord, modelInfo = {}) {
+  if (!predictions || predictions.length === 0) {
+    log.warn(`No predictions for video: ${mediaRecord.filePath}`)
+    return
+  }
+
+  // If media hasn't been processed yet, extract metadata and associate with deployment
+  if (!mediaRecord.timestamp || !mediaRecord.deploymentID) {
+    const result = await processMediaDeployment(db, mediaRecord)
+    if (result) {
+      mediaRecord.timestamp = result.timestamp
+      mediaRecord.deploymentID = result.deploymentID
+    }
+    // Continue even if deployment processing failed - video can still create observations
+  }
+
+  // 1. Update media with video metadata in exifData field (Camtrap DP compliant)
+  const firstPrediction = predictions[0]
+  if (firstPrediction?.metadata) {
+    const videoMetadata = {
+      fps: firstPrediction.metadata.fps,
+      duration: firstPrediction.metadata.duration,
+      frameCount: Math.round(firstPrediction.metadata.duration * firstPrediction.metadata.fps)
+    }
+
+    // Update media with exifData (timestamp is now extracted in deployment handling above)
+    const updateData = { exifData: videoMetadata }
+    if (!mediaRecord.timestamp) {
+      // Fallback if deployment handling didn't set timestamp (shouldn't happen normally)
+      updateData.timestamp = new Date().toISOString()
+    }
+
+    await db.update(media).set(updateData).where(eq(media.mediaID, mediaRecord.mediaID))
+
+    // Update local mediaRecord for observation timestamp calculation
+    mediaRecord.exifData = videoMetadata
+    if (updateData.timestamp) {
+      mediaRecord.timestamp = updateData.timestamp
+    }
+  }
+
+  // 2. Store ALL frame predictions in modelOutputs.rawOutput (full provenance)
+  const modelOutputID = crypto.randomUUID()
+  await insertModelOutput(db, {
+    id: modelOutputID,
+    mediaID: mediaRecord.mediaID,
+    runID: modelInfo.runID,
+    rawOutput: { frames: predictions } // Complete frame-by-frame data
+  })
+
+  // 3. Aggregate species across all frames (skip blanks)
+  const modelType = modelInfo.modelID || 'speciesnet'
+  const speciesMap = new Map() // scientificName -> { frames, scores, firstFrame, lastFrame }
+
+  for (const pred of predictions) {
+    const species = parseScientificName(pred, modelType)
+    if (!species) continue // Skip blank/empty predictions
+
+    if (!speciesMap.has(species)) {
+      speciesMap.set(species, {
+        frames: [],
+        scores: [], // Track all scores for averaging
+        firstFrame: pred.frame_number,
+        lastFrame: pred.frame_number
+      })
+    }
+    const entry = speciesMap.get(species)
+    entry.frames.push(pred.frame_number)
+    entry.scores.push(pred.prediction_score || 0) // Collect scores for averaging
+    entry.firstFrame = Math.min(entry.firstFrame, pred.frame_number)
+    entry.lastFrame = Math.max(entry.lastFrame, pred.frame_number)
+  }
+
+  // 4. Select winner using majority voting with average confidence tiebreaker
+  const { winner, winnerData } = selectVideoClassificationWinner(speciesMap)
+
+  // 5. Create exactly ONE observation (winner or blank)
+  const fps = mediaRecord.exifData?.fps || 1
+  const classificationTimestamp = new Date().toISOString()
+  const classifiedBy =
+    modelInfo.modelID && modelInfo.modelVersion
+      ? `${modelInfo.modelID} ${modelInfo.modelVersion}`
+      : null
+
+  const eventID = crypto.randomUUID()
+
+  if (winner && winnerData) {
+    // Calculate ISO 8601 timestamps from frame numbers
+    const eventStart = mediaRecord.timestamp
+      ? calculateTimestamp(mediaRecord.timestamp, winnerData.firstFrame, fps)
+      : null
+    const eventEnd = mediaRecord.timestamp
+      ? calculateTimestamp(mediaRecord.timestamp, winnerData.lastFrame, fps)
+      : null
+
+    await db.insert(observations).values({
+      observationID: crypto.randomUUID(),
+      mediaID: mediaRecord.mediaID,
+      deploymentID: mediaRecord.deploymentID,
+      eventID: eventID,
+      eventStart: eventStart,
+      eventEnd: eventEnd,
+      scientificName: winner,
+      confidence: winnerData.avgConfidence, // Use average confidence
+      count: 1,
+      // No bbox for video (movement can't be represented by single bbox)
+      bboxX: null,
+      bboxY: null,
+      bboxWidth: null,
+      bboxHeight: null,
+      detectionConfidence: null,
+      modelOutputID: modelOutputID,
+      classificationMethod: 'machine',
+      classifiedBy: classifiedBy,
+      classificationTimestamp: classificationTimestamp
+    })
+  } else {
+    // No species detected in any frame -> blank observation
+    await db.insert(observations).values({
+      observationID: crypto.randomUUID(),
+      mediaID: mediaRecord.mediaID,
+      deploymentID: mediaRecord.deploymentID,
+      eventID: eventID,
+      eventStart: mediaRecord.timestamp,
+      eventEnd: mediaRecord.timestamp,
+      scientificName: null,
+      observationType: 'blank',
+      confidence: null,
+      count: 0,
+      bboxX: null,
+      bboxY: null,
+      bboxWidth: null,
+      bboxHeight: null,
+      detectionConfidence: null,
+      modelOutputID: modelOutputID,
+      classificationMethod: 'machine',
+      classifiedBy: classifiedBy,
+      classificationTimestamp: classificationTimestamp
+    })
+  }
+
+  log.info(
+    `Inserted 1 observation for video ${mediaRecord.fileName}: ${winner || 'blank'} ` +
+      `(winner from ${speciesMap.size} species across ${predictions.length} frames)`
+  )
+}
+
 async function nextMediaToPredict(db, batchSize = 100) {
   try {
     const results = await db
@@ -388,7 +513,9 @@ async function nextMediaToPredict(db, batchSize = 100) {
         filePath: media.filePath,
         fileName: media.fileName,
         timestamp: media.timestamp,
-        deploymentID: media.deploymentID
+        deploymentID: media.deploymentID,
+        fileMediatype: media.fileMediatype,
+        exifData: media.exifData
       })
       .from(media)
       .leftJoin(observations, eq(media.mediaID, observations.mediaID))
@@ -400,7 +527,9 @@ async function nextMediaToPredict(db, batchSize = 100) {
       deploymentID: row.deploymentID,
       timestamp: row.timestamp,
       filePath: row.filePath,
-      fileName: row.fileName
+      fileName: row.fileName,
+      fileMediatype: row.fileMediatype,
+      exifData: row.exifData
     }))
   } catch (error) {
     log.error('Error getting next media to predict:', error)
@@ -418,6 +547,95 @@ async function getDeployment(db, locationID) {
     return result[0] || null
   } catch (error) {
     log.error(`Error getting deployment for locationID ${locationID}:`, error)
+    return null
+  }
+}
+
+/**
+ * Extract metadata from media file and associate with deployment
+ * Works for both images and videos
+ * @param {Object} db - Database instance
+ * @param {Object} mediaRecord - Media record (must have filePath, importFolder, mediaID)
+ * @returns {Promise<{timestamp: string, deploymentID: string}|null>} - Updated values or null on error
+ */
+async function processMediaDeployment(db, mediaRecord) {
+  // 1. Extract metadata using exifr (works for images and videos)
+  let exifData = {}
+  try {
+    const parsedExif = await exifr.parse(mediaRecord.filePath, {
+      gps: true,
+      exif: true,
+      reviveValues: true
+    })
+    exifData = parsedExif || {}
+  } catch (exifError) {
+    log.warn(`Could not extract metadata from ${mediaRecord.filePath}: ${exifError.message}`)
+  }
+
+  // 2. Extract GPS coordinates
+  let latitude = null
+  let longitude = null
+  if (exifData.latitude && exifData.longitude) {
+    latitude = exifData.latitude.toFixed(6)
+    longitude = exifData.longitude.toFixed(6)
+  }
+
+  // 3. Determine timestamp (support both image and video metadata fields)
+  const zones = latitude && longitude ? geoTz.find(latitude, longitude) : null
+  const captureDate = exifData.DateTimeOriginal || exifData.CreateDate || exifData.MediaCreateDate
+  const date = captureDate
+    ? luxon.DateTime.fromJSDate(captureDate, { zone: zones?.[0] })
+    : luxon.DateTime.now()
+
+  // 4. Calculate parentFolder for deployment lookup
+  const parentFolder =
+    mediaRecord.importFolder === path.dirname(mediaRecord.filePath)
+      ? path.basename(mediaRecord.importFolder)
+      : path.relative(mediaRecord.importFolder, path.dirname(mediaRecord.filePath))
+
+  // 5. Look up or create deployment
+  try {
+    let deployment = await getDeployment(db, parentFolder)
+
+    if (deployment) {
+      // Expand date range if this media extends it
+      await db
+        .update(deployments)
+        .set({
+          deploymentStart: DateTime.min(date, DateTime.fromISO(deployment.deploymentStart)).toISO(),
+          deploymentEnd: DateTime.max(date, DateTime.fromISO(deployment.deploymentEnd)).toISO()
+        })
+        .where(eq(deployments.deploymentID, deployment.deploymentID))
+    } else {
+      // Create new deployment
+      const deploymentID = crypto.randomUUID()
+      log.info(`Creating new deployment at: ${parentFolder}`)
+
+      await db.insert(deployments).values({
+        deploymentID,
+        locationID: parentFolder,
+        locationName: parentFolder,
+        deploymentStart: date.toISO(),
+        deploymentEnd: date.toISO(),
+        latitude: parseFloat(latitude),
+        longitude: parseFloat(longitude)
+      })
+
+      deployment = { deploymentID, latitude, longitude }
+    }
+
+    // 6. Update database
+    const timestamp = date.toISO()
+    await db
+      .update(media)
+      .set({ timestamp, deploymentID: deployment.deploymentID })
+      .where(eq(media.mediaID, mediaRecord.mediaID))
+
+    log.info(`Media ${mediaRecord.mediaID} associated with deployment ${deployment.deploymentID}`)
+
+    return { timestamp, deploymentID: deployment.deploymentID }
+  } catch (error) {
+    log.error(`Error processing deployment for ${mediaRecord.filePath}:`, error)
     return null
   }
 }
@@ -451,7 +669,9 @@ async function insertMediaBatch(db, manager, mediaDataArray) {
               filePath: m.filePath,
               fileName: m.fileName,
               importFolder: m.importFolder,
-              folderName: m.folderName
+              folderName: m.folderName,
+              fileMediatype: m.fileMediatype,
+              exifData: m.exifData
             }))
           )
           .run()
@@ -526,20 +746,22 @@ export class Importer {
         const mediaBatch = []
         const insertBatchSize = 100000
 
-        for await (const imagePath of walkImages(this.folder)) {
+        for await (const mediaPath of walkMediaFiles(this.folder)) {
           const folderName =
-            this.folder === path.dirname(imagePath)
+            this.folder === path.dirname(mediaPath)
               ? path.basename(this.folder)
-              : path.relative(this.folder, path.dirname(imagePath))
+              : path.relative(this.folder, path.dirname(mediaPath))
 
           const mediaData = {
             mediaID: crypto.randomUUID(),
             deploymentID: null,
             timestamp: null,
-            filePath: imagePath,
-            fileName: path.basename(imagePath),
+            filePath: mediaPath,
+            fileName: path.basename(mediaPath),
             importFolder: this.folder,
-            folderName: folderName
+            folderName: folderName,
+            fileMediatype: getFileMediatype(mediaPath),
+            exifData: null // Populated from Python response for videos (fps, duration, etc.)
           }
 
           mediaBatch.push(mediaData)
@@ -559,10 +781,10 @@ export class Importer {
       } else {
         this.db = await getDrizzleDb(this.id, dbPath)
         if (addingMore) {
-          log.info('scanning images in folder:', this.folder)
+          log.info('scanning media files in folder:', this.folder)
 
-          for await (const imagePath of walkImages(this.folder)) {
-            await insertMedia(this.db, imagePath, this.folder)
+          for await (const mediaPath of walkMediaFiles(this.folder)) {
+            await insertMedia(this.db, mediaPath, this.folder)
           }
         }
       }
@@ -626,9 +848,14 @@ export class Importer {
                   break
                 }
 
-                const imageQueue = mediaBatch.map((m) => m.filePath)
+                // Separate images and videos for different processing
+                const images = mediaBatch.filter((m) => !isVideoMediatype(m.fileMediatype))
+                const videos = mediaBatch.filter((m) => isVideoMediatype(m.fileMediatype))
+                const mediaQueue = mediaBatch.map((m) => m.filePath)
 
-                log.info(`Processing batch of ${imageQueue.length} images`)
+                log.info(
+                  `Processing batch of ${mediaQueue.length} media files (${images.length} images, ${videos.length} videos)`
+                )
 
                 // Create a fresh AbortController for each batch to prevent listener accumulation
                 const batchAbortController = new AbortController()
@@ -638,30 +865,60 @@ export class Importer {
                 this.abortController.signal.addEventListener('abort', abortHandler)
 
                 try {
+                  // For videos, we need to collect all frame predictions before processing
+                  const videoPredictionsMap = new Map() // filepath -> predictions[]
+
                   for await (const prediction of getPredictions(
-                    imageQueue,
+                    mediaQueue,
                     port,
                     batchAbortController.signal
                   )) {
-                    // Get the media record to get its mediaID
-                    const mediaRecord = await getMedia(this.db, prediction.filepath)
+                    // Check if this is a video frame prediction
+                    const isVideoFrame = prediction.frame_number !== undefined
+
+                    if (isVideoFrame) {
+                      // Collect video frame predictions
+                      if (!videoPredictionsMap.has(prediction.filepath)) {
+                        videoPredictionsMap.set(prediction.filepath, [])
+                      }
+                      videoPredictionsMap.get(prediction.filepath).push(prediction)
+                    } else {
+                      // Process image prediction immediately (existing logic)
+                      const mediaRecord = await getMedia(this.db, prediction.filepath)
+                      if (!mediaRecord) {
+                        log.warn(`No media found for prediction: ${prediction.filepath}`)
+                        continue
+                      }
+
+                      // Create model_output record for this media (with validated rawOutput)
+                      const modelOutputID = crypto.randomUUID()
+                      await insertModelOutput(this.db, {
+                        id: modelOutputID,
+                        mediaID: mediaRecord.mediaID,
+                        runID: runID,
+                        rawOutput: prediction // Store full prediction as JSON
+                      })
+
+                      // Insert prediction with model provenance
+                      await insertPrediction(this.db, prediction, {
+                        modelOutputID,
+                        modelID: modelReference.id,
+                        modelVersion: modelReference.version,
+                        detectionConfidenceThreshold: model.detectionConfidenceThreshold
+                      })
+                    }
+                  }
+
+                  // Process collected video predictions (aggregate per video)
+                  for (const [filepath, predictions] of videoPredictionsMap) {
+                    const mediaRecord = await getMedia(this.db, filepath)
                     if (!mediaRecord) {
-                      log.warn(`No media found for prediction: ${prediction.filepath}`)
+                      log.warn(`No media found for video: ${filepath}`)
                       continue
                     }
 
-                    // Create model_output record for this media (with validated rawOutput)
-                    const modelOutputID = crypto.randomUUID()
-                    await insertModelOutput(this.db, {
-                      id: modelOutputID,
-                      mediaID: mediaRecord.mediaID,
+                    await insertVideoPredictions(this.db, predictions, mediaRecord, {
                       runID: runID,
-                      rawOutput: prediction // Store full prediction as JSON
-                    })
-
-                    // Insert prediction with model provenance
-                    await insertPrediction(this.db, prediction, {
-                      modelOutputID,
                       modelID: modelReference.id,
                       modelVersion: modelReference.version,
                       detectionConfidenceThreshold: model.detectionConfidenceThreshold
@@ -672,7 +929,7 @@ export class Importer {
                   this.abortController.signal.removeEventListener('abort', abortHandler)
                 }
 
-                log.info(`Processed batch of ${imageQueue.length} images`)
+                log.info(`Processed batch of ${mediaQueue.length} media files`)
                 const batchEnd = DateTime.now()
                 lastBatchDuration = batchEnd.diff(batchStart, 'seconds').seconds
               }
