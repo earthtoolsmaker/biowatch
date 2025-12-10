@@ -1011,7 +1011,7 @@ export default function Overview({ data, studyId, studyName }) {
           {isAddingContributor ? (
             <div
               ref={addContributorRef}
-              className="flex flex-col flex-shrink-0 w-64 p-4 border border-blue-300 rounded-md shadow-sm bg-blue-50"
+              className="flex flex-col flex-shrink-0 w-64 p-4 border border-gray-200 rounded-md shadow-sm bg-white"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault()
