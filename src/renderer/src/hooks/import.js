@@ -18,8 +18,9 @@ export function useImportStatus(id, interval = 1000) {
           status.done > 0 &&
           status.done === status.total
         ) {
-          console.log('Import completed, invalidating study query')
+          console.log('Import completed, invalidating study and deployments queries')
           queryClient.invalidateQueries({ queryKey: ['study'] })
+          queryClient.invalidateQueries({ queryKey: ['deployments', id] })
         }
         wasRunningRef.current = status.isRunning
 
