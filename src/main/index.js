@@ -100,6 +100,18 @@ function getStudyPath(userDataPath, studyId) {
   return join(userDataPath, 'biowatch-data', 'studies', studyId)
 }
 
+/**
+ * Send GBIF import progress to all renderer windows
+ */
+function sendGbifImportProgress(progressData) {
+  const windows = BrowserWindow.getAllWindows()
+  windows.forEach((win) => {
+    if (!win.isDestroyed()) {
+      win.webContents.send('gbif-import:progress', progressData)
+    }
+  })
+}
+
 log.info('Starting Electron app...')
 
 /**
@@ -1145,8 +1157,19 @@ app.whenReady().then(async () => {
   })
 
   ipcMain.handle('import:gbif-dataset', async (_, datasetKey) => {
+    let datasetTitle = null
+
     try {
       log.info(`Downloading and importing GBIF dataset: ${datasetKey}`)
+
+      // Stage 0: Fetching metadata
+      sendGbifImportProgress({
+        stage: 'fetching_metadata',
+        stageIndex: 0,
+        totalStages: 4,
+        stageName: 'Fetching dataset metadata from GBIF...',
+        datasetKey
+      })
 
       // First, fetch the dataset metadata to get the download URL
       const datasetResponse = await fetch(`https://api.gbif.org/v1/dataset/${datasetKey}`)
@@ -1155,7 +1178,8 @@ app.whenReady().then(async () => {
       }
 
       const datasetMetadata = await datasetResponse.json()
-      log.info(`Dataset title: ${datasetMetadata.title}`)
+      datasetTitle = datasetMetadata.title
+      log.info(`Dataset title: ${datasetTitle}`)
 
       // Find the CAMTRAP_DP endpoint
       const camtrapEndpoint = datasetMetadata.endpoints?.find(
@@ -1177,9 +1201,44 @@ app.whenReady().then(async () => {
       const zipPath = join(downloadDir, 'gbif-dataset.zip')
       const extractPath = join(downloadDir, 'extracted')
 
+      // Stage 1: Downloading
+      sendGbifImportProgress({
+        stage: 'downloading',
+        stageIndex: 1,
+        totalStages: 4,
+        stageName: 'Downloading dataset archive...',
+        datasetKey,
+        datasetTitle,
+        downloadProgress: { percent: 0, downloadedBytes: 0, totalBytes: 0 }
+      })
+
       log.info(`Downloading GBIF dataset from ${downloadUrl} to ${zipPath}`)
-      await downloadFile(downloadUrl, zipPath, () => {})
+      await downloadFile(downloadUrl, zipPath, (progress) => {
+        sendGbifImportProgress({
+          stage: 'downloading',
+          stageIndex: 1,
+          totalStages: 4,
+          stageName: 'Downloading dataset archive...',
+          datasetKey,
+          datasetTitle,
+          downloadProgress: {
+            percent: progress.percent || 0,
+            downloadedBytes: progress.downloadedBytes || 0,
+            totalBytes: progress.totalBytes || 0
+          }
+        })
+      })
       log.info('Download complete')
+
+      // Stage 2: Extracting
+      sendGbifImportProgress({
+        stage: 'extracting',
+        stageIndex: 2,
+        totalStages: 4,
+        stageName: 'Extracting archive...',
+        datasetKey,
+        datasetTitle
+      })
 
       // Create extraction directory if it doesn't exist
       if (!existsSync(extractPath)) {
@@ -1206,9 +1265,6 @@ app.whenReady().then(async () => {
 
       // Extract the zip file
       await extractZip(zipPath, extractPath)
-
-      // //wait for 2s
-      // await new Promise((resolve) => setTimeout(resolve, 2000))
 
       // Find the directory containing a datapackage.json file
       let camtrapDpDirPath = null
@@ -1248,14 +1304,41 @@ app.whenReady().then(async () => {
 
       log.info(`Found CamTrap DP directory at ${camtrapDpDirPath}`)
 
+      // Stage 3: Importing CSVs
+      sendGbifImportProgress({
+        stage: 'importing_csvs',
+        stageIndex: 3,
+        totalStages: 4,
+        stageName: 'Importing data into database...',
+        datasetKey,
+        datasetTitle
+      })
+
       const id = crypto.randomUUID()
-      const { data } = await importCamTrapDataset(camtrapDpDirPath, id)
+      const { data } = await importCamTrapDataset(camtrapDpDirPath, id, (csvProgress) => {
+        sendGbifImportProgress({
+          stage: 'importing_csvs',
+          stageIndex: 3,
+          totalStages: 4,
+          stageName: `Importing ${csvProgress.currentFile}...`,
+          datasetKey,
+          datasetTitle,
+          csvProgress: {
+            currentFile: csvProgress.currentFile,
+            fileIndex: csvProgress.fileIndex,
+            totalFiles: csvProgress.totalFiles,
+            insertedRows: csvProgress.insertedRows || 0,
+            totalRows: csvProgress.totalRows || 0,
+            phase: csvProgress.phase
+          }
+        })
+      })
 
       const result = {
         path: camtrapDpDirPath,
         data: {
           ...data,
-          name: datasetMetadata.title || data.name
+          name: datasetTitle || data.name
         },
         id
       }
@@ -1292,9 +1375,34 @@ app.whenReady().then(async () => {
         log.warn(`Failed to cleanup extraction directory: ${error.message}`)
       }
 
+      // Stage 4: Complete
+      sendGbifImportProgress({
+        stage: 'complete',
+        stageIndex: 4,
+        totalStages: 4,
+        stageName: 'Import complete!',
+        datasetKey,
+        datasetTitle
+      })
+
       return result
     } catch (error) {
       log.error('Error downloading or importing GBIF dataset:', error)
+
+      // Send error progress
+      sendGbifImportProgress({
+        stage: 'error',
+        stageIndex: -1,
+        totalStages: 4,
+        stageName: 'Import failed',
+        datasetKey,
+        datasetTitle,
+        error: {
+          message: error.message,
+          retryable: !error.message.includes('No CAMTRAP_DP endpoint')
+        }
+      })
+
       throw error
     }
   })

@@ -34,12 +34,13 @@ async function initializeElectronModules() {
  * Import CamTrapDP dataset from a directory into a SQLite database
  * @param {string} directoryPath - Path to the CamTrapDP dataset directory
  * @param {string} id - Unique ID for the study
+ * @param {function} onProgress - Optional callback for progress updates
  * @returns {Promise<Object>} - Object containing dbPath and name
  */
-export async function importCamTrapDataset(directoryPath, id) {
+export async function importCamTrapDataset(directoryPath, id, onProgress = null) {
   await initializeElectronModules()
   const biowatchDataPath = path.join(app.getPath('userData'), 'biowatch-data')
-  return await importCamTrapDatasetWithPath(directoryPath, biowatchDataPath, id)
+  return await importCamTrapDatasetWithPath(directoryPath, biowatchDataPath, id, onProgress)
 }
 
 /**
@@ -47,9 +48,15 @@ export async function importCamTrapDataset(directoryPath, id) {
  * @param {string} directoryPath - Path to the CamTrapDP dataset directory
  * @param {string} biowatchDataPath - Path to the biowatch-data directory
  * @param {string} id - Unique ID for the study
+ * @param {function} onProgress - Optional callback for progress updates
  * @returns {Promise<Object>} - Object containing dbPath and data
  */
-export async function importCamTrapDatasetWithPath(directoryPath, biowatchDataPath, id) {
+export async function importCamTrapDatasetWithPath(
+  directoryPath,
+  biowatchDataPath,
+  id,
+  onProgress = null
+) {
   await initializeElectronModules()
   log.info('Starting CamTrap dataset import')
   // Create database in the specified biowatch-data directory
@@ -107,17 +114,40 @@ export async function importCamTrapDatasetWithPath(directoryPath, biowatchDataPa
     log.info(`Found ${existingFiles.length} CamTrapDP CSV files to import`)
 
     // Process each CSV file in dependency order
-    for (const { file, table, name } of existingFiles) {
+    for (let fileIndex = 0; fileIndex < existingFiles.length; fileIndex++) {
+      const { file, table, name } = existingFiles[fileIndex]
       const filePath = path.join(directoryPath, file)
 
       log.info(`Processing CamTrapDP file: ${file} into schema table: ${name}`)
+
+      // Report progress: starting to read file
+      if (onProgress) {
+        onProgress({
+          currentFile: file,
+          fileIndex,
+          totalFiles: existingFiles.length,
+          phase: 'reading',
+          insertedRows: 0,
+          totalRows: 0
+        })
+      }
 
       // Read the first row to get column names
       const columns = await getCSVColumns(filePath)
       log.debug(`Found ${columns.length} columns in ${file}`)
 
-      // Insert data using Drizzle
-      await insertCSVData(db, filePath, table, name, columns, directoryPath)
+      // Insert data using Drizzle with progress callback
+      await insertCSVData(db, filePath, table, name, columns, directoryPath, (batchProgress) => {
+        if (onProgress) {
+          onProgress({
+            currentFile: file,
+            fileIndex,
+            totalFiles: existingFiles.length,
+            phase: 'inserting',
+            ...batchProgress
+          })
+        }
+      })
 
       log.info(`Successfully imported ${file} into ${name} table`)
     }
@@ -185,9 +215,18 @@ async function getCSVColumns(filePath) {
  * @param {string} tableName - Name of the table
  * @param {string[]} columns - Array of column names from CSV
  * @param {string} directoryPath - Path to the CamTrapDP directory
+ * @param {function} onProgress - Optional callback for progress updates
  * @returns {Promise<void>}
  */
-async function insertCSVData(db, filePath, table, tableName, columns, directoryPath) {
+async function insertCSVData(
+  db,
+  filePath,
+  table,
+  tableName,
+  columns,
+  directoryPath,
+  onProgress = null
+) {
   await initializeElectronModules()
   log.debug(`Beginning data insertion from ${filePath} to table ${tableName}`)
 
@@ -215,12 +254,26 @@ async function insertCSVData(db, filePath, table, tableName, columns, directoryP
 
           // Insert in batches for better performance
           const batchSize = 1000
+          const totalBatches = Math.ceil(rows.length / batchSize)
+
           for (let i = 0; i < rows.length; i += batchSize) {
             const batch = rows.slice(i, i + batchSize)
             await db.insert(table).values(batch)
-            log.debug(
-              `Inserted batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(rows.length / batchSize)} into ${tableName}`
-            )
+
+            const insertedRows = Math.min(i + batchSize, rows.length)
+            const batchNumber = Math.floor(i / batchSize) + 1
+
+            log.debug(`Inserted batch ${batchNumber}/${totalBatches} into ${tableName}`)
+
+            // Report progress after each batch
+            if (onProgress) {
+              onProgress({
+                insertedRows,
+                totalRows: rows.length,
+                batchNumber,
+                totalBatches
+              })
+            }
           }
 
           log.info(`Completed insertion of ${rowCount} rows into ${tableName}`)
