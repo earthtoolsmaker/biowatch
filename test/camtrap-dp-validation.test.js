@@ -2,10 +2,15 @@ import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
 
 // Import the schemas and sanitizers
-import { observationSchema, mediaSchema } from '../src/main/export/camtrapDPSchemas.js'
+import {
+  observationSchema,
+  mediaSchema,
+  deploymentSchema
+} from '../src/main/export/camtrapDPSchemas.js'
 import {
   sanitizeObservation,
   sanitizeMedia,
+  sanitizeDeployment,
   ensureTimezone,
   clampBboxDimension,
   clampBboxCoordinate,
@@ -844,6 +849,291 @@ describe('CamtrapDP Media Sanitizer', () => {
 
       const sanitized = sanitizeMedia(raw)
       const result = mediaSchema.safeParse(sanitized)
+
+      assert.equal(
+        result.success,
+        true,
+        `Validation failed: ${JSON.stringify(result.error?.issues)}`
+      )
+    })
+  })
+})
+
+// =============================================================================
+// Deployment Schema Validation Tests
+// =============================================================================
+
+/**
+ * Helper to create a valid deployment row for testing
+ */
+function createValidDeployment(overrides = {}) {
+  return {
+    deploymentID: 'dep-001',
+    latitude: 46.77,
+    longitude: 6.64,
+    deploymentStart: '2024-01-01T00:00:00Z',
+    deploymentEnd: '2024-12-31T23:59:59Z',
+    locationID: null,
+    locationName: null,
+    ...overrides
+  }
+}
+
+describe('CamtrapDP Deployment Schema', () => {
+  describe('required fields', () => {
+    test('accepts valid deployment with all required fields', () => {
+      const deployment = createValidDeployment()
+      const result = deploymentSchema.safeParse(deployment)
+      assert.equal(
+        result.success,
+        true,
+        `Validation failed: ${JSON.stringify(result.error?.issues)}`
+      )
+    })
+
+    test('rejects missing deploymentID', () => {
+      const deployment = createValidDeployment({ deploymentID: '' })
+      const result = deploymentSchema.safeParse(deployment)
+      assert.equal(result.success, false)
+      assert.ok(result.error.issues.some((i) => i.path.includes('deploymentID')))
+    })
+
+    test('rejects missing latitude', () => {
+      const deployment = createValidDeployment({ latitude: null })
+      const result = deploymentSchema.safeParse(deployment)
+      assert.equal(result.success, false)
+    })
+
+    test('rejects missing longitude', () => {
+      const deployment = createValidDeployment({ longitude: null })
+      const result = deploymentSchema.safeParse(deployment)
+      assert.equal(result.success, false)
+    })
+
+    test('rejects missing deploymentStart', () => {
+      const deployment = createValidDeployment({ deploymentStart: null })
+      const result = deploymentSchema.safeParse(deployment)
+      assert.equal(result.success, false)
+    })
+
+    test('rejects missing deploymentEnd', () => {
+      const deployment = createValidDeployment({ deploymentEnd: null })
+      const result = deploymentSchema.safeParse(deployment)
+      assert.equal(result.success, false)
+    })
+  })
+
+  describe('latitude constraints', () => {
+    test('accepts latitude = 0', () => {
+      const deployment = createValidDeployment({ latitude: 0 })
+      const result = deploymentSchema.safeParse(deployment)
+      assert.equal(result.success, true)
+    })
+
+    test('accepts latitude = -90 (South Pole)', () => {
+      const deployment = createValidDeployment({ latitude: -90 })
+      const result = deploymentSchema.safeParse(deployment)
+      assert.equal(result.success, true)
+    })
+
+    test('accepts latitude = 90 (North Pole)', () => {
+      const deployment = createValidDeployment({ latitude: 90 })
+      const result = deploymentSchema.safeParse(deployment)
+      assert.equal(result.success, true)
+    })
+
+    test('rejects latitude < -90', () => {
+      const deployment = createValidDeployment({ latitude: -91 })
+      const result = deploymentSchema.safeParse(deployment)
+      assert.equal(result.success, false)
+    })
+
+    test('rejects latitude > 90', () => {
+      const deployment = createValidDeployment({ latitude: 91 })
+      const result = deploymentSchema.safeParse(deployment)
+      assert.equal(result.success, false)
+    })
+  })
+
+  describe('longitude constraints', () => {
+    test('accepts longitude = 0', () => {
+      const deployment = createValidDeployment({ longitude: 0 })
+      const result = deploymentSchema.safeParse(deployment)
+      assert.equal(result.success, true)
+    })
+
+    test('accepts longitude = -180', () => {
+      const deployment = createValidDeployment({ longitude: -180 })
+      const result = deploymentSchema.safeParse(deployment)
+      assert.equal(result.success, true)
+    })
+
+    test('accepts longitude = 180', () => {
+      const deployment = createValidDeployment({ longitude: 180 })
+      const result = deploymentSchema.safeParse(deployment)
+      assert.equal(result.success, true)
+    })
+
+    test('rejects longitude < -180', () => {
+      const deployment = createValidDeployment({ longitude: -181 })
+      const result = deploymentSchema.safeParse(deployment)
+      assert.equal(result.success, false)
+    })
+
+    test('rejects longitude > 180', () => {
+      const deployment = createValidDeployment({ longitude: 181 })
+      const result = deploymentSchema.safeParse(deployment)
+      assert.equal(result.success, false)
+    })
+  })
+
+  describe('datetime format', () => {
+    test('accepts ISO 8601 with Z timezone', () => {
+      const deployment = createValidDeployment({ deploymentStart: '2024-01-15T10:30:00Z' })
+      const result = deploymentSchema.safeParse(deployment)
+      assert.equal(result.success, true)
+    })
+
+    test('accepts ISO 8601 with +HH:MM timezone', () => {
+      const deployment = createValidDeployment({ deploymentStart: '2024-01-15T10:30:00+02:00' })
+      const result = deploymentSchema.safeParse(deployment)
+      assert.equal(result.success, true)
+    })
+
+    test('accepts ISO 8601 with -HH:MM timezone', () => {
+      const deployment = createValidDeployment({ deploymentStart: '2024-01-15T10:30:00-05:00' })
+      const result = deploymentSchema.safeParse(deployment)
+      assert.equal(result.success, true)
+    })
+
+    test('accepts ISO 8601 with milliseconds', () => {
+      const deployment = createValidDeployment({ deploymentStart: '2024-01-15T10:30:00.123Z' })
+      const result = deploymentSchema.safeParse(deployment)
+      assert.equal(result.success, true)
+    })
+
+    test('rejects datetime without timezone', () => {
+      const deployment = createValidDeployment({ deploymentStart: '2024-01-15T10:30:00' })
+      const result = deploymentSchema.safeParse(deployment)
+      assert.equal(result.success, false)
+    })
+  })
+
+  describe('optional fields', () => {
+    test('accepts locationID as string', () => {
+      const deployment = createValidDeployment({ locationID: 'loc-001' })
+      const result = deploymentSchema.safeParse(deployment)
+      assert.equal(result.success, true)
+    })
+
+    test('accepts locationID as null', () => {
+      const deployment = createValidDeployment({ locationID: null })
+      const result = deploymentSchema.safeParse(deployment)
+      assert.equal(result.success, true)
+    })
+
+    test('accepts locationName as string', () => {
+      const deployment = createValidDeployment({ locationName: 'Forest Camera 1' })
+      const result = deploymentSchema.safeParse(deployment)
+      assert.equal(result.success, true)
+    })
+
+    test('accepts locationName as null', () => {
+      const deployment = createValidDeployment({ locationName: null })
+      const result = deploymentSchema.safeParse(deployment)
+      assert.equal(result.success, true)
+    })
+  })
+})
+
+// =============================================================================
+// Deployment Sanitizer Tests
+// =============================================================================
+
+describe('CamtrapDP Deployment Sanitizer', () => {
+  describe('sanitizeDeployment', () => {
+    test('sanitizes deploymentStart without timezone', () => {
+      const raw = createValidDeployment({ deploymentStart: '2024-01-01T00:00:00' })
+      const sanitized = sanitizeDeployment(raw)
+      assert.equal(sanitized.deploymentStart, '2024-01-01T00:00:00Z')
+    })
+
+    test('sanitizes deploymentEnd without timezone', () => {
+      const raw = createValidDeployment({ deploymentEnd: '2024-12-31T23:59:59' })
+      const sanitized = sanitizeDeployment(raw)
+      assert.equal(sanitized.deploymentEnd, '2024-12-31T23:59:59Z')
+    })
+
+    test('preserves deploymentStart with timezone', () => {
+      const raw = createValidDeployment({ deploymentStart: '2024-01-01T00:00:00+02:00' })
+      const sanitized = sanitizeDeployment(raw)
+      assert.equal(sanitized.deploymentStart, '2024-01-01T00:00:00+02:00')
+    })
+
+    test('preserves deploymentEnd with timezone', () => {
+      const raw = createValidDeployment({ deploymentEnd: '2024-12-31T23:59:59-05:00' })
+      const sanitized = sanitizeDeployment(raw)
+      assert.equal(sanitized.deploymentEnd, '2024-12-31T23:59:59-05:00')
+    })
+
+    test('converts empty locationID to null', () => {
+      const raw = createValidDeployment({ locationID: '' })
+      const sanitized = sanitizeDeployment(raw)
+      assert.equal(sanitized.locationID, null)
+    })
+
+    test('converts empty locationName to null', () => {
+      const raw = createValidDeployment({ locationName: '' })
+      const sanitized = sanitizeDeployment(raw)
+      assert.equal(sanitized.locationName, null)
+    })
+
+    test('preserves valid locationID', () => {
+      const raw = createValidDeployment({ locationID: 'loc-001' })
+      const sanitized = sanitizeDeployment(raw)
+      assert.equal(sanitized.locationID, 'loc-001')
+    })
+
+    test('preserves valid locationName', () => {
+      const raw = createValidDeployment({ locationName: 'Forest Camera 1' })
+      const sanitized = sanitizeDeployment(raw)
+      assert.equal(sanitized.locationName, 'Forest Camera 1')
+    })
+
+    test('produces schema-valid output for typical input', () => {
+      const raw = {
+        deploymentID: 'dep-001',
+        latitude: 46.77,
+        longitude: 6.64,
+        deploymentStart: '2024-01-01T00:00:00', // no timezone
+        deploymentEnd: '2024-12-31T23:59:59', // no timezone
+        locationID: 'loc-001',
+        locationName: 'Forest Camera 1'
+      }
+
+      const sanitized = sanitizeDeployment(raw)
+      const result = deploymentSchema.safeParse(sanitized)
+
+      assert.equal(
+        result.success,
+        true,
+        `Validation failed: ${JSON.stringify(result.error?.issues)}`
+      )
+    })
+
+    test('produces schema-valid output with null optional fields', () => {
+      const raw = {
+        deploymentID: 'dep-001',
+        latitude: 46.77,
+        longitude: 6.64,
+        deploymentStart: '2024-01-01T00:00:00',
+        deploymentEnd: '2024-12-31T23:59:59',
+        locationID: null,
+        locationName: null
+      }
+
+      const sanitized = sanitizeDeployment(raw)
+      const result = deploymentSchema.safeParse(sanitized)
 
       assert.equal(
         result.success,

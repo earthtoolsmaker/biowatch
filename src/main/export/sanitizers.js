@@ -228,3 +228,24 @@ export function sanitizeMedia(row) {
     mediaComments: row.mediaComments || null
   }
 }
+
+/**
+ * Sanitize a complete deployment row for CamtrapDP compliance.
+ *
+ * @param {Object} row - Raw deployment row
+ * @returns {Object} - Sanitized deployment row
+ */
+export function sanitizeDeployment(row) {
+  return {
+    // Required fields
+    deploymentID: row.deploymentID,
+    latitude: row.latitude,
+    longitude: row.longitude,
+    deploymentStart: ensureTimezone(row.deploymentStart),
+    deploymentEnd: ensureTimezone(row.deploymentEnd),
+
+    // Optional fields
+    locationID: row.locationID || null,
+    locationName: row.locationName || null
+  }
+}

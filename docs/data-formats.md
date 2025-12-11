@@ -109,7 +109,13 @@ dataset/
 
 ### Export Validation
 
-During CamTrap DP export, observations and media are validated against the [official TDWG CamtrapDP 1.0 specification](https://camtrap-dp.tdwg.org/). Validation is non-blocking - warnings are logged but don't prevent export.
+During CamTrap DP export, deployments, observations, and media are validated against the [official TDWG CamtrapDP 1.0 specification](https://camtrap-dp.tdwg.org/). Validation is non-blocking - warnings are logged but don't prevent export.
+
+**Deployments sanitization rules:**
+- Timestamps (`deploymentStart`, `deploymentEnd`) without timezone get `Z` (UTC) appended
+- `latitude` must be in range -90 to 90
+- `longitude` must be in range -180 to 180
+- Empty `locationID`/`locationName` converted to `null`
 
 **Observations sanitization rules:**
 - Timestamps without timezone get `Z` (UTC) appended
@@ -127,6 +133,12 @@ During CamTrap DP export, observations and media are validated against the [offi
 ```json
 {
   "validation": {
+    "deployments": {
+      "validated": 10,
+      "withIssues": 0,
+      "isValid": true,
+      "sampleErrors": []
+    },
     "observations": {
       "validated": 1000,
       "withIssues": 5,

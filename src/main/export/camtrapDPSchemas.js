@@ -174,6 +174,71 @@ export const mediaSchema = z.object({
 export const mediaArraySchema = z.array(mediaSchema)
 
 // =============================================================================
+// Deployment Schema
+// =============================================================================
+
+/**
+ * Feature Type enum
+ */
+const featureTypeEnum = z.enum([
+  'roadPaved',
+  'roadDirt',
+  'trailHiking',
+  'trailGame',
+  'roadUnderpass',
+  'roadOverpass',
+  'roadBridge',
+  'culvert',
+  'burrow',
+  'nestSite',
+  'carcass',
+  'waterSource',
+  'fruitingTree'
+])
+
+/**
+ * CamtrapDP Deployment Schema
+ *
+ * Validates a single deployment row against the official spec.
+ */
+export const deploymentSchema = z.object({
+  // === Required fields ===
+  deploymentID: z.string().min(1, 'deploymentID is required'),
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  deploymentStart: isoDateTimeWithTz,
+  deploymentEnd: isoDateTimeWithTz,
+
+  // === Optional fields (what we currently export) ===
+  locationID: z.string().nullable().optional(),
+  locationName: z.string().nullable().optional(),
+
+  // === Additional optional fields from spec (for future use) ===
+  coordinateUncertainty: z.number().int().min(1).nullable().optional(),
+  cameraID: z.string().nullable().optional(),
+  cameraModel: z.string().nullable().optional(),
+  cameraDelay: z.number().int().min(0).nullable().optional(),
+  cameraHeight: z.number().nullable().optional(),
+  cameraDepth: z.number().nullable().optional(),
+  cameraTilt: z.number().int().min(-90).max(90).nullable().optional(),
+  cameraHeading: z.number().int().min(0).max(360).nullable().optional(),
+  detectionDistance: z.number().nullable().optional(),
+  setupBy: z.string().nullable().optional(),
+  featureType: featureTypeEnum.nullable().optional(),
+  habitat: z.string().nullable().optional(),
+  baitUse: z.boolean().nullable().optional(),
+  timestampIssues: z.boolean().nullable().optional(),
+  deploymentGroups: z.string().nullable().optional(),
+  deploymentTags: z.string().nullable().optional(),
+  deploymentComments: z.string().nullable().optional()
+})
+
+/**
+ * Schema for validating an array of deployments
+ */
+export const deploymentsArraySchema = z.array(deploymentSchema)
+
+// =============================================================================
 // Exports
 // =============================================================================
 
@@ -182,6 +247,7 @@ export const mediaArraySchema = z.array(mediaSchema)
  */
 export const ObservationType = observationSchema
 export const MediaType = mediaSchema
+export const DeploymentType = deploymentSchema
 
 // Export enums for use in sanitizers
 export const enums = {
@@ -191,5 +257,6 @@ export const enums = {
   sex: sexEnum,
   classificationMethod: classificationMethodEnum,
   cameraSetupType: cameraSetupTypeEnum,
-  captureMethod: captureMethodEnum
+  captureMethod: captureMethodEnum,
+  featureType: featureTypeEnum
 }
