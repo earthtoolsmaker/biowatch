@@ -2,9 +2,10 @@ import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
 
 // Import the schemas and sanitizers
-import { observationSchema } from '../src/main/export/camtrapDPSchemas.js'
+import { observationSchema, mediaSchema } from '../src/main/export/camtrapDPSchemas.js'
 import {
   sanitizeObservation,
+  sanitizeMedia,
   ensureTimezone,
   clampBboxDimension,
   clampBboxCoordinate,
@@ -592,6 +593,257 @@ describe('CamtrapDP Sanitizers', () => {
 
       const sanitized = sanitizeObservation(raw)
       const result = observationSchema.safeParse(sanitized)
+
+      assert.equal(
+        result.success,
+        true,
+        `Validation failed: ${JSON.stringify(result.error?.issues)}`
+      )
+    })
+  })
+})
+
+// =============================================================================
+// Media Schema Validation Tests
+// =============================================================================
+
+/**
+ * Helper to create a valid media row for testing
+ */
+function createValidMedia(overrides = {}) {
+  return {
+    mediaID: 'media-001',
+    deploymentID: 'dep-001',
+    timestamp: '2024-01-15T10:30:00Z',
+    filePath: 'media/image001.jpg',
+    filePublic: false,
+    fileMediatype: 'image/jpeg',
+    fileName: 'image001.jpg',
+    exifData: null,
+    captureMethod: null,
+    favorite: null,
+    mediaComments: null,
+    ...overrides
+  }
+}
+
+describe('CamtrapDP Media Schema', () => {
+  describe('required fields', () => {
+    test('accepts valid media with all required fields', () => {
+      const media = createValidMedia()
+      const result = mediaSchema.safeParse(media)
+      assert.equal(
+        result.success,
+        true,
+        `Validation failed: ${JSON.stringify(result.error?.issues)}`
+      )
+    })
+
+    test('rejects missing mediaID', () => {
+      const media = createValidMedia({ mediaID: '' })
+      const result = mediaSchema.safeParse(media)
+      assert.equal(result.success, false)
+      assert.ok(result.error.issues.some((i) => i.path.includes('mediaID')))
+    })
+
+    test('rejects missing deploymentID', () => {
+      const media = createValidMedia({ deploymentID: '' })
+      const result = mediaSchema.safeParse(media)
+      assert.equal(result.success, false)
+      assert.ok(result.error.issues.some((i) => i.path.includes('deploymentID')))
+    })
+
+    test('rejects missing filePath', () => {
+      const media = createValidMedia({ filePath: '' })
+      const result = mediaSchema.safeParse(media)
+      assert.equal(result.success, false)
+    })
+
+    test('rejects missing timestamp', () => {
+      const media = createValidMedia({ timestamp: null })
+      const result = mediaSchema.safeParse(media)
+      assert.equal(result.success, false)
+    })
+  })
+
+  describe('timestamp format', () => {
+    test('accepts ISO 8601 with Z timezone', () => {
+      const media = createValidMedia({ timestamp: '2024-01-15T10:30:00Z' })
+      const result = mediaSchema.safeParse(media)
+      assert.equal(result.success, true)
+    })
+
+    test('accepts ISO 8601 with +HH:MM timezone', () => {
+      const media = createValidMedia({ timestamp: '2024-01-15T10:30:00+02:00' })
+      const result = mediaSchema.safeParse(media)
+      assert.equal(result.success, true)
+    })
+
+    test('rejects timestamp without timezone', () => {
+      const media = createValidMedia({ timestamp: '2024-01-15T10:30:00' })
+      const result = mediaSchema.safeParse(media)
+      assert.equal(result.success, false)
+    })
+  })
+
+  describe('fileMediatype pattern', () => {
+    test('accepts image/* types', () => {
+      const types = ['image/jpeg', 'image/png', 'image/gif', 'image/tiff']
+      for (const type of types) {
+        const media = createValidMedia({ fileMediatype: type })
+        const result = mediaSchema.safeParse(media)
+        assert.equal(result.success, true, `Should accept ${type}`)
+      }
+    })
+
+    test('accepts video/* types', () => {
+      const types = ['video/mp4', 'video/avi', 'video/quicktime']
+      for (const type of types) {
+        const media = createValidMedia({ fileMediatype: type })
+        const result = mediaSchema.safeParse(media)
+        assert.equal(result.success, true, `Should accept ${type}`)
+      }
+    })
+
+    test('accepts audio/* types', () => {
+      const types = ['audio/mpeg', 'audio/wav']
+      for (const type of types) {
+        const media = createValidMedia({ fileMediatype: type })
+        const result = mediaSchema.safeParse(media)
+        assert.equal(result.success, true, `Should accept ${type}`)
+      }
+    })
+
+    test('rejects application/* types', () => {
+      const media = createValidMedia({ fileMediatype: 'application/pdf' })
+      const result = mediaSchema.safeParse(media)
+      assert.equal(result.success, false)
+    })
+
+    test('rejects text/* types', () => {
+      const media = createValidMedia({ fileMediatype: 'text/plain' })
+      const result = mediaSchema.safeParse(media)
+      assert.equal(result.success, false)
+    })
+
+    test('rejects invalid format', () => {
+      const media = createValidMedia({ fileMediatype: 'jpeg' })
+      const result = mediaSchema.safeParse(media)
+      assert.equal(result.success, false)
+    })
+  })
+
+  describe('filePublic boolean', () => {
+    test('accepts filePublic true', () => {
+      const media = createValidMedia({ filePublic: true })
+      const result = mediaSchema.safeParse(media)
+      assert.equal(result.success, true)
+    })
+
+    test('accepts filePublic false', () => {
+      const media = createValidMedia({ filePublic: false })
+      const result = mediaSchema.safeParse(media)
+      assert.equal(result.success, true)
+    })
+
+    test('rejects non-boolean filePublic', () => {
+      const media = createValidMedia({ filePublic: 'true' })
+      const result = mediaSchema.safeParse(media)
+      assert.equal(result.success, false)
+    })
+  })
+
+  describe('captureMethod enum', () => {
+    test('accepts captureMethod: activityDetection', () => {
+      const media = createValidMedia({ captureMethod: 'activityDetection' })
+      const result = mediaSchema.safeParse(media)
+      assert.equal(result.success, true)
+    })
+
+    test('accepts captureMethod: timeLapse', () => {
+      const media = createValidMedia({ captureMethod: 'timeLapse' })
+      const result = mediaSchema.safeParse(media)
+      assert.equal(result.success, true)
+    })
+
+    test('accepts captureMethod: null', () => {
+      const media = createValidMedia({ captureMethod: null })
+      const result = mediaSchema.safeParse(media)
+      assert.equal(result.success, true)
+    })
+
+    test('rejects invalid captureMethod', () => {
+      const media = createValidMedia({ captureMethod: 'motion' })
+      const result = mediaSchema.safeParse(media)
+      assert.equal(result.success, false)
+    })
+  })
+
+  describe('optional fields', () => {
+    test('accepts all optional fields as null', () => {
+      const media = createValidMedia({
+        fileName: null,
+        exifData: null,
+        captureMethod: null,
+        favorite: null,
+        mediaComments: null
+      })
+      const result = mediaSchema.safeParse(media)
+      assert.equal(result.success, true)
+    })
+
+    test('accepts favorite as boolean', () => {
+      const media = createValidMedia({ favorite: true })
+      const result = mediaSchema.safeParse(media)
+      assert.equal(result.success, true)
+    })
+  })
+})
+
+// =============================================================================
+// Media Sanitizer Tests
+// =============================================================================
+
+describe('CamtrapDP Media Sanitizer', () => {
+  describe('sanitizeMedia', () => {
+    test('sanitizes timestamp without timezone', () => {
+      const raw = createValidMedia({ timestamp: '2024-01-15T10:30:00' })
+      const sanitized = sanitizeMedia(raw)
+      assert.equal(sanitized.timestamp, '2024-01-15T10:30:00Z')
+    })
+
+    test('preserves timestamp with timezone', () => {
+      const raw = createValidMedia({ timestamp: '2024-01-15T10:30:00+02:00' })
+      const sanitized = sanitizeMedia(raw)
+      assert.equal(sanitized.timestamp, '2024-01-15T10:30:00+02:00')
+    })
+
+    test('converts empty strings to null for optional fields', () => {
+      const raw = createValidMedia({
+        fileName: '',
+        exifData: '',
+        mediaComments: ''
+      })
+      const sanitized = sanitizeMedia(raw)
+      assert.equal(sanitized.fileName, null)
+      assert.equal(sanitized.exifData, null)
+      assert.equal(sanitized.mediaComments, null)
+    })
+
+    test('produces schema-valid output for typical input', () => {
+      const raw = {
+        mediaID: 'media-001',
+        deploymentID: 'dep-001',
+        timestamp: '2024-01-15T10:30:00', // no timezone
+        filePath: 'media/image001.jpg',
+        filePublic: false,
+        fileMediatype: 'image/jpeg',
+        fileName: 'image001.jpg',
+        exifData: '{"Make":"Canon"}'
+      }
+
+      const sanitized = sanitizeMedia(raw)
+      const result = mediaSchema.safeParse(sanitized)
 
       assert.equal(
         result.success,

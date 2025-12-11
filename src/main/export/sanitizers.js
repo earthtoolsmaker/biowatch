@@ -1,7 +1,7 @@
 /**
  * CamtrapDP Sanitization Helpers
  *
- * Functions to transform observation data to comply with the CamtrapDP 1.0 specification.
+ * Functions to transform observation and media data to comply with the CamtrapDP 1.0 specification.
  * These sanitizers fix common issues before validation.
  */
 
@@ -201,5 +201,30 @@ export function sanitizeObservation(row) {
     individualPositionRadius: row.individualPositionRadius ?? null,
     individualPositionAngle: row.individualPositionAngle ?? null,
     individualSpeed: row.individualSpeed ?? null
+  }
+}
+
+/**
+ * Sanitize a complete media row for CamtrapDP compliance.
+ *
+ * @param {Object} row - Raw media row
+ * @returns {Object} - Sanitized media row
+ */
+export function sanitizeMedia(row) {
+  return {
+    // Required fields
+    mediaID: row.mediaID,
+    deploymentID: row.deploymentID,
+    timestamp: ensureTimezone(row.timestamp),
+    filePath: row.filePath,
+    filePublic: row.filePublic,
+    fileMediatype: row.fileMediatype,
+
+    // Optional fields
+    captureMethod: row.captureMethod || null,
+    fileName: row.fileName || null,
+    exifData: row.exifData || null,
+    favorite: row.favorite ?? null,
+    mediaComments: row.mediaComments || null
   }
 }

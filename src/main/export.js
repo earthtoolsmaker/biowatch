@@ -15,8 +15,8 @@ import {
 import { eq, and, isNotNull, ne, or, isNull, asc, inArray } from 'drizzle-orm'
 import { downloadFileWithRetry } from './download.js'
 import crypto from 'crypto'
-import { observationSchema } from './export/camtrapDPSchemas.js'
-import { sanitizeObservation } from './export/sanitizers.js'
+import { observationSchema, mediaSchema } from './export/camtrapDPSchemas.js'
+import { sanitizeObservation, sanitizeMedia } from './export/sanitizers.js'
 
 function getStudyDatabasePath(userDataPath, studyId) {
   return join(getStudyPath(userDataPath, studyId), 'study.db')
@@ -955,14 +955,15 @@ export async function exportCamtrapDP(studyId, options = {}) {
       }
     }
 
-    // Transform media data for Camtrap DP
-    const mediaRows = mediaData.map((m) => {
+    // Transform and validate media data for Camtrap DP
+    const mediaValidationErrors = []
+    const mediaRows = mediaData.map((m, index) => {
       // When includeMedia is true, use the deduplicated filename
       // When includeMedia is false, keep the original filePath (which may be HTTP URL)
       const exportFileName = includeMedia ? mediaFileNameMap.get(m.mediaID) : m.fileName
       const exportFilePath = includeMedia ? `media/${exportFileName}` : m.filePath
 
-      return {
+      const rawRow = {
         mediaID: m.mediaID,
         deploymentID: m.deploymentID,
         timestamp: m.timestamp,
@@ -972,7 +973,40 @@ export async function exportCamtrapDP(studyId, options = {}) {
         fileName: exportFileName,
         exifData: m.exifData ? JSON.stringify(m.exifData) : ''
       }
+
+      // Sanitize values to comply with CamtrapDP spec
+      const sanitizedRow = sanitizeMedia(rawRow)
+
+      // Validate against schema (non-blocking - collect errors)
+      const result = mediaSchema.safeParse(sanitizedRow)
+      if (!result.success) {
+        mediaValidationErrors.push({
+          rowIndex: index,
+          mediaID: m.mediaID,
+          errors: result.error.issues.map((issue) => ({
+            path: issue.path.join('.'),
+            message: issue.message
+          }))
+        })
+      }
+
+      return sanitizedRow
     })
+
+    // Log media validation warnings (non-blocking)
+    if (mediaValidationErrors.length > 0) {
+      log.warn(
+        `CamtrapDP media validation: ${mediaValidationErrors.length} of ${mediaRows.length} media have issues`
+      )
+      mediaValidationErrors.slice(0, 5).forEach((e) => {
+        log.warn(`  Media ${e.mediaID}: ${JSON.stringify(e.errors)}`)
+      })
+      if (mediaValidationErrors.length > 5) {
+        log.warn(`  ... and ${mediaValidationErrors.length - 5} more`)
+      }
+    } else {
+      log.info(`CamtrapDP media validation: All ${mediaRows.length} media are valid`)
+    }
 
     // Generate sequence grouping if sequenceGap > 0
     // Returns null when sequenceGap <= 0, signaling to preserve existing eventIDs
@@ -985,7 +1019,7 @@ export async function exportCamtrapDP(studyId, options = {}) {
     )
 
     // Transform and validate observations data for Camtrap DP
-    const validationErrors = []
+    const observationValidationErrors = []
     const observationsRows = observationsData.map((o, index) => {
       // Use generated event data if available, otherwise preserve existing
       const eventData = eventMapping?.get(o.observationID)
@@ -1021,7 +1055,7 @@ export async function exportCamtrapDP(studyId, options = {}) {
       // Validate against schema (non-blocking - collect errors)
       const result = observationSchema.safeParse(sanitizedRow)
       if (!result.success) {
-        validationErrors.push({
+        observationValidationErrors.push({
           rowIndex: index,
           observationID: o.observationID,
           errors: result.error.issues.map((issue) => ({
@@ -1034,19 +1068,21 @@ export async function exportCamtrapDP(studyId, options = {}) {
       return sanitizedRow
     })
 
-    // Log validation warnings (non-blocking)
-    if (validationErrors.length > 0) {
+    // Log observation validation warnings (non-blocking)
+    if (observationValidationErrors.length > 0) {
       log.warn(
-        `CamtrapDP validation: ${validationErrors.length} of ${observationsRows.length} observations have issues`
+        `CamtrapDP observation validation: ${observationValidationErrors.length} of ${observationsRows.length} observations have issues`
       )
-      validationErrors.slice(0, 5).forEach((e) => {
+      observationValidationErrors.slice(0, 5).forEach((e) => {
         log.warn(`  Observation ${e.observationID}: ${JSON.stringify(e.errors)}`)
       })
-      if (validationErrors.length > 5) {
-        log.warn(`  ... and ${validationErrors.length - 5} more`)
+      if (observationValidationErrors.length > 5) {
+        log.warn(`  ... and ${observationValidationErrors.length - 5} more`)
       }
     } else {
-      log.info(`CamtrapDP validation: All ${observationsRows.length} observations are valid`)
+      log.info(
+        `CamtrapDP observation validation: All ${observationsRows.length} observations are valid`
+      )
     }
 
     // Generate CSV files
@@ -1225,10 +1261,19 @@ export async function exportCamtrapDP(studyId, options = {}) {
       }),
       // CamtrapDP validation summary
       validation: {
-        observationsValidated: observationsRows.length,
-        observationsWithIssues: validationErrors.length,
-        isValid: validationErrors.length === 0,
-        sampleErrors: validationErrors.slice(0, 5)
+        observations: {
+          validated: observationsRows.length,
+          withIssues: observationValidationErrors.length,
+          isValid: observationValidationErrors.length === 0,
+          sampleErrors: observationValidationErrors.slice(0, 5)
+        },
+        media: {
+          validated: mediaRows.length,
+          withIssues: mediaValidationErrors.length,
+          isValid: mediaValidationErrors.length === 0,
+          sampleErrors: mediaValidationErrors.slice(0, 5)
+        },
+        isValid: observationValidationErrors.length === 0 && mediaValidationErrors.length === 0
       }
     }
   } catch (error) {

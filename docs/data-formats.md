@@ -109,9 +109,9 @@ dataset/
 
 ### Export Validation
 
-During CamTrap DP export, observations are validated against the [official TDWG CamtrapDP 1.0 specification](https://camtrap-dp.tdwg.org/). Validation is non-blocking - warnings are logged but don't prevent export.
+During CamTrap DP export, observations and media are validated against the [official TDWG CamtrapDP 1.0 specification](https://camtrap-dp.tdwg.org/). Validation is non-blocking - warnings are logged but don't prevent export.
 
-**Sanitization rules applied:**
+**Observations sanitization rules:**
 - Timestamps without timezone get `Z` (UTC) appended
 - `count` values of 0 or negative become `null`
 - `bboxWidth`/`bboxHeight` of 0 are clamped to `1e-15` (minimum positive)
@@ -119,14 +119,27 @@ During CamTrap DP export, observations are validated against the [official TDWG 
 - `sex` values are mapped to enum (`f`/`F` → `female`, `m`/`M` → `male`)
 - `classificationMethod` values are mapped (`ai`/`ml`/`auto` → `machine`, `manual` → `human`)
 
+**Media sanitization rules:**
+- Timestamps without timezone get `Z` (UTC) appended
+- `fileMediatype` must match pattern `^(image|video|audio)/.*$`
+
 **Validation summary returned:**
 ```json
 {
   "validation": {
-    "observationsValidated": 1000,
-    "observationsWithIssues": 5,
-    "isValid": false,
-    "sampleErrors": [...]
+    "observations": {
+      "validated": 1000,
+      "withIssues": 5,
+      "isValid": false,
+      "sampleErrors": [...]
+    },
+    "media": {
+      "validated": 500,
+      "withIssues": 0,
+      "isValid": true,
+      "sampleErrors": []
+    },
+    "isValid": false
   }
 }
 ```

@@ -1,8 +1,10 @@
 /**
  * CamtrapDP Zod Schemas
  *
- * Validates observation data against the official TDWG CamtrapDP 1.0 specification.
- * Schema source: https://raw.githubusercontent.com/tdwg/camtrap-dp/1.0/observations-table-schema.json
+ * Validates observation and media data against the official TDWG CamtrapDP 1.0 specification.
+ * Schema sources:
+ * - https://raw.githubusercontent.com/tdwg/camtrap-dp/1.0/observations-table-schema.json
+ * - https://raw.githubusercontent.com/tdwg/camtrap-dp/1.0/media-table-schema.json
  */
 
 import { z } from 'zod'
@@ -125,10 +127,61 @@ export const observationSchema = z.object({
  */
 export const observationsArraySchema = z.array(observationSchema)
 
+// =============================================================================
+// Media Schema
+// =============================================================================
+
+/**
+ * Capture Method enum
+ */
+const captureMethodEnum = z.enum(['activityDetection', 'timeLapse'])
+
+/**
+ * File media type pattern - must be image/*, video/*, or audio/*
+ */
+const fileMediaTypePattern = z
+  .string()
+  .regex(
+    /^(image|video|audio)\/.*$/,
+    'Must be a valid IANA media type (image/*, video/*, or audio/*)'
+  )
+
+/**
+ * CamtrapDP Media Schema
+ *
+ * Validates a single media row against the official spec.
+ */
+export const mediaSchema = z.object({
+  // === Required fields ===
+  mediaID: z.string().min(1, 'mediaID is required'),
+  deploymentID: z.string().min(1, 'deploymentID is required'),
+  timestamp: isoDateTimeWithTz,
+  filePath: z.string().min(1, 'filePath is required'),
+  filePublic: z.boolean(),
+  fileMediatype: fileMediaTypePattern,
+
+  // === Optional fields ===
+  captureMethod: captureMethodEnum.nullable().optional(),
+  fileName: z.string().nullable().optional(),
+  exifData: z.string().nullable().optional(),
+  favorite: z.boolean().nullable().optional(),
+  mediaComments: z.string().nullable().optional()
+})
+
+/**
+ * Schema for validating an array of media
+ */
+export const mediaArraySchema = z.array(mediaSchema)
+
+// =============================================================================
+// Exports
+// =============================================================================
+
 /**
  * Type inference for TypeScript users
  */
 export const ObservationType = observationSchema
+export const MediaType = mediaSchema
 
 // Export enums for use in sanitizers
 export const enums = {
@@ -137,5 +190,6 @@ export const enums = {
   lifeStage: lifeStageEnum,
   sex: sexEnum,
   classificationMethod: classificationMethodEnum,
-  cameraSetupType: cameraSetupTypeEnum
+  cameraSetupType: cameraSetupTypeEnum,
+  captureMethod: captureMethodEnum
 }
