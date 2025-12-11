@@ -105,7 +105,7 @@ function DeploymentMap({ deployments, studyId }) {
       <MapContainer
         key={studyId}
         bounds={bounds}
-        boundsOptions={{ padding: [50, 50] }}
+        boundsOptions={{ padding: [150, 150] }}
         style={{ height: '100%', width: '100%' }}
       >
         <LayersControl position="topright">
