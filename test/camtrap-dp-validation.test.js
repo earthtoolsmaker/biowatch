@@ -5,12 +5,16 @@ import assert from 'node:assert/strict'
 import {
   observationSchema,
   mediaSchema,
-  deploymentSchema
+  deploymentSchema,
+  datapackageSchema
 } from '../src/main/export/camtrapDPSchemas.js'
 import {
   sanitizeObservation,
   sanitizeMedia,
   sanitizeDeployment,
+  sanitizeDatapackage,
+  mapContributorRole,
+  CAMTRAP_DP_PROFILE_URL,
   ensureTimezone,
   clampBboxDimension,
   clampBboxCoordinate,
@@ -1140,6 +1144,486 @@ describe('CamtrapDP Deployment Sanitizer', () => {
         true,
         `Validation failed: ${JSON.stringify(result.error?.issues)}`
       )
+    })
+  })
+})
+
+// =============================================================================
+// Datapackage Schema Validation Tests
+// =============================================================================
+
+/**
+ * Helper to create a valid datapackage for testing
+ */
+function createValidDatapackage(overrides = {}) {
+  return {
+    name: 'test-dataset',
+    profile: CAMTRAP_DP_PROFILE_URL,
+    created: '2024-01-15T10:30:00Z',
+    title: 'Test Dataset',
+    description: 'A test camera trap dataset',
+    version: '1.0.0',
+    contributors: [
+      {
+        title: 'Test User',
+        role: 'contributor',
+        email: null,
+        organization: null,
+        path: null
+      }
+    ],
+    licenses: [
+      {
+        name: 'CC-BY-4.0',
+        path: 'https://creativecommons.org/licenses/by/4.0/',
+        title: 'Creative Commons Attribution 4.0'
+      }
+    ],
+    resources: [
+      {
+        name: 'deployments',
+        path: 'deployments.csv',
+        profile: 'tabular-data-resource',
+        schema: { fields: [{ name: 'deploymentID', type: 'string' }] }
+      },
+      {
+        name: 'media',
+        path: 'media.csv',
+        profile: 'tabular-data-resource',
+        schema: { fields: [{ name: 'mediaID', type: 'string' }] }
+      },
+      {
+        name: 'observations',
+        path: 'observations.csv',
+        profile: 'tabular-data-resource',
+        schema: { fields: [{ name: 'observationID', type: 'string' }] }
+      }
+    ],
+    ...overrides
+  }
+}
+
+describe('CamtrapDP Datapackage Schema', () => {
+  describe('required fields', () => {
+    test('accepts valid datapackage with all required fields', () => {
+      const pkg = createValidDatapackage()
+      const result = datapackageSchema.safeParse(pkg)
+      assert.equal(
+        result.success,
+        true,
+        `Validation failed: ${JSON.stringify(result.error?.issues)}`
+      )
+    })
+
+    test('rejects missing name', () => {
+      const pkg = createValidDatapackage({ name: undefined })
+      const result = datapackageSchema.safeParse(pkg)
+      assert.equal(result.success, false)
+    })
+
+    test('rejects missing created', () => {
+      const pkg = createValidDatapackage({ created: undefined })
+      const result = datapackageSchema.safeParse(pkg)
+      assert.equal(result.success, false)
+    })
+
+    test('rejects missing contributors', () => {
+      const pkg = createValidDatapackage({ contributors: undefined })
+      const result = datapackageSchema.safeParse(pkg)
+      assert.equal(result.success, false)
+    })
+
+    test('rejects empty contributors array', () => {
+      const pkg = createValidDatapackage({ contributors: [] })
+      const result = datapackageSchema.safeParse(pkg)
+      assert.equal(result.success, false)
+    })
+
+    test('rejects missing profile', () => {
+      const pkg = createValidDatapackage({ profile: undefined })
+      const result = datapackageSchema.safeParse(pkg)
+      assert.equal(result.success, false)
+    })
+
+    test('rejects missing resources', () => {
+      const pkg = createValidDatapackage({ resources: undefined })
+      const result = datapackageSchema.safeParse(pkg)
+      assert.equal(result.success, false)
+    })
+  })
+
+  describe('name constraints', () => {
+    test('accepts lowercase alphanumeric with hyphens', () => {
+      const pkg = createValidDatapackage({ name: 'my-test-dataset-123' })
+      const result = datapackageSchema.safeParse(pkg)
+      assert.equal(result.success, true)
+    })
+
+    test('rejects uppercase letters', () => {
+      const pkg = createValidDatapackage({ name: 'MyDataset' })
+      const result = datapackageSchema.safeParse(pkg)
+      assert.equal(result.success, false)
+    })
+
+    test('rejects spaces', () => {
+      const pkg = createValidDatapackage({ name: 'my dataset' })
+      const result = datapackageSchema.safeParse(pkg)
+      assert.equal(result.success, false)
+    })
+
+    test('rejects underscores', () => {
+      const pkg = createValidDatapackage({ name: 'my_dataset' })
+      const result = datapackageSchema.safeParse(pkg)
+      assert.equal(result.success, false)
+    })
+  })
+
+  describe('profile URL', () => {
+    test('accepts valid URL', () => {
+      const pkg = createValidDatapackage({
+        profile: 'https://raw.githubusercontent.com/tdwg/camtrap-dp/1.0/camtrap-dp-profile.json'
+      })
+      const result = datapackageSchema.safeParse(pkg)
+      assert.equal(result.success, true)
+    })
+
+    test('rejects non-URL string', () => {
+      const pkg = createValidDatapackage({ profile: 'tabular-data-package' })
+      const result = datapackageSchema.safeParse(pkg)
+      assert.equal(result.success, false)
+    })
+  })
+
+  describe('created timestamp', () => {
+    test('accepts ISO 8601 with Z timezone', () => {
+      const pkg = createValidDatapackage({ created: '2024-01-15T10:30:00Z' })
+      const result = datapackageSchema.safeParse(pkg)
+      assert.equal(result.success, true)
+    })
+
+    test('accepts ISO 8601 with offset timezone', () => {
+      const pkg = createValidDatapackage({ created: '2024-01-15T10:30:00+02:00' })
+      const result = datapackageSchema.safeParse(pkg)
+      assert.equal(result.success, true)
+    })
+
+    test('rejects timestamp without timezone', () => {
+      const pkg = createValidDatapackage({ created: '2024-01-15T10:30:00' })
+      const result = datapackageSchema.safeParse(pkg)
+      assert.equal(result.success, false)
+    })
+  })
+
+  describe('contributor validation', () => {
+    test('accepts contributor with all fields', () => {
+      const pkg = createValidDatapackage({
+        contributors: [
+          {
+            title: 'John Doe',
+            email: 'john@example.com',
+            role: 'principalInvestigator',
+            organization: 'Wildlife Institute',
+            path: 'https://orcid.org/0000-0001-2345-6789'
+          }
+        ]
+      })
+      const result = datapackageSchema.safeParse(pkg)
+      assert.equal(result.success, true)
+    })
+
+    test('accepts contributor with only title', () => {
+      const pkg = createValidDatapackage({
+        contributors: [{ title: 'John Doe' }]
+      })
+      const result = datapackageSchema.safeParse(pkg)
+      assert.equal(result.success, true)
+    })
+
+    test('rejects contributor without title', () => {
+      const pkg = createValidDatapackage({
+        contributors: [{ role: 'contributor' }]
+      })
+      const result = datapackageSchema.safeParse(pkg)
+      assert.equal(result.success, false)
+    })
+
+    test('accepts valid contributor roles', () => {
+      const validRoles = [
+        'contact',
+        'principalInvestigator',
+        'rightsHolder',
+        'publisher',
+        'contributor'
+      ]
+      for (const role of validRoles) {
+        const pkg = createValidDatapackage({
+          contributors: [{ title: 'Test User', role }]
+        })
+        const result = datapackageSchema.safeParse(pkg)
+        assert.equal(result.success, true, `Should accept role: ${role}`)
+      }
+    })
+
+    test('rejects invalid contributor role (author)', () => {
+      const pkg = createValidDatapackage({
+        contributors: [{ title: 'Test User', role: 'author' }]
+      })
+      const result = datapackageSchema.safeParse(pkg)
+      assert.equal(result.success, false)
+    })
+
+    test('accepts contributor with null optional fields', () => {
+      const pkg = createValidDatapackage({
+        contributors: [
+          {
+            title: 'Test User',
+            email: null,
+            role: null,
+            organization: null,
+            path: null
+          }
+        ]
+      })
+      const result = datapackageSchema.safeParse(pkg)
+      assert.equal(result.success, true)
+    })
+  })
+
+  describe('license validation', () => {
+    test('accepts valid license', () => {
+      const pkg = createValidDatapackage({
+        licenses: [
+          {
+            name: 'CC-BY-4.0',
+            path: 'https://creativecommons.org/licenses/by/4.0/',
+            title: 'Creative Commons Attribution 4.0'
+          }
+        ]
+      })
+      const result = datapackageSchema.safeParse(pkg)
+      assert.equal(result.success, true)
+    })
+
+    test('rejects license without valid path URL', () => {
+      const pkg = createValidDatapackage({
+        licenses: [{ name: 'CC-BY-4.0', path: 'not-a-url' }]
+      })
+      const result = datapackageSchema.safeParse(pkg)
+      assert.equal(result.success, false)
+    })
+
+    test('accepts license with scope', () => {
+      const pkg = createValidDatapackage({
+        licenses: [
+          {
+            name: 'CC-BY-4.0',
+            path: 'https://creativecommons.org/licenses/by/4.0/',
+            scope: 'data'
+          }
+        ]
+      })
+      const result = datapackageSchema.safeParse(pkg)
+      assert.equal(result.success, true)
+    })
+  })
+
+  describe('temporal validation', () => {
+    test('accepts valid temporal with YYYY-MM-DD dates', () => {
+      const pkg = createValidDatapackage({
+        temporal: { start: '2024-01-01', end: '2024-12-31' }
+      })
+      const result = datapackageSchema.safeParse(pkg)
+      assert.equal(result.success, true)
+    })
+
+    test('rejects temporal with invalid date format', () => {
+      const pkg = createValidDatapackage({
+        temporal: { start: '2024/01/01', end: '2024-12-31' }
+      })
+      const result = datapackageSchema.safeParse(pkg)
+      assert.equal(result.success, false)
+    })
+
+    test('accepts missing temporal (optional)', () => {
+      const pkg = createValidDatapackage()
+      delete pkg.temporal
+      const result = datapackageSchema.safeParse(pkg)
+      assert.equal(result.success, true)
+    })
+  })
+
+  describe('resources validation', () => {
+    test('accepts exactly 3 resources', () => {
+      const pkg = createValidDatapackage()
+      const result = datapackageSchema.safeParse(pkg)
+      assert.equal(result.success, true)
+    })
+
+    test('rejects less than 3 resources', () => {
+      const pkg = createValidDatapackage({
+        resources: [
+          {
+            name: 'deployments',
+            path: 'deployments.csv',
+            profile: 'tabular-data-resource',
+            schema: { fields: [] }
+          }
+        ]
+      })
+      const result = datapackageSchema.safeParse(pkg)
+      assert.equal(result.success, false)
+    })
+
+    test('rejects invalid resource name', () => {
+      const pkg = createValidDatapackage()
+      pkg.resources[0].name = 'invalid'
+      const result = datapackageSchema.safeParse(pkg)
+      assert.equal(result.success, false)
+    })
+  })
+})
+
+// =============================================================================
+// Datapackage Sanitizer Tests
+// =============================================================================
+
+describe('CamtrapDP Datapackage Sanitizer', () => {
+  describe('mapContributorRole', () => {
+    test('returns null for null input', () => {
+      assert.equal(mapContributorRole(null), null)
+    })
+
+    test('returns null for undefined input', () => {
+      assert.equal(mapContributorRole(undefined), null)
+    })
+
+    test('preserves valid spec roles', () => {
+      const validRoles = [
+        'contact',
+        'principalInvestigator',
+        'rightsHolder',
+        'publisher',
+        'contributor'
+      ]
+      for (const role of validRoles) {
+        assert.equal(mapContributorRole(role), role)
+      }
+    })
+
+    test('maps author to contributor', () => {
+      assert.equal(mapContributorRole('author'), 'contributor')
+    })
+
+    test('returns null for unknown roles', () => {
+      assert.equal(mapContributorRole('unknown'), null)
+      assert.equal(mapContributorRole('editor'), null)
+    })
+  })
+
+  describe('sanitizeDatapackage', () => {
+    test('ensures profile is the correct CamtrapDP URL', () => {
+      const pkg = createValidDatapackage({ profile: 'wrong-url' })
+      const sanitized = sanitizeDatapackage(pkg)
+      assert.equal(sanitized.profile, CAMTRAP_DP_PROFILE_URL)
+    })
+
+    test('converts name to lowercase', () => {
+      const pkg = createValidDatapackage({ name: 'MyDataset' })
+      const sanitized = sanitizeDatapackage(pkg)
+      assert.equal(sanitized.name, 'mydataset')
+    })
+
+    test('ensures created has timezone', () => {
+      const pkg = createValidDatapackage({ created: '2024-01-15T10:30:00' })
+      const sanitized = sanitizeDatapackage(pkg)
+      assert.equal(sanitized.created, '2024-01-15T10:30:00Z')
+    })
+
+    test('maps author role to contributor', () => {
+      const pkg = createValidDatapackage({
+        contributors: [{ title: 'Test User', role: 'author' }]
+      })
+      const sanitized = sanitizeDatapackage(pkg)
+      assert.equal(sanitized.contributors[0].role, 'contributor')
+    })
+
+    test('preserves valid contributor roles', () => {
+      const pkg = createValidDatapackage({
+        contributors: [{ title: 'Test User', role: 'principalInvestigator' }]
+      })
+      const sanitized = sanitizeDatapackage(pkg)
+      assert.equal(sanitized.contributors[0].role, 'principalInvestigator')
+    })
+
+    test('converts empty contributor fields to null', () => {
+      const pkg = createValidDatapackage({
+        contributors: [{ title: 'Test User', email: '', organization: '', path: '' }]
+      })
+      const sanitized = sanitizeDatapackage(pkg)
+      assert.equal(sanitized.contributors[0].email, null)
+      assert.equal(sanitized.contributors[0].organization, null)
+      assert.equal(sanitized.contributors[0].path, null)
+    })
+
+    test('provides default contributor if none provided', () => {
+      const pkg = createValidDatapackage({ contributors: null })
+      const sanitized = sanitizeDatapackage(pkg)
+      assert.equal(sanitized.contributors.length, 1)
+      assert.equal(sanitized.contributors[0].title, 'Biowatch User')
+      assert.equal(sanitized.contributors[0].role, 'contributor')
+    })
+
+    test('produces schema-valid output for typical input', () => {
+      const raw = {
+        name: 'my-test-dataset',
+        profile: 'tabular-data-package',
+        created: '2024-01-15T10:30:00',
+        title: 'Test Dataset',
+        description: 'A test dataset',
+        version: '1.0.0',
+        contributors: [{ title: 'John Doe', role: 'author', email: '' }],
+        licenses: [
+          {
+            name: 'CC-BY-4.0',
+            path: 'https://creativecommons.org/licenses/by/4.0/'
+          }
+        ],
+        resources: [
+          {
+            name: 'deployments',
+            path: 'deployments.csv',
+            profile: 'tabular-data-resource',
+            schema: { fields: [{ name: 'deploymentID', type: 'string' }] }
+          },
+          {
+            name: 'media',
+            path: 'media.csv',
+            profile: 'tabular-data-resource',
+            schema: { fields: [{ name: 'mediaID', type: 'string' }] }
+          },
+          {
+            name: 'observations',
+            path: 'observations.csv',
+            profile: 'tabular-data-resource',
+            schema: { fields: [{ name: 'observationID', type: 'string' }] }
+          }
+        ]
+      }
+
+      const sanitized = sanitizeDatapackage(raw)
+      const result = datapackageSchema.safeParse(sanitized)
+
+      assert.equal(
+        result.success,
+        true,
+        `Validation failed: ${JSON.stringify(result.error?.issues)}`
+      )
+
+      // Verify sanitization was applied
+      assert.equal(sanitized.profile, CAMTRAP_DP_PROFILE_URL)
+      assert.equal(sanitized.created, '2024-01-15T10:30:00Z')
+      assert.equal(sanitized.contributors[0].role, 'contributor')
+      assert.equal(sanitized.contributors[0].email, null)
     })
   })
 })

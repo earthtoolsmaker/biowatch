@@ -249,3 +249,78 @@ export function sanitizeDeployment(row) {
     locationName: row.locationName || null
   }
 }
+
+/**
+ * Map contributor role to CamtrapDP spec compliant values.
+ * 'author' is not in the spec, map to 'contributor'.
+ *
+ * @param {string|null|undefined} role - Role from database
+ * @returns {string|null} - Spec-compliant role or null
+ */
+export function mapContributorRole(role) {
+  if (!role) return null
+
+  // Valid spec roles
+  const validRoles = [
+    'contact',
+    'principalInvestigator',
+    'rightsHolder',
+    'publisher',
+    'contributor'
+  ]
+
+  if (validRoles.includes(role)) {
+    return role
+  }
+
+  // Map 'author' to 'contributor' for spec compliance
+  if (role === 'author') {
+    return 'contributor'
+  }
+
+  return null
+}
+
+/**
+ * CamtrapDP Profile URL constant
+ */
+export const CAMTRAP_DP_PROFILE_URL =
+  'https://raw.githubusercontent.com/tdwg/camtrap-dp/1.0/camtrap-dp-profile.json'
+
+/**
+ * Sanitize a complete datapackage.json for CamtrapDP compliance.
+ *
+ * @param {Object} pkg - Raw datapackage object
+ * @returns {Object} - Sanitized datapackage object
+ */
+export function sanitizeDatapackage(pkg) {
+  return {
+    // Ensure name is lowercase (spec requirement)
+    name: pkg.name?.toLowerCase(),
+
+    // Ensure profile is the correct CamtrapDP URL
+    profile: CAMTRAP_DP_PROFILE_URL,
+
+    // Ensure created timestamp has timezone
+    created: ensureTimezone(pkg.created),
+
+    // Sanitize contributors - map 'author' to 'contributor'
+    contributors: pkg.contributors?.map((c) => ({
+      title: c.title,
+      email: c.email || null,
+      role: mapContributorRole(c.role),
+      organization: c.organization || null,
+      path: c.path || null
+    })) || [{ title: 'Biowatch User', role: 'contributor' }],
+
+    // Pass through other fields
+    title: pkg.title,
+    description: pkg.description,
+    version: pkg.version,
+    licenses: pkg.licenses,
+    resources: pkg.resources,
+
+    // Only include temporal if present
+    ...(pkg.temporal && { temporal: pkg.temporal })
+  }
+}

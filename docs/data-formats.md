@@ -30,7 +30,7 @@ dataset/
     {
       "title": "John Doe",
       "email": "john@example.com",
-      "role": "author",
+      "role": "contributor",
       "organization": "Wildlife Research Institute"
     }
   ],
@@ -45,7 +45,7 @@ dataset/
     "start": "2023-01-01",
     "end": "2023-12-31"
   },
-  "profile": "tabular-data-package",
+  "profile": "https://raw.githubusercontent.com/tdwg/camtrap-dp/1.0/camtrap-dp-profile.json",
   "resources": [...]
 }
 ```
@@ -109,7 +109,15 @@ dataset/
 
 ### Export Validation
 
-During CamTrap DP export, deployments, observations, and media are validated against the [official TDWG CamtrapDP 1.0 specification](https://camtrap-dp.tdwg.org/). Validation is non-blocking - warnings are logged but don't prevent export.
+During CamTrap DP export, the datapackage.json, deployments, observations, and media are validated against the [official TDWG CamtrapDP 1.0 specification](https://camtrap-dp.tdwg.org/). Validation is non-blocking - warnings are logged but don't prevent export.
+
+**Datapackage sanitization rules:**
+- `name` is converted to lowercase (must be alphanumeric with hyphens only)
+- `profile` is set to the official CamtrapDP 1.0 profile URL
+- `created` timestamps without timezone get `Z` (UTC) appended
+- Contributor `role` of `author` is mapped to `contributor` (spec-compliant roles: `contact`, `principalInvestigator`, `rightsHolder`, `publisher`, `contributor`)
+- Empty `email`, `path`, `organization` in contributors converted to `null`
+- Default contributor `{ title: 'Biowatch User', role: 'contributor' }` added if none provided
 
 **Deployments sanitization rules:**
 - Timestamps (`deploymentStart`, `deploymentEnd`) without timezone get `Z` (UTC) appended
@@ -133,6 +141,12 @@ During CamTrap DP export, deployments, observations, and media are validated aga
 ```json
 {
   "validation": {
+    "datapackage": {
+      "validated": 1,
+      "withIssues": 0,
+      "isValid": true,
+      "sampleErrors": []
+    },
     "deployments": {
       "validated": 10,
       "withIssues": 0,
@@ -265,12 +279,14 @@ Stored in `metadata.contributors` (JSON column):
   {
     "title": "Jane Smith",
     "email": "jane@research.org",
-    "role": "author",
+    "role": "contributor",
     "organization": "Wildlife Lab",
     "path": "https://orcid.org/0000-0001-2345-6789"
   }
 ]
 ```
+
+Valid CamtrapDP spec roles: `contact`, `principalInvestigator`, `rightsHolder`, `publisher`, `contributor`
 
 ### Model Run Options
 

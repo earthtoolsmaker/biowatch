@@ -239,6 +239,102 @@ export const deploymentSchema = z.object({
 export const deploymentsArraySchema = z.array(deploymentSchema)
 
 // =============================================================================
+// Datapackage Schema
+// =============================================================================
+
+/**
+ * ISO 8601 date pattern (YYYY-MM-DD)
+ */
+const isoDatePattern = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be ISO 8601 date (YYYY-MM-DD)')
+
+/**
+ * Contributor role enum (CamtrapDP spec compliant)
+ * Note: 'author' is NOT in spec, use 'contributor' instead
+ */
+const datapackageContributorRoleEnum = z.enum([
+  'contact',
+  'principalInvestigator',
+  'rightsHolder',
+  'publisher',
+  'contributor'
+])
+
+/**
+ * Contributor schema for datapackage.json
+ */
+const datapackageContributorSchema = z.object({
+  title: z.string().min(1, 'contributor title is required'),
+  email: z.string().email().optional().or(z.literal('')).nullable(),
+  role: datapackageContributorRoleEnum.optional().nullable(),
+  organization: z.string().optional().nullable(),
+  path: z.string().url().optional().or(z.literal('')).nullable()
+})
+
+/**
+ * License schema for datapackage.json
+ */
+const datapackageLicenseSchema = z.object({
+  name: z.string().min(1, 'license name is required'),
+  path: z.string().url('license path must be a valid URL'),
+  title: z.string().optional(),
+  scope: z.enum(['data', 'media']).optional()
+})
+
+/**
+ * Temporal coverage schema
+ */
+const datapackageTemporalSchema = z.object({
+  start: isoDatePattern,
+  end: isoDatePattern
+})
+
+/**
+ * Resource field schema
+ */
+const datapackageResourceFieldSchema = z.object({
+  name: z.string().min(1),
+  type: z.string().min(1)
+})
+
+/**
+ * Resource schema for datapackage.json
+ */
+const datapackageResourceSchema = z.object({
+  name: z.enum(['deployments', 'media', 'observations']),
+  path: z.string().min(1, 'resource path is required'),
+  profile: z.literal('tabular-data-resource'),
+  schema: z.object({
+    fields: z.array(datapackageResourceFieldSchema)
+  })
+})
+
+/**
+ * CamtrapDP Datapackage Schema
+ *
+ * Validates datapackage.json against the official CamtrapDP 1.0 specification.
+ * Only validates fields we currently export.
+ *
+ * @see https://camtrap-dp.tdwg.org/metadata/
+ */
+export const datapackageSchema = z.object({
+  // === Required fields we export ===
+  name: z.string().regex(/^[a-z0-9-]+$/, 'Must be lowercase alphanumeric with hyphens only'),
+  created: isoDateTimeWithTz,
+  contributors: z
+    .array(datapackageContributorSchema)
+    .min(1, 'At least one contributor is required'),
+  resources: z.array(datapackageResourceSchema).length(3, 'Must have exactly 3 resources'),
+  profile: z.string().url('profile must be a valid URL'),
+
+  // === Recommended fields we export ===
+  title: z.string().optional(),
+  description: z.string().optional(),
+  version: z.string().optional(),
+  licenses: z.array(datapackageLicenseSchema).optional(),
+  temporal: datapackageTemporalSchema.optional()
+})
+
+// =============================================================================
 // Exports
 // =============================================================================
 
@@ -248,6 +344,7 @@ export const deploymentsArraySchema = z.array(deploymentSchema)
 export const ObservationType = observationSchema
 export const MediaType = mediaSchema
 export const DeploymentType = deploymentSchema
+export const DatapackageType = datapackageSchema
 
 // Export enums for use in sanitizers
 export const enums = {
@@ -258,5 +355,6 @@ export const enums = {
   classificationMethod: classificationMethodEnum,
   cameraSetupType: cameraSetupTypeEnum,
   captureMethod: captureMethodEnum,
-  featureType: featureTypeEnum
+  featureType: featureTypeEnum,
+  datapackageContributorRole: datapackageContributorRoleEnum
 }

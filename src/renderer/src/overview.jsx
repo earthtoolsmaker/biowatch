@@ -21,14 +21,14 @@ import { useImportStatus } from '@renderer/hooks/import'
 import { useQueryClient, useQuery, useQueries } from '@tanstack/react-query'
 import DateTimePicker from './ui/DateTimePicker'
 
-// Contributor roles per camtrap-dp spec
+// CamtrapDP spec-compliant contributor roles
+// Note: 'author' is NOT in the spec, use 'contributor' instead
 const CONTRIBUTOR_ROLES = [
   { value: 'contact', label: 'Contact' },
   { value: 'principalInvestigator', label: 'Principal Investigator' },
   { value: 'rightsHolder', label: 'Rights Holder' },
   { value: 'publisher', label: 'Publisher' },
-  { value: 'contributor', label: 'Contributor' },
-  { value: 'author', label: 'Author' }
+  { value: 'contributor', label: 'Contributor' }
 ]
 
 function DeploymentMap({ deployments, studyId }) {

@@ -15,8 +15,19 @@ import {
 import { eq, and, isNotNull, ne, or, isNull, asc, inArray } from 'drizzle-orm'
 import { downloadFileWithRetry } from './download.js'
 import crypto from 'crypto'
-import { observationSchema, mediaSchema, deploymentSchema } from './export/camtrapDPSchemas.js'
-import { sanitizeObservation, sanitizeMedia, sanitizeDeployment } from './export/sanitizers.js'
+import {
+  observationSchema,
+  mediaSchema,
+  deploymentSchema,
+  datapackageSchema
+} from './export/camtrapDPSchemas.js'
+import {
+  sanitizeObservation,
+  sanitizeMedia,
+  sanitizeDeployment,
+  sanitizeDatapackage,
+  CAMTRAP_DP_PROFILE_URL
+} from './export/sanitizers.js'
 
 function getStudyDatabasePath(userDataPath, studyId) {
   return join(getStudyPath(userDataPath, studyId), 'study.db')
@@ -679,7 +690,7 @@ function generateDataPackage(studyId, studyName, metadata = null) {
         path: 'https://creativecommons.org/licenses/by/4.0/'
       }
     ],
-    profile: 'tabular-data-package',
+    profile: CAMTRAP_DP_PROFILE_URL,
     resources: [
       {
         name: 'deployments',
@@ -1180,12 +1191,39 @@ export async function exportCamtrapDP(studyId, options = {}) {
       'classificationProbability'
     ])
 
-    // Generate datapackage.json
+    // Generate and validate datapackage.json
     const dataPackage = generateDataPackage(studyId, studyName, studyMetadata)
 
-    // Write all files
+    // Sanitize and validate datapackage
+    const sanitizedDataPackage = sanitizeDatapackage(dataPackage)
+    const datapackageValidationErrors = []
+
+    const datapackageResult = datapackageSchema.safeParse(sanitizedDataPackage)
+    if (!datapackageResult.success) {
+      datapackageValidationErrors.push({
+        errors: datapackageResult.error.issues.map((issue) => ({
+          path: issue.path.join('.'),
+          message: issue.message
+        }))
+      })
+    }
+
+    // Log datapackage validation result (non-blocking)
+    if (datapackageValidationErrors.length > 0) {
+      log.warn('CamtrapDP datapackage validation: datapackage.json has issues')
+      datapackageValidationErrors.forEach((e) => {
+        log.warn(`  Errors: ${JSON.stringify(e.errors)}`)
+      })
+    } else {
+      log.info('CamtrapDP datapackage validation: datapackage.json is valid')
+    }
+
+    // Write all files (use sanitized datapackage)
     await Promise.all([
-      fs.writeFile(join(exportPath, 'datapackage.json'), JSON.stringify(dataPackage, null, 2)),
+      fs.writeFile(
+        join(exportPath, 'datapackage.json'),
+        JSON.stringify(sanitizedDataPackage, null, 2)
+      ),
       fs.writeFile(join(exportPath, 'deployments.csv'), deploymentsCSV),
       fs.writeFile(join(exportPath, 'media.csv'), mediaCSV),
       fs.writeFile(join(exportPath, 'observations.csv'), observationsCSV)
@@ -1310,6 +1348,12 @@ export async function exportCamtrapDP(studyId, options = {}) {
       }),
       // CamtrapDP validation summary
       validation: {
+        datapackage: {
+          validated: 1,
+          withIssues: datapackageValidationErrors.length > 0 ? 1 : 0,
+          isValid: datapackageValidationErrors.length === 0,
+          sampleErrors: datapackageValidationErrors.slice(0, 5)
+        },
         deployments: {
           validated: deploymentsRows.length,
           withIssues: deploymentValidationErrors.length,
@@ -1329,6 +1373,7 @@ export async function exportCamtrapDP(studyId, options = {}) {
           sampleErrors: mediaValidationErrors.slice(0, 5)
         },
         isValid:
+          datapackageValidationErrors.length === 0 &&
           deploymentValidationErrors.length === 0 &&
           observationValidationErrors.length === 0 &&
           mediaValidationErrors.length === 0
