@@ -15,6 +15,19 @@ import {
 import { eq, and, isNotNull, ne, or, isNull, asc, inArray } from 'drizzle-orm'
 import { downloadFileWithRetry } from './download.js'
 import crypto from 'crypto'
+import {
+  observationSchema,
+  mediaSchema,
+  deploymentSchema,
+  datapackageSchema
+} from './export/camtrapDPSchemas.js'
+import {
+  sanitizeObservation,
+  sanitizeMedia,
+  sanitizeDeployment,
+  sanitizeDatapackage,
+  CAMTRAP_DP_PROFILE_URL
+} from './export/sanitizers.js'
 
 function getStudyDatabasePath(userDataPath, studyId) {
   return join(getStudyPath(userDataPath, studyId), 'study.db')
@@ -508,9 +521,11 @@ function mapObservationType(dbType, scientificName) {
   // If scientificName is present, it's an animal observation
   if (scientificName) return 'animal'
   if (!dbType || dbType === 'blank') return 'blank'
-  if (dbType === 'machine' || dbType === 'human') return 'animal'
+  if (dbType === 'machine') return 'animal'
   if (dbType === 'animal') return 'animal'
+  if (dbType === 'human') return 'human'
   if (dbType === 'vehicle') return 'vehicle'
+  if (dbType === 'unclassified') return 'unclassified'
   return 'unknown'
 }
 
@@ -675,7 +690,7 @@ function generateDataPackage(studyId, studyName, metadata = null) {
         path: 'https://creativecommons.org/licenses/by/4.0/'
       }
     ],
-    profile: 'tabular-data-package',
+    profile: CAMTRAP_DP_PROFILE_URL,
     resources: [
       {
         name: 'deployments',
@@ -827,6 +842,55 @@ export async function exportCamtrapDP(studyId, options = {}) {
 
     log.info(`Found ${deploymentsData.length} deployments`)
 
+    // Transform and validate deployments data for Camtrap DP
+    const deploymentValidationErrors = []
+    const deploymentsRows = deploymentsData.map((d, index) => {
+      const rawRow = {
+        deploymentID: d.deploymentID,
+        latitude: d.latitude,
+        longitude: d.longitude,
+        deploymentStart: d.deploymentStart,
+        deploymentEnd: d.deploymentEnd,
+        locationID: d.locationID,
+        locationName: d.locationName
+      }
+
+      // Sanitize values to comply with CamtrapDP spec
+      const sanitizedRow = sanitizeDeployment(rawRow)
+
+      // Validate against schema (non-blocking - collect errors)
+      const result = deploymentSchema.safeParse(sanitizedRow)
+      if (!result.success) {
+        deploymentValidationErrors.push({
+          rowIndex: index,
+          deploymentID: d.deploymentID,
+          errors: result.error.issues.map((issue) => ({
+            path: issue.path.join('.'),
+            message: issue.message
+          }))
+        })
+      }
+
+      return sanitizedRow
+    })
+
+    // Log deployment validation warnings (non-blocking)
+    if (deploymentValidationErrors.length > 0) {
+      log.warn(
+        `CamtrapDP deployment validation: ${deploymentValidationErrors.length} of ${deploymentsRows.length} deployments have issues`
+      )
+      deploymentValidationErrors.slice(0, 5).forEach((e) => {
+        log.warn(`  Deployment ${e.deploymentID}: ${JSON.stringify(e.errors)}`)
+      })
+      if (deploymentValidationErrors.length > 5) {
+        log.warn(`  ... and ${deploymentValidationErrors.length - 5} more`)
+      }
+    } else {
+      log.info(
+        `CamtrapDP deployment validation: All ${deploymentsRows.length} deployments are valid`
+      )
+    }
+
     // Build observation filter conditions
     const obsConditions = []
 
@@ -951,14 +1015,15 @@ export async function exportCamtrapDP(studyId, options = {}) {
       }
     }
 
-    // Transform media data for Camtrap DP
-    const mediaRows = mediaData.map((m) => {
+    // Transform and validate media data for Camtrap DP
+    const mediaValidationErrors = []
+    const mediaRows = mediaData.map((m, index) => {
       // When includeMedia is true, use the deduplicated filename
       // When includeMedia is false, keep the original filePath (which may be HTTP URL)
       const exportFileName = includeMedia ? mediaFileNameMap.get(m.mediaID) : m.fileName
       const exportFilePath = includeMedia ? `media/${exportFileName}` : m.filePath
 
-      return {
+      const rawRow = {
         mediaID: m.mediaID,
         deploymentID: m.deploymentID,
         timestamp: m.timestamp,
@@ -968,7 +1033,40 @@ export async function exportCamtrapDP(studyId, options = {}) {
         fileName: exportFileName,
         exifData: m.exifData ? JSON.stringify(m.exifData) : ''
       }
+
+      // Sanitize values to comply with CamtrapDP spec
+      const sanitizedRow = sanitizeMedia(rawRow)
+
+      // Validate against schema (non-blocking - collect errors)
+      const result = mediaSchema.safeParse(sanitizedRow)
+      if (!result.success) {
+        mediaValidationErrors.push({
+          rowIndex: index,
+          mediaID: m.mediaID,
+          errors: result.error.issues.map((issue) => ({
+            path: issue.path.join('.'),
+            message: issue.message
+          }))
+        })
+      }
+
+      return sanitizedRow
     })
+
+    // Log media validation warnings (non-blocking)
+    if (mediaValidationErrors.length > 0) {
+      log.warn(
+        `CamtrapDP media validation: ${mediaValidationErrors.length} of ${mediaRows.length} media have issues`
+      )
+      mediaValidationErrors.slice(0, 5).forEach((e) => {
+        log.warn(`  Media ${e.mediaID}: ${JSON.stringify(e.errors)}`)
+      })
+      if (mediaValidationErrors.length > 5) {
+        log.warn(`  ... and ${mediaValidationErrors.length - 5} more`)
+      }
+    } else {
+      log.info(`CamtrapDP media validation: All ${mediaRows.length} media are valid`)
+    }
 
     // Generate sequence grouping if sequenceGap > 0
     // Returns null when sequenceGap <= 0, signaling to preserve existing eventIDs
@@ -980,12 +1078,14 @@ export async function exportCamtrapDP(studyId, options = {}) {
         : `Preserving existing eventIDs (sequenceGap=0)`
     )
 
-    // Transform observations data for Camtrap DP
-    const observationsRows = observationsData.map((o) => {
+    // Transform and validate observations data for Camtrap DP
+    const observationValidationErrors = []
+    const observationsRows = observationsData.map((o, index) => {
       // Use generated event data if available, otherwise preserve existing
       const eventData = eventMapping?.get(o.observationID)
 
-      return {
+      // Build raw observation row
+      const rawRow = {
         observationID: o.observationID,
         deploymentID: o.deploymentID,
         mediaID: o.mediaID,
@@ -1008,10 +1108,45 @@ export async function exportCamtrapDP(studyId, options = {}) {
         classificationTimestamp: o.classificationTimestamp,
         classificationProbability: o.classificationProbability
       }
+
+      // Sanitize values to comply with CamtrapDP spec
+      const sanitizedRow = sanitizeObservation(rawRow)
+
+      // Validate against schema (non-blocking - collect errors)
+      const result = observationSchema.safeParse(sanitizedRow)
+      if (!result.success) {
+        observationValidationErrors.push({
+          rowIndex: index,
+          observationID: o.observationID,
+          errors: result.error.issues.map((issue) => ({
+            path: issue.path.join('.'),
+            message: issue.message
+          }))
+        })
+      }
+
+      return sanitizedRow
     })
 
+    // Log observation validation warnings (non-blocking)
+    if (observationValidationErrors.length > 0) {
+      log.warn(
+        `CamtrapDP observation validation: ${observationValidationErrors.length} of ${observationsRows.length} observations have issues`
+      )
+      observationValidationErrors.slice(0, 5).forEach((e) => {
+        log.warn(`  Observation ${e.observationID}: ${JSON.stringify(e.errors)}`)
+      })
+      if (observationValidationErrors.length > 5) {
+        log.warn(`  ... and ${observationValidationErrors.length - 5} more`)
+      }
+    } else {
+      log.info(
+        `CamtrapDP observation validation: All ${observationsRows.length} observations are valid`
+      )
+    }
+
     // Generate CSV files
-    const deploymentsCSV = toCSV(deploymentsData, [
+    const deploymentsCSV = toCSV(deploymentsRows, [
       'deploymentID',
       'locationID',
       'locationName',
@@ -1056,12 +1191,39 @@ export async function exportCamtrapDP(studyId, options = {}) {
       'classificationProbability'
     ])
 
-    // Generate datapackage.json
+    // Generate and validate datapackage.json
     const dataPackage = generateDataPackage(studyId, studyName, studyMetadata)
 
-    // Write all files
+    // Sanitize and validate datapackage
+    const sanitizedDataPackage = sanitizeDatapackage(dataPackage)
+    const datapackageValidationErrors = []
+
+    const datapackageResult = datapackageSchema.safeParse(sanitizedDataPackage)
+    if (!datapackageResult.success) {
+      datapackageValidationErrors.push({
+        errors: datapackageResult.error.issues.map((issue) => ({
+          path: issue.path.join('.'),
+          message: issue.message
+        }))
+      })
+    }
+
+    // Log datapackage validation result (non-blocking)
+    if (datapackageValidationErrors.length > 0) {
+      log.warn('CamtrapDP datapackage validation: datapackage.json has issues')
+      datapackageValidationErrors.forEach((e) => {
+        log.warn(`  Errors: ${JSON.stringify(e.errors)}`)
+      })
+    } else {
+      log.info('CamtrapDP datapackage validation: datapackage.json is valid')
+    }
+
+    // Write all files (use sanitized datapackage)
     await Promise.all([
-      fs.writeFile(join(exportPath, 'datapackage.json'), JSON.stringify(dataPackage, null, 2)),
+      fs.writeFile(
+        join(exportPath, 'datapackage.json'),
+        JSON.stringify(sanitizedDataPackage, null, 2)
+      ),
       fs.writeFile(join(exportPath, 'deployments.csv'), deploymentsCSV),
       fs.writeFile(join(exportPath, 'media.csv'), mediaCSV),
       fs.writeFile(join(exportPath, 'observations.csv'), observationsCSV)
@@ -1183,7 +1345,39 @@ export async function exportCamtrapDP(studyId, options = {}) {
       ...(includeMedia && {
         copiedMediaCount,
         mediaErrorCount
-      })
+      }),
+      // CamtrapDP validation summary
+      validation: {
+        datapackage: {
+          validated: 1,
+          withIssues: datapackageValidationErrors.length > 0 ? 1 : 0,
+          isValid: datapackageValidationErrors.length === 0,
+          sampleErrors: datapackageValidationErrors.slice(0, 5)
+        },
+        deployments: {
+          validated: deploymentsRows.length,
+          withIssues: deploymentValidationErrors.length,
+          isValid: deploymentValidationErrors.length === 0,
+          sampleErrors: deploymentValidationErrors.slice(0, 5)
+        },
+        observations: {
+          validated: observationsRows.length,
+          withIssues: observationValidationErrors.length,
+          isValid: observationValidationErrors.length === 0,
+          sampleErrors: observationValidationErrors.slice(0, 5)
+        },
+        media: {
+          validated: mediaRows.length,
+          withIssues: mediaValidationErrors.length,
+          isValid: mediaValidationErrors.length === 0,
+          sampleErrors: mediaValidationErrors.slice(0, 5)
+        },
+        isValid:
+          datapackageValidationErrors.length === 0 &&
+          deploymentValidationErrors.length === 0 &&
+          observationValidationErrors.length === 0 &&
+          mediaValidationErrors.length === 0
+      }
     }
   } catch (error) {
     log.error('Error exporting Camtrap DP:', error)

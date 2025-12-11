@@ -30,7 +30,7 @@ dataset/
     {
       "title": "John Doe",
       "email": "john@example.com",
-      "role": "author",
+      "role": "contributor",
       "organization": "Wildlife Research Institute"
     }
   ],
@@ -45,7 +45,7 @@ dataset/
     "start": "2023-01-01",
     "end": "2023-12-31"
   },
-  "profile": "tabular-data-package",
+  "profile": "https://raw.githubusercontent.com/tdwg/camtrap-dp/1.0/camtrap-dp-profile.json",
   "resources": [...]
 }
 ```
@@ -86,17 +86,17 @@ dataset/
 | `eventStart` | datetime | Event start time |
 | `eventEnd` | datetime | Event end time |
 | `observationLevel` | string | Always `media` |
-| `observationType` | string | `animal`, `human`, `vehicle`, `blank`, `unknown` |
+| `observationType` | string | `animal`, `human`, `vehicle`, `blank`, `unknown`, `unclassified` |
 | `scientificName` | string | Latin species name |
-| `count` | integer | Number of individuals |
-| `lifeStage` | string | `adult`, `juvenile`, etc. |
-| `sex` | string | `male`, `female`, `unknown` |
+| `count` | integer | Number of individuals (min: 1, null if unknown) |
+| `lifeStage` | string | `adult`, `subadult`, `juvenile` |
+| `sex` | string | `male`, `female` |
 | `behavior` | string | Observed behavior |
 | `bboxX` | number | Bounding box X (normalized 0-1) |
 | `bboxY` | number | Bounding box Y (normalized 0-1) |
-| `bboxWidth` | number | Bounding box width (normalized 0-1) |
-| `bboxHeight` | number | Bounding box height (normalized 0-1) |
-| `classificationMethod` | string | `machine` or `human` |
+| `bboxWidth` | number | Bounding box width (normalized, min: 1e-15, max: 1) |
+| `bboxHeight` | number | Bounding box height (normalized, min: 1e-15, max: 1) |
+| `classificationMethod` | string | `human` or `machine` |
 | `classifiedBy` | string | Model name or person |
 | `classificationTimestamp` | datetime | When classification was made |
 | `classificationProbability` | number | Confidence score (0-1) |
@@ -104,6 +104,71 @@ dataset/
 **Key files:**
 - Import: `src/main/camtrap.js`
 - Export: `src/main/export.js`
+- Validation schemas: `src/main/export/camtrapDPSchemas.js`
+- Sanitization: `src/main/export/sanitizers.js`
+
+### Export Validation
+
+During CamTrap DP export, the datapackage.json, deployments, observations, and media are validated against the [official TDWG CamtrapDP 1.0 specification](https://camtrap-dp.tdwg.org/). Validation is non-blocking - warnings are logged but don't prevent export.
+
+**Datapackage sanitization rules:**
+- `name` is converted to lowercase (must be alphanumeric with hyphens only)
+- `profile` is set to the official CamtrapDP 1.0 profile URL
+- `created` timestamps without timezone get `Z` (UTC) appended
+- Contributor `role` of `author` is mapped to `contributor` (spec-compliant roles: `contact`, `principalInvestigator`, `rightsHolder`, `publisher`, `contributor`)
+- Empty `email`, `path`, `organization` in contributors converted to `null`
+- Default contributor `{ title: 'Biowatch User', role: 'contributor' }` added if none provided
+
+**Deployments sanitization rules:**
+- Timestamps (`deploymentStart`, `deploymentEnd`) without timezone get `Z` (UTC) appended
+- `latitude` must be in range -90 to 90
+- `longitude` must be in range -180 to 180
+- Empty `locationID`/`locationName` converted to `null`
+
+**Observations sanitization rules:**
+- Timestamps without timezone get `Z` (UTC) appended
+- `count` values of 0 or negative become `null`
+- `bboxWidth`/`bboxHeight` of 0 are clamped to `1e-15` (minimum positive)
+- `lifeStage` values are mapped to enum (`baby`/`young`/`immature` → `juvenile`, `sub-adult` → `subadult`)
+- `sex` values are mapped to enum (`f`/`F` → `female`, `m`/`M` → `male`)
+- `classificationMethod` values are mapped (`ai`/`ml`/`auto` → `machine`, `manual` → `human`)
+
+**Media sanitization rules:**
+- Timestamps without timezone get `Z` (UTC) appended
+- `fileMediatype` must match pattern `^(image|video|audio)/.*$`
+
+**Validation summary returned:**
+```json
+{
+  "validation": {
+    "datapackage": {
+      "validated": 1,
+      "withIssues": 0,
+      "isValid": true,
+      "sampleErrors": []
+    },
+    "deployments": {
+      "validated": 10,
+      "withIssues": 0,
+      "isValid": true,
+      "sampleErrors": []
+    },
+    "observations": {
+      "validated": 1000,
+      "withIssues": 5,
+      "isValid": false,
+      "sampleErrors": [...]
+    },
+    "media": {
+      "validated": 500,
+      "withIssues": 0,
+      "isValid": true,
+      "sampleErrors": []
+    },
+    "isValid": false
+  }
+}
+```
 
 ---
 
@@ -214,12 +279,14 @@ Stored in `metadata.contributors` (JSON column):
   {
     "title": "Jane Smith",
     "email": "jane@research.org",
-    "role": "author",
+    "role": "contributor",
     "organization": "Wildlife Lab",
     "path": "https://orcid.org/0000-0001-2345-6789"
   }
 ]
 ```
+
+Valid CamtrapDP spec roles: `contact`, `principalInvestigator`, `rightsHolder`, `publisher`, `contributor`
 
 ### Model Run Options
 

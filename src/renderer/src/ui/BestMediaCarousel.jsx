@@ -271,8 +271,8 @@ export default function BestMediaCarousel({ studyId }) {
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           {bestMedia.map((media, index) => (
-          <MediaCard key={media.mediaID} media={media} onClick={() => setSelectedIndex(index)} />
-        ))}
+            <MediaCard key={media.mediaID} media={media} onClick={() => setSelectedIndex(index)} />
+          ))}
         </div>
       </div>
 
