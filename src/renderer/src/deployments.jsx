@@ -1,6 +1,6 @@
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { Camera, MapPin, X } from 'lucide-react'
+import { Camera, ChevronDown, ChevronRight, MapPin, X } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ReactDOMServer from 'react-dom/server'
 import { LayersControl, MapContainer, Marker, TileLayer, useMap, useMapEvents } from 'react-leaflet'
@@ -193,6 +193,7 @@ function LocationMap({
   isPlaceMode,
   onPlaceLocation,
   onExitPlaceMode,
+  onExpandGroup,
   studyId
 }) {
   const mapRef = useRef(null)
@@ -305,6 +306,8 @@ function LocationMap({
                     onExitPlaceMode()
                   }
                   setSelectedLocation(location)
+                  // Expand the location group in the list
+                  onExpandGroup?.(location.locationID)
                 },
                 dragend: (e) => {
                   const marker = e.target
@@ -459,16 +462,101 @@ const DeploymentRow = memo(function DeploymentRow({
   )
 })
 
-// Format date helper - defined outside component to avoid recreation
-const formatDate = (dateString) => {
-  if (!dateString) return 'N/A'
-  const date = new Date(dateString)
-  return date.toLocaleDateString('en-US', {
-    year: '2-digit',
-    month: 'short',
-    day: 'numeric'
-  })
-}
+// Memoized location group header component for multi-deployment locations
+const LocationGroupHeader = memo(function LocationGroupHeader({
+  group,
+  isExpanded,
+  onToggle,
+  percentile90Count,
+  isSelected
+}) {
+  const handleClick = useCallback(() => {
+    onToggle(group.locationID)
+  }, [group.locationID, onToggle])
+
+  return (
+    <div
+      onClick={handleClick}
+      className={`flex gap-4 items-center py-4 hover:bg-gray-50 cursor-pointer px-2 border-b border-gray-200 transition-all duration-200 ${
+        isSelected
+          ? 'bg-blue-50 border-l-4 border-l-blue-500 pl-1'
+          : 'border-l-4 border-l-transparent'
+      }`}
+    >
+      <div className="flex-shrink-0 w-5">
+        {isExpanded ? (
+          <ChevronDown size={18} className="text-gray-500" />
+        ) : (
+          <ChevronRight size={18} className="text-gray-500" />
+        )}
+      </div>
+
+      <div className="flex flex-col gap-1 w-56">
+        <div className="flex items-center gap-2">
+          <span
+            className={`text-sm truncate ${isSelected ? 'font-semibold text-blue-700' : 'font-medium text-gray-700'}`}
+          >
+            {group.locationName || group.locationID || 'Unnamed Location'}
+          </span>
+          <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded flex-shrink-0">
+            {group.deployments.length}
+          </span>
+        </div>
+        {group.latitude && group.longitude && (
+          <span className="text-xs text-gray-400">
+            {Number(group.latitude).toFixed(4)}, {Number(group.longitude).toFixed(4)}
+          </span>
+        )}
+      </div>
+
+      <div className="flex gap-2 flex-1">
+        {group.aggregatedPeriods.map((period) => (
+          <div
+            key={period.start}
+            title={`${period.count} observations (aggregated)`}
+            className="flex items-center justify-center aspect-square w-[5%]"
+          >
+            <div
+              className="rounded-full bg-[#77b7ff] aspect-square max-w-[25px]"
+              style={{
+                width:
+                  period.count > 0
+                    ? `${Math.min((period.count / percentile90Count) * 100, 100)}%`
+                    : '0%',
+                minWidth: period.count > 0 ? '4px' : '0px'
+              }}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+})
+
+// Wrapper for deployment rows within a group (indented)
+const GroupedDeploymentRow = memo(function GroupedDeploymentRow({
+  location,
+  isSelected,
+  onSelect,
+  onNewLatitude,
+  onNewLongitude,
+  onEnterPlaceMode,
+  percentile90Count
+}) {
+  return (
+    <div className="ml-6">
+      <DeploymentRow
+        location={location}
+        isSelected={isSelected}
+        onSelect={onSelect}
+        onNewLatitude={onNewLatitude}
+        onNewLongitude={onNewLongitude}
+        onEnterPlaceMode={onEnterPlaceMode}
+        percentile90Count={percentile90Count}
+      />
+    </div>
+  )
+})
 
 // Generate evenly-spaced date markers for timeline
 const getDateMarkers = (startDate, endDate, count = 5) => {
@@ -484,25 +572,133 @@ const formatDateShort = (date) => {
   return date.toLocaleDateString('en-US', { year: '2-digit', month: 'short' })
 }
 
+// Aggregate observation periods across multiple deployments
+const aggregatePeriods = (deployments) => {
+  if (deployments.length === 0) return []
+  return deployments[0].periods.map((period, i) => ({
+    start: period.start,
+    end: period.end,
+    count: deployments.reduce((sum, d) => sum + (d.periods[i]?.count || 0), 0)
+  }))
+}
+
+// Group deployments by locationID and compute aggregated timelines
+const groupDeploymentsByLocation = (deployments) => {
+  if (!deployments || deployments.length === 0) return []
+
+  const groups = new Map()
+
+  deployments.forEach((deployment) => {
+    const key = deployment.locationID || deployment.deploymentID
+    if (!groups.has(key)) {
+      groups.set(key, {
+        locationID: deployment.locationID || deployment.deploymentID,
+        locationName: deployment.locationName,
+        latitude: deployment.latitude,
+        longitude: deployment.longitude,
+        deployments: []
+      })
+    }
+    groups.get(key).deployments.push(deployment)
+  })
+
+  // Sort deployments within each group by deploymentStart (descending - most recent first)
+  groups.forEach((group) => {
+    group.deployments.sort((a, b) => new Date(b.deploymentStart) - new Date(a.deploymentStart))
+  })
+
+  return Array.from(groups.values())
+    .map((group) => ({
+      ...group,
+      aggregatedPeriods: aggregatePeriods(group.deployments),
+      isSingleDeployment: group.deployments.length === 1
+    }))
+    .sort((a, b) => {
+      // Show multi-deployment groups first, then single deployments
+      if (a.isSingleDeployment !== b.isSingleDeployment) {
+        return a.isSingleDeployment ? 1 : -1
+      }
+      // Within each category, sort alphabetically by name
+      const aName = a.locationName || a.locationID || ''
+      const bName = b.locationName || b.locationID || ''
+      return aName.localeCompare(bName)
+    })
+}
+
 function LocationsList({
   activity,
   selectedLocation,
   setSelectedLocation,
   onNewLatitude,
   onNewLongitude,
-  onEnterPlaceMode
+  onEnterPlaceMode,
+  groupToExpand,
+  onGroupExpanded
 }) {
   const parentRef = useRef(null)
 
-  // Memoize sorted deployments
-  const sortedDeployments = useMemo(() => {
-    if (!activity.deployments) return []
-    return [...activity.deployments].sort((a, b) => {
-      const aName = a.locationName || a.locationID || 'Unnamed Location'
-      const bName = b.locationName || b.locationID || 'Unnamed Location'
-      return aName.localeCompare(bName)
+  // Track which groups are expanded (collapsed by default)
+  const [expandedGroups, setExpandedGroups] = useState(new Set())
+
+  // Toggle group expansion
+  const toggleGroup = useCallback((locationID) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev)
+      if (next.has(locationID)) {
+        next.delete(locationID)
+      } else {
+        next.add(locationID)
+      }
+      return next
     })
-  }, [activity.deployments])
+  }, [])
+
+  // Handle external group expansion request (from map marker click)
+  useEffect(() => {
+    if (groupToExpand) {
+      setExpandedGroups((prev) => new Set(prev).add(groupToExpand))
+      onGroupExpanded?.()
+    }
+  }, [groupToExpand, onGroupExpanded])
+
+  // Group deployments by location
+  const locationGroups = useMemo(
+    () => groupDeploymentsByLocation(activity.deployments),
+    [activity.deployments]
+  )
+
+  // Flatten groups into virtual items for the virtualizer
+  const virtualItems = useMemo(() => {
+    const items = []
+    locationGroups.forEach((group) => {
+      if (group.isSingleDeployment) {
+        // Single deployment - render as simple row (no grouping)
+        items.push({
+          type: 'single',
+          deployment: group.deployments[0],
+          locationID: group.locationID
+        })
+      } else {
+        // Multi-deployment group - render header
+        items.push({
+          type: 'group-header',
+          group: group,
+          isExpanded: expandedGroups.has(group.locationID)
+        })
+        // If expanded, add individual deployments
+        if (expandedGroups.has(group.locationID)) {
+          group.deployments.forEach((deployment) => {
+            items.push({
+              type: 'group-deployment',
+              deployment: deployment,
+              locationID: group.locationID
+            })
+          })
+        }
+      }
+    })
+    return items
+  }, [locationGroups, expandedGroups])
 
   // Memoize date markers for timeline header
   const dateMarkers = useMemo(
@@ -510,25 +706,38 @@ function LocationsList({
     [activity.startDate, activity.endDate]
   )
 
-  // Setup virtualizer
+  // Setup virtualizer with dynamic sizing
   const rowVirtualizer = useVirtualizer({
-    count: sortedDeployments.length,
+    count: virtualItems.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 88, // Estimated row height
+    estimateSize: (index) => {
+      const item = virtualItems[index]
+      if (item.type === 'group-header') return 60
+      return 88 // deployment row height
+    },
     overscan: 5
   })
 
   // Scroll to selected location
   useEffect(() => {
     if (selectedLocation) {
-      const index = sortedDeployments.findIndex(
-        (d) => d.deploymentID === selectedLocation.deploymentID
-      )
+      const index = virtualItems.findIndex((item) => {
+        if (item.type === 'single' || item.type === 'group-deployment') {
+          return item.deployment.deploymentID === selectedLocation.deploymentID
+        }
+        if (item.type === 'group-header') {
+          // If selecting a deployment in a collapsed group, find the header
+          return item.group.deployments.some(
+            (d) => d.deploymentID === selectedLocation.deploymentID
+          )
+        }
+        return false
+      })
       if (index !== -1) {
         rowVirtualizer.scrollToIndex(index, { align: 'center', behavior: 'smooth' })
       }
     }
-  }, [selectedLocation, sortedDeployments, rowVirtualizer])
+  }, [selectedLocation, virtualItems, rowVirtualizer])
 
   if (!activity.deployments || activity.deployments.length === 0) {
     return <div className="text-gray-500">No deployment data available</div>
@@ -554,29 +763,56 @@ function LocationsList({
             position: 'relative'
           }}
         >
-          {rowVirtualizer.getVirtualItems().map((virtualItem) => {
-            const location = sortedDeployments[virtualItem.index]
+          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+            const item = virtualItems[virtualRow.index]
             return (
               <div
-                key={virtualItem.key}
+                key={virtualRow.key}
+                data-index={virtualRow.index}
+                ref={rowVirtualizer.measureElement}
                 style={{
                   position: 'absolute',
                   top: 0,
                   left: 0,
                   width: '100%',
-                  height: `${virtualItem.size}px`,
-                  transform: `translateY(${virtualItem.start}px)`
+                  transform: `translateY(${virtualRow.start}px)`
                 }}
               >
-                <DeploymentRow
-                  location={location}
-                  isSelected={selectedLocation?.deploymentID === location.deploymentID}
-                  onSelect={setSelectedLocation}
-                  onNewLatitude={onNewLatitude}
-                  onNewLongitude={onNewLongitude}
-                  onEnterPlaceMode={onEnterPlaceMode}
-                  percentile90Count={activity.percentile90Count}
-                />
+                {item.type === 'single' && (
+                  <DeploymentRow
+                    location={item.deployment}
+                    isSelected={selectedLocation?.deploymentID === item.deployment.deploymentID}
+                    onSelect={setSelectedLocation}
+                    onNewLatitude={onNewLatitude}
+                    onNewLongitude={onNewLongitude}
+                    onEnterPlaceMode={onEnterPlaceMode}
+                    percentile90Count={activity.percentile90Count}
+                  />
+                )}
+
+                {item.type === 'group-header' && (
+                  <LocationGroupHeader
+                    group={item.group}
+                    isExpanded={item.isExpanded}
+                    onToggle={toggleGroup}
+                    percentile90Count={activity.percentile90Count}
+                    isSelected={item.group.deployments.some(
+                      (d) => d.deploymentID === selectedLocation?.deploymentID
+                    )}
+                  />
+                )}
+
+                {item.type === 'group-deployment' && (
+                  <GroupedDeploymentRow
+                    location={item.deployment}
+                    isSelected={selectedLocation?.deploymentID === item.deployment.deploymentID}
+                    onSelect={setSelectedLocation}
+                    onNewLatitude={onNewLatitude}
+                    onNewLongitude={onNewLongitude}
+                    onEnterPlaceMode={onEnterPlaceMode}
+                    percentile90Count={activity.percentile90Count}
+                  />
+                )}
               </div>
             )
           })}
@@ -589,6 +825,7 @@ function LocationsList({
 export default function Deployments({ studyId }) {
   const [selectedLocation, setSelectedLocation] = useState(null)
   const [isPlaceMode, setIsPlaceMode] = useState(false)
+  const [groupToExpand, setGroupToExpand] = useState(null)
   const queryClient = useQueryClient()
   const { importStatus } = useImportStatus(studyId)
 
@@ -694,6 +931,14 @@ export default function Deployments({ studyId }) {
     [selectedLocation, onNewLatitude, onNewLongitude]
   )
 
+  const handleExpandGroup = useCallback((locationID) => {
+    setGroupToExpand(locationID)
+  }, [])
+
+  const handleGroupExpanded = useCallback(() => {
+    setGroupToExpand(null)
+  }, [])
+
   return (
     <div className="flex flex-col px-4 h-full gap-4">
       <div className="flex-[0.7]">
@@ -709,6 +954,7 @@ export default function Deployments({ studyId }) {
             isPlaceMode={isPlaceMode}
             onPlaceLocation={handlePlaceLocation}
             onExitPlaceMode={handleExitPlaceMode}
+            onExpandGroup={handleExpandGroup}
             studyId={studyId}
           />
         ) : null}
@@ -723,6 +969,8 @@ export default function Deployments({ studyId }) {
           onNewLatitude={onNewLatitude}
           onNewLongitude={onNewLongitude}
           onEnterPlaceMode={handleEnterPlaceMode}
+          groupToExpand={groupToExpand}
+          onGroupExpanded={handleGroupExpanded}
         />
       ) : null}
     </div>
