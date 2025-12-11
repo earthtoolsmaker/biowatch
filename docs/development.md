@@ -75,6 +75,37 @@ Opens Electron app with hot reload enabled.
 | `npm run build:linux` | Build for Linux |
 | `npm run build:unpack` | Build unpacked (for debugging) |
 
+### Linux build notes
+
+The Linux build includes an `afterPack` hook (`scripts/afterPack.js`) that fixes a common Electron sandbox issue.
+
+**The problem:**
+
+On Linux, Electron requires `chrome-sandbox` to be owned by root with SUID bit (mode 4755). AppImages extract to `/tmp` where this is impossible, causing:
+
+```
+FATAL:setuid_sandbox_host.cc: The SUID sandbox helper binary was found,
+but is not configured correctly.
+```
+
+This affects distributions where unprivileged user namespaces are disabled:
+- Ubuntu 24.04+ (AppArmor restriction)
+- Debian (disabled by default)
+- Some enterprise distributions
+
+**The solution:**
+
+The `afterPack` hook creates a wrapper script that:
+1. Renames `biowatch` → `biowatch.bin`
+2. Creates a shell script `biowatch` that checks kernel settings at runtime
+3. Passes `--no-sandbox` only when the kernel doesn't support unprivileged namespaces
+
+This means the sandbox is preserved on systems that support it, while still working on restricted systems.
+
+**Files involved:**
+- `scripts/afterPack.js` - The hook script (Linux-only, skipped on macOS/Windows)
+- `electron-builder.yml` - References the hook via `afterPack`
+
 ## Code Style
 
 ### ESLint + Prettier
@@ -187,6 +218,8 @@ biowatch/
 │   │   └── *.jsx           # Page components
 │   ├── preload/            # IPC bridge
 │   └── shared/             # Shared code (model zoo)
+├── scripts/
+│   └── afterPack.js        # electron-builder hook (Linux sandbox fix)
 ├── python-environments/
 │   └── common/             # ML model Python env
 ├── test/                   # Test files

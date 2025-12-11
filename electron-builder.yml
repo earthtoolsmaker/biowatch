@@ -58,6 +58,10 @@ linux:
   maintainer: electronjs.org
   category: Utility
 
+# Linux sandbox fix: creates wrapper script for AppImage compatibility
+# Only runs on Linux builds - see scripts/afterPack.js and docs/development.md
+afterPack: ./scripts/afterPack.js
+
 appImage:
   artifactName: ${name}.${ext}
 npmRebuild: false
