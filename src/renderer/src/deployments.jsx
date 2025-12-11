@@ -470,6 +470,20 @@ const formatDate = (dateString) => {
   })
 }
 
+// Generate evenly-spaced date markers for timeline
+const getDateMarkers = (startDate, endDate, count = 5) => {
+  if (!startDate || !endDate) return []
+  const start = new Date(startDate)
+  const end = new Date(endDate)
+  const step = (end - start) / (count - 1)
+  return Array.from({ length: count }, (_, i) => new Date(start.getTime() + step * i))
+}
+
+// Format date as "Jan 24" for timeline markers
+const formatDateShort = (date) => {
+  return date.toLocaleDateString('en-US', { year: '2-digit', month: 'short' })
+}
+
 function LocationsList({
   activity,
   selectedLocation,
@@ -489,6 +503,12 @@ function LocationsList({
       return aName.localeCompare(bName)
     })
   }, [activity.deployments])
+
+  // Memoize date markers for timeline header
+  const dateMarkers = useMemo(
+    () => getDateMarkers(activity.startDate, activity.endDate, 5),
+    [activity.startDate, activity.endDate]
+  )
 
   // Setup virtualizer
   const rowVirtualizer = useVirtualizer({
@@ -516,9 +536,15 @@ function LocationsList({
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      <header className="sticky top-0 bg-white z-10 pl-68 flex justify-between text-sm text-gray-700 py-2">
-        <span>{formatDate(activity.startDate)} </span>
-        <span>{formatDate(activity.endDate)}</span>
+      <header className="sticky top-0 bg-white z-10 pl-68 py-3 border-b border-gray-300">
+        <div className="flex justify-between text-xs text-gray-600">
+          {dateMarkers.map((date, i) => (
+            <div key={i} className="flex flex-col items-center" style={{ width: '20%' }}>
+              <span>{formatDateShort(date)}</span>
+              <div className="w-px h-2 bg-gray-400 mt-1" />
+            </div>
+          ))}
+        </div>
       </header>
       <div ref={parentRef} className="flex-1 overflow-auto">
         <div
