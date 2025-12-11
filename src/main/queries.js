@@ -146,10 +146,10 @@ export async function getDeployments(dbPath) {
         latitude: subquery.latitude
       })
       .from(subquery)
-      .groupBy(subquery.locationID)
+      .groupBy(subquery.latitude, subquery.longitude)
 
     const elapsedTime = Date.now() - startTime
-    log.info(`Retrieved distinct deployments: ${result.length} locations found in ${elapsedTime}ms`)
+    log.info(`Retrieved distinct deployments: ${result.length} unique coordinates found in ${elapsedTime}ms`)
 
     return result
   } catch (error) {
