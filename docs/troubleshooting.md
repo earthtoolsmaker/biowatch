@@ -262,7 +262,18 @@ chmod +x Biowatch-*.AppImage
 ./Biowatch-*.AppImage
 ```
 
-If FUSE issues:
+**SUID sandbox error** ("chrome-sandbox is not configured correctly"):
+```bash
+# Option 1: Run with --no-sandbox flag
+./Biowatch-*.AppImage --no-sandbox
+
+# Option 2: Extract and run
+./Biowatch-*.AppImage --appimage-extract-and-run
+```
+
+Note: Starting from v1.5.0, the app automatically handles this.
+
+**FUSE issues:**
 ```bash
 ./Biowatch-*.AppImage --appimage-extract-and-run
 ```
