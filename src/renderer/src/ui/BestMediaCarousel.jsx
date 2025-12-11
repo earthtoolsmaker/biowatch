@@ -9,7 +9,9 @@ import { ChevronLeft, ChevronRight, CameraOff, X } from 'lucide-react'
  */
 function constructImageUrl(fullFilePath) {
   if (!fullFilePath) return ''
-  if (fullFilePath.startsWith('http')) return fullFilePath
+  if (fullFilePath.startsWith('http')) {
+    return `cached-media://get?url=${encodeURIComponent(fullFilePath)}`
+  }
   return `local-file://get?path=${encodeURIComponent(fullFilePath)}`
 }
 
