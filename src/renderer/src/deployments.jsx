@@ -20,29 +20,68 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png'
 })
 
-// Add this style block at the top of the file after imports
-const invisibleMarkerStyle = `
+// Add style block for marker styles
+const markerStyles = `
   .invisible-drag-marker {
     background: transparent !important;
     border: none !important;
     cursor: move;
   }
+
+  .camera-marker-active {
+    position: relative;
+    cursor: move;
+  }
+
+  .marker-ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 48px;
+    height: 48px;
+    border: 3px solid #3B82F6;
+    border-radius: 50%;
+    animation: pulse-ring 1.5s ease-out infinite;
+    pointer-events: none;
+  }
+
+  @keyframes pulse-ring {
+    0% {
+      transform: translate(-50%, -50%) scale(0.7);
+      opacity: 1;
+    }
+    100% {
+      transform: translate(-50%, -50%) scale(1.3);
+      opacity: 0;
+    }
+  }
+
+  .camera-marker-active svg {
+    filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.7));
+  }
+
+  .custom-camera-icon {
+    background: transparent !important;
+    border: none !important;
+  }
 `
 
 // Add the style to the document head
-if (typeof document !== 'undefined' && !document.getElementById('invisible-marker-styles')) {
+if (typeof document !== 'undefined' && !document.getElementById('marker-styles')) {
   const style = document.createElement('style')
-  style.id = 'invisible-marker-styles'
-  style.textContent = invisibleMarkerStyle
+  style.id = 'marker-styles'
+  style.textContent = markerStyles
   document.head.appendChild(style)
 }
 
 // Create camera icons once at module level for better performance
 const createCameraIcon = (isActive) => {
   const cameraIcon = ReactDOMServer.renderToString(
-    <div className="camera-marker">
+    <div className={isActive ? 'camera-marker-active' : 'camera-marker'}>
+      {isActive && <div className="marker-ring"></div>}
       {isActive ? (
-        <Camera color="#1E40AF" fill="#93C5FD" size={28} />
+        <Camera color="#1E40AF" fill="#93C5FD" size={32} />
       ) : (
         <Camera color="#777" fill="#bbb" size={28} />
       )}
@@ -52,8 +91,8 @@ const createCameraIcon = (isActive) => {
   return L.divIcon({
     html: cameraIcon,
     className: 'custom-camera-icon',
-    iconSize: [18, 18],
-    iconAnchor: [14, 14]
+    iconSize: isActive ? [32, 32] : [18, 18],
+    iconAnchor: isActive ? [16, 16] : [14, 14]
   })
 }
 
@@ -125,6 +164,23 @@ function MapEventHandler({ isPlaceMode, onMapClick, onMouseMove, onMouseOut }) {
       onMouseOut()
     }
   })
+  return null
+}
+
+// Component to fly to selected location
+function FlyToSelected({ selectedLocation }) {
+  const map = useMap()
+
+  useEffect(() => {
+    if (selectedLocation?.latitude && selectedLocation?.longitude) {
+      map.flyTo(
+        [parseFloat(selectedLocation.latitude), parseFloat(selectedLocation.longitude)],
+        16, // zoom level
+        { duration: 0.8 }
+      )
+    }
+  }, [selectedLocation, map])
+
   return null
 }
 
@@ -212,6 +268,9 @@ function LocationMap({
         </LayersControl>
         <LayerChangeHandler onLayerChange={setSelectedLayer} />
 
+        {/* Fly to selected location when it changes */}
+        <FlyToSelected selectedLocation={selectedLocation} />
+
         {/* Map event handler for place mode */}
         <MapEventHandler
           isPlaceMode={isPlaceMode}
@@ -234,10 +293,12 @@ function LocationMap({
               title={location.locationID}
               position={[parseFloat(location.latitude), parseFloat(location.longitude)]}
               icon={
-                selectedLocation?.locationID === location.locationID ? activeCameraIcon : cameraIcon
+                selectedLocation?.deploymentID === location.deploymentID
+                  ? activeCameraIcon
+                  : cameraIcon
               }
-              draggable={selectedLocation?.locationID === location.locationID}
-              zIndexOffset={selectedLocation?.locationID === location.locationID ? 1000 : 0}
+              draggable={selectedLocation?.deploymentID === location.deploymentID}
+              zIndexOffset={selectedLocation?.deploymentID === location.deploymentID ? 1000 : 0}
               eventHandlers={{
                 click: () => {
                   if (isPlaceMode) {
@@ -325,11 +386,17 @@ const DeploymentRow = memo(function DeploymentRow({
       id={location.deploymentID}
       title={location.deploymentStart}
       onClick={handleRowClick}
-      className={`flex gap-4 items-center py-4 first:pt-2 hover:bg-gray-50 cursor-pointer px-2 border-b border-gray-200 ${isSelected ? 'bg-gray-50' : ''}`}
+      className={`flex gap-4 items-center py-4 first:pt-2 hover:bg-gray-50 cursor-pointer px-2 border-b border-gray-200 transition-all duration-200 ${
+        isSelected
+          ? 'bg-blue-50 border-l-4 border-l-blue-500 pl-3'
+          : 'border-l-4 border-l-transparent'
+      }`}
     >
       <div className="flex flex-col gap-2">
         <div
-          className={`cursor-pointer text-sm w-62 truncate text-gray-700 ${isSelected ? 'font-medium' : ''}`}
+          className={`cursor-pointer text-sm w-62 truncate ${
+            isSelected ? 'font-semibold text-blue-700' : 'text-gray-700'
+          }`}
           title={location.deploymentStart}
         >
           {location.locationName || location.locationID || 'Unnamed Location'}
@@ -477,7 +544,7 @@ function LocationsList({
               >
                 <DeploymentRow
                   location={location}
-                  isSelected={selectedLocation?.locationID === location.locationID}
+                  isSelected={selectedLocation?.deploymentID === location.deploymentID}
                   onSelect={setSelectedLocation}
                   onNewLatitude={onNewLatitude}
                   onNewLongitude={onNewLongitude}
