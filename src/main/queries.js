@@ -149,7 +149,9 @@ export async function getDeployments(dbPath) {
       .groupBy(subquery.latitude, subquery.longitude)
 
     const elapsedTime = Date.now() - startTime
-    log.info(`Retrieved distinct deployments: ${result.length} unique coordinates found in ${elapsedTime}ms`)
+    log.info(
+      `Retrieved distinct deployments: ${result.length} unique coordinates found in ${elapsedTime}ms`
+    )
 
     return result
   } catch (error) {
@@ -884,6 +886,7 @@ export async function insertObservations(manager, observationsData) {
 
 /**
  * Get activity data (observation counts) per deployment over time periods
+ * Uses SQL-level aggregation for performance with large datasets
  * @param {string} dbPath - Path to the SQLite database
  * @returns {Promise<Object>} - Activity data with periods and counts per deployment
  */
@@ -907,37 +910,21 @@ export async function getDeploymentsActivity(dbPath) {
       .from(deployments)
       .get()
 
-    if (!dateRange) {
-      throw new Error('No deployment date range found')
+    if (!dateRange || !dateRange.minDate || !dateRange.maxDate) {
+      // Return empty result if no deployments
+      return {
+        startDate: null,
+        endDate: null,
+        percentile90Count: 1,
+        deployments: []
+      }
     }
 
-    // Get all deployments
-    const deploymentsData = await db
-      .selectDistinct({
-        deploymentID: deployments.deploymentID,
-        locationName: deployments.locationName,
-        locationID: deployments.locationID,
-        deploymentStart: deployments.deploymentStart,
-        deploymentEnd: deployments.deploymentEnd,
-        latitude: deployments.latitude,
-        longitude: deployments.longitude
-      })
-      .from(deployments)
-
-    // Get all observations with their deployment IDs and event start times
-    const observationData = await db
-      .select({
-        deploymentID: observations.deploymentID,
-        eventID: observations.eventID,
-        eventStart: observations.eventStart
-      })
-      .from(observations)
-
-    // Process the data in JavaScript
+    // Calculate period boundaries
     const minDate = new Date(dateRange.minDate)
     const maxDate = new Date(dateRange.maxDate)
     const totalDays = (maxDate - minDate) / (1000 * 60 * 60 * 24)
-    const periodDays = Math.ceil(totalDays / 20)
+    const periodDays = Math.max(1, Math.ceil(totalDays / 20))
 
     // Generate periods
     const periods = []
@@ -955,55 +942,58 @@ export async function getDeploymentsActivity(dbPath) {
       currentStart = new Date(periodEnd)
     }
 
-    // Create deployment map
-    const deploymentMap = new Map()
-    deploymentsData.forEach((deployment) => {
-      deploymentMap.set(deployment.deploymentID, {
-        deploymentID: deployment.deploymentID,
-        locationName: deployment.locationName,
-        locationID: deployment.locationID,
-        deploymentStart: deployment.deploymentStart,
-        deploymentEnd: deployment.deploymentEnd,
-        latitude: deployment.latitude,
-        longitude: deployment.longitude,
-        periods: periods.map((period) => ({
+    // Build SQL CASE expressions for each period
+    // This aggregates observation counts at the database level
+    const periodCases = periods.map((period, i) =>
+      sql`SUM(CASE WHEN ${observations.eventStart} >= ${period.start} AND ${observations.eventStart} < ${period.end} THEN 1 ELSE 0 END)`.as(
+        `period_${i}`
+      )
+    )
+
+    // Single aggregated query: join deployments with observations and count per period
+    const aggregatedData = await db
+      .select({
+        deploymentID: deployments.deploymentID,
+        locationName: deployments.locationName,
+        locationID: deployments.locationID,
+        deploymentStart: deployments.deploymentStart,
+        deploymentEnd: deployments.deploymentEnd,
+        latitude: deployments.latitude,
+        longitude: deployments.longitude,
+        ...Object.fromEntries(periodCases.map((c, i) => [`period_${i}`, c]))
+      })
+      .from(deployments)
+      .leftJoin(observations, eq(deployments.deploymentID, observations.deploymentID))
+      .groupBy(deployments.deploymentID)
+
+    // Transform aggregated data to expected format
+    const allCounts = []
+    const deploymentsResult = aggregatedData.map((row) => {
+      const deploymentPeriods = periods.map((period, i) => {
+        const count = row[`period_${i}`] || 0
+        if (count > 0) {
+          allCounts.push(count)
+        }
+        return {
           start: period.start,
           end: period.end,
-          count: 0
-        }))
-      })
-    })
-
-    // Count observations per deployment per period
-    const allCounts = []
-
-    observationData.forEach((obs) => {
-      const deployment = deploymentMap.get(obs.deploymentID)
-      if (!deployment) return
-
-      const obsDate = new Date(obs.eventStart)
-
-      for (let i = 0; i < periods.length; i++) {
-        const periodStart = new Date(periods[i].start)
-        const periodEnd = new Date(periods[i].end)
-
-        if (obsDate >= periodStart && obsDate < periodEnd) {
-          deployment.periods[i].count++
-          break
+          count
         }
+      })
+
+      return {
+        deploymentID: row.deploymentID,
+        locationName: row.locationName,
+        locationID: row.locationID,
+        deploymentStart: row.deploymentStart,
+        deploymentEnd: row.deploymentEnd,
+        latitude: row.latitude,
+        longitude: row.longitude,
+        periods: deploymentPeriods
       }
     })
 
-    // Collect all non-zero counts for percentile calculation
-    deploymentMap.forEach((deployment) => {
-      deployment.periods.forEach((period) => {
-        if (period.count > 0) {
-          allCounts.push(period.count)
-        }
-      })
-    })
-
-    // Sort counts for percentile calculations
+    // Sort counts for percentile calculation
     allCounts.sort((a, b) => a - b)
 
     // Calculate 95th percentile of period counts
@@ -1014,7 +1004,7 @@ export async function getDeploymentsActivity(dbPath) {
       startDate: dateRange.minDate,
       endDate: dateRange.maxDate,
       percentile90Count,
-      deployments: Array.from(deploymentMap.values())
+      deployments: deploymentsResult
     }
 
     const elapsedTime = Date.now() - startTime
