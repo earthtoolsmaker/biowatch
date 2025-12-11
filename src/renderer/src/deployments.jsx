@@ -3,7 +3,7 @@ import 'leaflet/dist/leaflet.css'
 import { Camera, MapPin, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import ReactDOMServer from 'react-dom/server'
-import { MapContainer, Marker, TileLayer, useMapEvents } from 'react-leaflet'
+import { LayersControl, MapContainer, Marker, TileLayer, useMapEvents } from 'react-leaflet'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useImportStatus } from '@renderer/hooks/import'
 import SkeletonMap from './ui/SkeletonMap'
@@ -164,10 +164,21 @@ function LocationMap({
         style={{ height: '100%', width: '100%' }}
         ref={mapRef}
       >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+        <LayersControl position="topright">
+          <LayersControl.BaseLayer name="Satellite" checked={true}>
+            <TileLayer
+              attribution='&copy; <a href="https://www.esri.com">Esri</a>'
+              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+            />
+          </LayersControl.BaseLayer>
+
+          <LayersControl.BaseLayer name="Street Map">
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+          </LayersControl.BaseLayer>
+        </LayersControl>
 
         {/* Map event handler for place mode */}
         <MapEventHandler

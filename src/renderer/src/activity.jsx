@@ -165,17 +165,17 @@ const SpeciesMap = ({ heatmapData, selectedSpecies, palette, geoKey }) => {
       className="rounded w-full h-full border border-gray-200"
     >
       <LayersControl position="topright">
-        <LayersControl.BaseLayer name="Street Map" checked={true}>
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-        </LayersControl.BaseLayer>
-
-        <LayersControl.BaseLayer name="Satellite">
+        <LayersControl.BaseLayer name="Satellite" checked={true}>
           <TileLayer
             attribution='&copy; <a href="https://www.esri.com">Esri</a>'
             url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+          />
+        </LayersControl.BaseLayer>
+
+        <LayersControl.BaseLayer name="Street Map">
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
         </LayersControl.BaseLayer>
 
