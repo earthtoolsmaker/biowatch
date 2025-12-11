@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useMemo } from 'react'
 import ReactDOMServer from 'react-dom/server'
 import L from 'leaflet'
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
+import { LayersControl, MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
 import {
   Camera,
   ChevronDown,
@@ -108,10 +108,21 @@ function DeploymentMap({ deployments, studyId }) {
         boundsOptions={{ padding: [50, 50] }}
         style={{ height: '100%', width: '100%' }}
       >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+        <LayersControl position="topright">
+          <LayersControl.BaseLayer name="Satellite" checked={true}>
+            <TileLayer
+              attribution='&copy; <a href="https://www.esri.com">Esri</a>'
+              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+            />
+          </LayersControl.BaseLayer>
+
+          <LayersControl.BaseLayer name="Street Map">
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+          </LayersControl.BaseLayer>
+        </LayersControl>
         {validDeployments.map((deployment) => (
           <Marker
             key={deployment.deploymentID}
