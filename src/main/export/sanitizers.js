@@ -246,7 +246,13 @@ export function sanitizeDeployment(row) {
 
     // Optional fields
     locationID: row.locationID || null,
-    locationName: row.locationName || null
+    locationName: row.locationName || null,
+
+    // EXIF-extracted CamtrapDP fields
+    cameraModel: row.cameraModel || null,
+    cameraID: row.cameraID || null,
+    coordinateUncertainty:
+      row.coordinateUncertainty != null ? Math.round(row.coordinateUncertainty) : null
   }
 }
 

@@ -704,7 +704,10 @@ function generateDataPackage(studyId, studyName, metadata = null) {
             { name: 'latitude', type: 'number' },
             { name: 'longitude', type: 'number' },
             { name: 'deploymentStart', type: 'datetime' },
-            { name: 'deploymentEnd', type: 'datetime' }
+            { name: 'deploymentEnd', type: 'datetime' },
+            { name: 'cameraModel', type: 'string' },
+            { name: 'cameraID', type: 'string' },
+            { name: 'coordinateUncertainty', type: 'integer' }
           ]
         }
       },
@@ -835,7 +838,10 @@ export async function exportCamtrapDP(studyId, options = {}) {
         latitude: deployments.latitude,
         longitude: deployments.longitude,
         deploymentStart: deployments.deploymentStart,
-        deploymentEnd: deployments.deploymentEnd
+        deploymentEnd: deployments.deploymentEnd,
+        cameraModel: deployments.cameraModel,
+        cameraID: deployments.cameraID,
+        coordinateUncertainty: deployments.coordinateUncertainty
       })
       .from(deployments)
       .orderBy(asc(deployments.deploymentID))
@@ -852,7 +858,10 @@ export async function exportCamtrapDP(studyId, options = {}) {
         deploymentStart: d.deploymentStart,
         deploymentEnd: d.deploymentEnd,
         locationID: d.locationID,
-        locationName: d.locationName
+        locationName: d.locationName,
+        cameraModel: d.cameraModel,
+        cameraID: d.cameraID,
+        coordinateUncertainty: d.coordinateUncertainty
       }
 
       // Sanitize values to comply with CamtrapDP spec
@@ -1153,7 +1162,10 @@ export async function exportCamtrapDP(studyId, options = {}) {
       'latitude',
       'longitude',
       'deploymentStart',
-      'deploymentEnd'
+      'deploymentEnd',
+      'cameraModel',
+      'cameraID',
+      'coordinateUncertainty'
     ])
 
     const mediaCSV = toCSV(mediaRows, [

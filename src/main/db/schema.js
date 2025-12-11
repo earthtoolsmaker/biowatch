@@ -9,7 +9,11 @@ export const deployments = sqliteTable(
     deploymentStart: text('deploymentStart'),
     deploymentEnd: text('deploymentEnd'),
     latitude: real('latitude'),
-    longitude: real('longitude')
+    longitude: real('longitude'),
+    // CamtrapDP fields extracted from EXIF
+    cameraModel: text('cameraModel'), // "Make-Model" format per CamtrapDP spec
+    cameraID: text('cameraID'), // Camera serial number from EXIF
+    coordinateUncertainty: integer('coordinateUncertainty') // GPS horizontal error in meters
   },
   (table) => [index('idx_deployments_locationID').on(table.locationID)]
 )

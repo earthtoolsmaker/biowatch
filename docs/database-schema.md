@@ -55,6 +55,11 @@ Camera trap deployment information.
 | `deploymentEnd` | TEXT | | ISO 8601 datetime |
 | `latitude` | REAL | | Decimal degrees |
 | `longitude` | REAL | | Decimal degrees |
+| `cameraModel` | TEXT | | Camera make-model from EXIF (CamtrapDP format: "Make-Model") |
+| `cameraID` | TEXT | | Camera serial number from EXIF |
+| `coordinateUncertainty` | INTEGER | | GPS horizontal error in meters from EXIF |
+
+The EXIF-derived fields (`cameraModel`, `cameraID`, `coordinateUncertainty`) are automatically populated during import using mode aggregation (most common value) across all media in the deployment. This ensures CamtrapDP compliance.
 
 ```javascript
 // src/main/db/schema.js
@@ -65,7 +70,11 @@ export const deployments = sqliteTable('deployments', {
   deploymentStart: text('deploymentStart'),
   deploymentEnd: text('deploymentEnd'),
   latitude: real('latitude'),
-  longitude: real('longitude')
+  longitude: real('longitude'),
+  // CamtrapDP fields extracted from EXIF
+  cameraModel: text('cameraModel'),
+  cameraID: text('cameraID'),
+  coordinateUncertainty: integer('coordinateUncertainty')
 })
 ```
 
