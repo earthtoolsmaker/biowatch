@@ -102,7 +102,7 @@ dataset/
 | `classificationProbability` | number | Confidence score (0-1) |
 
 **Key files:**
-- Import: `src/main/camtrap.js`
+- Import: `src/main/import/camtrap.js`
 - Export: `src/main/export.js`
 - Validation schemas: `src/main/export/camtrapDPSchemas.js`
 - Sanitization: `src/main/export/sanitizers.js`
@@ -225,7 +225,7 @@ Combined media + observations in one file:
 | `behavior` | behavior |
 | `sequence_id` | eventID |
 
-**Key file:** `src/main/wildlife.js`
+**Key file:** `src/main/import/wildlife.js`
 
 ---
 
@@ -243,7 +243,7 @@ Single CSV file with image paths and predictions.
 | `prediction` | Species prediction |
 | `score` | Classification probability |
 
-**Key file:** `src/main/deepfaune.js`
+**Key file:** `src/main/import/deepfaune.js`
 
 ---
 
@@ -264,7 +264,7 @@ Direct import from a folder of images with optional ML inference.
 4. Create deployments from folder structure
 5. Generate media and observation records
 
-**Key file:** `src/main/importer.js`
+**Key file:** `src/main/import/importer.js`
 
 ---
 

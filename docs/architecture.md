@@ -246,8 +246,10 @@ function getStudyPath(userDataPath, studyId) {
 | `src/main/queries.js` | Data query functions |
 | `src/shared/mlmodels.js` | Model zoo configuration |
 | `src/main/models.ts` | ML model download/server management |
-| `src/main/importer.js` | Image import with ML inference |
-| `src/main/camtrap.js` | CamTrap DP format importer |
+| `src/main/import/importer.js` | Image import with ML inference |
+| `src/main/import/camtrap.js` | CamTrap DP format importer |
+| `src/main/import/wildlife.js` | Wildlife Insights format importer |
+| `src/main/import/deepfaune.js` | DeepFaune CSV format importer |
 | `src/main/export.js` | CamTrap DP exporter |
 | `src/main/transcoder.js` | Video format conversion for browser playback |
 | `src/main/transformers/index.js` | Bbox format conversions |
