@@ -1,6 +1,6 @@
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { spawn } from 'child_process'
-import { app, BrowserWindow, dialog, ipcMain, protocol, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, net, protocol, shell } from 'electron'
 import log from 'electron-log'
 import { autoUpdater } from 'electron-updater'
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, rmSync } from 'fs'
@@ -228,6 +228,53 @@ function registerLocalFileProtocol() {
   })
 }
 
+/**
+ * Register cached-media:// protocol for caching remote media files.
+ * Routes HTTP/HTTPS URLs through this protocol to leverage Chromium's disk cache.
+ */
+function registerCachedMediaProtocol() {
+  protocol.handle('cached-media', async (request) => {
+    const url = new URL(request.url)
+    const remoteUrl = url.searchParams.get('url')
+
+    if (!remoteUrl) {
+      return new Response('Missing url parameter', { status: 400 })
+    }
+
+    log.info('=== cached-media protocol request ===')
+    log.info('Remote URL:', remoteUrl)
+
+    try {
+      const response = await net.fetch(remoteUrl)
+
+      if (!response.ok) {
+        log.error('Remote fetch failed:', response.status)
+        return new Response(`Remote fetch failed: ${response.status}`, {
+          status: response.status
+        })
+      }
+
+      const buffer = await response.arrayBuffer()
+      const contentType = response.headers.get('content-type') || 'application/octet-stream'
+
+      log.info(`Fetched ${buffer.byteLength} bytes, type: ${contentType}`)
+
+      return new Response(buffer, {
+        status: 200,
+        headers: {
+          'Content-Type': contentType,
+          'Content-Length': String(buffer.byteLength),
+          'Cache-Control': 'public, max-age=2592000', // 30 days
+          'Access-Control-Allow-Origin': '*'
+        }
+      })
+    } catch (error) {
+      log.error('Error fetching remote media:', error)
+      return new Response('Error fetching remote media', { status: 500 })
+    }
+  })
+}
+
 // Add a shared function to process datasets (used by both select-dataset and import-dropped-dataset)
 async function processDataset(inputPath, id) {
   let pathToImport = inputPath
@@ -389,6 +436,9 @@ app.whenReady().then(async () => {
 
   // Register local-file:// protocol
   registerLocalFileProtocol()
+
+  // Register cached-media:// protocol for caching remote media
+  registerCachedMediaProtocol()
 
   // Garbage collect stale ML Models and environments
   garbageCollect()
