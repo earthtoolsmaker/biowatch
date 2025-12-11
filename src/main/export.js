@@ -15,6 +15,8 @@ import {
 import { eq, and, isNotNull, ne, or, isNull, asc, inArray } from 'drizzle-orm'
 import { downloadFileWithRetry } from './download.js'
 import crypto from 'crypto'
+import { observationSchema } from './export/camtrapDPSchemas.js'
+import { sanitizeObservation } from './export/sanitizers.js'
 
 function getStudyDatabasePath(userDataPath, studyId) {
   return join(getStudyPath(userDataPath, studyId), 'study.db')
@@ -508,9 +510,11 @@ function mapObservationType(dbType, scientificName) {
   // If scientificName is present, it's an animal observation
   if (scientificName) return 'animal'
   if (!dbType || dbType === 'blank') return 'blank'
-  if (dbType === 'machine' || dbType === 'human') return 'animal'
+  if (dbType === 'machine') return 'animal'
   if (dbType === 'animal') return 'animal'
+  if (dbType === 'human') return 'human'
   if (dbType === 'vehicle') return 'vehicle'
+  if (dbType === 'unclassified') return 'unclassified'
   return 'unknown'
 }
 
@@ -980,12 +984,14 @@ export async function exportCamtrapDP(studyId, options = {}) {
         : `Preserving existing eventIDs (sequenceGap=0)`
     )
 
-    // Transform observations data for Camtrap DP
-    const observationsRows = observationsData.map((o) => {
+    // Transform and validate observations data for Camtrap DP
+    const validationErrors = []
+    const observationsRows = observationsData.map((o, index) => {
       // Use generated event data if available, otherwise preserve existing
       const eventData = eventMapping?.get(o.observationID)
 
-      return {
+      // Build raw observation row
+      const rawRow = {
         observationID: o.observationID,
         deploymentID: o.deploymentID,
         mediaID: o.mediaID,
@@ -1008,7 +1014,40 @@ export async function exportCamtrapDP(studyId, options = {}) {
         classificationTimestamp: o.classificationTimestamp,
         classificationProbability: o.classificationProbability
       }
+
+      // Sanitize values to comply with CamtrapDP spec
+      const sanitizedRow = sanitizeObservation(rawRow)
+
+      // Validate against schema (non-blocking - collect errors)
+      const result = observationSchema.safeParse(sanitizedRow)
+      if (!result.success) {
+        validationErrors.push({
+          rowIndex: index,
+          observationID: o.observationID,
+          errors: result.error.issues.map((issue) => ({
+            path: issue.path.join('.'),
+            message: issue.message
+          }))
+        })
+      }
+
+      return sanitizedRow
     })
+
+    // Log validation warnings (non-blocking)
+    if (validationErrors.length > 0) {
+      log.warn(
+        `CamtrapDP validation: ${validationErrors.length} of ${observationsRows.length} observations have issues`
+      )
+      validationErrors.slice(0, 5).forEach((e) => {
+        log.warn(`  Observation ${e.observationID}: ${JSON.stringify(e.errors)}`)
+      })
+      if (validationErrors.length > 5) {
+        log.warn(`  ... and ${validationErrors.length - 5} more`)
+      }
+    } else {
+      log.info(`CamtrapDP validation: All ${observationsRows.length} observations are valid`)
+    }
 
     // Generate CSV files
     const deploymentsCSV = toCSV(deploymentsData, [
@@ -1183,7 +1222,14 @@ export async function exportCamtrapDP(studyId, options = {}) {
       ...(includeMedia && {
         copiedMediaCount,
         mediaErrorCount
-      })
+      }),
+      // CamtrapDP validation summary
+      validation: {
+        observationsValidated: observationsRows.length,
+        observationsWithIssues: validationErrors.length,
+        isValid: validationErrors.length === 0,
+        sampleErrors: validationErrors.slice(0, 5)
+      }
     }
   } catch (error) {
     log.error('Error exporting Camtrap DP:', error)

@@ -86,17 +86,17 @@ dataset/
 | `eventStart` | datetime | Event start time |
 | `eventEnd` | datetime | Event end time |
 | `observationLevel` | string | Always `media` |
-| `observationType` | string | `animal`, `human`, `vehicle`, `blank`, `unknown` |
+| `observationType` | string | `animal`, `human`, `vehicle`, `blank`, `unknown`, `unclassified` |
 | `scientificName` | string | Latin species name |
-| `count` | integer | Number of individuals |
-| `lifeStage` | string | `adult`, `juvenile`, etc. |
-| `sex` | string | `male`, `female`, `unknown` |
+| `count` | integer | Number of individuals (min: 1, null if unknown) |
+| `lifeStage` | string | `adult`, `subadult`, `juvenile` |
+| `sex` | string | `male`, `female` |
 | `behavior` | string | Observed behavior |
 | `bboxX` | number | Bounding box X (normalized 0-1) |
 | `bboxY` | number | Bounding box Y (normalized 0-1) |
-| `bboxWidth` | number | Bounding box width (normalized 0-1) |
-| `bboxHeight` | number | Bounding box height (normalized 0-1) |
-| `classificationMethod` | string | `machine` or `human` |
+| `bboxWidth` | number | Bounding box width (normalized, min: 1e-15, max: 1) |
+| `bboxHeight` | number | Bounding box height (normalized, min: 1e-15, max: 1) |
+| `classificationMethod` | string | `human` or `machine` |
 | `classifiedBy` | string | Model name or person |
 | `classificationTimestamp` | datetime | When classification was made |
 | `classificationProbability` | number | Confidence score (0-1) |
@@ -104,6 +104,32 @@ dataset/
 **Key files:**
 - Import: `src/main/camtrap.js`
 - Export: `src/main/export.js`
+- Validation schemas: `src/main/export/camtrapDPSchemas.js`
+- Sanitization: `src/main/export/sanitizers.js`
+
+### Export Validation
+
+During CamTrap DP export, observations are validated against the [official TDWG CamtrapDP 1.0 specification](https://camtrap-dp.tdwg.org/). Validation is non-blocking - warnings are logged but don't prevent export.
+
+**Sanitization rules applied:**
+- Timestamps without timezone get `Z` (UTC) appended
+- `count` values of 0 or negative become `null`
+- `bboxWidth`/`bboxHeight` of 0 are clamped to `1e-15` (minimum positive)
+- `lifeStage` values are mapped to enum (`baby`/`young`/`immature` → `juvenile`, `sub-adult` → `subadult`)
+- `sex` values are mapped to enum (`f`/`F` → `female`, `m`/`M` → `male`)
+- `classificationMethod` values are mapped (`ai`/`ml`/`auto` → `machine`, `manual` → `human`)
+
+**Validation summary returned:**
+```json
+{
+  "validation": {
+    "observationsValidated": 1000,
+    "observationsWithIssues": 5,
+    "isValid": false,
+    "sampleErrors": [...]
+  }
+}
+```
 
 ---
 

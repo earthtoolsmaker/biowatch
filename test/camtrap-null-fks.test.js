@@ -114,7 +114,11 @@ describe('CamTrapDP NULL Foreign Keys Tests', () => {
 
       assert(standalone1, 'Should find standalone obs002')
       assert(standalone2, 'Should find standalone obs004')
-      assert.equal(standalone1.commonName, 'Wild Boar', 'Standalone obs should have correct species')
+      assert.equal(
+        standalone1.commonName,
+        'Wild Boar',
+        'Standalone obs should have correct species'
+      )
       assert.equal(
         standalone1.deploymentID,
         'deploy001',
