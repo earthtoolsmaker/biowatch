@@ -190,6 +190,12 @@ const api = {
     electronAPI.ipcRenderer.on('export:progress', handler)
     return () => electronAPI.ipcRenderer.removeListener('export:progress', handler)
   },
+  // GBIF import progress events
+  onGbifImportProgress: (callback) => {
+    const handler = (_event, data) => callback(data)
+    electronAPI.ipcRenderer.on('gbif-import:progress', handler)
+    return () => electronAPI.ipcRenderer.removeListener('gbif-import:progress', handler)
+  },
   cancelExport: async () => {
     return await electronAPI.ipcRenderer.invoke('export:cancel')
   },
