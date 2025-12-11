@@ -2351,7 +2351,8 @@ function Gallery({ species, dateRange, timeRange }) {
 
   const constructImageUrl = (fullFilePath) => {
     if (fullFilePath.startsWith('http')) {
-      return `cached-media://get?url=${encodeURIComponent(fullFilePath)}`
+      // Use HTTPS URL directly - browser cache will handle caching
+      return fullFilePath
     }
 
     return `local-file://get?path=${encodeURIComponent(fullFilePath)}`

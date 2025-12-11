@@ -10,7 +10,8 @@ import { ChevronLeft, ChevronRight, CameraOff, X } from 'lucide-react'
 function constructImageUrl(fullFilePath) {
   if (!fullFilePath) return ''
   if (fullFilePath.startsWith('http')) {
-    return `cached-media://get?url=${encodeURIComponent(fullFilePath)}`
+    // Use HTTPS URL directly - browser cache will handle caching
+    return fullFilePath
   }
   return `local-file://get?path=${encodeURIComponent(fullFilePath)}`
 }
