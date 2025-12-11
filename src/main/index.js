@@ -1471,8 +1471,8 @@ app.on('before-quit', async (event) => {
     log.error('[Shutdown] Error during graceful shutdown:', error)
   }
 
-  // Now actually quit
-  app.quit()
+  // Now actually quit, we call exit so we don't re-enter this handler
+  app.exit()
 })
 
 // Handle Unix/macOS termination signals for graceful shutdown
