@@ -76,6 +76,101 @@ function serializeExifData(exifData) {
   }
 }
 
+/**
+ * Extract deployment-level metadata from EXIF data for CamtrapDP compliance
+ * @param {Object} exifData - Parsed EXIF data from exifr (or deserialized from media.exifData)
+ * @returns {Object} - Deployment metadata fields { cameraModel, cameraID, coordinateUncertainty }
+ */
+function extractDeploymentMetadata(exifData) {
+  if (!exifData || typeof exifData !== 'object') {
+    return { cameraModel: null, cameraID: null, coordinateUncertainty: null }
+  }
+
+  // Extract camera model: "Make-Model" format per CamtrapDP spec
+  let cameraModel = null
+  const make = exifData.Make?.trim()
+  const model = exifData.Model?.trim()
+  if (make && model) {
+    cameraModel = `${make}-${model}`
+  } else if (model) {
+    cameraModel = model
+  }
+
+  // Extract camera serial number (try multiple EXIF fields)
+  const cameraID =
+    exifData.SerialNumber || exifData.BodySerialNumber || exifData.CameraSerialNumber || null
+
+  // Extract GPS horizontal positioning error (in meters, must be integer >= 1)
+  let coordinateUncertainty = null
+  if (exifData.GPSHPositioningError) {
+    const uncertainty = Math.round(exifData.GPSHPositioningError)
+    if (uncertainty >= 1) {
+      coordinateUncertainty = uncertainty
+    }
+  }
+
+  return { cameraModel, cameraID, coordinateUncertainty }
+}
+
+/**
+ * Calculate mode (most common value) from an array
+ * @param {Array} arr - Array of values
+ * @returns {*} - Most common value or null if empty
+ */
+function calculateMode(arr) {
+  if (!arr || arr.length === 0) return null
+  const counts = {}
+  arr.forEach((v) => {
+    counts[v] = (counts[v] || 0) + 1
+  })
+  return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0]
+}
+
+/**
+ * Aggregate deployment metadata from all media EXIF data using mode (most common value)
+ * @param {Object} db - Drizzle database instance
+ * @param {string} deploymentID - Deployment ID to aggregate metadata for
+ */
+async function aggregateDeploymentMetadata(db, deploymentID) {
+  try {
+    // Query all media with exifData for this deployment
+    const mediaRecords = await db
+      .select({ exifData: media.exifData })
+      .from(media)
+      .where(eq(media.deploymentID, deploymentID))
+
+    // Collect values for each field
+    const cameraModels = []
+    const cameraIDs = []
+    const uncertainties = []
+
+    for (const record of mediaRecords) {
+      if (!record.exifData) continue
+      const meta = extractDeploymentMetadata(record.exifData)
+      if (meta.cameraModel) cameraModels.push(meta.cameraModel)
+      if (meta.cameraID) cameraIDs.push(meta.cameraID)
+      if (meta.coordinateUncertainty) uncertainties.push(meta.coordinateUncertainty)
+    }
+
+    // Calculate mode for each field and update deployment
+    const updates = {}
+    const modelMode = calculateMode(cameraModels)
+    const idMode = calculateMode(cameraIDs)
+    const uncertaintyMode = calculateMode(uncertainties)
+
+    if (modelMode) updates.cameraModel = modelMode
+    if (idMode) updates.cameraID = idMode
+    if (uncertaintyMode) updates.coordinateUncertainty = parseInt(uncertaintyMode)
+
+    if (Object.keys(updates).length > 0) {
+      await db.update(deployments).set(updates).where(eq(deployments.deploymentID, deploymentID))
+      log.info(`Updated deployment ${deploymentID} with EXIF metadata: ${JSON.stringify(updates)}`)
+    }
+  } catch (error) {
+    log.error(`Error aggregating deployment metadata for ${deploymentID}:`, error)
+  }
+}
+
 async function* walkMediaFiles(dir) {
   const dirents = await fs.promises.opendir(dir)
   for await (const dirent of dirents) {
@@ -1010,6 +1105,23 @@ export class Importer {
                 }
               } catch (temporalError) {
                 log.warn(`Could not auto-populate temporal dates: ${temporalError.message}`)
+              }
+
+              // Aggregate deployment metadata from EXIF data (using mode/most common value)
+              try {
+                log.info(`Aggregating deployment EXIF metadata for study ${this.id}`)
+                const allDeployments = await this.db
+                  .select({ deploymentID: deployments.deploymentID })
+                  .from(deployments)
+
+                for (const { deploymentID } of allDeployments) {
+                  await aggregateDeploymentMetadata(this.db, deploymentID)
+                }
+                log.info(
+                  `Completed EXIF metadata aggregation for ${allDeployments.length} deployments`
+                )
+              } catch (exifError) {
+                log.warn(`Could not aggregate deployment EXIF metadata: ${exifError.message}`)
               }
 
               // Update model run status to completed

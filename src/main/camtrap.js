@@ -280,6 +280,16 @@ function transformDeploymentRow(row) {
     return null
   }
 
+  // Parse coordinateUncertainty as integer if present
+  let coordinateUncertainty = null
+  const rawUncertainty = row.coordinateUncertainty || row.coordinate_uncertainty
+  if (rawUncertainty != null && rawUncertainty !== '') {
+    const parsed = parseInt(rawUncertainty, 10)
+    if (!isNaN(parsed) && parsed >= 1) {
+      coordinateUncertainty = parsed
+    }
+  }
+
   const transformed = {
     deploymentID,
     locationID: row.locationID || row.location_id || null,
@@ -287,7 +297,11 @@ function transformDeploymentRow(row) {
     deploymentStart: transformDateField(row.deploymentStart || row.deployment_start),
     deploymentEnd: transformDateField(row.deploymentEnd || row.deployment_end),
     latitude: parseFloat(row.latitude) || null,
-    longitude: parseFloat(row.longitude) || null
+    longitude: parseFloat(row.longitude) || null,
+    // CamtrapDP EXIF fields
+    cameraModel: row.cameraModel || row.camera_model || null,
+    cameraID: row.cameraID || row.camera_id || null,
+    coordinateUncertainty
   }
 
   log.debug('Transformed deployment row:', transformed)
