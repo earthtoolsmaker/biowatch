@@ -155,7 +155,7 @@ for (let i = 0; i < maxRetries; i++) {
    └─► Includes raw model output, parsed species, bounding boxes
 ```
 
-**Key function**: `getPredictions()` generator in `src/main/importer.js:44`
+**Key function**: `getPredictions()` generator in `src/main/import/importer.js`
 
 ```javascript
 async function* getPredictions({ imagesPath, port, signal }) {
@@ -505,7 +505,7 @@ async function startMLModelHTTPServer({ pythonEnvironment, modelReference, count
 
 ### Step 5: Handle Prediction Output (If Needed)
 
-If your model's prediction format differs from existing models, update the parsing logic in `src/main/importer.js`:
+If your model's prediction format differs from existing models, update the parsing logic in `src/main/import/importer.js`:
 
 ```javascript
 function parseScientificName({ modelId, label }) {

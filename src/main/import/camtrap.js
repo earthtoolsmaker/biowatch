@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import csv from 'csv-parser'
 import { DateTime } from 'luxon'
-import { getDrizzleDb, deployments, media, observations, insertMetadata } from './db/index.js'
+import { getDrizzleDb, deployments, media, observations, insertMetadata } from '../db/index.js'
 
 // Conditionally import electron modules for production, use fallback for testing
 let app, log

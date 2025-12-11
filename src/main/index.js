@@ -6,7 +6,7 @@ import { autoUpdater } from 'electron-updater'
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, rmSync } from 'fs'
 import { extname, join } from 'path'
 import icon from '../../resources/icon.png?asset'
-import { importCamTrapDataset } from './camtrap'
+import { importCamTrapDataset } from './import/camtrap'
 import { registerMLModelManagementIPCHandlers, garbageCollect, shutdownAllServers } from './models'
 import { getDrizzleDb, deployments, closeStudyDatabase } from './db/index.js'
 import { eq } from 'drizzle-orm'
@@ -32,10 +32,10 @@ import {
   checkStudyHasEventIDs,
   getBestMedia
 } from './queries'
-import './importer.js' // Side-effect: registers IPC handlers
+import './import/importer.js' // Side-effect: registers IPC handlers
 import './studies.js' // Side-effect: registers IPC handlers
-import { importWildlifeDataset } from './wildlife'
-import { importDeepfauneDataset } from './deepfaune'
+import { importWildlifeDataset } from './import/wildlife'
+import { importDeepfauneDataset } from './import/deepfaune'
 import { extractZip, downloadFile } from './download'
 import migrations from './migrations/index.js'
 import { registerExportIPCHandlers } from './export.js'

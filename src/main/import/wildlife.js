@@ -9,7 +9,7 @@ import {
   observations,
   closeStudyDatabase,
   insertMetadata
-} from './db/index.js'
+} from '../db/index.js'
 
 // Conditionally import electron modules for production, use fallback for testing
 let app, log

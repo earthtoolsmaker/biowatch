@@ -6,7 +6,7 @@ import { tmpdir } from 'os'
 import Database from 'better-sqlite3'
 
 // Import the function we want to test
-import { importCamTrapDatasetWithPath } from '../src/main/camtrap.js'
+import { importCamTrapDatasetWithPath } from '../src/main/import/camtrap.js'
 
 // Test data paths
 let testBiowatchDataPath

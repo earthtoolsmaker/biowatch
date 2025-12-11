@@ -20,12 +20,12 @@ import {
   getLatestModelRun,
   updateMetadata,
   getMetadata
-} from './db/index.js'
-import { transformBboxToCamtrapDP } from './transformers/index.js'
+} from '../db/index.js'
+import { transformBboxToCamtrapDP } from '../transformers/index.js'
 import { eq, isNull, count, sql } from 'drizzle-orm'
-import models from './models.js'
-import mlmodels from '../shared/mlmodels.js'
-import { selectVideoClassificationWinner } from './videoClassification.js'
+import models from '../models.js'
+import mlmodels from '../../shared/mlmodels.js'
+import { selectVideoClassificationWinner } from '../videoClassification.js'
 
 // Map file extensions to IANA media types (Camtrap DP compliant)
 const extensionToMediatype = {
