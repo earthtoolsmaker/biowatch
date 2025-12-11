@@ -477,9 +477,9 @@ const LocationGroupHeader = memo(function LocationGroupHeader({
   return (
     <div
       onClick={handleClick}
-      className={`flex gap-4 items-center py-3 px-2 hover:bg-gray-50 cursor-pointer border-b border-gray-200 transition-all duration-200 ${
+      className={`flex gap-4 items-center py-4 hover:bg-gray-50 cursor-pointer px-2 border-b border-gray-200 transition-all duration-200 ${
         isSelected
-          ? 'bg-blue-50 border-l-4 border-l-blue-500 pl-3'
+          ? 'bg-blue-50 border-l-4 border-l-blue-500 pl-1'
           : 'border-l-4 border-l-transparent'
       }`}
     >
@@ -544,7 +544,7 @@ const GroupedDeploymentRow = memo(function GroupedDeploymentRow({
   percentile90Count
 }) {
   return (
-    <div className="pl-6 bg-gray-50/50">
+    <div className="ml-6">
       <DeploymentRow
         location={location}
         isSelected={isSelected}
@@ -769,6 +769,7 @@ function LocationsList({
               <div
                 key={virtualRow.key}
                 data-index={virtualRow.index}
+                ref={rowVirtualizer.measureElement}
                 style={{
                   position: 'absolute',
                   top: 0,
