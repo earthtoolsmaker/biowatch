@@ -28,6 +28,12 @@ jobs:
         with:
           node-version: 24.x
 
+      - name: Setup Python for node-gyp (macOS)
+        if: matrix.os == 'macos-latest'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       - name: Install Node.js dependencies
         run: |
           npm install
