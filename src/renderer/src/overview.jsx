@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useMemo } from 'react'
 import ReactDOMServer from 'react-dom/server'
 import L from 'leaflet'
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
+import { LayersControl, MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import {
   Camera,
   ChevronDown,
@@ -21,6 +21,19 @@ import { useImportStatus } from '@renderer/hooks/import'
 import { useQueryClient, useQuery, useQueries } from '@tanstack/react-query'
 import DateTimePicker from './ui/DateTimePicker'
 
+// Component to handle map layer change events for persistence
+function LayerChangeHandler({ onLayerChange }) {
+  const map = useMap()
+  useEffect(() => {
+    const handleBaseLayerChange = (e) => {
+      onLayerChange(e.name)
+    }
+    map.on('baselayerchange', handleBaseLayerChange)
+    return () => map.off('baselayerchange', handleBaseLayerChange)
+  }, [map, onLayerChange])
+  return null
+}
+
 // CamtrapDP spec-compliant contributor roles
 // Note: 'author' is NOT in the spec, use 'contributor' instead
 const CONTRIBUTOR_ROLES = [
@@ -32,6 +45,17 @@ const CONTRIBUTOR_ROLES = [
 ]
 
 function DeploymentMap({ deployments, studyId }) {
+  // Persist map layer selection per study
+  const mapLayerKey = `mapLayer:${studyId}`
+  const [selectedLayer, setSelectedLayer] = useState(() => {
+    const saved = localStorage.getItem(mapLayerKey)
+    return saved || 'Satellite'
+  })
+
+  useEffect(() => {
+    localStorage.setItem(mapLayerKey, selectedLayer)
+  }, [selectedLayer, mapLayerKey])
+
   if (!deployments || deployments.length === 0) {
     return (
       <PlaceholderMap
@@ -105,13 +129,25 @@ function DeploymentMap({ deployments, studyId }) {
       <MapContainer
         key={studyId}
         bounds={bounds}
-        boundsOptions={{ padding: [50, 50] }}
+        boundsOptions={{ padding: [150, 150] }}
         style={{ height: '100%', width: '100%' }}
       >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+        <LayersControl position="topright">
+          <LayersControl.BaseLayer name="Satellite" checked={selectedLayer === 'Satellite'}>
+            <TileLayer
+              attribution='&copy; <a href="https://www.esri.com">Esri</a>'
+              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+            />
+          </LayersControl.BaseLayer>
+
+          <LayersControl.BaseLayer name="Street Map" checked={selectedLayer === 'Street Map'}>
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+          </LayersControl.BaseLayer>
+        </LayersControl>
+        <LayerChangeHandler onLayerChange={setSelectedLayer} />
         {validDeployments.map((deployment) => (
           <Marker
             key={deployment.deploymentID}
@@ -1091,7 +1127,7 @@ export default function Overview({ data, studyId, studyName }) {
             {speciesData && speciesData.length > 0 && (
               <SpeciesDistribution data={speciesData} taxonomicData={taxonomicData} />
             )}
-            <DeploymentMap deployments={deploymentsData} studyId={studyId} />
+            <DeploymentMap key={studyId} deployments={deploymentsData} studyId={studyId} />
           </div>
         </>
       )}

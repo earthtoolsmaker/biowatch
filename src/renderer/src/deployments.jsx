@@ -3,7 +3,7 @@ import 'leaflet/dist/leaflet.css'
 import { Camera, MapPin, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import ReactDOMServer from 'react-dom/server'
-import { MapContainer, Marker, TileLayer, useMapEvents } from 'react-leaflet'
+import { LayersControl, MapContainer, Marker, TileLayer, useMap, useMapEvents } from 'react-leaflet'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useImportStatus } from '@renderer/hooks/import'
 import SkeletonMap from './ui/SkeletonMap'
@@ -35,6 +35,19 @@ if (typeof document !== 'undefined' && !document.getElementById('invisible-marke
   document.head.appendChild(style)
 }
 
+// Component to handle map layer change events for persistence
+function LayerChangeHandler({ onLayerChange }) {
+  const map = useMap()
+  useEffect(() => {
+    const handleBaseLayerChange = (e) => {
+      onLayerChange(e.name)
+    }
+    map.on('baselayerchange', handleBaseLayerChange)
+    return () => map.off('baselayerchange', handleBaseLayerChange)
+  }, [map, onLayerChange])
+  return null
+}
+
 // Component to handle map events for place mode
 function MapEventHandler({ isPlaceMode, onMapClick, onMouseMove, onMouseOut }) {
   useMapEvents({
@@ -63,10 +76,22 @@ function LocationMap({
   onNewLongitude,
   isPlaceMode,
   onPlaceLocation,
-  onExitPlaceMode
+  onExitPlaceMode,
+  studyId
 }) {
   const mapRef = useRef(null)
   const [mousePosition, setMousePosition] = useState(null)
+
+  // Persist map layer selection per study
+  const mapLayerKey = `mapLayer:${studyId}`
+  const [selectedLayer, setSelectedLayer] = useState(() => {
+    const saved = localStorage.getItem(mapLayerKey)
+    return saved || 'Satellite'
+  })
+
+  useEffect(() => {
+    localStorage.setItem(mapLayerKey, selectedLayer)
+  }, [selectedLayer, mapLayerKey])
 
   // useEffect(() => {
   //   if (mapRef.current && selectedLocation) {
@@ -164,10 +189,22 @@ function LocationMap({
         style={{ height: '100%', width: '100%' }}
         ref={mapRef}
       >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+        <LayersControl position="topright">
+          <LayersControl.BaseLayer name="Satellite" checked={selectedLayer === 'Satellite'}>
+            <TileLayer
+              attribution='&copy; <a href="https://www.esri.com">Esri</a>'
+              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+            />
+          </LayersControl.BaseLayer>
+
+          <LayersControl.BaseLayer name="Street Map" checked={selectedLayer === 'Street Map'}>
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+          </LayersControl.BaseLayer>
+        </LayersControl>
+        <LayerChangeHandler onLayerChange={setSelectedLayer} />
 
         {/* Map event handler for place mode */}
         <MapEventHandler
@@ -493,6 +530,7 @@ export default function Deployments({ studyId }) {
             isPlaceMode={isPlaceMode}
             onPlaceLocation={handlePlaceLocation}
             onExitPlaceMode={handleExitPlaceMode}
+            studyId={studyId}
           />
         ) : null}
       </div>
