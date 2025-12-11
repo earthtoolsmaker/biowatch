@@ -6,7 +6,7 @@ import { tmpdir } from 'os'
 import Database from 'better-sqlite3'
 
 // Import the function we want to test
-import { importDeepfauneDatasetWithPath } from '../src/main/deepfaune.js'
+import { importDeepfauneDatasetWithPath } from '../src/main/import/deepfaune.js'
 
 // Test data paths
 let testUserDataPath
