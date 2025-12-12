@@ -37,6 +37,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Cache ESLint
+        uses: actions/cache@v4
+        with:
+          path: .eslintcache
+          key: eslint-${{ hashFiles('eslint.config.mjs', 'package-lock.json') }}-${{ github.ref_name }}
+          restore-keys: |
+            eslint-${{ hashFiles('eslint.config.mjs', 'package-lock.json') }}-
+            eslint-
+
       - name: Run ESLint
         run: npm run lint
 
