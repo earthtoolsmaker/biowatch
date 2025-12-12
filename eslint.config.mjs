@@ -21,11 +21,6 @@ export default [
   },
   {
     files: ['**/*.{js,jsx}'],
-    languageOptions: {
-      globals: {
-        __APP_VERSION__: 'readonly'
-      }
-    },
     plugins: {
       'react-hooks': eslintPluginReactHooks,
       'react-refresh': eslintPluginReactRefresh
