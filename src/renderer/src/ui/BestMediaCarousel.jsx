@@ -444,9 +444,7 @@ function VideoViewerModal({
           <div className="flex flex-col items-center justify-center p-8 text-gray-400 min-h-[300px]">
             <Play size={64} />
             <span className="mt-4 text-lg font-medium">Video</span>
-            <span className="mt-2 text-sm text-gray-500">
-              Format not supported by browser
-            </span>
+            <span className="mt-2 text-sm text-gray-500">Format not supported by browser</span>
             <span className="mt-1 text-xs text-gray-500">{media.fileName}</span>
           </div>
         ) : (
@@ -727,14 +725,20 @@ export default function BestMediaCarousel({ studyId, isRunning }) {
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           {bestMedia.map((media, index) => (
-            <MediaCard key={media.mediaID} media={media} onClick={() => setSelectedIndex(index)} studyId={studyId} />
+            <MediaCard
+              key={media.mediaID}
+              media={media}
+              onClick={() => setSelectedIndex(index)}
+              studyId={studyId}
+            />
           ))}
         </div>
       </div>
 
       {/* Media viewer modal - choose based on media type */}
-      {selectedIndex !== null && bestMedia[selectedIndex] && (
-        isVideoMedia(bestMedia[selectedIndex]) ? (
+      {selectedIndex !== null &&
+        bestMedia[selectedIndex] &&
+        (isVideoMedia(bestMedia[selectedIndex]) ? (
           <VideoViewerModal
             media={bestMedia[selectedIndex]}
             onClose={() => setSelectedIndex(null)}
@@ -760,8 +764,7 @@ export default function BestMediaCarousel({ studyId, isRunning }) {
               queryClient.invalidateQueries({ queryKey: ['bestMedia', studyId] })
             }
           />
-        )
-      )}
+        ))}
     </>
   )
 }
