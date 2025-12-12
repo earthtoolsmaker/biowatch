@@ -19,6 +19,8 @@
     "build:mac": "npm run build && electron-builder --mac --publish always",
     "build:mac:no-sign": "npm run build && electron-builder --mac --publish never --config.mac.identity=null",
     "build:linux": "npm run build && electron-builder --linux --publish always",
+    "build:linux:appimage:preview": "npm run build && electron-builder --linux AppImage --publish never",
+    "build:linux:deb:preview": "npm run build && electron-builder --linux deb --publish never",
     "test": "npm run test:rebuild && node --test test/**/*.test.js && npm run test:rebuild-electron",
     "test:migrations": "npm run test:rebuild && node --test test/migrations.test.js && npm run test:rebuild-electron",
     "test:watch": "npm run test:rebuild && node --test --watch test/**/*.test.js",
