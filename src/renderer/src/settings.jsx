@@ -111,10 +111,9 @@ function ErrorFallback({ error, resetErrorBoundary }) {
 }
 
 export default function SettingsPage() {
-  const settingsParams = {
-    version: window.electron.process.env.npm_package_version,
-    platform: window.electron.process.platform
-  }
+  const version = __APP_VERSION__
+  const platform = window.electron.process.platform
+
   return (
     <div className="flex gap-4 flex-col h-full">
       <header className="w-full border-b border-gray-200 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-900 z-10">
@@ -145,7 +144,7 @@ export default function SettingsPage() {
             element={
               <ErrorBoundary FallbackComponent={ErrorFallback} key={'info'}>
                 <div className="min-h-full flex flex-col">
-                  <SettingsInfo {...settingsParams} />
+                  <SettingsInfo version={version} platform={platform} />
                   <SettingsFooter className="mt-auto" />
                 </div>
               </ErrorBoundary>
