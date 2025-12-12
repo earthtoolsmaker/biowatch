@@ -12,7 +12,23 @@ jobs:
 
     strategy:
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-22.04]
+        include:
+          - os: windows-latest
+            build_script: build:win
+            artifact_name: Biowatch-preview-windows
+            artifact_path: dist/Biowatch-setup.exe
+          - os: macos-latest
+            build_script: build:mac
+            artifact_name: Biowatch-preview-macos
+            artifact_path: dist/Biowatch.dmg
+          - os: ubuntu-22.04
+            build_script: build:linux:appimage:preview
+            artifact_name: Biowatch-preview-linux-appimage
+            artifact_path: dist/*.AppImage
+          - os: ubuntu-22.04
+            build_script: build:linux:deb:preview
+            artifact_name: Biowatch-preview-linux-deb
+            artifact_path: dist/*.deb
 
     steps:
       - name: Check out Git repository
@@ -29,26 +45,17 @@ jobs:
         run: |
           npm install
 
-      - name: Build on MacOS
+      - name: Build application
         env:
-          CSC_LINK: ${{ secrets.APPLE_SIGNING_CERTIFICATE_BASE64 }}
-          CSC_KEY_PASSWORD: ${{ secrets.APPLE_SIGNING_CERTIFICATE_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        if: matrix.os == 'macos-latest'
-        run: npm run build:mac
-
-      - name: Build on Linux
-        if: matrix.os == 'ubuntu-22.04'
-        run: npm run build:linux
-
-      - name: Build on Windows
-        if: matrix.os == 'windows-latest'
-        run: npm run build:win
+          CSC_LINK: ${{ matrix.os == 'macos-latest' && secrets.APPLE_SIGNING_CERTIFICATE_BASE64 || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.os == 'macos-latest' && secrets.APPLE_SIGNING_CERTIFICATE_PASSWORD || '' }}
+          APPLE_ID: ${{ matrix.os == 'macos-latest' && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.os == 'macos-latest' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ matrix.os == 'macos-latest' && secrets.APPLE_TEAM_ID || '' }}
+        run: npm run ${{ matrix.build_script }}
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Biowatch-preview-${{matrix.os}}
-          path: dist
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_path }}
