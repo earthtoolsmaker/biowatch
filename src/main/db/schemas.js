@@ -28,7 +28,7 @@ export const importerNames = [
   'wildlife/folder',
   'deepfaune/csv',
   'local/images',
-  'local/speciesnet',
+  'local/ml_run',
   'gbif/dataset'
 ]
 

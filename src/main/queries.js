@@ -1019,7 +1019,7 @@ export async function getDeploymentsActivity(dbPath) {
 }
 
 /**
- * Get files data (directories with image counts and processing progress) for local/speciesnet studies
+ * Get files data (directories with image counts and processing progress) for local/ml_run studies
  * @param {string} dbPath - Path to the SQLite database
  * @returns {Promise<Array>} - Array of directory objects with image counts and processing progress
  */

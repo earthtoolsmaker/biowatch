@@ -1382,7 +1382,7 @@ app.whenReady().then(async () => {
     }
   })
 
-  // Add handler for getting files data for local/speciesnet studies
+  // Add handler for getting files data for local/ml_run studies
   ipcMain.handle('files:get-data', async (_, studyId) => {
     try {
       const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)

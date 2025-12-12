@@ -241,6 +241,7 @@ export const metadata = sqliteTable('metadata', {
 - `camtrap/datapackage` - CamTrap DP import
 - `wildlife/folder` - Wildlife Insights import
 - `local/images` - Image folder import
+- `local/ml_run` - Local folder with ML model processing
 - `deepfaune/csv` - DeepFaune CSV import
 
 ---
