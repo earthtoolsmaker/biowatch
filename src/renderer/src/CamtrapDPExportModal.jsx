@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Layers } from 'lucide-react'
+import { X, Layers, AlertTriangle } from 'lucide-react'
 
 /**
  * Format sequence gap value for display
@@ -18,6 +18,7 @@ function CamtrapDPExportModal({ isOpen, onConfirm, onCancel, studyId }) {
   const [includeBlank, setIncludeBlank] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [nullTimestampCount, setNullTimestampCount] = useState(0)
 
   // Sequence gap state - initialized from localStorage
   const sequenceGapKey = `sequenceGap:${studyId}`
@@ -26,28 +27,32 @@ function CamtrapDPExportModal({ isOpen, onConfirm, onCancel, studyId }) {
     return saved !== null ? Number(saved) : 120 // Default 2 minutes
   })
 
-  // Fetch species list when modal opens
+  // Fetch species list and null timestamp count when modal opens
   useEffect(() => {
     if (!isOpen || !studyId) return
 
-    const fetchSpecies = async () => {
+    const fetchData = async () => {
       setLoading(true)
       setError(null)
       try {
-        const result = await window.api.getSpeciesDistribution(studyId)
-        const speciesList = result.data || []
+        const [speciesResult, nullCountResult] = await Promise.all([
+          window.api.getSpeciesDistribution(studyId),
+          window.api.countMediaWithNullTimestamps(studyId)
+        ])
+        const speciesList = speciesResult.data || []
         setSpecies(speciesList)
         // Select all species by default
         setSelectedSpecies(new Set(speciesList.map((s) => s.scientificName)))
+        setNullTimestampCount(nullCountResult.data || 0)
       } catch (err) {
-        setError('Failed to load species list')
-        console.error('Failed to fetch species:', err)
+        setError('Failed to load export data')
+        console.error('Failed to fetch export data:', err)
       } finally {
         setLoading(false)
       }
     }
 
-    fetchSpecies()
+    fetchData()
   }, [isOpen, studyId])
 
   // Handle Escape key
@@ -245,6 +250,19 @@ function CamtrapDPExportModal({ isOpen, onConfirm, onCancel, studyId }) {
               </div>
             </label>
           </div>
+
+          {!loading && nullTimestampCount > 0 && (
+            <div className="px-6 py-3 border-t border-gray-100">
+              <div className="flex items-start gap-2 p-2 bg-amber-50 rounded border border-amber-200">
+                <AlertTriangle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-amber-800">
+                  <span className="font-medium">{nullTimestampCount} media</span>{' '}
+                  {nullTimestampCount === 1 ? 'file is' : 'files are'} missing timestamps and will
+                  be excluded from export.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">

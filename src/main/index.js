@@ -31,7 +31,8 @@ import {
   createObservation,
   getDistinctSpecies,
   checkStudyHasEventIDs,
-  getBestMedia
+  getBestMedia,
+  countMediaWithNullTimestamps
 } from './queries'
 import './import/importer.js' // Side-effect: registers IPC handlers
 import './studies.js' // Side-effect: registers IPC handlers
@@ -714,7 +715,16 @@ app.whenReady().then(async () => {
 
   ipcMain.handle(
     'activity:get-heatmap-data',
-    async (_, studyId, species, startDate, endDate, startTime, endTime) => {
+    async (
+      _,
+      studyId,
+      species,
+      startDate,
+      endDate,
+      startTime,
+      endTime,
+      includeNullTimestamps = false
+    ) => {
       try {
         const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
         if (!dbPath || !existsSync(dbPath)) {
@@ -728,7 +738,8 @@ app.whenReady().then(async () => {
           startDate,
           endDate,
           startTime,
-          endTime
+          endTime,
+          includeNullTimestamps
         )
         return { data: heatmapData }
       } catch (error) {
@@ -1630,6 +1641,22 @@ ipcMain.handle('media:set-favorite', async (_, studyId, mediaID, favorite) => {
     return result
   } catch (error) {
     log.error('Error updating media favorite:', error)
+    return { error: error.message }
+  }
+})
+
+ipcMain.handle('media:count-null-timestamps', async (_, studyId) => {
+  try {
+    const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+    if (!dbPath || !existsSync(dbPath)) {
+      log.warn(`Database not found for study ID: ${studyId}`)
+      return { error: 'Database not found for this study' }
+    }
+
+    const count = await countMediaWithNullTimestamps(dbPath)
+    return { data: count }
+  } catch (error) {
+    log.error('Error counting media with null timestamps:', error)
     return { error: error.message }
   }
 })
