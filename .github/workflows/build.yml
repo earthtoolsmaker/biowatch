@@ -16,6 +16,19 @@ jobs:
     strategy:
       matrix:
         os: [windows-latest, macos-latest, ubuntu-22.04]
+        include:
+          - os: windows-latest
+            npm-cache: ~\AppData\Local\npm-cache
+            electron-cache: ~\AppData\Local\electron\Cache
+            electron-builder-cache: ~\AppData\Local\electron-builder\Cache
+          - os: macos-latest
+            npm-cache: ~/.npm
+            electron-cache: ~/Library/Caches/electron
+            electron-builder-cache: ~/Library/Caches/electron-builder
+          - os: ubuntu-22.04
+            npm-cache: ~/.npm
+            electron-cache: ~/.cache/electron
+            electron-builder-cache: ~/.cache/electron-builder
 
     steps:
       - name: Check out Git repository
@@ -28,9 +41,20 @@ jobs:
         with:
           node-version: 24.x
 
+      - name: Cache npm and Electron
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ matrix.npm-cache }}
+            ${{ matrix.electron-cache }}
+            ${{ matrix.electron-builder-cache }}
+          key: ${{ runner.os }}-${{ runner.arch }}-npm-electron-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-npm-electron-
+            ${{ runner.os }}-npm-electron-
+
       - name: Install Node.js dependencies
-        run: |
-          npm install
+        run: npm ci
 
       - name: Build on MacOS
         env:
