@@ -1,8 +1,9 @@
-import { NavLink, Navigate, Route, Routes } from 'react-router'
+import { Navigate, Route, Routes } from 'react-router'
 import { ErrorBoundary } from 'react-error-boundary'
 import { BrainCircuit, Info, Github, Earth } from 'lucide-react'
 import Zoo from './models'
 import { modelZoo } from '../../shared/mlmodels'
+import { Tab } from './components/Tab'
 
 function SettingsFooter({ className }) {
   return (
@@ -116,25 +117,15 @@ export default function SettingsPage() {
   }
   return (
     <div className="flex gap-4 flex-col h-full">
-      <header className="w-full flex border-b border-gray-200 divide-gray-200 divide-x sticky top-0 z-10 rounded-tl-md rounded-tr-md [&>a:last-child]:rounded-tr-md [&>a:first-child]:rounded-tl-md">
-        <NavLink
-          to={`/settings/info`}
-          className={({ isActive }) =>
-            `${isActive ? 'bg-white' : 'bg-gray-100'} hover:bg-white transition-colors flex justify-center flex-row gap-2 items-center px-4 h-10 text-sm`
-          }
-        >
-          <Info color="black" size={20} className="pb-[2px]" />
-          Info
-        </NavLink>
-        <NavLink
-          to={`/settings/ml_zoo`}
-          className={({ isActive }) =>
-            `${isActive ? 'bg-white' : 'bg-gray-100'} cursor-pointer hover:bg-white transition-colors flex justify-center flex-row gap-2 items-center px-4 h-10 text-sm border-r border-gray-200`
-          }
-        >
-          <BrainCircuit color="black" size={20} className="pb-[2px]" />
-          AI Models
-        </NavLink>
+      <header className="w-full border-b border-gray-200 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-900 z-10">
+        <nav aria-label="Tabs" className="-mb-px flex space-x-8 px-4">
+          <Tab to="/settings/ml_zoo" icon={BrainCircuit}>
+            AI Models
+          </Tab>
+          <Tab to="/settings/info" icon={Info}>
+            Info
+          </Tab>
+        </nav>
       </header>
       <div className="flex-1 overflow-y-auto pb-4">
         <Routes>

@@ -9,7 +9,7 @@ import {
   FolderOpen,
   Settings
 } from 'lucide-react'
-import { NavLink, Route, Routes, useParams } from 'react-router'
+import { Route, Routes, useParams } from 'react-router'
 import { ErrorBoundary } from 'react-error-boundary'
 import { useQuery } from '@tanstack/react-query'
 import Deployments from './deployments'
@@ -19,6 +19,7 @@ import Media from './media'
 import Files from './files'
 import StudySettings from './StudySettings'
 import { useImportStatus } from '@renderer/hooks/import'
+import { Tab } from './components/Tab'
 
 // Error fallback component
 function ErrorFallback({ error, resetErrorBoundary }) {
@@ -111,11 +112,9 @@ function ImportStatus({ studyId, importerName }) {
         {importStatus.done} / {importStatus.total}
       </span>
 
-      <div
-        className={`w-20 bg-gray-200 rounded-full h-2 ${importStatus.isRunning ? 'animate-progress-pulse' : ''}`}
-      >
+      <div className={`w-20 bg-gray-200 rounded-full h-2`}>
         <div
-          className={`h-full bg-blue-600 transition-all duration-500 ease-in-out rounded-full ${importStatus.isRunning ? 'animate-bar-glow' : ''}`}
+          className={`h-full bg-blue-600 transition-all duration-500 ease-in-out rounded-full`}
           style={{ width: `${progress}%` }}
         />
       </div>
@@ -164,66 +163,32 @@ export default function Study() {
 
   return (
     <div className="flex gap-4 flex-col h-full">
-      <header className="w-full flex border-b border-gray-200 divide-gray-200 divide-x sticky top-0 bg-white z-10 rounded-tl-md rounded-tr-md [&>a:last-child]:rounded-tr-md [&>a:first-child]:rounded-tl-md">
-        <NavLink
-          to={`/study/${id}`}
-          end
-          className={({ isActive }) =>
-            `${isActive ? 'bg-white' : 'bg-gray-100'} hover:bg-white transition-colors flex justify-center flex-row gap-2 items-center px-4 h-10 text-sm`
-          }
-        >
-          <NotebookText color="black" size={20} className="pb-[2px]" />
-          Overview
-        </NavLink>
-        <NavLink
-          to={`/study/${id}/activity`}
-          className={({ isActive }) =>
-            `${isActive ? 'bg-white' : 'bg-gray-100'} cursor-pointer hover:bg-white transition-colors flex justify-center flex-row gap-2 items-center px-4 h-10 text-sm`
-          }
-        >
-          <ChartBar color="black" size={20} className="pb-[2px]" />
-          Activity
-        </NavLink>
-        <NavLink
-          to={`/study/${id}/media`}
-          className={({ isActive }) =>
-            `${isActive ? 'bg-white' : 'bg-gray-100'} cursor-pointer hover:bg-white transition-colors flex justify-center flex-row gap-2 items-center px-4 h-10 text-sm`
-          }
-        >
-          <Image color="black" size={20} className="pb-[2px]" />
-          Media
-        </NavLink>
-        <NavLink
-          to={`/study/${id}/deployments`}
-          className={({ isActive }) =>
-            `${isActive ? 'bg-white' : 'bg-gray-100'} cursor-pointer hover:bg-white transition-colors flex justify-center flex-row gap-2 items-center px-4 h-10 text-sm`
-          }
-        >
-          <Cctv color="black" size={20} className="pb-[2px]" />
-          Deployments
-        </NavLink>
-        {study?.importerName?.startsWith('local/') && (
-          <NavLink
-            to={`/study/${id}/files`}
-            className={({ isActive }) =>
-              `${isActive ? 'bg-white' : 'bg-gray-100'} cursor-pointer hover:bg-white transition-colors flex justify-center flex-row gap-2 items-center px-4 h-10 text-sm`
-            }
-          >
-            <FolderOpen color="black" size={20} className="pb-[2px]" />
-            Files
-          </NavLink>
-        )}
-        <NavLink
-          to={`/study/${id}/settings`}
-          className={({ isActive }) =>
-            `${isActive ? 'bg-white' : 'bg-gray-100'} cursor-pointer hover:bg-white transition-colors flex justify-center flex-row gap-2 items-center px-4 h-10 text-sm`
-          }
-        >
-          <Settings color="black" size={20} className="pb-[2px]" />
-          Settings
-        </NavLink>
-
-        <ImportStatus studyId={id} importerName={study?.importerName} />
+      <header className="w-full border-b border-gray-200 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-900 z-10">
+        <div className="flex items-center">
+          <nav aria-label="Tabs" className="-mb-px flex space-x-8 px-4">
+            <Tab to={`/study/${id}`} icon={NotebookText} end>
+              Overview
+            </Tab>
+            <Tab to={`/study/${id}/activity`} icon={ChartBar}>
+              Activity
+            </Tab>
+            <Tab to={`/study/${id}/media`} icon={Image}>
+              Media
+            </Tab>
+            <Tab to={`/study/${id}/deployments`} icon={Cctv}>
+              Deployments
+            </Tab>
+            {study?.importerName?.startsWith('local/') && (
+              <Tab to={`/study/${id}/files`} icon={FolderOpen}>
+                Files
+              </Tab>
+            )}
+            <Tab to={`/study/${id}/settings`} icon={Settings}>
+              Settings
+            </Tab>
+          </nav>
+          <ImportStatus studyId={id} importerName={study?.importerName} />
+        </div>
       </header>
       <div className="flex-1 overflow-y-auto h-full pb-4">
         <Routes>

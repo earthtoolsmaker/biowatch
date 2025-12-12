@@ -40,7 +40,7 @@ function formatSizeInMiB(size_in_MiB) {
   return size_in_MiB + ' MiB'
 }
 
-function ModelCard({ model, pythonEnvironment, platform, isDev = false, refreshKey = 0 }) {
+function ModelRow({ model, pythonEnvironment, platform, isDev = false, refreshKey = 0 }) {
   const [modelDownloadStatus, setModelDownloadStatus] = useState({
     model: {},
     pythonEnvironment: {}
@@ -168,180 +168,195 @@ function ModelCard({ model, pythonEnvironment, platform, isDev = false, refreshK
     envStatus: modelDownloadStatus.pythonEnvironment,
     currentModelId: model.reference.id
   })
-  const baseClasses =
-    'min-w-[300px] flex flex-col border-gray-200 border p-4 rounded-md w-96 gap-2 shadow-sm relative'
-  const classNameMainContainer = [baseClasses, !isDownloaded && 'bg-gray-50']
-    .filter(Boolean)
-    .join(' ')
+
   return (
-    <div className={classNameMainContainer}>
-      <div className="flex items-center gap-3 p-2">
-        {logo && MODEL_LOGOS[logo] && (
-          <img
-            src={MODEL_LOGOS[logo]}
-            alt={`${name} logo`}
-            className="h-10 w-10 object-contain flex-shrink-0"
-          />
-        )}
-        <div className="text-base font-medium">{name}</div>
-      </div>
-      <div className="text-sm px-2 pb-2 flex-grow">{description}</div>
-      <ul className="text-sm p-2">
-        <li>🧠 Model Size: {formatSizeInMiB(size_in_MiB)}</li>
-        <li>
-          🐍 Python Environment Size:{' '}
+    <>
+      <tr className="border-b border-gray-200 hover:bg-gray-50">
+        <td className="p-4">
+          <div className="flex items-center gap-3">
+            {logo && MODEL_LOGOS[logo] && (
+              <img
+                src={MODEL_LOGOS[logo]}
+                alt={`${name} logo`}
+                className="h-8 w-8 object-contain flex-shrink-0"
+              />
+            )}
+            <div className="font-medium text-sm">{name}</div>
+          </div>
+        </td>
+        <td className="p-4 text-sm text-gray-700 max-w-md">{description}</td>
+        <td className="p-4 text-sm text-center">{formatSizeInMiB(size_in_MiB)}</td>
+        <td className="p-4 text-sm text-center">
           {formatSizeInMiB(pythonEnvironment['platform'][platformToKey(platform)]['size_in_MiB'])}
-        </li>
-      </ul>
-      <div className="mt-auto">
-        {isDownloading ? (
-          <></>
-        ) : isDownloaded ? (
-          <>
-            <div className="flex justify-center p-2 gap-2">
-              <button
-                onClick={() => handleDelete(reference)}
-                className={`cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50`}
-              >
-                <Trash2 color="black" size={14} />
-                Delete
-              </button>
-              {!isDev ? (
-                <></>
-              ) : (
+        </td>
+        <td className="p-4 text-sm">
+          {isDownloaded ? (
+            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+              Downloaded
+            </span>
+          ) : isDownloading ? (
+            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+              Downloading
+            </span>
+          ) : (
+            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+              Not downloaded
+            </span>
+          )}
+        </td>
+        <td className="p-4">
+          {isDownloading ? (
+            <div className="min-w-[200px]">
+              <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                <div
+                  className="h-full bg-blue-600 transition-all duration-500 ease-in-out"
+                  style={{ width: `${downloadProgress}%` }}
+                ></div>
+              </div>
+              <div className="w-full text-xs text-center pt-1 text-gray-600">{downloadMessage}</div>
+            </div>
+          ) : (
+            <div className="flex gap-2 justify-end">
+              {isDownloaded ? (
                 <>
-                  {isHTTPServerRunning ? (
-                    <button
-                      onClick={() =>
-                        handleStopHTTPServer({
-                          pid: pidPythonProcess,
-                          port: portHTTPServer,
-                          shutdownApiKey: shutdownApiKey
-                        })
-                      }
-                      className={`cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50`}
-                    >
-                      <CircleOff color="black" size={14} />
-                      Stop ML Server
-                    </button>
-                  ) : isHTTPServerStarting ? (
-                    <button
-                      onClick={() =>
-                        handleRunHTTPServer({
-                          modelReference: reference,
-                          pythonEnvironment: pythonEnvironment
-                        })
-                      }
-                      className={`cursor-not-allowed w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md opacity-70`}
-                    >
-                      <LucideLoader color="black" size={14} />
-                      <span className="animate-pulse">Starting Server</span>
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() =>
-                        handleRunHTTPServer({
-                          modelReference: reference,
-                          pythonEnvironment: pythonEnvironment
-                        })
-                      }
-                      className={`cursor-pointer w-[55%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50`}
-                    >
-                      <PlayIcon color="black" size={14} />
-                      Run
-                    </button>
+                  <button
+                    onClick={() => handleDelete(reference)}
+                    className="cursor-pointer transition-colors flex flex-row gap-2 items-center border border-gray-200 px-3 h-8 text-sm shadow-sm rounded-md hover:bg-gray-100"
+                    title="Delete model"
+                  >
+                    <Trash2 color="black" size={14} />
+                    Delete
+                  </button>
+                  {isDev && (
+                    <>
+                      {isHTTPServerRunning ? (
+                        <button
+                          onClick={() =>
+                            handleStopHTTPServer({
+                              pid: pidPythonProcess,
+                              port: portHTTPServer,
+                              shutdownApiKey: shutdownApiKey
+                            })
+                          }
+                          className="cursor-pointer transition-colors flex flex-row gap-2 items-center border border-gray-200 px-3 h-8 text-sm shadow-sm rounded-md hover:bg-gray-100"
+                          title="Stop HTTP server"
+                        >
+                          <CircleOff color="black" size={14} />
+                          Stop
+                        </button>
+                      ) : isHTTPServerStarting ? (
+                        <button
+                          className="cursor-not-allowed flex flex-row gap-2 items-center border border-gray-200 px-3 h-8 text-sm shadow-sm rounded-md opacity-70"
+                          disabled
+                        >
+                          <LucideLoader color="black" size={14} className="animate-spin" />
+                          Starting
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() =>
+                            handleRunHTTPServer({
+                              modelReference: reference,
+                              pythonEnvironment: pythonEnvironment
+                            })
+                          }
+                          className="cursor-pointer transition-colors flex flex-row gap-2 items-center border border-gray-200 px-3 h-8 text-sm shadow-sm rounded-md hover:bg-gray-100"
+                          title="Run HTTP server"
+                        >
+                          <PlayIcon color="black" size={14} />
+                          Run
+                        </button>
+                      )}
+                    </>
                   )}
                 </>
+              ) : (
+                <button
+                  onClick={() =>
+                    handleDownload({
+                      modelReference: reference,
+                      pythonEnvironment: pythonEnvironment
+                    })
+                  }
+                  className="bg-white cursor-pointer transition-colors flex flex-row gap-2 items-center border border-gray-200 px-3 h-8 text-sm shadow-sm rounded-md hover:bg-gray-100"
+                  title="Download model"
+                >
+                  <Download color="black" size={14} />
+                  Download
+                </button>
               )}
             </div>
-          </>
-        ) : (
-          <div className="flex justify-center p-2 gap-2">
-            <button
-              onClick={() =>
-                handleDownload({ modelReference: reference, pythonEnvironment: pythonEnvironment })
-              }
-              className={`bg-white cursor-pointer w-[60%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50`}
-            >
-              <Download color="black" size={14} />
-              Download
-            </button>
-          </div>
-        )}
-        {isHTTPServerRunning && (
-          <div className="p-4 text-sm">
-            <ul className="list-none space-y-0">
-              <li className="flex items-center gap-2">
-                <Server size={14}></Server>HTTP server port: {portHTTPServer}
-              </li>
-              <li className="flex items-center gap-2">
+          )}
+        </td>
+      </tr>
+      {isHTTPServerRunning && (
+        <tr className="border-b border-gray-200 bg-blue-50">
+          <td colSpan="6" className="p-4">
+            <div className="text-sm flex items-center gap-6">
+              <span className="flex items-center gap-2">
+                <Server size={14} />
+                Port: {portHTTPServer}
+              </span>
+              <span className="flex items-center gap-2">
                 <CpuIcon size={14} />
-                process Id: {pidPythonProcess}
-              </li>
-              <li className="flex items-center gap-2">
+                PID: {pidPythonProcess}
+              </span>
+              <a
+                href={`http://localhost:${portHTTPServer}/docs`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-blue-600 hover:underline"
+              >
                 <Book size={14} />
-                <a
-                  href={`http://localhost:${portHTTPServer}/docs`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:underline"
-                >
-                  API documentation
-                </a>
-              </li>
-            </ul>
-          </div>
-        )}
-        {isDownloading && (
-          <div className="pl-6 pr-6 pb-4 animate-pulse [animation-duration:2s]">
-            <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-              <div
-                className="h-full bg-blue-600 transition-all duration-500 ease-in-out"
-                style={{ width: `${downloadProgress}%` }}
-              ></div>
+                API Documentation
+              </a>
             </div>
-            <div className="w-full text-sm text-center pt-2">{downloadMessage}</div>
-          </div>
-        )}
-      </div>
-    </div>
+          </td>
+        </tr>
+      )}
+    </>
   )
 }
 
-function CustomModelCard() {
+function CustomModelRow() {
   return (
-    <div className="min-w-[300px] flex flex-col border-gray-200 border p-4 rounded-md w-96 gap-2 shadow-sm bg-gradient-to-br from-white to-blue-50">
-      <div className="flex items-center gap-3 p-2">
-        <img
-          src={etmLogo}
-          alt="EarthToolsMaker logo"
-          className="h-10 w-10 object-contain flex-shrink-0 rounded-full"
-        />
-        <div className="text-base font-medium">Your Custom Model</div>
-      </div>
-      <div className="text-sm px-2 pb-2 flex-grow">
+    <tr className="border-b border-gray-200 hover:bg-gray-50">
+      <td className="p-4">
+        <div className="flex items-center gap-3">
+          <img
+            src={etmLogo}
+            alt="EarthToolsMaker logo"
+            className="h-8 w-8 object-contain flex-shrink-0 rounded-full"
+          />
+          <div className="font-medium text-sm">Your Custom Model</div>
+        </div>
+      </td>
+      <td className="p-4 text-sm text-gray-700 max-w-md">
         Need an AI model tailored to your specific wildlife monitoring needs? EarthToolsMaker can
         develop and integrate custom models directly into BioWatch for your unique species, regions,
         or use cases.
-      </div>
-      <ul className="text-sm p-2">
-        <li>&nbsp;</li>
-        <li>&nbsp;</li>
-      </ul>
-      <div className="mt-auto">
-        <div className="flex justify-center p-2 gap-2">
+      </td>
+      <td className="p-4 text-sm text-center text-gray-400">-</td>
+      <td className="p-4 text-sm text-center text-gray-400">-</td>
+      <td className="p-4 text-sm">
+        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+          Custom
+        </span>
+      </td>
+      <td className="p-4">
+        <div className="flex gap-2 justify-end">
           <a
             href="https://www.earthtoolsmaker.org/contact"
             target="_blank"
             rel="noopener noreferrer"
-            className="bg-white cursor-pointer w-[60%] transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50"
+            className="bg-white cursor-pointer transition-colors flex flex-row gap-2 items-center border border-gray-200 px-3 h-8 text-sm shadow-sm rounded-md hover:bg-gray-100"
           >
             <Mail color="black" size={14} />
             Contact Us
           </a>
         </div>
-      </div>
-    </div>
+      </td>
+    </tr>
   )
 }
 
@@ -370,28 +385,54 @@ export default function Zoo({ modelZoo }) {
     }
   }
   return (
-    <div>
-      <div className="flex justify-end px-8 pt-4">
+    <div className="px-8 py-4">
+      <div className="overflow-x-auto border border-gray-200 rounded-lg shadow-sm">
+        <table className="min-w-full divide-y divide-gray-200 bg-white">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                Model
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                Description
+              </th>
+              <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">
+                Model Size
+              </th>
+              <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">
+                Environment Size
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                Status
+              </th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider">
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {modelZoo.map((entry) => (
+              <ModelRow
+                key={entry.reference.id}
+                model={entry}
+                pythonEnvironment={findPythonEnvironment(entry.pythonEnvironment)}
+                platform={window.electron.process.platform}
+                isDev={window.electron.process.env.NODE_ENV == 'development'}
+                refreshKey={refreshKey}
+              />
+            ))}
+            <CustomModelRow />
+          </tbody>
+        </table>
+      </div>
+      <div className="flex justify-end mt-4">
         <button
           onClick={() => handleClearAllMLModels()}
-          className="bg-white cursor-pointer w-32 transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-8 text-sm shadow-sm rounded-md hover:bg-gray-50"
+          className="bg-white cursor-pointer transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-3 h-9 text-sm shadow-sm rounded-md hover:bg-gray-50"
         >
           <Trash2 color="black" size={14} />
           Clear All
         </button>
-      </div>
-      <div className="grid grid-cols-[repeat(auto-fill,384px)] px-8 pb-8 pt-4 gap-3">
-        {modelZoo.map((entry) => (
-          <ModelCard
-            key={entry.reference.id}
-            model={entry}
-            pythonEnvironment={findPythonEnvironment(entry.pythonEnvironment)}
-            platform={window.electron.process.platform}
-            isDev={window.electron.process.env.NODE_ENV == 'development'}
-            refreshKey={refreshKey}
-          />
-        ))}
-        <CustomModelCard />
       </div>
     </div>
   )

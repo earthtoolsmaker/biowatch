@@ -1,4 +1,4 @@
-import { FolderOpen, Pencil, Plus, Settings, Trash2 } from 'lucide-react'
+import { Pencil, Plus, Settings, Trash2, Search, ChevronRight } from 'lucide-react'
 import { ErrorBoundary } from 'react-error-boundary'
 import { HashRouter, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
@@ -93,6 +93,7 @@ function AppContent() {
   const [renamingStudyId, setRenamingStudyId] = useState(null)
   const [renameValue, setRenameValue] = useState('')
   const [deleteModalStudy, setDeleteModalStudy] = useState(null)
+  const [searchQuery, setSearchQuery] = useState('')
   const renameInputRef = useRef(null)
 
   const { data: studies = [], isLoading } = useQuery({
@@ -258,72 +259,92 @@ function AppContent() {
     setDeleteModalStudy(null)
   }
 
+  // Filter studies based on search query
+  const filteredStudies = studies.filter((study) =>
+    study.name.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
   return (
     <div className={`relative flex h-svh flex-row`}>
-      <div className="w-52 h-full p-2 fixed">
-        {/* <header className="p-2">
-          <div className="text-base font-semibold p-2 flex items-center">
-            <span className="pt-[3px]">Biowatch</span>
-            <Camera color="black" size={24} className="rotate-[80deg]" />
+      <div className="w-64 h-full flex flex-col fixed">
+        {/* Header */}
+        <div className="p-4 border-b border-gray-200">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-gray-900">Studies</h2>
+            <NavLink
+              to="/import"
+              className="h-7 w-7 p-0 flex items-center justify-center rounded hover:bg-gray-100 transition-colors"
+              title="Add a new study"
+            >
+              <Plus className="h-4 w-4" />
+            </NavLink>
           </div>
-        </header> */}
-        <ul className="flex w-full min-w-0 flex-col gap-4 p-2">
-          <li>
-            <div className="flex w-full items-center justify-between h-8 text-sm font-medium rounded-md p-2 cursor-default">
-              <div className="flex items-center gap-2">
-                <FolderOpen className="text-gray-500" size={16} />
-                <span>Studies</span>
-              </div>
-              <NavLink
-                to="/import"
-                className="flex items-center justify-center w-5 h-5 rounded hover:bg-gray-200 transition-colors"
-                title="Add a new study"
-              >
-                <Plus color="black" size={14} />
-              </NavLink>
-            </div>
-            <ul className="border-l mx-3.5 border-gray-200 flex w-full flex-col gap-2 px-1.5 py-0.5 text-[hsl(var(--sidebar-foreground))]">
-              {studies.map((study) => (
-                <li key={study.id} onContextMenu={(e) => handleContextMenu(e, study)}>
-                  {renamingStudyId === study.id ? (
-                    <input
-                      ref={renameInputRef}
-                      type="text"
-                      value={renameValue}
-                      onChange={(e) => setRenameValue(e.target.value)}
-                      onKeyDown={handleRenameKeyDown}
-                      onBlur={saveRename}
-                      className="w-full text-sm rounded-md px-2 py-1 border border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search studies..."
+              className="w-full pl-8 h-9 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Studies List */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="p-2">
+            {filteredStudies.map((study) => (
+              <div key={study.id} onContextMenu={(e) => handleContextMenu(e, study)}>
+                {renamingStudyId === study.id ? (
+                  <input
+                    ref={renameInputRef}
+                    type="text"
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onKeyDown={handleRenameKeyDown}
+                    onBlur={saveRename}
+                    className="w-full px-3 py-2.5 rounded-lg text-sm border border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 mb-1"
+                  />
+                ) : (
+                  <NavLink
+                    to={`/study/${study.id}`}
+                    className={({ isActive }) =>
+                      `w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm transition-all group mb-1 ${
+                        isActive ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100'
+                      }`
+                    }
+                  >
+                    <span className="flex-1 text-left truncate">{study.name}</span>
+                    <ChevronRight
+                      className={`h-4 w-4 flex-shrink-0 transition-opacity ${
+                        location.pathname.includes(`/study/${study.id}`)
+                          ? 'opacity-100'
+                          : 'opacity-0 group-hover:opacity-50'
+                      }`}
                     />
-                  ) : (
-                    <NavLink
-                      to={`/study/${study.id}`}
-                      className={({ isActive }) =>
-                        `break-anywhere flex w-full items-center text-sm hover:bg-gray-100 rounded-md px-2 py-1 ${isActive ? 'font-semibold' : ''}`
-                      }
-                    >
-                      {study.name}
-                    </NavLink>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </li>
-        </ul>
-        <footer className="absolute left-0 bottom-8 w-full p-2">
+                  </NavLink>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="p-2 border-t border-gray-200">
           <NavLink
             to="/settings/ml_zoo"
-            className={({ isActive }) =>
-              `flex w-full items-center gap-2 text-sm hover:bg-gray-100 rounded-md p-2 ${isActive ? 'font-semibold' : ''}`
-            }
+            className="w-full flex items-center justify-start gap-2 px-3 py-2 text-sm hover:bg-gray-100 rounded-md transition-colors"
           >
-            <Settings className="text-gray-500" size={16} />
-            <span>Settings</span>
+            <Settings className="h-4 w-4" />
+            Settings
           </NavLink>
-        </footer>
+        </div>
       </div>
-      <main className="ml-52 relative flex w-[calc(100%-14rem)] flex-1 bg-transparent pt-3 pr-3">
-        <div className="flex-col bg-white rounded-t-xl shadow w-full">
+      <main className="ml-64 relative flex w-[calc(100%-16rem)] flex-1 bg-transparent pt-3 pr-3">
+        <div className="flex-col bg-white shadow w-full rounded-xl overflow-hidden">
           <Routes>
             <Route path="/import" element={<Import onNewStudy={onNewStudy} />} />
             <Route path="/study/:id/*" element={<Study />} />
