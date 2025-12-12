@@ -268,17 +268,17 @@ function AppContent() {
         </header> */}
         <ul className="flex w-full min-w-0 flex-col gap-4 p-2">
           <li>
-            <div className="flex w-full items-center justify-between h-8 text-sm font-medium rounded-md p-2 cursor-default">
-              <div className="flex items-center gap-2">
-                <FolderOpen className="text-gray-500" size={16} />
+            <div className="flex w-full items-center justify-between h-8 text-sm font-medium rounded-md p-2 cursor-default mb-2">
+              <div className="flex items-center gap-2 ml-2">
+                {/* <FolderOpen className="text-gray-500" size={16} /> */}
                 <span>Studies</span>
               </div>
               <NavLink
                 to="/import"
-                className="flex items-center justify-center w-5 h-5 rounded hover:bg-gray-200 transition-colors"
+                className="flex items-center justify-center w-6 h-6 rounded hover:bg-gray-200 transition-colors"
                 title="Add a new study"
               >
-                <Plus color="black" size={14} />
+                <Plus color="black" size={15} />
               </NavLink>
             </div>
             <ul className="border-l mx-3.5 border-gray-200 flex w-full flex-col gap-2 px-1.5 py-0.5 text-[hsl(var(--sidebar-foreground))]">
@@ -309,11 +309,11 @@ function AppContent() {
             </ul>
           </li>
         </ul>
-        <footer className="absolute left-0 bottom-8 w-full p-2">
+        <footer className="absolute left-0 bottom-8 w-full p-2 px-6">
           <NavLink
             to="/settings/ml_zoo"
             className={({ isActive }) =>
-              `flex w-full items-center gap-2 text-sm hover:bg-gray-100 rounded-md p-2 ${isActive ? 'font-semibold' : ''}`
+              `flex w-full items-center justify-center border border-gray-300 gap-2 text-sm hover:bg-gray-100 rounded-md p-2 ${isActive ? 'font-semibold' : ''}`
             }
           >
             <Settings className="text-gray-500" size={16} />
