@@ -1266,7 +1266,7 @@ ipcMain.handle(
         title: null,
         description: null,
         created: new Date().toISOString(),
-        importerName: `local/${modelReference.id}`,
+        importerName: 'local/ml_run',
         contributors: null
       }
       await insertMetadata(db, metadataRecord)
