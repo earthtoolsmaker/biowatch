@@ -1807,7 +1807,6 @@ export async function getBestMedia(dbPath, options = {}) {
           AND mediaID IS NULL
       ) o2 ON m.timestamp = o2.eventStart AND o2.rn = 1
       WHERE m.favorite = 1
-        AND (m.fileMediatype IS NULL OR m.fileMediatype NOT LIKE 'video/%')
       ORDER BY m.timestamp DESC
       LIMIT ?
     `
