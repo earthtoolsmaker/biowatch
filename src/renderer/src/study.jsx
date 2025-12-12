@@ -183,9 +183,6 @@ export default function Study() {
                 Files
               </Tab>
             )}
-            <Tab to={`/study/${id}/export`} icon={Upload}>
-              Export
-            </Tab>
             <Tab to={`/study/${id}/settings`} icon={Settings}>
               Settings
             </Tab>
