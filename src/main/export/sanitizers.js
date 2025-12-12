@@ -258,7 +258,6 @@ export function sanitizeDeployment(row) {
 
 /**
  * Map contributor role to CamtrapDP spec compliant values.
- * 'author' is not in the spec, map to 'contributor'.
  *
  * @param {string|null|undefined} role - Role from database
  * @returns {string|null} - Spec-compliant role or null
@@ -277,11 +276,6 @@ export function mapContributorRole(role) {
 
   if (validRoles.includes(role)) {
     return role
-  }
-
-  // Map 'author' to 'contributor' for spec compliance
-  if (role === 'author') {
-    return 'contributor'
   }
 
   return null

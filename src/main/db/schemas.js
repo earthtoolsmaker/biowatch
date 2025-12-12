@@ -1,14 +1,13 @@
 import { z } from 'zod'
 
-// Camtrap DP contributor roles
-export const contributorRoles = [
+// Camtrap DP contributor roles (spec-compliant)
+export const contributorRoles = /** @type {const} */ ([
   'contact',
   'principalInvestigator',
   'rightsHolder',
   'publisher',
-  'contributor',
-  'author'
-]
+  'contributor'
+])
 
 // Camtrap DP contributor schema
 export const contributorSchema = z.object({

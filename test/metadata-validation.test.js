@@ -37,7 +37,7 @@ describe('Metadata Zod Validation', () => {
     test('should reject contributor without title', () => {
       const noTitle = {
         email: 'test@example.com',
-        role: 'author'
+        role: 'contributor'
       }
 
       const result = contributorSchema.safeParse(noTitle)
@@ -118,7 +118,7 @@ describe('Metadata Zod Validation', () => {
     test('should accept array of valid contributors', () => {
       const contributors = [
         { title: 'User One', email: 'one@example.com' },
-        { title: 'User Two', role: 'author' }
+        { title: 'User Two', role: 'contributor' }
       ]
 
       const result = contributorsSchema.safeParse(contributors)
@@ -286,7 +286,7 @@ describe('Metadata Zod Validation', () => {
 
     test('should accept contributors update', () => {
       const contributorsUpdate = {
-        contributors: [{ title: 'New Contributor', email: 'new@example.com', role: 'author' }]
+        contributors: [{ title: 'New Contributor', email: 'new@example.com', role: 'contributor' }]
       }
 
       const result = metadataUpdateSchema.safeParse(contributorsUpdate)

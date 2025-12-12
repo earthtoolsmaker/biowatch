@@ -247,7 +247,7 @@ describe('Studies Management Tests (Simplified)', () => {
         data: {
           title: 'Test Dataset',
           description: 'A test dataset for structure validation',
-          contributors: [{ title: 'Test Author', role: 'author' }],
+          contributors: [{ title: 'Test Author', role: 'contributor' }],
           resources: []
         }
       }
