@@ -13,7 +13,6 @@ import {
   insertMedia,
   insertObservations
 } from '../src/main/queries.js'
-import { getDrizzleDb } from '../src/main/db/index.js'
 import { deployments, media, observations } from '../src/main/db/schema.js'
 import { eq, count, sql } from 'drizzle-orm'
 

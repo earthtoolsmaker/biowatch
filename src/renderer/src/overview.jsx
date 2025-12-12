@@ -690,6 +690,7 @@ export default function Overview({ data, studyId, studyName }) {
   const taxonomicData = data?.taxonomic || null
 
   // Temporal data is always shown, with DateTimePicker for editing
+  // eslint-disable-next-line no-unused-vars
   const renderTemporalData = () => {
     return (
       <div className="flex items-center gap-2 text-gray-500 text-sm max-w-prose mb-2">
