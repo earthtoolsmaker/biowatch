@@ -22,12 +22,7 @@ export function Tab({ to, icon: Icon, children, end = false }) {
     >
       {({ isActive }) => (
         <>
-          <Icon
-            size={20}
-            className={classNames(
-              isActive ? 'text-blue-600' : 'text-gray-500'
-            )}
-          />
+          <Icon size={20} className={classNames(isActive ? 'text-blue-600' : 'text-gray-500')} />
           {children}
         </>
       )}
