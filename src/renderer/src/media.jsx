@@ -2547,7 +2547,7 @@ function Gallery({ species, dateRange, timeRange }) {
         />
 
         {/* Grid */}
-        <div className="flex flex-wrap gap-[12px] flex-1 overflow-auto p-3">
+        <div className="flex flex-wrap gap-[12px] flex-1 overflow-auto p-3 content-start">
           {groupedMedia.map((sequence) => {
             const isMultiItem = sequence.items.length > 1
 
