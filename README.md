@@ -43,17 +43,31 @@ Full developer documentation is available in the [docs/](./docs/) folder:
 
 ## Quick Start (Development)
 
+### Using Make (recommended)
+
 ```bash
-# Install dependencies
+# Install all dependencies and start development
+make install
+make dev
+```
+
+### Manual Installation
+
+```bash
+# Install npm dependencies
 npm install
 
-# Build Python environment for ML models
+# Install uv (Python package manager) if not already installed
 pipx install uv
+
+# Build Python environment for ML models
 npm run build:python-env-common
 
 # Start development server
 npm run dev
 ```
+
+Run `make help` to see all available commands.
 
 See [Development Guide](./docs/development.md) for full details.
 
