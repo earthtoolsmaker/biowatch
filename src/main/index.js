@@ -714,7 +714,16 @@ app.whenReady().then(async () => {
 
   ipcMain.handle(
     'activity:get-heatmap-data',
-    async (_, studyId, species, startDate, endDate, startTime, endTime) => {
+    async (
+      _,
+      studyId,
+      species,
+      startDate,
+      endDate,
+      startTime,
+      endTime,
+      includeNullTimestamps = false
+    ) => {
       try {
         const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
         if (!dbPath || !existsSync(dbPath)) {
@@ -728,7 +737,8 @@ app.whenReady().then(async () => {
           startDate,
           endDate,
           startTime,
-          endTime
+          endTime,
+          includeNullTimestamps
         )
         return { data: heatmapData }
       } catch (error) {

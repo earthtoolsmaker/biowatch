@@ -500,20 +500,14 @@ async function insertVideoPredictions(db, predictions, mediaRecord, modelInfo = 
       frameCount: Math.round(firstPrediction.metadata.duration * firstPrediction.metadata.fps)
     }
 
-    // Update media with exifData (timestamp is now extracted in deployment handling above)
-    const updateData = { exifData: videoMetadata }
-    if (!mediaRecord.timestamp) {
-      // Fallback if deployment handling didn't set timestamp (shouldn't happen normally)
-      updateData.timestamp = new Date().toISOString()
-    }
-
-    await db.update(media).set(updateData).where(eq(media.mediaID, mediaRecord.mediaID))
+    // Update media with exifData (timestamp is extracted in deployment handling above, may be null)
+    await db
+      .update(media)
+      .set({ exifData: videoMetadata })
+      .where(eq(media.mediaID, mediaRecord.mediaID))
 
     // Update local mediaRecord for observation timestamp calculation
     mediaRecord.exifData = videoMetadata
-    if (updateData.timestamp) {
-      mediaRecord.timestamp = updateData.timestamp
-    }
   }
 
   // 2. Store ALL frame predictions in modelOutputs.rawOutput (full provenance)
@@ -700,9 +694,7 @@ async function processMediaDeployment(db, mediaRecord) {
   // 3. Determine timestamp (support both image and video metadata fields)
   const zones = latitude && longitude ? geoTz.find(latitude, longitude) : null
   const captureDate = exifData.DateTimeOriginal || exifData.CreateDate || exifData.MediaCreateDate
-  const date = captureDate
-    ? luxon.DateTime.fromJSDate(captureDate, { zone: zones?.[0] })
-    : luxon.DateTime.now()
+  const date = captureDate ? luxon.DateTime.fromJSDate(captureDate, { zone: zones?.[0] }) : null
 
   // 4. Calculate parentFolder for deployment lookup
   const parentFolder =
@@ -715,14 +707,28 @@ async function processMediaDeployment(db, mediaRecord) {
     let deployment = await getDeployment(db, parentFolder)
 
     if (deployment) {
-      // Expand date range if this media extends it
-      await db
-        .update(deployments)
-        .set({
-          deploymentStart: DateTime.min(date, DateTime.fromISO(deployment.deploymentStart)).toISO(),
-          deploymentEnd: DateTime.max(date, DateTime.fromISO(deployment.deploymentEnd)).toISO()
-        })
-        .where(eq(deployments.deploymentID, deployment.deploymentID))
+      // Expand date range if this media extends it (only if we have a valid timestamp)
+      if (date && deployment.deploymentStart && deployment.deploymentEnd) {
+        await db
+          .update(deployments)
+          .set({
+            deploymentStart: DateTime.min(
+              date,
+              DateTime.fromISO(deployment.deploymentStart)
+            ).toISO(),
+            deploymentEnd: DateTime.max(date, DateTime.fromISO(deployment.deploymentEnd)).toISO()
+          })
+          .where(eq(deployments.deploymentID, deployment.deploymentID))
+      } else if (date && (!deployment.deploymentStart || !deployment.deploymentEnd)) {
+        // Deployment exists but has no date range - set it from this media
+        await db
+          .update(deployments)
+          .set({
+            deploymentStart: deployment.deploymentStart || date.toISO(),
+            deploymentEnd: deployment.deploymentEnd || date.toISO()
+          })
+          .where(eq(deployments.deploymentID, deployment.deploymentID))
+      }
     } else {
       // Create new deployment
       const deploymentID = crypto.randomUUID()
@@ -732,8 +738,8 @@ async function processMediaDeployment(db, mediaRecord) {
         deploymentID,
         locationID: parentFolder,
         locationName: parentFolder,
-        deploymentStart: date.toISO(),
-        deploymentEnd: date.toISO(),
+        deploymentStart: date ? date.toISO() : null,
+        deploymentEnd: date ? date.toISO() : null,
         latitude: parseFloat(latitude),
         longitude: parseFloat(longitude)
       })
@@ -742,7 +748,7 @@ async function processMediaDeployment(db, mediaRecord) {
     }
 
     // 6. Update database with timestamp, deployment, and EXIF data
-    const timestamp = date.toISO()
+    const timestamp = date ? date.toISO() : null
     const serializedExifData = serializeExifData(exifData)
 
     await db

@@ -2214,7 +2214,7 @@ function isVideoMedia(mediaItem) {
   return ext ? videoExtensions.includes(ext) : false
 }
 
-function Gallery({ species, dateRange, timeRange }) {
+function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false }) {
   const [imageErrors, setImageErrors] = useState({})
   const [selectedMedia, setSelectedMedia] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -2298,7 +2298,8 @@ function Gallery({ species, dateRange, timeRange }) {
       dateRange[0]?.toISOString(),
       dateRange[1]?.toISOString(),
       timeRange.start,
-      timeRange.end
+      timeRange.end,
+      includeNullTimestamps
     ],
     queryFn: async ({ pageParam = 0 }) => {
       const response = await window.api.getMedia(id, {
@@ -2306,7 +2307,8 @@ function Gallery({ species, dateRange, timeRange }) {
         dateRange: { start: dateRange[0], end: dateRange[1] },
         timeRange,
         limit: PAGE_SIZE,
-        offset: pageParam
+        offset: pageParam,
+        includeNullTimestamps
       })
       if (response.error) throw new Error(response.error)
       return response.data
@@ -2615,6 +2617,7 @@ export default function Activity({ studyData, studyId }) {
 
   const [selectedSpecies, setSelectedSpecies] = useState([])
   const [dateRange, setDateRange] = useState([null, null])
+  const [fullExtent, setFullExtent] = useState([null, null])
   const [timeRange, setTimeRange] = useState({ start: 0, end: 24 })
 
   const taxonomicData = studyData?.taxonomic || null
@@ -2654,7 +2657,7 @@ export default function Activity({ studyData, studyId }) {
     enabled: !!actualStudyId && speciesNames.length > 0
   })
 
-  // Initialize dateRange from timeseries data (side effect, keep as useEffect)
+  // Initialize dateRange and fullExtent from timeseries data (side effect, keep as useEffect)
   useEffect(() => {
     if (
       timeseriesData &&
@@ -2665,12 +2668,24 @@ export default function Activity({ studyData, studyId }) {
       const startIndex = 0
       const endIndex = timeseriesData.length - 1
 
-      let startDate = new Date(timeseriesData[startIndex].date)
-      let endDate = new Date(timeseriesData[endIndex].date)
+      const startDate = new Date(timeseriesData[startIndex].date)
+      const endDate = new Date(timeseriesData[endIndex].date)
 
       setDateRange([startDate, endDate])
+      setFullExtent([startDate, endDate])
     }
   }, [timeseriesData, dateRange])
+
+  // Compute if user has selected full temporal range (with 1 day tolerance)
+  const isFullRange = useMemo(() => {
+    if (!fullExtent[0] || !fullExtent[1] || !dateRange[0] || !dateRange[1]) {
+      return false
+    }
+    const tolerance = 86400000 // 1 day in milliseconds
+    const startMatch = Math.abs(fullExtent[0].getTime() - dateRange[0].getTime()) < tolerance
+    const endMatch = Math.abs(fullExtent[1].getTime() - dateRange[1].getTime()) < tolerance
+    return startMatch && endMatch
+  }, [fullExtent, dateRange])
 
   // Fetch daily activity data
   const { data: dailyActivityData } = useQuery({
@@ -2718,6 +2733,7 @@ export default function Activity({ studyData, studyId }) {
                 species={selectedSpecies.map((s) => s.scientificName)}
                 dateRange={dateRange}
                 timeRange={timeRange}
+                includeNullTimestamps={isFullRange}
               />
             </div>
             <div className="h-full overflow-auto w-xs">

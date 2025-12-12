@@ -39,7 +39,15 @@ const api = {
   getSpeciesTimeseries: async (studyId, species) => {
     return await electronAPI.ipcRenderer.invoke('activity:get-timeseries', studyId, species)
   },
-  getSpeciesHeatmapData: async (studyId, species, startDate, endDate, startTime, endTime) => {
+  getSpeciesHeatmapData: async (
+    studyId,
+    species,
+    startDate,
+    endDate,
+    startTime,
+    endTime,
+    includeNullTimestamps = false
+  ) => {
     return await electronAPI.ipcRenderer.invoke(
       'activity:get-heatmap-data',
       studyId,
@@ -47,7 +55,8 @@ const api = {
       startDate,
       endDate,
       startTime,
-      endTime
+      endTime,
+      includeNullTimestamps
     )
   },
   getLocationsActivity: async (studyId) => {

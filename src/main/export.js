@@ -995,8 +995,11 @@ export async function exportCamtrapDP(studyId, options = {}) {
 
     // Query only media that has matching observations
     let mediaData = []
+    let nullTimestampMediaCount = 0
+    let nullTimestampObservationsCount = 0
+
     if (filteredMediaIDs.length > 0) {
-      mediaData = await db
+      const allMediaData = await db
         .select({
           mediaID: media.mediaID,
           deploymentID: media.deploymentID,
@@ -1009,6 +1012,32 @@ export async function exportCamtrapDP(studyId, options = {}) {
         .from(media)
         .where(inArray(media.mediaID, filteredMediaIDs))
         .orderBy(asc(media.mediaID))
+
+      // Filter out media with null timestamps (CamtrapDP requires timestamp)
+      mediaData = allMediaData.filter((m) => m.timestamp !== null)
+      nullTimestampMediaCount = allMediaData.length - mediaData.length
+
+      if (nullTimestampMediaCount > 0) {
+        log.warn(
+          `CamtrapDP export: Excluding ${nullTimestampMediaCount} media files with null timestamps`
+        )
+
+        // Get IDs of media we're actually exporting
+        const exportedMediaIDs = new Set(mediaData.map((m) => m.mediaID))
+
+        // Filter observations to only include those with exported media (or no media link)
+        const originalObservationsCount = observationsData.length
+        observationsData = observationsData.filter(
+          (o) => !o.mediaID || exportedMediaIDs.has(o.mediaID)
+        )
+        nullTimestampObservationsCount = originalObservationsCount - observationsData.length
+
+        if (nullTimestampObservationsCount > 0) {
+          log.warn(
+            `CamtrapDP export: Excluding ${nullTimestampObservationsCount} observations linked to null-timestamp media`
+          )
+        }
+      }
     }
 
     log.info(`Found ${mediaData.length} media files for filtered observations`)
@@ -1360,6 +1389,14 @@ export async function exportCamtrapDP(studyId, options = {}) {
       ...(includeMedia && {
         copiedMediaCount,
         mediaErrorCount
+      }),
+      // Null timestamp exclusion warnings
+      ...(nullTimestampMediaCount > 0 && {
+        nullTimestampWarning: {
+          mediaExcluded: nullTimestampMediaCount,
+          observationsExcluded: nullTimestampObservationsCount,
+          message: `Excluded ${nullTimestampMediaCount} media files and ${nullTimestampObservationsCount} observations with null timestamps (CamtrapDP requires timestamps)`
+        }
       }),
       // CamtrapDP validation summary
       validation: {

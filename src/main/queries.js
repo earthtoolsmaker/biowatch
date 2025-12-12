@@ -427,7 +427,8 @@ export async function getSpeciesHeatmapData(
   startDate,
   endDate,
   startHour = 0,
-  endHour = 24
+  endHour = 24,
+  includeNullTimestamps = false
 ) {
   const startTime = Date.now()
   log.info(`Querying species heatmap data from: ${dbPath}`)
@@ -445,11 +446,23 @@ export async function getSpeciesHeatmapData(
     // Build base conditions
     const baseConditions = [
       inArray(observations.scientificName, species),
-      gte(observations.eventStart, startDate),
-      lte(observations.eventStart, endDate),
       isNotNull(deployments.latitude),
       isNotNull(deployments.longitude)
     ]
+
+    // Add date range filter with null timestamp support
+    if (includeNullTimestamps) {
+      // Include observations with null eventStart OR within date range
+      baseConditions.push(
+        or(
+          isNull(observations.eventStart),
+          and(gte(observations.eventStart, startDate), lte(observations.eventStart, endDate))
+        )
+      )
+    } else {
+      baseConditions.push(gte(observations.eventStart, startDate))
+      baseConditions.push(lte(observations.eventStart, endDate))
+    }
 
     // Add time-of-day condition using sql template for SQLite strftime
     if (startHour < endHour) {
@@ -532,7 +545,8 @@ export async function getMedia(dbPath, options = {}) {
     offset: queryOffset = 0,
     species = [],
     dateRange = {},
-    timeRange = {}
+    timeRange = {},
+    includeNullTimestamps = false
   } = options
 
   const startTime = Date.now()
@@ -577,27 +591,41 @@ export async function getMedia(dbPath, options = {}) {
 
       log.info(`Formatted date range: ${startDate} to ${endDate}`)
 
-      baseConditions.push(gte(media.timestamp, startDate))
-      baseConditions.push(lte(media.timestamp, endDate))
+      if (includeNullTimestamps) {
+        // Include media with null timestamps OR within date range
+        baseConditions.push(
+          or(
+            isNull(media.timestamp),
+            and(gte(media.timestamp, startDate), lte(media.timestamp, endDate))
+          )
+        )
+      } else {
+        baseConditions.push(gte(media.timestamp, startDate))
+        baseConditions.push(lte(media.timestamp, endDate))
+      }
     }
 
     // Add time of day filter if provided
+    // Note: strftime returns NULL for NULL timestamps, so we need to handle that case
     if (timeRange.start !== undefined && timeRange.end !== undefined) {
       if (timeRange.start < timeRange.end) {
         // Simple range (e.g., 8:00 to 17:00)
-        baseConditions.push(
-          sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) >= ${timeRange.start}`
-        )
-        baseConditions.push(
+        const timeCondition = and(
+          sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) >= ${timeRange.start}`,
           sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) < ${timeRange.end}`
+        )
+        // When including null timestamps, allow them through the time filter too
+        baseConditions.push(
+          includeNullTimestamps ? or(isNull(media.timestamp), timeCondition) : timeCondition
         )
       } else if (timeRange.start > timeRange.end) {
         // Wrapping range (e.g., 22:00 to 6:00)
+        const timeCondition = or(
+          sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) >= ${timeRange.start}`,
+          sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) < ${timeRange.end}`
+        )
         baseConditions.push(
-          or(
-            sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) >= ${timeRange.start}`,
-            sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) < ${timeRange.end}`
-          )
+          includeNullTimestamps ? or(isNull(media.timestamp), timeCondition) : timeCondition
         )
       }
     }
@@ -632,8 +660,9 @@ export async function getMedia(dbPath, options = {}) {
 
     // Combine with UNION, order, and paginate
     // UNION deduplicates results and allows each branch to use indexes efficiently
+    // Use NULLS LAST to ensure media without timestamps appear at the end
     const rows = await union(branch1, branch2)
-      .orderBy(desc(media.timestamp))
+      .orderBy(sql`${media.timestamp} DESC NULLS LAST`)
       .limit(queryLimit)
       .offset(queryOffset)
 

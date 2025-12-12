@@ -295,6 +295,7 @@ export default function Activity({ studyData, studyId }) {
 
   const [selectedSpecies, setSelectedSpecies] = useState([])
   const [dateRange, setDateRange] = useState([null, null])
+  const [fullExtent, setFullExtent] = useState([null, null])
   const [timeRange, setTimeRange] = useState({ start: 0, end: 24 })
   const { importStatus } = useImportStatus(actualStudyId, 5000)
 
@@ -337,7 +338,7 @@ export default function Activity({ studyData, studyId }) {
     enabled: !!actualStudyId && speciesNames.length > 0
   })
 
-  // Initialize dateRange from timeseries data (side effect, keep as useEffect)
+  // Initialize dateRange and fullExtent from timeseries data (side effect, keep as useEffect)
   useEffect(() => {
     if (
       timeseriesData &&
@@ -348,12 +349,24 @@ export default function Activity({ studyData, studyId }) {
       const startIndex = 0
       const endIndex = timeseriesData.length - 1
 
-      setDateRange([
-        new Date(timeseriesData[startIndex].date),
-        new Date(timeseriesData[endIndex].date)
-      ])
+      const startDate = new Date(timeseriesData[startIndex].date)
+      const endDate = new Date(timeseriesData[endIndex].date)
+
+      setDateRange([startDate, endDate])
+      setFullExtent([startDate, endDate])
     }
   }, [timeseriesData, dateRange])
+
+  // Compute if user has selected full temporal range (with 1 day tolerance)
+  const isFullRange = useMemo(() => {
+    if (!fullExtent[0] || !fullExtent[1] || !dateRange[0] || !dateRange[1]) {
+      return false
+    }
+    const tolerance = 86400000 // 1 day in milliseconds
+    const startMatch = Math.abs(fullExtent[0].getTime() - dateRange[0].getTime()) < tolerance
+    const endMatch = Math.abs(fullExtent[1].getTime() - dateRange[1].getTime()) < tolerance
+    return startMatch && endMatch
+  }, [fullExtent, dateRange])
 
   // Fetch heatmap data
   const { data: heatmapData, isLoading: isHeatmapLoading } = useQuery({
@@ -364,7 +377,8 @@ export default function Activity({ studyData, studyId }) {
       dateRange[0]?.toISOString(),
       dateRange[1]?.toISOString(),
       timeRange.start,
-      timeRange.end
+      timeRange.end,
+      isFullRange
     ],
     queryFn: async () => {
       const response = await window.api.getSpeciesHeatmapData(
@@ -373,7 +387,8 @@ export default function Activity({ studyData, studyId }) {
         dateRange[0].toISOString(),
         dateRange[1].toISOString(),
         timeRange.start,
-        timeRange.end
+        timeRange.end,
+        isFullRange
       )
       if (response.error) throw new Error(response.error)
       return response.data
