@@ -7,7 +7,6 @@ import {
   Download,
   Pause,
   FolderOpen,
-  Upload,
   Settings
 } from 'lucide-react'
 import { NavLink, Route, Routes, useParams } from 'react-router'
@@ -18,7 +17,6 @@ import Overview from './overview'
 import Activity from './activity'
 import Media from './media'
 import Files from './files'
-import Export from './export'
 import StudySettings from './StudySettings'
 import { useImportStatus } from '@renderer/hooks/import'
 
@@ -216,15 +214,6 @@ export default function Study() {
           </NavLink>
         )}
         <NavLink
-          to={`/study/${id}/export`}
-          className={({ isActive }) =>
-            `${isActive ? 'bg-white' : 'bg-gray-100'} cursor-pointer hover:bg-white transition-colors flex justify-center flex-row gap-2 items-center px-4 h-10 text-sm`
-          }
-        >
-          <Upload color="black" size={20} className="pb-[2px]" />
-          Export
-        </NavLink>
-        <NavLink
           to={`/study/${id}/settings`}
           className={({ isActive }) =>
             `${isActive ? 'bg-white' : 'bg-gray-100'} cursor-pointer hover:bg-white transition-colors flex justify-center flex-row gap-2 items-center px-4 h-10 text-sm`
@@ -280,14 +269,6 @@ export default function Study() {
               }
             />
           )}
-          <Route
-            path="export"
-            element={
-              <ErrorBoundary FallbackComponent={ErrorFallback} key={'export'}>
-                <Export studyId={id} />
-              </ErrorBoundary>
-            }
-          />
           <Route
             path="settings"
             element={

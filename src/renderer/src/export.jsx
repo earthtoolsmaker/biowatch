@@ -150,7 +150,7 @@ export default function Export({ studyId }) {
   }
 
   return (
-    <div className="flex h-full p-8 overflow-auto">
+    <div className="flex h-full py-6 overflow-auto">
       <div className="max-w-4xl w-full">
         {/* Status Messages */}
         {exportStatus && (
@@ -176,7 +176,7 @@ export default function Export({ studyId }) {
         )}
 
         {/* Export Methods Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Image Directories Export Card */}
           <div className="border border-gray-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center gap-2 mb-2">
