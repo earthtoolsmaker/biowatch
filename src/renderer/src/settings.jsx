@@ -111,7 +111,7 @@ function ErrorFallback({ error, resetErrorBoundary }) {
 }
 
 export default function SettingsPage() {
-  const version = __APP_VERSION__
+  const version = import.meta.env.VITE_APP_VERSION
   const platform = window.electron.process.platform
 
   return (
