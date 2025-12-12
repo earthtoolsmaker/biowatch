@@ -126,18 +126,6 @@ async function initializeMigrations() {
     log.info('Migration status', await migrations.getMigrationStatus(userDataPath))
 
     await migrations.runMigrations(userDataPath, log)
-
-    // log.info('Checking for pending migrations...')
-    // const migrationStatus = await getMigrationStatus(userDataPath)
-    // log.info('Migration status:', migrationStatus)
-
-    // if (migrationStatus.needsMigration) {
-    //   log.info('Running pending migrations...')
-    //   await runMigrations(userDataPath, log)
-    //   log.info('Migrations completed successfully')
-    // } else {
-    //   log.info('No migrations needed')
-    // }
   } catch (error) {
     log.error('Migration failed:', error)
     // Show error dialog to user

@@ -1510,13 +1510,10 @@ describe('CamtrapDP Datapackage Sanitizer', () => {
       }
     })
 
-    test('maps author to contributor', () => {
-      assert.equal(mapContributorRole('author'), 'contributor')
-    })
-
     test('returns null for unknown roles', () => {
       assert.equal(mapContributorRole('unknown'), null)
       assert.equal(mapContributorRole('editor'), null)
+      assert.equal(mapContributorRole('author'), null)
     })
   })
 
@@ -1539,12 +1536,12 @@ describe('CamtrapDP Datapackage Sanitizer', () => {
       assert.equal(sanitized.created, '2024-01-15T10:30:00Z')
     })
 
-    test('maps author role to contributor', () => {
+    test('returns null for invalid contributor role', () => {
       const pkg = createValidDatapackage({
         contributors: [{ title: 'Test User', role: 'author' }]
       })
       const sanitized = sanitizeDatapackage(pkg)
-      assert.equal(sanitized.contributors[0].role, 'contributor')
+      assert.equal(sanitized.contributors[0].role, null)
     })
 
     test('preserves valid contributor roles', () => {
@@ -1581,7 +1578,7 @@ describe('CamtrapDP Datapackage Sanitizer', () => {
         title: 'Test Dataset',
         description: 'A test dataset',
         version: '1.0.0',
-        contributors: [{ title: 'John Doe', role: 'author', email: '' }],
+        contributors: [{ title: 'John Doe', role: 'contributor', email: '' }],
         licenses: [
           {
             name: 'CC-BY-4.0',

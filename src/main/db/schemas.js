@@ -1,14 +1,13 @@
 import { z } from 'zod'
 
-// Camtrap DP contributor roles
-export const contributorRoles = [
+// Camtrap DP contributor roles (spec-compliant)
+export const contributorRoles = /** @type {const} */ ([
   'contact',
   'principalInvestigator',
   'rightsHolder',
   'publisher',
-  'contributor',
-  'author'
-]
+  'contributor'
+])
 
 // Camtrap DP contributor schema
 export const contributorSchema = z.object({
@@ -23,14 +22,14 @@ export const contributorSchema = z.object({
 export const contributorsSchema = z.array(contributorSchema).nullable()
 
 // Importer types
-export const importerNames = [
+export const importerNames = /** @type {const} */ ([
   'camtrap/datapackage',
   'wildlife/folder',
   'deepfaune/csv',
   'local/images',
   'local/ml_run',
   'gbif/dataset'
-]
+])
 
 // ISO date pattern (YYYY-MM-DD)
 const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/
@@ -42,7 +41,7 @@ export const metadataSchema = z.object({
   title: z.string().nullable(),
   description: z.string().nullable(),
   created: z.string(), // ISO 8601 datetime
-  importerName: z.string(),
+  importerName: z.enum(importerNames),
   contributors: contributorsSchema,
   updatedAt: z.string().nullable(),
   startDate: z.string().regex(isoDatePattern, 'Must be ISO date format (YYYY-MM-DD)').nullable(),
@@ -76,7 +75,7 @@ export const metadataCreateSchema = z.object({
   title: z.string().nullable().optional(),
   description: z.string().nullable().optional(),
   created: z.string(),
-  importerName: z.string(),
+  importerName: z.enum(importerNames),
   contributors: contributorsSchema.optional(),
   startDate: z
     .string()

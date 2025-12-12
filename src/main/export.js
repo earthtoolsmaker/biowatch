@@ -662,7 +662,7 @@ function generateDataPackage(studyId, studyName, metadata = null) {
   const contributors = metadata?.contributors || [
     {
       title: 'Biowatch User',
-      role: 'author'
+      role: 'contributor'
     }
   ]
   const title = metadata?.title || studyName || 'Biowatch Camera Trap Dataset'
