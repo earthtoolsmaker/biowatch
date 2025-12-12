@@ -30,7 +30,8 @@ export const media = sqliteTable(
     folderName: text('folderName'),
     // Camtrap DP compliant fields
     fileMediatype: text('fileMediatype').default('image/jpeg'), // IANA media type (e.g. 'image/jpeg', 'video/mp4')
-    exifData: text('exifData', { mode: 'json' }) // Video/image metadata as JSON
+    exifData: text('exifData', { mode: 'json' }), // Video/image metadata as JSON
+    favorite: integer('favorite', { mode: 'boolean' }).default(false) // User-marked favorite/best capture
   },
   (table) => [
     index('idx_media_deploymentID').on(table.deploymentID),

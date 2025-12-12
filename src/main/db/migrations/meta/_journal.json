@@ -78,6 +78,13 @@
       "when": 1765450015870,
       "tag": "0010_add_deployment_exif_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1765550144968,
+      "tag": "0011_add_favorite_field",
+      "breakpoints": true
     }
   ]
 }

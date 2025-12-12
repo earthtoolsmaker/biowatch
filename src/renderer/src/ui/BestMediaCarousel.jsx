@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { ChevronLeft, ChevronRight, CameraOff, X } from 'lucide-react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { ChevronLeft, ChevronRight, CameraOff, X, Heart } from 'lucide-react'
 
 /**
  * Constructs a file URL for the local file protocol
@@ -19,19 +19,64 @@ function constructImageUrl(fullFilePath) {
 /**
  * Image viewer modal with navigation for the best captures carousel
  */
-function ImageViewerModal({ media, onClose, onNext, onPrevious, hasNext, hasPrevious }) {
+function ImageViewerModal({
+  media,
+  onClose,
+  onNext,
+  onPrevious,
+  hasNext,
+  hasPrevious,
+  studyId,
+  onFavoriteChanged
+}) {
   const [imageError, setImageError] = useState(false)
+  const [isFavorite, setIsFavorite] = useState(media?.favorite ?? false)
+  const hasFavoriteChanged = useRef(false)
+  const queryClient = useQueryClient()
 
-  // Reset image error when media changes
+  // Reset image error and sync favorite when media changes
   useEffect(() => {
     setImageError(false)
-  }, [media?.mediaID])
+    setIsFavorite(media?.favorite ?? false)
+  }, [media?.mediaID, media?.favorite])
+
+  // Mutation for toggling favorite status
+  const favoriteMutation = useMutation({
+    mutationFn: async ({ mediaID, favorite }) => {
+      const response = await window.api.setMediaFavorite(studyId, mediaID, favorite)
+      if (response.error) {
+        throw new Error(response.error)
+      }
+      return response
+    },
+    onMutate: async ({ favorite }) => {
+      setIsFavorite(favorite)
+    },
+    onError: () => {
+      setIsFavorite(!isFavorite)
+    },
+    onSettled: () => {
+      // Track that favorites changed, but don't invalidate bestMedia yet
+      // This prevents the media from disappearing while still viewing it
+      hasFavoriteChanged.current = true
+      // Only invalidate media query (for ImageModal in media tab)
+      queryClient.invalidateQueries({ queryKey: ['media'] })
+    }
+  })
+
+  // Wrap onClose to trigger bestMedia invalidation after modal closes
+  const handleClose = () => {
+    onClose()
+    if (hasFavoriteChanged.current && onFavoriteChanged) {
+      onFavoriteChanged()
+    }
+  }
 
   // Handle keyboard events (Escape to close, Arrow keys to navigate)
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
-        onClose()
+        handleClose()
       } else if (e.key === 'ArrowRight' && hasNext) {
         onNext()
       } else if (e.key === 'ArrowLeft' && hasPrevious) {
@@ -40,22 +85,40 @@ function ImageViewerModal({ media, onClose, onNext, onPrevious, hasNext, hasPrev
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onClose, onNext, onPrevious, hasNext, hasPrevious])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onClose, onNext, onPrevious, hasNext, hasPrevious, onFavoriteChanged])
 
   if (!media) return null
 
   return (
     <div
       className="fixed inset-0 bg-black/80 flex items-center justify-center z-[1001]"
-      onClick={onClose}
+      onClick={handleClose}
     >
       {/* Close button */}
       <button
-        onClick={onClose}
+        onClick={handleClose}
         className="absolute top-4 right-4 z-10 p-2 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors"
         aria-label="Close"
       >
         <X size={24} />
+      </button>
+
+      {/* Favorite button */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation()
+          favoriteMutation.mutate({ mediaID: media.mediaID, favorite: !isFavorite })
+        }}
+        className={`absolute top-4 right-16 z-10 p-2 rounded-full transition-colors ${
+          isFavorite
+            ? 'bg-red-500 text-white hover:bg-red-600'
+            : 'bg-black/50 hover:bg-black/70 text-white'
+        }`}
+        aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+        title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+      >
+        <Heart size={24} fill={isFavorite ? 'currentColor' : 'none'} />
       </button>
 
       {/* Previous button */}
@@ -164,6 +227,7 @@ export default function BestMediaCarousel({ studyId }) {
   const [canScrollRight, setCanScrollRight] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(null)
   const carouselRef = useRef(null)
+  const queryClient = useQueryClient()
 
   // Fetch best media using the scoring heuristic
   const {
@@ -288,6 +352,10 @@ export default function BestMediaCarousel({ studyId }) {
           onPrevious={() => setSelectedIndex((i) => Math.max(i - 1, 0))}
           hasNext={selectedIndex < bestMedia.length - 1}
           hasPrevious={selectedIndex > 0}
+          studyId={studyId}
+          onFavoriteChanged={() =>
+            queryClient.invalidateQueries({ queryKey: ['bestMedia', studyId] })
+          }
         />
       )}
     </>

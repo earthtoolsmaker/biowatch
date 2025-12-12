@@ -1,0 +1,1 @@
+ALTER TABLE `media` ADD `favorite` integer DEFAULT false;
