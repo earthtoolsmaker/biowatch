@@ -176,7 +176,7 @@ export default function Export({ studyId }) {
         )}
 
         {/* Export Methods Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Image Directories Export Card */}
           <div className="border border-gray-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center gap-2 mb-2">
