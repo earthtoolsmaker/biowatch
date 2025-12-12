@@ -355,7 +355,8 @@ export default function Activity({ studyData, studyId }) {
       if (response.error) throw new Error(response.error)
       return response.data
     },
-    enabled: !!actualStudyId && speciesNames.length > 0 && !!dateRange[0] && !!dateRange[1]
+    enabled: !!actualStudyId && speciesNames.length > 0 && !!dateRange[0] && !!dateRange[1],
+    placeholderData: (previousData) => previousData
   })
 
   // Derive heatmap status from query state and data
@@ -413,9 +414,7 @@ export default function Activity({ studyData, studyId }) {
 
             {/* Map - right side */}
             <div className="h-full flex-1">
-              {heatmapStatus === 'loading' ? (
-                <SkeletonMap title="Loading Activity" message="Loading species distribution..." />
-              ) : heatmapStatus === 'hasData' ? (
+              {heatmapStatus === 'hasData' && (
                 <SpeciesMap
                   heatmapData={heatmapData}
                   selectedSpecies={selectedSpecies}
@@ -429,7 +428,9 @@ export default function Activity({ studyData, studyId }) {
                     timeRange.end
                   }
                 />
-              ) : (
+              )}{' '}
+              :
+              {heatmapStatus === 'noData' && !isHeatmapLoading && (
                 <PlaceholderMap
                   title="No Species Location Data"
                   description="Select species from the list and set up deployment coordinates in the Deployments tab to view the species distribution map."
