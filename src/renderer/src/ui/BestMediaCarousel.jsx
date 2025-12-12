@@ -610,7 +610,7 @@ function MediaCard({ media, onClick, studyId }) {
  * @param {Object} props
  * @param {string} props.studyId - Study ID to fetch media for
  */
-export default function BestMediaCarousel({ studyId }) {
+export default function BestMediaCarousel({ studyId, isRunning }) {
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(null)
@@ -630,7 +630,8 @@ export default function BestMediaCarousel({ studyId }) {
       return response.data
     },
     enabled: !!studyId,
-    staleTime: 60000 // Cache for 1 minute
+    staleTime: 60000, // Cache for 1 minute
+    refetchInterval: isRunning ? 5000 : false // Poll every 5s during ML run
   })
 
   // Check scroll state when media changes or on resize

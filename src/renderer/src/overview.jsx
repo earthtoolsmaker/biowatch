@@ -1113,7 +1113,7 @@ export default function Overview({ data, studyId, studyName }) {
       </div>
 
       {/* Best Media Carousel */}
-      <BestMediaCarousel studyId={studyId} />
+      <BestMediaCarousel studyId={studyId} isRunning={importStatus?.isRunning} />
 
       {error ? (
         <div className="text-red-500 py-4">Error: {error}</div>
