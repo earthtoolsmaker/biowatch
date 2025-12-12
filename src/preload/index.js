@@ -73,6 +73,9 @@ const api = {
   checkMediaHaveBboxes: async (studyId, mediaIDs) => {
     return await electronAPI.ipcRenderer.invoke('media:have-bboxes', studyId, mediaIDs)
   },
+  getBestMedia: async (studyId, options = {}) => {
+    return await electronAPI.ipcRenderer.invoke('media:get-best', studyId, options)
+  },
   getSpeciesDailyActivity: async (studyId, species, startDate, endDate) => {
     return await electronAPI.ipcRenderer.invoke(
       'activity:get-daily',
@@ -186,6 +189,12 @@ const api = {
     const handler = (_event, data) => callback(data)
     electronAPI.ipcRenderer.on('export:progress', handler)
     return () => electronAPI.ipcRenderer.removeListener('export:progress', handler)
+  },
+  // GBIF import progress events
+  onGbifImportProgress: (callback) => {
+    const handler = (_event, data) => callback(data)
+    electronAPI.ipcRenderer.on('gbif-import:progress', handler)
+    return () => electronAPI.ipcRenderer.removeListener('gbif-import:progress', handler)
   },
   cancelExport: async () => {
     return await electronAPI.ipcRenderer.invoke('export:cancel')

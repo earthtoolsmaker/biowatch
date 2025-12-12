@@ -1,12 +1,12 @@
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { spawn } from 'child_process'
-import { app, BrowserWindow, dialog, ipcMain, protocol, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, protocol, session, shell } from 'electron'
 import log from 'electron-log'
 import { autoUpdater } from 'electron-updater'
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, rmSync } from 'fs'
 import { extname, join } from 'path'
 import icon from '../../resources/icon.png?asset'
-import { importCamTrapDataset } from './camtrap'
+import { importCamTrapDataset } from './import/camtrap'
 import { registerMLModelManagementIPCHandlers, garbageCollect, shutdownAllServers } from './models'
 import { getDrizzleDb, deployments, closeStudyDatabase } from './db/index.js'
 import { eq } from 'drizzle-orm'
@@ -29,12 +29,13 @@ import {
   deleteObservation,
   createObservation,
   getDistinctSpecies,
-  checkStudyHasEventIDs
+  checkStudyHasEventIDs,
+  getBestMedia
 } from './queries'
-import './importer.js' // Side-effect: registers IPC handlers
+import './import/importer.js' // Side-effect: registers IPC handlers
 import './studies.js' // Side-effect: registers IPC handlers
-import { importWildlifeDataset } from './wildlife'
-import { importDeepfauneDataset } from './deepfaune'
+import { importWildlifeDataset } from './import/wildlife'
+import { importDeepfauneDataset } from './import/deepfaune'
 import { extractZip, downloadFile } from './download'
 import migrations from './migrations/index.js'
 import { registerExportIPCHandlers } from './export.js'
@@ -99,6 +100,18 @@ function getStudyPath(userDataPath, studyId) {
   return join(userDataPath, 'biowatch-data', 'studies', studyId)
 }
 
+/**
+ * Send GBIF import progress to all renderer windows
+ */
+function sendGbifImportProgress(progressData) {
+  const windows = BrowserWindow.getAllWindows()
+  windows.forEach((win) => {
+    if (!win.isDestroyed()) {
+      win.webContents.send('gbif-import:progress', progressData)
+    }
+  })
+}
+
 log.info('Starting Electron app...')
 
 /**
@@ -113,18 +126,6 @@ async function initializeMigrations() {
     log.info('Migration status', await migrations.getMigrationStatus(userDataPath))
 
     await migrations.runMigrations(userDataPath, log)
-
-    // log.info('Checking for pending migrations...')
-    // const migrationStatus = await getMigrationStatus(userDataPath)
-    // log.info('Migration status:', migrationStatus)
-
-    // if (migrationStatus.needsMigration) {
-    //   log.info('Running pending migrations...')
-    //   await runMigrations(userDataPath, log)
-    //   log.info('Migrations completed successfully')
-    // } else {
-    //   log.info('No migrations needed')
-    // }
   } catch (error) {
     log.error('Migration failed:', error)
     // Show error dialog to user
@@ -224,6 +225,28 @@ function registerLocalFileProtocol() {
       log.error('Error serving file:', error)
       return new Response('Error serving file', { status: 500 })
     }
+  })
+}
+
+/**
+ * Add CORS headers to responses from remote media hosts.
+ * Uses webRequest API which operates AFTER the cache layer,
+ * so cached responses are served directly without modification.
+ */
+function setupRemoteMediaCORS() {
+  // Filter for remote media hosts
+  const filter = {
+    urls: ['https://multimedia.agouti.eu/*']
+  }
+
+  session.defaultSession.webRequest.onHeadersReceived(filter, (details, callback) => {
+    const responseHeaders = { ...details.responseHeaders }
+
+    // Add CORS headers
+    responseHeaders['Access-Control-Allow-Origin'] = ['*']
+    responseHeaders['Access-Control-Allow-Methods'] = ['GET, HEAD, OPTIONS']
+
+    callback({ responseHeaders })
   })
 }
 
@@ -388,6 +411,9 @@ app.whenReady().then(async () => {
 
   // Register local-file:// protocol
   registerLocalFileProtocol()
+
+  // Setup CORS headers for remote media (works with browser cache)
+  setupRemoteMediaCORS()
 
   // Garbage collect stale ML Models and environments
   garbageCollect()
@@ -856,6 +882,23 @@ app.whenReady().then(async () => {
     }
   })
 
+  // Get best media files scored by bbox quality heuristic
+  ipcMain.handle('media:get-best', async (_, studyId, options = {}) => {
+    try {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) {
+        log.warn(`Database not found for study ID: ${studyId}`)
+        return { error: 'Database not found for this study' }
+      }
+
+      const bestMedia = await getBestMedia(dbPath, options)
+      return { data: bestMedia }
+    } catch (error) {
+      log.error('Error getting best media:', error)
+      return { error: error.message }
+    }
+  })
+
   // Update observation classification (species) - CamTrap DP compliant
   ipcMain.handle(
     'observations:update-classification',
@@ -1077,8 +1120,19 @@ app.whenReady().then(async () => {
   })
 
   ipcMain.handle('import:gbif-dataset', async (_, datasetKey) => {
+    let datasetTitle = null
+
     try {
       log.info(`Downloading and importing GBIF dataset: ${datasetKey}`)
+
+      // Stage 0: Fetching metadata
+      sendGbifImportProgress({
+        stage: 'fetching_metadata',
+        stageIndex: 0,
+        totalStages: 4,
+        stageName: 'Fetching dataset metadata from GBIF...',
+        datasetKey
+      })
 
       // First, fetch the dataset metadata to get the download URL
       const datasetResponse = await fetch(`https://api.gbif.org/v1/dataset/${datasetKey}`)
@@ -1087,7 +1141,8 @@ app.whenReady().then(async () => {
       }
 
       const datasetMetadata = await datasetResponse.json()
-      log.info(`Dataset title: ${datasetMetadata.title}`)
+      datasetTitle = datasetMetadata.title
+      log.info(`Dataset title: ${datasetTitle}`)
 
       // Find the CAMTRAP_DP endpoint
       const camtrapEndpoint = datasetMetadata.endpoints?.find(
@@ -1109,9 +1164,44 @@ app.whenReady().then(async () => {
       const zipPath = join(downloadDir, 'gbif-dataset.zip')
       const extractPath = join(downloadDir, 'extracted')
 
+      // Stage 1: Downloading
+      sendGbifImportProgress({
+        stage: 'downloading',
+        stageIndex: 1,
+        totalStages: 4,
+        stageName: 'Downloading dataset archive...',
+        datasetKey,
+        datasetTitle,
+        downloadProgress: { percent: 0, downloadedBytes: 0, totalBytes: 0 }
+      })
+
       log.info(`Downloading GBIF dataset from ${downloadUrl} to ${zipPath}`)
-      await downloadFile(downloadUrl, zipPath, () => {})
+      await downloadFile(downloadUrl, zipPath, (progress) => {
+        sendGbifImportProgress({
+          stage: 'downloading',
+          stageIndex: 1,
+          totalStages: 4,
+          stageName: 'Downloading dataset archive...',
+          datasetKey,
+          datasetTitle,
+          downloadProgress: {
+            percent: progress.percent || 0,
+            downloadedBytes: progress.downloadedBytes || 0,
+            totalBytes: progress.totalBytes || 0
+          }
+        })
+      })
       log.info('Download complete')
+
+      // Stage 2: Extracting
+      sendGbifImportProgress({
+        stage: 'extracting',
+        stageIndex: 2,
+        totalStages: 4,
+        stageName: 'Extracting archive...',
+        datasetKey,
+        datasetTitle
+      })
 
       // Create extraction directory if it doesn't exist
       if (!existsSync(extractPath)) {
@@ -1138,9 +1228,6 @@ app.whenReady().then(async () => {
 
       // Extract the zip file
       await extractZip(zipPath, extractPath)
-
-      // //wait for 2s
-      // await new Promise((resolve) => setTimeout(resolve, 2000))
 
       // Find the directory containing a datapackage.json file
       let camtrapDpDirPath = null
@@ -1180,14 +1267,41 @@ app.whenReady().then(async () => {
 
       log.info(`Found CamTrap DP directory at ${camtrapDpDirPath}`)
 
+      // Stage 3: Importing CSVs
+      sendGbifImportProgress({
+        stage: 'importing_csvs',
+        stageIndex: 3,
+        totalStages: 4,
+        stageName: 'Importing data into database...',
+        datasetKey,
+        datasetTitle
+      })
+
       const id = crypto.randomUUID()
-      const { data } = await importCamTrapDataset(camtrapDpDirPath, id)
+      const { data } = await importCamTrapDataset(camtrapDpDirPath, id, (csvProgress) => {
+        sendGbifImportProgress({
+          stage: 'importing_csvs',
+          stageIndex: 3,
+          totalStages: 4,
+          stageName: `Importing ${csvProgress.currentFile}...`,
+          datasetKey,
+          datasetTitle,
+          csvProgress: {
+            currentFile: csvProgress.currentFile,
+            fileIndex: csvProgress.fileIndex,
+            totalFiles: csvProgress.totalFiles,
+            insertedRows: csvProgress.insertedRows || 0,
+            totalRows: csvProgress.totalRows || 0,
+            phase: csvProgress.phase
+          }
+        })
+      })
 
       const result = {
         path: camtrapDpDirPath,
         data: {
           ...data,
-          name: datasetMetadata.title || data.name
+          name: datasetTitle || data.name
         },
         id
       }
@@ -1224,14 +1338,39 @@ app.whenReady().then(async () => {
         log.warn(`Failed to cleanup extraction directory: ${error.message}`)
       }
 
+      // Stage 4: Complete
+      sendGbifImportProgress({
+        stage: 'complete',
+        stageIndex: 4,
+        totalStages: 4,
+        stageName: 'Import complete!',
+        datasetKey,
+        datasetTitle
+      })
+
       return result
     } catch (error) {
       log.error('Error downloading or importing GBIF dataset:', error)
+
+      // Send error progress
+      sendGbifImportProgress({
+        stage: 'error',
+        stageIndex: -1,
+        totalStages: 4,
+        stageName: 'Import failed',
+        datasetKey,
+        datasetTitle,
+        error: {
+          message: error.message,
+          retryable: !error.message.includes('No CAMTRAP_DP endpoint')
+        }
+      })
+
       throw error
     }
   })
 
-  // Add handler for getting files data for local/speciesnet studies
+  // Add handler for getting files data for local/ml_run studies
   ipcMain.handle('files:get-data', async (_, studyId) => {
     try {
       const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
@@ -1295,8 +1434,8 @@ app.on('before-quit', async (event) => {
     log.error('[Shutdown] Error during graceful shutdown:', error)
   }
 
-  // Now actually quit
-  app.quit()
+  // Now actually quit, we call exit so we don't re-enter this handler
+  app.exit()
 })
 
 // Handle Unix/macOS termination signals for graceful shutdown

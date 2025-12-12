@@ -1,10 +1,12 @@
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { Camera, MapPin, X } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { Camera, ChevronDown, ChevronRight, MapPin, X } from 'lucide-react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ReactDOMServer from 'react-dom/server'
-import { MapContainer, Marker, TileLayer, useMapEvents } from 'react-leaflet'
+import { LayersControl, MapContainer, Marker, TileLayer, useMap, useMapEvents } from 'react-leaflet'
+import MarkerClusterGroup from 'react-leaflet-cluster'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { useImportStatus } from '@renderer/hooks/import'
 import SkeletonMap from './ui/SkeletonMap'
 import SkeletonDeploymentsList from './ui/SkeletonDeploymentsList'
@@ -18,21 +20,131 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png'
 })
 
-// Add this style block at the top of the file after imports
-const invisibleMarkerStyle = `
+// Add style block for marker styles
+const markerStyles = `
   .invisible-drag-marker {
     background: transparent !important;
     border: none !important;
     cursor: move;
   }
+
+  .camera-marker-active {
+    position: relative;
+    cursor: move;
+  }
+
+  .marker-ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 48px;
+    height: 48px;
+    border: 3px solid #3B82F6;
+    border-radius: 50%;
+    animation: pulse-ring 1.5s ease-out infinite;
+    pointer-events: none;
+  }
+
+  @keyframes pulse-ring {
+    0% {
+      transform: translate(-50%, -50%) scale(0.7);
+      opacity: 1;
+    }
+    100% {
+      transform: translate(-50%, -50%) scale(1.3);
+      opacity: 0;
+    }
+  }
+
+  .camera-marker-active svg {
+    filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.7));
+  }
+
+  .custom-camera-icon {
+    background: transparent !important;
+    border: none !important;
+  }
 `
 
 // Add the style to the document head
-if (typeof document !== 'undefined' && !document.getElementById('invisible-marker-styles')) {
+if (typeof document !== 'undefined' && !document.getElementById('marker-styles')) {
   const style = document.createElement('style')
-  style.id = 'invisible-marker-styles'
-  style.textContent = invisibleMarkerStyle
+  style.id = 'marker-styles'
+  style.textContent = markerStyles
   document.head.appendChild(style)
+}
+
+// Create camera icons once at module level for better performance
+const createCameraIcon = (isActive) => {
+  const cameraIcon = ReactDOMServer.renderToString(
+    <div className={isActive ? 'camera-marker-active' : 'camera-marker'}>
+      {isActive && <div className="marker-ring"></div>}
+      {isActive ? (
+        <Camera color="#1E40AF" fill="#93C5FD" size={32} />
+      ) : (
+        <Camera color="#777" fill="#bbb" size={28} />
+      )}
+    </div>
+  )
+
+  return L.divIcon({
+    html: cameraIcon,
+    className: 'custom-camera-icon',
+    iconSize: isActive ? [32, 32] : [18, 18],
+    iconAnchor: isActive ? [16, 16] : [14, 14]
+  })
+}
+
+const cameraIcon = createCameraIcon(false)
+const activeCameraIcon = createCameraIcon(true)
+
+const ghostCameraIcon = (() => {
+  const ghostIcon = ReactDOMServer.renderToString(
+    <div className="ghost-camera-marker" style={{ opacity: 0.6 }}>
+      <Camera color="#1E40AF" fill="#93C5FD" size={28} />
+    </div>
+  )
+
+  return L.divIcon({
+    html: ghostIcon,
+    className: 'ghost-camera-icon',
+    iconSize: [18, 18],
+    iconAnchor: [14, 14]
+  })
+})()
+
+// Custom cluster icon creator
+const createClusterCustomIcon = (cluster) => {
+  const count = cluster.getChildCount()
+  let size = 'small'
+  if (count >= 10) size = 'medium'
+  if (count >= 50) size = 'large'
+
+  const sizeClasses = {
+    small: 'w-8 h-8 text-xs',
+    medium: 'w-10 h-10 text-sm',
+    large: 'w-12 h-12 text-base'
+  }
+
+  return L.divIcon({
+    html: `<div class="flex items-center justify-center ${sizeClasses[size]} bg-blue-500 text-white rounded-full border-2 border-white shadow-lg font-semibold">${count}</div>`,
+    className: 'custom-cluster-icon',
+    iconSize: L.point(40, 40, true)
+  })
+}
+
+// Component to handle map layer change events for persistence
+function LayerChangeHandler({ onLayerChange }) {
+  const map = useMap()
+  useEffect(() => {
+    const handleBaseLayerChange = (e) => {
+      onLayerChange(e.name)
+    }
+    map.on('baselayerchange', handleBaseLayerChange)
+    return () => map.off('baselayerchange', handleBaseLayerChange)
+  }, [map, onLayerChange])
+  return null
 }
 
 // Component to handle map events for place mode
@@ -55,6 +167,23 @@ function MapEventHandler({ isPlaceMode, onMapClick, onMouseMove, onMouseOut }) {
   return null
 }
 
+// Component to fly to selected location
+function FlyToSelected({ selectedLocation }) {
+  const map = useMap()
+
+  useEffect(() => {
+    if (selectedLocation?.latitude && selectedLocation?.longitude) {
+      map.flyTo(
+        [parseFloat(selectedLocation.latitude), parseFloat(selectedLocation.longitude)],
+        16, // zoom level
+        { duration: 0.8 }
+      )
+    }
+  }, [selectedLocation, map])
+
+  return null
+}
+
 function LocationMap({
   locations,
   selectedLocation,
@@ -63,22 +192,23 @@ function LocationMap({
   onNewLongitude,
   isPlaceMode,
   onPlaceLocation,
-  onExitPlaceMode
+  onExitPlaceMode,
+  onExpandGroup,
+  studyId
 }) {
   const mapRef = useRef(null)
   const [mousePosition, setMousePosition] = useState(null)
 
-  // useEffect(() => {
-  //   if (mapRef.current && selectedLocation) {
-  //     mapRef.current.setView(
-  //       [parseFloat(selectedLocation.latitude), parseFloat(selectedLocation.longitude)],
-  //       16
-  //     )
-  //   }
-  // }, [selectedLocation])
+  // Persist map layer selection per study
+  const mapLayerKey = `mapLayer:${studyId}`
+  const [selectedLayer, setSelectedLayer] = useState(() => {
+    const saved = localStorage.getItem(mapLayerKey)
+    return saved || 'Satellite'
+  })
+
   useEffect(() => {
-    console.log('mount')
-  }, [])
+    localStorage.setItem(mapLayerKey, selectedLayer)
+  }, [selectedLayer, mapLayerKey])
 
   // Escape key handler to exit place mode
   useEffect(() => {
@@ -91,83 +221,56 @@ function LocationMap({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isPlaceMode, onExitPlaceMode])
 
+  // Memoize valid locations filter
+  const validLocations = useMemo(
+    () => locations.filter((location) => location.latitude && location.longitude),
+    [locations]
+  )
+
+  // Memoize bounds calculation
+  const bounds = useMemo(() => {
+    if (validLocations.length === 0) return null
+    const positions = validLocations.map((location) => [
+      parseFloat(location.latitude),
+      parseFloat(location.longitude)
+    ])
+    return L.latLngBounds(positions)
+  }, [validLocations])
+
   if (!locations || locations.length === 0) {
     return <div className="text-gray-500">No location data available for map</div>
   }
-
-  // Filter to include only locations with valid coordinates
-  const validLocations = locations.filter((location) => location.latitude && location.longitude)
-
-  // if (validLocations.length === 0) {
-  //   return <div className="text-gray-500">No valid geographic coordinates found for locations</div>
-  // }
-
-  // Create bounds from all valid location coordinates
-  const positions = validLocations.map((location) => [
-    parseFloat(location.latitude),
-    parseFloat(location.longitude)
-  ])
-
-  // Create a bounds object that encompasses all markers
-  const bounds = L.latLngBounds(positions)
-
-  // Create camera icon as a custom marker
-  const createCameraIcon = (isActive) => {
-    const cameraIcon = ReactDOMServer.renderToString(
-      <div className="camera-marker">
-        {isActive ? (
-          <Camera color="#1E40AF" fill="#93C5FD" size={28} />
-        ) : (
-          <Camera color="#777" fill="#bbb" size={28} />
-        )}
-      </div>
-    )
-
-    return L.divIcon({
-      html: cameraIcon,
-      className: 'custom-camera-icon',
-      iconSize: [18, 18],
-      iconAnchor: [14, 14]
-    })
-  }
-
-  // Create the camera icon outside of the map loop for better performance
-  const cameraIcon = createCameraIcon(false)
-  const activeCameraIcon = createCameraIcon(true)
-
-  // Create ghost camera icon for place mode preview
-  const createGhostCameraIcon = () => {
-    const ghostIcon = ReactDOMServer.renderToString(
-      <div className="ghost-camera-marker" style={{ opacity: 0.6 }}>
-        <Camera color="#1E40AF" fill="#93C5FD" size={28} />
-      </div>
-    )
-
-    return L.divIcon({
-      html: ghostIcon,
-      className: 'ghost-camera-icon',
-      iconSize: [18, 18],
-      iconAnchor: [14, 14]
-    })
-  }
-
-  const ghostCameraIcon = createGhostCameraIcon()
 
   return (
     <div
       className={`w-full h-full bg-white rounded border border-gray-200 relative ${isPlaceMode ? 'place-mode-active' : ''}`}
     >
       <MapContainer
-        {...(validLocations.length > 0
+        {...(bounds
           ? { bounds: bounds, boundsOptions: { padding: [30, 30] } }
           : { center: [0, 0], zoom: 2 })}
         style={{ height: '100%', width: '100%' }}
         ref={mapRef}
       >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+        <LayersControl position="topright">
+          <LayersControl.BaseLayer name="Satellite" checked={selectedLayer === 'Satellite'}>
+            <TileLayer
+              attribution='&copy; <a href="https://www.esri.com">Esri</a>'
+              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+            />
+          </LayersControl.BaseLayer>
+
+          <LayersControl.BaseLayer name="Street Map" checked={selectedLayer === 'Street Map'}>
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+          </LayersControl.BaseLayer>
+        </LayersControl>
+        <LayerChangeHandler onLayerChange={setSelectedLayer} />
+
+        {/* Fly to selected location when it changes */}
+        <FlyToSelected selectedLocation={selectedLocation} />
 
         {/* Map event handler for place mode */}
         <MapEventHandler
@@ -177,34 +280,45 @@ function LocationMap({
           onMouseOut={() => setMousePosition(null)}
         />
 
-        {validLocations.map((location) => (
-          <Marker
-            key={location.locationID}
-            title={location.locationID}
-            position={[parseFloat(location.latitude), parseFloat(location.longitude)]}
-            icon={
-              selectedLocation?.locationID === location.locationID ? activeCameraIcon : cameraIcon
-            }
-            draggable={selectedLocation?.locationID === location.locationID}
-            zIndexOffset={selectedLocation?.locationID === location.locationID ? 1000 : 0}
-            eventHandlers={{
-              click: () => {
-                console.log('clicked', location.locationID)
-                if (isPlaceMode) {
-                  onExitPlaceMode()
-                }
-                setSelectedLocation(location)
-              },
-              dragend: (e) => {
-                const marker = e.target
-                const position = marker.getLatLng()
-                console.log('marker dragged to:', position.lat, position.lng)
-                onNewLatitude(location.deploymentID, position.lat.toFixed(6))
-                onNewLongitude(location.deploymentID, position.lng.toFixed(6))
+        <MarkerClusterGroup
+          chunkedLoading
+          iconCreateFunction={createClusterCustomIcon}
+          maxClusterRadius={50}
+          spiderfyOnMaxZoom
+          showCoverageOnHover={false}
+          zoomToBoundsOnClick
+        >
+          {validLocations.map((location) => (
+            <Marker
+              key={location.locationID}
+              title={location.locationID}
+              position={[parseFloat(location.latitude), parseFloat(location.longitude)]}
+              icon={
+                selectedLocation?.deploymentID === location.deploymentID
+                  ? activeCameraIcon
+                  : cameraIcon
               }
-            }}
-          />
-        ))}
+              draggable={selectedLocation?.deploymentID === location.deploymentID}
+              zIndexOffset={selectedLocation?.deploymentID === location.deploymentID ? 1000 : 0}
+              eventHandlers={{
+                click: () => {
+                  if (isPlaceMode) {
+                    onExitPlaceMode()
+                  }
+                  setSelectedLocation(location)
+                  // Expand the location group in the list
+                  onExpandGroup?.(location.locationID)
+                },
+                dragend: (e) => {
+                  const marker = e.target
+                  const position = marker.getLatLng()
+                  onNewLatitude(location.deploymentID, position.lat.toFixed(6))
+                  onNewLongitude(location.deploymentID, position.lng.toFixed(6))
+                }
+              }}
+            />
+          ))}
+        </MarkerClusterGroup>
 
         {/* Ghost marker for place mode preview */}
         {isPlaceMode && mousePosition && (
@@ -239,135 +353,469 @@ function LocationMap({
   )
 }
 
+// Memoized deployment row component
+const DeploymentRow = memo(function DeploymentRow({
+  location,
+  isSelected,
+  onSelect,
+  onNewLatitude,
+  onNewLongitude,
+  onEnterPlaceMode,
+  percentile90Count
+}) {
+  const handleLatitudeChange = useCallback(
+    (e) => onNewLatitude(location.deploymentID, e.target.value),
+    [location.deploymentID, onNewLatitude]
+  )
+
+  const handleLongitudeChange = useCallback(
+    (e) => onNewLongitude(location.deploymentID, e.target.value),
+    [location.deploymentID, onNewLongitude]
+  )
+
+  const handlePlaceClick = useCallback(
+    (e) => {
+      e.stopPropagation()
+      onSelect(location)
+      onEnterPlaceMode()
+    },
+    [location, onSelect, onEnterPlaceMode]
+  )
+
+  const handleRowClick = useCallback(() => onSelect(location), [location, onSelect])
+
+  return (
+    <div
+      id={location.deploymentID}
+      title={location.deploymentStart}
+      onClick={handleRowClick}
+      className={`flex gap-4 items-center py-4 first:pt-2 hover:bg-gray-50 cursor-pointer px-2 border-b border-gray-200 transition-all duration-200 ${
+        isSelected
+          ? 'bg-blue-50 border-l-4 border-l-blue-500 pl-3'
+          : 'border-l-4 border-l-transparent'
+      }`}
+    >
+      <div className="flex flex-col gap-2">
+        <div
+          className={`cursor-pointer text-sm w-62 truncate ${
+            isSelected ? 'font-semibold text-blue-700' : 'text-gray-700'
+          }`}
+          title={location.deploymentStart}
+        >
+          {location.locationName || location.locationID || 'Unnamed Location'}
+        </div>
+        <div className="flex gap-2 items-center">
+          <input
+            type="number"
+            step={0.00001}
+            min={-90}
+            max={90}
+            title="Latitude"
+            value={location.latitude ?? ''}
+            onChange={handleLatitudeChange}
+            placeholder="Lat"
+            className="max-w-20 text-xs border border-zinc-950/10 rounded px-2 py-1"
+            name="Latitude"
+          />
+          <input
+            step={0.00001}
+            min="-180"
+            max="180"
+            type="number"
+            title="Longitude"
+            value={location.longitude ?? ''}
+            onChange={handleLongitudeChange}
+            placeholder="Lng"
+            className="max-w-20 text-xs border border-zinc-950/10 rounded px-2 py-1"
+            name="longitude"
+          />
+          <button
+            onClick={handlePlaceClick}
+            className="p-1.5 rounded hover:bg-blue-100 text-gray-500 hover:text-blue-600 transition-colors"
+            title="Click on map to set location"
+          >
+            <MapPin size={16} />
+          </button>
+        </div>
+      </div>
+      <div className="flex gap-2 flex-1">
+        {location.periods.map((period) => (
+          <div
+            key={period.start}
+            title={`${period.count} observations`}
+            className="flex items-center justify-center aspect-square w-[5%]"
+          >
+            <div
+              className="rounded-full bg-[#77b7ff] aspect-square max-w-[25px]"
+              style={{
+                width:
+                  period.count > 0
+                    ? `${Math.min((period.count / percentile90Count) * 100, 100)}%`
+                    : '0%',
+                minWidth: period.count > 0 ? '4px' : '0px'
+              }}
+            ></div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+})
+
+// Memoized location group header component for multi-deployment locations
+const LocationGroupHeader = memo(function LocationGroupHeader({
+  group,
+  isExpanded,
+  onToggle,
+  percentile90Count,
+  isSelected
+}) {
+  const handleClick = useCallback(() => {
+    onToggle(group.locationID)
+  }, [group.locationID, onToggle])
+
+  return (
+    <div
+      onClick={handleClick}
+      className={`flex gap-4 items-center py-4 hover:bg-gray-50 cursor-pointer px-2 border-b border-gray-200 transition-all duration-200 ${
+        isSelected
+          ? 'bg-blue-50 border-l-4 border-l-blue-500 pl-1'
+          : 'border-l-4 border-l-transparent'
+      }`}
+    >
+      <div className="flex-shrink-0 w-5">
+        {isExpanded ? (
+          <ChevronDown size={18} className="text-gray-500" />
+        ) : (
+          <ChevronRight size={18} className="text-gray-500" />
+        )}
+      </div>
+
+      <div className="flex flex-col gap-1 w-56">
+        <div className="flex items-center gap-2">
+          <span
+            className={`text-sm truncate ${isSelected ? 'font-semibold text-blue-700' : 'font-medium text-gray-700'}`}
+          >
+            {group.locationName || group.locationID || 'Unnamed Location'}
+          </span>
+          <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded flex-shrink-0">
+            {group.deployments.length}
+          </span>
+        </div>
+        {group.latitude && group.longitude && (
+          <span className="text-xs text-gray-400">
+            {Number(group.latitude).toFixed(4)}, {Number(group.longitude).toFixed(4)}
+          </span>
+        )}
+      </div>
+
+      <div className="flex gap-2 flex-1">
+        {group.aggregatedPeriods.map((period) => (
+          <div
+            key={period.start}
+            title={`${period.count} observations (aggregated)`}
+            className="flex items-center justify-center aspect-square w-[5%]"
+          >
+            <div
+              className="rounded-full bg-[#77b7ff] aspect-square max-w-[25px]"
+              style={{
+                width:
+                  period.count > 0
+                    ? `${Math.min((period.count / percentile90Count) * 100, 100)}%`
+                    : '0%',
+                minWidth: period.count > 0 ? '4px' : '0px'
+              }}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+})
+
+// Wrapper for deployment rows within a group (indented)
+const GroupedDeploymentRow = memo(function GroupedDeploymentRow({
+  location,
+  isSelected,
+  onSelect,
+  onNewLatitude,
+  onNewLongitude,
+  onEnterPlaceMode,
+  percentile90Count
+}) {
+  return (
+    <div className="ml-6">
+      <DeploymentRow
+        location={location}
+        isSelected={isSelected}
+        onSelect={onSelect}
+        onNewLatitude={onNewLatitude}
+        onNewLongitude={onNewLongitude}
+        onEnterPlaceMode={onEnterPlaceMode}
+        percentile90Count={percentile90Count}
+      />
+    </div>
+  )
+})
+
+// Generate evenly-spaced date markers for timeline
+const getDateMarkers = (startDate, endDate, count = 5) => {
+  if (!startDate || !endDate) return []
+  const start = new Date(startDate)
+  const end = new Date(endDate)
+  const step = (end - start) / (count - 1)
+  return Array.from({ length: count }, (_, i) => new Date(start.getTime() + step * i))
+}
+
+// Format date as "Jan 24" for timeline markers
+const formatDateShort = (date) => {
+  return date.toLocaleDateString('en-US', { year: '2-digit', month: 'short' })
+}
+
+// Aggregate observation periods across multiple deployments
+const aggregatePeriods = (deployments) => {
+  if (deployments.length === 0) return []
+  return deployments[0].periods.map((period, i) => ({
+    start: period.start,
+    end: period.end,
+    count: deployments.reduce((sum, d) => sum + (d.periods[i]?.count || 0), 0)
+  }))
+}
+
+// Group deployments by locationID and compute aggregated timelines
+const groupDeploymentsByLocation = (deployments) => {
+  if (!deployments || deployments.length === 0) return []
+
+  const groups = new Map()
+
+  deployments.forEach((deployment) => {
+    const key = deployment.locationID || deployment.deploymentID
+    if (!groups.has(key)) {
+      groups.set(key, {
+        locationID: deployment.locationID || deployment.deploymentID,
+        locationName: deployment.locationName,
+        latitude: deployment.latitude,
+        longitude: deployment.longitude,
+        deployments: []
+      })
+    }
+    groups.get(key).deployments.push(deployment)
+  })
+
+  // Sort deployments within each group by deploymentStart (descending - most recent first)
+  groups.forEach((group) => {
+    group.deployments.sort((a, b) => new Date(b.deploymentStart) - new Date(a.deploymentStart))
+  })
+
+  return Array.from(groups.values())
+    .map((group) => ({
+      ...group,
+      aggregatedPeriods: aggregatePeriods(group.deployments),
+      isSingleDeployment: group.deployments.length === 1
+    }))
+    .sort((a, b) => {
+      // Show multi-deployment groups first, then single deployments
+      if (a.isSingleDeployment !== b.isSingleDeployment) {
+        return a.isSingleDeployment ? 1 : -1
+      }
+      // Within each category, sort alphabetically by name
+      const aName = a.locationName || a.locationID || ''
+      const bName = b.locationName || b.locationID || ''
+      return aName.localeCompare(bName)
+    })
+}
+
 function LocationsList({
   activity,
   selectedLocation,
   setSelectedLocation,
   onNewLatitude,
   onNewLongitude,
-  onEnterPlaceMode
+  onEnterPlaceMode,
+  groupToExpand,
+  onGroupExpanded
 }) {
+  const parentRef = useRef(null)
+
+  // Track which groups are expanded (collapsed by default)
+  const [expandedGroups, setExpandedGroups] = useState(new Set())
+
+  // Toggle group expansion
+  const toggleGroup = useCallback((locationID) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev)
+      if (next.has(locationID)) {
+        next.delete(locationID)
+      } else {
+        next.add(locationID)
+      }
+      return next
+    })
+  }, [])
+
+  // Handle external group expansion request (from map marker click)
   useEffect(() => {
-    if (selectedLocation && selectedLocation) {
-      document
-        .getElementById(selectedLocation.deploymentID)
-        .scrollIntoView({ behavior: 'smooth', block: 'center' })
+    if (groupToExpand) {
+      setExpandedGroups((prev) => new Set(prev).add(groupToExpand))
+      onGroupExpanded?.()
     }
-  }, [selectedLocation])
+  }, [groupToExpand, onGroupExpanded])
+
+  // Group deployments by location
+  const locationGroups = useMemo(
+    () => groupDeploymentsByLocation(activity.deployments),
+    [activity.deployments]
+  )
+
+  // Flatten groups into virtual items for the virtualizer
+  const virtualItems = useMemo(() => {
+    const items = []
+    locationGroups.forEach((group) => {
+      if (group.isSingleDeployment) {
+        // Single deployment - render as simple row (no grouping)
+        items.push({
+          type: 'single',
+          deployment: group.deployments[0],
+          locationID: group.locationID
+        })
+      } else {
+        // Multi-deployment group - render header
+        items.push({
+          type: 'group-header',
+          group: group,
+          isExpanded: expandedGroups.has(group.locationID)
+        })
+        // If expanded, add individual deployments
+        if (expandedGroups.has(group.locationID)) {
+          group.deployments.forEach((deployment) => {
+            items.push({
+              type: 'group-deployment',
+              deployment: deployment,
+              locationID: group.locationID
+            })
+          })
+        }
+      }
+    })
+    return items
+  }, [locationGroups, expandedGroups])
+
+  // Memoize date markers for timeline header
+  const dateMarkers = useMemo(
+    () => getDateMarkers(activity.startDate, activity.endDate, 5),
+    [activity.startDate, activity.endDate]
+  )
+
+  // Setup virtualizer with dynamic sizing
+  const rowVirtualizer = useVirtualizer({
+    count: virtualItems.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: (index) => {
+      const item = virtualItems[index]
+      if (item.type === 'group-header') return 60
+      return 88 // deployment row height
+    },
+    overscan: 5
+  })
+
+  // Scroll to selected location
+  useEffect(() => {
+    if (selectedLocation) {
+      const index = virtualItems.findIndex((item) => {
+        if (item.type === 'single' || item.type === 'group-deployment') {
+          return item.deployment.deploymentID === selectedLocation.deploymentID
+        }
+        if (item.type === 'group-header') {
+          // If selecting a deployment in a collapsed group, find the header
+          return item.group.deployments.some(
+            (d) => d.deploymentID === selectedLocation.deploymentID
+          )
+        }
+        return false
+      })
+      if (index !== -1) {
+        rowVirtualizer.scrollToIndex(index, { align: 'center', behavior: 'smooth' })
+      }
+    }
+  }, [selectedLocation, virtualItems, rowVirtualizer])
 
   if (!activity.deployments || activity.deployments.length === 0) {
     return <div className="text-gray-500">No deployment data available</div>
   }
 
-  console.log('activity.deployments', activity.deployments)
-
-  // Format date to a more readable format
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A'
-    const date = new Date(dateString)
-    return date.toLocaleDateString('en-US', {
-      year: '2-digit',
-      month: 'short',
-      day: 'numeric'
-    })
-  }
-
-  console.log('selectedLocation', selectedLocation)
-
   return (
-    <div className="flex-1 overflow-y-auto">
-      <div className="flex flex-col gap-2">
-        <header className="sticky top-0 bg-white z-10 pl-68 flex justify-between text-sm text-gray-700 py-2">
-          <span>{formatDate(activity.startDate)} </span>
-          <span>{formatDate(activity.endDate)}</span>
-        </header>
-        <div className="flex flex-col divide-y divide-gray-200 mb-4">
-          {activity.deployments
-            .sort(
-              (a, b) => {
-                const aName = a.locationName || a.locationID || 'Unnamed Location'
-                const bName = b.locationName || b.locationID || 'Unnamed Location'
-                return aName.localeCompare(bName)
-              }
-              // a.localCompare(b)
-              // new Date(a.periods.find((p) => p.count > 0)?.start) -
-              // new Date(b.periods.find((p) => p.count > 0)?.start)
-            )
-            .map((location) => (
+    <div className="flex-1 flex flex-col overflow-hidden">
+      <header className="sticky top-0 bg-white z-10 pl-68 py-3 border-b border-gray-300">
+        <div className="flex justify-between text-xs text-gray-600">
+          {dateMarkers.map((date, i) => (
+            <div key={i} className="flex flex-col items-center" style={{ width: '20%' }}>
+              <span>{formatDateShort(date)}</span>
+              <div className="w-px h-2 bg-gray-400 mt-1" />
+            </div>
+          ))}
+        </div>
+      </header>
+      <div ref={parentRef} className="flex-1 overflow-auto">
+        <div
+          style={{
+            height: `${rowVirtualizer.getTotalSize()}px`,
+            width: '100%',
+            position: 'relative'
+          }}
+        >
+          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+            const item = virtualItems[virtualRow.index]
+            return (
               <div
-                key={location.deploymentID}
-                id={location.deploymentID} // Use deploymentID as the ID for scrolling
-                title={location.deploymentStart}
-                onClick={() => setSelectedLocation(location)}
-                className={`flex gap-4 items-center py-4 first:pt-2 hover:bg-gray-50 cursor-pointer px-2 ${selectedLocation?.locationID === location.locationID ? 'bg-gray-50' : ''}`}
+                key={virtualRow.key}
+                data-index={virtualRow.index}
+                ref={rowVirtualizer.measureElement}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  transform: `translateY(${virtualRow.start}px)`
+                }}
               >
-                <div className="flex flex-col gap-2">
-                  <div
-                    className={`cursor-pointer text-sm w-62 truncate text-gray-700 ${selectedLocation?.locationID === location.locationID ? 'font-medium' : ''}`}
-                    title={location.deploymentStart}
-                  >
-                    {location.locationName || location.locationID || 'Unnamed Location'}
-                  </div>
-                  <div className="flex gap-2 items-center">
-                    <input
-                      type="number"
-                      step={0.00001}
-                      min={-90}
-                      max={90}
-                      title="Latitude"
-                      value={location.latitude}
-                      onChange={(e) => onNewLatitude(location.deploymentID, e.target.value)}
-                      placeholder="Lat"
-                      className="max-w-20 text-xs border border-zinc-950/10 rounded px-2 py-1"
-                      name="Latitude"
-                    />
-                    <input
-                      step={0.00001}
-                      min="-180"
-                      max="180"
-                      type="number"
-                      title="Longitude"
-                      value={location.longitude}
-                      onChange={(e) => onNewLongitude(location.deploymentID, e.target.value)}
-                      placeholder="Lng"
-                      className="max-w-20 text-xs border border-zinc-950/10 rounded px-2 py-1"
-                      name="longitude"
-                    />
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setSelectedLocation(location)
-                        onEnterPlaceMode()
-                      }}
-                      className="p-1.5 rounded hover:bg-blue-100 text-gray-500 hover:text-blue-600 transition-colors"
-                      title="Click on map to set location"
-                    >
-                      <MapPin size={16} />
-                    </button>
-                  </div>
-                </div>
-                <div className="flex gap-2 flex-1">
-                  {location.periods.map((period) => (
-                    <div
-                      key={period.start}
-                      title={`${period.count} observations`}
-                      className="flex items-center justify-center aspect-square w-[5%]"
-                    >
-                      <div
-                        className="rounded-full bg-[#77b7ff] aspect-square max-w-[25px]"
-                        style={{
-                          width:
-                            period.count > 0
-                              ? `${Math.min((period.count / activity.percentile90Count) * 100, 100)}%`
-                              : '0%',
-                          minWidth: period.count > 0 ? '4px' : '0px'
-                        }}
-                      ></div>
-                    </div>
-                  ))}
-                </div>
+                {item.type === 'single' && (
+                  <DeploymentRow
+                    location={item.deployment}
+                    isSelected={selectedLocation?.deploymentID === item.deployment.deploymentID}
+                    onSelect={setSelectedLocation}
+                    onNewLatitude={onNewLatitude}
+                    onNewLongitude={onNewLongitude}
+                    onEnterPlaceMode={onEnterPlaceMode}
+                    percentile90Count={activity.percentile90Count}
+                  />
+                )}
+
+                {item.type === 'group-header' && (
+                  <LocationGroupHeader
+                    group={item.group}
+                    isExpanded={item.isExpanded}
+                    onToggle={toggleGroup}
+                    percentile90Count={activity.percentile90Count}
+                    isSelected={item.group.deployments.some(
+                      (d) => d.deploymentID === selectedLocation?.deploymentID
+                    )}
+                  />
+                )}
+
+                {item.type === 'group-deployment' && (
+                  <GroupedDeploymentRow
+                    location={item.deployment}
+                    isSelected={selectedLocation?.deploymentID === item.deployment.deploymentID}
+                    onSelect={setSelectedLocation}
+                    onNewLatitude={onNewLatitude}
+                    onNewLongitude={onNewLongitude}
+                    onEnterPlaceMode={onEnterPlaceMode}
+                    percentile90Count={activity.percentile90Count}
+                  />
+                )}
               </div>
-            ))}
+            )
+          })}
         </div>
       </div>
     </div>
@@ -377,6 +825,7 @@ function LocationsList({
 export default function Deployments({ studyId }) {
   const [selectedLocation, setSelectedLocation] = useState(null)
   const [isPlaceMode, setIsPlaceMode] = useState(false)
+  const [groupToExpand, setGroupToExpand] = useState(null)
   const queryClient = useQueryClient()
   const { importStatus } = useImportStatus(studyId)
 
@@ -384,7 +833,6 @@ export default function Deployments({ studyId }) {
     queryKey: ['deploymentsActivity', studyId],
     queryFn: async () => {
       const response = await window.api.getDeploymentsActivity(studyId)
-      console.log('Activity response:', response)
       if (response.error) {
         throw new Error(response.error)
       }
@@ -394,89 +842,102 @@ export default function Deployments({ studyId }) {
     enabled: !!studyId
   })
 
-  const onNewLatitude = async (deploymentID, latitude) => {
-    try {
-      const lat = parseFloat(latitude)
-      const result = await window.api.setDeploymentLatitude(studyId, deploymentID, lat)
+  const onNewLatitude = useCallback(
+    async (deploymentID, latitude) => {
+      try {
+        const lat = parseFloat(latitude)
+        const result = await window.api.setDeploymentLatitude(studyId, deploymentID, lat)
 
-      // Optimistic update via queryClient
-      queryClient.setQueryData(['deploymentsActivity', studyId], (prevActivity) => {
-        if (!prevActivity) return prevActivity
-        const updatedDeployments = prevActivity.deployments.map((deployment) => {
-          if (deployment.deploymentID === deploymentID) {
-            return { ...deployment, latitude: lat }
-          }
-          return deployment
+        // Optimistic update via queryClient
+        queryClient.setQueryData(['deploymentsActivity', studyId], (prevActivity) => {
+          if (!prevActivity) return prevActivity
+          const updatedDeployments = prevActivity.deployments.map((deployment) => {
+            if (deployment.deploymentID === deploymentID) {
+              return { ...deployment, latitude: lat }
+            }
+            return deployment
+          })
+          return { ...prevActivity, deployments: updatedDeployments }
         })
-        return { ...prevActivity, deployments: updatedDeployments }
-      })
 
-      if (result.error) {
-        console.error('Error updating latitude:', result.error)
-      } else {
-        console.log('Latitude updated successfully')
-        // Invalidate the Overview tab's deployments cache so map updates
-        queryClient.invalidateQueries({ queryKey: ['deployments', studyId] })
-        // Invalidate the Activity tab's heatmap cache so map updates
-        queryClient.invalidateQueries({ queryKey: ['heatmapData', studyId] })
+        if (result.error) {
+          console.error('Error updating latitude:', result.error)
+        } else {
+          // Invalidate the Overview tab's deployments cache so map updates
+          queryClient.invalidateQueries({ queryKey: ['deployments', studyId] })
+          // Invalidate the Activity tab's heatmap cache so map updates
+          queryClient.invalidateQueries({ queryKey: ['heatmapData', studyId] })
+        }
+      } catch (error) {
+        console.error('Error updating latitude:', error)
       }
-    } catch (error) {
-      console.error('Error updating latitude:', error)
-    }
-  }
+    },
+    [studyId, queryClient]
+  )
 
-  const onNewLongitude = async (deploymentID, longitude) => {
-    try {
-      const lng = parseFloat(longitude)
-      const result = await window.api.setDeploymentLongitude(studyId, deploymentID, lng)
+  const onNewLongitude = useCallback(
+    async (deploymentID, longitude) => {
+      try {
+        const lng = parseFloat(longitude)
+        const result = await window.api.setDeploymentLongitude(studyId, deploymentID, lng)
 
-      // Optimistic update via queryClient
-      queryClient.setQueryData(['deploymentsActivity', studyId], (prevActivity) => {
-        if (!prevActivity) return prevActivity
-        const updatedDeployments = prevActivity.deployments.map((deployment) => {
-          if (deployment.deploymentID === deploymentID) {
-            return { ...deployment, longitude: lng }
-          }
-          return deployment
+        // Optimistic update via queryClient
+        queryClient.setQueryData(['deploymentsActivity', studyId], (prevActivity) => {
+          if (!prevActivity) return prevActivity
+          const updatedDeployments = prevActivity.deployments.map((deployment) => {
+            if (deployment.deploymentID === deploymentID) {
+              return { ...deployment, longitude: lng }
+            }
+            return deployment
+          })
+          return { ...prevActivity, deployments: updatedDeployments }
         })
-        return { ...prevActivity, deployments: updatedDeployments }
-      })
 
-      if (result.error) {
-        console.error('Error updating longitude:', result.error)
-      } else {
-        console.log('Longitude updated successfully')
-        // Invalidate the Overview tab's deployments cache so map updates
-        queryClient.invalidateQueries({ queryKey: ['deployments', studyId] })
-        // Invalidate the Activity tab's heatmap cache so map updates
-        queryClient.invalidateQueries({ queryKey: ['heatmapData', studyId] })
+        if (result.error) {
+          console.error('Error updating longitude:', result.error)
+        } else {
+          // Invalidate the Overview tab's deployments cache so map updates
+          queryClient.invalidateQueries({ queryKey: ['deployments', studyId] })
+          // Invalidate the Activity tab's heatmap cache so map updates
+          queryClient.invalidateQueries({ queryKey: ['heatmapData', studyId] })
+        }
+      } catch (error) {
+        console.error('Error updating longitude:', error)
       }
-    } catch (error) {
-      console.error('Error updating longitude:', error)
-    }
-  }
+    },
+    [studyId, queryClient]
+  )
 
-  const handleEnterPlaceMode = () => {
+  const handleEnterPlaceMode = useCallback(() => {
     if (!selectedLocation) {
       console.warn('Please select a deployment first')
       return
     }
     setIsPlaceMode(true)
-  }
+  }, [selectedLocation])
 
-  const handleExitPlaceMode = () => {
+  const handleExitPlaceMode = useCallback(() => {
     setIsPlaceMode(false)
-  }
+  }, [])
 
-  const handlePlaceLocation = (latlng) => {
-    if (selectedLocation) {
-      onNewLatitude(selectedLocation.deploymentID, latlng.lat.toFixed(6))
-      onNewLongitude(selectedLocation.deploymentID, latlng.lng.toFixed(6))
-      setIsPlaceMode(false)
-    }
-  }
+  const handlePlaceLocation = useCallback(
+    (latlng) => {
+      if (selectedLocation) {
+        onNewLatitude(selectedLocation.deploymentID, latlng.lat.toFixed(6))
+        onNewLongitude(selectedLocation.deploymentID, latlng.lng.toFixed(6))
+        setIsPlaceMode(false)
+      }
+    },
+    [selectedLocation, onNewLatitude, onNewLongitude]
+  )
 
-  console.log('Activity data:', activity)
+  const handleExpandGroup = useCallback((locationID) => {
+    setGroupToExpand(locationID)
+  }, [])
+
+  const handleGroupExpanded = useCallback(() => {
+    setGroupToExpand(null)
+  }, [])
 
   return (
     <div className="flex flex-col px-4 h-full gap-4">
@@ -493,6 +954,8 @@ export default function Deployments({ studyId }) {
             isPlaceMode={isPlaceMode}
             onPlaceLocation={handlePlaceLocation}
             onExitPlaceMode={handleExitPlaceMode}
+            onExpandGroup={handleExpandGroup}
+            studyId={studyId}
           />
         ) : null}
       </div>
@@ -506,6 +969,8 @@ export default function Deployments({ studyId }) {
           onNewLatitude={onNewLatitude}
           onNewLongitude={onNewLongitude}
           onEnterPlaceMode={handleEnterPlaceMode}
+          groupToExpand={groupToExpand}
+          onGroupExpanded={handleGroupExpanded}
         />
       ) : null}
     </div>

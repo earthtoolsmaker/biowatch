@@ -53,10 +53,18 @@ dmg:
 linux:
   target:
     - AppImage
-    # - snap
-    # - deb
+    - deb
   maintainer: electronjs.org
   category: Utility
+  desktop:
+    StartupWMClass: biowatch
+
+deb:
+  artifactName: ${name}_${version}_${arch}.${ext}
+
+# Linux sandbox fix: creates wrapper script for AppImage compatibility
+# Only runs on Linux builds - see scripts/afterPack.js and docs/development.md
+afterPack: ./scripts/afterPack.js
 
 appImage:
   artifactName: ${name}.${ext}

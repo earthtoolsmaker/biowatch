@@ -1,12 +1,12 @@
 import { test, beforeEach, afterEach, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdirSync, rmSync, existsSync, readFileSync, writeFileSync, copyFileSync } from 'fs'
+import { mkdirSync, rmSync, existsSync, writeFileSync, copyFileSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import Database from 'better-sqlite3'
 
 // Import the function we want to test
-import { importCamTrapDatasetWithPath } from '../src/main/camtrap.js'
+import { importCamTrapDatasetWithPath } from '../src/main/import/camtrap.js'
 
 // Test data paths
 let testBiowatchDataPath

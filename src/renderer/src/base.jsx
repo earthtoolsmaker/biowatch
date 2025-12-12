@@ -125,6 +125,7 @@ function AppContent() {
     } else {
       navigate(`/study/${studies[0].id}`)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading])
 
   // Store current URL in localStorage whenever it changes
@@ -348,6 +349,7 @@ function AppContent() {
             <Route path="/import" element={<Import onNewStudy={onNewStudy} />} />
             <Route path="/study/:id/*" element={<Study />} />
             <Route path="/settings/*" element={<SettingsPage />} />
+            <Route path="*" element={null} />
           </Routes>
         </div>
       </main>

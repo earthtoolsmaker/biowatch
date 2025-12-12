@@ -75,6 +75,37 @@ Opens Electron app with hot reload enabled.
 | `npm run build:linux` | Build for Linux |
 | `npm run build:unpack` | Build unpacked (for debugging) |
 
+### Linux build notes
+
+The Linux build includes an `afterPack` hook (`scripts/afterPack.js`) that fixes a common Electron sandbox issue.
+
+**The problem:**
+
+On Linux, Electron requires `chrome-sandbox` to be owned by root with SUID bit (mode 4755). AppImages extract to `/tmp` where this is impossible, causing:
+
+```
+FATAL:setuid_sandbox_host.cc: The SUID sandbox helper binary was found,
+but is not configured correctly.
+```
+
+This affects distributions where unprivileged user namespaces are disabled:
+- Ubuntu 24.04+ (AppArmor restriction)
+- Debian (disabled by default)
+- Some enterprise distributions
+
+**The solution:**
+
+The `afterPack` hook creates a wrapper script that:
+1. Renames `biowatch` → `biowatch.bin`
+2. Creates a shell script `biowatch` that checks kernel settings at runtime
+3. Passes `--no-sandbox` only when the kernel doesn't support unprivileged namespaces
+
+This means the sandbox is preserved on systems that support it, while still working on restricted systems.
+
+**Files involved:**
+- `scripts/afterPack.js` - The hook script (Linux-only, skipped on macOS/Windows)
+- `electron-builder.yml` - References the hook via `afterPack`
+
 ## Code Style
 
 ### ESLint + Prettier
@@ -187,6 +218,8 @@ biowatch/
 │   │   └── *.jsx           # Page components
 │   ├── preload/            # IPC bridge
 │   └── shared/             # Shared code (model zoo)
+├── scripts/
+│   └── afterPack.js        # electron-builder hook (Linux sandbox fix)
 ├── python-environments/
 │   └── common/             # ML model Python env
 ├── test/                   # Test files
@@ -262,15 +295,113 @@ Settings (`.vscode/settings.json`):
 
 ## Release Process
 
-1. Update version in `package.json`
-2. Commit and push
-3. Create GitHub release
-4. CI builds and publishes:
-   - Windows: `.exe` installer
-   - macOS: `.dmg` (signed + notarized)
-   - Linux: `.AppImage`
+Biowatch uses an automated CI/CD pipeline that builds and publishes releases for Windows, macOS, and Linux when a version tag is pushed.
 
-Auto-updates are handled by `electron-updater`.
+### Prerequisites
+
+- Write access to the repository
+- For maintainers: GitHub secrets must be configured (see [GitHub Secrets](#github-secrets-for-maintainers) below)
+
+### Step-by-Step Release
+
+1. **Update version** in `package.json`:
+   ```json
+   "version": "1.5.0"
+   ```
+
+2. **Commit the version bump**:
+   ```bash
+   git add package.json
+   git commit -m "chore: bump version to 1.5.0"
+   git push origin main
+   ```
+
+3. **Create and push a version tag**:
+   ```bash
+   git tag v1.5.0
+   git push origin v1.5.0
+   ```
+
+4. **Verify CI triggered**: Check [GitHub Actions](https://github.com/earthtoolsmaker/biowatch/actions) to ensure both workflows started.
+
+### CI/CD Workflows
+
+Two GitHub Actions workflows handle releases:
+
+| Workflow | File | Trigger | Purpose |
+|----------|------|---------|---------|
+| Build/Release | `.github/workflows/build.yml` | Push to `main` or `v*.*.*` tags | Builds and publishes binaries |
+| Create Release | `.github/workflows/release.yml` | Push to `v*.*.*` tags | Creates GitHub Release with notes |
+
+**Build/Release workflow:**
+- Runs on 3 parallel runners: `windows-latest`, `macos-latest`, `ubuntu-22.04`
+- Executes platform-specific build scripts (`build:win`, `build:mac`, `build:linux`)
+- Publishes artifacts directly to GitHub Releases via `electron-builder --publish always`
+
+**Create Release workflow:**
+- Creates the GitHub Release entry
+- Auto-generates release notes from commits since last tag
+
+### Build Artifacts
+
+Each release produces the following files:
+
+| Platform | File | Description |
+|----------|------|-------------|
+| Windows | `Biowatch-setup.exe` | NSIS installer |
+| macOS | `Biowatch.dmg` | Signed and notarized disk image |
+| Linux | `Biowatch.AppImage` | Portable application |
+| Linux | `Biowatch_<version>_amd64.deb` | Debian package |
+
+### GitHub Secrets (for maintainers)
+
+The following secrets must be configured in repository settings for releases to work:
+
+| Secret | Purpose |
+|--------|---------|
+| `GH_TOKEN` | GitHub token for publishing releases |
+| `APPLE_SIGNING_CERTIFICATE_BASE64` | Base64-encoded macOS signing certificate |
+| `APPLE_SIGNING_CERTIFICATE_PASSWORD` | Password for the signing certificate |
+| `APPLE_ID` | Apple ID for notarization |
+| `APPLE_APP_SPECIFIC_PASSWORD` | App-specific password for notarization |
+| `APPLE_TEAM_ID` | Apple Developer Team ID |
+
+### Auto-Updates
+
+Biowatch uses `electron-updater` to automatically notify users of new versions:
+
+1. On startup, the app checks GitHub Releases for newer versions
+2. If found, users see an update notification
+3. Updates download in the background
+4. Users can install when ready (usually on next app restart)
+
+The update mechanism uses the `publish` configuration in `electron-builder.yml`:
+```yaml
+publish:
+  provider: github
+  owner: earthtoolsmaker
+  repo: biowatch
+```
+
+### Troubleshooting Releases
+
+**Build fails on macOS:**
+- Verify all Apple signing secrets are correctly set
+- Check that the signing certificate hasn't expired
+- Review the build logs for notarization errors
+
+**Build fails on Linux:**
+- The `afterPack` hook may fail if `scripts/afterPack.js` has issues
+- Check that the script handles the Linux platform correctly
+
+**Release not appearing:**
+- Ensure the tag matches the pattern `v*.*.*` (e.g., `v1.5.0`)
+- Check that `GH_TOKEN` has `write` permissions for releases
+- Verify both workflows completed successfully
+
+**Users not seeing updates:**
+- The version in `package.json` must be higher than the installed version
+- Check that the release is not marked as draft or prerelease
 
 ## Common Tasks
 

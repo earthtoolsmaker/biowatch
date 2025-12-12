@@ -102,6 +102,7 @@ function SpeciesDistribution({ data, taxonomicData, selectedSpecies, onSpeciesCh
     }
 
     fetchMissingCommonNames()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, taxonomicData])
 
   // Handle toggling species selection when clicking on the dot

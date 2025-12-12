@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router'
 import { modelZoo } from '../../shared/mlmodels.js'
 import { useQueryClient } from '@tanstack/react-query'
 import CountryPickerModal from './CountryPickerModal.jsx'
+import GbifImportProgress from './GbifImportProgress.jsx'
 
 function ImportButton({ onClick, children, className = '', disabled = false }) {
   const [isImporting, setIsImporting] = useState(false)
@@ -109,6 +110,18 @@ export default function Import({ onNewStudy }) {
   const [showCountryPicker, setShowCountryPicker] = useState(false)
   const [pendingDirectoryPath, setPendingDirectoryPath] = useState(null)
   const queryClient = useQueryClient()
+
+  // GBIF import progress state
+  const [gbifImportProgress, setGbifImportProgress] = useState(null)
+  const [isGbifImporting, setIsGbifImporting] = useState(false)
+
+  // Listen for GBIF import progress events
+  useEffect(() => {
+    const cleanup = window.api.onGbifImportProgress?.((progress) => {
+      setGbifImportProgress(progress)
+    })
+    return cleanup
+  }, [])
 
   const isModelInstalled = useCallback(
     (modelReference) => {
@@ -274,15 +287,41 @@ export default function Import({ onNewStudy }) {
 
   const handleGbifImport = async (key) => {
     try {
+      setIsGbifImporting(true)
+      setGbifImportProgress({
+        stage: 'fetching_metadata',
+        stageIndex: 0,
+        totalStages: 4,
+        stageName: 'Starting import...'
+      })
+
       const { data, id, path } = await window.api.importGbifDataset(key)
-      if (!id) return
+
+      if (!id) {
+        setIsGbifImporting(false)
+        setGbifImportProgress(null)
+        return
+      }
+
       console.log('GBIF dataset imported:', data, id)
-      onNewStudy({ id, name: data.name, data, path })
-      navigate(`/study/${id}`)
+
+      // Brief delay to show completion state, then navigate
+      setTimeout(() => {
+        setIsGbifImporting(false)
+        setGbifImportProgress(null)
+        onNewStudy({ id, name: data.name, data, path })
+        navigate(`/study/${id}`)
+      }, 800)
     } catch (error) {
       console.error('Failed to import GBIF dataset:', error)
-      throw error // Re-throw to ensure ImportButton shows error state
+      // Error state is already set via IPC progress event
+      // Don't reset state here - let user see the error and dismiss manually
     }
+  }
+
+  const handleCancelGbifImport = () => {
+    setIsGbifImporting(false)
+    setGbifImportProgress(null)
   }
 
   return (
@@ -431,6 +470,12 @@ export default function Import({ onNewStudy }) {
         isOpen={showCountryPicker}
         onConfirm={handleCountrySelected}
         onCancel={handleCountryPickerCancel}
+      />
+
+      <GbifImportProgress
+        isOpen={isGbifImporting}
+        progress={gbifImportProgress}
+        onCancel={handleCancelGbifImport}
       />
     </div>
   )

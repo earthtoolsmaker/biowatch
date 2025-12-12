@@ -81,7 +81,7 @@ function listStudies(studiesPath) {
         }
         const study = JSON.parse(readFileSync(studyJsonPath, 'utf8'))
         return { ...study, id: studyId }
-      } catch (error) {
+      } catch {
         return {
           id: studyId,
           error: 'Failed to load study data'
@@ -247,7 +247,7 @@ describe('Studies Management Tests (Simplified)', () => {
         data: {
           title: 'Test Dataset',
           description: 'A test dataset for structure validation',
-          contributors: [{ title: 'Test Author', role: 'author' }],
+          contributors: [{ title: 'Test Author', role: 'contributor' }],
           resources: []
         }
       }

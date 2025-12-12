@@ -151,4 +151,242 @@ describe('Umzug Migration System', () => {
       }
     }
   })
+
+  test('should migrate study.json to database metadata', async () => {
+    // Create new structure with study.json
+    const studyId = 'test-study-123'
+    const studyPath = join(testUserDataPath, 'biowatch-data', 'studies', studyId)
+    mkdirSync(studyPath, { recursive: true })
+
+    // Create a study.json with simple format
+    const studyJson = {
+      id: studyId,
+      name: 'Test Study',
+      importerName: 'local/speciesnet',
+      createdAt: '2025-01-15T10:00:00.000Z',
+      data: {
+        name: 'Test Study',
+        title: 'My Test Study',
+        description: 'A test study for migration',
+        contributors: [
+          {
+            title: 'John Doe',
+            email: 'john@example.com',
+            role: 'principalInvestigator'
+          }
+        ],
+        temporal: {
+          start: '2025-01-01',
+          end: '2025-12-31'
+        }
+      }
+    }
+
+    const studyJsonPath = join(studyPath, 'study.json')
+    writeFileSync(studyJsonPath, JSON.stringify(studyJson, null, 2))
+
+    // Create a minimal database file
+    const dbPath = join(studyPath, 'study.db')
+    const Database = (await import('better-sqlite3')).default
+    const db = new Database(dbPath)
+
+    // Create metadata table
+    db.exec(`
+      CREATE TABLE metadata (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        title TEXT,
+        description TEXT,
+        created TEXT NOT NULL,
+        importerName TEXT NOT NULL,
+        contributors TEXT,
+        updatedAt TEXT,
+        startDate TEXT,
+        endDate TEXT
+      )
+    `)
+    db.close()
+
+    // Run migrations
+    const logs = []
+    const testLogger = {
+      info: (msg, ...args) => logs.push(['info', msg, ...args]),
+      warn: (msg, ...args) => logs.push(['warn', msg, ...args]),
+      error: (msg, ...args) => logs.push(['error', msg, ...args])
+    }
+
+    await runMigrations(testUserDataPath, testLogger)
+
+    // Verify study.json was deleted
+    assert(!existsSync(studyJsonPath), 'study.json should be deleted after migration')
+
+    // Verify metadata was inserted into database
+    const dbAfter = new Database(dbPath)
+    const metadata = dbAfter.prepare('SELECT * FROM metadata WHERE id = ?').get(studyId)
+    dbAfter.close()
+
+    assert(metadata, 'Metadata should exist in database')
+    assert.strictEqual(metadata.id, studyId, 'ID should match')
+    assert.strictEqual(metadata.name, 'Test Study', 'Name should match')
+    assert.strictEqual(metadata.title, 'My Test Study', 'Title should match')
+    assert.strictEqual(
+      metadata.description,
+      'A test study for migration',
+      'Description should match'
+    )
+    assert.strictEqual(metadata.startDate, '2025-01-01', 'Start date should match')
+    assert.strictEqual(metadata.endDate, '2025-12-31', 'End date should match')
+
+    const contributors = JSON.parse(metadata.contributors)
+    assert.strictEqual(
+      contributors[0].email,
+      'john@example.com',
+      'Contributors should be preserved'
+    )
+  })
+
+  test('should skip migration if study.json does not exist', async () => {
+    // Create new structure without study.json
+    const studyId = 'test-study-456'
+    const studyPath = join(testUserDataPath, 'biowatch-data', 'studies', studyId)
+    mkdirSync(studyPath, { recursive: true })
+
+    // Create database with existing metadata
+    const dbPath = join(studyPath, 'study.db')
+    const Database = (await import('better-sqlite3')).default
+    const db = new Database(dbPath)
+
+    db.exec(`
+      CREATE TABLE metadata (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        title TEXT,
+        description TEXT,
+        created TEXT NOT NULL,
+        importerName TEXT NOT NULL,
+        contributors TEXT,
+        updatedAt TEXT,
+        startDate TEXT,
+        endDate TEXT
+      )
+    `)
+
+    db.prepare(
+      `
+      INSERT INTO metadata (id, name, created, importerName)
+      VALUES (?, ?, ?, ?)
+    `
+    ).run(studyId, 'Already Migrated Study', '2025-01-01T00:00:00.000Z', 'local/images')
+
+    db.close()
+
+    // Run migrations
+    const logs = []
+    const testLogger = {
+      info: (msg, ...args) => logs.push(['info', msg, ...args]),
+      warn: (msg, ...args) => logs.push(['warn', msg, ...args]),
+      error: (msg, ...args) => logs.push(['error', msg, ...args])
+    }
+
+    await runMigrations(testUserDataPath, testLogger)
+
+    // Verify metadata remains unchanged
+    const dbAfter = new Database(dbPath)
+    const metadata = dbAfter.prepare('SELECT * FROM metadata WHERE id = ?').get(studyId)
+    dbAfter.close()
+
+    assert(metadata, 'Metadata should still exist')
+    assert.strictEqual(metadata.name, 'Already Migrated Study', 'Metadata should be unchanged')
+  })
+
+  test('should migrate multiple studies with study.json files', async () => {
+    const Database = (await import('better-sqlite3')).default
+
+    // Create multiple studies with study.json files
+    const studies = [
+      {
+        id: 'study-1',
+        name: 'First Study',
+        importerName: 'local/speciesnet',
+        createdAt: '2025-01-10T10:00:00.000Z'
+      },
+      {
+        id: 'study-2',
+        name: 'Second Study',
+        importerName: 'camtrap/datapackage',
+        createdAt: '2025-01-11T10:00:00.000Z'
+      },
+      {
+        id: 'study-3',
+        name: 'Third Study',
+        importerName: 'wildlife/folder',
+        createdAt: '2025-01-12T10:00:00.000Z'
+      }
+    ]
+
+    // Create each study with study.json and database
+    for (const study of studies) {
+      const studyPath = join(testUserDataPath, 'biowatch-data', 'studies', study.id)
+      mkdirSync(studyPath, { recursive: true })
+
+      // Create study.json
+      const studyJson = {
+        id: study.id,
+        name: study.name,
+        importerName: study.importerName,
+        createdAt: study.createdAt,
+        data: {
+          name: study.name
+        }
+      }
+
+      writeFileSync(join(studyPath, 'study.json'), JSON.stringify(studyJson, null, 2))
+
+      // Create database
+      const dbPath = join(studyPath, 'study.db')
+      const db = new Database(dbPath)
+
+      db.exec(`
+        CREATE TABLE metadata (
+          id TEXT PRIMARY KEY,
+          name TEXT,
+          title TEXT,
+          description TEXT,
+          created TEXT NOT NULL,
+          importerName TEXT NOT NULL,
+          contributors TEXT,
+          updatedAt TEXT,
+          startDate TEXT,
+          endDate TEXT
+        )
+      `)
+      db.close()
+    }
+
+    // Run migrations
+    await runMigrations(testUserDataPath)
+
+    // Verify all studies were migrated
+    for (const study of studies) {
+      const studyPath = join(testUserDataPath, 'biowatch-data', 'studies', study.id)
+      const studyJsonPath = join(studyPath, 'study.json')
+      const dbPath = join(studyPath, 'study.db')
+
+      // Verify study.json was deleted
+      assert(!existsSync(studyJsonPath), `study.json should be deleted for ${study.id}`)
+
+      // Verify metadata was inserted
+      const db = new Database(dbPath)
+      const metadata = db.prepare('SELECT * FROM metadata WHERE id = ?').get(study.id)
+      db.close()
+
+      assert(metadata, `Metadata should exist for ${study.id}`)
+      assert.strictEqual(metadata.name, study.name, `Name should match for ${study.id}`)
+      assert.strictEqual(
+        metadata.importerName,
+        study.importerName,
+        `ImporterName should match for ${study.id}`
+      )
+    }
+  })
 })

@@ -68,7 +68,7 @@ User Selection
 3. Transform file paths to absolute paths
 4. Insert study metadata
 
-**Key file:** `src/main/camtrap.js`
+**Key file:** `src/main/import/camtrap.js`
 
 ```javascript
 // Import order matters for foreign keys
@@ -90,7 +90,7 @@ const filesToProcess = [
 4. Generate observation IDs as `{image_id}_obs`
 5. Construct scientificName from `genus + species`
 
-**Key file:** `src/main/wildlife.js`
+**Key file:** `src/main/import/wildlife.js`
 
 ## Image Folder Import with ML
 
@@ -135,7 +135,7 @@ Most complex import pipeline with streaming ML inference.
 └─────────────────┘
 ```
 
-**Key file:** `src/main/importer.js`
+**Key file:** `src/main/import/importer.js`
 
 ### Prediction Flow
 
@@ -399,10 +399,11 @@ if (activeExport.isCancelled) {
 
 | File | Purpose |
 |------|---------|
-| `src/main/camtrap.js` | CamTrap DP import |
-| `src/main/wildlife.js` | Wildlife Insights import |
-| `src/main/deepfaune.js` | DeepFaune CSV import |
-| `src/main/importer.js` | Image folder import with ML |
+| `src/main/import/camtrap.js` | CamTrap DP import |
+| `src/main/import/wildlife.js` | Wildlife Insights import |
+| `src/main/import/deepfaune.js` | DeepFaune CSV import |
+| `src/main/import/importer.js` | Image folder import with ML |
+| `src/main/import/index.js` | Re-exports all import functions |
 | `src/main/export.js` | All export functionality |
 | `src/main/download.ts` | File download with retry |
 | `src/main/transformers/index.js` | Bbox format conversions |

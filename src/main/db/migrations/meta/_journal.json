@@ -71,6 +71,13 @@
       "when": 1765378641492,
       "tag": "0009_add_indices",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1765450015870,
+      "tag": "0010_add_deployment_exif_fields",
+      "breakpoints": true
     }
   ]
 }

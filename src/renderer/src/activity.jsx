@@ -3,18 +3,40 @@ import 'leaflet/dist/leaflet.css'
 import { MapPin } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { LayersControl, MapContainer, Marker, Popup, TileLayer } from 'react-leaflet'
+import { LayersControl, MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet'
 import MarkerClusterGroup from 'react-leaflet-cluster'
 import { useParams } from 'react-router'
 import CircularTimeFilter, { DailyActivityRadar } from './ui/clock'
 import PlaceholderMap from './ui/PlaceholderMap'
-import SkeletonMap from './ui/SkeletonMap'
 import SpeciesDistribution from './ui/speciesDistribution'
 import TimelineChart from './ui/timeseries'
 import { useImportStatus } from './hooks/import'
 
+// Component to handle map layer change events for persistence
+function LayerChangeHandler({ onLayerChange }) {
+  const map = useMap()
+  useEffect(() => {
+    const handleBaseLayerChange = (e) => {
+      onLayerChange(e.name)
+    }
+    map.on('baselayerchange', handleBaseLayerChange)
+    return () => map.off('baselayerchange', handleBaseLayerChange)
+  }, [map, onLayerChange])
+  return null
+}
+
 // SpeciesMap component
-const SpeciesMap = ({ heatmapData, selectedSpecies, palette, geoKey }) => {
+const SpeciesMap = ({ heatmapData, selectedSpecies, palette, geoKey, studyId }) => {
+  // Persist map layer selection per study
+  const mapLayerKey = `mapLayer:${studyId}`
+  const [selectedLayer, setSelectedLayer] = useState(() => {
+    const saved = localStorage.getItem(mapLayerKey)
+    return saved || 'Satellite'
+  })
+
+  useEffect(() => {
+    localStorage.setItem(mapLayerKey, selectedLayer)
+  }, [selectedLayer, mapLayerKey])
   // Function to create a pie chart icon
   const createPieChartIcon = (counts) => {
     const total = Object.values(counts).reduce((sum, count) => sum + count, 0)
@@ -165,17 +187,17 @@ const SpeciesMap = ({ heatmapData, selectedSpecies, palette, geoKey }) => {
       className="rounded w-full h-full border border-gray-200"
     >
       <LayersControl position="topright">
-        <LayersControl.BaseLayer name="Street Map" checked={true}>
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-        </LayersControl.BaseLayer>
-
-        <LayersControl.BaseLayer name="Satellite">
+        <LayersControl.BaseLayer name="Satellite" checked={selectedLayer === 'Satellite'}>
           <TileLayer
             attribution='&copy; <a href="https://www.esri.com">Esri</a>'
             url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+          />
+        </LayersControl.BaseLayer>
+
+        <LayersControl.BaseLayer name="Street Map" checked={selectedLayer === 'Street Map'}>
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
         </LayersControl.BaseLayer>
 
@@ -254,6 +276,7 @@ const SpeciesMap = ({ heatmapData, selectedSpecies, palette, geoKey }) => {
           ))}
         </div>
       </LayersControl>
+      <LayerChangeHandler onLayerChange={setSelectedLayer} />
     </MapContainer>
   )
 }
@@ -355,7 +378,8 @@ export default function Activity({ studyData, studyId }) {
       if (response.error) throw new Error(response.error)
       return response.data
     },
-    enabled: !!actualStudyId && speciesNames.length > 0 && !!dateRange[0] && !!dateRange[1]
+    enabled: !!actualStudyId && speciesNames.length > 0 && !!dateRange[0] && !!dateRange[1],
+    placeholderData: (previousData) => previousData
   })
 
   // Derive heatmap status from query state and data
@@ -413,13 +437,12 @@ export default function Activity({ studyData, studyId }) {
 
             {/* Map - right side */}
             <div className="h-full flex-1">
-              {heatmapStatus === 'loading' ? (
-                <SkeletonMap title="Loading Activity" message="Loading species distribution..." />
-              ) : heatmapStatus === 'hasData' ? (
+              {heatmapStatus === 'hasData' && (
                 <SpeciesMap
                   heatmapData={heatmapData}
                   selectedSpecies={selectedSpecies}
                   palette={palette}
+                  studyId={actualStudyId}
                   geoKey={
                     selectedSpecies.map((s) => s.scientificName).join(', ') +
                     ' ' +
@@ -429,7 +452,9 @@ export default function Activity({ studyData, studyId }) {
                     timeRange.end
                   }
                 />
-              ) : (
+              )}{' '}
+              :
+              {heatmapStatus === 'noData' && !isHeatmapLoading && (
                 <PlaceholderMap
                   title="No Species Location Data"
                   description="Select species from the list and set up deployment coordinates in the Deployments tab to view the species distribution map."

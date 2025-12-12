@@ -3,7 +3,6 @@ import assert from 'node:assert/strict'
 import { mkdirSync, rmSync, existsSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
-import Database from 'better-sqlite3'
 import { DateTime } from 'luxon'
 
 // Import the query functions we want to test

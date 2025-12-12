@@ -7,7 +7,6 @@ import {
   Download,
   Pause,
   FolderOpen,
-  Upload,
   Settings
 } from 'lucide-react'
 import { NavLink, Route, Routes, useParams } from 'react-router'
@@ -18,7 +17,6 @@ import Overview from './overview'
 import Activity from './activity'
 import Media from './media'
 import Files from './files'
-import Export from './export'
 import StudySettings from './StudySettings'
 import { useImportStatus } from '@renderer/hooks/import'
 import { Tab } from './components/Tab'
@@ -239,14 +237,6 @@ export default function Study() {
               }
             />
           )}
-          <Route
-            path="export"
-            element={
-              <ErrorBoundary FallbackComponent={ErrorFallback} key={'export'}>
-                <Export studyId={id} />
-              </ErrorBoundary>
-            }
-          />
           <Route
             path="settings"
             element={

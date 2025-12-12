@@ -478,6 +478,7 @@ function ImageModal({
   // Draw mode state for creating new bboxes
   const [isDrawMode, setIsDrawMode] = useState(false)
   const [videoError, setVideoError] = useState(false)
+  const [imageError, setImageError] = useState(false)
   // Transcoding state: 'idle' | 'checking' | 'transcoding' | 'ready' | 'error'
   const [transcodeState, setTranscodeState] = useState('idle')
   const [transcodeProgress, setTranscodeProgress] = useState(0)
@@ -502,6 +503,7 @@ function ImageModal({
     setShowDatePicker(false)
     setError(null)
     setVideoError(false)
+    setImageError(false)
     // Reset transcoding state
     setTranscodeState('idle')
     setTranscodeProgress(0)
@@ -1308,6 +1310,12 @@ function ImageModal({
                   }}
                 />
               )
+            ) : imageError ? (
+              <div className="flex flex-col items-center justify-center bg-gray-800 text-gray-400 aspect-[4/3] min-w-[70vw] max-h-[calc(90vh-120px)]">
+                <CameraOff size={128} />
+                <span className="mt-4 text-lg font-medium">Image not available</span>
+                <span className="mt-2 text-sm">{media.fileName}</span>
+              </div>
             ) : (
               <>
                 <img
@@ -1315,6 +1323,7 @@ function ImageModal({
                   src={constructImageUrl(media.filePath)}
                   alt={media.fileName || `Media ${media.mediaID}`}
                   className="max-w-full max-h-[calc(90vh-120px)] w-auto h-auto object-contain"
+                  onError={() => setImageError(true)}
                 />
                 {/* Bbox overlay - editable bounding boxes (only for images) */}
                 {showBboxes && hasBboxes && (
@@ -2342,6 +2351,7 @@ function Gallery({ species, dateRange, timeRange }) {
 
   const constructImageUrl = (fullFilePath) => {
     if (fullFilePath.startsWith('http')) {
+      // Use HTTPS URL directly - browser cache will handle caching
       return fullFilePath
     }
 
