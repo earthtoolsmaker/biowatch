@@ -187,6 +187,9 @@ const api = {
   setMediaFavorite: async (studyId, mediaID, favorite) => {
     return await electronAPI.ipcRenderer.invoke('media:set-favorite', studyId, mediaID, favorite)
   },
+  countMediaWithNullTimestamps: async (studyId) => {
+    return await electronAPI.ipcRenderer.invoke('media:count-null-timestamps', studyId)
+  },
   getFilesData: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('files:get-data', studyId)
   },

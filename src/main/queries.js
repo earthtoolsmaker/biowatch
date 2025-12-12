@@ -2034,3 +2034,35 @@ export async function updateMediaFavorite(dbPath, mediaID, favorite) {
     throw error
   }
 }
+
+/**
+ * Count media files with null timestamps
+ * @param {string} dbPath - Path to the SQLite database
+ * @returns {Promise<number>} - Count of media files with null timestamps
+ */
+export async function countMediaWithNullTimestamps(dbPath) {
+  const startTime = Date.now()
+  log.info(`Counting media with null timestamps from: ${dbPath}`)
+
+  try {
+    const pathParts = dbPath.split('/')
+    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+
+    const db = await getDrizzleDb(studyId, dbPath)
+
+    const result = await db
+      .select({ count: count().as('count') })
+      .from(media)
+      .where(isNull(media.timestamp))
+      .get()
+
+    const nullCount = result?.count || 0
+    const elapsedTime = Date.now() - startTime
+    log.info(`Found ${nullCount} media with null timestamps in ${elapsedTime}ms`)
+
+    return nullCount
+  } catch (error) {
+    log.error(`Error counting media with null timestamps: ${error.message}`)
+    throw error
+  }
+}
