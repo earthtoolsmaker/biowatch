@@ -100,11 +100,6 @@ function finalizeSequence(seq, eventMapping) {
   }
 }
 
-// Helper: Create an observation with timestamp
-function createObs(id, deploymentID, eventStart) {
-  return { observationID: id, deploymentID, eventStart }
-}
-
 // Helper: Create observation at offset from base time
 function createObsAtOffset(id, deploymentID, baseTime, offsetSeconds) {
   const time = new Date(baseTime.getTime() + offsetSeconds * 1000)

@@ -81,7 +81,7 @@ function listStudies(studiesPath) {
         }
         const study = JSON.parse(readFileSync(studyJsonPath, 'utf8'))
         return { ...study, id: studyId }
-      } catch (error) {
+      } catch {
         return {
           id: studyId,
           error: 'Failed to load study data'

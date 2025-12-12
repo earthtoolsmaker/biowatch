@@ -1,6 +1,6 @@
 import { test, beforeEach, afterEach, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdirSync, rmSync, existsSync, writeFileSync } from 'fs'
+import { mkdirSync, rmSync, existsSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import fs from 'fs/promises'
@@ -419,7 +419,7 @@ describe('ML Model Management Tests', () => {
         // Test that functions handle permission errors gracefully
         // This is primarily a structural test
         assert(existsSync(restrictedPath), 'Restricted directory should exist')
-      } catch (error) {
+      } catch {
         // chmod might not work in all test environments, which is acceptable
       }
     })
