@@ -9,7 +9,7 @@ import {
   FolderOpen,
   Settings
 } from 'lucide-react'
-import { NavLink, Route, Routes, useParams } from 'react-router'
+import { Route, Routes, useParams } from 'react-router'
 import { ErrorBoundary } from 'react-error-boundary'
 import { useQuery } from '@tanstack/react-query'
 import Deployments from './deployments'

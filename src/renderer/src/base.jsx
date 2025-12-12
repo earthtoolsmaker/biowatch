@@ -1,4 +1,4 @@
-import { FolderOpen, Pencil, Plus, Settings, Trash2, Search, ChevronRight } from 'lucide-react'
+import { Pencil, Plus, Settings, Trash2, Search, ChevronRight } from 'lucide-react'
 import { ErrorBoundary } from 'react-error-boundary'
 import { HashRouter, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
