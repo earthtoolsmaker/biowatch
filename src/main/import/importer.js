@@ -912,8 +912,6 @@ export class Importer {
         }
       }
 
-      // const temporalData = await getTemporalData(this.db)
-
       try {
         const modelReference = this.modelReference
         const model = mlmodels.findModel(modelReference)
