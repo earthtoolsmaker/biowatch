@@ -5,6 +5,7 @@ import { modelZoo } from '../../shared/mlmodels.js'
 import { useQueryClient } from '@tanstack/react-query'
 import CountryPickerModal from './CountryPickerModal.jsx'
 import GbifImportProgress from './GbifImportProgress.jsx'
+import DemoImportProgress from './DemoImportProgress.jsx'
 
 function ImportButton({ onClick, children, className = '', disabled = false }) {
   const [isImporting, setIsImporting] = useState(false)
@@ -115,10 +116,22 @@ export default function Import({ onNewStudy }) {
   const [gbifImportProgress, setGbifImportProgress] = useState(null)
   const [isGbifImporting, setIsGbifImporting] = useState(false)
 
+  // Demo import progress state
+  const [demoImportProgress, setDemoImportProgress] = useState(null)
+  const [isDemoImporting, setIsDemoImporting] = useState(false)
+
   // Listen for GBIF import progress events
   useEffect(() => {
     const cleanup = window.api.onGbifImportProgress?.((progress) => {
       setGbifImportProgress(progress)
+    })
+    return cleanup
+  }, [])
+
+  // Listen for Demo import progress events
+  useEffect(() => {
+    const cleanup = window.api.onDemoImportProgress?.((progress) => {
+      setDemoImportProgress(progress)
     })
     return cleanup
   }, [])
@@ -232,11 +245,42 @@ export default function Import({ onNewStudy }) {
   }
 
   const handleDemoDataset = async () => {
-    const { data, id } = await window.api.downloadDemoDataset()
-    if (!id) return
-    console.log('Demo dataset downloaded:', data, id)
-    onNewStudy({ id, name: data.name, data })
-    navigate(`/study/${id}`)
+    try {
+      setIsDemoImporting(true)
+      setDemoImportProgress({
+        stage: 'downloading',
+        stageIndex: 0,
+        totalStages: 3,
+        datasetTitle: 'Demo Dataset'
+      })
+
+      const { data, id } = await window.api.downloadDemoDataset()
+
+      if (!id) {
+        setIsDemoImporting(false)
+        setDemoImportProgress(null)
+        return
+      }
+
+      console.log('Demo dataset downloaded:', data, id)
+
+      // Brief delay to show completion state, then navigate
+      setTimeout(() => {
+        setIsDemoImporting(false)
+        setDemoImportProgress(null)
+        onNewStudy({ id, name: data.name, data })
+        navigate(`/study/${id}`)
+      }, 800)
+    } catch (error) {
+      console.error('Failed to import demo dataset:', error)
+      // Error state is already set via IPC progress event
+      // Don't reset state here - let user see the error and dismiss manually
+    }
+  }
+
+  const handleCloseDemoImport = () => {
+    setIsDemoImporting(false)
+    setDemoImportProgress(null)
   }
 
   const handleImportImages = async () => {
@@ -476,6 +520,12 @@ export default function Import({ onNewStudy }) {
         isOpen={isGbifImporting}
         progress={gbifImportProgress}
         onCancel={handleCancelGbifImport}
+      />
+
+      <DemoImportProgress
+        isOpen={isDemoImporting}
+        progress={demoImportProgress}
+        onClose={handleCloseDemoImport}
       />
     </div>
   )
