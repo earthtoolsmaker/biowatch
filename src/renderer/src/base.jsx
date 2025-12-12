@@ -327,6 +327,7 @@ function AppContent() {
             <Route path="/import" element={<Import onNewStudy={onNewStudy} />} />
             <Route path="/study/:id/*" element={<Study />} />
             <Route path="/settings/*" element={<SettingsPage />} />
+            <Route path="*" element={null} />
           </Routes>
         </div>
       </main>
