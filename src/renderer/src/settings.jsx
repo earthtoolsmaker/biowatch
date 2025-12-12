@@ -116,7 +116,7 @@ export default function SettingsPage() {
 
   return (
     <div className="flex gap-4 flex-col h-full">
-      <header className="w-full border-b border-gray-200 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-900 z-10">
+      <header className="w-full border-b border-gray-200 sticky top-0 bg-white z-10">
         <nav aria-label="Tabs" className="-mb-px flex space-x-8 px-4">
           <Tab to="/settings/ml_zoo" icon={BrainCircuit}>
             AI Models
