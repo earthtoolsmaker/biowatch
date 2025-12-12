@@ -452,8 +452,7 @@ export default function Activity({ studyData, studyId }) {
                     timeRange.end
                   }
                 />
-              )}{' '}
-              :
+              )}
               {heatmapStatus === 'noData' && !isHeatmapLoading && (
                 <PlaceholderMap
                   title="No Species Location Data"
