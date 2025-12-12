@@ -7,28 +7,32 @@
 
 <p align="center">
     <img alt="GitHub package.json version" src="https://img.shields.io/github/package-json/v/earthtoolsmaker/biowatch" />
+    <img alt="Build" src="https://github.com/earthtoolsmaker/biowatch/actions/workflows/build.yml/badge.svg" />
+    <img alt="Tests" src="https://github.com/earthtoolsmaker/biowatch/actions/workflows/test.yml/badge.svg" />
+    <img alt="Python Lint" src="https://github.com/earthtoolsmaker/biowatch/actions/workflows/python_lint.yml/badge.svg" />
 </p>
 <br/>
 
 <p align="center">
-  <a href="https://www.earthtoolsmaker.org/tools/biowatch/"> Download</a> | <a href="https://www.earthtoolsmaker.org/donate/">Support Us</a> | <a href="https://www.earthtoolsmaker.org/contact/">Contact Us</a>
+  <a href="https://www.earthtoolsmaker.org/tools/biowatch/">Download</a> | <a href="./docs/">Documentation</a> | <a href="https://www.earthtoolsmaker.org/contact/">Contact Us</a>
 </p>
 <br/>
 <br/>
 
-Biowatch is a powerful tool for wildlife researchers and conservationists to
-analyze, visualize, and explore camera trap data with ease.
+**Analyze Camera Trap Data — Privately, On Your Machine**
+
+Biowatch is a free, open-source desktop application for wildlife researchers and conservationists. Analyze camera trap datasets completely offline — your data never leaves your machine.
 
 ![Overview](./docs/assets/images/overview-biowatch.gif)
 
 ## Key Features
 
-- Interactive Maps: Visualize camera trap locations and wildlife sightings
-with interactive maps and spatial analysis tools.
-- Data Analysis: Generate insights with powerful analytics tools, species
-identification, and temporal activity patterns.
-- Media Management: Organize, tag, and search through thousands of camera
-trap images and videos with ease.
+- **100% Offline & Private**: Your research data stays on your machine. No cloud uploads, no accounts, no tracking.
+- **On-Device AI**: Species identification models run locally — no internet required.
+- **Interactive Maps**: Visualize camera trap locations and wildlife sightings with spatial analysis tools.
+- **Data Analysis**: Generate insights with temporal activity patterns, species distributions, and deployment metrics.
+- **Media Management**: Browse, filter, and search through thousands of camera trap images and videos.
+- **CamtrapDP Compatible**: Import and export using Camera Trap Data Package standards for GBIF integration.
 
 ## Documentation
 
@@ -43,28 +47,10 @@ Full developer documentation is available in the [docs/](./docs/) folder:
 
 ## Quick Start (Development)
 
-### Using Make (recommended)
-
 ```bash
 # Install all dependencies and start development
 make install
 make dev
-```
-
-### Manual Installation
-
-```bash
-# Install npm dependencies
-npm install
-
-# Install uv (Python package manager) if not already installed
-pipx install uv
-
-# Build Python environment for ML models
-npm run build:python-env-common
-
-# Start development server
-npm run dev
 ```
 
 Run `make help` to see all available commands.
