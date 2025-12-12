@@ -124,6 +124,7 @@ function AppContent() {
     } else {
       navigate(`/study/${studies[0].id}`)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading])
 
   // Store current URL in localStorage whenever it changes

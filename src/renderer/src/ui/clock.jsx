@@ -112,6 +112,7 @@ const CircularTimeFilter = ({ onChange, startTime = 6, endTime = 18 }) => {
       window.removeEventListener('mouseup', handleMouseUp)
       window.removeEventListener('mousemove', handleMouseMove)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDraggingStart, isDraggingEnd, isDraggingArc, lastDragPosition])
 
   const startCoord = angleToCoordinates(timeToAngle(start))

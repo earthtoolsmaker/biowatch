@@ -479,6 +479,7 @@ export default function Overview({ data, studyId, studyName }) {
     }
     document.addEventListener('mousedown', handleClickOutside, true) // capture phase
     return () => document.removeEventListener('mousedown', handleClickOutside, true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditingTitle, editedTitle, studyName])
 
   // Handle click outside to save and Escape key to cancel description editing
@@ -503,6 +504,7 @@ export default function Overview({ data, studyId, studyName }) {
       document.removeEventListener('mousedown', handleClickOutside, true)
       document.removeEventListener('keydown', handleKeyDown)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditingDescription, editedDescription, data, studyId])
 
   const scrollContributors = (direction) => {
