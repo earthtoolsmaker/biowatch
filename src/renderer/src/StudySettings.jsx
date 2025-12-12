@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Trash2 } from 'lucide-react'
 import DeleteStudyModal from './DeleteStudyModal'
+import Export from './export'
 
 export default function StudySettings({ studyId, studyName }) {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
@@ -17,6 +18,8 @@ export default function StudySettings({ studyId, studyName }) {
 
   return (
     <div className="px-4">
+      <Export studyId={studyId} />
+
       <div className="border border-red-200 rounded-lg">
         <div className="px-4 py-3 bg-red-50 border-b border-red-200 rounded-t-lg">
           <h2 className="text-lg font-medium text-red-800">Danger Zone</h2>

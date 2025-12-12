@@ -150,7 +150,7 @@ export default function Export({ studyId }) {
   }
 
   return (
-    <div className="flex h-full p-8 overflow-auto">
+    <div className="flex h-full py-6 overflow-auto">
       <div className="max-w-4xl w-full">
         {/* Status Messages */}
         {exportStatus && (
