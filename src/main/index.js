@@ -113,6 +113,18 @@ function sendGbifImportProgress(progressData) {
   })
 }
 
+/**
+ * Send Demo import progress to all renderer windows
+ */
+function sendDemoImportProgress(progressData) {
+  const windows = BrowserWindow.getAllWindows()
+  windows.forEach((win) => {
+    if (!win.isDestroyed()) {
+      win.webContents.send('demo-import:progress', progressData)
+    }
+  })
+}
+
 log.info('Starting Electron app...')
 
 /**
@@ -993,8 +1005,19 @@ app.whenReady().then(async () => {
   })
 
   ipcMain.handle('import:download-demo', async () => {
+    const datasetTitle = 'Demo Dataset'
+
     try {
       log.info('Downloading and importing demo dataset')
+
+      // Stage 0: Downloading
+      sendDemoImportProgress({
+        stage: 'downloading',
+        stageIndex: 0,
+        totalStages: 3,
+        datasetTitle,
+        downloadProgress: { percent: 0, downloadedBytes: 0, totalBytes: 0 }
+      })
 
       // Create a temp directory for the downloaded file
       const downloadDir = join(app.getPath('temp'), 'camtrap-demo')
@@ -1007,8 +1030,28 @@ app.whenReady().then(async () => {
       const extractPath = join(downloadDir, 'extracted')
 
       log.info(`Downloading demo dataset from ${demoDatasetUrl} to ${zipPath}`)
-      await downloadFile(demoDatasetUrl, zipPath, () => {})
+      await downloadFile(demoDatasetUrl, zipPath, (progress) => {
+        sendDemoImportProgress({
+          stage: 'downloading',
+          stageIndex: 0,
+          totalStages: 3,
+          datasetTitle,
+          downloadProgress: {
+            percent: progress.percent || 0,
+            downloadedBytes: progress.downloadedBytes || 0,
+            totalBytes: progress.totalBytes || 0
+          }
+        })
+      })
       log.info('Download complete')
+
+      // Stage 1: Extracting
+      sendDemoImportProgress({
+        stage: 'extracting',
+        stageIndex: 1,
+        totalStages: 3,
+        datasetTitle
+      })
 
       // Create extraction directory if it doesn't exist
       if (!existsSync(extractPath)) {
@@ -1072,8 +1115,31 @@ app.whenReady().then(async () => {
 
       log.info(`Found CamTrap DP directory at ${camtrapDpDirPath}`)
 
+      // Stage 2: Importing CSVs
+      sendDemoImportProgress({
+        stage: 'importing_csvs',
+        stageIndex: 2,
+        totalStages: 3,
+        datasetTitle
+      })
+
       const id = crypto.randomUUID()
-      const { data } = await importCamTrapDataset(camtrapDpDirPath, id)
+      const { data } = await importCamTrapDataset(camtrapDpDirPath, id, (csvProgress) => {
+        sendDemoImportProgress({
+          stage: 'importing_csvs',
+          stageIndex: 2,
+          totalStages: 3,
+          datasetTitle,
+          csvProgress: {
+            currentFile: csvProgress.currentFile,
+            fileIndex: csvProgress.fileIndex,
+            totalFiles: csvProgress.totalFiles,
+            insertedRows: csvProgress.insertedRows || 0,
+            totalRows: csvProgress.totalRows || 0,
+            phase: csvProgress.phase
+          }
+        })
+      })
 
       const result = {
         path: camtrapDpDirPath,
@@ -1113,9 +1179,30 @@ app.whenReady().then(async () => {
         log.warn(`Failed to cleanup extraction directory: ${error.message}`)
       }
 
+      // Stage 3: Complete
+      sendDemoImportProgress({
+        stage: 'complete',
+        stageIndex: 3,
+        totalStages: 3,
+        datasetTitle
+      })
+
       return result
     } catch (error) {
       log.error('Error downloading or importing demo dataset:', error)
+
+      // Send error progress
+      sendDemoImportProgress({
+        stage: 'error',
+        stageIndex: -1,
+        totalStages: 3,
+        datasetTitle,
+        error: {
+          message: error.message,
+          retryable: true
+        }
+      })
+
       throw error
     }
   })
