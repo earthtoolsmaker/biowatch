@@ -74,6 +74,7 @@ dataset/
 | `fileMediatype` | string | MIME type (e.g., `image/jpeg`, `video/mp4`) |
 | `fileName` | string | Original file name |
 | `exifData` | object | EXIF/metadata as JSON. For images: camera settings, GPS, timestamps (e.g., `{"Make": "RECONYX", "Model": "HP2X", "DateTimeOriginal": "2024-03-20T14:30:15.000Z", "latitude": 46.77, "longitude": 6.64}`). For videos: `{"fps": 30, "duration": 60, "frameCount": 1800}` |
+| `favorite` | boolean | User-marked favorite/best capture (CamtrapDP standard field) |
 
 ### observations.csv
 

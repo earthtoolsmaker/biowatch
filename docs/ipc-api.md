@@ -89,9 +89,14 @@ const { data, error } = await window.api.getMedia(studyId, { limit: 100 })
 | `checkMediaHaveBboxes(studyId, mediaIDs)` | `media:have-bboxes` | studyId, mediaID[] | `{ data: boolean }` |
 | `getBestMedia(studyId, options)` | `media:get-best` | studyId, { limit? } | `{ data: ScoredMedia[] }` |
 | `setMediaTimestamp(studyId, mediaID, timestamp)` | `media:set-timestamp` | studyId, mediaID, timestamp | `{ success: boolean }` |
+| `setMediaFavorite(studyId, mediaID, favorite)` | `media:set-favorite` | studyId, mediaID, boolean | `{ success: boolean, mediaID, favorite }` |
 
-**Best Media Scoring:**
-The `getBestMedia` endpoint returns media files scored by a bbox quality heuristic. Higher scores indicate better wildlife captures. The scoring formula prioritizes:
+**Best Media (Hybrid Mode):**
+The `getBestMedia` endpoint uses a hybrid approach:
+1. **User favorites first**: Returns user-marked favorite media (sorted by timestamp descending)
+2. **Auto-scored fills**: If fewer than `limit` favorites, fills remaining slots with auto-scored captures
+
+The auto-scoring formula prioritizes:
 - **Bbox area (30%)**: Sweet spot is 10-60% of image area
 - **Fully visible (25%)**: Bbox not cut off at edges
 - **Padding (20%)**: Distance from bbox to nearest edge
@@ -99,6 +104,12 @@ The `getBestMedia` endpoint returns media files scored by a bbox quality heurist
 - **Classification confidence (10%)**: Model confidence in species ID
 
 Returns images only (excludes videos), filtered to those with valid bbox data.
+
+**Favorite Media:**
+The `setMediaFavorite` endpoint toggles a media item's favorite status. Favorite status is:
+- Stored in the `favorite` field (boolean) in the media table
+- CamtrapDP compliant - exported/imported with the standard `favorite` field
+- Displayed with a heart icon in the media modal and Best Captures carousel
 
 ### Files
 

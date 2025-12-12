@@ -24,6 +24,7 @@ import {
   getSpeciesTimeseries,
   getFilesData,
   updateMediaTimestamp,
+  updateMediaFavorite,
   updateObservationClassification,
   updateObservationBbox,
   deleteObservation,
@@ -1525,6 +1526,23 @@ ipcMain.handle('media:set-timestamp', async (_, studyId, mediaID, newTimestamp) 
     return result
   } catch (error) {
     log.error('Error updating media timestamp:', error)
+    return { error: error.message }
+  }
+})
+
+ipcMain.handle('media:set-favorite', async (_, studyId, mediaID, favorite) => {
+  try {
+    const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+    if (!dbPath || !existsSync(dbPath)) {
+      log.warn(`Database not found for study ID: ${studyId}`)
+      return { error: 'Database not found for this study' }
+    }
+
+    const result = await updateMediaFavorite(dbPath, mediaID, favorite)
+    await closeStudyDatabase(studyId, dbPath)
+    return result
+  } catch (error) {
+    log.error('Error updating media favorite:', error)
     return { error: error.message }
   }
 })

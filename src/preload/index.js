@@ -175,6 +175,9 @@ const api = {
   setMediaTimestamp: async (studyId, mediaID, timestamp) => {
     return await electronAPI.ipcRenderer.invoke('media:set-timestamp', studyId, mediaID, timestamp)
   },
+  setMediaFavorite: async (studyId, mediaID, favorite) => {
+    return await electronAPI.ipcRenderer.invoke('media:set-favorite', studyId, mediaID, favorite)
+  },
   getFilesData: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('files:get-data', studyId)
   },

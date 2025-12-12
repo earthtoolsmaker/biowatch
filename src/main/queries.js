@@ -611,7 +611,8 @@ export async function getMedia(dbPath, options = {}) {
       deploymentID: media.deploymentID,
       scientificName: observations.scientificName,
       fileMediatype: media.fileMediatype,
-      eventID: observations.eventID
+      eventID: observations.eventID,
+      favorite: media.favorite
     }
 
     // Branch 1: Direct mediaID link (for ML runs, Wildlife Insights, Deepfaune imports)
@@ -1730,10 +1731,11 @@ export async function checkStudyHasEventIDs(dbPath) {
 }
 
 /**
- * Get "best" media files scored by bbox quality heuristic.
- * Prioritizes images with large, fully-visible bboxes with good padding.
+ * Get "best" media files using a hybrid approach:
+ * 1. User-marked favorites first (sorted by timestamp descending)
+ * 2. Auto-scored captures to fill remaining slots
  *
- * Scoring formula (weights):
+ * Scoring formula for non-favorites (weights):
  * - 30%: Bbox area (sweet spot 10-60% of image)
  * - 25%: Fully visible (not cut off at edges)
  * - 20%: Padding (distance to nearest edge)
@@ -1743,16 +1745,91 @@ export async function checkStudyHasEventIDs(dbPath) {
  * @param {string} dbPath - Path to the SQLite database
  * @param {Object} options - Query options
  * @param {number} options.limit - Maximum number of media to return (default: 12)
- * @returns {Promise<Array>} - Media files with scores, sorted by score descending
+ * @returns {Promise<Array>} - Media files with favorites first, then scored captures
  */
 export async function getBestMedia(dbPath, options = {}) {
   const { limit = 12 } = options
   const startTime = Date.now()
-  log.info(`Querying best media from: ${dbPath}`)
+  log.info(`Querying best media (hybrid mode) from: ${dbPath}`)
 
   try {
     const pathParts = dbPath.split('/')
     const studyId = pathParts[pathParts.length - 2] || 'unknown'
+
+    // Step 1: Get user-marked favorites first
+    // Note: We need to join observations via both mediaID AND timestamp (for CamTrap DP datasets
+    // where observations.mediaID is NULL and link is via eventStart = media.timestamp)
+    const favoritesQuery = `
+      SELECT
+        m.mediaID,
+        m.filePath,
+        m.fileName,
+        m.timestamp,
+        m.deploymentID,
+        m.fileMediatype,
+        m.favorite,
+        COALESCE(o1.observationID, o2.observationID) as observationID,
+        COALESCE(o1.scientificName, o2.scientificName) as scientificName,
+        COALESCE(o1.bboxX, o2.bboxX) as bboxX,
+        COALESCE(o1.bboxY, o2.bboxY) as bboxY,
+        COALESCE(o1.bboxWidth, o2.bboxWidth) as bboxWidth,
+        COALESCE(o1.bboxHeight, o2.bboxHeight) as bboxHeight,
+        COALESCE(o1.detectionConfidence, o2.detectionConfidence) as detectionConfidence,
+        COALESCE(o1.classificationProbability, o2.classificationProbability) as classificationProbability,
+        999.0 as compositeScore
+      FROM media m
+      -- Strategy 1: Join via mediaID (for ML runs, Wildlife Insights, Deepfaune)
+      LEFT JOIN (
+        SELECT
+          mediaID,
+          observationID,
+          scientificName,
+          bboxX, bboxY, bboxWidth, bboxHeight,
+          detectionConfidence,
+          classificationProbability,
+          ROW_NUMBER() OVER (PARTITION BY mediaID ORDER BY detectionConfidence DESC) as rn
+        FROM observations
+        WHERE scientificName IS NOT NULL AND scientificName != ''
+          AND mediaID IS NOT NULL
+      ) o1 ON m.mediaID = o1.mediaID AND o1.rn = 1
+      -- Strategy 2: Join via timestamp (for CamTrap DP datasets where mediaID is NULL)
+      LEFT JOIN (
+        SELECT
+          eventStart,
+          observationID,
+          scientificName,
+          bboxX, bboxY, bboxWidth, bboxHeight,
+          detectionConfidence,
+          classificationProbability,
+          ROW_NUMBER() OVER (PARTITION BY eventStart ORDER BY detectionConfidence DESC) as rn
+        FROM observations
+        WHERE scientificName IS NOT NULL AND scientificName != ''
+          AND mediaID IS NULL
+      ) o2 ON m.timestamp = o2.eventStart AND o2.rn = 1
+      WHERE m.favorite = 1
+      ORDER BY m.timestamp DESC
+      LIMIT ?
+    `
+
+    const favorites = await executeRawQuery(studyId, dbPath, favoritesQuery, [limit])
+    log.info(`Found ${favorites.length} favorites`)
+
+    // If we have enough favorites, return them
+    if (favorites.length >= limit) {
+      const elapsedTime = Date.now() - startTime
+      log.info(`Retrieved ${favorites.length} best media (all favorites) in ${elapsedTime}ms`)
+      return favorites
+    }
+
+    // Step 2: Get auto-scored non-favorites to fill remaining slots
+    const remainingSlots = limit - favorites.length
+    const favoriteMediaIDs = favorites.map((f) => f.mediaID)
+
+    // Build exclusion clause for already-fetched favorites
+    const exclusionClause =
+      favoriteMediaIDs.length > 0
+        ? `AND m.mediaID NOT IN (${favoriteMediaIDs.map(() => '?').join(', ')})`
+        : ''
 
     // Use raw SQL for complex scoring calculation
     const query = `
@@ -1784,6 +1861,8 @@ export async function getBestMedia(dbPath, options = {}) {
           AND o.bboxHeight > 0
           AND o.scientificName IS NOT NULL
           AND o.scientificName != ''
+          -- Exclude favorites (they're already included)
+          AND (m.favorite IS NULL OR m.favorite = 0)
           -- Exclude videos (images only)
           AND (m.fileMediatype IS NULL OR m.fileMediatype NOT LIKE 'video/%')
           -- Exclude blanks
@@ -1795,6 +1874,7 @@ export async function getBestMedia(dbPath, options = {}) {
           -- Exclude vehicles
           AND LOWER(o.scientificName) NOT IN ('vehicle', 'car', 'truck', 'motorcycle', 'bike', 'bicycle')
           AND LOWER(o.scientificName) NOT LIKE '%vehicle%'
+          ${exclusionClause}
       ),
       scored_with_formula AS (
         SELECT
@@ -1839,6 +1919,7 @@ export async function getBestMedia(dbPath, options = {}) {
         m.timestamp,
         m.deploymentID,
         m.fileMediatype,
+        m.favorite,
         b.observationID,
         b.scientificName,
         b.bboxX,
@@ -1855,14 +1936,72 @@ export async function getBestMedia(dbPath, options = {}) {
       LIMIT ?
     `
 
-    const results = await executeRawQuery(studyId, dbPath, query, [limit])
+    // Build query parameters: favoriteMediaIDs (for exclusion) + remainingSlots (for limit)
+    const queryParams = [...favoriteMediaIDs, remainingSlots]
+    const scoredResults = await executeRawQuery(studyId, dbPath, query, queryParams)
+
+    // Step 3: Combine favorites + scored results
+    const combinedResults = [...favorites, ...scoredResults]
 
     const elapsedTime = Date.now() - startTime
-    log.info(`Retrieved ${results.length} best media in ${elapsedTime}ms`)
+    log.info(
+      `Retrieved ${combinedResults.length} best media (${favorites.length} favorites + ${scoredResults.length} scored) in ${elapsedTime}ms`
+    )
 
-    return results
+    return combinedResults
   } catch (error) {
     log.error(`Error querying best media: ${error.message}`)
+    throw error
+  }
+}
+
+/**
+ * Update media favorite status
+ * @param {string} dbPath - Path to the SQLite database
+ * @param {string} mediaID - Media ID to update
+ * @param {boolean} favorite - New favorite status
+ * @returns {Promise<Object>} - Result with success status
+ */
+export async function updateMediaFavorite(dbPath, mediaID, favorite) {
+  const startTime = Date.now()
+  log.info(`Updating favorite status for media ${mediaID} to ${favorite}`)
+
+  try {
+    // Validate input parameters
+    if (!mediaID) {
+      throw new Error('Media ID is required')
+    }
+
+    if (typeof favorite !== 'boolean') {
+      throw new Error('Favorite must be a boolean value')
+    }
+
+    // Extract study ID from path
+    const pathParts = dbPath.split('/')
+    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+
+    const db = await getDrizzleDb(studyId, dbPath)
+
+    // Check if media exists
+    const existingMedia = await db
+      .select({ mediaID: media.mediaID })
+      .from(media)
+      .where(eq(media.mediaID, mediaID))
+      .get()
+
+    if (!existingMedia) {
+      throw new Error(`Media not found: ${mediaID}`)
+    }
+
+    // Update the favorite status
+    await db.update(media).set({ favorite }).where(eq(media.mediaID, mediaID))
+
+    const elapsedTime = Date.now() - startTime
+    log.info(`Updated favorite status for media ${mediaID} in ${elapsedTime}ms`)
+
+    return { success: true, mediaID, favorite }
+  } catch (error) {
+    log.error(`Error updating media favorite: ${error.message}`)
     throw error
   }
 }

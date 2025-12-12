@@ -384,6 +384,11 @@ function transformMediaRow(row, directoryPath) {
     }
   }
 
+  // Parse favorite field (can be boolean, string, or integer in CSV)
+  const rawFavorite = row.favorite ?? row.is_favorite
+  const favorite =
+    rawFavorite === true || rawFavorite === 'true' || rawFavorite === 1 || rawFavorite === '1'
+
   return {
     mediaID,
     deploymentID: row.deploymentID || row.deployment_id || null,
@@ -391,7 +396,8 @@ function transformMediaRow(row, directoryPath) {
     filePath: transformFilePathField(row.filePath || row.file_path, directoryPath),
     fileName: row.fileName || row.file_name || path.basename(row.filePath || row.file_path || ''),
     fileMediatype: row.fileMediatype || row.file_mediatype || null,
-    exifData
+    exifData,
+    favorite
   }
 }
 

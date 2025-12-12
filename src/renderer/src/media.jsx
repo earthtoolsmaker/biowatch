@@ -13,7 +13,8 @@ import {
   Play,
   Loader2,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Heart
 } from 'lucide-react'
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient, useMutation, useInfiniteQuery } from '@tanstack/react-query'
@@ -484,6 +485,8 @@ function ImageModal({
   const [transcodeProgress, setTranscodeProgress] = useState(0)
   const [transcodedUrl, setTranscodedUrl] = useState(null)
   const [transcodeError, setTranscodeError] = useState(null)
+  // Favorite state
+  const [isFavorite, setIsFavorite] = useState(media?.favorite ?? false)
   const queryClient = useQueryClient()
 
   // Refs for positioning the species selector near the label
@@ -498,6 +501,8 @@ function ImageModal({
     if (media?.timestamp) {
       setInlineTimestamp(new Date(media.timestamp).toLocaleString())
     }
+    // Sync favorite state with media prop
+    setIsFavorite(media?.favorite ?? false)
     // Reset editing state when media changes
     setIsEditingTimestamp(false)
     setShowDatePicker(false)
@@ -509,7 +514,7 @@ function ImageModal({
     setTranscodeProgress(0)
     setTranscodedUrl(null)
     setTranscodeError(null)
-  }, [media?.mediaID, media?.timestamp])
+  }, [media?.mediaID, media?.timestamp, media?.favorite])
 
   // Video transcoding effect - check if video needs transcoding and handle it
   useEffect(() => {
@@ -861,6 +866,30 @@ function ImageModal({
     }
   })
 
+  // Mutation for toggling media favorite status
+  const favoriteMutation = useMutation({
+    mutationFn: async ({ mediaID, favorite }) => {
+      const response = await window.api.setMediaFavorite(studyId, mediaID, favorite)
+      if (response.error) {
+        throw new Error(response.error)
+      }
+      return response
+    },
+    onMutate: async ({ favorite }) => {
+      // Optimistic update
+      setIsFavorite(favorite)
+    },
+    onError: () => {
+      // Rollback on error
+      setIsFavorite(!isFavorite)
+    },
+    onSettled: () => {
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['bestMedia', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['media'] })
+    }
+  })
+
   const handleUpdateObservation = (updates) => {
     if (updates.observationID === 'new-observation') {
       // Create new observation without bbox for images without bboxes
@@ -1184,6 +1213,21 @@ function ImageModal({
           <X size={24} />
         </button>
 
+        {/* Favorite button */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            favoriteMutation.mutate({ mediaID: media.mediaID, favorite: !isFavorite })
+          }}
+          className={`absolute top-0 right-12 z-10 rounded-full p-2 transition-colors ${
+            isFavorite ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-white hover:bg-gray-100'
+          }`}
+          aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+          title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+        >
+          <Heart size={24} fill={isFavorite ? 'currentColor' : 'none'} />
+        </button>
+
         {/* Bbox toggle button */}
         {hasBboxes && (
           <button
@@ -1191,7 +1235,7 @@ function ImageModal({
               e.stopPropagation()
               setShowBboxes((prev) => !prev)
             }}
-            className={`absolute top-0 right-12 z-10 rounded-full p-2 transition-colors ${showBboxes ? 'bg-lime-500 text-white hover:bg-lime-600' : 'bg-white hover:bg-gray-100'}`}
+            className={`absolute top-0 right-24 z-10 rounded-full p-2 transition-colors ${showBboxes ? 'bg-lime-500 text-white hover:bg-lime-600' : 'bg-white hover:bg-gray-100'}`}
             aria-label={showBboxes ? 'Hide bounding boxes' : 'Show bounding boxes'}
             title={`${showBboxes ? 'Hide' : 'Show'} bounding boxes (B)`}
           >
@@ -1209,7 +1253,7 @@ function ImageModal({
             setShowBboxes(true) // Ensure bboxes are visible when adding
           }}
           className={`absolute top-0 z-10 rounded-full p-2 transition-colors ${
-            hasBboxes ? 'right-24' : 'right-12'
+            hasBboxes ? 'right-36' : 'right-24'
           } ${
             isDrawMode ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-white hover:bg-gray-100'
           }`}

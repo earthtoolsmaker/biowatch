@@ -95,6 +95,7 @@ Media file metadata.
 | `folderName` | TEXT | | Subfolder name within import |
 | `fileMediatype` | TEXT | | IANA media type (e.g., `image/jpeg`, `video/mp4`) |
 | `exifData` | TEXT | JSON | EXIF/metadata as JSON (see below) |
+| `favorite` | INTEGER | DEFAULT 0 | User-marked favorite/best capture (CamtrapDP compliant) |
 
 ```javascript
 export const media = sqliteTable('media', {
@@ -106,7 +107,8 @@ export const media = sqliteTable('media', {
   importFolder: text('importFolder'),
   folderName: text('folderName'),
   fileMediatype: text('fileMediatype').default('image/jpeg'),
-  exifData: text('exifData', { mode: 'json' })
+  exifData: text('exifData', { mode: 'json' }),
+  favorite: integer('favorite', { mode: 'boolean' }).default(false)
 })
 ```
 
