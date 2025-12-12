@@ -39,21 +39,9 @@ Biowatch is a free, open-source desktop application for wildlife researchers and
 ## Installation
 
 <p align="center">
-  <a href="https://github.com/earthtoolsmaker/biowatch/releases/latest/download/Biowatch-setup.exe">
-    <img src="https://img.shields.io/badge/Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white" alt="Download for Windows" />
-  </a>
-  &nbsp;&nbsp;
-  <a href="https://github.com/earthtoolsmaker/biowatch/releases/latest/download/Biowatch.dmg">
-    <img src="https://img.shields.io/badge/macOS-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS" />
-  </a>
-  &nbsp;&nbsp;
-  <a href="https://github.com/earthtoolsmaker/biowatch/releases/latest/download/Biowatch.AppImage">
-    <img src="https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black" alt="Download for Linux" />
-  </a>
-</p>
-
-<p align="center">
-  <a href="https://github.com/earthtoolsmaker/biowatch/releases">View all releases</a>
+  <a href="https://github.com/earthtoolsmaker/biowatch/releases/latest/download/Biowatch-setup.exe"><img src="https://img.shields.io/badge/Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white" alt="Download for Windows" /></a>
+  <a href="https://github.com/earthtoolsmaker/biowatch/releases/latest/download/Biowatch.dmg"><img src="https://img.shields.io/badge/macOS-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS" /></a>
+  <a href="https://github.com/earthtoolsmaker/biowatch/releases/latest/download/Biowatch.AppImage"><img src="https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black" alt="Download for Linux" /></a>
 </p>
 
 <details>
