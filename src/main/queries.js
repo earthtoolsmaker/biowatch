@@ -611,7 +611,8 @@ export async function getMedia(dbPath, options = {}) {
       deploymentID: media.deploymentID,
       scientificName: observations.scientificName,
       fileMediatype: media.fileMediatype,
-      eventID: observations.eventID
+      eventID: observations.eventID,
+      favorite: media.favorite
     }
 
     // Branch 1: Direct mediaID link (for ML runs, Wildlife Insights, Deepfaune imports)
@@ -1756,6 +1757,8 @@ export async function getBestMedia(dbPath, options = {}) {
     const studyId = pathParts[pathParts.length - 2] || 'unknown'
 
     // Step 1: Get user-marked favorites first
+    // Note: We need to join observations via both mediaID AND timestamp (for CamTrap DP datasets
+    // where observations.mediaID is NULL and link is via eventStart = media.timestamp)
     const favoritesQuery = `
       SELECT
         m.mediaID,
@@ -1765,16 +1768,17 @@ export async function getBestMedia(dbPath, options = {}) {
         m.deploymentID,
         m.fileMediatype,
         m.favorite,
-        o.observationID,
-        o.scientificName,
-        o.bboxX,
-        o.bboxY,
-        o.bboxWidth,
-        o.bboxHeight,
-        o.detectionConfidence,
-        o.classificationProbability,
+        COALESCE(o1.observationID, o2.observationID) as observationID,
+        COALESCE(o1.scientificName, o2.scientificName) as scientificName,
+        COALESCE(o1.bboxX, o2.bboxX) as bboxX,
+        COALESCE(o1.bboxY, o2.bboxY) as bboxY,
+        COALESCE(o1.bboxWidth, o2.bboxWidth) as bboxWidth,
+        COALESCE(o1.bboxHeight, o2.bboxHeight) as bboxHeight,
+        COALESCE(o1.detectionConfidence, o2.detectionConfidence) as detectionConfidence,
+        COALESCE(o1.classificationProbability, o2.classificationProbability) as classificationProbability,
         999.0 as compositeScore
       FROM media m
+      -- Strategy 1: Join via mediaID (for ML runs, Wildlife Insights, Deepfaune)
       LEFT JOIN (
         SELECT
           mediaID,
@@ -1786,7 +1790,22 @@ export async function getBestMedia(dbPath, options = {}) {
           ROW_NUMBER() OVER (PARTITION BY mediaID ORDER BY detectionConfidence DESC) as rn
         FROM observations
         WHERE scientificName IS NOT NULL AND scientificName != ''
-      ) o ON m.mediaID = o.mediaID AND o.rn = 1
+          AND mediaID IS NOT NULL
+      ) o1 ON m.mediaID = o1.mediaID AND o1.rn = 1
+      -- Strategy 2: Join via timestamp (for CamTrap DP datasets where mediaID is NULL)
+      LEFT JOIN (
+        SELECT
+          eventStart,
+          observationID,
+          scientificName,
+          bboxX, bboxY, bboxWidth, bboxHeight,
+          detectionConfidence,
+          classificationProbability,
+          ROW_NUMBER() OVER (PARTITION BY eventStart ORDER BY detectionConfidence DESC) as rn
+        FROM observations
+        WHERE scientificName IS NOT NULL AND scientificName != ''
+          AND mediaID IS NULL
+      ) o2 ON m.timestamp = o2.eventStart AND o2.rn = 1
       WHERE m.favorite = 1
         AND (m.fileMediatype IS NULL OR m.fileMediatype NOT LIKE 'video/%')
       ORDER BY m.timestamp DESC

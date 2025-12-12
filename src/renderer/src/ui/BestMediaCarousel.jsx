@@ -170,7 +170,7 @@ function ImageViewerModal({
 
         {/* Species info overlay */}
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4 rounded-b-lg">
-          <p className="text-white text-lg font-medium">{media.scientificName}</p>
+          <p className="text-white text-lg font-medium">{media.scientificName || 'No species'}</p>
           {media.timestamp && (
             <p className="text-white/70 text-sm">{new Date(media.timestamp).toLocaleString()}</p>
           )}
@@ -209,7 +209,9 @@ function MediaCard({ media, onClick }) {
 
       {/* Species label */}
       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
-        <p className="text-white text-xs font-medium truncate">{media.scientificName}</p>
+        <p className="text-white text-xs font-medium truncate">
+          {media.scientificName || 'Unknown species'}
+        </p>
       </div>
     </div>
   )
