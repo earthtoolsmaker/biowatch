@@ -1243,25 +1243,27 @@ function ImageModal({
           </button>
         )}
 
-        {/* Add bbox button */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            setIsDrawMode(true)
-            setSelectedBboxId(null)
-            setShowSpeciesSelector(false)
-            setShowBboxes(true) // Ensure bboxes are visible when adding
-          }}
-          className={`absolute top-0 z-10 rounded-full p-2 transition-colors ${
-            hasBboxes ? 'right-36' : 'right-24'
-          } ${
-            isDrawMode ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-white hover:bg-gray-100'
-          }`}
-          aria-label="Add new bounding box"
-          title="Add new detection (click and drag on image)"
-        >
-          <Plus size={24} />
-        </button>
+        {/* Add bbox button - only for images (not videos) */}
+        {!isVideoMedia(media) && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              setIsDrawMode(true)
+              setSelectedBboxId(null)
+              setShowSpeciesSelector(false)
+              setShowBboxes(true) // Ensure bboxes are visible when adding
+            }}
+            className={`absolute top-0 z-10 rounded-full p-2 transition-colors ${
+              hasBboxes ? 'right-36' : 'right-24'
+            } ${
+              isDrawMode ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-white hover:bg-gray-100'
+            }`}
+            aria-label="Add new bounding box"
+            title="Add new detection (click and drag on image)"
+          >
+            <Plus size={24} />
+          </button>
+        )}
 
         <div
           className="bg-white rounded-lg overflow-hidden shadow-2xl max-h-[90vh] flex flex-col max-w-full"
