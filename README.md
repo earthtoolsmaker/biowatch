@@ -8,6 +8,7 @@
 <p align="center">
     <img alt="GitHub package.json version" src="https://img.shields.io/github/package-json/v/earthtoolsmaker/biowatch" />
     <a href="./LICENSE"><img alt="License: CC BY-NC 4.0" src="https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg" /></a>
+    <br/>
     <img alt="Build" src="https://github.com/earthtoolsmaker/biowatch/actions/workflows/build.yml/badge.svg" />
     <img alt="Tests" src="https://github.com/earthtoolsmaker/biowatch/actions/workflows/test.yml/badge.svg" />
     <img alt="JS Lint" src="https://github.com/earthtoolsmaker/biowatch/actions/workflows/js_lint.yml/badge.svg" />
