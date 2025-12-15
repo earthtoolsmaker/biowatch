@@ -1168,7 +1168,7 @@ async function computeBoundsAndWriteJsonl(
         onProgress({
           stage: 'parsing',
           stageIndex: 1,
-          totalStages: 4,
+          totalStages: 3,
           datasetTitle: dataset.name,
           detail: `Computing bounds... ${totalImages} images`
         })
@@ -1271,7 +1271,7 @@ async function insertMediaFromJsonl(tempJsonlPath, mainDb, dataset, onProgress) 
         onProgress({
           stage: 'importing',
           stageIndex: 2,
-          totalStages: 4,
+          totalStages: 3,
           datasetTitle: dataset.name,
           importProgress: {
             table: 'media',
@@ -1612,7 +1612,7 @@ async function importLilaDatasetStreaming(dataset, dbPath, id, onProgress) {
     onProgress({
       stage: 'downloading',
       stageIndex: 0,
-      totalStages: 4,
+      totalStages: 3,
       datasetTitle: dataset.name
     })
   }
@@ -1633,7 +1633,7 @@ async function importLilaDatasetStreaming(dataset, dbPath, id, onProgress) {
       onProgress({
         stage: 'parsing',
         stageIndex: 1,
-        totalStages: 4,
+        totalStages: 3,
         datasetTitle: dataset.name,
         detail: 'Extracting categories...'
       })
@@ -1647,7 +1647,7 @@ async function importLilaDatasetStreaming(dataset, dbPath, id, onProgress) {
       onProgress({
         stage: 'parsing',
         stageIndex: 1,
-        totalStages: 4,
+        totalStages: 3,
         datasetTitle: dataset.name,
         detail: 'Computing bounds...'
       })
@@ -1668,7 +1668,7 @@ async function importLilaDatasetStreaming(dataset, dbPath, id, onProgress) {
       onProgress({
         stage: 'importing',
         stageIndex: 2,
-        totalStages: 4,
+        totalStages: 3,
         datasetTitle: dataset.name,
         detail: 'Importing deployments...'
       })
@@ -1682,7 +1682,7 @@ async function importLilaDatasetStreaming(dataset, dbPath, id, onProgress) {
       onProgress({
         stage: 'importing',
         stageIndex: 2,
-        totalStages: 4,
+        totalStages: 3,
         datasetTitle: dataset.name,
         detail: 'Importing media...'
       })
@@ -1695,8 +1695,8 @@ async function importLilaDatasetStreaming(dataset, dbPath, id, onProgress) {
     if (onProgress) {
       onProgress({
         stage: 'importing',
-        stageIndex: 3,
-        totalStages: 4,
+        stageIndex: 2,
+        totalStages: 3,
         datasetTitle: dataset.name,
         detail: 'Importing observations...'
       })
@@ -1732,8 +1732,8 @@ async function importLilaDatasetStreaming(dataset, dbPath, id, onProgress) {
     if (onProgress) {
       onProgress({
         stage: 'complete',
-        stageIndex: 4,
-        totalStages: 4,
+        stageIndex: 3,
+        totalStages: 3,
         datasetTitle: dataset.name
       })
     }
