@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
+import { Transform } from 'stream'
 import { DateTime } from 'luxon'
 import { getDrizzleDb, deployments, media, observations, insertMetadata } from '../db/index.js'
 import { downloadFileWithRetry, extractZip } from '../download.ts'
@@ -680,6 +681,38 @@ function sanitizeJsonString(jsonString) {
 }
 
 /**
+ * Create a transform stream that sanitizes NaN values for JSON parsing
+ * Handles NaN values that Python/NumPy exports (not valid JSON)
+ * Used for streaming large files that can't be loaded into memory
+ */
+function createNaNSanitizer() {
+  let buffer = ''
+
+  return new Transform({
+    transform(chunk, encoding, callback) {
+      buffer += chunk.toString()
+
+      // Process complete patterns, keep potential partial match at end
+      // Pattern: `: NaN` followed by `,` or `}` or `]`
+      const processed = buffer.replace(/:\s*NaN\s*([,}\]])/g, ': null$1')
+
+      // Keep last 10 characters in case NaN is split across chunks
+      const safeLength = Math.max(0, processed.length - 10)
+      this.push(processed.slice(0, safeLength))
+      buffer = processed.slice(safeLength)
+
+      callback()
+    },
+    flush(callback) {
+      // Process remaining buffer
+      const processed = buffer.replace(/:\s*NaN\s*([,}\]])/g, ': null$1')
+      this.push(processed)
+      callback()
+    }
+  })
+}
+
+/**
  * Recursively find a JSON file in a directory
  */
 function findJsonFile(dir) {
@@ -1001,8 +1034,10 @@ async function streamCategories(jsonPath) {
 
     // Use stream-json with pick() to efficiently extract just the categories array
     // This works regardless of where categories appear in the file (before or after images)
+    // NaN sanitizer handles invalid NaN values from Python/NumPy exports
     const pipeline = chain([
       fs.createReadStream(jsonPath),
+      createNaNSanitizer(),
       parser(),
       pick({ filter: 'categories' }),
       streamArray()
@@ -1061,6 +1096,10 @@ async function computeBoundsAndWriteJsonl(
     let totalImages = 0
     let chunk = []
 
+    // Diagnostic counters to understand data patterns
+    let imagesWithLocationNoDatetime = 0
+    const allLocations = new Set()
+
     // Process a chunk of images: compute bounds and write to JSONL
     const processChunk = async (images) => {
       if (images.length === 0) return
@@ -1072,6 +1111,14 @@ async function computeBoundsAndWriteJsonl(
         const imgId = String(img.id)
         const location = img.location ? String(img.location) : null
         const seqId = img.seq_id ? String(img.seq_id) : null
+
+        // Track all unique locations for diagnostics
+        if (location) {
+          allLocations.add(location)
+          if (!datetime) {
+            imagesWithLocationNoDatetime++
+          }
+        }
 
         // Update sequence bounds in memory
         if (seqId && datetime) {
@@ -1085,13 +1132,15 @@ async function computeBoundsAndWriteJsonl(
         }
 
         // Update deployment bounds in memory
-        if (location && datetime) {
+        // Create deployment for ANY image with location (even without datetime)
+        if (location) {
           if (!deploymentBounds.has(location)) {
             deploymentBounds.set(location, { min: datetime, max: datetime })
-          } else {
+          } else if (datetime) {
+            // Only update bounds if we have a datetime
             const bounds = deploymentBounds.get(location)
-            if (datetime < bounds.min) bounds.min = datetime
-            if (datetime > bounds.max) bounds.max = datetime
+            if (!bounds.min || datetime < bounds.min) bounds.min = datetime
+            if (!bounds.max || datetime > bounds.max) bounds.max = datetime
           }
         }
 
@@ -1130,8 +1179,10 @@ async function computeBoundsAndWriteJsonl(
 
     // Create streaming pipeline for images array
     // Use pick() to select the 'images' key from the COCO object
+    // NaN sanitizer handles invalid NaN values from Python/NumPy exports
     const pipeline = chain([
       fs.createReadStream(jsonPath),
+      createNaNSanitizer(),
       parser(),
       pick({ filter: 'images' }),
       streamArray()
@@ -1165,6 +1216,12 @@ async function computeBoundsAndWriteJsonl(
         log.info(
           `Computed ${sequenceBounds.size} sequence bounds, ${deploymentBounds.size} deployment bounds`
         )
+        // Diagnostic logging to understand data patterns
+        log.info(`[DIAGNOSTIC] Total unique locations: ${allLocations.size}`)
+        log.info(
+          `[DIAGNOSTIC] Images with location but NO datetime: ${imagesWithLocationNoDatetime}`
+        )
+        log.info(`[DIAGNOSTIC] Deployments created: ${deploymentBounds.size}`)
         resolve(totalImages)
       } catch (error) {
         reject(error)
@@ -1447,8 +1504,10 @@ async function streamAnnotationsPass(
 
     // Create streaming pipeline for annotations array
     // Use pick() to select the 'annotations' key from the COCO object
+    // NaN sanitizer handles invalid NaN values from Python/NumPy exports
     const pipeline = chain([
       fs.createReadStream(jsonPath),
+      createNaNSanitizer(),
       parser(),
       pick({ filter: 'annotations' }),
       streamArray()
@@ -1661,7 +1720,7 @@ async function importLilaDatasetStreaming(dataset, dbPath, id, onProgress) {
       title: dataset.name,
       description: dataset.description,
       created: new Date().toISOString(),
-      importerName: 'lila/coco-streaming',
+      importerName: 'lila/coco',
       contributors: null,
       startDate: null,
       endDate: null
