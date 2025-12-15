@@ -63,6 +63,22 @@ export const LILA_DATASETS = [
 ]
 
 /**
+ * Category names that indicate blank/empty images (case-insensitive)
+ * These should not create observations - media records are still created
+ */
+const BLANK_CATEGORY_NAMES = new Set(['empty', 'blank', 'nothing'])
+
+/**
+ * Check if a category name represents a blank/empty image
+ * @param {string} categoryName - The category name to check
+ * @returns {boolean} - True if the category indicates a blank/empty image
+ */
+function isBlankCategory(categoryName) {
+  if (!categoryName) return false
+  return BLANK_CATEGORY_NAMES.has(categoryName.toLowerCase().trim())
+}
+
+/**
  * Import a LILA dataset by its ID
  * @param {string} datasetId - ID of the LILA dataset to import
  * @param {string} id - Unique ID for the study
@@ -451,38 +467,47 @@ function transformCOCOToMedia(images, imageBaseUrl) {
 
 /**
  * Transform COCO annotations to Biowatch observations
+ * Filters out blank/empty categories - no observation is created for those
  */
 function transformCOCOToObservations(annotations, categoryMap, imageMap) {
-  return annotations.map((ann, index) => {
-    const image = imageMap.get(ann.image_id)
-    const categoryName = categoryMap.get(ann.category_id) || 'Unknown'
+  return annotations
+    .map((ann, index) => {
+      const image = imageMap.get(ann.image_id)
+      const categoryName = categoryMap.get(ann.category_id) || 'Unknown'
 
-    // Normalize bounding box from pixels to 0-1
-    const bbox = normalizeBbox(ann.bbox, image?.width, image?.height)
+      // Filter out blank/empty categories - no observation should be created
+      // Media records are still created, but blank images have no observation
+      if (isBlankCategory(categoryName)) {
+        return null
+      }
 
-    return {
-      observationID: ann.id ? String(ann.id) : `obs_${ann.image_id}_${index}`,
-      mediaID: String(ann.image_id),
-      deploymentID: image?.location ? String(image.location) : null,
-      eventID: null,
-      eventStart: image?.datetime ? transformDateField(image.datetime) : null,
-      eventEnd: image?.datetime ? transformDateField(image.datetime) : null,
-      scientificName: categoryName,
-      commonName: categoryName,
-      observationType: 'animal',
-      classificationProbability: null,
-      count: 1,
-      prediction: null,
-      lifeStage: null,
-      age: null,
-      sex: null,
-      behavior: null,
-      bboxX: bbox?.bboxX ?? null,
-      bboxY: bbox?.bboxY ?? null,
-      bboxWidth: bbox?.bboxWidth ?? null,
-      bboxHeight: bbox?.bboxHeight ?? null
-    }
-  })
+      // Normalize bounding box from pixels to 0-1
+      const bbox = normalizeBbox(ann.bbox, image?.width, image?.height)
+
+      return {
+        observationID: ann.id ? String(ann.id) : `obs_${ann.image_id}_${index}`,
+        mediaID: String(ann.image_id),
+        deploymentID: image?.location ? String(image.location) : null,
+        eventID: null,
+        eventStart: image?.datetime ? transformDateField(image.datetime) : null,
+        eventEnd: image?.datetime ? transformDateField(image.datetime) : null,
+        scientificName: categoryName,
+        commonName: categoryName,
+        observationType: 'animal',
+        classificationProbability: null,
+        count: 1,
+        prediction: null,
+        lifeStage: null,
+        age: null,
+        sex: null,
+        behavior: null,
+        bboxX: bbox?.bboxX ?? null,
+        bboxY: bbox?.bboxY ?? null,
+        bboxWidth: bbox?.bboxWidth ?? null,
+        bboxHeight: bbox?.bboxHeight ?? null
+      }
+    })
+    .filter(Boolean) // Remove null entries (filtered blank/empty categories)
 }
 
 /**
