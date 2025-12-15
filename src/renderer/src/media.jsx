@@ -2343,6 +2343,18 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
     return groupMediaIntoSequences(mediaFiles, sequenceGap, isVideoMedia)
   }, [mediaFiles, sequenceGap])
 
+  // Combine sequences and null-timestamp media for navigation
+  // Each null-timestamp item becomes a single-item "sequence" for navigation purposes
+  const allNavigableItems = useMemo(() => {
+    const nullTimestampSequences = nullTimestampMedia.map((media) => ({
+      id: media.mediaID,
+      items: [media],
+      startTime: null,
+      endTime: null
+    }))
+    return [...groupedMedia, ...nullTimestampSequences]
+  }, [groupedMedia, nullTimestampMedia])
+
   // Grid column CSS classes
   const gridColumnClasses = {
     3: 'w-[calc(33.333%-8px)]',
@@ -2453,30 +2465,30 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
   const handleNextImage = useCallback(() => {
     if (!selectedMedia) return
 
-    // Find current sequence index in groupedMedia
-    const currentSeqIdx = groupedMedia.findIndex((s) =>
+    // Find current sequence index in allNavigableItems (includes null-timestamp media)
+    const currentSeqIdx = allNavigableItems.findIndex((s) =>
       s.items.some((m) => m.mediaID === selectedMedia.mediaID)
     )
 
-    if (currentSeqIdx < groupedMedia.length - 1) {
-      const nextSequence = groupedMedia[currentSeqIdx + 1]
+    if (currentSeqIdx < allNavigableItems.length - 1) {
+      const nextSequence = allNavigableItems[currentSeqIdx + 1]
       const isMultiItem = nextSequence.items.length > 1
       setCurrentSequence(isMultiItem ? nextSequence : null)
       setCurrentSequenceIndex(0)
       setSelectedMedia(nextSequence.items[0])
     }
-  }, [selectedMedia, groupedMedia])
+  }, [selectedMedia, allNavigableItems])
 
   // Navigate to previous sequence/item globally
   const handlePreviousImage = useCallback(() => {
     if (!selectedMedia) return
 
-    const currentSeqIdx = groupedMedia.findIndex((s) =>
+    const currentSeqIdx = allNavigableItems.findIndex((s) =>
       s.items.some((m) => m.mediaID === selectedMedia.mediaID)
     )
 
     if (currentSeqIdx > 0) {
-      const prevSequence = groupedMedia[currentSeqIdx - 1]
+      const prevSequence = allNavigableItems[currentSeqIdx - 1]
       const isMultiItem = prevSequence.items.length > 1
       setCurrentSequence(isMultiItem ? prevSequence : null)
       // Start at end of previous sequence
@@ -2484,7 +2496,7 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
       setCurrentSequenceIndex(lastIndex)
       setSelectedMedia(prevSequence.items[lastIndex])
     }
-  }, [selectedMedia, groupedMedia])
+  }, [selectedMedia, allNavigableItems])
 
   // Handle optimistic timestamp update
   const handleTimestampUpdate = useCallback(
@@ -2509,9 +2521,9 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
 
   // Calculate navigation availability based on sequences
   const currentSeqIdx = selectedMedia
-    ? groupedMedia.findIndex((s) => s.items.some((m) => m.mediaID === selectedMedia.mediaID))
+    ? allNavigableItems.findIndex((s) => s.items.some((m) => m.mediaID === selectedMedia.mediaID))
     : -1
-  const hasNextSequence = currentSeqIdx >= 0 && currentSeqIdx < groupedMedia.length - 1
+  const hasNextSequence = currentSeqIdx >= 0 && currentSeqIdx < allNavigableItems.length - 1
   const hasPreviousSequence = currentSeqIdx > 0
 
   // For sequence navigation within modal
