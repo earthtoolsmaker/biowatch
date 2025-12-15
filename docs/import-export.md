@@ -28,6 +28,10 @@ User Selection
 │  │ CamTrap  │ Wildlife │ DeepFaune│     │
 │  │   DP     │ Insights │   CSV    │     │
 │  └──────────┴──────────┴──────────┘     │
+│  ┌──────────┬──────────┐                │
+│  │   LILA   │   GBIF   │                │
+│  │   COCO   │ CamtrapDP│                │
+│  └──────────┴──────────┘                │
 └────────────────────┬────────────────────┘
                      │
                      ▼
@@ -91,6 +95,75 @@ const filesToProcess = [
 5. Construct scientificName from `genus + species`
 
 **Key file:** `src/main/import/wildlife.js`
+
+## LILA Dataset Import
+
+**Format:** COCO Camera Traps JSON (from lila.science datasets)
+
+**Process:**
+```
+┌─────────────────┐
+│  Select Dataset │
+│  from Whitelist │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Download JSON  │
+│  Metadata       │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Parse COCO     │
+│  Camera Traps   │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────────────────────────────┐
+│           Schema Mapping                 │
+│  images[].location → deploymentID       │
+│  images[].datetime → deploymentStart/End│
+│    (MIN/MAX per location)               │
+│  images[].file_name → HTTP URL          │
+│  annotations[] + categories[] →         │
+│    observations with normalized bbox    │
+└────────────────────┬────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────┐
+│           Database Insert               │
+│  - Batch inserts (1000 rows)           │
+│  - Images loaded via HTTP at runtime   │
+└─────────────────────────────────────────┘
+```
+
+**Supported Datasets:**
+- Biome Health Project Maasai Mara 2018 (37K images, Kenya)
+- Snapshot Karoo (38K images, South Africa)
+
+**Key features:**
+- Images loaded remotely via HTTP (no local download)
+- COCO bbox normalized from pixels to 0-1 coordinates
+- ZIP metadata extraction supported (e.g., Snapshot Karoo)
+- Deployment temporal bounds derived from MIN/MAX image datetimes per location
+- NaN values in JSON sanitized to null (handles Python/NumPy exports)
+
+**Key file:** `src/main/import/lila.js`
+
+```javascript
+// COCO bbox normalization
+function normalizeBbox(bbox, imageWidth, imageHeight) {
+  if (!bbox || !Array.isArray(bbox) || bbox.length !== 4) return null
+  const [x, y, width, height] = bbox
+  return {
+    bboxX: x / imageWidth,
+    bboxY: y / imageHeight,
+    bboxWidth: width / imageWidth,
+    bboxHeight: height / imageHeight
+  }
+}
+```
 
 ## Image Folder Import with ML
 
@@ -431,6 +504,7 @@ if (activeExport.isCancelled) {
 | `src/main/import/camtrap.js` | CamTrap DP import |
 | `src/main/import/wildlife.js` | Wildlife Insights import |
 | `src/main/import/deepfaune.js` | DeepFaune CSV import |
+| `src/main/import/lila.js` | LILA dataset import (COCO Camera Traps) |
 | `src/main/import/importer.js` | Image folder import with ML |
 | `src/main/import/index.js` | Re-exports all import functions |
 | `src/main/export.js` | All export functionality |
