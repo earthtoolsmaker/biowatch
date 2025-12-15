@@ -1387,6 +1387,42 @@ async function loadImageMapFromJsonl(tempJsonlPath) {
     readStream.on('error', reject)
   })
 }
+/**
+ * Count annotations in COCO JSON file using streaming
+ * This provides the total count for accurate progress reporting
+ * @param {string} jsonPath - Path to the COCO JSON file
+ * @returns {Promise<number>} - Total number of annotations
+ */
+async function countAnnotationsStreaming(jsonPath) {
+  await initializeElectronModules()
+
+  return new Promise((resolve, reject) => {
+    let count = 0
+    const pipeline = chain([
+      fs.createReadStream(jsonPath),
+      createNaNSanitizer(),
+      parser(),
+      pick({ filter: 'annotations' }),
+      streamArray()
+    ])
+
+    pipeline.on('data', ({ value }) => {
+      if (value && typeof value === 'object' && 'category_id' in value && 'image_id' in value) {
+        count++
+      }
+    })
+
+    pipeline.on('end', () => {
+      log.info(`Counted ${count} annotations in COCO file`)
+      resolve(count)
+    })
+
+    pipeline.on('error', (error) => {
+      log.error('Error counting annotations:', error)
+      reject(error)
+    })
+  })
+}
 
 /**
  * Stream annotations from COCO JSON, processing in chunks
@@ -1397,6 +1433,7 @@ async function loadImageMapFromJsonl(tempJsonlPath) {
  * @param {Map} categoryMap - Map of category_id → category_name
  * @param {Map} sequenceBounds - Map of seq_id → {start, end}
  * @param {object} dataset - Dataset configuration
+ * @param {number} totalAnnotations - Total number of annotations for progress reporting
  * @param {function} onProgress - Progress callback
  * @returns {Promise<number>} - Total number of observations created
  */
@@ -1407,6 +1444,7 @@ async function streamAnnotationsPass(
   categoryMap,
   sequenceBounds,
   dataset,
+  totalAnnotations,
   onProgress
 ) {
   await initializeElectronModules()
@@ -1494,7 +1532,7 @@ async function streamAnnotationsPass(
           importProgress: {
             table: 'observations',
             insertedRows: totalObservations,
-            totalRows: totalObservations // We don't know total annotations upfront
+            totalRows: totalAnnotations
           }
         })
       }
@@ -1691,7 +1729,21 @@ async function importLilaDatasetStreaming(dataset, dbPath, id, onProgress) {
     const mediaCount = await insertMediaFromJsonl(tempJsonlPath, mainDb, dataset, onProgress)
     log.info(`Inserted ${mediaCount} media records`)
 
-    // Stage 5: Stream annotations → observations inserts
+    // Stage 5: Count annotations first for accurate progress
+    if (onProgress) {
+      onProgress({
+        stage: 'importing',
+        stageIndex: 2,
+        totalStages: 3,
+        datasetTitle: dataset.name,
+        detail: 'Counting observations...'
+      })
+    }
+
+    const totalAnnotations = await countAnnotationsStreaming(jsonPath)
+    log.info(`Found ${totalAnnotations} annotations to import`)
+
+    // Stage 6: Stream annotations → observations inserts
     if (onProgress) {
       onProgress({
         stage: 'importing',
@@ -1709,6 +1761,7 @@ async function importLilaDatasetStreaming(dataset, dbPath, id, onProgress) {
       categoryMap,
       sequenceBounds,
       dataset,
+      totalAnnotations,
       onProgress
     )
     log.info(`Streamed ${observationCount} observations`)
