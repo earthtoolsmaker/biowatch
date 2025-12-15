@@ -1941,7 +1941,7 @@ function ThumbnailCard({
 
       <div className="p-2">
         <h3 className="text-sm font-semibold truncate">{media.scientificName}</h3>
-        <p className="text-xs text-gray-500">{new Date(media.timestamp).toLocaleString()}</p>
+        <p className="text-xs text-gray-500">{media.timestamp ? new Date(media.timestamp).toLocaleString() : 'No timestamp'}</p>
       </div>
     </div>
   )
@@ -2195,7 +2195,7 @@ function SequenceCard({
       {/* Info section */}
       <div className="p-2">
         <h3 className="text-sm font-semibold truncate">{currentMedia.scientificName}</h3>
-        <p className="text-xs text-gray-500">{new Date(currentMedia.timestamp).toLocaleString()}</p>
+        <p className="text-xs text-gray-500">{currentMedia.timestamp ? new Date(currentMedia.timestamp).toLocaleString() : 'No timestamp'}</p>
       </div>
     </div>
   )
