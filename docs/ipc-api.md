@@ -91,17 +91,25 @@ const { data, error } = await window.api.getMedia(studyId, { limit: 100 })
 | `setMediaTimestamp(studyId, mediaID, timestamp)` | `media:set-timestamp` | studyId, mediaID, timestamp | `{ success: boolean }` |
 | `setMediaFavorite(studyId, mediaID, favorite)` | `media:set-favorite` | studyId, mediaID, boolean | `{ success: boolean, mediaID, favorite }` |
 
-**Best Media (Hybrid Mode):**
-The `getBestMedia` endpoint uses a hybrid approach:
+**Best Media (Hybrid Mode with Diversity):**
+The `getBestMedia` endpoint uses a hybrid approach with diversity constraints:
 1. **User favorites first**: Returns user-marked favorite media (sorted by timestamp descending)
-2. **Auto-scored fills**: If fewer than `limit` favorites, fills remaining slots with auto-scored captures
+2. **Auto-scored fills with diversity**: If fewer than `limit` favorites, fills remaining slots with diverse auto-scored captures
 
 The auto-scoring formula prioritizes:
-- **Bbox area (30%)**: Sweet spot is 10-60% of image area
-- **Fully visible (25%)**: Bbox not cut off at edges
-- **Padding (20%)**: Distance from bbox to nearest edge
+- **Bbox area (15%)**: Sweet spot is 10-60% of image area
+- **Fully visible (20%)**: Bbox not cut off at edges
+- **Padding (15%)**: Distance from bbox to nearest edge
 - **Detection confidence (15%)**: Model confidence in bbox detection
 - **Classification confidence (10%)**: Model confidence in species ID
+- **Rarity boost (15%)**: Rare species score higher, common species penalized (based on observation count)
+- **Daytime boost (10%)**: Daylight captures score higher (8am-4pm peak, 6am-6pm extended)
+
+Diversity constraints ensure variety in results:
+- **Species diversity**: Max 2 images per species
+- **Deployment diversity**: Max 3 images per camera location
+- **Temporal diversity**: Max 4 images per weekly time bucket
+- **Event diversity**: Max 1 image per event/sequence (avoids duplicate captures from same encounter)
 
 Returns images only (excludes videos), filtered to those with valid bbox data.
 
