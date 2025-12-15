@@ -2226,6 +2226,7 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
   const [isModalOpen, setIsModalOpen] = useState(false)
   const loaderRef = useRef(null)
   const PAGE_SIZE = 15
+  const PREFETCH_THRESHOLD = 5 // Prefetch when within 5 sequences of end
 
   // Sequence grouping state
   const [currentSequence, setCurrentSequence] = useState(null)
@@ -2449,8 +2450,17 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
     if (nextIndex < currentSequence.items.length) {
       setCurrentSequenceIndex(nextIndex)
       setSelectedMedia(currentSequence.items[nextIndex])
+
+      // Prefetch when at last item in sequence (next ArrowRight moves to next sequence)
+      if (nextIndex === currentSequence.items.length - 1) {
+        const currentSeqIdx = allNavigableItems.findIndex((s) => s.id === currentSequence.id)
+        const sequencesRemaining = allNavigableItems.length - 1 - currentSeqIdx
+        if (sequencesRemaining <= PREFETCH_THRESHOLD && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage()
+        }
+      }
     }
-  }, [currentSequence, currentSequenceIndex])
+  }, [currentSequence, currentSequenceIndex, allNavigableItems, hasNextPage, isFetchingNextPage, fetchNextPage])
 
   const handleSequencePrevious = useCallback(() => {
     if (!currentSequence) return
@@ -2470,6 +2480,12 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
       s.items.some((m) => m.mediaID === selectedMedia.mediaID)
     )
 
+    // Prefetch when approaching end of loaded data
+    const sequencesRemaining = allNavigableItems.length - 1 - currentSeqIdx
+    if (sequencesRemaining <= PREFETCH_THRESHOLD && hasNextPage && !isFetchingNextPage) {
+      fetchNextPage()
+    }
+
     if (currentSeqIdx < allNavigableItems.length - 1) {
       const nextSequence = allNavigableItems[currentSeqIdx + 1]
       const isMultiItem = nextSequence.items.length > 1
@@ -2477,7 +2493,7 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
       setCurrentSequenceIndex(0)
       setSelectedMedia(nextSequence.items[0])
     }
-  }, [selectedMedia, allNavigableItems])
+  }, [selectedMedia, allNavigableItems, hasNextPage, isFetchingNextPage, fetchNextPage])
 
   // Navigate to previous sequence/item globally
   const handlePreviousImage = useCallback(() => {
