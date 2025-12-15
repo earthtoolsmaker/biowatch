@@ -4,6 +4,10 @@ import os from 'os'
 import { DateTime } from 'luxon'
 import { getDrizzleDb, deployments, media, observations, insertMetadata } from '../db/index.js'
 import { downloadFileWithRetry, extractZip } from '../download.ts'
+import { parser } from 'stream-json'
+import { pick } from 'stream-json/filters/Pick.js'
+import { streamArray } from 'stream-json/streamers/StreamArray.js'
+import { chain } from 'stream-chain'
 
 // Conditionally import electron modules for production, use fallback for testing
 let app, log
@@ -403,6 +407,35 @@ export async function importLilaDatasetWithPath(
   if (!fs.existsSync(dbDir)) {
     fs.mkdirSync(dbDir, { recursive: true })
   }
+
+  // Use streaming import for large datasets to avoid memory exhaustion
+  if (dataset.imageCount && dataset.imageCount >= STREAMING_THRESHOLD) {
+    log.info(
+      `Dataset has ${dataset.imageCount} images (>= ${STREAMING_THRESHOLD}), using streaming import`
+    )
+    try {
+      return await importLilaDatasetStreaming(dataset, dbPath, id, onProgress)
+    } catch (error) {
+      log.error('Error during streaming LILA import:', error)
+
+      if (onProgress) {
+        onProgress({
+          stage: 'error',
+          stageIndex: -1,
+          totalStages: 3,
+          datasetTitle: dataset.name,
+          error: {
+            message: error.message
+          }
+        })
+      }
+
+      throw error
+    }
+  }
+
+  // Standard in-memory import for smaller datasets
+  log.info(`Dataset has ${dataset.imageCount || 'unknown'} images, using standard import`)
 
   // Get Drizzle database connection
   const db = await getDrizzleDb(id, dbPath)
@@ -944,3 +977,779 @@ async function batchInsert(db, table, data, tableName, onProgress) {
 
   log.info(`Completed insertion of ${data.length} rows into ${tableName}`)
 }
+
+// ============================================================================
+// STREAMING IMPORT FUNCTIONS (for large datasets like Serengeti)
+// ============================================================================
+
+// SQLite has a limit of ~999 bind variables per statement
+// With 100 rows × 8 columns = 800 variables, we stay under the limit
+const CHUNK_SIZE = 100
+
+/**
+ * Stream and extract categories from COCO JSON using stream-json
+ * Categories are small enough to hold in memory
+ * Uses pick() to efficiently locate categories array regardless of position in file
+ * @param {string} jsonPath - Path to the COCO JSON file
+ * @returns {Promise<Map>} - Map of category_id → category_name
+ */
+async function streamCategories(jsonPath) {
+  await initializeElectronModules()
+
+  return new Promise((resolve, reject) => {
+    const categoryMap = new Map()
+
+    // Use stream-json with pick() to efficiently extract just the categories array
+    // This works regardless of where categories appear in the file (before or after images)
+    const pipeline = chain([
+      fs.createReadStream(jsonPath),
+      parser(),
+      pick({ filter: 'categories' }),
+      streamArray()
+    ])
+
+    pipeline.on('data', ({ value }) => {
+      // Each value is a category object from the categories array
+      if (value && typeof value === 'object' && 'id' in value && 'name' in value) {
+        categoryMap.set(value.id, value.name)
+      }
+    })
+
+    pipeline.on('end', () => {
+      if (categoryMap.size === 0) {
+        log.warn('No categories found in JSON file')
+      } else {
+        log.info(`Streamed ${categoryMap.size} categories from JSON`)
+      }
+      resolve(categoryMap)
+    })
+
+    pipeline.on('error', (error) => {
+      log.error('Error streaming categories:', error)
+      reject(error)
+    })
+  })
+}
+
+/**
+ * Stream images from COCO JSON to compute bounds and write JSONL
+ * Does NOT insert to database - just computes bounds and writes temp file
+ * @param {string} jsonPath - Path to the COCO JSON file
+ * @param {string} tempJsonlPath - Path for temp JSONL file
+ * @param {object} dataset - Dataset configuration (for file_name prefix)
+ * @param {Map} sequenceBounds - Map to populate with seq_id → {start, end}
+ * @param {Map} deploymentBounds - Map to populate with location → {min, max}
+ * @param {function} onProgress - Progress callback
+ * @returns {Promise<number>} - Total number of images processed
+ */
+async function computeBoundsAndWriteJsonl(
+  jsonPath,
+  tempJsonlPath,
+  dataset,
+  sequenceBounds,
+  deploymentBounds,
+  onProgress
+) {
+  await initializeElectronModules()
+
+  // Clear temp JSONL file if it exists
+  if (fs.existsSync(tempJsonlPath)) {
+    fs.unlinkSync(tempJsonlPath)
+  }
+
+  return new Promise((resolve, reject) => {
+    let totalImages = 0
+    let chunk = []
+
+    // Process a chunk of images: compute bounds and write to JSONL
+    const processChunk = async (images) => {
+      if (images.length === 0) return
+
+      // Process each image: update bounds and write to JSONL
+      const jsonlLines = []
+      for (const img of images) {
+        const datetime = img.datetime ? transformDateField(img.datetime) : null
+        const imgId = String(img.id)
+        const location = img.location ? String(img.location) : null
+        const seqId = img.seq_id ? String(img.seq_id) : null
+
+        // Update sequence bounds in memory
+        if (seqId && datetime) {
+          if (!sequenceBounds.has(seqId)) {
+            sequenceBounds.set(seqId, { start: datetime, end: datetime })
+          } else {
+            const bounds = sequenceBounds.get(seqId)
+            if (datetime < bounds.start) bounds.start = datetime
+            if (datetime > bounds.end) bounds.end = datetime
+          }
+        }
+
+        // Update deployment bounds in memory
+        if (location && datetime) {
+          if (!deploymentBounds.has(location)) {
+            deploymentBounds.set(location, { min: datetime, max: datetime })
+          } else {
+            const bounds = deploymentBounds.get(location)
+            if (datetime < bounds.min) bounds.min = datetime
+            if (datetime > bounds.max) bounds.max = datetime
+          }
+        }
+
+        // Prepare image metadata for JSONL (needed for media insertion and annotation lookup)
+        // Include file_name for media insertion later
+        jsonlLines.push(
+          JSON.stringify({
+            id: imgId,
+            location,
+            seq_id: seqId,
+            datetime,
+            file_name: img.file_name,
+            width: img.width || null,
+            height: img.height || null
+          })
+        )
+      }
+
+      // Write to JSONL file
+      fs.appendFileSync(tempJsonlPath, jsonlLines.join('\n') + '\n')
+
+      totalImages += images.length
+
+      if (onProgress) {
+        onProgress({
+          stage: 'parsing',
+          stageIndex: 1,
+          totalStages: 4,
+          datasetTitle: dataset.name,
+          detail: `Computing bounds... ${totalImages} images`
+        })
+      }
+
+      log.debug(`Processed ${totalImages} images so far`)
+    }
+
+    // Create streaming pipeline for images array
+    // Use pick() to select the 'images' key from the COCO object
+    const pipeline = chain([
+      fs.createReadStream(jsonPath),
+      parser(),
+      pick({ filter: 'images' }),
+      streamArray()
+    ])
+
+    pipeline.on('data', async ({ value }) => {
+      // Each value is an image object from the images array
+      if (value && typeof value === 'object' && 'file_name' in value && 'id' in value) {
+        chunk.push(value)
+
+        if (chunk.length >= CHUNK_SIZE) {
+          pipeline.pause()
+          try {
+            await processChunk(chunk)
+            chunk = []
+          } catch (error) {
+            pipeline.destroy()
+            reject(error)
+            return
+          }
+          pipeline.resume()
+        }
+      }
+    })
+
+    pipeline.on('end', async () => {
+      try {
+        // Process remaining chunk
+        await processChunk(chunk)
+        log.info(`Completed streaming ${totalImages} images to JSONL`)
+        log.info(
+          `Computed ${sequenceBounds.size} sequence bounds, ${deploymentBounds.size} deployment bounds`
+        )
+        resolve(totalImages)
+      } catch (error) {
+        reject(error)
+      }
+    })
+
+    pipeline.on('error', (error) => {
+      log.error('Error streaming images:', error)
+      reject(error)
+    })
+  })
+}
+
+/**
+ * Insert media records from JSONL file to database
+ * @param {string} tempJsonlPath - Path to the temp JSONL file
+ * @param {object} mainDb - Main Drizzle database
+ * @param {object} dataset - Dataset configuration
+ * @param {function} onProgress - Progress callback
+ * @returns {Promise<number>} - Total number of media records inserted
+ */
+async function insertMediaFromJsonl(tempJsonlPath, mainDb, dataset, onProgress) {
+  await initializeElectronModules()
+
+  return new Promise((resolve, reject) => {
+    let totalInserted = 0
+    let chunk = []
+
+    const insertChunk = async (images) => {
+      if (images.length === 0) return
+
+      const mediaData = images.map((img) => ({
+        mediaID: String(img.id),
+        deploymentID: img.location ? String(img.location) : null,
+        timestamp: img.datetime || null,
+        filePath: `${dataset.imageBaseUrl}${img.file_name}`,
+        fileName: img.file_name,
+        fileMediatype: getMediaTypeFromFileName(img.file_name),
+        exifData: null,
+        favorite: false
+      }))
+
+      await mainDb.insert(media).values(mediaData)
+      totalInserted += images.length
+
+      if (onProgress) {
+        onProgress({
+          stage: 'importing',
+          stageIndex: 2,
+          totalStages: 4,
+          datasetTitle: dataset.name,
+          importProgress: {
+            table: 'media',
+            insertedRows: totalInserted,
+            totalRows: dataset.imageCount || totalInserted
+          }
+        })
+      }
+    }
+
+    const readStream = fs.createReadStream(tempJsonlPath, { encoding: 'utf8' })
+    let buffer = ''
+
+    readStream.on('data', async (data) => {
+      buffer += data
+      const lines = buffer.split('\n')
+      buffer = lines.pop() // Keep incomplete line in buffer
+
+      for (const line of lines) {
+        if (line.trim()) {
+          try {
+            const img = JSON.parse(line)
+            chunk.push(img)
+
+            if (chunk.length >= CHUNK_SIZE) {
+              readStream.pause()
+              try {
+                await insertChunk(chunk)
+                chunk = []
+              } catch (error) {
+                readStream.destroy()
+                reject(error)
+                return
+              }
+              readStream.resume()
+            }
+          } catch {
+            // Skip malformed lines
+          }
+        }
+      }
+    })
+
+    readStream.on('end', async () => {
+      try {
+        // Process remaining buffer
+        if (buffer.trim()) {
+          try {
+            const img = JSON.parse(buffer)
+            chunk.push(img)
+          } catch {
+            // Skip malformed line
+          }
+        }
+        // Insert remaining chunk
+        await insertChunk(chunk)
+        log.info(`Inserted ${totalInserted} media records from JSONL`)
+        resolve(totalInserted)
+      } catch (error) {
+        reject(error)
+      }
+    })
+
+    readStream.on('error', reject)
+  })
+}
+
+/**
+ * Load image metadata from JSONL file into a Map
+ * @param {string} tempJsonlPath - Path to the temp JSONL file
+ * @returns {Promise<Map>} - Map of image_id → image metadata
+ */
+async function loadImageMapFromJsonl(tempJsonlPath) {
+  await initializeElectronModules()
+
+  return new Promise((resolve, reject) => {
+    const imageMap = new Map()
+
+    const readStream = fs.createReadStream(tempJsonlPath, { encoding: 'utf8' })
+    let buffer = ''
+
+    readStream.on('data', (chunk) => {
+      buffer += chunk
+      const lines = buffer.split('\n')
+      buffer = lines.pop() // Keep incomplete line in buffer
+
+      for (const line of lines) {
+        if (line.trim()) {
+          try {
+            const img = JSON.parse(line)
+            imageMap.set(img.id, img)
+          } catch {
+            // Skip malformed lines
+          }
+        }
+      }
+    })
+
+    readStream.on('end', () => {
+      // Process any remaining data in buffer
+      if (buffer.trim()) {
+        try {
+          const img = JSON.parse(buffer)
+          imageMap.set(img.id, img)
+        } catch {
+          // Skip malformed line
+        }
+      }
+      log.info(`Loaded ${imageMap.size} images from JSONL into memory`)
+      resolve(imageMap)
+    })
+
+    readStream.on('error', reject)
+  })
+}
+
+/**
+ * Stream annotations from COCO JSON, processing in chunks
+ * Looks up image metadata from JSONL file and uses in-memory sequence bounds
+ * @param {string} jsonPath - Path to the COCO JSON file
+ * @param {string} tempJsonlPath - Path to temp JSONL file with image metadata
+ * @param {object} mainDb - Main Drizzle database
+ * @param {Map} categoryMap - Map of category_id → category_name
+ * @param {Map} sequenceBounds - Map of seq_id → {start, end}
+ * @param {object} dataset - Dataset configuration
+ * @param {function} onProgress - Progress callback
+ * @returns {Promise<number>} - Total number of observations created
+ */
+async function streamAnnotationsPass(
+  jsonPath,
+  tempJsonlPath,
+  mainDb,
+  categoryMap,
+  sequenceBounds,
+  dataset,
+  onProgress
+) {
+  await initializeElectronModules()
+
+  // Load image metadata from JSONL into memory
+  // For 7M images this is ~500MB but we need it for annotation lookups
+  log.info('Loading image metadata from JSONL for annotation processing...')
+  const imageMap = await loadImageMapFromJsonl(tempJsonlPath)
+
+  return new Promise((resolve, reject) => {
+    let totalObservations = 0
+    let chunk = []
+    let chunkIndex = 0
+
+    // Process a chunk of annotations
+    const processChunk = async (annotations) => {
+      if (annotations.length === 0) return
+
+      const observationsData = []
+
+      for (let idx = 0; idx < annotations.length; idx++) {
+        const ann = annotations[idx]
+        const categoryName = categoryMap.get(ann.category_id) || 'Unknown'
+
+        // Filter out blank/empty categories
+        if (isBlankCategory(categoryName)) {
+          continue
+        }
+
+        // Look up image info from in-memory Map
+        const imageInfo = imageMap.get(String(ann.image_id))
+
+        if (!imageInfo) {
+          // Image not found - skip this annotation
+          continue
+        }
+
+        // Normalize bounding box
+        const bbox = normalizeBbox(ann.bbox, imageInfo.width, imageInfo.height)
+
+        // Get event info from sequence bounds
+        const eventID = imageInfo.seq_id || null
+        const imageDatetime = imageInfo.datetime || null
+        const seqBounds = eventID ? sequenceBounds.get(eventID) : null
+        const eventStart = seqBounds?.start || imageDatetime
+        const eventEnd = seqBounds?.end || imageDatetime
+
+        observationsData.push({
+          observationID: ann.id ? String(ann.id) : `obs_${ann.image_id}_${chunkIndex}_${idx}`,
+          mediaID: String(ann.image_id),
+          deploymentID: imageInfo.location || null,
+          eventID,
+          eventStart,
+          eventEnd,
+          scientificName: categoryName,
+          commonName: categoryName,
+          observationType: 'animal',
+          classificationProbability: null,
+          count: 1,
+          prediction: null,
+          lifeStage: null,
+          age: null,
+          sex: null,
+          behavior: null,
+          bboxX: bbox?.bboxX ?? null,
+          bboxY: bbox?.bboxY ?? null,
+          bboxWidth: bbox?.bboxWidth ?? null,
+          bboxHeight: bbox?.bboxHeight ?? null
+        })
+      }
+
+      if (observationsData.length > 0) {
+        await mainDb.insert(observations).values(observationsData)
+        totalObservations += observationsData.length
+      }
+
+      chunkIndex++
+
+      if (onProgress) {
+        onProgress({
+          stage: 'importing',
+          stageIndex: 2,
+          totalStages: 3,
+          datasetTitle: dataset.name,
+          importProgress: {
+            table: 'observations',
+            insertedRows: totalObservations,
+            totalRows: totalObservations // We don't know total annotations upfront
+          }
+        })
+      }
+
+      log.debug(`Processed ${totalObservations} observations so far`)
+    }
+
+    // Create streaming pipeline for annotations array
+    // Use pick() to select the 'annotations' key from the COCO object
+    const pipeline = chain([
+      fs.createReadStream(jsonPath),
+      parser(),
+      pick({ filter: 'annotations' }),
+      streamArray()
+    ])
+
+    pipeline.on('data', async ({ value }) => {
+      // Each value is an annotation object from the annotations array
+      if (value && typeof value === 'object' && 'category_id' in value && 'image_id' in value) {
+        chunk.push(value)
+
+        if (chunk.length >= CHUNK_SIZE) {
+          pipeline.pause()
+          try {
+            await processChunk(chunk)
+            chunk = []
+          } catch (error) {
+            pipeline.destroy()
+            reject(error)
+            return
+          }
+          pipeline.resume()
+        }
+      }
+    })
+
+    pipeline.on('end', async () => {
+      try {
+        // Process remaining chunk
+        await processChunk(chunk)
+        log.info(`Completed streaming ${totalObservations} observations`)
+        resolve(totalObservations)
+      } catch (error) {
+        reject(error)
+      }
+    })
+
+    pipeline.on('error', (error) => {
+      log.error('Error streaming annotations:', error)
+      reject(error)
+    })
+  })
+}
+
+/**
+ * Insert deployments from in-memory bounds Map to main database
+ * @param {Map} deploymentBounds - Map of location → {min, max}
+ * @param {object} mainDb - Main Drizzle database
+ * @returns {Promise<number>} - Number of deployments inserted
+ */
+async function insertDeploymentsFromBounds(deploymentBounds, mainDb) {
+  await initializeElectronModules()
+
+  const deploymentEntries = Array.from(deploymentBounds.entries())
+
+  if (deploymentEntries.length === 0) {
+    log.info('No deployments to insert')
+    return 0
+  }
+
+  const deploymentsData = deploymentEntries.map(([location, bounds]) => ({
+    deploymentID: location,
+    locationID: location,
+    locationName: location,
+    deploymentStart: bounds.min,
+    deploymentEnd: bounds.max,
+    latitude: null,
+    longitude: null,
+    cameraModel: null,
+    cameraID: null,
+    coordinateUncertainty: null
+  }))
+
+  // Insert in batches (use smaller batch to stay under SQLite variable limit)
+  const batchSize = CHUNK_SIZE
+  for (let i = 0; i < deploymentsData.length; i += batchSize) {
+    const batch = deploymentsData.slice(i, i + batchSize)
+    await mainDb.insert(deployments).values(batch)
+  }
+
+  log.info(`Inserted ${deploymentsData.length} deployments`)
+  return deploymentsData.length
+}
+
+/**
+ * Streaming import for large LILA datasets
+ * Uses JSONL temp file and in-memory bounds to avoid memory exhaustion
+ */
+async function importLilaDatasetStreaming(dataset, dbPath, id, onProgress) {
+  await initializeElectronModules()
+  log.info(`Starting STREAMING import for large dataset: ${dataset.id}`)
+
+  const tempDir = path.join(os.tmpdir(), 'biowatch-lila-import')
+  const tempJsonlPath = path.join(tempDir, `${id}-images.jsonl`)
+
+  // Ensure temp directory exists
+  if (!fs.existsSync(tempDir)) {
+    fs.mkdirSync(tempDir, { recursive: true })
+  }
+
+  // Download and extract metadata
+  if (onProgress) {
+    onProgress({
+      stage: 'downloading',
+      stageIndex: 0,
+      totalStages: 4,
+      datasetTitle: dataset.name
+    })
+  }
+
+  const jsonPath = await downloadAndExtractMetadata(dataset, onProgress)
+  log.info(`Downloaded metadata to: ${jsonPath}`)
+
+  // In-memory Maps for bounds (small enough to keep in memory)
+  const sequenceBounds = new Map() // seq_id → {start, end}
+  const deploymentBounds = new Map() // location → {min, max}
+
+  // Get main database connection
+  const mainDb = await getDrizzleDb(id, dbPath)
+
+  try {
+    // Stage 1: Stream categories (small, in-memory)
+    if (onProgress) {
+      onProgress({
+        stage: 'parsing',
+        stageIndex: 1,
+        totalStages: 4,
+        datasetTitle: dataset.name,
+        detail: 'Extracting categories...'
+      })
+    }
+
+    const categoryMap = await streamCategories(jsonPath)
+    log.info(`Built category map with ${categoryMap.size} categories`)
+
+    // Stage 2: Compute bounds + write JSONL (NO database inserts yet)
+    if (onProgress) {
+      onProgress({
+        stage: 'parsing',
+        stageIndex: 1,
+        totalStages: 4,
+        datasetTitle: dataset.name,
+        detail: 'Computing bounds...'
+      })
+    }
+
+    const imageCount = await computeBoundsAndWriteJsonl(
+      jsonPath,
+      tempJsonlPath,
+      dataset,
+      sequenceBounds,
+      deploymentBounds,
+      onProgress
+    )
+    log.info(`Processed ${imageCount} images, computed bounds`)
+
+    // Stage 3: Insert deployments FIRST (before media, to satisfy FK constraint)
+    if (onProgress) {
+      onProgress({
+        stage: 'importing',
+        stageIndex: 2,
+        totalStages: 4,
+        datasetTitle: dataset.name,
+        detail: 'Importing deployments...'
+      })
+    }
+
+    const deploymentCount = await insertDeploymentsFromBounds(deploymentBounds, mainDb)
+    log.info(`Inserted ${deploymentCount} deployments`)
+
+    // Stage 4: Insert media from JSONL (now FK to deployments is satisfied)
+    if (onProgress) {
+      onProgress({
+        stage: 'importing',
+        stageIndex: 2,
+        totalStages: 4,
+        datasetTitle: dataset.name,
+        detail: 'Importing media...'
+      })
+    }
+
+    const mediaCount = await insertMediaFromJsonl(tempJsonlPath, mainDb, dataset, onProgress)
+    log.info(`Inserted ${mediaCount} media records`)
+
+    // Stage 5: Stream annotations → observations inserts
+    if (onProgress) {
+      onProgress({
+        stage: 'importing',
+        stageIndex: 3,
+        totalStages: 4,
+        datasetTitle: dataset.name,
+        detail: 'Importing observations...'
+      })
+    }
+
+    const observationCount = await streamAnnotationsPass(
+      jsonPath,
+      tempJsonlPath,
+      mainDb,
+      categoryMap,
+      sequenceBounds,
+      dataset,
+      onProgress
+    )
+    log.info(`Streamed ${observationCount} observations`)
+
+    // Insert metadata
+    const metadataRecord = {
+      id,
+      name: dataset.name,
+      title: dataset.name,
+      description: dataset.description,
+      created: new Date().toISOString(),
+      importerName: 'lila/coco-streaming',
+      contributors: null,
+      startDate: null,
+      endDate: null
+    }
+    await insertMetadata(mainDb, metadataRecord)
+    log.info('Inserted study metadata')
+
+    // Signal completion
+    if (onProgress) {
+      onProgress({
+        stage: 'complete',
+        stageIndex: 4,
+        totalStages: 4,
+        datasetTitle: dataset.name
+      })
+    }
+
+    log.info('STREAMING import completed successfully')
+
+    return {
+      dbPath,
+      data: metadataRecord
+    }
+  } finally {
+    // Cleanup temp JSONL file
+    try {
+      if (fs.existsSync(tempJsonlPath)) {
+        fs.unlinkSync(tempJsonlPath)
+      }
+      log.info('Cleaned up temporary JSONL file')
+    } catch (cleanupError) {
+      log.warn('Error cleaning up temp JSONL:', cleanupError)
+    }
+  }
+}
+
+/**
+ * Download and extract metadata, returning path to JSON file
+ * (Extracted from downloadAndParseMetadata for streaming use)
+ */
+async function downloadAndExtractMetadata(dataset, onProgress) {
+  await initializeElectronModules()
+
+  const tempDir = path.join(os.tmpdir(), 'biowatch-lila-import')
+  if (!fs.existsSync(tempDir)) {
+    fs.mkdirSync(tempDir, { recursive: true })
+  }
+
+  if (dataset.isZipped) {
+    const zipPath = path.join(tempDir, `${dataset.id}.zip`)
+    await downloadFileWithRetry(dataset.metadataUrl, zipPath, (progress) => {
+      if (onProgress) {
+        onProgress({
+          stage: 'downloading',
+          stageIndex: 0,
+          totalStages: 3,
+          datasetTitle: dataset.name,
+          downloadProgress: progress
+        })
+      }
+    })
+
+    const extractPath = path.join(tempDir, dataset.id)
+    await extractZip(zipPath, extractPath)
+
+    const jsonFile = findJsonFile(extractPath)
+    if (!jsonFile) {
+      throw new Error('No JSON file found in ZIP archive')
+    }
+
+    return jsonFile
+  } else {
+    const jsonPath = path.join(tempDir, `${dataset.id}.json`)
+    await downloadFileWithRetry(dataset.metadataUrl, jsonPath, (progress) => {
+      if (onProgress) {
+        onProgress({
+          stage: 'downloading',
+          stageIndex: 0,
+          totalStages: 3,
+          datasetTitle: dataset.name,
+          downloadProgress: progress
+        })
+      }
+    })
+
+    return jsonPath
+  }
+}
+
+// Threshold for using streaming import (100K images)
+const STREAMING_THRESHOLD = 100000

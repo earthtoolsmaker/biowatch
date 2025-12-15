@@ -43,8 +43,8 @@ export class StudyDatabaseManager {
         // Enable foreign keys
         this.sqlite.pragma('foreign_keys = ON')
 
-        // // Enable WAL journal mode for better write performance
-        // this.sqlite.pragma('journal_mode = WAL')
+        // Enable WAL journal mode for better write performance
+        this.sqlite.pragma('journal_mode = WAL')
 
         log.info(`[DB] Initialized READ-WRITE database for study ${this.studyId}: ${this.dbPath}`)
 
