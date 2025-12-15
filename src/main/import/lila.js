@@ -1165,12 +1165,22 @@ async function computeBoundsAndWriteJsonl(
       totalImages += images.length
 
       if (onProgress) {
+        const expectedImages = dataset.imageCount || 0
+        const percent =
+          expectedImages > 0 ? Math.round((totalImages / expectedImages) * 1000) / 10 : 0
         onProgress({
           stage: 'parsing',
           stageIndex: 1,
           totalStages: 3,
           datasetTitle: dataset.name,
-          detail: `Computing bounds... ${totalImages} images`
+          detail: `Computing bounds... ${totalImages} images`,
+          parsingProgress: {
+            phase: 'computing_bounds',
+            phaseLabel: 'Computing image bounds',
+            processed: totalImages,
+            total: expectedImages,
+            percent
+          }
         })
       }
 
@@ -1342,13 +1352,17 @@ async function insertMediaFromJsonl(tempJsonlPath, mainDb, dataset, onProgress) 
 /**
  * Load image metadata from JSONL file into a Map
  * @param {string} tempJsonlPath - Path to the temp JSONL file
+ * @param {number} expectedCount - Expected number of images (for progress calculation)
+ * @param {function} onProgress - Progress callback
  * @returns {Promise<Map>} - Map of image_id → image metadata
  */
-async function loadImageMapFromJsonl(tempJsonlPath) {
+async function loadImageMapFromJsonl(tempJsonlPath, expectedCount = 0, onProgress = null) {
   await initializeElectronModules()
 
   return new Promise((resolve, reject) => {
     const imageMap = new Map()
+    let lastProgressUpdate = 0
+    const PROGRESS_THROTTLE = 10000 // Update progress every 10k lines
 
     const readStream = fs.createReadStream(tempJsonlPath, { encoding: 'utf8' })
     let buffer = ''
@@ -1367,6 +1381,21 @@ async function loadImageMapFromJsonl(tempJsonlPath) {
             // Skip malformed lines
           }
         }
+      }
+
+      // Report progress periodically
+      const currentSize = imageMap.size
+      if (onProgress && currentSize - lastProgressUpdate >= PROGRESS_THROTTLE) {
+        lastProgressUpdate = currentSize
+        const percent =
+          expectedCount > 0 ? Math.round((currentSize / expectedCount) * 1000) / 10 : 0
+        onProgress({
+          phase: 'loading_metadata',
+          phaseLabel: 'Loading image metadata',
+          processed: currentSize,
+          total: expectedCount,
+          percent
+        })
       }
     })
 
@@ -1391,15 +1420,31 @@ async function loadImageMapFromJsonl(tempJsonlPath) {
  * Count annotations in COCO JSON file using streaming
  * This provides the total count for accurate progress reporting
  * @param {string} jsonPath - Path to the COCO JSON file
+ * @param {function} onProgress - Progress callback (optional)
  * @returns {Promise<number>} - Total number of annotations
  */
-async function countAnnotationsStreaming(jsonPath) {
+async function countAnnotationsStreaming(jsonPath, onProgress = null) {
   await initializeElectronModules()
+
+  // Get file size for byte-based progress estimation
+  const fileStats = fs.statSync(jsonPath)
+  const totalBytes = fileStats.size
 
   return new Promise((resolve, reject) => {
     let count = 0
+    let bytesRead = 0
+    let lastProgressUpdate = 0
+    const PROGRESS_THROTTLE = 50000 // Update every 50k annotations
+
+    // Create read stream and track bytes
+    const readStream = fs.createReadStream(jsonPath)
+
+    readStream.on('data', (chunk) => {
+      bytesRead += chunk.length
+    })
+
     const pipeline = chain([
-      fs.createReadStream(jsonPath),
+      readStream,
       createNaNSanitizer(),
       parser(),
       pick({ filter: 'annotations' }),
@@ -1409,6 +1454,21 @@ async function countAnnotationsStreaming(jsonPath) {
     pipeline.on('data', ({ value }) => {
       if (value && typeof value === 'object' && 'category_id' in value && 'image_id' in value) {
         count++
+
+        // Report progress periodically
+        if (onProgress && count - lastProgressUpdate >= PROGRESS_THROTTLE) {
+          lastProgressUpdate = count
+          const percent = totalBytes > 0 ? Math.round((bytesRead / totalBytes) * 1000) / 10 : 0
+          onProgress({
+            phase: 'counting_annotations',
+            phaseLabel: 'Counting annotations',
+            processed: count,
+            total: null, // Unknown ahead of time
+            bytesRead,
+            totalBytes,
+            percent
+          })
+        }
       }
     })
 
@@ -1452,7 +1512,23 @@ async function streamAnnotationsPass(
   // Load image metadata from JSONL into memory
   // For 7M images this is ~500MB but we need it for annotation lookups
   log.info('Loading image metadata from JSONL for annotation processing...')
-  const imageMap = await loadImageMapFromJsonl(tempJsonlPath)
+  const expectedImageCount = dataset.imageCount || 0
+  const imageMap = await loadImageMapFromJsonl(tempJsonlPath, expectedImageCount, (progress) => {
+    if (onProgress) {
+      onProgress({
+        stage: 'importing',
+        stageIndex: 2,
+        totalStages: 3,
+        datasetTitle: dataset.name,
+        detail: `Loading image metadata... ${progress.processed.toLocaleString()}`,
+        importProgress: {
+          table: 'Loading metadata',
+          insertedRows: progress.processed,
+          totalRows: progress.total
+        }
+      })
+    }
+  })
 
   return new Promise((resolve, reject) => {
     let totalObservations = 0
@@ -1701,6 +1777,20 @@ async function importLilaDatasetStreaming(dataset, dbPath, id, onProgress) {
     )
     log.info(`Processed ${imageCount} images, computed bounds`)
 
+    // Count annotations (still part of parsing stage - scanning COCO JSON)
+    const totalAnnotations = await countAnnotationsStreaming(jsonPath, (parsingProgress) => {
+      if (onProgress) {
+        onProgress({
+          stage: 'parsing',
+          stageIndex: 1,
+          totalStages: 3,
+          datasetTitle: dataset.name,
+          parsingProgress
+        })
+      }
+    })
+    log.info(`Found ${totalAnnotations} annotations to import`)
+
     // Stage 3: Insert deployments FIRST (before media, to satisfy FK constraint)
     if (onProgress) {
       onProgress({
@@ -1729,21 +1819,7 @@ async function importLilaDatasetStreaming(dataset, dbPath, id, onProgress) {
     const mediaCount = await insertMediaFromJsonl(tempJsonlPath, mainDb, dataset, onProgress)
     log.info(`Inserted ${mediaCount} media records`)
 
-    // Stage 5: Count annotations first for accurate progress
-    if (onProgress) {
-      onProgress({
-        stage: 'importing',
-        stageIndex: 2,
-        totalStages: 3,
-        datasetTitle: dataset.name,
-        detail: 'Counting observations...'
-      })
-    }
-
-    const totalAnnotations = await countAnnotationsStreaming(jsonPath)
-    log.info(`Found ${totalAnnotations} annotations to import`)
-
-    // Stage 6: Stream annotations → observations inserts
+    // Stream annotations → observations inserts
     if (onProgress) {
       onProgress({
         stage: 'importing',

@@ -14,7 +14,14 @@ function formatBytes(bytes) {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`
 }
 
-function StageRow({ stage, currentStageIndex, stageIndex, downloadProgress, importProgress }) {
+function StageRow({
+  stage,
+  currentStageIndex,
+  stageIndex,
+  downloadProgress,
+  importProgress,
+  parsingProgress
+}) {
   const isComplete = currentStageIndex > stageIndex
   const isCurrent = currentStageIndex === stageIndex
 
@@ -111,8 +118,37 @@ function StageRow({ stage, currentStageIndex, stageIndex, downloadProgress, impo
           </div>
         )}
 
-        {/* Current stage pulsing indicator (for stages without specific progress) */}
-        {isCurrent && stage.key !== 'downloading' && stage.key !== 'importing' && (
+        {/* Parsing progress */}
+        {isCurrent && stage.key === 'parsing' && parsingProgress && (
+          <div className="mt-2">
+            <div className="text-xs text-gray-500 mb-1">
+              <span className="font-medium">{parsingProgress.phaseLabel}</span>
+              {parsingProgress.total > 0 && (
+                <span>
+                  {' '}
+                  — {parsingProgress.processed.toLocaleString()} /{' '}
+                  {parsingProgress.total.toLocaleString()}
+                </span>
+              )}
+              {!parsingProgress.total && parsingProgress.processed > 0 && (
+                <span> — {parsingProgress.processed.toLocaleString()} counted</span>
+              )}
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+              {parsingProgress.percent > 0 ? (
+                <div
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-150"
+                  style={{ width: `${Math.min(parsingProgress.percent, 100)}%` }}
+                />
+              ) : (
+                <div className="bg-blue-600 h-2 rounded-full animate-pulse w-full opacity-60" />
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Parsing stage pulsing indicator (when no parsingProgress yet) */}
+        {isCurrent && stage.key === 'parsing' && !parsingProgress && (
           <div className="mt-2">
             <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
               <div className="bg-blue-600 h-2 rounded-full animate-pulse w-full opacity-60" />
@@ -136,8 +172,15 @@ function StageRow({ stage, currentStageIndex, stageIndex, downloadProgress, impo
 function LilaImportProgress({ isOpen, progress, onCancel }) {
   if (!isOpen) return null
 
-  const { stage, stageIndex, datasetTitle, downloadProgress, importProgress, error } =
-    progress || {}
+  const {
+    stage,
+    stageIndex,
+    datasetTitle,
+    downloadProgress,
+    importProgress,
+    parsingProgress,
+    error
+  } = progress || {}
 
   const isError = stage === 'error'
   const isComplete = stage === 'complete'
@@ -207,6 +250,7 @@ function LilaImportProgress({ isOpen, progress, onCancel }) {
                   currentStageIndex={stageIndex}
                   downloadProgress={s.key === 'downloading' ? downloadProgress : null}
                   importProgress={s.key === 'importing' ? importProgress : null}
+                  parsingProgress={s.key === 'parsing' ? parsingProgress : null}
                 />
               ))}
             </div>
