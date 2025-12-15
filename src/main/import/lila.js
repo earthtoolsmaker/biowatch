@@ -3,7 +3,7 @@ import path from 'path'
 import os from 'os'
 import { Transform } from 'stream'
 import { DateTime } from 'luxon'
-import { getDrizzleDb, deployments, media, observations, insertMetadata } from '../db/index.js'
+import { getStudyDatabase, deployments, media, observations, insertMetadata } from '../db/index.js'
 import { downloadFileWithRetry, extractZip } from '../download.ts'
 import { parser } from 'stream-json'
 import { pick } from 'stream-json/filters/Pick.js'
@@ -438,8 +438,12 @@ export async function importLilaDatasetWithPath(
   // Standard in-memory import for smaller datasets
   log.info(`Dataset has ${dataset.imageCount || 'unknown'} images, using standard import`)
 
-  // Get Drizzle database connection
-  const db = await getDrizzleDb(id, dbPath)
+  // Get database manager and Drizzle instance
+  const manager = await getStudyDatabase(id, dbPath)
+  const db = manager.getDb()
+
+  // Enable import mode for faster bulk inserts
+  manager.setImportMode()
 
   try {
     // Stage 1: Download metadata
@@ -515,52 +519,73 @@ export async function importLilaDatasetWithPath(
     }
 
     // Insert deployments
-    await batchInsert(db, deployments, deploymentsData, 'deployments', (progress) => {
-      if (onProgress) {
-        onProgress({
-          stage: 'importing',
-          stageIndex: 2,
-          totalStages: 3,
-          datasetTitle: dataset.name,
-          importProgress: {
-            table: 'deployments',
-            ...progress
-          }
-        })
-      }
-    })
+    await batchInsert(
+      db,
+      deployments,
+      deploymentsData,
+      'deployments',
+      (progress) => {
+        if (onProgress) {
+          onProgress({
+            stage: 'importing',
+            stageIndex: 2,
+            totalStages: 3,
+            datasetTitle: dataset.name,
+            importProgress: {
+              table: 'deployments',
+              ...progress
+            }
+          })
+        }
+      },
+      manager
+    )
 
     // Insert media
-    await batchInsert(db, media, mediaData, 'media', (progress) => {
-      if (onProgress) {
-        onProgress({
-          stage: 'importing',
-          stageIndex: 2,
-          totalStages: 3,
-          datasetTitle: dataset.name,
-          importProgress: {
-            table: 'media',
-            ...progress
-          }
-        })
-      }
-    })
+    await batchInsert(
+      db,
+      media,
+      mediaData,
+      'media',
+      (progress) => {
+        if (onProgress) {
+          onProgress({
+            stage: 'importing',
+            stageIndex: 2,
+            totalStages: 3,
+            datasetTitle: dataset.name,
+            importProgress: {
+              table: 'media',
+              ...progress
+            }
+          })
+        }
+      },
+      manager
+    )
 
     // Insert observations
-    await batchInsert(db, observations, observationsData, 'observations', (progress) => {
-      if (onProgress) {
-        onProgress({
-          stage: 'importing',
-          stageIndex: 2,
-          totalStages: 3,
-          datasetTitle: dataset.name,
-          importProgress: {
-            table: 'observations',
-            ...progress
-          }
-        })
-      }
-    })
+    await batchInsert(
+      db,
+      observations,
+      observationsData,
+      'observations',
+      (progress) => {
+        if (onProgress) {
+          onProgress({
+            stage: 'importing',
+            stageIndex: 2,
+            totalStages: 3,
+            datasetTitle: dataset.name,
+            importProgress: {
+              table: 'observations',
+              ...progress
+            }
+          })
+        }
+      },
+      manager
+    )
 
     // Insert metadata
     const metadataRecord = {
@@ -609,6 +634,9 @@ export async function importLilaDatasetWithPath(
     }
 
     throw error
+  } finally {
+    // Reset import mode to safe defaults
+    manager.resetImportMode()
   }
 }
 
@@ -897,7 +925,6 @@ function transformCOCOToObservations(annotations, categoryMap, imageMap, sequenc
         observationType: 'animal',
         classificationProbability: null,
         count: 1,
-        prediction: null,
         lifeStage: null,
         age: null,
         sex: null,
@@ -976,9 +1003,49 @@ function getMediaTypeFromFileName(fileName) {
 }
 
 /**
- * Batch insert data into database
+ * Convert a JavaScript value to a SQLite-compatible value.
+ * SQLite only accepts: numbers, strings, bigints, buffers, and null.
+ * @param {any} value - JavaScript value to convert
+ * @returns {number|string|bigint|Buffer|null} SQLite-compatible value
  */
-async function batchInsert(db, table, data, tableName, onProgress) {
+function toSqliteValue(value) {
+  if (value === undefined) return null
+  if (value === null) return null
+  if (typeof value === 'boolean') return value ? 1 : 0
+  if (typeof value === 'object') return JSON.stringify(value)
+  return value
+}
+
+/**
+ * Create a transaction-wrapped bulk inserter for high-performance batch inserts.
+ * Uses raw prepared statements instead of Drizzle ORM for maximum speed.
+ * @param {Database} sqlite - Raw better-sqlite3 connection
+ * @param {string} tableName - Name of the table to insert into
+ * @param {string[]} columns - Array of column names
+ * @returns {Function} Transaction-wrapped inserter function
+ */
+function createBulkInserter(sqlite, tableName, columns) {
+  const placeholders = columns.map(() => '?').join(', ')
+  const sql = `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders})`
+  const stmt = sqlite.prepare(sql)
+
+  return sqlite.transaction((rows) => {
+    for (const row of rows) {
+      stmt.run(...columns.map((col) => toSqliteValue(row[col])))
+    }
+  })
+}
+
+/**
+ * Batch insert data into database using transaction-wrapped raw SQL for performance.
+ * @param {object} db - Drizzle database instance (unused but kept for API compatibility)
+ * @param {object} table - Drizzle table schema (unused but kept for API compatibility)
+ * @param {Array} data - Array of row objects to insert
+ * @param {string} tableName - Name of the table
+ * @param {Function} onProgress - Progress callback
+ * @param {object} manager - StudyDatabaseManager instance for raw SQLite access
+ */
+async function batchInsert(db, table, data, tableName, onProgress, manager) {
   await initializeElectronModules()
 
   if (data.length === 0) {
@@ -986,12 +1053,17 @@ async function batchInsert(db, table, data, tableName, onProgress) {
     return
   }
 
-  const batchSize = 1000
+  const batchSize = 2000 // Increased from 1000 for better throughput
   const totalBatches = Math.ceil(data.length / batchSize)
+
+  // Get column names from first row and create bulk inserter
+  const columns = Object.keys(data[0])
+  const sqlite = manager.getSqlite()
+  const inserter = createBulkInserter(sqlite, tableName, columns)
 
   for (let i = 0; i < data.length; i += batchSize) {
     const batch = data.slice(i, i + batchSize)
-    await db.insert(table).values(batch)
+    inserter(batch) // Transaction-wrapped insert
 
     const insertedRows = Math.min(i + batchSize, data.length)
     const batchNumber = Math.floor(i / batchSize) + 1
@@ -1015,9 +1087,9 @@ async function batchInsert(db, table, data, tableName, onProgress) {
 // STREAMING IMPORT FUNCTIONS (for large datasets like Serengeti)
 // ============================================================================
 
-// SQLite has a limit of ~999 bind variables per statement
-// With 100 rows × 8 columns = 800 variables, we stay under the limit
-const CHUNK_SIZE = 100
+// Batch size for streaming inserts. Using transaction-wrapped raw SQL
+// allows much larger batches (2000 rows) for better throughput.
+const CHUNK_SIZE = 2000
 
 /**
  * Stream and extract categories from COCO JSON using stream-json
@@ -1248,13 +1320,28 @@ async function computeBoundsAndWriteJsonl(
 /**
  * Insert media records from JSONL file to database
  * @param {string} tempJsonlPath - Path to the temp JSONL file
- * @param {object} mainDb - Main Drizzle database
+ * @param {object} mainDb - Main Drizzle database (unused, kept for API compatibility)
  * @param {object} dataset - Dataset configuration
  * @param {function} onProgress - Progress callback
+ * @param {object} manager - StudyDatabaseManager for raw SQLite access
  * @returns {Promise<number>} - Total number of media records inserted
  */
-async function insertMediaFromJsonl(tempJsonlPath, mainDb, dataset, onProgress) {
+async function insertMediaFromJsonl(tempJsonlPath, mainDb, dataset, onProgress, manager) {
   await initializeElectronModules()
+
+  // Create bulk inserter for media table using raw SQL
+  const sqlite = manager.getSqlite()
+  const mediaColumns = [
+    'mediaID',
+    'deploymentID',
+    'timestamp',
+    'filePath',
+    'fileName',
+    'fileMediatype',
+    'exifData',
+    'favorite'
+  ]
+  const mediaInserter = createBulkInserter(sqlite, 'media', mediaColumns)
 
   return new Promise((resolve, reject) => {
     let totalInserted = 0
@@ -1274,7 +1361,7 @@ async function insertMediaFromJsonl(tempJsonlPath, mainDb, dataset, onProgress) 
         favorite: false
       }))
 
-      await mainDb.insert(media).values(mediaData)
+      mediaInserter(mediaData) // Transaction-wrapped bulk insert
       totalInserted += images.length
 
       if (onProgress) {
@@ -1519,6 +1606,7 @@ async function countAnnotationsStreaming(jsonPath, onProgress = null) {
  * @param {object} dataset - Dataset configuration
  * @param {number} totalAnnotations - Total number of annotations for progress reporting
  * @param {function} onProgress - Progress callback
+ * @param {object} manager - StudyDatabaseManager for raw SQLite access
  * @returns {Promise<number>} - Total number of observations created
  */
 async function streamAnnotationsPass(
@@ -1529,9 +1617,35 @@ async function streamAnnotationsPass(
   sequenceBounds,
   dataset,
   totalAnnotations,
-  onProgress
+  onProgress,
+  manager
 ) {
   await initializeElectronModules()
+
+  // Create bulk inserter for observations table using raw SQL
+  const sqlite = manager.getSqlite()
+  const observationsColumns = [
+    'observationID',
+    'mediaID',
+    'deploymentID',
+    'eventID',
+    'eventStart',
+    'eventEnd',
+    'scientificName',
+    'commonName',
+    'observationType',
+    'classificationProbability',
+    'count',
+    'lifeStage',
+    'age',
+    'sex',
+    'behavior',
+    'bboxX',
+    'bboxY',
+    'bboxWidth',
+    'bboxHeight'
+  ]
+  const observationsInserter = createBulkInserter(sqlite, 'observations', observationsColumns)
 
   // Load image metadata from JSONL into memory
   // For 7M images this is ~500MB but we need it for annotation lookups
@@ -1604,7 +1718,6 @@ async function streamAnnotationsPass(
           observationType: 'animal',
           classificationProbability: null,
           count: 1,
-          prediction: null,
           lifeStage: null,
           age: null,
           sex: null,
@@ -1617,7 +1730,7 @@ async function streamAnnotationsPass(
       }
 
       if (observationsData.length > 0) {
-        await mainDb.insert(observations).values(observationsData)
+        observationsInserter(observationsData) // Transaction-wrapped bulk insert
         totalObservations += observationsData.length
       }
 
@@ -1692,10 +1805,11 @@ async function streamAnnotationsPass(
 /**
  * Insert deployments from in-memory bounds Map to main database
  * @param {Map} deploymentBounds - Map of location → {min, max}
- * @param {object} mainDb - Main Drizzle database
+ * @param {object} mainDb - Main Drizzle database (unused, kept for API compatibility)
+ * @param {object} manager - StudyDatabaseManager for raw SQLite access
  * @returns {Promise<number>} - Number of deployments inserted
  */
-async function insertDeploymentsFromBounds(deploymentBounds, mainDb) {
+async function insertDeploymentsFromBounds(deploymentBounds, mainDb, manager) {
   await initializeElectronModules()
 
   const deploymentEntries = Array.from(deploymentBounds.entries())
@@ -1718,11 +1832,27 @@ async function insertDeploymentsFromBounds(deploymentBounds, mainDb) {
     coordinateUncertainty: null
   }))
 
-  // Insert in batches (use smaller batch to stay under SQLite variable limit)
+  // Create bulk inserter for deployments table using raw SQL
+  const sqlite = manager.getSqlite()
+  const deploymentsColumns = [
+    'deploymentID',
+    'locationID',
+    'locationName',
+    'deploymentStart',
+    'deploymentEnd',
+    'latitude',
+    'longitude',
+    'cameraModel',
+    'cameraID',
+    'coordinateUncertainty'
+  ]
+  const deploymentsInserter = createBulkInserter(sqlite, 'deployments', deploymentsColumns)
+
+  // Insert in batches using transaction-wrapped bulk insert
   const batchSize = CHUNK_SIZE
   for (let i = 0; i < deploymentsData.length; i += batchSize) {
     const batch = deploymentsData.slice(i, i + batchSize)
-    await mainDb.insert(deployments).values(batch)
+    deploymentsInserter(batch)
   }
 
   log.info(`Inserted ${deploymentsData.length} deployments`)
@@ -1762,8 +1892,12 @@ async function importLilaDatasetStreaming(dataset, dbPath, id, onProgress) {
   const sequenceBounds = new Map() // seq_id → {start, end}
   const deploymentBounds = new Map() // location → {min, max}
 
-  // Get main database connection
-  const mainDb = await getDrizzleDb(id, dbPath)
+  // Get database manager and Drizzle instance
+  const manager = await getStudyDatabase(id, dbPath)
+  const mainDb = manager.getDb()
+
+  // Enable import mode for faster bulk inserts
+  manager.setImportMode()
 
   try {
     // Stage 1: Stream categories (small, in-memory)
@@ -1826,7 +1960,7 @@ async function importLilaDatasetStreaming(dataset, dbPath, id, onProgress) {
       })
     }
 
-    const deploymentCount = await insertDeploymentsFromBounds(deploymentBounds, mainDb)
+    const deploymentCount = await insertDeploymentsFromBounds(deploymentBounds, mainDb, manager)
     log.info(`Inserted ${deploymentCount} deployments`)
 
     // Stage 4: Insert media from JSONL (now FK to deployments is satisfied)
@@ -1840,7 +1974,13 @@ async function importLilaDatasetStreaming(dataset, dbPath, id, onProgress) {
       })
     }
 
-    const mediaCount = await insertMediaFromJsonl(tempJsonlPath, mainDb, dataset, onProgress)
+    const mediaCount = await insertMediaFromJsonl(
+      tempJsonlPath,
+      mainDb,
+      dataset,
+      onProgress,
+      manager
+    )
     log.info(`Inserted ${mediaCount} media records`)
 
     // Stream annotations → observations inserts
@@ -1862,7 +2002,8 @@ async function importLilaDatasetStreaming(dataset, dbPath, id, onProgress) {
       sequenceBounds,
       dataset,
       totalAnnotations,
-      onProgress
+      onProgress,
+      manager
     )
     log.info(`Streamed ${observationCount} observations`)
 
@@ -1898,6 +2039,9 @@ async function importLilaDatasetStreaming(dataset, dbPath, id, onProgress) {
       data: metadataRecord
     }
   } finally {
+    // Reset import mode to safe defaults
+    manager.resetImportMode()
+
     // Cleanup temp JSONL file
     try {
       if (fs.existsSync(tempJsonlPath)) {

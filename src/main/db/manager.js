@@ -235,6 +235,36 @@ export class StudyDatabaseManager {
   async transaction(callback) {
     return this.sqlite.transaction(callback)()
   }
+
+  /**
+   * Set aggressive SQLite pragmas for bulk import operations.
+   * Trades durability for speed - safe for re-importable data like LILA datasets.
+   * MUST call resetImportMode() after import completes.
+   * Note: We keep WAL mode's default locking to allow concurrent UI reads.
+   */
+  setImportMode() {
+    if (this.readonly) {
+      log.warn(`[DB] Cannot set import mode on readonly database for study ${this.studyId}`)
+      return
+    }
+    log.info(`[DB] Enabling import mode for study ${this.studyId}`)
+    this.sqlite.pragma('synchronous = OFF')
+    this.sqlite.pragma('cache_size = -256000') // 256MB cache
+    this.sqlite.pragma('temp_store = MEMORY')
+    this.sqlite.pragma('mmap_size = 1073741824') // 1GB memory-mapped I/O
+    // Note: NOT setting locking_mode = EXCLUSIVE as it blocks UI reads
+  }
+
+  /**
+   * Reset SQLite pragmas to safe defaults after bulk import.
+   */
+  resetImportMode() {
+    if (this.readonly) {
+      return
+    }
+    log.info(`[DB] Resetting import mode for study ${this.studyId}`)
+    this.sqlite.pragma('synchronous = NORMAL')
+  }
 }
 
 // Cache for database connections
