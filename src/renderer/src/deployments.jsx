@@ -237,10 +237,6 @@ function LocationMap({
     return L.latLngBounds(positions)
   }, [validLocations])
 
-  if (!locations || locations.length === 0) {
-    return <div className="text-gray-500">No location data available for map</div>
-  }
-
   return (
     <div
       className={`w-full h-full bg-white rounded border border-gray-200 relative ${isPlaceMode ? 'place-mode-active' : ''}`}
@@ -740,7 +736,28 @@ function LocationsList({
   }, [selectedLocation, virtualItems, rowVirtualizer])
 
   if (!activity.deployments || activity.deployments.length === 0) {
-    return <div className="text-gray-500">No deployment data available</div>
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
+        <div className="text-gray-400 mb-3">
+          <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.5}
+              d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+            />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.5}
+              d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
+            />
+          </svg>
+        </div>
+        <p className="text-gray-500 font-medium">No deployments found</p>
+        <p className="text-gray-400 text-sm mt-1">Import deployment data to see camera locations</p>
+      </div>
+    )
   }
 
   return (
@@ -941,12 +958,12 @@ export default function Deployments({ studyId }) {
 
   return (
     <div className="flex flex-col px-4 h-full gap-4">
-      <div className="flex-[0.7]">
+      <div className="h-96">
         {isLoading ? (
           <SkeletonMap title="Loading Deployments" message="Loading deployment locations..." />
-        ) : activity ? (
+        ) : (
           <LocationMap
-            locations={activity.deployments}
+            locations={activity?.deployments || []}
             selectedLocation={selectedLocation}
             setSelectedLocation={setSelectedLocation}
             onNewLatitude={onNewLatitude}
@@ -957,22 +974,24 @@ export default function Deployments({ studyId }) {
             onExpandGroup={handleExpandGroup}
             studyId={studyId}
           />
+        )}
+      </div>
+      <div className="flex-1 min-h-0">
+        {isLoading ? (
+          <SkeletonDeploymentsList itemCount={6} />
+        ) : activity ? (
+          <LocationsList
+            activity={activity}
+            selectedLocation={selectedLocation}
+            setSelectedLocation={setSelectedLocation}
+            onNewLatitude={onNewLatitude}
+            onNewLongitude={onNewLongitude}
+            onEnterPlaceMode={handleEnterPlaceMode}
+            groupToExpand={groupToExpand}
+            onGroupExpanded={handleGroupExpanded}
+          />
         ) : null}
       </div>
-      {isLoading ? (
-        <SkeletonDeploymentsList itemCount={6} />
-      ) : activity ? (
-        <LocationsList
-          activity={activity}
-          selectedLocation={selectedLocation}
-          setSelectedLocation={setSelectedLocation}
-          onNewLatitude={onNewLatitude}
-          onNewLongitude={onNewLongitude}
-          onEnterPlaceMode={handleEnterPlaceMode}
-          groupToExpand={groupToExpand}
-          onGroupExpanded={handleGroupExpanded}
-        />
-      ) : null}
     </div>
   )
 }
