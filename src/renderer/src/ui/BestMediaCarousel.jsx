@@ -3,14 +3,19 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight, CameraOff, X, Heart, Play, Loader2 } from 'lucide-react'
 
 /**
- * Constructs a file URL for the local file protocol
- * @param {string} fullFilePath - Full path to the file
+ * Constructs a file URL for the local file or cached-image protocol
+ * @param {string} fullFilePath - Full path to the file or remote URL
+ * @param {string} [studyId] - Study ID (required for caching remote images)
  * @returns {string} - URL for loading the file
  */
-function constructImageUrl(fullFilePath) {
+function constructImageUrl(fullFilePath, studyId) {
   if (!fullFilePath) return ''
   if (fullFilePath.startsWith('http')) {
-    // Use HTTPS URL directly - browser cache will handle caching
+    // Use cached-image protocol for remote URLs to enable disk caching
+    if (studyId) {
+      return `cached-image://cache?studyId=${encodeURIComponent(studyId)}&url=${encodeURIComponent(fullFilePath)}`
+    }
+    // Fallback to direct URL if no studyId provided
     return fullFilePath
   }
   return `local-file://get?path=${encodeURIComponent(fullFilePath)}`
@@ -171,7 +176,7 @@ function ImageViewerModal({
           </div>
         ) : (
           <img
-            src={constructImageUrl(media.filePath)}
+            src={constructImageUrl(media.filePath, studyId)}
             alt={media.scientificName || 'Wildlife'}
             className="max-w-full max-h-[90vh] object-contain rounded-lg"
             onError={() => setImageError(true)}
@@ -450,7 +455,7 @@ function VideoViewerModal({
         ) : (
           <video
             key={transcodedUrl || media.filePath}
-            src={transcodedUrl || constructImageUrl(media.filePath)}
+            src={transcodedUrl || constructImageUrl(media.filePath, studyId)}
             className="max-w-full max-h-[calc(90vh-120px)] w-auto h-auto object-contain rounded-lg"
             controls
             autoPlay
@@ -499,7 +504,7 @@ function MediaCard({ media, onClick, studyId }) {
         // Check for cached thumbnail first
         const cached = await window.api.thumbnail.getCached(studyId, media.filePath)
         if (cached && !cancelled) {
-          setThumbnailUrl(constructImageUrl(cached))
+          setThumbnailUrl(constructImageUrl(cached, studyId))
           return
         }
 
@@ -507,7 +512,7 @@ function MediaCard({ media, onClick, studyId }) {
         setIsExtractingThumbnail(true)
         const result = await window.api.thumbnail.extract(studyId, media.filePath)
         if (result.success && !cancelled) {
-          setThumbnailUrl(constructImageUrl(result.path))
+          setThumbnailUrl(constructImageUrl(result.path, studyId))
         }
       } catch (error) {
         console.error('Failed to extract thumbnail:', error)
@@ -558,7 +563,7 @@ function MediaCard({ media, onClick, studyId }) {
           ) : (
             /* Video element - overlays placeholder when it loads successfully */
             <video
-              src={constructImageUrl(media.filePath)}
+              src={constructImageUrl(media.filePath, studyId)}
               className={`relative z-10 w-full h-full object-cover ${imageError ? 'hidden' : ''}`}
               onError={() => setImageError(true)}
               muted
@@ -575,7 +580,7 @@ function MediaCard({ media, onClick, studyId }) {
         <>
           {/* Image thumbnail */}
           <img
-            src={constructImageUrl(media.filePath)}
+            src={constructImageUrl(media.filePath, studyId)}
             alt={media.scientificName || 'Wildlife'}
             className={`w-full h-full object-cover ${imageError ? 'hidden' : ''}`}
             onError={() => setImageError(true)}

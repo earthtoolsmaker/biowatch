@@ -295,6 +295,26 @@ const api = {
     extract: async (studyId, filePath) => {
       return await electronAPI.ipcRenderer.invoke('thumbnail:extract', studyId, filePath)
     }
+  },
+
+  // Remote image caching (for GBIF/Agouti imported images)
+  imageCache: {
+    // Get cached image path if it exists
+    getCached: async (studyId, url) => {
+      return await electronAPI.ipcRenderer.invoke('image-cache:get-cached', studyId, url)
+    },
+    // Manually trigger caching of an image
+    download: async (studyId, url) => {
+      return await electronAPI.ipcRenderer.invoke('image-cache:download', studyId, url)
+    },
+    // Get cache statistics for a study
+    getCacheStats: async (studyId) => {
+      return await electronAPI.ipcRenderer.invoke('image-cache:stats', studyId)
+    },
+    // Clear the image cache for a study
+    clearCache: async (studyId) => {
+      return await electronAPI.ipcRenderer.invoke('image-cache:clear', studyId)
+    }
   }
 }
 
