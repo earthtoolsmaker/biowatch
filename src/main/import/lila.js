@@ -76,7 +76,8 @@ export const LILA_DATASETS = [
     description: 'Wildlife from Southwestern United States (21 species, 243K images)',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/caltechcameratraps/labels/caltech_camera_traps.json.zip',
-    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/caltech-unzipped/cct_images/',
+    imageBaseUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/caltech-unzipped/cct_images/',
     isZipped: true,
     imageCount: 243100,
     categoryCount: 21
@@ -87,7 +88,8 @@ export const LILA_DATASETS = [
     description: 'Wildlife from Missouri, USA (20 species, 25K images)',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/missouricameratraps/missouri_camera_traps_set1_1.21.json.zip',
-    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/missouricameratraps/images/',
+    imageBaseUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/missouricameratraps/images/',
     isZipped: true,
     imageCount: 25000,
     categoryCount: 20
@@ -120,7 +122,8 @@ export const LILA_DATASETS = [
     description: 'Wildlife from Wellington, New Zealand (270K images)',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/wellingtoncameratraps/wellington_camera_traps.json.zip',
-    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/wellington-unzipped/images/',
+    imageBaseUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/wellington-unzipped/images/',
     isZipped: true,
     imageCount: 270450,
     categoryCount: 17
@@ -131,7 +134,8 @@ export const LILA_DATASETS = [
     description: 'Invasive species detection on islands (123K images, bboxes available)',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/islandconservationcameratraps/island_conservation_camera_traps_1.02.zip',
-    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/islandconservationcameratraps/public/',
+    imageBaseUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/islandconservationcameratraps/public/',
     isZipped: true,
     imageCount: 123000,
     categoryCount: 20
@@ -142,7 +146,8 @@ export const LILA_DATASETS = [
     description: 'California Channel Islands wildlife with bounding boxes (246K images)',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/channel-islands-camera-traps/channel-islands-camera-traps.json.zip',
-    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/channel-islands-camera-traps/images/',
+    imageBaseUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/channel-islands-camera-traps/images/',
     isZipped: true,
     imageCount: 246529,
     categoryCount: 10
@@ -153,7 +158,8 @@ export const LILA_DATASETS = [
     description: 'Wildlife from Idaho, USA (62 species, 1.5M images)',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/idaho-camera-traps/idaho-camera-traps.json.zip',
-    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/idaho-camera-traps/public/',
+    imageBaseUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/idaho-camera-traps/public/',
     isZipped: true,
     imageCount: 1500000,
     categoryCount: 62
@@ -164,7 +170,8 @@ export const LILA_DATASETS = [
     description: 'Serengeti National Park, Tanzania (61 species, 7.1M images)',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshotserengeti-v-2-0/SnapshotSerengeti_S1-11_v2_1.json.zip',
-    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshotserengeti-unzipped/',
+    imageBaseUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshotserengeti-unzipped/',
     isZipped: true,
     imageCount: 7100000,
     categoryCount: 61
@@ -175,7 +182,8 @@ export const LILA_DATASETS = [
     description: 'Kgalagadi Transfrontier Park, South Africa (10K images)',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshot-safari/KGA/SnapshotKgalagadi_S1_v1.0.json.zip',
-    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshot-safari/KGA/KGA_public/',
+    imageBaseUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshot-safari/KGA/KGA_public/',
     isZipped: true,
     imageCount: 10222,
     categoryCount: 30
@@ -186,7 +194,8 @@ export const LILA_DATASETS = [
     description: 'Enonkishu Conservancy, Kenya (28K images)',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshot-safari/ENO/SnapshotEnonkishu_S1_v1.0.json.zip',
-    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshot-safari/ENO/ENO_public/',
+    imageBaseUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshot-safari/ENO/ENO_public/',
     isZipped: true,
     imageCount: 28544,
     categoryCount: 35
@@ -197,7 +206,8 @@ export const LILA_DATASETS = [
     description: 'Camdeboo National Park, South Africa (30K images)',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshot-safari/CDB/SnapshotCamdeboo_S1_v1.0.json.zip',
-    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshot-safari/CDB/CDB_public/',
+    imageBaseUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshot-safari/CDB/CDB_public/',
     isZipped: true,
     imageCount: 30227,
     categoryCount: 35
@@ -208,7 +218,8 @@ export const LILA_DATASETS = [
     description: 'Mountain Zebra National Park, South Africa (73K images)',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshot-safari/MTZ/SnapshotMountainZebra_S1_v1.0.json.zip',
-    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshot-safari/MTZ/MTZ_public/',
+    imageBaseUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshot-safari/MTZ/MTZ_public/',
     isZipped: true,
     imageCount: 73034,
     categoryCount: 30
@@ -219,7 +230,8 @@ export const LILA_DATASETS = [
     description: 'Kruger National Park, South Africa (10K images)',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshot-safari/KRU/SnapshotKruger_S1_v1.0.json.zip',
-    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshot-safari/KRU/KRU_public/',
+    imageBaseUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshot-safari/KRU/KRU_public/',
     isZipped: true,
     imageCount: 10072,
     categoryCount: 40
@@ -241,7 +253,8 @@ export const LILA_DATASETS = [
     description: 'Colombian Orinoquia region wildlife (104K images)',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/orinoquia-camera-traps/orinoquia_camera_traps_metadata.zip',
-    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/orinoquia-camera-traps/public/',
+    imageBaseUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/orinoquia-camera-traps/public/',
     isZipped: true,
     imageCount: 104782,
     categoryCount: 50
@@ -263,7 +276,8 @@ export const LILA_DATASETS = [
     description: 'Namibian desert lions (66K images)',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/desert-lion-camera-traps/desert_lion_camera_traps.json.zip',
-    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/desert-lion-camera-traps/annotated-imgs/',
+    imageBaseUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/desert-lion-camera-traps/annotated-imgs/',
     isZipped: true,
     imageCount: 65959,
     categoryCount: 20
@@ -285,7 +299,8 @@ export const LILA_DATASETS = [
     description: 'Urban wildlife from Seattle area, USA',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/seattleish-camera-traps/seattleish_camera_traps.json.zip',
-    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/seattleish-camera-traps/',
+    imageBaseUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/seattleish-camera-traps/',
     isZipped: true,
     imageCount: 50000,
     categoryCount: 20
@@ -307,7 +322,8 @@ export const LILA_DATASETS = [
     description: 'Nkhotakota Wildlife Reserve, Malawi (321K images, some bboxes)',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/nkhotakota-camera-traps/nkhotakota_camera_traps.json.zip',
-    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/nkhotakota-camera-traps/',
+    imageBaseUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/nkhotakota-camera-traps/',
     isZipped: true,
     imageCount: 321562,
     categoryCount: 46
@@ -318,7 +334,8 @@ export const LILA_DATASETS = [
     description: 'Small mammals from California, USA (2.2M images)',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/california-small-animals/california_small_animals_with_sequences.zip',
-    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/california-small-animals/',
+    imageBaseUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/california-small-animals/',
     isZipped: true,
     imageCount: 2278071,
     categoryCount: 30
@@ -362,7 +379,12 @@ export async function importLilaDataset(datasetId, id, onProgress = null) {
  * @param {function} onProgress - Optional callback for progress updates
  * @returns {Promise<Object>} - Object containing dbPath and metadata
  */
-export async function importLilaDatasetWithPath(datasetId, biowatchDataPath, id, onProgress = null) {
+export async function importLilaDatasetWithPath(
+  datasetId,
+  biowatchDataPath,
+  id,
+  onProgress = null
+) {
   await initializeElectronModules()
   log.info(`Starting LILA dataset import for: ${datasetId}`)
 

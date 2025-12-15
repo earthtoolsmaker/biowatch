@@ -1,12 +1,4 @@
-import {
-  Download,
-  Search,
-  Database,
-  Check,
-  Loader2,
-  AlertCircle,
-  X
-} from 'lucide-react'
+import { Download, Search, Database, Check, Loader2, AlertCircle, X } from 'lucide-react'
 
 const stages = [
   { key: 'downloading', label: 'Downloading metadata', icon: Download },
@@ -144,7 +136,8 @@ function StageRow({ stage, currentStageIndex, stageIndex, downloadProgress, impo
 function LilaImportProgress({ isOpen, progress, onCancel }) {
   if (!isOpen) return null
 
-  const { stage, stageIndex, datasetTitle, downloadProgress, importProgress, error } = progress || {}
+  const { stage, stageIndex, datasetTitle, downloadProgress, importProgress, error } =
+    progress || {}
 
   const isError = stage === 'error'
   const isComplete = stage === 'complete'
@@ -156,7 +149,11 @@ function LilaImportProgress({ isOpen, progress, onCancel }) {
         <div className="px-6 py-4 border-b border-gray-200">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">
-              {isError ? 'Import Failed' : isComplete ? 'Import Complete' : 'Importing LILA Dataset'}
+              {isError
+                ? 'Import Failed'
+                : isComplete
+                  ? 'Import Complete'
+                  : 'Importing LILA Dataset'}
             </h2>
             {!isComplete && !isError && (
               <button
