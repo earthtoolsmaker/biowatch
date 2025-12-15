@@ -11,6 +11,7 @@ import PlaceholderMap from './ui/PlaceholderMap'
 import SpeciesDistribution from './ui/speciesDistribution'
 import TimelineChart from './ui/timeseries'
 import { useImportStatus } from './hooks/import'
+import { getTopNonHumanSpecies } from './utils/speciesUtils'
 
 // Component to handle map layer change events for persistence
 function LayerChangeHandler({ onLayerChange }) {
@@ -315,9 +316,10 @@ export default function Activity({ studyData, studyId }) {
   })
 
   // Initialize selectedSpecies when speciesDistributionData loads
+  // Excludes humans/vehicles from default selection
   useEffect(() => {
     if (speciesDistributionData && selectedSpecies.length === 0) {
-      setSelectedSpecies(speciesDistributionData.slice(0, 2))
+      setSelectedSpecies(getTopNonHumanSpecies(speciesDistributionData, 2))
     }
   }, [speciesDistributionData, selectedSpecies.length])
 

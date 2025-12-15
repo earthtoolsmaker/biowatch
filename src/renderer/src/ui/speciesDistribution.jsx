@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { sortSpeciesHumansLast } from '../utils/speciesUtils'
 
 // Create a module-level cache for common names that persists across component unmounts
 const commonNamesCache = {}
@@ -142,7 +143,7 @@ function SpeciesDistribution({ data, taxonomicData, selectedSpecies, onSpeciesCh
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto p-3 myscroll">
         <div className="space-y-4">
-          {data.map((species, index) => {
+          {sortSpeciesHumansLast(data).map((species, index) => {
             // Try to get the common name from the taxonomic data first, then from the cache
             const commonName =
               scientificToCommonMap[species.scientificName] ||

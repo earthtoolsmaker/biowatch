@@ -27,6 +27,7 @@ import EditableBbox from './ui/EditableBbox'
 import { computeBboxLabelPosition, computeSelectorPosition } from './utils/positioning'
 import { getImageBounds, screenToNormalized } from './utils/bboxCoordinates'
 import { groupMediaIntoSequences, groupMediaByEventID } from './utils/sequenceGrouping'
+import { getTopNonHumanSpecies } from './utils/speciesUtils'
 
 /**
  * Observation list panel - always visible list of all detections
@@ -2693,9 +2694,10 @@ export default function Activity({ studyData, studyId }) {
   })
 
   // Initialize selectedSpecies when speciesDistributionData loads
+  // Excludes humans/vehicles from default selection
   useEffect(() => {
     if (speciesDistributionData && selectedSpecies.length === 0) {
-      setSelectedSpecies(speciesDistributionData.slice(0, 2))
+      setSelectedSpecies(getTopNonHumanSpecies(speciesDistributionData, 2))
     }
   }, [speciesDistributionData, selectedSpecies.length])
 
