@@ -244,7 +244,7 @@ describe('selectDiverseMedia - Phase 2: Diversity Constraints', () => {
       createCandidate({ scientificName: 'b', deploymentID: 'dep_A', compositeScore: 0.64 }),
       createCandidate({ scientificName: 'b', deploymentID: 'dep_C', compositeScore: 0.63 }),
       // Species c - spread across deployments
-      createCandidate({ scientificName: 'c', deploymentID: 'dep_C', compositeScore: 0.60 }),
+      createCandidate({ scientificName: 'c', deploymentID: 'dep_C', compositeScore: 0.6 }),
       createCandidate({ scientificName: 'c', deploymentID: 'dep_A', compositeScore: 0.59 }),
       createCandidate({ scientificName: 'c', deploymentID: 'dep_B', compositeScore: 0.58 }),
       // Species d - spread across deployments
@@ -262,9 +262,18 @@ describe('selectDiverseMedia - Phase 2: Diversity Constraints', () => {
     })
 
     // All deployments should be at or below limit (3)
-    assert.ok(!deploymentCounts.dep_A || deploymentCounts.dep_A <= 3, 'dep_A should not exceed maxPerDeployment')
-    assert.ok(!deploymentCounts.dep_B || deploymentCounts.dep_B <= 3, 'dep_B should not exceed maxPerDeployment')
-    assert.ok(!deploymentCounts.dep_C || deploymentCounts.dep_C <= 3, 'dep_C should not exceed maxPerDeployment')
+    assert.ok(
+      !deploymentCounts.dep_A || deploymentCounts.dep_A <= 3,
+      'dep_A should not exceed maxPerDeployment'
+    )
+    assert.ok(
+      !deploymentCounts.dep_B || deploymentCounts.dep_B <= 3,
+      'dep_B should not exceed maxPerDeployment'
+    )
+    assert.ok(
+      !deploymentCounts.dep_C || deploymentCounts.dep_C <= 3,
+      'dep_C should not exceed maxPerDeployment'
+    )
     // Verify we got 8 results
     assert.equal(result.length, 8, 'Should select exactly 8 candidates')
   })
@@ -394,9 +403,7 @@ describe('selectDiverseMedia - Real-World Scenarios', () => {
   test('handles dataset with 20+ species', () => {
     const candidates = []
     for (let i = 0; i < 25; i++) {
-      candidates.push(
-        ...createCandidatesForSpecies(`species_${i}`, 3, 0.7 - i * 0.01)
-      )
+      candidates.push(...createCandidatesForSpecies(`species_${i}`, 3, 0.7 - i * 0.01))
     }
 
     const result = selectDiverseMedia(candidates, 12)
