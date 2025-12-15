@@ -1,6 +1,6 @@
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { spawn } from 'child_process'
-import { app, BrowserWindow, dialog, ipcMain, protocol, session, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, net, protocol, session, shell } from 'electron'
 import log from 'electron-log'
 import { autoUpdater } from 'electron-updater'
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, rmSync } from 'fs'
@@ -42,6 +42,13 @@ import { extractZip, downloadFile } from './download'
 import migrations from './migrations/index.js'
 import { registerExportIPCHandlers } from './export.js'
 import { registerTranscodeIPCHandlers, cleanExpiredTranscodeCache } from './transcoder.js'
+import {
+  registerImageCacheIPCHandlers,
+  cleanExpiredImageCache,
+  getCachedImage,
+  getMimeType,
+  saveImageToCache
+} from './image-cache.js'
 
 // Configure electron-log
 log.transports.file.level = 'info'
@@ -243,6 +250,75 @@ function registerLocalFileProtocol() {
 }
 
 /**
+ * Register cached-image:// protocol for caching remote images.
+ * Checks cache first, redirects to original URL if not cached while
+ * triggering a background download for future requests.
+ */
+function registerCachedImageProtocol() {
+  protocol.handle('cached-image', async (request) => {
+    const url = new URL(request.url)
+    const studyId = url.searchParams.get('studyId')
+    const remoteUrl = url.searchParams.get('url')
+
+    if (!studyId || !remoteUrl) {
+      log.error('[CachedImage] Missing studyId or url parameter')
+      return new Response('Missing studyId or url parameter', { status: 400 })
+    }
+
+    log.info(`[CachedImage] Request for: ${remoteUrl}`)
+
+    try {
+      // Check cache first
+      const cachedPath = getCachedImage(studyId, remoteUrl)
+
+      if (cachedPath) {
+        log.info(`[CachedImage] Serving from cache: ${cachedPath}`)
+        const buffer = readFileSync(cachedPath)
+        return new Response(buffer, {
+          status: 200,
+          headers: {
+            'Content-Type': getMimeType(cachedPath),
+            'Content-Length': String(buffer.length),
+            'X-Cache': 'HIT'
+          }
+        })
+      }
+
+      // Not cached - fetch the image directly (can't use redirect from custom protocols)
+      log.info(`[CachedImage] Fetching remote: ${remoteUrl}`)
+      const response = await net.fetch(remoteUrl)
+
+      if (!response.ok) {
+        log.error(`[CachedImage] Remote fetch failed: ${response.status}`)
+        return new Response('Failed to fetch image', { status: response.status })
+      }
+
+      const contentType = response.headers.get('content-type') || 'image/jpeg'
+      const buffer = Buffer.from(await response.arrayBuffer())
+
+      // Background cache save (don't await)
+      saveImageToCache(studyId, remoteUrl, buffer).catch((err) => {
+        log.warn(`[CachedImage] Cache save failed: ${err.message}`)
+      })
+
+      return new Response(buffer, {
+        status: 200,
+        headers: {
+          'Content-Type': contentType,
+          'Content-Length': String(buffer.length),
+          'X-Cache': 'MISS'
+        }
+      })
+    } catch (error) {
+      log.error(`[CachedImage] Error handling request: ${error.message}`)
+      return new Response('Error fetching image', { status: 500 })
+    }
+  })
+
+  log.info('[CachedImage] Protocol handler registered')
+}
+
+/**
  * Add CORS headers to responses from remote media hosts.
  * Uses webRequest API which operates AFTER the cache layer,
  * so cached responses are served directly without modification.
@@ -426,6 +502,9 @@ app.whenReady().then(async () => {
   // Register local-file:// protocol
   registerLocalFileProtocol()
 
+  // Register cached-image:// protocol for remote image caching
+  registerCachedImageProtocol()
+
   // Setup CORS headers for remote media (works with browser cache)
   setupRemoteMediaCORS()
 
@@ -434,6 +513,9 @@ app.whenReady().then(async () => {
 
   // Clean expired transcode cache in background (fire-and-forget, don't await)
   cleanExpiredTranscodeCache()
+
+  // Clean expired image cache in background (fire-and-forget, don't await)
+  cleanExpiredImageCache()
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
@@ -1502,6 +1584,7 @@ app.whenReady().then(async () => {
   registerMLModelManagementIPCHandlers()
   registerExportIPCHandlers()
   registerTranscodeIPCHandlers()
+  registerImageCacheIPCHandlers()
 })
 
 // Quit when all windows are closed, except on macOS. There, it's common

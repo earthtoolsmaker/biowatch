@@ -379,6 +379,35 @@ if (isRemote) {
 }
 ```
 
+## Remote Image Caching (Best Captures)
+
+Remote images from GBIF, Agouti, and LILA imports are cached to disk for offline access and performance. This caching is **automatic and transparent** - no user action required.
+
+**How it works:**
+
+1. When Best Captures carousel displays remote images, it uses the `cached-image://` protocol
+2. Main process checks if image is already cached
+3. If cached → serves from local disk (instant)
+4. If not cached → redirects to original URL + triggers background download
+5. Next view → serves from cache
+
+**Cache characteristics:**
+- **Location:** `{userData}/biowatch-data/studies/{studyId}/cache/images/`
+- **Key:** SHA256 hash of URL (first 16 characters)
+- **Expiration:** 30 days (auto-cleaned at app startup)
+- **Strategy:** Lazy caching (on first display, not eagerly)
+
+**Key file:** `src/main/image-cache.js`
+
+```javascript
+// Protocol flow
+// 1. Renderer loads: cached-image://cache?studyId=X&url=https://example.com/img.jpg
+// 2. Main process:
+//    - Check cache: {studyId}/cache/images/{hash}_img.jpg
+//    - If exists: serve from disk
+//    - If not: redirect to original URL, start background download
+```
+
 ## Cancellation
 
 Exports support cancellation:
@@ -407,3 +436,5 @@ if (activeExport.isCancelled) {
 | `src/main/export.js` | All export functionality |
 | `src/main/download.ts` | File download with retry |
 | `src/main/transformers/index.js` | Bbox format conversions |
+| `src/main/image-cache.js` | Remote image caching for Best Captures |
+| `src/main/cache-cleanup.js` | Cache expiration cleanup |

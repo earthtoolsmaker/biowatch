@@ -197,6 +197,30 @@ const unsubscribe = window.api.transcode.onProgress(({ filePath, progress }) => 
 // Later: unsubscribe()
 ```
 
+### Remote Image Caching
+
+| Method | Channel | Parameters | Returns |
+|--------|---------|------------|---------|
+| `imageCache.getCached(studyId, url)` | `image-cache:get-cached` | studyId, remote URL | `string \| null` (cached path) |
+| `imageCache.download(studyId, url)` | `image-cache:download` | studyId, remote URL | `{ success, path? } \| { success: false, error }` |
+| `imageCache.getCacheStats(studyId)` | `image-cache:stats` | studyId | `{ size: number, count: number }` |
+| `imageCache.clearCache(studyId)` | `image-cache:clear` | studyId | `{ cleared: number, freedBytes: number }` |
+
+**Notes:**
+- Caches remote images (from GBIF, Agouti imports) to disk for offline access
+- Uses the `cached-image://` custom protocol for transparent caching
+- **Cache location:** `studies/{studyId}/cache/images/`
+- **Cache key:** SHA256 hash of URL (first 16 characters)
+- **Auto-expiration:** Cached images are automatically deleted after 30 days
+- **Lazy caching:** Images are cached on first display (not eagerly)
+- **Fallback:** If download fails, original remote URL is used via redirect
+
+**Protocol flow:**
+1. Renderer requests `cached-image://cache?studyId=X&url=Y`
+2. Main process checks cache → if cached, serves from disk
+3. If not cached → redirects to original URL, triggers background download
+4. Next request serves from cache
+
 ### Utilities
 
 | Method | Channel | Parameters | Returns |
@@ -288,3 +312,4 @@ const data = response.data
 | `src/main/export.js` | Export handler implementations |
 | `src/main/models.ts` | ML model handler implementations |
 | `src/main/transcoder.js` | Video transcoding with FFmpeg |
+| `src/main/image-cache.js` | Remote image caching for GBIF/Agouti imports |

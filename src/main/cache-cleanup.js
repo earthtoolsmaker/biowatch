@@ -101,3 +101,101 @@ export async function cleanExpiredTranscodeCacheImpl(
 
   return { deletedCount, freedBytes }
 }
+
+// Image extensions to clean up
+const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp'])
+
+/**
+ * Check if a filename has an image extension.
+ * @param {string} filename - The filename to check
+ * @returns {boolean} True if the file is an image
+ */
+function isImageFile(filename) {
+  const ext = filename.toLowerCase().match(/\.[^.]+$/)?.[0]
+  return ext ? IMAGE_EXTENSIONS.has(ext) : false
+}
+
+/**
+ * Clean expired image cache files across all studies.
+ * Deletes image files older than maxAgeMs.
+ *
+ * @param {string} studiesPath - Path to the studies directory
+ * @param {number} [maxAgeMs=CACHE_MAX_AGE_MS] - Maximum age in milliseconds (default: 30 days)
+ * @param {object} [options] - Options
+ * @param {object} [options.log] - Logger object with info/error methods (optional)
+ * @returns {Promise<{deletedCount: number, freedBytes: number}>} Cleanup results
+ */
+export async function cleanExpiredImageCacheImpl(
+  studiesPath,
+  maxAgeMs = CACHE_MAX_AGE_MS,
+  options = {}
+) {
+  const { log } = options
+  const now = Date.now()
+  let deletedCount = 0
+  let freedBytes = 0
+
+  try {
+    // Check if studies directory exists
+    try {
+      await stat(studiesPath)
+    } catch {
+      return { deletedCount, freedBytes } // No studies directory yet
+    }
+
+    // Get all study directories
+    const entries = await readdir(studiesPath, { withFileTypes: true })
+    const studyDirs = entries.filter((dirent) => dirent.isDirectory()).map((dirent) => dirent.name)
+
+    for (const studyId of studyDirs) {
+      // Build image cache path relative to studiesPath
+      const imageCacheDir = join(studiesPath, studyId, 'cache', 'images')
+
+      // Check if cache dir exists
+      try {
+        await stat(imageCacheDir)
+      } catch {
+        continue // No image cache for this study
+      }
+
+      const files = await readdir(imageCacheDir)
+
+      for (const file of files) {
+        if (!isImageFile(file)) continue
+
+        const filePath = join(imageCacheDir, file)
+
+        try {
+          const fileStat = await stat(filePath)
+          const age = now - fileStat.mtime.getTime()
+
+          if (age > maxAgeMs) {
+            freedBytes += fileStat.size
+            await unlink(filePath)
+            deletedCount++
+
+            // Yield to event loop after each deletion to avoid blocking
+            await yieldToEventLoop()
+          }
+        } catch {
+          // File may have been deleted or inaccessible, skip
+        }
+      }
+
+      // Small yield between studies to spread I/O load
+      await yieldToEventLoop()
+    }
+
+    if (deletedCount > 0 && log) {
+      log.info(
+        `[ImageCache] Cache cleanup: deleted ${deletedCount} expired files, freed ${(freedBytes / 1024 / 1024).toFixed(2)} MB`
+      )
+    }
+  } catch (e) {
+    if (log) {
+      log.error(`[ImageCache] Error during cache cleanup: ${e.message}`)
+    }
+  }
+
+  return { deletedCount, freedBytes }
+}
