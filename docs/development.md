@@ -309,20 +309,25 @@ Biowatch uses an automated CI/CD pipeline that builds and publishes releases for
    "version": "1.5.0"
    ```
 
-2. **Commit the version bump**:
+2. **Update `CHANGELOG.md`** with the new version's changes:
+   - Add a new section for the version with the release date
+   - Document all notable changes under: Added, Changed, Fixed, Removed
+   - Update the comparison links at the bottom of the file
+
+3. **Commit the version bump**:
    ```bash
-   git add package.json
+   git add package.json CHANGELOG.md
    git commit -m "chore: bump version to 1.5.0"
    git push origin main
    ```
 
-3. **Create and push a version tag**:
+4. **Create and push a version tag**:
    ```bash
    git tag v1.5.0
    git push origin v1.5.0
    ```
 
-4. **Verify CI triggered**: Check [GitHub Actions](https://github.com/earthtoolsmaker/biowatch/actions) to ensure both workflows started.
+5. **Verify CI triggered**: Check [GitHub Actions](https://github.com/earthtoolsmaker/biowatch/actions) to ensure both workflows started.
 
 ### CI/CD Workflows
 
