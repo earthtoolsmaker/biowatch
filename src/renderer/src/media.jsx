@@ -2460,7 +2460,14 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
         }
       }
     }
-  }, [currentSequence, currentSequenceIndex, allNavigableItems, hasNextPage, isFetchingNextPage, fetchNextPage])
+  }, [
+    currentSequence,
+    currentSequenceIndex,
+    allNavigableItems,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage
+  ])
 
   const handleSequencePrevious = useCallback(() => {
     if (!currentSequence) return
