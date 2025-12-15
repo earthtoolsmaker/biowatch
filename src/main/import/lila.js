@@ -59,6 +59,16 @@ export const LILA_DATASETS = [
     isZipped: true,
     imageCount: 38074,
     categoryCount: 38
+  },
+  {
+    id: 'ena24-detection',
+    name: 'ENA24 Detection',
+    description: 'Eastern North America camera traps with bounding boxes (23 species)',
+    metadataUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/ena24/ena24.json',
+    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/ena24/images/',
+    isZipped: false,
+    imageCount: 10000,
+    categoryCount: 23
   }
 ]
 
