@@ -60,7 +60,9 @@ function DeploymentMap({ deployments, studyId }) {
     return (
       <PlaceholderMap
         title="No Deployment Data"
-        description="Deployment data will appear here once image classification begins. This may take up to 30 seconds after starting a run."
+        description="Set up deployments in the Deployments tab to see camera trap locations on this map."
+        linkTo="/deployments"
+        linkText="Go to Deployments"
         icon={MapPin}
         studyId={studyId}
       />

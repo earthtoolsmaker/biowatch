@@ -1,71 +1,73 @@
 /**
+ * Checks if a media item has a valid timestamp.
+ * @param {Object} media - Media object with timestamp property
+ * @returns {boolean} - True if timestamp is valid, false otherwise
+ */
+function hasValidTimestamp(media) {
+  if (media.timestamp == null || media.timestamp === '') {
+    return false
+  }
+  const time = new Date(media.timestamp).getTime()
+  return !isNaN(time)
+}
+
+/**
  * Groups media files into sequences based on timestamp proximity AND deployment.
  * Media from different deployments are NEVER grouped into the same sequence.
  * Items with null/undefined deploymentID are treated as unique (each becomes its own sequence).
  * Videos (when isVideoFn is provided) are NEVER grouped - each video forms its own sequence.
+ * Media with null/invalid timestamps are separated and returned in nullTimestampMedia array.
  * Works correctly regardless of input sort order (ascending or descending).
  * Output sequences have items sorted by timestamp (ascending - oldest first).
  *
  * @param {Array} mediaFiles - Array of media files with mediaID, timestamp, and optionally deploymentID
  * @param {number} gapThresholdSeconds - Maximum gap in seconds to consider media as same sequence
  * @param {Function} [isVideoFn] - Optional function to check if a media item is a video (videos are never grouped)
- * @returns {Array} Array of sequence objects { id, items, startTime, endTime }
+ * @returns {{ sequences: Array<{ id, items, startTime, endTime }>, nullTimestampMedia: Array }} Object with sequences array and nullTimestampMedia array
  */
 export function groupMediaIntoSequences(mediaFiles, gapThresholdSeconds, isVideoFn) {
   // Edge case: null, undefined, or empty array
   if (!mediaFiles || mediaFiles.length === 0) {
-    return []
+    return { sequences: [], nullTimestampMedia: [] }
+  }
+
+  // Separate media with null/invalid timestamps upfront
+  const validMedia = []
+  const nullTimestampMedia = []
+
+  for (const media of mediaFiles) {
+    if (hasValidTimestamp(media)) {
+      validMedia.push(media)
+    } else {
+      nullTimestampMedia.push(media)
+    }
+  }
+
+  // Edge case: no valid media - return empty sequences with null-timestamp media
+  if (validMedia.length === 0) {
+    return { sequences: [], nullTimestampMedia }
   }
 
   // Edge case: disabled (0 or negative threshold) - no grouping
   if (gapThresholdSeconds <= 0) {
     // Return each media as its own sequence (no grouping)
-    return mediaFiles.map((media) => ({
-      id: media.mediaID,
-      items: [media],
-      startTime: new Date(media.timestamp),
-      endTime: new Date(media.timestamp)
-    }))
+    return {
+      sequences: validMedia.map((media) => ({
+        id: media.mediaID,
+        items: [media],
+        startTime: new Date(media.timestamp),
+        endTime: new Date(media.timestamp)
+      })),
+      nullTimestampMedia
+    }
   }
 
   const sequences = []
   let currentSequence = null
   const gapMs = gapThresholdSeconds * 1000
 
-  for (const media of mediaFiles) {
-    let mediaTime
-    try {
-      mediaTime = new Date(media.timestamp).getTime()
-      if (isNaN(mediaTime)) {
-        // Invalid timestamp - treat as separate item
-        if (currentSequence) {
-          sequences.push(currentSequence)
-        }
-        currentSequence = {
-          id: media.mediaID,
-          items: [media],
-          startTime: new Date(media.timestamp),
-          endTime: new Date(media.timestamp),
-          _deploymentID: media.deploymentID,
-          _hasVideo: isVideoFn && isVideoFn(media)
-        }
-        continue
-      }
-    } catch {
-      // Invalid timestamp - treat as separate item
-      if (currentSequence) {
-        sequences.push(currentSequence)
-      }
-      currentSequence = {
-        id: media.mediaID,
-        items: [media],
-        startTime: new Date(media.timestamp),
-        endTime: new Date(media.timestamp),
-        _deploymentID: media.deploymentID,
-        _hasVideo: isVideoFn && isVideoFn(media)
-      }
-      continue
-    }
+  for (const media of validMedia) {
+    const mediaTime = new Date(media.timestamp).getTime()
 
     if (!currentSequence) {
       // Start first sequence
@@ -132,44 +134,65 @@ export function groupMediaIntoSequences(mediaFiles, gapThresholdSeconds, isVideo
 
   // Sort items within each sequence by timestamp (ascending - oldest first)
   // and clean up internal tracking properties
-  return sequences.map((seq) => {
-    const sortedItems = [...seq.items].sort((a, b) => {
-      const timeA = new Date(a.timestamp).getTime()
-      const timeB = new Date(b.timestamp).getTime()
-      return timeA - timeB
-    })
+  return {
+    sequences: sequences.map((seq) => {
+      const sortedItems = [...seq.items].sort((a, b) => {
+        const timeA = new Date(a.timestamp).getTime()
+        const timeB = new Date(b.timestamp).getTime()
+        return timeA - timeB
+      })
 
-    // Update startTime/endTime based on sorted items
-    const firstItem = sortedItems[0]
-    const lastItem = sortedItems[sortedItems.length - 1]
+      // Update startTime/endTime based on sorted items
+      const firstItem = sortedItems[0]
+      const lastItem = sortedItems[sortedItems.length - 1]
 
-    return {
-      id: firstItem.mediaID, // Use first item's ID after sorting
-      items: sortedItems,
-      startTime: new Date(firstItem.timestamp),
-      endTime: new Date(lastItem.timestamp)
-    }
-  })
+      return {
+        id: firstItem.mediaID, // Use first item's ID after sorting
+        items: sortedItems,
+        startTime: new Date(firstItem.timestamp),
+        endTime: new Date(lastItem.timestamp)
+      }
+    }),
+    nullTimestampMedia
+  }
 }
 
 /**
  * Groups media files by their associated observation eventIDs.
  * Media without an eventID appear as individual items (not grouped).
  * Media sharing the same eventID are grouped together.
+ * Media with null/invalid timestamps are separated and returned in nullTimestampMedia array.
  * Used when the sequence slider is set to "Off" (0) for CamtrapDP datasets with imported events.
  *
  * @param {Array} mediaFiles - Array of media files with mediaID, timestamp, eventID
- * @returns {Array} Array of sequence objects { id, items, startTime, endTime }
+ * @returns {{ sequences: Array<{ id, items, startTime, endTime }>, nullTimestampMedia: Array }} Object with sequences array and nullTimestampMedia array
  */
 export function groupMediaByEventID(mediaFiles) {
   if (!mediaFiles || mediaFiles.length === 0) {
-    return []
+    return { sequences: [], nullTimestampMedia: [] }
+  }
+
+  // Separate media with null/invalid timestamps upfront
+  const validMedia = []
+  const nullTimestampMedia = []
+
+  for (const media of mediaFiles) {
+    if (hasValidTimestamp(media)) {
+      validMedia.push(media)
+    } else {
+      nullTimestampMedia.push(media)
+    }
+  }
+
+  // If no valid media, return empty sequences with null-timestamp media
+  if (validMedia.length === 0) {
+    return { sequences: [], nullTimestampMedia }
   }
 
   const eventGroups = new Map()
   const noEventItems = []
 
-  for (const media of mediaFiles) {
+  for (const media of validMedia) {
     if (media.eventID && media.eventID !== '') {
       if (!eventGroups.has(media.eventID)) {
         eventGroups.set(media.eventID, [])
@@ -211,5 +234,8 @@ export function groupMediaByEventID(mediaFiles) {
   }
 
   // Sort all sequences by startTime (descending to match gallery display)
-  return sequences.sort((a, b) => b.startTime.getTime() - a.startTime.getTime())
+  return {
+    sequences: sequences.sort((a, b) => b.startTime.getTime() - a.startTime.getTime()),
+    nullTimestampMedia
+  }
 }
