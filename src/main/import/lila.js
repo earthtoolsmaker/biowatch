@@ -69,6 +69,259 @@ export const LILA_DATASETS = [
     isZipped: false,
     imageCount: 10000,
     categoryCount: 23
+  },
+  {
+    id: 'caltech-camera-traps',
+    name: 'Caltech Camera Traps',
+    description: 'Wildlife from Southwestern United States (21 species, 243K images)',
+    metadataUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/caltechcameratraps/labels/caltech_camera_traps.json.zip',
+    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/caltech-unzipped/cct_images/',
+    isZipped: true,
+    imageCount: 243100,
+    categoryCount: 21
+  },
+  {
+    id: 'missouri-camera-traps',
+    name: 'Missouri Camera Traps',
+    description: 'Wildlife from Missouri, USA (20 species, 25K images)',
+    metadataUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/missouricameratraps/missouri_camera_traps_set1_1.21.json.zip',
+    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/missouricameratraps/images/',
+    isZipped: true,
+    imageCount: 25000,
+    categoryCount: 20
+  },
+  {
+    id: 'nacti',
+    name: 'North American Camera Trap Images',
+    description: 'Wildlife from 5 US locations (28 species, 3.7M images)',
+    metadataUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/nacti/nacti_metadata.1.14.json.zip',
+    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/nacti-unzipped/',
+    isZipped: true,
+    imageCount: 3700000,
+    categoryCount: 28
+  },
+  {
+    id: 'wcs-camera-traps',
+    name: 'WCS Camera Traps',
+    description: 'Wildlife Conservation Society data from 12 countries (675 species, 1.4M images)',
+    metadataUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/wcs/wcs_camera_traps.json.zip',
+    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/wcs-unzipped/',
+    isZipped: true,
+    imageCount: 1400000,
+    categoryCount: 675
+  },
+  {
+    id: 'wellington-camera-traps',
+    name: 'Wellington Camera Traps',
+    description: 'Wildlife from Wellington, New Zealand (270K images)',
+    metadataUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/wellingtoncameratraps/wellington_camera_traps.json.zip',
+    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/wellington-unzipped/images/',
+    isZipped: true,
+    imageCount: 270450,
+    categoryCount: 17
+  },
+  {
+    id: 'island-conservation-camera-traps',
+    name: 'Island Conservation Camera Traps',
+    description: 'Invasive species detection on islands (123K images, bboxes available)',
+    metadataUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/islandconservationcameratraps/island_conservation_camera_traps_1.02.zip',
+    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/islandconservationcameratraps/public/',
+    isZipped: true,
+    imageCount: 123000,
+    categoryCount: 20
+  },
+  {
+    id: 'channel-islands-camera-traps',
+    name: 'Channel Islands Camera Traps',
+    description: 'California Channel Islands wildlife with bounding boxes (246K images)',
+    metadataUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/channel-islands-camera-traps/channel-islands-camera-traps.json.zip',
+    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/channel-islands-camera-traps/images/',
+    isZipped: true,
+    imageCount: 246529,
+    categoryCount: 10
+  },
+  {
+    id: 'idaho-camera-traps',
+    name: 'Idaho Camera Traps',
+    description: 'Wildlife from Idaho, USA (62 species, 1.5M images)',
+    metadataUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/idaho-camera-traps/idaho-camera-traps.json.zip',
+    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/idaho-camera-traps/public/',
+    isZipped: true,
+    imageCount: 1500000,
+    categoryCount: 62
+  },
+  {
+    id: 'snapshot-serengeti',
+    name: 'Snapshot Serengeti',
+    description: 'Serengeti National Park, Tanzania (61 species, 7.1M images)',
+    metadataUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshotserengeti-v-2-0/SnapshotSerengeti_S1-11_v2_1.json.zip',
+    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshotserengeti-unzipped/',
+    isZipped: true,
+    imageCount: 7100000,
+    categoryCount: 61
+  },
+  {
+    id: 'snapshot-kgalagadi',
+    name: 'Snapshot Kgalagadi',
+    description: 'Kgalagadi Transfrontier Park, South Africa (10K images)',
+    metadataUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshot-safari/KGA/SnapshotKgalagadi_S1_v1.0.json.zip',
+    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshot-safari/KGA/KGA_public/',
+    isZipped: true,
+    imageCount: 10222,
+    categoryCount: 30
+  },
+  {
+    id: 'snapshot-enonkishu',
+    name: 'Snapshot Enonkishu',
+    description: 'Enonkishu Conservancy, Kenya (28K images)',
+    metadataUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshot-safari/ENO/SnapshotEnonkishu_S1_v1.0.json.zip',
+    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshot-safari/ENO/ENO_public/',
+    isZipped: true,
+    imageCount: 28544,
+    categoryCount: 35
+  },
+  {
+    id: 'snapshot-camdeboo',
+    name: 'Snapshot Camdeboo',
+    description: 'Camdeboo National Park, South Africa (30K images)',
+    metadataUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshot-safari/CDB/SnapshotCamdeboo_S1_v1.0.json.zip',
+    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshot-safari/CDB/CDB_public/',
+    isZipped: true,
+    imageCount: 30227,
+    categoryCount: 35
+  },
+  {
+    id: 'snapshot-mountain-zebra',
+    name: 'Snapshot Mountain Zebra',
+    description: 'Mountain Zebra National Park, South Africa (73K images)',
+    metadataUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshot-safari/MTZ/SnapshotMountainZebra_S1_v1.0.json.zip',
+    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshot-safari/MTZ/MTZ_public/',
+    isZipped: true,
+    imageCount: 73034,
+    categoryCount: 30
+  },
+  {
+    id: 'snapshot-kruger',
+    name: 'Snapshot Kruger',
+    description: 'Kruger National Park, South Africa (10K images)',
+    metadataUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshot-safari/KRU/SnapshotKruger_S1_v1.0.json.zip',
+    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshot-safari/KRU/KRU_public/',
+    isZipped: true,
+    imageCount: 10072,
+    categoryCount: 40
+  },
+  {
+    id: 'swg-camera-traps',
+    name: 'SWG Camera Traps',
+    description: 'Snapshot Wisconsin/Germany wildlife (2M images)',
+    metadataUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/swg-camera-traps/swg_camera_traps.zip',
+    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/swg-camera-traps/',
+    isZipped: true,
+    imageCount: 2039657,
+    categoryCount: 30
+  },
+  {
+    id: 'orinoquia-camera-traps',
+    name: 'Orinoquia Camera Traps',
+    description: 'Colombian Orinoquia region wildlife (104K images)',
+    metadataUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/orinoquia-camera-traps/orinoquia_camera_traps_metadata.zip',
+    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/orinoquia-camera-traps/public/',
+    isZipped: true,
+    imageCount: 104782,
+    categoryCount: 50
+  },
+  {
+    id: 'nz-trailcams',
+    name: 'Trail Camera Images of New Zealand Animals',
+    description: 'New Zealand wildlife (2.5M images)',
+    metadataUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/nz-trailcams/trail_camera_images_of_new_zealand_animals_1.00.json.zip',
+    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/nz-trailcams/',
+    isZipped: true,
+    imageCount: 2500000,
+    categoryCount: 15
+  },
+  {
+    id: 'desert-lion-camera-traps',
+    name: 'Desert Lion Conservation Camera Traps',
+    description: 'Namibian desert lions (66K images)',
+    metadataUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/desert-lion-camera-traps/desert_lion_camera_traps.json.zip',
+    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/desert-lion-camera-traps/annotated-imgs/',
+    isZipped: true,
+    imageCount: 65959,
+    categoryCount: 20
+  },
+  {
+    id: 'ohio-small-animals',
+    name: 'Ohio Small Animals',
+    description: 'Small mammals from Ohio, USA (45 species, 118K images)',
+    metadataUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/osu-small-animals/osu-small-animals.json.zip',
+    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/osu-small-animals/',
+    isZipped: true,
+    imageCount: 118554,
+    categoryCount: 45
+  },
+  {
+    id: 'seattleish-camera-traps',
+    name: 'Seattle(ish) Camera Traps',
+    description: 'Urban wildlife from Seattle area, USA',
+    metadataUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/seattleish-camera-traps/seattleish_camera_traps.json.zip',
+    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/seattleish-camera-traps/',
+    isZipped: true,
+    imageCount: 50000,
+    categoryCount: 20
+  },
+  {
+    id: 'unsw-predators',
+    name: 'UNSW Predators',
+    description: 'Australian predator monitoring (131K images)',
+    metadataUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/unsw-predators/unsw-predators.json.zip',
+    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/unsw-predators/images/',
+    isZipped: true,
+    imageCount: 131802,
+    categoryCount: 15
+  },
+  {
+    id: 'nkhotakota-camera-traps',
+    name: 'Nkhotakota Camera Traps',
+    description: 'Nkhotakota Wildlife Reserve, Malawi (321K images, some bboxes)',
+    metadataUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/nkhotakota-camera-traps/nkhotakota_camera_traps.json.zip',
+    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/nkhotakota-camera-traps/',
+    isZipped: true,
+    imageCount: 321562,
+    categoryCount: 46
+  },
+  {
+    id: 'california-small-animals',
+    name: 'California Small Animals',
+    description: 'Small mammals from California, USA (2.2M images)',
+    metadataUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/california-small-animals/california_small_animals_with_sequences.zip',
+    imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/california-small-animals/',
+    isZipped: true,
+    imageCount: 2278071,
+    categoryCount: 30
   }
 ]
 
