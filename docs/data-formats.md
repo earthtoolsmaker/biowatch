@@ -248,6 +248,83 @@ Single CSV file with image paths and predictions.
 
 ---
 
+## LILA / COCO Camera Traps
+
+Import from [LILA BC](https://lila.science/) datasets using the [COCO Camera Traps format](https://github.com/agentmorris/MegaDetector/blob/main/megadetector/data_management/README.md#coco-camera-traps-format).
+
+### Structure
+
+Single JSON file following COCO Camera Traps format:
+
+```json
+{
+  "info": { "version": "1.0", "description": "Dataset name" },
+  "images": [image],
+  "categories": [category],
+  "annotations": [annotation]
+}
+```
+
+### Image Object
+
+| Field | Type | Maps to | Description |
+|-------|------|---------|-------------|
+| `id` | string | mediaID | Unique image identifier |
+| `file_name` | string | fileName | Image filename |
+| `location` | string | deploymentID | Camera location identifier |
+| `datetime` | string | timestamp | Capture timestamp |
+| `width` | int | (used for bbox normalization) | Image width in pixels |
+| `height` | int | (used for bbox normalization) | Image height in pixels |
+| `seq_id` | string | eventID | **Sequence identifier** |
+| `seq_num_frames` | int | (not stored) | Total images in sequence |
+| `frame_num` | int | (not stored) | Zero-indexed frame position |
+
+### Category Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | int | Category identifier (0 = empty) |
+| `name` | string | Species/category name |
+
+### Annotation Object
+
+| Field | Type | Maps to | Description |
+|-------|------|---------|-------------|
+| `id` | string | observationID | Annotation identifier |
+| `image_id` | string | mediaID | Foreign key to image |
+| `category_id` | int | scientificName | Category lookup |
+| `bbox` | [x,y,w,h] | bboxX/Y/Width/Height | Bounding box (pixels, converted to normalized) |
+
+### Sequence/Event Handling
+
+Many LILA datasets include sequence information where images are grouped into "bursts" or "events":
+
+- `seq_id` is mapped to `eventID` for sequence grouping
+- `eventStart` and `eventEnd` are computed from the min/max datetime across all images in a sequence
+- For datasets without `seq_id`, `eventID` is `null` and event timestamps default to image timestamp
+
+**Datasets with sequence info:**
+- Snapshot Serengeti (2.65M sequences)
+- SWG Camera Traps (436K sequences)
+- Snapshot Safari datasets (Karoo, Kruger, Enonkishu, etc.)
+- California Small Animals
+- Wellington Camera Traps
+
+**Datasets without sequence info:**
+- Biome Health Project Maasai Mara 2018
+- ENA24 Detection
+
+### Import Behavior
+
+- Images are loaded via HTTP at runtime (not downloaded locally)
+- Categories named `empty`, `blank`, or `nothing` do not create observations
+- Bounding boxes are converted from pixel coordinates to normalized (0-1)
+- Invalid JSON containing Python `NaN` values is automatically sanitized
+
+**Key file:** `src/main/import/lila.js`
+
+---
+
 ## Image Folder Import
 
 Direct import from a folder of images with optional ML inference.

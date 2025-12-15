@@ -452,13 +452,18 @@ export async function importLilaDatasetWithPath(
       imageMap.set(img.id, img)
     }
 
+    // Compute sequence bounds for event temporal range
+    const sequenceBounds = computeSequenceBounds(cocoData.images)
+    log.info(`Computed bounds for ${sequenceBounds.size} sequences`)
+
     // Transform data
     const deploymentsData = transformCOCOToDeployments(cocoData.images)
     const mediaData = transformCOCOToMedia(cocoData.images, dataset.imageBaseUrl)
     const observationsData = transformCOCOToObservations(
       cocoData.annotations || [],
       categoryMap,
-      imageMap
+      imageMap,
+      sequenceBounds
     )
 
     log.info(
@@ -687,6 +692,36 @@ function validateCOCOData(data) {
 }
 
 /**
+ * Compute temporal bounds (min/max datetime) for each sequence ID
+ * This is used to set accurate eventStart/eventEnd for observations
+ * @param {Array} images - COCO images array
+ * @returns {Map} - Map of seq_id → {start: ISO string, end: ISO string}
+ */
+function computeSequenceBounds(images) {
+  const sequenceBounds = new Map()
+
+  for (const img of images) {
+    // Skip images without seq_id - they don't have sequence info
+    if (!img.seq_id) continue
+
+    const seqId = String(img.seq_id)
+    const datetime = img.datetime ? transformDateField(img.datetime) : null
+
+    if (!datetime) continue
+
+    if (!sequenceBounds.has(seqId)) {
+      sequenceBounds.set(seqId, { start: datetime, end: datetime })
+    } else {
+      const bounds = sequenceBounds.get(seqId)
+      if (datetime < bounds.start) bounds.start = datetime
+      if (datetime > bounds.end) bounds.end = datetime
+    }
+  }
+
+  return sequenceBounds
+}
+
+/**
  * Transform COCO images to Biowatch deployments
  * Uses the 'location' field as deploymentID
  * Computes deploymentStart/deploymentEnd from MIN/MAX image datetimes per location
@@ -753,8 +788,13 @@ function transformCOCOToMedia(images, imageBaseUrl) {
 /**
  * Transform COCO annotations to Biowatch observations
  * Filters out blank/empty categories - no observation is created for those
+ * Uses seq_id for eventID and sequenceBounds for eventStart/eventEnd
+ * @param {Array} annotations - COCO annotations array
+ * @param {Map} categoryMap - Map of category_id → category_name
+ * @param {Map} imageMap - Map of image_id → image object
+ * @param {Map} sequenceBounds - Map of seq_id → {start, end} temporal bounds
  */
-function transformCOCOToObservations(annotations, categoryMap, imageMap) {
+function transformCOCOToObservations(annotations, categoryMap, imageMap, sequenceBounds) {
   return annotations
     .map((ann, index) => {
       const image = imageMap.get(ann.image_id)
@@ -769,13 +809,23 @@ function transformCOCOToObservations(annotations, categoryMap, imageMap) {
       // Normalize bounding box from pixels to 0-1
       const bbox = normalizeBbox(ann.bbox, image?.width, image?.height)
 
+      // Extract eventID from COCO seq_id field (if available)
+      const eventID = image?.seq_id ? String(image.seq_id) : null
+
+      // Get event temporal bounds from pre-computed sequence bounds
+      // Fall back to individual image datetime if no sequence info
+      const seqBounds = eventID ? sequenceBounds.get(eventID) : null
+      const imageDatetime = image?.datetime ? transformDateField(image.datetime) : null
+      const eventStart = seqBounds?.start || imageDatetime
+      const eventEnd = seqBounds?.end || imageDatetime
+
       return {
         observationID: ann.id ? String(ann.id) : `obs_${ann.image_id}_${index}`,
         mediaID: String(ann.image_id),
         deploymentID: image?.location ? String(image.location) : null,
-        eventID: null,
-        eventStart: image?.datetime ? transformDateField(image.datetime) : null,
-        eventEnd: image?.datetime ? transformDateField(image.datetime) : null,
+        eventID,
+        eventStart,
+        eventEnd,
         scientificName: categoryName,
         commonName: categoryName,
         observationType: 'animal',
