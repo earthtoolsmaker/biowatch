@@ -20,6 +20,7 @@ import BestMediaCarousel from './ui/BestMediaCarousel'
 import { useImportStatus } from '@renderer/hooks/import'
 import { useQueryClient, useQuery, useQueries } from '@tanstack/react-query'
 import DateTimePicker from './ui/DateTimePicker'
+import { sortSpeciesHumansLast } from './utils/speciesUtils'
 
 // Component to handle map layer change events for persistence
 function LayerChangeHandler({ onLayerChange }) {
@@ -270,7 +271,7 @@ function SpeciesDistribution({ data, taxonomicData }) {
   return (
     <div className="w-1/2 bg-white rounded border border-gray-200 p-3 overflow-y-auto">
       <div className="space-y-4">
-        {data.map((species) => {
+        {sortSpeciesHumansLast(data).map((species) => {
           // Try to get the common name from the taxonomic data first, then from GBIF query results
           const commonName =
             scientificToCommonMap[species.scientificName] || gbifCommonNames[species.scientificName]
