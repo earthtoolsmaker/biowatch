@@ -669,20 +669,8 @@ export default function BestMediaCarousel({ studyId, isRunning }) {
     })
   }
 
-  // Loading state
-  if (isLoading) {
-    return (
-      <div className="h-44">
-        <h3 className="text-sm font-medium text-gray-700 mb-2">Best Captures</h3>
-        <div className="h-36 flex items-center justify-center text-gray-400">
-          <span className="animate-pulse">Loading best captures...</span>
-        </div>
-      </div>
-    )
-  }
-
-  // Hide carousel if no data or error
-  if (error || bestMedia.length === 0) {
+  // Hide carousel while loading, on error, or if no data
+  if (isLoading || error || bestMedia.length === 0) {
     return null
   }
 
