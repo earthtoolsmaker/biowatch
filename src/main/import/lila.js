@@ -1359,6 +1359,17 @@ async function insertMediaFromJsonl(tempJsonlPath, mainDb, dataset, onProgress) 
 async function loadImageMapFromJsonl(tempJsonlPath, expectedCount = 0, onProgress = null) {
   await initializeElectronModules()
 
+  // Immediate progress update at phase start
+  if (onProgress) {
+    onProgress({
+      phase: 'loading_metadata',
+      phaseLabel: 'Loading image metadata',
+      processed: 0,
+      total: expectedCount,
+      percent: 0
+    })
+  }
+
   return new Promise((resolve, reject) => {
     const imageMap = new Map()
     let lastProgressUpdate = 0
@@ -1429,6 +1440,19 @@ async function countAnnotationsStreaming(jsonPath, onProgress = null) {
   // Get file size for byte-based progress estimation
   const fileStats = fs.statSync(jsonPath)
   const totalBytes = fileStats.size
+
+  // Immediate progress update at phase start
+  if (onProgress) {
+    onProgress({
+      phase: 'counting_annotations',
+      phaseLabel: 'Counting annotations',
+      processed: 0,
+      total: null,
+      bytesRead: 0,
+      totalBytes,
+      percent: 0
+    })
+  }
 
   return new Promise((resolve, reject) => {
     let count = 0
