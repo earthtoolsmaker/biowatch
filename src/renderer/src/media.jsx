@@ -2329,7 +2329,8 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
   // Videos are excluded from grouping - they always form their own sequence
   // When sequenceGap is 0 (Off), use eventID-based grouping for CamtrapDP datasets
   // When sequenceGap > 0, use timestamp-based grouping
-  const groupedMedia = useMemo(() => {
+  // Media with null timestamps are separated and displayed at the end
+  const { sequences: groupedMedia, nullTimestampMedia } = useMemo(() => {
     if (sequenceGap === 0) {
       return groupMediaByEventID(mediaFiles)
     }
@@ -2589,6 +2590,23 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
               />
             )
           })}
+
+          {/* Null-timestamp media as individual thumbnails at the end */}
+          {nullTimestampMedia.map((media) => (
+            <ThumbnailCard
+              key={media.mediaID}
+              media={media}
+              constructImageUrl={constructImageUrl}
+              onImageClick={(m) => handleImageClick(m, null)}
+              imageErrors={imageErrors}
+              setImageErrors={setImageErrors}
+              showBboxes={showThumbnailBboxes}
+              bboxes={bboxesByMedia[media.mediaID] || []}
+              widthClass={thumbnailWidthClass}
+              isVideoMedia={isVideoMedia}
+              studyId={id}
+            />
+          ))}
 
           {/* Loading indicator and intersection target */}
           <div ref={loaderRef} className="w-full flex justify-center p-4">
