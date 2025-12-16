@@ -148,8 +148,10 @@ describe('Download Stream Completion', () => {
     } catch (err) {
       errorCaught = true
       // Error should be propagated (ENOENT or similar)
-      assert.ok(err.code === 'ENOENT' || err.code === 'ERR_STREAM_WRITE_AFTER_END',
-        `Should get a file system error, got: ${err.code}`)
+      assert.ok(
+        err.code === 'ENOENT' || err.code === 'ERR_STREAM_WRITE_AFTER_END',
+        `Should get a file system error, got: ${err.code}`
+      )
     }
 
     // Note: createWriteStream may not error immediately for all cases
