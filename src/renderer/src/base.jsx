@@ -1,4 +1,4 @@
-import { Pencil, Plus, Settings, Trash2, Search, ChevronRight } from 'lucide-react'
+import { Pencil, Plus, Settings, Trash2, Search, ChevronRight, Loader2 } from 'lucide-react'
 import { ErrorBoundary } from 'react-error-boundary'
 import { HashRouter, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
@@ -96,6 +96,14 @@ function AppContent() {
   const [deleteModalStudy, setDeleteModalStudy] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
   const renameInputRef = useRef(null)
+
+  // Poll OCR status to show spinner next to study name
+  const { data: ocrStatus } = useQuery({
+    queryKey: ['ocrGlobalStatus'],
+    queryFn: () => window.api.ocr.getGlobalStatus(),
+    refetchInterval: 2000
+  })
+  const ocrRunningStudyId = ocrStatus?.isRunning ? ocrStatus.runningStudyId : null
 
   const { data: studies = [], isLoading } = useQuery({
     queryKey: ['studies'],
@@ -319,13 +327,17 @@ function AppContent() {
                     }
                   >
                     <span className="flex-1 text-left truncate">{study.name}</span>
-                    <ChevronRight
-                      className={`h-4 w-4 flex-shrink-0 transition-opacity ${
-                        location.pathname.includes(`/study/${study.id}`)
-                          ? 'opacity-100'
-                          : 'opacity-0 group-hover:opacity-50'
-                      }`}
-                    />
+                    {study.id === ocrRunningStudyId ? (
+                      <Loader2 className="h-4 w-4 flex-shrink-0 animate-spin text-blue-600" />
+                    ) : (
+                      <ChevronRight
+                        className={`h-4 w-4 flex-shrink-0 transition-opacity ${
+                          location.pathname.includes(`/study/${study.id}`)
+                            ? 'opacity-100'
+                            : 'opacity-0 group-hover:opacity-50'
+                        }`}
+                      />
+                    )}
                   </NavLink>
                 )}
               </div>
