@@ -11,11 +11,23 @@ import { createHash } from 'crypto'
 import { app, ipcMain } from 'electron'
 import log from 'electron-log'
 import { existsSync, mkdirSync, statSync, readdirSync, unlinkSync, rmSync } from 'fs'
+import { unlink } from 'fs/promises'
 import { join, basename, extname } from 'path'
-import ffmpegPath from 'ffmpeg-static'
+import ffmpegPathRaw from 'ffmpeg-static'
 
 import { cleanExpiredTranscodeCacheImpl } from './cache-cleanup.js'
 import { downloadFileWithRetry } from './download'
+
+// In production, ffmpeg-static returns a path inside app.asar which can't be executed.
+// We need to resolve to the unpacked path instead.
+function getFFmpegPath() {
+  if (app.isPackaged && ffmpegPathRaw.includes('app.asar')) {
+    return ffmpegPathRaw.replace('app.asar', 'app.asar.unpacked')
+  }
+  return ffmpegPathRaw
+}
+
+const ffmpegPath = getFFmpegPath()
 
 // Browser-compatible video formats (don't need transcoding)
 const BROWSER_COMPATIBLE_FORMATS = new Set(['.mp4', '.webm', '.ogg', '.ogv'])
@@ -100,7 +112,7 @@ function buildFFmpegInputArgs(inputPath) {
  * @param {function} onProgress - Optional progress callback
  * @returns {Promise<string>} Local file path
  */
-async function getLocalVideoPath(studyId, inputPath, onProgress = () => {}) {
+export async function getLocalVideoPath(studyId, inputPath, onProgress = () => {}) {
   // Local files - return as-is
   if (!isRemoteUrl(inputPath)) {
     return inputPath
@@ -323,6 +335,88 @@ export async function extractThumbnail(studyId, inputPath) {
 }
 
 /**
+ * Extract the first frame (frame 0) from a video for OCR processing.
+ * Unlike extractThumbnail() which seeks to 0.5s for visual aesthetics,
+ * this extracts the true first frame where timestamps are burned in.
+ * Returns a temporary file path that should be cleaned up after use.
+ * @param {string} studyId - The study ID
+ * @param {string} inputPath - Path to video file or URL
+ * @returns {Promise<{framePath: string, cleanup: () => Promise<void>}>}
+ */
+export async function extractFirstFrame(studyId, inputPath) {
+  // Use dedicated OCR frames cache dir (temporary files)
+  const ocrFrameCacheDir = join(getStudyCacheDir(studyId), 'ocr-frames')
+  if (!existsSync(ocrFrameCacheDir)) {
+    mkdirSync(ocrFrameCacheDir, { recursive: true })
+    log.info(`[Transcoder] Created OCR frames cache directory: ${ocrFrameCacheDir}`)
+  }
+
+  // Generate unique filename
+  const cacheKey = getCacheKey(inputPath)
+  const framePath = join(ocrFrameCacheDir, `${cacheKey}_frame0.jpg`)
+
+  // Download remote video first (FFmpeg static can't handle HTTPS)
+  const localInputPath = await getLocalVideoPath(studyId, inputPath)
+
+  log.info(`[Transcoder] Extracting first frame: ${localInputPath} -> ${framePath}`)
+
+  return new Promise((resolve, reject) => {
+    const inputArgs = buildFFmpegInputArgs(localInputPath)
+    const ffmpeg = spawn(ffmpegPath, [
+      ...inputArgs,
+      '-vf',
+      'select=eq(n\\,0)', // Select frame 0 (true first frame)
+      '-frames:v',
+      '1',
+      '-q:v',
+      '2', // High quality JPEG
+      '-y', // Overwrite output
+      framePath
+    ])
+
+    let stderrBuffer = ''
+
+    ffmpeg.stderr.on('data', (data) => {
+      stderrBuffer += data.toString()
+    })
+
+    ffmpeg.on('close', (code) => {
+      if (code === 0 && existsSync(framePath)) {
+        log.info(`[Transcoder] First frame extracted: ${framePath}`)
+        resolve({
+          framePath,
+          cleanup: async () => {
+            try {
+              await unlink(framePath)
+              log.info(`[Transcoder] Cleaned up OCR frame: ${framePath}`)
+            } catch {
+              // Ignore cleanup errors
+            }
+          }
+        })
+      } else {
+        log.error(`[Transcoder] FFmpeg first frame extraction failed with code ${code}`)
+        log.error(`[Transcoder] FFmpeg stderr: ${stderrBuffer}`)
+        // Clean up partial file
+        if (existsSync(framePath)) {
+          try {
+            unlinkSync(framePath)
+          } catch {
+            // Ignore cleanup errors
+          }
+        }
+        reject(new Error(`FFmpeg frame extraction failed with code ${code}`))
+      }
+    })
+
+    ffmpeg.on('error', (err) => {
+      log.error(`[Transcoder] FFmpeg error: ${err.message}`)
+      reject(err)
+    })
+  })
+}
+
+/**
  * Parse FFmpeg progress output to extract percentage.
  * FFmpeg outputs progress to stderr in format like: "time=00:01:23.45"
  * @param {string} data - FFmpeg stderr output
@@ -350,7 +444,7 @@ function parseProgress(data, duration) {
  * @param {string} filePath - Path to video file or URL
  * @returns {Promise<number>} Duration in seconds
  */
-async function getVideoDuration(filePath) {
+export async function getVideoDuration(filePath) {
   return new Promise((resolve, reject) => {
     const inputArgs = buildFFmpegInputArgs(filePath)
     const ffprobe = spawn(ffmpegPath, [

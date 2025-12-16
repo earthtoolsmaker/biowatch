@@ -85,6 +85,13 @@
       "when": 1765550144968,
       "tag": "0011_add_favorite_field",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1765877041622,
+      "tag": "0012_add_ocr_outputs",
+      "breakpoints": true
     }
   ]
 }

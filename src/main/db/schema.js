@@ -89,6 +89,22 @@ export const modelOutputs = sqliteTable(
   ]
 )
 
+// Store OCR results for media files
+export const ocrOutputs = sqliteTable(
+  'ocr_outputs',
+  {
+    id: text('id').primaryKey(), // UUID via crypto.randomUUID()
+    mediaID: text('mediaID')
+      .notNull()
+      .references(() => media.mediaID, { onDelete: 'cascade' }),
+    modelID: text('modelID').notNull(), // 'tesseract' (extensible for future OCR engines)
+    modelVersion: text('modelVersion').notNull(), // '5.1.1' (tesseract.js version)
+    createdAt: text('createdAt').notNull(), // ISO timestamp
+    rawOutput: text('rawOutput', { mode: 'json' }) // Full OCR result (timestamp derived from here)
+  },
+  (table) => [index('idx_ocr_outputs_mediaID').on(table.mediaID)]
+)
+
 export const observations = sqliteTable(
   'observations',
   {

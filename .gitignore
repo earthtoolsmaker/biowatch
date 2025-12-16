@@ -4,6 +4,7 @@ out
 .DS_Store
 .eslintcache
 *.log*
+*.traineddata
 python/build/
 test-species/build/
 resources/python/
