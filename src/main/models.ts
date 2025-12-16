@@ -13,8 +13,13 @@ import { existsSync, readdir, promises as fsPromises } from 'fs'
 import log from 'electron-log'
 import kill from 'tree-kill'
 import crypto from 'crypto'
-import { findModel, findPythonEnvironment, platformToKey } from '../shared/mlmodels'
-import { modelZoo } from '../shared/mlmodels'
+import {
+  findModel,
+  findPythonEnvironment,
+  platformToKey,
+  modelZoo,
+  pythonEnvironments
+} from '../shared/mlmodels'
 import {
   extractTarGz,
   InstallationState,
@@ -816,6 +821,55 @@ function getMLModelDownloadStatus({ modelReference, pythonEnvironmentReference }
 }
 
 /**
+ * Checks if a state indicates an active download.
+ * @param {string | undefined} state - The download state.
+ * @returns {boolean} True if the state indicates an active download.
+ */
+function isActiveDownloadState(state: string | undefined): boolean {
+  return state === 'download' || state === 'extract' || state === 'clean'
+}
+
+/**
+ * Gets the global model download status to determine if any model is currently downloading.
+ * @returns {Object} An object with isDownloading boolean and modelId string.
+ */
+function getGlobalModelDownloadStatus() {
+  try {
+    const modelManifestPath = getMLModelLocalDownloadManifest()
+    const envManifestPath = getMLEnvironmentDownloadManifest()
+
+    // Check all models in modelZoo for active downloads
+    for (const model of modelZoo) {
+      const status = getDownloadStatus({
+        manifestFilepath: modelManifestPath,
+        id: model.reference.id,
+        version: model.reference.version
+      })
+      if (isActiveDownloadState(status?.state)) {
+        return { isDownloading: true, modelId: model.reference.id }
+      }
+    }
+
+    // Check environment downloads
+    for (const env of pythonEnvironments) {
+      const status = getDownloadStatus({
+        manifestFilepath: envManifestPath,
+        id: env.reference.id,
+        version: env.reference.version
+      })
+      if (isActiveDownloadState(status?.state)) {
+        return { isDownloading: true, modelId: status?.opts?.activeDownloadModelId || null }
+      }
+    }
+
+    return { isDownloading: false, modelId: null }
+  } catch (error) {
+    log.error('Error getting global model download status:', error.message)
+    return { isDownloading: false, modelId: null }
+  }
+}
+
+/**
  * Downloads a machine learning model from a specified URL and manages its installation.
  *
  * This function handles the downloading of the model archive from the provided URL,
@@ -1009,6 +1063,9 @@ export function registerMLModelManagementIPCHandlers() {
   ipcMain.handle('model:get-download-status', (_, modelReference, pythonEnvironmentReference) =>
     getMLModelDownloadStatus({ modelReference, pythonEnvironmentReference })
   )
+
+  // IPC handler to get global model download status (for spinner indicator)
+  ipcMain.handle('model:get-global-download-status', () => getGlobalModelDownloadStatus())
 
   // IPC handler to delete the ml model
   ipcMain.handle('model:delete', (_, id, version) => deleteLocalMLModel({ id, version }))
