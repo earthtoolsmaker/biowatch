@@ -52,4 +52,9 @@ export {
 } from './observations.js'
 
 // Best media selection
-export { getTemporalBucket, selectDiverseMedia, getBestMedia } from './best-media.js'
+export {
+  getTemporalBucket,
+  selectDiverseMedia,
+  getBestMedia,
+  getBestImagePerSpecies
+} from './best-media.js'
