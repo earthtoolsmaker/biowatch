@@ -7,6 +7,7 @@ import Export from './export'
 function OCRActionRow({ studyId }) {
   const [isOCRRunning, setIsOCRRunning] = useState(false)
   const [ocrProgress, setOcrProgress] = useState(null)
+  const [globalOCRStatus, setGlobalOCRStatus] = useState(null)
   const queryClient = useQueryClient()
 
   // Query for timestamp statistics (fixableCount, failedOCRCount, totalCount)
@@ -19,16 +20,24 @@ function OCRActionRow({ studyId }) {
   const failedOCRCount = timestampStats?.failedOCRCount || 0
   const totalCount = timestampStats?.totalCount || 0
 
-  // Check OCR status on mount (restore state when navigating back)
+  // Check global OCR status on mount and poll periodically
   useEffect(() => {
-    const checkOCRStatus = async () => {
-      const status = await window.api.ocr.getStatus(studyId)
-      if (status.isRunning) {
+    const checkGlobalStatus = async () => {
+      const status = await window.api.ocr.getGlobalStatus()
+      setGlobalOCRStatus(status)
+      // If OCR is running on THIS study, restore local state
+      if (status.isRunning && status.runningStudyId === studyId) {
         setIsOCRRunning(true)
-        setOcrProgress(status.progress)
+        // Also get progress for this study
+        const studyStatus = await window.api.ocr.getStatus(studyId)
+        if (studyStatus.progress) {
+          setOcrProgress(studyStatus.progress)
+        }
       }
     }
-    checkOCRStatus()
+    checkGlobalStatus()
+    const interval = setInterval(checkGlobalStatus, 2000)
+    return () => clearInterval(interval)
   }, [studyId])
 
   // Listen for OCR progress updates
@@ -37,12 +46,17 @@ function OCRActionRow({ studyId }) {
       setOcrProgress(progress)
       if (progress.stage === 'complete') {
         setIsOCRRunning(false)
+        setGlobalOCRStatus({ isRunning: false, runningStudyId: null })
         queryClient.invalidateQueries({ queryKey: ['timestampStats', studyId] })
         queryClient.invalidateQueries({ queryKey: ['media', studyId] })
       }
     })
     return () => unsubscribe()
   }, [studyId, queryClient])
+
+  // Determine if button should be disabled (OCR running on ANOTHER study)
+  const isBlockedByOtherStudy =
+    globalOCRStatus?.isRunning && globalOCRStatus?.runningStudyId !== studyId
 
   const handleStartOCR = async () => {
     setIsOCRRunning(true)
@@ -151,13 +165,24 @@ function OCRActionRow({ studyId }) {
           </div>
         ) : fixableCount > 0 ? (
           <div className="flex gap-2 justify-end">
-            <button
-              onClick={handleStartOCR}
-              className="cursor-pointer transition-colors flex flex-row gap-2 items-center border border-gray-200 px-3 h-8 text-sm shadow-sm rounded-md hover:bg-gray-100"
-            >
-              <ScanText size={14} />
-              Fix Timestamps
-            </button>
+            {isBlockedByOtherStudy ? (
+              <button
+                disabled
+                className="cursor-not-allowed transition-colors flex flex-row gap-2 items-center border border-gray-200 px-3 h-8 text-sm shadow-sm rounded-md bg-gray-100 text-gray-400"
+                title="OCR is running on another study. Please wait for it to complete."
+              >
+                <ScanText size={14} />
+                Fix Timestamps
+              </button>
+            ) : (
+              <button
+                onClick={handleStartOCR}
+                className="cursor-pointer transition-colors flex flex-row gap-2 items-center border border-gray-200 px-3 h-8 text-sm shadow-sm rounded-md hover:bg-gray-100"
+              >
+                <ScanText size={14} />
+                Fix Timestamps
+              </button>
+            )}
           </div>
         ) : failedOCRCount > 0 ? (
           <div className="flex gap-2 justify-end">

@@ -350,6 +350,10 @@ const api = {
     getStatus: async (studyId) => {
       return await electronAPI.ipcRenderer.invoke('ocr:get-status', studyId)
     },
+    // Get global OCR status (for disabling buttons in other studies)
+    getGlobalStatus: async () => {
+      return await electronAPI.ipcRenderer.invoke('ocr:get-global-status')
+    },
     // Get timestamp statistics for images (nullCount, totalCount)
     getTimestampStats: async (studyId) => {
       return await electronAPI.ipcRenderer.invoke('ocr:get-timestamp-stats', studyId)

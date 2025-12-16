@@ -16,6 +16,8 @@ extraResources:
     filter: ['*.py']
   - from: 'src/main/database/migrations'
     to: 'database/migrations'
+  - from: 'resources/tessdata'
+    to: 'tessdata'
 asarUnpack:
   - resources/**
 win:
