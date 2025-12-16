@@ -359,7 +359,11 @@ export async function downloadFileWithRetry(url, destination, onProgress, attemp
 
         if (done) {
           log.info(`Download complete: ${destination}`)
-          writer.end()
+          // Wait for file stream to fully flush to disk before returning
+          await new Promise<void>((resolve, reject) => {
+            writer.on('error', reject)
+            writer.end(() => resolve())
+          })
           return destination
         }
 
