@@ -69,6 +69,51 @@ describe('parseDateFromText', () => {
       assert.ok(result)
       assert.equal(getISODateTimePortion(result.isoString), '2024-03-05T09:05:00.000')
     })
+
+    test('parses ISO format with early morning time', () => {
+      const result = parseDateFromText('2024-06-25 01:49:47')
+      assert.ok(result)
+      assert.equal(getISODateTimePortion(result.isoString), '2024-06-25T01:49:47.000')
+    })
+  })
+
+  describe('ISO format with 12-hour time (YYYY-MM-DD hh:mm:ss A)', () => {
+    test('parses ISO format with PM', () => {
+      const result = parseDateFromText('2024-06-25 01:49:47 PM')
+      assert.ok(result)
+      assert.equal(getISODateTimePortion(result.isoString), '2024-06-25T13:49:47.000')
+      assert.equal(result.format, 'YYYY-MM-DD hh:mm:ss A')
+    })
+
+    test('parses ISO format with AM', () => {
+      const result = parseDateFromText('2024-06-25 09:15:30 AM')
+      assert.ok(result)
+      assert.equal(getISODateTimePortion(result.isoString), '2024-06-25T09:15:30.000')
+    })
+
+    test('parses ISO format with lowercase am/pm', () => {
+      const result = parseDateFromText('2024-06-25 03:30:00 pm')
+      assert.ok(result)
+      assert.equal(getISODateTimePortion(result.isoString), '2024-06-25T15:30:00.000')
+    })
+
+    test('parses 12 PM as noon', () => {
+      const result = parseDateFromText('2024-06-25 12:00:00 PM')
+      assert.ok(result)
+      assert.equal(getISODateTimePortion(result.isoString), '2024-06-25T12:00:00.000')
+    })
+
+    test('parses 12 AM as midnight', () => {
+      const result = parseDateFromText('2024-06-25 12:00:00 AM')
+      assert.ok(result)
+      assert.equal(getISODateTimePortion(result.isoString), '2024-06-25T00:00:00.000')
+    })
+
+    test('parses without seconds', () => {
+      const result = parseDateFromText('2024-06-25 02:30 PM')
+      assert.ok(result)
+      assert.equal(getISODateTimePortion(result.isoString), '2024-06-25T14:30:00.000')
+    })
   })
 
   describe('US format with 12-hour time (MM/DD/YY hh:mm:ss A)', () => {

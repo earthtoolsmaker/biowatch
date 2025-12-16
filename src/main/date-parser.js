@@ -11,9 +11,28 @@ import log from 'electron-log'
  * Each pattern has: regex, parser function, and format description
  */
 const DATE_PATTERNS = [
-  // ISO format: 2024-03-20 14:32:15
+  // ISO format with 12-hour time: 2024-03-20 02:32:15 PM
   {
-    regex: /(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/,
+    regex: /(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM|am|pm)/i,
+    parse: (m) => {
+      let hour = parseInt(m[4])
+      const isPM = m[7].toUpperCase() === 'PM'
+      if (isPM && hour !== 12) hour += 12
+      if (!isPM && hour === 12) hour = 0
+      return {
+        year: parseInt(m[1]),
+        month: parseInt(m[2]),
+        day: parseInt(m[3]),
+        hour,
+        minute: parseInt(m[5]),
+        second: parseInt(m[6] || '0')
+      }
+    },
+    format: 'YYYY-MM-DD hh:mm:ss A'
+  },
+  // ISO format with 24-hour time: 2024-03-20 14:32:15
+  {
+    regex: /(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?(?!\s*[APap][Mm])/,
     parse: (m) => ({
       year: parseInt(m[1]),
       month: parseInt(m[2]),
