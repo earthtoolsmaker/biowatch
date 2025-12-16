@@ -324,7 +324,7 @@ function SpeciesDistribution({ data, taxonomicData, studyId }) {
 
   return (
     <div className="w-1/2 bg-white rounded border border-gray-200 p-3 overflow-y-auto relative">
-      <div className="space-y-4">
+      <div className="space-y-2">
         {sortSpeciesHumansLast(data).map((species) => {
           // Try to get the common name from the taxonomic data first, then from GBIF query results
           const commonName =
