@@ -7,7 +7,6 @@
  */
 
 import yaml from 'js-yaml'
-import { extract } from 'tar'
 import { net as electronNet } from 'electron'
 import { dirname } from 'path'
 import {
@@ -152,66 +151,48 @@ export async function extractTarGz(tarPath, extractPath, onProgress, useCache = 
     }
   }
 
-  log.info(`Extracting ${tarPath} to ${extractPath}`)
-
   if (!existsSync(extractPath)) {
     mkdirSync(extractPath, { recursive: true })
   }
 
   const startTime = Date.now()
+  log.info(`Starting extraction of ${tarPath} to ${extractPath}`)
 
-  // Use native tar.exe on Windows for better performance
-  if (process.platform === 'win32') {
-    return new Promise((resolve, reject) => {
-      // Windows tar.exe command: tar -xzf <archive> -C <destination>
-      const tarProcess = spawn('tar.exe', ['-xzf', tarPath, '-C', extractPath], {
-        windowsHide: true
-      })
+  // Use native tar command on all platforms for better performance
+  const tarCommand = process.platform === 'win32' ? 'tar.exe' : 'tar'
+  log.info(`Using native ${tarCommand} for extraction on ${process.platform}`)
 
-      let stderr = ''
-
-      tarProcess.stderr.on('data', (data) => {
-        stderr += data.toString()
-      })
-
-      tarProcess.on('close', (code) => {
-        const duration = (Date.now() - startTime) / 1000
-        if (code === 0) {
-          log.info(`Extraction complete to ${extractPath}. Took ${duration} seconds.`)
-          onProgress({ extracted: 100 })
-          resolve(extractPath)
-        } else {
-          log.error(`tar.exe extraction failed with code ${code}: ${stderr}`)
-          reject(new Error(`Extraction failed with exit code ${code}: ${stderr}`))
-        }
-      })
-
-      tarProcess.on('error', (err) => {
-        log.error(`Error spawning tar.exe:`, err)
-        reject(err)
-      })
+  return new Promise((resolve, reject) => {
+    // tar command: tar -xzf <archive> -C <destination>
+    const tarProcess = spawn(tarCommand, ['-xzf', tarPath, '-C', extractPath], {
+      windowsHide: process.platform === 'win32'
     })
-  } else {
-    // Use tar library on macOS and Linux
-    return new Promise((resolve, reject) => {
-      let processedEntries = 0
-      const tarStream = createReadStream(tarPath)
-        .pipe(extract({ cwd: extractPath }))
-        .on('finish', () => {
-          const duration = (Date.now() - startTime) / 1000
-          log.info(`Extraction complete to ${extractPath}. Took ${duration} seconds.`)
-          resolve(extractPath)
-        })
-        .on('error', (err) => {
-          log.error(`Error during extraction:`, err)
-          reject(err)
-        })
-        .on('entry', (_entry) => {
-          processedEntries++
-          onProgress({ extracted: processedEntries })
-        })
+
+    let stderr = ''
+
+    tarProcess.stderr.on('data', (data) => {
+      stderr += data.toString()
     })
-  }
+
+    tarProcess.on('close', (code) => {
+      const duration = (Date.now() - startTime) / 1000
+      if (code === 0) {
+        log.info(
+          `Extraction complete to ${extractPath}. Duration: ${duration.toFixed(2)} seconds (${process.platform} native ${tarCommand})`
+        )
+        onProgress({ extracted: 100 })
+        resolve(extractPath)
+      } else {
+        log.error(`${tarCommand} extraction failed with code ${code}: ${stderr}`)
+        reject(new Error(`Extraction failed with exit code ${code}: ${stderr}`))
+      }
+    })
+
+    tarProcess.on('error', (err) => {
+      log.error(`Error spawning ${tarCommand}:`, err)
+      reject(err)
+    })
+  })
 }
 
 /**
