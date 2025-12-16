@@ -346,9 +346,13 @@ const api = {
     cancel: async () => {
       return await electronAPI.ipcRenderer.invoke('ocr:cancel')
     },
-    // Get count of media with null timestamps (images only)
-    getNullTimestampCount: async (studyId) => {
-      return await electronAPI.ipcRenderer.invoke('ocr:get-null-timestamp-count', studyId)
+    // Get current OCR status for a specific study (for restoring state when navigating)
+    getStatus: async (studyId) => {
+      return await electronAPI.ipcRenderer.invoke('ocr:get-status', studyId)
+    },
+    // Get timestamp statistics for images (nullCount, totalCount)
+    getTimestampStats: async (studyId) => {
+      return await electronAPI.ipcRenderer.invoke('ocr:get-timestamp-stats', studyId)
     },
     // Listen for OCR progress updates
     onProgress: (callback) => {

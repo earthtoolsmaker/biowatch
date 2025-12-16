@@ -224,7 +224,7 @@ export {
   updateMediaTimestamp,
   insertMedia,
   updateMediaFavorite,
-  countMediaWithNullTimestamps,
+  getMediaTimestampStats,
   // Observations
   updateObservationClassification,
   updateObservationBbox,

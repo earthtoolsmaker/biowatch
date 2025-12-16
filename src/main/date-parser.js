@@ -115,6 +115,19 @@ const DATE_PATTERNS = [
     }),
     format: 'DD.MM.YY HH:mm:ss'
   },
+  // Time-first EU format: 19:11 21/10/19 (HH:mm DD/MM/YY)
+  {
+    regex: /(\d{1,2}):(\d{2})(?::(\d{2}))?\s+(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?!\s*[APap][Mm])/,
+    parse: (m) => ({
+      year: normalizeYear(parseInt(m[6])),
+      month: parseInt(m[5]),
+      day: parseInt(m[4]),
+      hour: parseInt(m[1]),
+      minute: parseInt(m[2]),
+      second: parseInt(m[3] || '0')
+    }),
+    format: 'HH:mm DD/MM/YY'
+  },
   // Text month format: 20-Mar-2024 14:32 or 20 Mar 2024 14:32
   {
     regex:

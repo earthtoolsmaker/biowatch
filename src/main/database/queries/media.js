@@ -700,32 +700,33 @@ export async function updateMediaFavorite(dbPath, mediaID, favorite) {
 }
 
 /**
- * Count media files with null timestamps
+ * Get media timestamp statistics
  * @param {string} dbPath - Path to the SQLite database
- * @returns {Promise<number>} - Count of media files with null timestamps
+ * @returns {Promise<{nullCount: number, totalCount: number}>} - Count of media files with null timestamps and total count
  */
-export async function countMediaWithNullTimestamps(dbPath) {
+export async function getMediaTimestampStats(dbPath) {
   const startTime = Date.now()
-  log.info(`Counting media with null timestamps from: ${dbPath}`)
+  log.info(`Getting media timestamp stats from: ${dbPath}`)
 
   try {
     const studyId = getStudyIdFromPath(dbPath)
 
     const db = await getDrizzleDb(studyId, dbPath)
 
-    const result = await db
-      .select({ count: count().as('count') })
-      .from(media)
-      .where(isNull(media.timestamp))
-      .get()
+    // Get both counts in parallel
+    const [nullResult, totalResult] = await Promise.all([
+      db.select({ count: count().as('count') }).from(media).where(isNull(media.timestamp)).get(),
+      db.select({ count: count().as('count') }).from(media).get()
+    ])
 
-    const nullCount = result?.count || 0
+    const nullCount = nullResult?.count || 0
+    const totalCount = totalResult?.count || 0
     const elapsedTime = Date.now() - startTime
-    log.info(`Found ${nullCount} media with null timestamps in ${elapsedTime}ms`)
+    log.info(`Found ${nullCount} of ${totalCount} media with null timestamps in ${elapsedTime}ms`)
 
-    return nullCount
+    return { nullCount, totalCount }
   } catch (error) {
-    log.error(`Error counting media with null timestamps: ${error.message}`)
+    log.error(`Error getting media timestamp stats: ${error.message}`)
     throw error
   }
 }
