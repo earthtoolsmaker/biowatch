@@ -514,17 +514,15 @@ function isBlankCategory(categoryName) {
 function buildContributors(dataset) {
   const contributors = []
 
-  // Add organization as publisher
+  // Add organization as publisher (with email if available)
   if (dataset.organization) {
     contributors.push({
       title: dataset.organization,
+      email: dataset.contactEmail || undefined,
       role: 'publisher'
     })
-  }
-
-  // Add contact as contact role
-  if (dataset.contactEmail) {
-    // Use contactName if available, otherwise extract from email prefix
+  } else if (dataset.contactEmail) {
+    // Only create separate contact if no organization
     const contactTitle = dataset.contactName || dataset.contactEmail.split('@')[0] || 'Contact'
     contributors.push({
       title: contactTitle,
