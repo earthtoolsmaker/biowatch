@@ -168,6 +168,20 @@ describe('parseDateFromText', () => {
     })
   })
 
+  describe('US format with dash (MM-DD-YY HH:mm:ss)', () => {
+    test('parses US dash format with 4-digit year', () => {
+      const result = parseDateFromText('09-14-2015 20:25:12')
+      assert.ok(result)
+      assert.equal(getISODateTimePortion(result.isoString), '2015-09-14T20:25:12.000')
+    })
+
+    test('parses US dash format with 2-digit year', () => {
+      const result = parseDateFromText('09-14-15 20:25:12')
+      assert.ok(result)
+      assert.equal(getISODateTimePortion(result.isoString), '2015-09-14T20:25:12.000')
+    })
+  })
+
   describe('EU format with dash (DD-MM-YY HH:mm:ss)', () => {
     test('parses 4-digit year', () => {
       const result = parseDateFromText('20-03-2024 14:32:15')
