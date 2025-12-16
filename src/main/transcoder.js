@@ -112,7 +112,7 @@ function buildFFmpegInputArgs(inputPath) {
  * @param {function} onProgress - Optional progress callback
  * @returns {Promise<string>} Local file path
  */
-async function getLocalVideoPath(studyId, inputPath, onProgress = () => {}) {
+export async function getLocalVideoPath(studyId, inputPath, onProgress = () => {}) {
   // Local files - return as-is
   if (!isRemoteUrl(inputPath)) {
     return inputPath
@@ -444,7 +444,7 @@ function parseProgress(data, duration) {
  * @param {string} filePath - Path to video file or URL
  * @returns {Promise<number>} Duration in seconds
  */
-async function getVideoDuration(filePath) {
+export async function getVideoDuration(filePath) {
   return new Promise((resolve, reject) => {
     const inputArgs = buildFFmpegInputArgs(filePath)
     const ffprobe = spawn(ffmpegPath, [

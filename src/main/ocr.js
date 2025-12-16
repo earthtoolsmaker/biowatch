@@ -11,11 +11,12 @@ import { unlink } from 'fs/promises'
 import log from 'electron-log'
 import crypto from 'crypto'
 import os from 'os'
+import { DateTime } from 'luxon'
 import { parseDateFromText, normalizeOCRText } from './date-parser.js'
 import { getDrizzleDb, ocrOutputs, media, observations } from './db/index.js'
 import { eq, isNull } from 'drizzle-orm'
 import { downloadAndCacheImage } from './image-cache.js'
-import { extractFirstFrame } from './transcoder.js'
+import { extractFirstFrame, getLocalVideoPath, getVideoDuration } from './transcoder.js'
 import { getTessdataLangPath } from './tessdata-path.js'
 
 /**
@@ -370,10 +371,17 @@ export async function extractTimestampBatch(
         let localPath = null
         let isTemporary = false
         let frameCleanup = null
+        let videoDuration = null // Track video duration for eventEnd calculation
 
         try {
           if (isVideo) {
-            // Extract first frame from video for OCR
+            // Get local video path (downloads remote videos, caches result)
+            const localVideoPath = await getLocalVideoPath(studyId, mediaRecord.filePath)
+
+            // Get video duration for eventEnd calculation
+            videoDuration = await getVideoDuration(localVideoPath)
+
+            // Extract first frame for OCR (uses cached local path)
             const frameResult = await extractFirstFrame(studyId, mediaRecord.filePath)
             localPath = frameResult.framePath
             frameCleanup = frameResult.cleanup
@@ -410,11 +418,31 @@ export async function extractTimestampBatch(
               .set({ timestamp: result.parsedDate })
               .where(eq(media.mediaID, mediaRecord.mediaID))
 
-            // Also update linked observations' eventStart
-            await db
-              .update(observations)
-              .set({ eventStart: result.parsedDate })
-              .where(eq(observations.mediaID, mediaRecord.mediaID))
+            // For videos: also calculate and set eventEnd
+            if (isVideo) {
+              // Priority: extracted duration > exifData > default to eventStart
+              const duration = videoDuration || mediaRecord.exifData?.duration
+              let eventEnd = result.parsedDate // Default if no duration
+              if (duration) {
+                const startDate = DateTime.fromISO(result.parsedDate)
+                eventEnd = startDate.plus({ seconds: duration }).toISO()
+              }
+
+              // Update linked observations with both eventStart AND eventEnd
+              await db
+                .update(observations)
+                .set({
+                  eventStart: result.parsedDate,
+                  eventEnd: eventEnd
+                })
+                .where(eq(observations.mediaID, mediaRecord.mediaID))
+            } else {
+              // For images: only update eventStart (existing behavior)
+              await db
+                .update(observations)
+                .set({ eventStart: result.parsedDate })
+                .where(eq(observations.mediaID, mediaRecord.mediaID))
+            }
 
             // Track the extracted result for frontend
             extractedResults.push({

@@ -4,11 +4,18 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import DeleteStudyModal from './DeleteStudyModal'
 import Export from './export'
 
-function OCRActionRow({ studyId }) {
-  const [isOCRRunning, setIsOCRRunning] = useState(false)
+function OCRActionRow({ studyId, isOCRRunningOnThisStudy }) {
+  const [isOCRRunning, setIsOCRRunning] = useState(isOCRRunningOnThisStudy)
   const [ocrProgress, setOcrProgress] = useState(null)
   const [globalOCRStatus, setGlobalOCRStatus] = useState(null)
   const queryClient = useQueryClient()
+
+  // Sync local state with parent's OCR running state
+  useEffect(() => {
+    if (isOCRRunningOnThisStudy) {
+      setIsOCRRunning(true)
+    }
+  }, [isOCRRunningOnThisStudy])
 
   // Query for timestamp statistics (fixableCount, failedOCRCount, totalCount)
   const { data: timestampStats } = useQuery({
@@ -16,9 +23,9 @@ function OCRActionRow({ studyId }) {
     queryFn: () => window.api.ocr.getTimestampStats(studyId),
     enabled: !!studyId
   })
-  const fixableCount = timestampStats?.fixableCount || 0
-  const failedOCRCount = timestampStats?.failedOCRCount || 0
-  const totalCount = timestampStats?.totalCount || 0
+  const fixableCount = timestampStats?.fixableCount ?? 0
+  const failedOCRCount = timestampStats?.failedOCRCount ?? 0
+  const totalCount = timestampStats?.totalCount ?? 0
 
   // Check global OCR status on mount and poll periodically
   useEffect(() => {
@@ -87,8 +94,11 @@ function OCRActionRow({ studyId }) {
     ocrProgress?.total > 0 ? Math.round((ocrProgress.current / ocrProgress.total) * 100) : 0
   const isComplete = ocrProgress?.stage === 'complete'
 
-  // Don't show the row if there are no issues and OCR is not running
-  if (fixableCount === 0 && failedOCRCount === 0 && !isOCRRunning) {
+  // Treat OCR as running if either local state or parent prop says so
+  const ocrRunning = isOCRRunning || isOCRRunningOnThisStudy
+
+  // If there's nothing to show, don't render the row
+  if (fixableCount === 0 && failedOCRCount === 0 && !ocrRunning) {
     return null
   }
 
@@ -108,7 +118,7 @@ function OCRActionRow({ studyId }) {
           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
             Complete
           </span>
-        ) : isOCRRunning ? (
+        ) : ocrRunning ? (
           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
             Processing
           </span>
@@ -123,7 +133,7 @@ function OCRActionRow({ studyId }) {
         ) : null}
       </td>
       <td className="p-4">
-        {isOCRRunning ? (
+        {ocrRunning ? (
           <div className="min-w-[240px]">
             {isComplete ? (
               <div className="flex items-center gap-2">
@@ -168,7 +178,7 @@ function OCRActionRow({ studyId }) {
             {isBlockedByOtherStudy ? (
               <button
                 disabled
-                className="cursor-not-allowed transition-colors flex flex-row gap-2 items-center border border-gray-200 px-3 h-8 text-sm shadow-sm rounded-md bg-gray-100 text-gray-400"
+                className="cursor-not-allowed transition-colors flex flex-row gap-2 items-center border border-gray-200 px-3 h-8 text-sm shadow-sm rounded-md bg-gray-100 text-gray-400 whitespace-nowrap"
                 title="OCR is running on another study. Please wait for it to complete."
               >
                 <ScanText size={14} />
@@ -177,7 +187,7 @@ function OCRActionRow({ studyId }) {
             ) : (
               <button
                 onClick={handleStartOCR}
-                className="cursor-pointer transition-colors flex flex-row gap-2 items-center border border-gray-200 px-3 h-8 text-sm shadow-sm rounded-md hover:bg-gray-100"
+                className="cursor-pointer transition-colors flex flex-row gap-2 items-center border border-gray-200 px-3 h-8 text-sm shadow-sm rounded-md hover:bg-gray-100 whitespace-nowrap"
               >
                 <ScanText size={14} />
                 Fix Timestamps
@@ -195,40 +205,39 @@ function OCRActionRow({ studyId }) {
 }
 
 function StudyActionsTable({ studyId }) {
-  const [isOCRRunning, setIsOCRRunning] = useState(false)
+  const [globalOCRStatus, setGlobalOCRStatus] = useState(null)
 
   // Query for timestamp statistics to determine if we should show the section
-  const { data: timestampStats } = useQuery({
+  const { data: timestampStats, isPending } = useQuery({
     queryKey: ['timestampStats', studyId],
     queryFn: () => window.api.ocr.getTimestampStats(studyId),
     enabled: !!studyId
   })
-  const fixableCount = timestampStats?.fixableCount || 0
-  const failedOCRCount = timestampStats?.failedOCRCount || 0
+  const fixableCount = timestampStats?.fixableCount ?? 0
+  const failedOCRCount = timestampStats?.failedOCRCount ?? 0
 
-  // Check OCR status on mount
+  // Poll global OCR status - parent is single source of truth
   useEffect(() => {
-    const checkOCRStatus = async () => {
-      const status = await window.api.ocr.getStatus(studyId)
-      setIsOCRRunning(status.isRunning)
+    const checkGlobalStatus = async () => {
+      const status = await window.api.ocr.getGlobalStatus()
+      setGlobalOCRStatus(status)
     }
-    checkOCRStatus()
+    checkGlobalStatus()
+    const interval = setInterval(checkGlobalStatus, 2000)
+    return () => clearInterval(interval)
   }, [studyId])
 
-  // Listen for OCR progress to update running state
-  useEffect(() => {
-    const unsubscribe = window.api.ocr.onProgress((progress) => {
-      if (progress.stage === 'complete') {
-        setIsOCRRunning(false)
-      } else {
-        setIsOCRRunning(true)
-      }
-    })
-    return () => unsubscribe()
-  }, [])
+  // Don't render while loading or if data hasn't arrived yet
+  if (isPending || !timestampStats) {
+    return null
+  }
 
-  // Don't render the section if there are no actions needed and OCR is not running
-  if (fixableCount === 0 && failedOCRCount === 0 && !isOCRRunning) {
+  // Only TRUE if OCR is running on THIS SPECIFIC study (not another study)
+  const isOCRRunningOnThisStudy =
+    globalOCRStatus?.isRunning && globalOCRStatus?.runningStudyId === studyId
+
+  // Don't render if: no actions needed AND OCR is not running on THIS study
+  if (fixableCount === 0 && failedOCRCount === 0 && !isOCRRunningOnThisStudy) {
     return null
   }
 
@@ -257,7 +266,7 @@ function StudyActionsTable({ studyId }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            <OCRActionRow studyId={studyId} />
+            <OCRActionRow studyId={studyId} isOCRRunningOnThisStudy={isOCRRunningOnThisStudy} />
           </tbody>
         </table>
       </div>
