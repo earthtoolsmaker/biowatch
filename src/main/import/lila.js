@@ -45,6 +45,12 @@ export const LILA_DATASETS = [
     id: 'biome-health-maasai-mara-2018',
     name: 'Biome Health Project Maasai Mara 2018',
     description: 'Wildlife monitoring dataset from Maasai Mara ecosystem, Kenya (2018)',
+    longDescription:
+      '37,075 images from the WWF-UK/UCL Biome Health Project site in the Maasai Mara, Kenya. Labels for 100 categories including wild mammals, wild birds, and domestic mammals. Created by labeling one image per five-minute period across 176 camera sites.',
+    citation:
+      'Connolly E, Pringle HA, Pantazis O, et al (2025). Sustainable cattle management by communities supports African wildlife. bioRxiv.',
+    organization: 'University College London',
+    contactEmail: null,
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/biome-health-project-maasai-mara-2018/biome-health-project-maasai-mara-2018.json',
     imageBaseUrl:
@@ -57,6 +63,11 @@ export const LILA_DATASETS = [
     id: 'snapshot-karoo',
     name: 'Snapshot Karoo',
     description: 'Wildlife from Karoo National Park, South Africa',
+    longDescription:
+      "This data set contains 14889 sequences of camera trap images, totaling 38074 images, from the Snapshot Karoo project located in South Africa's Karoo National Park (Nama Karoo biome). The dataset captures wildlife across 38 species categories.",
+    citation: null,
+    organization: 'University of Minnesota Lion Center',
+    contactEmail: 'huebn090@umn.edu',
     metadataUrl:
       'https://storage.googleapis.com/public-datasets-lila/snapshot-safari/KAR/SnapshotKaroo_S1_v1.0.json.zip',
     imageBaseUrl:
@@ -69,6 +80,12 @@ export const LILA_DATASETS = [
     id: 'ena24-detection',
     name: 'ENA24 Detection',
     description: 'Eastern North America camera traps with bounding boxes (23 species)',
+    longDescription:
+      'Approximately 10,000 camera trap images representing 23 classes from Eastern North America, with bounding boxes on each image. Most common classes include American Crow, American Black Bear, and Dog.',
+    citation:
+      'Yousif H, Kays R, Zhihai H (2019). Dynamic Programming Selection of Object Proposals for Sequence-Level Animal Species Classification in the Wild. IEEE Transactions on Circuits and Systems for Video Technology.',
+    organization: 'University of Missouri',
+    contactEmail: 'hyypp5@mail.missouri.edu',
     metadataUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/ena24/ena24.json',
     imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/ena24/images/',
     isZipped: false,
@@ -79,6 +96,12 @@ export const LILA_DATASETS = [
     id: 'caltech-camera-traps',
     name: 'Caltech Camera Traps',
     description: 'Wildlife from Southwestern United States (21 species, 243K images)',
+    longDescription:
+      '243,100 images from 140 camera locations across the Southwestern United States. Includes labels for 21 animal categories plus empty images (approximately 70% labeled empty), with roughly 66,000 bounding box annotations.',
+    citation:
+      'Beery S, Van Horn G, Perona P (2018). Recognition in Terra Incognita. Proceedings of the European Conference on Computer Vision (ECCV).',
+    organization: 'Caltech',
+    contactEmail: 'caltechcameratraps@gmail.com',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/caltechcameratraps/labels/caltech_camera_traps.json.zip',
     imageBaseUrl:
@@ -91,6 +114,12 @@ export const LILA_DATASETS = [
     id: 'missouri-camera-traps',
     name: 'Missouri Camera Traps',
     description: 'Wildlife from Missouri, USA (20 species, 25K images)',
+    longDescription:
+      'Approximately 25,000 camera trap images representing 20 species, including red deer, mouflon, and white-tailed deer. Contains around 900 bounding boxes across challenging sequences with cluttered, dynamic scenes.',
+    citation:
+      'Zhang Z, He Z, Cao G, Cao W (2016). Animal detection from highly cluttered natural scenes using spatiotemporal object region proposals and patch verification. IEEE Transactions on Multimedia, 18(10), 2079-2092.',
+    organization: 'University of Missouri',
+    contactEmail: 'info@lila.science',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/missouricameratraps/missouri_camera_traps_set1_1.21.json.zip',
     imageBaseUrl:
@@ -103,6 +132,12 @@ export const LILA_DATASETS = [
     id: 'nacti',
     name: 'North American Camera Trap Images',
     description: 'Wildlife from 5 US locations (28 species, 3.7M images)',
+    longDescription:
+      '3.7 million camera trap images from five U.S. locations with species-level labels for 28 animal categories. Approximately 12% of images are labeled as empty. Includes bounding box annotations for approximately 8,900 images.',
+    citation:
+      'Tabak MA, Norouzzadeh MS, Wolfson DW, et al (2019). Machine learning to classify animal species in camera trap images: Applications in ecology. Methods in Ecology and Evolution, 10(4), 585-590.',
+    organization: 'US Department of Agriculture',
+    contactEmail: 'northamericancameratrapimages@gmail.com',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/nacti/nacti_metadata.1.14.json.zip',
     imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/nacti-unzipped/',
@@ -114,6 +149,11 @@ export const LILA_DATASETS = [
     id: 'wcs-camera-traps',
     name: 'WCS Camera Traps',
     description: 'Wildlife Conservation Society data from 12 countries (675 species, 1.4M images)',
+    longDescription:
+      'Approximately 1.4 million camera trap images representing around 675 species from 12 countries. Includes ~375,000 bounding box annotations across ~300,000 images. Approximately 50% of images are empty.',
+    citation: null,
+    organization: 'Wildlife Conservation Society',
+    contactEmail: 'info@lila.science',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/wcs/wcs_camera_traps.json.zip',
     imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/wcs-unzipped/',
@@ -125,6 +165,12 @@ export const LILA_DATASETS = [
     id: 'wellington-camera-traps',
     name: 'Wellington Camera Traps',
     description: 'Wildlife from Wellington, New Zealand (270K images)',
+    longDescription:
+      '270,450 images from 187 camera locations across Wellington, New Zealand. Cameras recorded three-image sequences when triggered, classified into 17 categories by citizen scientists and professional ecologists.',
+    citation:
+      'Anton V, Hartley S, Geldenhuis A, Wittmer HU (2018). Monitoring the mammalian fauna of urban areas using remote cameras and citizen science. Journal of Urban Ecology, 4(1).',
+    organization: 'University of Wellington',
+    contactEmail: 'vykanton@gmail.com',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/wellingtoncameratraps/wellington_camera_traps.json.zip',
     imageBaseUrl:
@@ -137,6 +183,11 @@ export const LILA_DATASETS = [
     id: 'island-conservation-camera-traps',
     name: 'Island Conservation Camera Traps',
     description: 'Invasive species detection on islands (123K images, bboxes available)',
+    longDescription:
+      'Approximately 123,000 camera trap images from 123 locations across 7 islands in 6 countries. Focuses on detecting invasive vertebrate species. Includes roughly 65,000 bounding box annotations for about 50,000 images.',
+    citation: null,
+    organization: 'Island Conservation',
+    contactEmail: 'david.will@islandconservation.org',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/islandconservationcameratraps/island_conservation_camera_traps_1.02.zip',
     imageBaseUrl:
@@ -149,6 +200,12 @@ export const LILA_DATASETS = [
     id: 'channel-islands-camera-traps',
     name: 'Channel Islands Camera Traps',
     description: 'California Channel Islands wildlife with bounding boxes (246K images)',
+    longDescription:
+      '246,529 camera trap images from 73 locations across the Channel Islands, California. All animals annotated with bounding boxes and classified into five categories: rodent, fox, bird, skunk, and other.',
+    citation:
+      'The Nature Conservancy (2021). Channel Islands Camera Traps 1.0. The Nature Conservancy. Dataset.',
+    organization: 'The Nature Conservancy',
+    contactEmail: 'nathaniel.rindlaub@TNC.ORG',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/channel-islands-camera-traps/channel-islands-camera-traps.json.zip',
     imageBaseUrl:
@@ -161,6 +218,11 @@ export const LILA_DATASETS = [
     id: 'idaho-camera-traps',
     name: 'Idaho Camera Traps',
     description: 'Wildlife from Idaho, USA (62 species, 1.5M images)',
+    longDescription:
+      'Approximately 1.5 million camera trap images from Idaho with labels for 62 categories. Primary species include deer, elk, and cattle. About 70.5% of images are labeled empty.',
+    citation: null,
+    organization: 'Idaho Department of Fish and Game',
+    contactEmail: 'info@lila.science',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/idaho-camera-traps/idaho-camera-traps.json.zip',
     imageBaseUrl:
@@ -173,6 +235,12 @@ export const LILA_DATASETS = [
     id: 'snapshot-serengeti',
     name: 'Snapshot Serengeti',
     description: 'Serengeti National Park, Tanzania (61 species, 7.1M images)',
+    longDescription:
+      'Approximately 2.65 million image sequences (7.1 million total images) from Serengeti National Park, Tanzania, spanning 11 seasons. Labels for 61 categories with roughly 76% empty. Includes ~150,000 bounding box annotations.',
+    citation:
+      'Swanson AB, Kosmala M, Lintott CJ, Simpson RJ, Smith A, Packer C (2015). Snapshot Serengeti, high-frequency annotated camera trap images of 40 mammalian species in an African savanna. Scientific Data 2: 150026.',
+    organization: 'University of Minnesota',
+    contactEmail: 'huebn090@umn.edu',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshotserengeti-v-2-0/SnapshotSerengeti_S1-11_v2_1.json.zip',
     imageBaseUrl:
@@ -185,6 +253,11 @@ export const LILA_DATASETS = [
     id: 'snapshot-kgalagadi',
     name: 'Snapshot Kgalagadi',
     description: 'Kgalagadi Transfrontier Park, South Africa (10K images)',
+    longDescription:
+      'Camera trap images from Kgalagadi Transfrontier Park, stretching from the Namibian border across South Africa and into Botswana, covering the Kalahari arid savanna landscape.',
+    citation: null,
+    organization: 'University of Minnesota Lion Center',
+    contactEmail: 'HuebnerS2@si.edu',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshot-safari/KGA/SnapshotKgalagadi_S1_v1.0.json.zip',
     imageBaseUrl:
@@ -197,6 +270,11 @@ export const LILA_DATASETS = [
     id: 'snapshot-enonkishu',
     name: 'Snapshot Enonkishu',
     description: 'Enonkishu Conservancy, Kenya (28K images)',
+    longDescription:
+      'Camera trap images from Enonkishu Conservancy, located in Kenya on the northern boundary of the Mara-Serengeti ecosystem, promoting coexistence between wildlife and livestock.',
+    citation: null,
+    organization: 'University of Minnesota Lion Center',
+    contactEmail: 'HuebnerS2@si.edu',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshot-safari/ENO/SnapshotEnonkishu_S1_v1.0.json.zip',
     imageBaseUrl:
@@ -209,6 +287,11 @@ export const LILA_DATASETS = [
     id: 'snapshot-camdeboo',
     name: 'Snapshot Camdeboo',
     description: 'Camdeboo National Park, South Africa (30K images)',
+    longDescription:
+      'Camera trap images from Camdeboo National Park in the Eastern Cape province of South Africa, within the Nama Karoo ecoregion featuring low vegetation and rock formations.',
+    citation: null,
+    organization: 'University of Minnesota Lion Center',
+    contactEmail: 'HuebnerS2@si.edu',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshot-safari/CDB/SnapshotCamdeboo_S1_v1.0.json.zip',
     imageBaseUrl:
@@ -221,6 +304,11 @@ export const LILA_DATASETS = [
     id: 'snapshot-mountain-zebra',
     name: 'Snapshot Mountain Zebra',
     description: 'Mountain Zebra National Park, South Africa (73K images)',
+    longDescription:
+      'Camera trap images from Mountain Zebra National Park, South Africa, dedicated to protecting endangered Cape Mountain zebra populations with steady population increases.',
+    citation: null,
+    organization: 'University of Minnesota Lion Center',
+    contactEmail: 'HuebnerS2@si.edu',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshot-safari/MTZ/SnapshotMountainZebra_S1_v1.0.json.zip',
     imageBaseUrl:
@@ -233,6 +321,11 @@ export const LILA_DATASETS = [
     id: 'snapshot-kruger',
     name: 'Snapshot Kruger',
     description: 'Kruger National Park, South Africa (10K images)',
+    longDescription:
+      'Camera trap images from Kruger National Park, one of the oldest nature reserves in Africa, home to nearly 150 mammal species.',
+    citation: null,
+    organization: 'University of Minnesota Lion Center',
+    contactEmail: 'HuebnerS2@si.edu',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/snapshot-safari/KRU/SnapshotKruger_S1_v1.0.json.zip',
     imageBaseUrl:
@@ -245,6 +338,12 @@ export const LILA_DATASETS = [
     id: 'swg-camera-traps',
     name: 'SWG Camera Traps',
     description: 'Snapshot Wisconsin/Germany wildlife (2M images)',
+    longDescription:
+      '436,617 camera trap image sequences from 982 locations across Vietnam and Laos, comprising 2,039,657 total images. Labels for 120 species categories with approximately 12.98% empty scenes.',
+    citation:
+      'SWG (2021). Northern and Central Annamites Camera Traps 2.0. IUCN SSC Asian Wild Cattle Specialist Group Saola Working Group. Dataset.',
+    organization: 'Saola Working Group',
+    contactEmail: 'saolawg@gmail.com',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/swg-camera-traps/swg_camera_traps.zip',
     imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/swg-camera-traps/',
@@ -256,6 +355,12 @@ export const LILA_DATASETS = [
     id: 'orinoquia-camera-traps',
     name: 'Orinoquia Camera Traps',
     description: 'Colombian Orinoquia region wildlife (104K images)',
+    longDescription:
+      '104,782 images from 50 camera traps deployed January-July 2020 across two Colombian nature reserves (El Rey Zamuro and Las Unamas). Contains 51 animal classes with approximately 20% empty frames.',
+    citation:
+      'Vélez J, McShea W, Shamon H, et al (2023). An evaluation of platforms for processing camera-trap data using artificial intelligence. Methods in Ecology and Evolution, 14(2), 459-477.',
+    organization: 'University of Minnesota',
+    contactEmail: 'julianavelezgomez@gmail.com',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/orinoquia-camera-traps/orinoquia_camera_traps_metadata.zip',
     imageBaseUrl:
@@ -268,6 +373,11 @@ export const LILA_DATASETS = [
     id: 'nz-trailcams',
     name: 'Trail Camera Images of New Zealand Animals',
     description: 'New Zealand wildlife (2.5M images)',
+    longDescription:
+      'Approximately 2.5 million camera trap images from various New Zealand projects across diverse habitats. Includes 97 species labels, with mice (49%), possums (6.7%), and rats (5.5%) being most common.',
+    citation: null,
+    organization: 'New Zealand Department of Conservation',
+    contactEmail: 'jtinnemans@doc.govt.nz',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/nz-trailcams/trail_camera_images_of_new_zealand_animals_1.00.json.zip',
     imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/nz-trailcams/',
@@ -279,6 +389,11 @@ export const LILA_DATASETS = [
     id: 'desert-lion-camera-traps',
     name: 'Desert Lion Conservation Camera Traps',
     description: 'Namibian desert lions (66K images)',
+    longDescription:
+      '65,959 images and 199 videos from Northern Namibia, collected by the Desert Lion Conservation Project. Annotations for 46 species categories. Focuses on human-lion conflict and conservation.',
+    citation: null,
+    organization: 'Desert Lion Conservation Project',
+    contactEmail: 'peter@addaxdatascience.com',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/desert-lion-camera-traps/desert_lion_camera_traps.json.zip',
     imageBaseUrl:
@@ -291,6 +406,12 @@ export const LILA_DATASETS = [
     id: 'ohio-small-animals',
     name: 'Ohio Small Animals',
     description: 'Small mammals from Ohio, USA (45 species, 118K images)',
+    longDescription:
+      '118,554 camera trap images from the AHDriFT system in Ohio, using fences to guide small animals into enclosures with downward-facing cameras. Labels for 45 species including Eastern garter snakes, song sparrows, and meadow voles.',
+    citation:
+      'Balasubramaniam S (2024). Optimized Classification in Camera Trap Images: An Approach with Smart Camera Traps, Machine Learning, and Human Inference. Master thesis, The Ohio State University.',
+    organization: 'The Ohio State University',
+    contactEmail: 'lipps.37@osu.edu',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/osu-small-animals/osu-small-animals.json.zip',
     imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/osu-small-animals/',
@@ -302,6 +423,12 @@ export const LILA_DATASETS = [
     id: 'seattleish-camera-traps',
     name: 'Seattle(ish) Camera Traps',
     description: 'Urban wildlife from Seattle area, USA',
+    longDescription:
+      'Approximately 20,000 images in ~6,700 sequences and ~4,500 videos from a residential yard in the Seattle area. Fills gaps in public camera trap data: images of humans (labeled as creator), consumer-grade camera footage, and intact full-size videos. Most common labels: empty, coyote, squirrel, and dog.',
+    citation: null,
+    organization: null,
+    contactName: 'Dan Morris',
+    contactEmail: 'agentmorris@gmail.com',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/seattleish-camera-traps/seattleish_camera_traps.json.zip',
     imageBaseUrl:
@@ -314,6 +441,11 @@ export const LILA_DATASETS = [
     id: 'unsw-predators',
     name: 'UNSW Predators',
     description: 'Australian predator monitoring (131K images)',
+    longDescription:
+      '131,802 camera trap images from 82 locations in New South Wales, Australia. Species labels: dingo, fox, goanna, possum, and quoll. Cameras deployed near baited sites in Myall Lakes National Park.',
+    citation: 'Alting B, et al (2025). UNSW Predators. LILA BC.',
+    organization: 'University of New South Wales',
+    contactEmail: 'neil.jordan@unsw.edu.au',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/unsw-predators/unsw-predators.json.zip',
     imageBaseUrl: 'https://lilawildlife.blob.core.windows.net/lila-wildlife/unsw-predators/images/',
@@ -325,6 +457,12 @@ export const LILA_DATASETS = [
     id: 'nkhotakota-camera-traps',
     name: 'Nkhotakota Camera Traps',
     description: 'Nkhotakota Wildlife Reserve, Malawi (321K images, some bboxes)',
+    longDescription:
+      '321,562 images from Nkhotakota Wildlife Reserve in Malawi with labels for 46 taxa. Includes animal counts, bounding box annotations for 33,813 images, and 164,139 empty photos.',
+    citation:
+      'Appel CL, Subramanian A, et al (2025). Developing custom computer vision models with Njobvu-AI. Ecological Applications, 35(6): e70096.',
+    organization: 'African Parks Network',
+    contactEmail: 'caraleigh16@gmail.com',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/nkhotakota-camera-traps/nkhotakota_camera_traps.json.zip',
     imageBaseUrl:
@@ -337,6 +475,11 @@ export const LILA_DATASETS = [
     id: 'california-small-animals',
     name: 'California Small Animals',
     description: 'Small mammals from California, USA (2.2M images)',
+    longDescription:
+      '2,278,071 camera trap images from California documenting small mammals, reptiles, and amphibians using downward-facing Reconyx cameras deployed with drift fences.',
+    citation: null,
+    organization: 'California Department of Fish and Wildlife',
+    contactEmail: 'lindsey.rich@wildlife.ca.gov',
     metadataUrl:
       'https://lilawildlife.blob.core.windows.net/lila-wildlife/california-small-animals/california_small_animals_with_sequences.zip',
     imageBaseUrl:
@@ -361,6 +504,49 @@ const BLANK_CATEGORY_NAMES = new Set(['empty', 'blank', 'nothing'])
 function isBlankCategory(categoryName) {
   if (!categoryName) return false
   return BLANK_CATEGORY_NAMES.has(categoryName.toLowerCase().trim())
+}
+
+/**
+ * Build CamtrapDP-compliant contributors array from LILA dataset metadata
+ * @param {Object} dataset - The LILA dataset configuration
+ * @returns {Array|null} - Array of contributor objects or null if none available
+ */
+function buildContributors(dataset) {
+  const contributors = []
+
+  // Add organization as publisher
+  if (dataset.organization) {
+    contributors.push({
+      title: dataset.organization,
+      role: 'publisher'
+    })
+  }
+
+  // Add contact as contact role
+  if (dataset.contactEmail) {
+    // Use contactName if available, otherwise extract from email prefix
+    const contactTitle = dataset.contactName || dataset.contactEmail.split('@')[0] || 'Contact'
+    contributors.push({
+      title: contactTitle,
+      email: dataset.contactEmail,
+      role: 'contact'
+    })
+  }
+
+  // Parse citation for authors as principalInvestigator
+  if (dataset.citation) {
+    // Extract author names from citation (before year in parentheses)
+    // e.g., "Swanson AB, Kosmala M, Lintott CJ (2015)" -> "Swanson AB, Kosmala M, Lintott CJ"
+    const authorMatch = dataset.citation.match(/^([^(]+)\s*\(\d{4}\)/)
+    if (authorMatch) {
+      contributors.push({
+        title: authorMatch[1].trim(),
+        role: 'principalInvestigator'
+      })
+    }
+  }
+
+  return contributors.length > 0 ? contributors : null
 }
 
 /**
@@ -592,10 +778,10 @@ export async function importLilaDatasetWithPath(
       id,
       name: dataset.name,
       title: cocoData.info?.description || dataset.name,
-      description: dataset.description,
+      description: dataset.longDescription || dataset.description,
       created: new Date().toISOString(),
       importerName: 'lila/coco',
-      contributors: null,
+      contributors: buildContributors(dataset),
       startDate: null,
       endDate: null
     }
@@ -2012,10 +2198,10 @@ async function importLilaDatasetStreaming(dataset, dbPath, id, onProgress) {
       id,
       name: dataset.name,
       title: dataset.name,
-      description: dataset.description,
+      description: dataset.longDescription || dataset.description,
       created: new Date().toISOString(),
       importerName: 'lila/coco',
-      contributors: null,
+      contributors: buildContributors(dataset),
       startDate: null,
       endDate: null
     }
