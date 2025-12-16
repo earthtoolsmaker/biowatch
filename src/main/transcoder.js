@@ -13,10 +13,21 @@ import log from 'electron-log'
 import { existsSync, mkdirSync, statSync, readdirSync, unlinkSync, rmSync } from 'fs'
 import { unlink } from 'fs/promises'
 import { join, basename, extname } from 'path'
-import ffmpegPath from 'ffmpeg-static'
+import ffmpegPathRaw from 'ffmpeg-static'
 
 import { cleanExpiredTranscodeCacheImpl } from './cache-cleanup.js'
 import { downloadFileWithRetry } from './download'
+
+// In production, ffmpeg-static returns a path inside app.asar which can't be executed.
+// We need to resolve to the unpacked path instead.
+function getFFmpegPath() {
+  if (app.isPackaged && ffmpegPathRaw.includes('app.asar')) {
+    return ffmpegPathRaw.replace('app.asar', 'app.asar.unpacked')
+  }
+  return ffmpegPathRaw
+}
+
+const ffmpegPath = getFFmpegPath()
 
 // Browser-compatible video formats (don't need transcoding)
 const BROWSER_COMPATIBLE_FORMATS = new Set(['.mp4', '.webm', '.ogg', '.ogv'])
