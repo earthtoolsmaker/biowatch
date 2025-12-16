@@ -2827,6 +2827,7 @@ export default function Activity({ studyData, studyId }) {
 
       const startDate = new Date(timeseriesData[startIndex].date)
       const endDate = new Date(timeseriesData[endIndex].date)
+      endDate.setDate(endDate.getDate() + 1) // Include all of the last day
 
       setDateRange([startDate, endDate])
       setFullExtent([startDate, endDate])
