@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import PlaceholderMap from './ui/PlaceholderMap'
 import BestMediaCarousel from './ui/BestMediaCarousel'
+import SpeciesTooltip from './ui/SpeciesTooltip'
 import { useImportStatus } from '@renderer/hooks/import'
 import { useQueryClient, useQuery, useQueries } from '@tanstack/react-query'
 import DateTimePicker from './ui/DateTimePicker'
@@ -218,8 +219,33 @@ async function fetchGbifCommonName(scientificName) {
 }
 
 // Export SpeciesDistribution so it can be imported in activity.jsx
-function SpeciesDistribution({ data, taxonomicData }) {
+function SpeciesDistribution({ data, taxonomicData, studyId }) {
   const totalCount = data.reduce((sum, item) => sum + item.count, 0)
+  const [hoveredSpecies, setHoveredSpecies] = useState(null)
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 })
+
+  // Fetch best image per species for hover tooltips
+  const { data: bestImagesData } = useQuery({
+    queryKey: ['bestImagesPerSpecies', studyId],
+    queryFn: async () => {
+      const response = await window.api.getBestImagePerSpecies(studyId)
+      if (response.error) throw new Error(response.error)
+      return response.data
+    },
+    enabled: !!studyId,
+    staleTime: 60000 // Cache for 1 minute
+  })
+
+  // Create lookup map: scientificName -> imageData
+  const speciesImageMap = useMemo(() => {
+    const map = {}
+    if (bestImagesData) {
+      bestImagesData.forEach((item) => {
+        map[item.scientificName] = item
+      })
+    }
+    return map
+  }, [bestImagesData])
 
   // Create a map of scientific names to common names from taxonomic data
   const scientificToCommonMap = useMemo(() => {
@@ -268,16 +294,44 @@ function SpeciesDistribution({ data, taxonomicData }) {
     return <div className="text-gray-500">No species data available</div>
   }
 
+  // Handle mouse enter on species name - position tooltip near pointer
+  const handleMouseEnter = (e, scientificName) => {
+    if (speciesImageMap[scientificName]) {
+      setTooltipPosition({
+        x: e.clientX + 12,
+        y: e.clientY + 12
+      })
+      setHoveredSpecies(scientificName)
+    }
+  }
+
+  // Update tooltip position as mouse moves
+  const handleMouseMove = (e, scientificName) => {
+    if (speciesImageMap[scientificName] && hoveredSpecies === scientificName) {
+      setTooltipPosition({
+        x: e.clientX + 12,
+        y: e.clientY + 12
+      })
+    }
+  }
+
   return (
-    <div className="w-1/2 bg-white rounded border border-gray-200 p-3 overflow-y-auto">
+    <div className="w-1/2 bg-white rounded border border-gray-200 p-3 overflow-y-auto relative">
       <div className="space-y-4">
         {sortSpeciesHumansLast(data).map((species) => {
           // Try to get the common name from the taxonomic data first, then from GBIF query results
           const commonName =
             scientificToCommonMap[species.scientificName] || gbifCommonNames[species.scientificName]
+          const hasImage = !!speciesImageMap[species.scientificName]
 
           return (
-            <div key={species.scientificName} className="">
+            <div
+              key={species.scientificName}
+              className={hasImage ? 'cursor-pointer' : ''}
+              onMouseEnter={(e) => handleMouseEnter(e, species.scientificName)}
+              onMouseMove={(e) => handleMouseMove(e, species.scientificName)}
+              onMouseLeave={() => setHoveredSpecies(null)}
+            >
               <div className="flex justify-between mb-1 items-center">
                 <div>
                   <span className="capitalize text-sm">{commonName || species.scientificName}</span>
@@ -299,6 +353,15 @@ function SpeciesDistribution({ data, taxonomicData }) {
           )
         })}
       </div>
+
+      {/* Species image tooltip */}
+      {hoveredSpecies && speciesImageMap[hoveredSpecies] && (
+        <SpeciesTooltip
+          imageData={speciesImageMap[hoveredSpecies]}
+          position={tooltipPosition}
+          studyId={studyId}
+        />
+      )}
     </div>
   )
 }
@@ -1131,7 +1194,11 @@ export default function Overview({ data, studyId, studyName }) {
         <>
           <div className="flex flex-row gap-4 flex-1 min-h-0 mt-2">
             {speciesData && speciesData.length > 0 && (
-              <SpeciesDistribution data={speciesData} taxonomicData={taxonomicData} />
+              <SpeciesDistribution
+                data={speciesData}
+                taxonomicData={taxonomicData}
+                studyId={studyId}
+              />
             )}
             <DeploymentMap key={studyId} deployments={deploymentsData} studyId={studyId} />
           </div>
