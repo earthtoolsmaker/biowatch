@@ -89,11 +89,12 @@ export async function ocrRegion(worker, imageBuffer) {
 
 /**
  * Create a Tesseract worker configured for timestamp OCR
+ * @param {string} [langPath=FAST_LANG_PATH] - Path to language data (URL or file:// path)
  * @returns {Promise<Object>} Configured Tesseract worker
  */
-export async function createOCRWorker() {
+export async function createOCRWorker(langPath = FAST_LANG_PATH) {
   const worker = await createWorker('eng', 1, {
-    langPath: FAST_LANG_PATH
+    langPath
   })
   await worker.setParameters({
     tessedit_char_whitelist: CHAR_WHITELIST
@@ -107,16 +108,22 @@ export async function createOCRWorker() {
  * @param {string} imagePath - Path to image file
  * @param {Object} worker - Tesseract worker (optional, creates one if not provided)
  * @param {Object} logger - Logger object with info, warn, error methods (optional)
+ * @param {string} [langPath=FAST_LANG_PATH] - Path to language data (only used if worker not provided)
  * @returns {Promise<Object>} OCR result
  */
-export async function extractTimestampFromImage(imagePath, worker = null, logger = console) {
+export async function extractTimestampFromImage(
+  imagePath,
+  worker = null,
+  logger = console,
+  langPath = FAST_LANG_PATH
+) {
   const shouldCleanupWorker = !worker
   const fileName = imagePath.split('/').pop()
 
   logger.info(`[OCR] Starting extraction for: ${fileName}`)
 
   if (!worker) {
-    worker = await createOCRWorker()
+    worker = await createOCRWorker(langPath)
   }
 
   try {

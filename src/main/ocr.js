@@ -16,6 +16,7 @@ import { getDrizzleDb, ocrOutputs, media, observations } from './db/index.js'
 import { eq, isNull } from 'drizzle-orm'
 import { downloadAndCacheImage } from './image-cache.js'
 import { extractFirstFrame } from './transcoder.js'
+import { getTessdataLangPath } from './tessdata-path.js'
 
 /**
  * Get the database path for a study
@@ -63,9 +64,6 @@ const REGION_PERCENTAGE = 0.07
 
 // Max width for OCR processing (downscale larger images for speed)
 const MAX_OCR_WIDTH = 1280
-
-// Fast language data URL for speed-optimized OCR
-const FAST_LANG_PATH = 'https://tessdata.projectnaptha.com/4.0.0_fast'
 
 // Character whitelist for timestamp OCR
 const CHAR_WHITELIST = '0123456789/:.- ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
@@ -154,7 +152,7 @@ export async function extractTimestampFromImage(imagePath, worker = null) {
 
   if (!worker) {
     worker = await createWorker('eng', 1, {
-      langPath: FAST_LANG_PATH
+      langPath: getTessdataLangPath()
     })
     await worker.setParameters({
       tessedit_char_whitelist: CHAR_WHITELIST
@@ -326,7 +324,7 @@ export async function extractTimestampBatch(
       .fill(null)
       .map(async () => {
         const worker = await createWorker('eng', 1, {
-          langPath: FAST_LANG_PATH
+          langPath: getTessdataLangPath()
         })
         await worker.setParameters({ tessedit_char_whitelist: CHAR_WHITELIST })
         return worker
@@ -589,6 +587,15 @@ export function registerOCRIPCHandlers() {
       fixableCount,
       failedOCRCount,
       totalCount
+    }
+  })
+
+  // Get global OCR status (for blocking across studies)
+  ipcMain.handle('ocr:get-global-status', async () => {
+    const isRunning = activeAbortController !== null && currentOCRStudyId !== null
+    return {
+      isRunning,
+      runningStudyId: isRunning ? currentOCRStudyId : null
     }
   })
 
