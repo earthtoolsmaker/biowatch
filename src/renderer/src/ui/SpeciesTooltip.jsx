@@ -41,8 +41,8 @@ export default function SpeciesTooltip({ imageData, position, studyId }) {
   useEffect(() => {
     if (!tooltipRef.current) return
 
-    const TOOLTIP_WIDTH = 200
-    const TOOLTIP_HEIGHT = 180
+    const TOOLTIP_WIDTH = 280
+    const TOOLTIP_HEIGHT = 230
     const PADDING = 16
 
     let { x, y } = position
@@ -67,15 +67,15 @@ export default function SpeciesTooltip({ imageData, position, studyId }) {
   return (
     <div
       ref={tooltipRef}
-      className="fixed z-50 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden pointer-events-none"
+      className="fixed z-[10000] bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden pointer-events-none"
       style={{
         left: adjustedPosition.x,
         top: adjustedPosition.y,
-        width: 200
+        width: 280
       }}
     >
       {/* Image */}
-      <div className="relative w-full h-[130px] bg-gray-100">
+      <div className="relative w-full h-[180px] bg-gray-100">
         {imageError ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <CameraOff size={32} className="text-gray-300" />

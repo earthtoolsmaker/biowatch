@@ -20,6 +20,7 @@ import BestMediaCarousel from './ui/BestMediaCarousel'
 import SpeciesTooltip from './ui/SpeciesTooltip'
 import { useImportStatus } from '@renderer/hooks/import'
 import { useQueryClient, useQuery, useQueries } from '@tanstack/react-query'
+import { useNavigate } from 'react-router'
 import DateTimePicker from './ui/DateTimePicker'
 import { sortSpeciesHumansLast } from './utils/speciesUtils'
 
@@ -223,6 +224,7 @@ function SpeciesDistribution({ data, taxonomicData, studyId }) {
   const totalCount = data.reduce((sum, item) => sum + item.count, 0)
   const [hoveredSpecies, setHoveredSpecies] = useState(null)
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 })
+  const navigate = useNavigate()
 
   // Fetch best image per species for hover tooltips
   const { data: bestImagesData } = useQuery({
@@ -315,6 +317,11 @@ function SpeciesDistribution({ data, taxonomicData, studyId }) {
     }
   }
 
+  // Navigate to media tab with species filter
+  const handleRowClick = (species) => {
+    navigate(`/study/${studyId}/media?species=${encodeURIComponent(species.scientificName)}`)
+  }
+
   return (
     <div className="w-1/2 bg-white rounded border border-gray-200 p-3 overflow-y-auto relative">
       <div className="space-y-4">
@@ -322,12 +329,12 @@ function SpeciesDistribution({ data, taxonomicData, studyId }) {
           // Try to get the common name from the taxonomic data first, then from GBIF query results
           const commonName =
             scientificToCommonMap[species.scientificName] || gbifCommonNames[species.scientificName]
-          const hasImage = !!speciesImageMap[species.scientificName]
 
           return (
             <div
               key={species.scientificName}
-              className={hasImage ? 'cursor-pointer' : ''}
+              className="cursor-pointer hover:bg-gray-50 transition-colors rounded py-1"
+              onClick={() => handleRowClick(species)}
               onMouseEnter={(e) => handleMouseEnter(e, species.scientificName)}
               onMouseMove={(e) => handleMouseMove(e, species.scientificName)}
               onMouseLeave={() => setHoveredSpecies(null)}
