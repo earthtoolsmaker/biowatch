@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router'
 import { ErrorBoundary } from 'react-error-boundary'
-import { BrainCircuit, Info, Github, Earth } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { BrainCircuit, Info, Github, Earth, Loader2 } from 'lucide-react'
 import Zoo from './models'
 import { modelZoo } from '../../shared/mlmodels'
 import { Tab } from './components/Tab'
@@ -114,11 +115,27 @@ export default function SettingsPage() {
   const version = import.meta.env.VITE_APP_VERSION
   const platform = window.electron.process.platform
 
+  // Poll model download status to show spinner on AI Models tab
+  const { data: modelDownloadStatus } = useQuery({
+    queryKey: ['modelGlobalDownloadStatus'],
+    queryFn: () => window.api.getGlobalModelDownloadStatus(),
+    refetchInterval: 2000
+  })
+  const isModelDownloading = modelDownloadStatus?.isDownloading
+
   return (
     <div className="flex gap-4 flex-col h-full">
       <header className="w-full border-b border-gray-200 sticky top-0 bg-white z-10">
         <nav aria-label="Tabs" className="-mb-px flex space-x-8 px-4">
-          <Tab to="/settings/ml_zoo" icon={BrainCircuit}>
+          <Tab
+            to="/settings/ml_zoo"
+            icon={BrainCircuit}
+            indicator={
+              isModelDownloading ? (
+                <Loader2 size={16} className="animate-spin text-blue-600" />
+              ) : null
+            }
+          >
             AI Models
           </Tab>
           <Tab to="/settings/info" icon={Info}>

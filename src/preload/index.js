@@ -120,6 +120,9 @@ const api = {
   clearAllLocalMLModel: async () => {
     return await electronAPI.ipcRenderer.invoke('model:clear-all')
   },
+  getGlobalModelDownloadStatus: async () => {
+    return await electronAPI.ipcRenderer.invoke('model:get-global-download-status')
+  },
 
   downloadPythonEnvironment: async ({ id, version, requestingModelId }) => {
     return await electronAPI.ipcRenderer.invoke(
