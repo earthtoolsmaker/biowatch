@@ -124,7 +124,7 @@ function OCRActionRow({ studyId, isOCRRunningOnThisStudy }) {
           </span>
         ) : fixableCount > 0 ? (
           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-            {fixableCount} of {totalCount} media to fix
+            {fixableCount} media to fix
           </span>
         ) : failedOCRCount > 0 ? (
           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
