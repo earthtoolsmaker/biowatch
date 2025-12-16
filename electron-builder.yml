@@ -20,6 +20,8 @@ extraResources:
     to: 'tessdata'
 asarUnpack:
   - resources/**
+  - node_modules/sharp/**
+  - node_modules/@img/**
 win:
   executableName: Biowatch
 nsis:

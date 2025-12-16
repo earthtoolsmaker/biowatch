@@ -6,6 +6,7 @@
 import { join } from 'path'
 import { pathToFileURL } from 'url'
 import { is } from '@electron-toolkit/utils'
+import log from 'electron-log'
 
 /**
  * Get the langPath for tesseract.js worker initialization
@@ -15,13 +16,20 @@ import { is } from '@electron-toolkit/utils'
  * @returns {string} File URL to tessdata directory (e.g., file:///path/to/tessdata)
  */
 export function getTessdataLangPath() {
+  let tessdataDir
+  let langPath
+
   if (is.dev) {
     // Development: use local bundled file from project root
-    const localPath = join(process.cwd(), 'resources', 'tessdata')
-    return pathToFileURL(localPath).href
+    tessdataDir = join(process.cwd(), 'resources', 'tessdata')
+  } else {
+    // Production: use extraResources path
+    tessdataDir = join(process.resourcesPath, 'tessdata')
   }
 
-  // Production: use extraResources path
-  const tessdataDir = join(process.resourcesPath, 'tessdata')
-  return pathToFileURL(tessdataDir).href
+  langPath = pathToFileURL(tessdataDir).href
+
+  log.info(`[Tessdata] is.dev=${is.dev}, tessdataDir=${tessdataDir}, langPath=${langPath}`)
+
+  return langPath
 }
