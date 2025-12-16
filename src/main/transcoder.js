@@ -15,6 +15,7 @@ import { join, basename, extname } from 'path'
 import ffmpegPath from 'ffmpeg-static'
 
 import { cleanExpiredTranscodeCacheImpl } from './cache-cleanup.js'
+import { downloadFileWithRetry } from './download'
 
 // Browser-compatible video formats (don't need transcoding)
 const BROWSER_COMPATIBLE_FORMATS = new Set(['.mp4', '.webm', '.ogg', '.ogv'])
@@ -49,8 +50,81 @@ function getThumbnailCacheDir(studyId) {
   return join(getStudyCacheDir(studyId), 'thumbnails')
 }
 
+/**
+ * Get the video cache directory for a specific study (for downloaded remote videos).
+ * @param {string} studyId - The study ID
+ * @returns {string} Path to the study's video cache directory
+ */
+function getVideoCacheDir(studyId) {
+  return join(getStudyCacheDir(studyId), 'videos')
+}
+
+/**
+ * Ensure the video cache directory exists for a study.
+ * @param {string} studyId - The study ID
+ */
+function ensureVideoCacheDir(studyId) {
+  const videoCacheDir = getVideoCacheDir(studyId)
+  if (!existsSync(videoCacheDir)) {
+    mkdirSync(videoCacheDir, { recursive: true })
+    log.info(`[Transcoder] Created video cache directory: ${videoCacheDir}`)
+  }
+}
+
 // Active transcoding jobs (for progress tracking and cancellation)
 const activeJobs = new Map()
+
+/**
+ * Check if a path is a remote URL.
+ * @param {string} filePath - Path or URL to check
+ * @returns {boolean} True if remote URL
+ */
+function isRemoteUrl(filePath) {
+  return filePath.startsWith('http://') || filePath.startsWith('https://')
+}
+
+/**
+ * Build FFmpeg input arguments for a file path.
+ * @param {string} inputPath - Local file path (remote URLs should be downloaded first)
+ * @returns {string[]} Array of FFmpeg arguments for input
+ */
+function buildFFmpegInputArgs(inputPath) {
+  return ['-i', inputPath]
+}
+
+/**
+ * Get a local file path for a video, downloading if remote.
+ * For remote URLs, downloads to a local cache. For local files, returns as-is.
+ * @param {string} studyId - The study ID
+ * @param {string} inputPath - Local file path or remote URL
+ * @param {function} onProgress - Optional progress callback
+ * @returns {Promise<string>} Local file path
+ */
+async function getLocalVideoPath(studyId, inputPath, onProgress = () => {}) {
+  // Local files - return as-is
+  if (!isRemoteUrl(inputPath)) {
+    return inputPath
+  }
+
+  // Remote URL - download to cache first
+  ensureVideoCacheDir(studyId)
+  const cacheKey = createHash('sha256').update(inputPath).digest('hex').substring(0, 16)
+  const ext = extname(new URL(inputPath).pathname)
+  const localPath = join(getVideoCacheDir(studyId), `${cacheKey}${ext}`)
+
+  // Check if already downloaded
+  if (existsSync(localPath)) {
+    log.info(`[Transcoder] Using cached video: ${localPath}`)
+    return localPath
+  }
+
+  // Download with progress
+  log.info(`[Transcoder] Downloading remote video: ${inputPath}`)
+  await downloadFileWithRetry(inputPath, localPath, onProgress)
+  log.info(`[Transcoder] Video downloaded to: ${localPath}`)
+
+  return localPath
+}
 
 /**
  * Check if a video format needs transcoding.
@@ -74,10 +148,17 @@ export function isBrowserCompatible(filePath) {
 
 /**
  * Generate a unique cache key for a video file based on path and mtime.
- * @param {string} filePath - Absolute path to the video file
+ * For remote URLs, uses only the URL (no mtime available).
+ * For local files, uses path + mtime for cache invalidation.
+ * @param {string} filePath - Absolute path or URL to the video file
  * @returns {string} SHA256 hash to use as cache key
  */
 function getCacheKey(filePath) {
+  if (isRemoteUrl(filePath)) {
+    // For remote URLs, use URL hash (no mtime available)
+    return createHash('sha256').update(filePath).digest('hex').substring(0, 16)
+  }
+  // For local files, use path + mtime for cache invalidation
   const stats = statSync(filePath)
   const data = `${filePath}:${stats.mtime.getTime()}`
   return createHash('sha256').update(data).digest('hex').substring(0, 16)
@@ -86,12 +167,19 @@ function getCacheKey(filePath) {
 /**
  * Get the cache path for a transcoded video.
  * @param {string} studyId - The study ID
- * @param {string} filePath - Original video file path
+ * @param {string} filePath - Original video file path or URL
  * @returns {string} Path to the cached transcoded file
  */
 export function getTranscodedPath(studyId, filePath) {
   const cacheKey = getCacheKey(filePath)
-  const originalName = basename(filePath, extname(filePath))
+  let originalName
+  if (isRemoteUrl(filePath)) {
+    // Extract filename from URL path
+    const urlPath = new URL(filePath).pathname
+    originalName = basename(urlPath, extname(urlPath))
+  } else {
+    originalName = basename(filePath, extname(filePath))
+  }
   return join(getTranscodeCacheDir(studyId), `${cacheKey}_${originalName}.mp4`)
 }
 
@@ -133,12 +221,19 @@ function ensureThumbnailCacheDir(studyId) {
 /**
  * Get the cache path for a video thumbnail.
  * @param {string} studyId - The study ID
- * @param {string} filePath - Original video file path
+ * @param {string} filePath - Original video file path or URL
  * @returns {string} Path to the cached thumbnail file
  */
 export function getThumbnailPath(studyId, filePath) {
   const cacheKey = getCacheKey(filePath)
-  const originalName = basename(filePath, extname(filePath))
+  let originalName
+  if (isRemoteUrl(filePath)) {
+    // Extract filename from URL path
+    const urlPath = new URL(filePath).pathname
+    originalName = basename(urlPath, extname(urlPath))
+  } else {
+    originalName = basename(filePath, extname(filePath))
+  }
   return join(getThumbnailCacheDir(studyId), `${cacheKey}_${originalName}.jpg`)
 }
 
@@ -156,8 +251,9 @@ export function getCachedThumbnail(studyId, filePath) {
 /**
  * Extract a thumbnail from a video using FFmpeg.
  * Extracts the first frame (or frame at 1 second for longer videos).
+ * For remote URLs, downloads the video first.
  * @param {string} studyId - The study ID
- * @param {string} inputPath - Path to video file
+ * @param {string} inputPath - Path to video file or URL
  * @returns {Promise<string>} Path to extracted thumbnail
  */
 export async function extractThumbnail(studyId, inputPath) {
@@ -171,16 +267,19 @@ export async function extractThumbnail(studyId, inputPath) {
     return outputPath
   }
 
-  log.info(`[Transcoder] Extracting thumbnail: ${inputPath} -> ${outputPath}`)
+  // Download remote video first (FFmpeg static binary can't handle HTTPS)
+  const localInputPath = await getLocalVideoPath(studyId, inputPath)
+
+  log.info(`[Transcoder] Extracting thumbnail: ${localInputPath} -> ${outputPath}`)
 
   return new Promise((resolve, reject) => {
     // Extract first frame using FFmpeg
     // -ss 0.5 seeks to 0.5s to skip any black frames at start
     // -frames:v 1 extracts only one frame
     // -q:v 2 sets JPEG quality (2-31, lower is better)
+    const inputArgs = buildFFmpegInputArgs(localInputPath)
     const ffmpeg = spawn(ffmpegPath, [
-      '-i',
-      inputPath,
+      ...inputArgs,
       '-ss',
       '0.5', // Seek to 0.5s to skip potential black frames
       '-frames:v',
@@ -248,14 +347,14 @@ function parseProgress(data, duration) {
 
 /**
  * Get video duration using FFmpeg.
- * @param {string} filePath - Path to video file
+ * @param {string} filePath - Path to video file or URL
  * @returns {Promise<number>} Duration in seconds
  */
 async function getVideoDuration(filePath) {
   return new Promise((resolve, reject) => {
+    const inputArgs = buildFFmpegInputArgs(filePath)
     const ffprobe = spawn(ffmpegPath, [
-      '-i',
-      filePath,
+      ...inputArgs,
       '-hide_banner',
       '-show_entries',
       'format=duration',
@@ -299,8 +398,9 @@ async function getVideoDuration(filePath) {
 
 /**
  * Transcode a video to browser-compatible MP4 format.
+ * For remote URLs, downloads the video first.
  * @param {string} studyId - The study ID
- * @param {string} inputPath - Path to input video
+ * @param {string} inputPath - Path to input video or URL
  * @param {function} onProgress - Progress callback (percentage 0-100)
  * @param {AbortSignal} signal - Optional abort signal for cancellation
  * @returns {Promise<string>} Path to transcoded file
@@ -318,14 +418,23 @@ export async function transcodeVideo(studyId, inputPath, onProgress = () => {}, 
 
   log.info(`[Transcoder] Starting transcode: ${inputPath} -> ${outputPath}`)
 
+  // Download remote video first (FFmpeg static binary can't handle HTTPS)
+  // Progress: 0-30% for download, 30-100% for transcode
+  const localInputPath = await getLocalVideoPath(studyId, inputPath, (progress) => {
+    // Report download progress as 0-30%
+    if (progress.percent !== undefined) {
+      onProgress(Math.round(progress.percent * 0.3))
+    }
+  })
+
   // Get duration for progress calculation
-  const duration = await getVideoDuration(inputPath)
+  const duration = await getVideoDuration(localInputPath)
   log.info(`[Transcoder] Video duration: ${duration}s`)
 
   return new Promise((resolve, reject) => {
+    const inputArgs = buildFFmpegInputArgs(localInputPath)
     const ffmpeg = spawn(ffmpegPath, [
-      '-i',
-      inputPath,
+      ...inputArgs,
       '-c:v',
       'libx264', // H.264 video codec (browser compatible)
       '-preset',
@@ -348,9 +457,10 @@ export async function transcodeVideo(studyId, inputPath, onProgress = () => {}, 
       stderrBuffer += data.toString()
 
       // Parse progress from buffer
+      // Scale from 0-100 to 30-100 (download was 0-30%)
       const progress = parseProgress(stderrBuffer, duration)
       if (progress !== null) {
-        onProgress(progress)
+        onProgress(30 + Math.round(progress * 0.7))
       }
 
       // Keep only last 1000 chars to avoid memory issues
@@ -365,6 +475,17 @@ export async function transcodeVideo(studyId, inputPath, onProgress = () => {}, 
       if (code === 0) {
         log.info(`[Transcoder] Transcode complete: ${outputPath}`)
         onProgress(100)
+
+        // Clean up downloaded source video to save storage
+        if (isRemoteUrl(inputPath) && existsSync(localInputPath)) {
+          try {
+            unlinkSync(localInputPath)
+            log.info(`[Transcoder] Deleted source video: ${localInputPath}`)
+          } catch (err) {
+            log.warn(`[Transcoder] Failed to delete source: ${err.message}`)
+          }
+        }
+
         resolve(outputPath)
       } else {
         log.error(`[Transcoder] FFmpeg exited with code ${code}`)
