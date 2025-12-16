@@ -229,6 +229,45 @@ const unsubscribe = window.api.transcode.onProgress(({ filePath, progress }) => 
 3. If not cached → redirects to original URL, triggers background download
 4. Next request serves from cache
 
+### OCR Timestamp Extraction
+
+| Method | Channel | Parameters | Returns |
+|--------|---------|------------|---------|
+| `ocr.extractTimestamps(studyId, mediaIDs, options)` | `ocr:extract-timestamps` | studyId, mediaID[], options | `{ success, processed, extracted, errors, results }` |
+| `ocr.cancel()` | `ocr:cancel` | - | `{ success: boolean }` |
+| `ocr.getNullTimestampCount(studyId)` | `ocr:get-null-timestamp-count` | studyId | `{ count: number }` |
+| `ocr.onProgress(callback)` | `ocr:progress` | callback function | unsubscribe function |
+
+**Notes:**
+- Uses tesseract.js for OCR processing (runs in Node.js main process)
+- Extracts timestamps from camera trap images with burned-in text
+- Tries both top and bottom 15% of image (timestamps can be in either location)
+- Supports various date formats: US (MM/DD/YY), EU (DD/MM/YYYY), ISO (YYYY-MM-DD)
+- Supports 12-hour (AM/PM) and 24-hour time formats
+- EXIF timestamps take priority - OCR only used when EXIF is missing
+
+**Options:**
+```javascript
+{
+  confidenceThreshold: 0.7  // Minimum confidence to update media timestamp (0-1)
+}
+```
+
+**Progress event:**
+```javascript
+// Subscribe to progress updates
+const unsubscribe = window.api.ocr.onProgress((progress) => {
+  console.log(`OCR: ${progress.current}/${progress.total} - ${progress.currentFileName}`)
+  // progress.stage: 'initializing' | 'processing' | 'complete'
+  // progress.extractedTimestamp: parsed timestamp (if found)
+})
+// Later: unsubscribe()
+```
+
+**Results stored in:**
+- `ocrOutputs` table - stores full OCR results with rawOutput JSON
+- `media.timestamp` - updated if OCR confidence >= threshold and EXIF missing
+
 ### Utilities
 
 | Method | Channel | Parameters | Returns |

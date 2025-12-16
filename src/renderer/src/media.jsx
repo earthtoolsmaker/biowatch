@@ -13,8 +13,10 @@ import {
   Loader2,
   ChevronDown,
   ChevronUp,
-  Heart
+  Heart,
+  ScanText
 } from 'lucide-react'
+import OCRProgressModal from './OCRProgressModal'
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient, useMutation, useInfiniteQuery } from '@tanstack/react-query'
 import { useParams } from 'react-router'
@@ -487,6 +489,8 @@ function ImageModal({
   const [transcodeError, setTranscodeError] = useState(null)
   // Favorite state
   const [isFavorite, setIsFavorite] = useState(media?.favorite ?? false)
+  // OCR state
+  const [isRunningOCR, setIsRunningOCR] = useState(false)
   const queryClient = useQueryClient()
 
   // Refs for positioning the species selector near the label
@@ -831,6 +835,42 @@ function ImageModal({
       setInlineTimestamp(new Date(media.timestamp).toLocaleString())
     }
     setError(null)
+  }
+
+  // Handle OCR timestamp extraction for single image
+  const handleOCRExtract = async () => {
+    if (!media?.mediaID || isRunningOCR) return
+
+    setIsRunningOCR(true)
+    setError(null)
+
+    try {
+      const result = await window.api.ocr.extractTimestamps(studyId, [media.mediaID])
+
+      if (result.extracted > 0) {
+        // Invalidate queries to refresh data
+        queryClient.invalidateQueries({ queryKey: ['media', studyId] })
+        queryClient.invalidateQueries({ queryKey: ['nullTimestampCount', studyId] })
+
+        // Update local timestamp state if extraction was successful
+        if (result.results?.[0]?.timestamp) {
+          const newTimestamp = result.results[0].timestamp
+          setInlineTimestamp(new Date(newTimestamp).toLocaleString())
+          if (onTimestampUpdate) {
+            onTimestampUpdate(media.mediaID, newTimestamp)
+          }
+        }
+      } else if (result.errors?.length > 0) {
+        setError('OCR failed: ' + result.errors[0].error)
+      } else {
+        setError('No timestamp found in image')
+      }
+    } catch (err) {
+      console.error('OCR extraction failed:', err)
+      setError('OCR extraction failed')
+    } finally {
+      setIsRunningOCR(false)
+    }
   }
 
   // Handle inline keyboard events
@@ -1549,6 +1589,21 @@ function ImageModal({
                   >
                     <Calendar size={14} />
                   </button>
+                  {/* OCR button - only for images */}
+                  {!isVideoMedia(media) && (
+                    <button
+                      onClick={handleOCRExtract}
+                      disabled={isRunningOCR}
+                      className="text-gray-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 disabled:opacity-50"
+                      title="Extract timestamp using OCR"
+                    >
+                      {isRunningOCR ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <ScanText size={14} />
+                      )}
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -1647,7 +1702,9 @@ function GalleryControls({
   sequenceGap,
   onSequenceGapChange,
   isExpanded,
-  onToggleExpanded
+  onToggleExpanded,
+  onOCRClick,
+  nullTimestampCount = 0
 }) {
   // Collapsed state: tiny chevron on the right
   if (!isExpanded) {
@@ -1684,6 +1741,19 @@ function GalleryControls({
       </div>
 
       <div className="flex items-center gap-2">
+        {/* OCR Timestamp Extraction */}
+        {nullTimestampCount > 0 && (
+          <button
+            onClick={onOCRClick}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+            title="Extract timestamps from images using OCR"
+          >
+            <ScanText size={16} />
+            <span>OCR</span>
+            <span className="bg-blue-600 px-1.5 rounded-full text-xs">{nullTimestampCount}</span>
+          </button>
+        )}
+
         {/* Show Bboxes Toggle - only render if bboxes exist */}
         {hasBboxes && (
           <button
@@ -2235,6 +2305,34 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
 
   const [controlsExpanded, setControlsExpanded] = useState(false)
 
+  // OCR state
+  const [isOCRModalOpen, setIsOCRModalOpen] = useState(false)
+  const [ocrProgress, setOcrProgress] = useState(null)
+
+  // Query for count of images with null timestamps (for OCR button)
+  const { data: nullTimestampData } = useQuery({
+    queryKey: ['nullTimestampCount', id],
+    queryFn: async () => {
+      const response = await window.api.ocr.getNullTimestampCount(id)
+      return response
+    },
+    enabled: !!id
+  })
+  const nullTimestampCount = nullTimestampData?.count || 0
+
+  // OCR progress listener
+  useEffect(() => {
+    const unsubscribe = window.api.ocr.onProgress((progress) => {
+      setOcrProgress(progress)
+      if (progress.stage === 'complete') {
+        // Invalidate queries to refresh data after OCR completes
+        queryClient.invalidateQueries({ queryKey: ['media', id] })
+        queryClient.invalidateQueries({ queryKey: ['nullTimestampCount', id] })
+      }
+    })
+    return () => unsubscribe()
+  }, [id, queryClient])
+
   // Persist showThumbnailBboxes to localStorage when it changes
   useEffect(() => {
     localStorage.setItem(showBboxesKey, JSON.stringify(showThumbnailBboxes))
@@ -2371,6 +2469,35 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
     return [...groupedMedia, ...nullTimestampSequences]
   }, [groupedMedia, nullTimestampMedia])
 
+  // Grid column CSS classes
+  const gridColumnClasses = {
+    3: 'w-[calc(33.333%-8px)]',
+    4: 'w-[calc(25%-9px)]',
+    5: 'w-[calc(20%-10px)]'
+  }
+  const thumbnailWidthClass = gridColumnClasses[gridColumns]
+
+  // Cycle grid density handler
+  const handleCycleGrid = useCallback(() => {
+    setGridColumns((prev) => (prev === 5 ? 3 : prev + 1))
+  }, [])
+
+  // OCR handlers
+  const handleStartOCR = useCallback(async () => {
+    setIsOCRModalOpen(true)
+    setOcrProgress({ stage: 'initializing', current: 0, total: 0 })
+    try {
+      await window.api.ocr.extractTimestamps(id, [])
+    } catch (err) {
+      console.error('OCR failed:', err)
+    }
+  }, [id])
+
+  const handleCancelOCR = useCallback(async () => {
+    await window.api.ocr.cancel()
+    setIsOCRModalOpen(false)
+    setOcrProgress(null)
+  }, [])
   // Batch fetch bboxes for all visible media when showThumbnailBboxes is enabled
   const mediaIDs = useMemo(() => mediaFiles.map((m) => m.mediaID), [mediaFiles])
 
@@ -2588,6 +2715,8 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
           onSequenceGapChange={setSequenceGap}
           isExpanded={controlsExpanded}
           onToggleExpanded={() => setControlsExpanded((prev) => !prev)}
+          onOCRClick={handleStartOCR}
+          nullTimestampCount={nullTimestampCount}
         />
 
         {/* Grid */}
@@ -2669,6 +2798,9 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
           </div>
         </div>
       </div>
+
+      {/* OCR Progress Modal */}
+      <OCRProgressModal isOpen={isOCRModalOpen} onCancel={handleCancelOCR} progress={ocrProgress} />
     </>
   )
 }

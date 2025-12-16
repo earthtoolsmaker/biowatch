@@ -46,6 +46,7 @@ import { extractZip, downloadFile } from './download'
 import migrations from './migrations/index.js'
 import { registerExportIPCHandlers } from './export.js'
 import { registerTranscodeIPCHandlers, cleanExpiredTranscodeCache } from './transcoder.js'
+import { registerOCRIPCHandlers, extractTimestampBatch } from './ocr.js'
 import {
   registerImageCacheIPCHandlers,
   cleanExpiredImageCache,
@@ -1626,11 +1627,46 @@ app.whenReady().then(async () => {
         })
       })
 
+      // OCR Stage: Extract timestamps from images with null timestamps
+      try {
+        sendLilaImportProgress({
+          stage: 'ocr',
+          stageIndex: 3,
+          totalStages: 4,
+          datasetTitle,
+          datasetId,
+          ocrProgress: { stage: 'initializing', current: 0, total: 0 }
+        })
+
+        await extractTimestampBatch(
+          id,
+          result.dbPath,
+          [], // Empty = all media with null timestamps
+          {}, // Default options
+          (progress) => {
+            sendLilaImportProgress({
+              stage: 'ocr',
+              stageIndex: 3,
+              totalStages: 4,
+              datasetTitle,
+              datasetId,
+              ocrProgress: progress
+            })
+          },
+          null // No abort signal
+        )
+
+        log.info('[LILA] OCR extraction completed')
+      } catch (ocrError) {
+        log.warn('[LILA] OCR extraction failed (non-fatal):', ocrError.message)
+        // Don't fail import - OCR is optional enhancement
+      }
+
       // Send completion progress
       sendLilaImportProgress({
         stage: 'complete',
-        stageIndex: 3,
-        totalStages: 3,
+        stageIndex: 4,
+        totalStages: 4,
         datasetTitle,
         datasetId
       })
@@ -1646,7 +1682,7 @@ app.whenReady().then(async () => {
       sendLilaImportProgress({
         stage: 'error',
         stageIndex: -1,
-        totalStages: 3,
+        totalStages: 4,
         datasetTitle,
         datasetId,
         error: {
@@ -1693,6 +1729,7 @@ app.whenReady().then(async () => {
   registerExportIPCHandlers()
   registerTranscodeIPCHandlers()
   registerImageCacheIPCHandlers()
+  registerOCRIPCHandlers()
 })
 
 // Quit when all windows are closed, except on macOS. There, it's common

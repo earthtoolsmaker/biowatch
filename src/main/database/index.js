@@ -5,7 +5,7 @@
 
 import { eq, desc } from 'drizzle-orm'
 import { getStudyDatabase, closeStudyDatabase, closeAllDatabases } from './manager.js'
-import { deployments, media, observations, modelRuns, modelOutputs, metadata } from './models.js'
+import { deployments, media, observations, modelRuns, modelOutputs, ocrOutputs, metadata } from './models.js'
 import {
   metadataSchema,
   metadataUpdateSchema,
@@ -15,7 +15,7 @@ import {
 import log from 'electron-log'
 
 // Re-export schema and manager functions
-export { deployments, media, observations, modelRuns, modelOutputs, metadata }
+export { deployments, media, observations, modelRuns, modelOutputs, ocrOutputs, metadata }
 export { getStudyDatabase, closeStudyDatabase, closeAllDatabases }
 
 // Re-export Zod validation schemas
