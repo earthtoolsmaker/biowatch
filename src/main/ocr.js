@@ -345,7 +345,17 @@ export async function extractTimestampBatch(
         const index = currentIndex++
         const mediaRecord = mediaRecords[index]
 
-        const isVideo = mediaRecord.fileMediatype?.startsWith('video/')
+        // Primary check: use fileMediatype if available
+        let isVideo = mediaRecord.fileMediatype?.startsWith('video/')
+
+        // Fallback: detect video by file extension if fileMediatype might be wrong
+        // This handles cases where videos were imported with incorrect MIME types
+        if (!isVideo && mediaRecord.filePath) {
+          const ext = mediaRecord.filePath.toLowerCase().split('.').pop()
+          const videoExtensions = ['avi', 'mp4', 'mkv', 'mov', 'm4v', 'wmv', 'flv', '3gp', 'webm', 'ogv']
+          isVideo = videoExtensions.includes(ext)
+        }
+
         let localPath = null
         let isTemporary = false
         let frameCleanup = null
