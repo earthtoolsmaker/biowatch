@@ -15,6 +15,7 @@ import { parseDateFromText, normalizeOCRText } from './date-parser.js'
 import { getDrizzleDb, ocrOutputs, media, observations } from './db/index.js'
 import { eq, isNull } from 'drizzle-orm'
 import { downloadAndCacheImage } from './image-cache.js'
+import { extractFirstFrame } from './transcoder.js'
 
 /**
  * Get the database path for a study
@@ -297,8 +298,11 @@ export async function extractTimestampBatch(
     mediaRecords = await db.select().from(media).where(isNull(media.timestamp)).all()
   }
 
-  // Filter to images only
-  mediaRecords = mediaRecords.filter((m) => m.fileMediatype && m.fileMediatype.startsWith('image/'))
+  // Filter to images and videos (OCR-capable media)
+  mediaRecords = mediaRecords.filter((m) => {
+    if (!m.fileMediatype) return false
+    return m.fileMediatype.startsWith('image/') || m.fileMediatype.startsWith('video/')
+  })
 
   const total = mediaRecords.length
   let processed = 0
@@ -343,17 +347,27 @@ export async function extractTimestampBatch(
         const index = currentIndex++
         const mediaRecord = mediaRecords[index]
 
+        const isVideo = mediaRecord.fileMediatype?.startsWith('video/')
         let localPath = null
         let isTemporary = false
+        let frameCleanup = null
 
         try {
-          // Download image
-          const pathInfo = await getLocalImagePath(studyId, mediaRecord.filePath)
-          localPath = pathInfo.localPath
-          isTemporary = pathInfo.isTemporary
+          if (isVideo) {
+            // Extract first frame from video for OCR
+            const frameResult = await extractFirstFrame(studyId, mediaRecord.filePath)
+            localPath = frameResult.framePath
+            frameCleanup = frameResult.cleanup
+            isTemporary = true
+          } else {
+            // Download image if remote
+            const pathInfo = await getLocalImagePath(studyId, mediaRecord.filePath)
+            localPath = pathInfo.localPath
+            isTemporary = pathInfo.isTemporary
+          }
 
           // Track cached images for batch-level cleanup
-          if (isTemporary && localPath) {
+          if (isTemporary && localPath && !frameCleanup) {
             cachedImagePaths.add(localPath)
           }
 
@@ -396,7 +410,11 @@ export async function extractTimestampBatch(
           errors.push({ mediaID: mediaRecord.mediaID, error: err.message })
         } finally {
           // Cleanup temp file immediately after processing
-          if (isTemporary && localPath) {
+          if (frameCleanup) {
+            // Video frame cleanup via callback
+            await frameCleanup()
+          } else if (isTemporary && localPath) {
+            // Image cleanup
             await unlink(localPath).catch(() => {})
             cachedImagePaths.delete(localPath) // Mark as cleaned
           }
@@ -414,11 +432,14 @@ export async function extractTimestampBatch(
 
     await Promise.all(workerTasks)
 
-    onProgress({
-      stage: 'complete',
-      current: processed,
-      total
-    })
+    // Only send 'complete' if not cancelled
+    if (!signal?.aborted) {
+      onProgress({
+        stage: 'complete',
+        current: processed,
+        total
+      })
+    }
 
     return {
       success: true,
@@ -525,22 +546,26 @@ export function registerOCRIPCHandlers() {
     return getOCRStatus(studyId)
   })
 
-  // Get image timestamp statistics (images only - for OCR)
+  // Get media timestamp statistics (images and videos - for OCR)
   // Returns fixableCount (can be OCR'd) and failedOCRCount (already tried OCR)
   ipcMain.handle('ocr:get-timestamp-stats', async (_, studyId) => {
     const dbPath = getStudyDbPath(studyId)
     const db = await getDrizzleDb(studyId, dbPath)
 
-    // Get all images
-    const allImages = await db.select().from(media).all()
-    const images = allImages.filter(
-      (m) => m.fileMediatype && m.fileMediatype.startsWith('image/')
-    )
-    const totalCount = images.length
+    // Helper to check if media is OCR-capable (image or video)
+    const isOCRCapable = (m) => {
+      if (!m.fileMediatype) return false
+      return m.fileMediatype.startsWith('image/') || m.fileMediatype.startsWith('video/')
+    }
 
-    // Get images with null timestamps, joined with OCR outputs to differentiate
+    // Get all media
+    const allMedia = await db.select().from(media).all()
+    const ocrCapableMedia = allMedia.filter(isOCRCapable)
+    const totalCount = ocrCapableMedia.length
+
+    // Get media with null timestamps, joined with OCR outputs to differentiate
     // between fixable (no OCR output) and failed (has OCR output but no timestamp)
-    const missingTimestampImages = await db
+    const missingTimestampMedia = await db
       .select({
         mediaID: media.mediaID,
         fileMediatype: media.fileMediatype,
@@ -551,10 +576,8 @@ export function registerOCRIPCHandlers() {
       .where(isNull(media.timestamp))
       .all()
 
-    // Filter to images only
-    const filtered = missingTimestampImages.filter(
-      (m) => m.fileMediatype && m.fileMediatype.startsWith('image/')
-    )
+    // Filter to OCR-capable media (images and videos)
+    const filtered = missingTimestampMedia.filter(isOCRCapable)
 
     // Fixable: null timestamp AND no OCR output (can be fixed with OCR)
     const fixableCount = filtered.filter((m) => !m.hasOcrOutput).length

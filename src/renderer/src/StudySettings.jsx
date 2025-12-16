@@ -59,6 +59,9 @@ function OCRActionRow({ studyId }) {
     await window.api.ocr.cancel()
     setIsOCRRunning(false)
     setOcrProgress(null)
+    // Refresh stats to show remaining media to fix
+    queryClient.invalidateQueries({ queryKey: ['timestampStats', studyId] })
+    queryClient.invalidateQueries({ queryKey: ['media', studyId] })
   }
 
   const handleClose = () => {
@@ -84,7 +87,7 @@ function OCRActionRow({ studyId }) {
         </div>
       </td>
       <td className="p-4 text-sm text-gray-700 max-w-md">
-        Extract timestamps from images using OCR (Optical Character Recognition).
+        Extract timestamps from media using OCR (Optical Character Recognition).
       </td>
       <td className="p-4 text-sm">
         {isComplete ? (
@@ -97,11 +100,11 @@ function OCRActionRow({ studyId }) {
           </span>
         ) : fixableCount > 0 ? (
           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-            {fixableCount} of {totalCount} image{totalCount !== 1 ? 's' : ''} to fix
+            {fixableCount} of {totalCount} media to fix
           </span>
         ) : failedOCRCount > 0 ? (
           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-            {failedOCRCount} image{failedOCRCount !== 1 ? 's' : ''} could not be fixed
+            {failedOCRCount} media could not be fixed
           </span>
         ) : null}
       </td>
@@ -112,7 +115,7 @@ function OCRActionRow({ studyId }) {
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1 text-green-600 text-sm">
                   <CheckCircle size={14} />
-                  <span>Processed {ocrProgress.current} images</span>
+                  <span>Processed {ocrProgress.current} media</span>
                 </div>
                 <button
                   onClick={handleClose}
