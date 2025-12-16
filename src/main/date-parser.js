@@ -75,7 +75,21 @@ const DATE_PATTERNS = [
     }),
     format: 'MM/DD/YY HH:mm:ss'
   },
+  // US format with dash and 24-hour time: 09-14-2015 20:25:12
+  {
+    regex: /(\d{1,2})-(\d{1,2})-(\d{2,4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?(?!\s*[APap][Mm])/,
+    parse: (m) => ({
+      year: normalizeYear(parseInt(m[3])),
+      month: parseInt(m[1]),
+      day: parseInt(m[2]),
+      hour: parseInt(m[4]),
+      minute: parseInt(m[5]),
+      second: parseInt(m[6] || '0')
+    }),
+    format: 'MM-DD-YY HH:mm:ss'
+  },
   // EU format with dash: 20-03-2024 14:32 or 20-03-24 14:32
+  // Note: Only matches when US interpretation fails (e.g., day > 12 like 20-03-2024)
   {
     regex: /(\d{1,2})-(\d{1,2})-(\d{2,4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?(?!\s*[APap][Mm])/,
     parse: (m) => ({
