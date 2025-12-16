@@ -32,7 +32,7 @@ import {
   getDistinctSpecies,
   checkStudyHasEventIDs,
   getBestMedia,
-  countMediaWithNullTimestamps
+  getMediaTimestampStats
 } from './queries'
 import './import/importer.js' // Side-effect: registers IPC handlers
 import './studies.js' // Side-effect: registers IPC handlers
@@ -43,7 +43,7 @@ import { extractZip, downloadFile } from './download'
 import migrations from './migrations/index.js'
 import { registerExportIPCHandlers } from './export.js'
 import { registerTranscodeIPCHandlers, cleanExpiredTranscodeCache } from './transcoder.js'
-import { registerOCRIPCHandlers, extractTimestampBatch } from './ocr.js'
+import { registerOCRIPCHandlers } from './ocr.js'
 import {
   registerImageCacheIPCHandlers,
   cleanExpiredImageCache,
@@ -1598,46 +1598,11 @@ app.whenReady().then(async () => {
         })
       })
 
-      // OCR Stage: Extract timestamps from images with null timestamps
-      try {
-        sendLilaImportProgress({
-          stage: 'ocr',
-          stageIndex: 3,
-          totalStages: 4,
-          datasetTitle,
-          datasetId,
-          ocrProgress: { stage: 'initializing', current: 0, total: 0 }
-        })
-
-        await extractTimestampBatch(
-          id,
-          result.dbPath,
-          [], // Empty = all media with null timestamps
-          {}, // Default options
-          (progress) => {
-            sendLilaImportProgress({
-              stage: 'ocr',
-              stageIndex: 3,
-              totalStages: 4,
-              datasetTitle,
-              datasetId,
-              ocrProgress: progress
-            })
-          },
-          null // No abort signal
-        )
-
-        log.info('[LILA] OCR extraction completed')
-      } catch (ocrError) {
-        log.warn('[LILA] OCR extraction failed (non-fatal):', ocrError.message)
-        // Don't fail import - OCR is optional enhancement
-      }
-
       // Send completion progress
       sendLilaImportProgress({
         stage: 'complete',
-        stageIndex: 4,
-        totalStages: 4,
+        stageIndex: 3,
+        totalStages: 3,
         datasetTitle,
         datasetId
       })
@@ -1653,7 +1618,7 @@ app.whenReady().then(async () => {
       sendLilaImportProgress({
         stage: 'error',
         stageIndex: -1,
-        totalStages: 4,
+        totalStages: 3,
         datasetTitle,
         datasetId,
         error: {
@@ -1844,7 +1809,7 @@ ipcMain.handle('media:set-favorite', async (_, studyId, mediaID, favorite) => {
   }
 })
 
-ipcMain.handle('media:count-null-timestamps', async (_, studyId) => {
+ipcMain.handle('media:timestamp-stats', async (_, studyId) => {
   try {
     const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
     if (!dbPath || !existsSync(dbPath)) {
@@ -1852,10 +1817,10 @@ ipcMain.handle('media:count-null-timestamps', async (_, studyId) => {
       return { error: 'Database not found for this study' }
     }
 
-    const count = await countMediaWithNullTimestamps(dbPath)
-    return { data: count }
+    const stats = await getMediaTimestampStats(dbPath)
+    return { data: stats }
   } catch (error) {
-    log.error('Error counting media with null timestamps:', error)
+    log.error('Error getting media timestamp stats:', error)
     return { error: error.message }
   }
 })

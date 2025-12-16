@@ -80,6 +80,9 @@ function getWorkerCount() {
 
 // Active OCR operation (for cancellation)
 let activeAbortController = null
+// Current OCR status (for restoring state when navigating back)
+let currentOCRStudyId = null
+let currentOCRProgress = null
 
 /**
  * Extract a region from an image (top or bottom)
@@ -301,6 +304,10 @@ export async function extractTimestampBatch(
   let processed = 0
   let extracted = 0
   const errors = []
+  const extractedResults = []
+
+  // Track all cached images for batch-level cleanup (defense in depth)
+  const cachedImagePaths = new Set()
 
   onProgress({
     stage: 'initializing',
@@ -345,6 +352,11 @@ export async function extractTimestampBatch(
           localPath = pathInfo.localPath
           isTemporary = pathInfo.isTemporary
 
+          // Track cached images for batch-level cleanup
+          if (isTemporary && localPath) {
+            cachedImagePaths.add(localPath)
+          }
+
           // Run OCR
           const result = await extractTimestampFromImage(localPath, worker)
 
@@ -371,15 +383,22 @@ export async function extractTimestampBatch(
               .set({ eventStart: result.parsedDate })
               .where(eq(observations.mediaID, mediaRecord.mediaID))
 
+            // Track the extracted result for frontend
+            extractedResults.push({
+              mediaID: mediaRecord.mediaID,
+              timestamp: result.parsedDate
+            })
+
             extracted++
           }
         } catch (err) {
           log.error(`[OCR] Worker ${workerIdx} failed on ${mediaRecord.filePath}:`, err)
           errors.push({ mediaID: mediaRecord.mediaID, error: err.message })
         } finally {
-          // Cleanup temp file
+          // Cleanup temp file immediately after processing
           if (isTemporary && localPath) {
             await unlink(localPath).catch(() => {})
+            cachedImagePaths.delete(localPath) // Mark as cleaned
           }
         }
 
@@ -405,11 +424,27 @@ export async function extractTimestampBatch(
       success: true,
       processed,
       extracted,
-      errors
+      errors,
+      results: extractedResults
     }
   } finally {
+    // Terminate all workers
     await Promise.all(workers.map((w) => w.terminate()))
     log.info(`[OCR] Terminated ${workers.length} workers`)
+
+    // Final cleanup: delete any cached images that weren't cleaned up
+    // (e.g., due to cancellation, crashes, or edge cases)
+    if (cachedImagePaths.size > 0) {
+      log.info(`[OCR] Final cleanup: removing ${cachedImagePaths.size} remaining cached images`)
+      await Promise.all(
+        Array.from(cachedImagePaths).map((path) =>
+          unlink(path).catch((err) => {
+            log.warn(`[OCR] Failed to cleanup cached image ${path}: ${err.message}`)
+          })
+        )
+      )
+      cachedImagePaths.clear()
+    }
   }
 }
 
@@ -420,9 +455,22 @@ export function cancelOCR() {
   if (activeAbortController) {
     activeAbortController.abort()
     activeAbortController = null
+    currentOCRStudyId = null
+    currentOCRProgress = null
     return { success: true }
   }
   return { success: false, reason: 'No active OCR operation' }
+}
+
+/**
+ * Get current OCR status for a specific study (for restoring state when navigating back)
+ */
+export function getOCRStatus(studyId) {
+  const isRunning = activeAbortController !== null && currentOCRStudyId === studyId
+  return {
+    isRunning,
+    progress: isRunning ? currentOCRProgress : null
+  }
 }
 
 /**
@@ -440,10 +488,17 @@ export function registerOCRIPCHandlers() {
     }
 
     activeAbortController = new AbortController()
+    currentOCRStudyId = studyId
     const signal = activeAbortController.signal
 
     const onProgress = (progress) => {
+      currentOCRProgress = progress
       event.sender.send('ocr:progress', progress)
+      // Clear status when complete
+      if (progress.stage === 'complete') {
+        currentOCRStudyId = null
+        currentOCRProgress = null
+      }
     }
 
     try {
@@ -465,18 +520,53 @@ export function registerOCRIPCHandlers() {
     return cancelOCR()
   })
 
-  // Get count of media with null timestamps
-  ipcMain.handle('ocr:get-null-timestamp-count', async (_, studyId) => {
+  // Get current OCR status for a specific study (for restoring state when navigating)
+  ipcMain.handle('ocr:get-status', async (_, studyId) => {
+    return getOCRStatus(studyId)
+  })
+
+  // Get image timestamp statistics (images only - for OCR)
+  // Returns fixableCount (can be OCR'd) and failedOCRCount (already tried OCR)
+  ipcMain.handle('ocr:get-timestamp-stats', async (_, studyId) => {
     const dbPath = getStudyDbPath(studyId)
     const db = await getDrizzleDb(studyId, dbPath)
-    const result = await db.select().from(media).where(isNull(media.timestamp)).all()
+
+    // Get all images
+    const allImages = await db.select().from(media).all()
+    const images = allImages.filter(
+      (m) => m.fileMediatype && m.fileMediatype.startsWith('image/')
+    )
+    const totalCount = images.length
+
+    // Get images with null timestamps, joined with OCR outputs to differentiate
+    // between fixable (no OCR output) and failed (has OCR output but no timestamp)
+    const missingTimestampImages = await db
+      .select({
+        mediaID: media.mediaID,
+        fileMediatype: media.fileMediatype,
+        hasOcrOutput: ocrOutputs.id
+      })
+      .from(media)
+      .leftJoin(ocrOutputs, eq(media.mediaID, ocrOutputs.mediaID))
+      .where(isNull(media.timestamp))
+      .all()
 
     // Filter to images only
-    const imageCount = result.filter(
+    const filtered = missingTimestampImages.filter(
       (m) => m.fileMediatype && m.fileMediatype.startsWith('image/')
-    ).length
+    )
 
-    return { count: imageCount }
+    // Fixable: null timestamp AND no OCR output (can be fixed with OCR)
+    const fixableCount = filtered.filter((m) => !m.hasOcrOutput).length
+    // Failed: null timestamp AND has OCR output (already tried OCR)
+    const failedOCRCount = filtered.filter((m) => m.hasOcrOutput).length
+
+    return {
+      nullCount: fixableCount + failedOCRCount, // total missing timestamps
+      fixableCount,
+      failedOCRCount,
+      totalCount
+    }
   })
 
   log.info('[OCR] IPC handlers registered')

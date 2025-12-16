@@ -216,6 +216,27 @@ describe('parseDateFromText', () => {
     })
   })
 
+  describe('Time-first EU format (HH:mm DD/MM/YY)', () => {
+    test('parses time-first with 2-digit year', () => {
+      const result = parseDateFromText('19:11 21/10/19')
+      assert.ok(result)
+      assert.equal(getISODateTimePortion(result.isoString), '2019-10-21T19:11:00.000')
+      assert.equal(result.format, 'HH:mm DD/MM/YY')
+    })
+
+    test('parses time-first with 4-digit year', () => {
+      const result = parseDateFromText('19:11 21/10/2019')
+      assert.ok(result)
+      assert.equal(getISODateTimePortion(result.isoString), '2019-10-21T19:11:00.000')
+    })
+
+    test('parses time-first with seconds', () => {
+      const result = parseDateFromText('19:11:30 21/10/19')
+      assert.ok(result)
+      assert.equal(getISODateTimePortion(result.isoString), '2019-10-21T19:11:30.000')
+    })
+  })
+
   describe('Text month format (DD-Mon-YYYY HH:mm:ss)', () => {
     test('parses with dash separator', () => {
       const result = parseDateFromText('20-Mar-2024 14:32:15')

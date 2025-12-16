@@ -17,7 +17,6 @@ import {
   Heart,
   ScanText
 } from 'lucide-react'
-import OCRProgressModal from './OCRProgressModal'
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient, useMutation, useInfiniteQuery } from '@tanstack/react-query'
 import { useParams } from 'react-router'
@@ -1590,8 +1589,8 @@ function ImageModal({
                   >
                     <Calendar size={14} />
                   </button>
-                  {/* OCR button - only for images */}
-                  {!isVideoMedia(media) && (
+                  {/* OCR button - only for images without a timestamp */}
+                  {!isVideoMedia(media) && !media?.timestamp && (
                     <button
                       onClick={handleOCRExtract}
                       disabled={isRunningOCR}
@@ -1705,9 +1704,7 @@ function GalleryControls({
   sequenceGap,
   onSequenceGapChange,
   isExpanded,
-  onToggleExpanded,
-  onOCRClick,
-  nullTimestampCount = 0
+  onToggleExpanded
 }) {
   const gridLabels = { 3: '3x', 4: '4x', 5: '5x' }
 
@@ -1746,19 +1743,6 @@ function GalleryControls({
       </div>
 
       <div className="flex items-center gap-2">
-        {/* OCR Timestamp Extraction */}
-        {nullTimestampCount > 0 && (
-          <button
-            onClick={onOCRClick}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium bg-blue-500 text-white hover:bg-blue-600 transition-colors"
-            title="Extract timestamps from images using OCR"
-          >
-            <ScanText size={16} />
-            <span>OCR</span>
-            <span className="bg-blue-600 px-1.5 rounded-full text-xs">{nullTimestampCount}</span>
-          </button>
-        )}
-
         {/* Show Bboxes Toggle - only render if bboxes exist */}
         {hasBboxes && (
           <button
@@ -2321,34 +2305,6 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
 
   const [controlsExpanded, setControlsExpanded] = useState(false)
 
-  // OCR state
-  const [isOCRModalOpen, setIsOCRModalOpen] = useState(false)
-  const [ocrProgress, setOcrProgress] = useState(null)
-
-  // Query for count of images with null timestamps (for OCR button)
-  const { data: nullTimestampData } = useQuery({
-    queryKey: ['nullTimestampCount', id],
-    queryFn: async () => {
-      const response = await window.api.ocr.getNullTimestampCount(id)
-      return response
-    },
-    enabled: !!id
-  })
-  const nullTimestampCount = nullTimestampData?.count || 0
-
-  // OCR progress listener
-  useEffect(() => {
-    const unsubscribe = window.api.ocr.onProgress((progress) => {
-      setOcrProgress(progress)
-      if (progress.stage === 'complete') {
-        // Invalidate queries to refresh data after OCR completes
-        queryClient.invalidateQueries({ queryKey: ['media', id] })
-        queryClient.invalidateQueries({ queryKey: ['nullTimestampCount', id] })
-      }
-    })
-    return () => unsubscribe()
-  }, [id, queryClient])
-
   // Persist showThumbnailBboxes to localStorage when it changes
   useEffect(() => {
     localStorage.setItem(showBboxesKey, JSON.stringify(showThumbnailBboxes))
@@ -2466,23 +2422,6 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
   // Cycle grid density handler
   const handleCycleGrid = useCallback(() => {
     setGridColumns((prev) => (prev === 5 ? 3 : prev + 1))
-  }, [])
-
-  // OCR handlers
-  const handleStartOCR = useCallback(async () => {
-    setIsOCRModalOpen(true)
-    setOcrProgress({ stage: 'initializing', current: 0, total: 0 })
-    try {
-      await window.api.ocr.extractTimestamps(id, [])
-    } catch (err) {
-      console.error('OCR failed:', err)
-    }
-  }, [id])
-
-  const handleCancelOCR = useCallback(async () => {
-    await window.api.ocr.cancel()
-    setIsOCRModalOpen(false)
-    setOcrProgress(null)
   }, [])
 
   // Batch fetch bboxes for all visible media when showThumbnailBboxes is enabled
@@ -2704,8 +2643,6 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
           onSequenceGapChange={setSequenceGap}
           isExpanded={controlsExpanded}
           onToggleExpanded={() => setControlsExpanded((prev) => !prev)}
-          onOCRClick={handleStartOCR}
-          nullTimestampCount={nullTimestampCount}
         />
 
         {/* Grid */}
@@ -2784,9 +2721,6 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
           </div>
         </div>
       </div>
-
-      {/* OCR Progress Modal */}
-      <OCRProgressModal isOpen={isOCRModalOpen} onCancel={handleCancelOCR} progress={ocrProgress} />
     </>
   )
 }
