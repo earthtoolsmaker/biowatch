@@ -142,11 +142,9 @@ describe('Download Stream Completion', () => {
     // Try to write to an invalid path (directory that doesn't exist)
     const destPath = join(testDir, 'nonexistent-dir-' + randomUUID(), 'file.bin')
 
-    let errorCaught = false
     try {
       await writeWithProperAwait(destPath, [Buffer.from('test')])
     } catch (err) {
-      errorCaught = true
       // Error should be propagated (ENOENT or similar)
       assert.ok(
         err.code === 'ENOENT' || err.code === 'ERR_STREAM_WRITE_AFTER_END',
