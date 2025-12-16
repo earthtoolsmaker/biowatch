@@ -38,6 +38,7 @@ import './import/importer.js' // Side-effect: registers IPC handlers
 import './studies.js' // Side-effect: registers IPC handlers
 import { importWildlifeDataset } from './import/wildlife'
 import { importDeepfauneDataset } from './import/deepfaune'
+import { importLilaDataset, LILA_DATASETS } from './import/lila'
 import { extractZip, downloadFile } from './download'
 import migrations from './migrations/index.js'
 import { registerExportIPCHandlers } from './export.js'
@@ -129,6 +130,18 @@ function sendDemoImportProgress(progressData) {
   windows.forEach((win) => {
     if (!win.isDestroyed()) {
       win.webContents.send('demo-import:progress', progressData)
+    }
+  })
+}
+
+/**
+ * Send LILA import progress to all renderer windows
+ */
+function sendLilaImportProgress(progressData) {
+  const windows = BrowserWindow.getAllWindows()
+  windows.forEach((win) => {
+    if (!win.isDestroyed()) {
+      win.webContents.send('lila-import:progress', progressData)
     }
   })
 }
@@ -326,7 +339,11 @@ function registerCachedImageProtocol() {
 function setupRemoteMediaCORS() {
   // Filter for remote media hosts
   const filter = {
-    urls: ['https://multimedia.agouti.eu/*']
+    urls: [
+      'https://multimedia.agouti.eu/*',
+      'https://lilawildlife.blob.core.windows.net/*',
+      'https://storage.googleapis.com/public-datasets-lila/*'
+    ]
   }
 
   session.defaultSession.webRequest.onHeadersReceived(filter, (details, callback) => {
@@ -1544,6 +1561,68 @@ app.whenReady().then(async () => {
         error: {
           message: error.message,
           retryable: !error.message.includes('No CAMTRAP_DP endpoint')
+        }
+      })
+
+      throw error
+    }
+  })
+
+  // LILA dataset handlers
+  ipcMain.handle('import:lila-datasets', async () => {
+    return LILA_DATASETS
+  })
+
+  ipcMain.handle('import:lila-dataset', async (_, datasetId) => {
+    let datasetTitle = null
+
+    try {
+      log.info(`Importing LILA dataset: ${datasetId}`)
+
+      // Find the dataset configuration
+      const dataset = LILA_DATASETS.find((d) => d.id === datasetId)
+      if (!dataset) {
+        throw new Error(`Unknown LILA dataset: ${datasetId}`)
+      }
+      datasetTitle = dataset.name
+
+      // Generate a unique ID for the study
+      const id = crypto.randomUUID()
+
+      // Import the dataset with progress callback
+      const result = await importLilaDataset(datasetId, id, (progress) => {
+        sendLilaImportProgress({
+          ...progress,
+          datasetId
+        })
+      })
+
+      // Send completion progress
+      sendLilaImportProgress({
+        stage: 'complete',
+        stageIndex: 3,
+        totalStages: 3,
+        datasetTitle,
+        datasetId
+      })
+
+      return {
+        id,
+        data: result.data
+      }
+    } catch (error) {
+      log.error('Error importing LILA dataset:', error)
+
+      // Send error progress
+      sendLilaImportProgress({
+        stage: 'error',
+        stageIndex: -1,
+        totalStages: 3,
+        datasetTitle,
+        datasetId,
+        error: {
+          message: error.message,
+          retryable: true
         }
       })
 

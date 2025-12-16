@@ -217,6 +217,19 @@ const api = {
     electronAPI.ipcRenderer.on('demo-import:progress', handler)
     return () => electronAPI.ipcRenderer.removeListener('demo-import:progress', handler)
   },
+  // LILA dataset import
+  getLilaDatasets: async () => {
+    return await electronAPI.ipcRenderer.invoke('import:lila-datasets')
+  },
+  importLilaDataset: async (datasetId) => {
+    return await electronAPI.ipcRenderer.invoke('import:lila-dataset', datasetId)
+  },
+  // LILA import progress events
+  onLilaImportProgress: (callback) => {
+    const handler = (_event, data) => callback(data)
+    electronAPI.ipcRenderer.on('lila-import:progress', handler)
+    return () => electronAPI.ipcRenderer.removeListener('lila-import:progress', handler)
+  },
   cancelExport: async () => {
     return await electronAPI.ipcRenderer.invoke('export:cancel')
   },

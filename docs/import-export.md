@@ -28,6 +28,10 @@ User Selection
 │  │ CamTrap  │ Wildlife │ DeepFaune│     │
 │  │   DP     │ Insights │   CSV    │     │
 │  └──────────┴──────────┴──────────┘     │
+│  ┌──────────┬──────────┐                │
+│  │   LILA   │   GBIF   │                │
+│  │   COCO   │ CamtrapDP│                │
+│  └──────────┴──────────┘                │
 └────────────────────┬────────────────────┘
                      │
                      ▼
@@ -91,6 +95,140 @@ const filesToProcess = [
 5. Construct scientificName from `genus + species`
 
 **Key file:** `src/main/import/wildlife.js`
+
+## LILA Dataset Import
+
+**Format:** COCO Camera Traps JSON (from lila.science datasets)
+
+**Process (small datasets <100K images):**
+```
+┌─────────────────┐
+│  Select Dataset │
+│  from Whitelist │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Download JSON  │
+│  Metadata       │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Parse COCO     │
+│  Camera Traps   │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────────────────────────────┐
+│           Schema Mapping                 │
+│  images[].location → deploymentID       │
+│  images[].datetime → deploymentStart/End│
+│    (MIN/MAX per location)               │
+│  images[].file_name → HTTP URL          │
+│  annotations[] + categories[] →         │
+│    observations with normalized bbox    │
+└────────────────────┬────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────┐
+│           Database Insert               │
+│  - Batch inserts (1000 rows)           │
+│  - Images loaded via HTTP at runtime   │
+└─────────────────────────────────────────┘
+```
+
+**Process (large datasets ≥100K images - Streaming):**
+
+For large datasets like Snapshot Serengeti (7.1M images), a streaming architecture is used to avoid memory exhaustion:
+
+```
+┌─────────────────┐
+│  Select Dataset │
+│  from Whitelist │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Download JSON  │
+│  (keep on disk) │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────────────────────────────┐
+│       Pass 1: Stream Categories          │
+│  - Extract categories array              │
+│  - Build category lookup map             │
+│  - Memory: ~10MB                         │
+└────────────────────┬────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────┐
+│       Pass 2: Stream Images (5K chunks)  │
+│  - Insert media to main DB               │
+│  - Store image metadata in temp SQLite   │
+│  - Compute sequence bounds incrementally │
+│  - Compute deployment bounds             │
+│  - Memory: ~100MB peak                   │
+└────────────────────┬────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────┐
+│   Pass 3: Stream Annotations (5K chunks) │
+│  - Query temp DB for image metadata      │
+│  - Transform to observations             │
+│  - Insert to main DB                     │
+│  - Memory: ~100MB peak                   │
+└────────────────────┬────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────┐
+│       Pass 4: Finalize                   │
+│  - Insert deployments from temp DB       │
+│  - Clean up temp database                │
+│  - Insert study metadata                 │
+└─────────────────────────────────────────┘
+```
+
+**Supported Datasets (24 total):**
+- Biome Health Project Maasai Mara 2018 (37K images, Kenya)
+- Snapshot Karoo (38K images, South Africa)
+- Snapshot Serengeti (7.1M images, Tanzania) - uses streaming
+- WCS Camera Traps (1.4M images, 675 species)
+- NACTI (3.7M images)
+- And 19 more...
+
+**Key features:**
+- Images loaded remotely via HTTP (no local download)
+- COCO bbox normalized from pixels to 0-1 coordinates
+- ZIP metadata extraction supported (e.g., Snapshot Karoo)
+- Deployment temporal bounds derived from MIN/MAX image datetimes per location
+- NaN values in JSON sanitized to null (handles Python/NumPy exports)
+- **Streaming import for large datasets (≥100K images)** using:
+  - `stream-json` library for memory-efficient JSON parsing
+  - Temporary SQLite database for intermediate storage
+  - Chunked processing (5000 records at a time)
+  - WAL mode enabled for better write performance
+- Sequence information imported (seq_id → eventID with eventStart/eventEnd bounds)
+
+**Key file:** `src/main/import/lila.js`
+
+```javascript
+// COCO bbox normalization
+function normalizeBbox(bbox, imageWidth, imageHeight) {
+  if (!bbox || !Array.isArray(bbox) || bbox.length !== 4) return null
+  const [x, y, width, height] = bbox
+  return {
+    bboxX: x / imageWidth,
+    bboxY: y / imageHeight,
+    bboxWidth: width / imageWidth,
+    bboxHeight: height / imageHeight
+  }
+}
+
+// Streaming threshold - datasets with more images use streaming
+const STREAMING_THRESHOLD = 100000  // 100K images
+```
 
 ## Image Folder Import with ML
 
@@ -431,6 +569,7 @@ if (activeExport.isCancelled) {
 | `src/main/import/camtrap.js` | CamTrap DP import |
 | `src/main/import/wildlife.js` | Wildlife Insights import |
 | `src/main/import/deepfaune.js` | DeepFaune CSV import |
+| `src/main/import/lila.js` | LILA dataset import (COCO Camera Traps) |
 | `src/main/import/importer.js` | Image folder import with ML |
 | `src/main/import/index.js` | Re-exports all import functions |
 | `src/main/export.js` | All export functionality |

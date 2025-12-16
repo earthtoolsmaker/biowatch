@@ -313,10 +313,12 @@ export async function downloadFileWithRetry(url, destination, onProgress, attemp
     }
 
     // Check for partial download and prepare resume
+    // Only resume (append) if this is a retry AND there's a partial file
     const partialSize = getPartialFileSize(destination)
+    const isResuming = partialSize > 0 && isRetry
     const headers = {}
 
-    if (partialSize > 0 && isRetry) {
+    if (isResuming) {
       headers['Range'] = `bytes=${partialSize}-`
       log.info(`[RETRY] Resuming download from byte ${partialSize}`)
     }
@@ -328,12 +330,13 @@ export async function downloadFileWithRetry(url, destination, onProgress, attemp
     }
 
     const totalBytes = Number(response.headers.get('Content-Length')) || 0
-    const actualTotalBytes = partialSize + totalBytes
-    const writer = createWriteStream(destination, { flags: partialSize > 0 ? 'a' : 'w' })
+    const actualTotalBytes = isResuming ? partialSize + totalBytes : totalBytes
+    // Only append if actually resuming with Range header, otherwise overwrite
+    const writer = createWriteStream(destination, { flags: isResuming ? 'a' : 'w' })
 
     if (response.body) {
       const reader = response.body.getReader()
-      let downloadedBytes = partialSize
+      let downloadedBytes = isResuming ? partialSize : 0
 
       const readStream = async () => {
         const { done, value } = await reader.read()

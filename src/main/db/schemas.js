@@ -28,7 +28,8 @@ export const importerNames = /** @type {const} */ ([
   'deepfaune/csv',
   'local/images',
   'local/ml_run',
-  'gbif/dataset'
+  'gbif/dataset',
+  'lila/coco'
 ])
 
 // ISO date pattern (YYYY-MM-DD)

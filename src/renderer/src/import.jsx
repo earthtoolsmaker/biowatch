@@ -6,6 +6,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import CountryPickerModal from './CountryPickerModal.jsx'
 import GbifImportProgress from './GbifImportProgress.jsx'
 import DemoImportProgress from './DemoImportProgress.jsx'
+import LilaImportProgress from './LilaImportProgress.jsx'
 
 function ImportButton({ onClick, children, className = '', disabled = false }) {
   const [isImporting, setIsImporting] = useState(false)
@@ -103,6 +104,75 @@ function GbifImportCard({ onImport }) {
   )
 }
 
+function LilaImportCard({ onImport }) {
+  const [lilaDatasets, setLilaDatasets] = useState([])
+  const [selectedLilaDataset, setSelectedLilaDataset] = useState(null)
+  const [loadingLilaDatasets, setLoadingLilaDatasets] = useState(false)
+
+  useEffect(() => {
+    fetchLilaDatasets()
+  }, [])
+
+  const fetchLilaDatasets = async () => {
+    setLoadingLilaDatasets(true)
+    try {
+      const datasets = await window.api.getLilaDatasets()
+      setLilaDatasets(datasets || [])
+      if (datasets && datasets.length > 0) {
+        setSelectedLilaDataset(datasets[0])
+      }
+    } catch (error) {
+      console.error('Failed to fetch LILA datasets:', error)
+    } finally {
+      setLoadingLilaDatasets(false)
+    }
+  }
+
+  const handleLilaDataset = async () => {
+    if (!selectedLilaDataset) return
+    await onImport(selectedLilaDataset.id)
+  }
+
+  return (
+    <div className="border border-gray-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
+      <h3 className="text-lg mb-2">LILA Dataset</h3>
+      <p className="text-sm text-gray-500 mb-4">
+        Import a camera trap dataset from LILA. Images are loaded remotely - no download required.
+      </p>
+      <div className="flex gap-2 justify-start">
+        <select
+          value={selectedLilaDataset?.id || ''}
+          onChange={(e) => {
+            const dataset = lilaDatasets.find((d) => d.id === e.target.value)
+            setSelectedLilaDataset(dataset || null)
+          }}
+          disabled={loadingLilaDatasets}
+          className="w-full flex-1 px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
+        >
+          {loadingLilaDatasets ? (
+            <option>Loading datasets...</option>
+          ) : lilaDatasets.length === 0 ? (
+            <option>No datasets available</option>
+          ) : (
+            lilaDatasets.map((dataset) => (
+              <option key={dataset.id} value={dataset.id}>
+                {dataset.name} ({dataset.imageCount?.toLocaleString()} images)
+              </option>
+            ))
+          )}
+        </select>
+        <ImportButton
+          onClick={handleLilaDataset}
+          className="whitespace-nowrap flex-1"
+          disabled={!selectedLilaDataset || loadingLilaDatasets}
+        >
+          Import LILA Dataset
+        </ImportButton>
+      </div>
+    </div>
+  )
+}
+
 export default function Import({ onNewStudy }) {
   let navigate = useNavigate()
   const [selectedModel, setSelectedModel] = useState(modelZoo[0]?.reference || null)
@@ -120,6 +190,10 @@ export default function Import({ onNewStudy }) {
   const [demoImportProgress, setDemoImportProgress] = useState(null)
   const [isDemoImporting, setIsDemoImporting] = useState(false)
 
+  // LILA import progress state
+  const [lilaImportProgress, setLilaImportProgress] = useState(null)
+  const [isLilaImporting, setIsLilaImporting] = useState(false)
+
   // Listen for GBIF import progress events
   useEffect(() => {
     const cleanup = window.api.onGbifImportProgress?.((progress) => {
@@ -132,6 +206,14 @@ export default function Import({ onNewStudy }) {
   useEffect(() => {
     const cleanup = window.api.onDemoImportProgress?.((progress) => {
       setDemoImportProgress(progress)
+    })
+    return cleanup
+  }, [])
+
+  // Listen for LILA import progress events
+  useEffect(() => {
+    const cleanup = window.api.onLilaImportProgress?.((progress) => {
+      setLilaImportProgress(progress)
     })
     return cleanup
   }, [])
@@ -368,6 +450,44 @@ export default function Import({ onNewStudy }) {
     setGbifImportProgress(null)
   }
 
+  const handleLilaImport = async (datasetId) => {
+    try {
+      setIsLilaImporting(true)
+      setLilaImportProgress({
+        stage: 'downloading',
+        stageIndex: 0,
+        totalStages: 3,
+        datasetTitle: 'LILA Dataset'
+      })
+
+      const { data, id } = await window.api.importLilaDataset(datasetId)
+
+      if (!id) {
+        setIsLilaImporting(false)
+        setLilaImportProgress(null)
+        return
+      }
+
+      console.log('LILA dataset imported:', data, id)
+
+      // Brief delay to show completion state, then navigate
+      setTimeout(() => {
+        setIsLilaImporting(false)
+        setLilaImportProgress(null)
+        onNewStudy({ id, name: data.name, data })
+        navigate(`/study/${id}`)
+      }, 800)
+    } catch (error) {
+      console.error('Failed to import LILA dataset:', error)
+      // Error state is already set via IPC progress event
+    }
+  }
+
+  const handleCancelLilaImport = () => {
+    setIsLilaImporting(false)
+    setLilaImportProgress(null)
+  }
+
   return (
     <div className="flex h-full p-8 overflow-auto">
       <div className="max-w-4xl w-full">
@@ -507,6 +627,9 @@ export default function Import({ onNewStudy }) {
 
           {/* GBIF Dataset Card */}
           <GbifImportCard onImport={handleGbifImport} />
+
+          {/* LILA Dataset Card */}
+          <LilaImportCard onImport={handleLilaImport} />
         </div>
       </div>
 
@@ -526,6 +649,12 @@ export default function Import({ onNewStudy }) {
         isOpen={isDemoImporting}
         progress={demoImportProgress}
         onClose={handleCloseDemoImport}
+      />
+
+      <LilaImportProgress
+        isOpen={isLilaImporting}
+        progress={lilaImportProgress}
+        onCancel={handleCancelLilaImport}
       />
     </div>
   )
