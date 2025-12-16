@@ -7,7 +7,8 @@ import {
   Download,
   Pause,
   FolderOpen,
-  Settings
+  Settings,
+  Loader2
 } from 'lucide-react'
 import { Route, Routes, useParams } from 'react-router'
 import { ErrorBoundary } from 'react-error-boundary'
@@ -149,6 +150,14 @@ export default function Study() {
     enabled: !!id
   })
 
+  // Poll OCR status to show spinner on Settings tab
+  const { data: ocrStatus } = useQuery({
+    queryKey: ['ocrGlobalStatus'],
+    queryFn: () => window.api.ocr.getGlobalStatus(),
+    refetchInterval: 2000
+  })
+  const isOCRRunningOnThisStudy = ocrStatus?.isRunning && ocrStatus?.runningStudyId === id
+
   if (error) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -183,7 +192,15 @@ export default function Study() {
                 Files
               </Tab>
             )}
-            <Tab to={`/study/${id}/settings`} icon={Settings}>
+            <Tab
+              to={`/study/${id}/settings`}
+              icon={Settings}
+              indicator={
+                isOCRRunningOnThisStudy ? (
+                  <Loader2 size={16} className="animate-spin text-blue-600" />
+                ) : null
+              }
+            >
               Settings
             </Tab>
           </nav>
