@@ -22,14 +22,14 @@ biowatch-data/studies/{studyId}/study.db
 └─────────────────┘       └────────┬────────┘
         │                          │
         │                          │ 1:N
-        │ 1:N                      │
-        │                 ┌────────▼────────┐
-        └────────────────►│  observations   │
-                          │   (PK: ID)      │
-                          └────────┬────────┘
-                                   │
-                                   │ N:1
-                          ┌────────▼────────┐
+        │ 1:N                      ├──────────────────┐
+        │                 ┌────────▼────────┐        │
+        └────────────────►│  observations   │        │ 1:N
+                          │   (PK: ID)      │        │
+                          └────────┬────────┘ ┌──────▼──────┐
+                                   │          │  ocrOutputs │
+                                   │ N:1      │  (PK: ID)   │
+                          ┌────────▼────────┐ └─────────────┘
                           │  modelOutputs   │◄───┐
                           │   (PK: ID)      │    │
                           └─────────────────┘    │
@@ -308,6 +308,40 @@ export const modelOutputs = sqliteTable(
 
 ---
 
+### ocrOutputs
+
+OCR extraction results for media files. Used to extract burned-in timestamps from camera trap images when EXIF data is missing.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | TEXT | PRIMARY KEY | UUID |
+| `mediaID` | TEXT | NOT NULL, FK → media | Parent media (CASCADE delete) |
+| `modelID` | TEXT | NOT NULL | OCR engine identifier (e.g., `tesseract`) |
+| `modelVersion` | TEXT | NOT NULL | OCR engine version (e.g., `5.1.1`) |
+| `createdAt` | TEXT | NOT NULL | Extraction timestamp (ISO 8601) |
+| `rawOutput` | TEXT | JSON | Full OCR results JSON |
+
+```javascript
+export const ocrOutputs = sqliteTable(
+  'ocr_outputs',
+  {
+    id: text('id').primaryKey(),
+    mediaID: text('mediaID')
+      .notNull()
+      .references(() => media.mediaID, { onDelete: 'cascade' }),
+    modelID: text('modelID').notNull(),
+    modelVersion: text('modelVersion').notNull(),
+    createdAt: text('createdAt').notNull(),
+    rawOutput: text('rawOutput', { mode: 'json' })
+  },
+  (table) => [index('idx_ocr_outputs_mediaID').on(table.mediaID)]
+)
+```
+
+**Index:** `idx_ocr_outputs_mediaID` for efficient media lookups.
+
+---
+
 ## JSON Field Formats
 
 ### contributors (metadata.contributors)
@@ -360,6 +394,32 @@ export const modelOutputs = sqliteTable(
   ]
 }
 ```
+
+### rawOutput (ocrOutputs.rawOutput)
+
+```json
+{
+  "topRegion": {
+    "text": "03/20/24 02:32:15 PM",
+    "confidence": 0.45
+  },
+  "bottomRegion": {
+    "text": "03/20/24 02:32:15 PM  22°C",
+    "confidence": 0.91
+  },
+  "parsedDate": "2024-03-20T14:32:15.000Z",
+  "dateFormat": "MM/DD/YY hh:mm:ss A",
+  "selectedRegion": "bottom"
+}
+```
+
+**Fields:**
+- `topRegion` / `bottomRegion` - OCR results from top/bottom 15% of image
+- `text` - Raw OCR text extracted
+- `confidence` - Tesseract confidence score (0-1)
+- `parsedDate` - Extracted timestamp in ISO 8601 format (null if parsing failed)
+- `dateFormat` - Detected date format pattern
+- `selectedRegion` - Which region was used for the final timestamp (`top` or `bottom`)
 
 ---
 

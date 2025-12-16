@@ -1,9 +1,10 @@
-import { Download, Search, Database, Check, Loader2, AlertCircle, X } from 'lucide-react'
+import { Download, Search, Database, Check, Loader2, AlertCircle, X, ScanText } from 'lucide-react'
 
 const stages = [
   { key: 'downloading', label: 'Downloading metadata', icon: Download },
   { key: 'parsing', label: 'Parsing COCO format', icon: Search },
-  { key: 'importing', label: 'Importing data', icon: Database }
+  { key: 'importing', label: 'Importing data', icon: Database },
+  { key: 'ocr', label: 'Extracting timestamps', icon: ScanText }
 ]
 
 function formatBytes(bytes) {
@@ -20,7 +21,8 @@ function StageRow({
   stageIndex,
   downloadProgress,
   importProgress,
-  parsingProgress
+  parsingProgress,
+  ocrProgress
 }) {
   const isComplete = currentStageIndex > stageIndex
   const isCurrent = currentStageIndex === stageIndex
@@ -164,6 +166,39 @@ function StageRow({
             </div>
           </div>
         )}
+
+        {/* OCR progress */}
+        {isCurrent && stage.key === 'ocr' && ocrProgress && ocrProgress.total > 0 && (
+          <div className="mt-2">
+            <div className="text-xs text-gray-500 mb-1">
+              <span className="font-medium">Processing images</span>
+              <span>
+                {' '}
+                — {ocrProgress.current.toLocaleString()} / {ocrProgress.total.toLocaleString()}
+              </span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+              <div
+                className="bg-blue-600 h-2 rounded-full transition-all duration-150"
+                style={{
+                  width: `${(ocrProgress.current / ocrProgress.total) * 100}%`
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Show pulsing indicator for OCR when initializing */}
+        {isCurrent && stage.key === 'ocr' && (!ocrProgress || ocrProgress.total === 0) && (
+          <div className="mt-2">
+            <div className="text-xs text-gray-500 mb-1">
+              <span className="font-medium">Finding images with missing timestamps...</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+              <div className="bg-blue-600 h-2 rounded-full animate-pulse w-full opacity-60" />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -179,6 +214,7 @@ function LilaImportProgress({ isOpen, progress, onCancel }) {
     downloadProgress,
     importProgress,
     parsingProgress,
+    ocrProgress,
     error
   } = progress || {}
 
@@ -251,6 +287,7 @@ function LilaImportProgress({ isOpen, progress, onCancel }) {
                   downloadProgress={s.key === 'downloading' ? downloadProgress : null}
                   importProgress={s.key === 'importing' ? importProgress : null}
                   parsingProgress={s.key === 'parsing' ? parsingProgress : null}
+                  ocrProgress={s.key === 'ocr' ? ocrProgress : null}
                 />
               ))}
             </div>
