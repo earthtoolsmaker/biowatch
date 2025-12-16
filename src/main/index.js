@@ -32,6 +32,7 @@ import {
   getDistinctSpecies,
   checkStudyHasEventIDs,
   getBestMedia,
+  getBestImagePerSpecies,
   countMediaWithNullTimestamps
 } from './queries'
 import './import/importer.js' // Side-effect: registers IPC handlers
@@ -1018,6 +1019,23 @@ app.whenReady().then(async () => {
       return { data: bestMedia }
     } catch (error) {
       log.error('Error getting best media:', error)
+      return { error: error.message }
+    }
+  })
+
+  // Get best image per species for hover tooltips
+  ipcMain.handle('species:get-best-images', async (_, studyId) => {
+    try {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) {
+        log.warn(`Database not found for study ID: ${studyId}`)
+        return { error: 'Database not found for this study' }
+      }
+
+      const bestImages = await getBestImagePerSpecies(dbPath)
+      return { data: bestImages }
+    } catch (error) {
+      log.error('Error getting best images per species:', error)
       return { error: error.message }
     }
   })
