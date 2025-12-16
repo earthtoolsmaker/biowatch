@@ -213,7 +213,8 @@ describe('Database Schema and Integrity Tests', () => {
         'metadata',
         'model_outputs',
         'model_runs',
-        'observations'
+        'observations',
+        'ocr_outputs'
       ].sort()
 
       assert.deepEqual(tableNames, expectedTables, 'Should create all required tables')

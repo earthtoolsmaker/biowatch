@@ -97,7 +97,8 @@ describe('CamTrapDP Import Tests', () => {
         'metadata',
         'model_outputs',
         'model_runs',
-        'observations'
+        'observations',
+        'ocr_outputs'
       ]
       assert.deepEqual(
         tableNames,
