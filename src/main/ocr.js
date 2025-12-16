@@ -352,7 +352,18 @@ export async function extractTimestampBatch(
         // This handles cases where videos were imported with incorrect MIME types
         if (!isVideo && mediaRecord.filePath) {
           const ext = mediaRecord.filePath.toLowerCase().split('.').pop()
-          const videoExtensions = ['avi', 'mp4', 'mkv', 'mov', 'm4v', 'wmv', 'flv', '3gp', 'webm', 'ogv']
+          const videoExtensions = [
+            'avi',
+            'mp4',
+            'mkv',
+            'mov',
+            'm4v',
+            'wmv',
+            'flv',
+            '3gp',
+            'webm',
+            'ogv'
+          ]
           isVideo = videoExtensions.includes(ext)
         }
 
