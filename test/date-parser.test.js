@@ -216,6 +216,39 @@ describe('parseDateFromText', () => {
     })
   })
 
+  describe('Time-first US format (HH:mm MM/DD/YY)', () => {
+    test('parses time-first US format with 2-digit year', () => {
+      const result = parseDateFromText('10:17 10/16/19')
+      assert.ok(result)
+      assert.equal(getISODateTimePortion(result.isoString), '2019-10-16T10:17:00.000')
+      assert.equal(result.format, 'HH:mm MM/DD/YY')
+    })
+
+    test('parses time-first US format with 4-digit year', () => {
+      const result = parseDateFromText('10:17 10/16/2019')
+      assert.ok(result)
+      assert.equal(getISODateTimePortion(result.isoString), '2019-10-16T10:17:00.000')
+    })
+
+    test('parses time-first US format with seconds', () => {
+      const result = parseDateFromText('10:17:30 10/16/19')
+      assert.ok(result)
+      assert.equal(getISODateTimePortion(result.isoString), '2019-10-16T10:17:30.000')
+    })
+
+    test('parses unambiguous US format (day > 12)', () => {
+      const result = parseDateFromText('14:30 03/25/21')
+      assert.ok(result)
+      assert.equal(getISODateTimePortion(result.isoString), '2021-03-25T14:30:00.000')
+    })
+
+    test('parses single-digit values', () => {
+      const result = parseDateFromText('9:05 3/5/19')
+      assert.ok(result)
+      assert.equal(getISODateTimePortion(result.isoString), '2019-03-05T09:05:00.000')
+    })
+  })
+
   describe('Time-first EU format (HH:mm DD/MM/YY)', () => {
     test('parses time-first with 2-digit year', () => {
       const result = parseDateFromText('19:11 21/10/19')

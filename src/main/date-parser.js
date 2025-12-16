@@ -115,7 +115,22 @@ const DATE_PATTERNS = [
     }),
     format: 'DD.MM.YY HH:mm:ss'
   },
+  // Time-first US format: 10:17 10/16/19 (HH:mm MM/DD/YY)
+  // Tried before EU format; if month > 12, validation fails and falls through to EU
+  {
+    regex: /(\d{1,2}):(\d{2})(?::(\d{2}))?\s+(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?!\s*[APap][Mm])/,
+    parse: (m) => ({
+      year: normalizeYear(parseInt(m[6])),
+      month: parseInt(m[4]),
+      day: parseInt(m[5]),
+      hour: parseInt(m[1]),
+      minute: parseInt(m[2]),
+      second: parseInt(m[3] || '0')
+    }),
+    format: 'HH:mm MM/DD/YY'
+  },
   // Time-first EU format: 19:11 21/10/19 (HH:mm DD/MM/YY)
+  // Fallback when US interpretation fails (e.g., first number > 12)
   {
     regex: /(\d{1,2}):(\d{2})(?::(\d{2}))?\s+(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?!\s*[APap][Mm])/,
     parse: (m) => ({
