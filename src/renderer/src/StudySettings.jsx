@@ -17,7 +17,7 @@ function OCRActionRow({ studyId, isOCRRunningOnThisStudy }) {
     }
   }, [isOCRRunningOnThisStudy])
 
-  // Query for timestamp statistics (fixableCount, failedOCRCount, totalCount)
+  // Query for timestamp statistics (fixableCount, failedOCRCount)
   const { data: timestampStats } = useQuery({
     queryKey: ['timestampStats', studyId],
     queryFn: () => window.api.ocr.getTimestampStats(studyId),
@@ -25,7 +25,6 @@ function OCRActionRow({ studyId, isOCRRunningOnThisStudy }) {
   })
   const fixableCount = timestampStats?.fixableCount ?? 0
   const failedOCRCount = timestampStats?.failedOCRCount ?? 0
-  const totalCount = timestampStats?.totalCount ?? 0
 
   // Check global OCR status on mount and poll periodically
   useEffect(() => {
