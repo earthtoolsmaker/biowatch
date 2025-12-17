@@ -2,6 +2,7 @@ import { Pencil, Plus, Settings, Trash2, Search, ChevronRight } from 'lucide-rea
 import { ErrorBoundary } from 'react-error-boundary'
 import { HashRouter, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
+import { Toaster } from 'sonner'
 import Import from './import'
 import Study from './study'
 import SettingsPage from './settings'
@@ -392,6 +393,7 @@ function AppContent() {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <Toaster position="top-right" richColors />
       <HashRouter>
         <ErrorBoundary FallbackComponent={ErrorFallback}>
           <AppContent />

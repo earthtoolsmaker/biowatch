@@ -1096,7 +1096,7 @@ export function registerMLModelManagementIPCHandlers() {
           country
         })
         return {
-          sucess: true,
+          success: true,
           process: { pid: process.pid, port: port, shutdownApiKey: shutdownApiKey },
           message: 'ML Model HTTP server successfully started'
         }
@@ -1200,8 +1200,14 @@ async function startAndWaitTillServerHealty({
       log.info('Python stdout:', data.toString())
     })
 
-    pythonProcess.stderr.on('data', (err) => {
-      log.error('Python error:', err.toString())
+    pythonProcess.stderr.on('data', (data) => {
+      const message = data.toString().trim()
+      // Uvicorn and Python write INFO/WARNING to stderr - don't call it "error"
+      if (message.includes('INFO:') || message.includes('WARNING:')) {
+        log.info('Python:', message)
+      } else {
+        log.error('Python error:', message)
+      }
     })
 
     pythonProcess.on('error', (err) => {
@@ -1227,7 +1233,10 @@ async function startAndWaitTillServerHealty({
           return pythonProcess
         }
       } catch (error) {
-        // Server not ready yet, will retry
+        // Log health check error on first attempt and every 30 seconds for debugging
+        if (i === 0 || (i + 1) % 30 === 0) {
+          log.debug(`Health check failed: ${error.code || error.message}`)
+        }
       }
 
       // Wait before next retry

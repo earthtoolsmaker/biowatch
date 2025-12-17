@@ -10,6 +10,7 @@ import {
   Server,
   Mail
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { platformToKey, findPythonEnvironment } from '../../shared/mlmodels'
 import {
   isOwnEnvironmentDownload,
@@ -112,13 +113,30 @@ function ModelRow({ model, pythonEnvironment, platform, isDev = false, refreshKe
         pythonEnvironment
       })
       console.log(JSON.stringify(response))
+
+      // Check for error response from backend
+      if (!response.success) {
+        console.error('Server failed to start:', response.message)
+        toast.error('Failed to start ML server', {
+          description: response.message,
+          duration: 5000
+        })
+        setIsHTTPServerStarting(false)
+        return
+      }
+
       setIsHTTPServerRunning(true)
       setIsHTTPServerStarting(false)
       setPortHTTPServer(response.process.port)
       setPidPythonProcess(response.process.pid)
       setShutdownApiKey(response.process.shutdownApiKey)
     } catch (error) {
-      console.error('Failed to delete the local model:', error)
+      console.error('Failed to start HTTP server:', error)
+      toast.error('Failed to start ML server', {
+        description: error.message,
+        duration: 5000
+      })
+      setIsHTTPServerStarting(false)
     }
   }
 
