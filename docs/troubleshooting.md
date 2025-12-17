@@ -284,6 +284,20 @@ Note: Starting from v1.5.0, the app automatically handles this.
 - Click "More info" → "Run anyway"
 - This is normal for new applications
 
+### Windows: "EBUSY" error when deleting study
+
+**Cause:** SQLite WAL mode keeps `-wal` and `-shm` files locked on Windows.
+
+**Solution:**
+This was fixed in v1.6.0. If you encounter this error:
+1. Update to the latest version of Biowatch
+2. If the issue persists, close Biowatch completely and manually delete the study folder:
+   ```
+   %APPDATA%\biowatch\biowatch-data\studies\<study-uuid>\
+   ```
+
+**Technical details:** Biowatch uses SQLite in WAL (Write-Ahead Logging) mode for better performance. On Windows, the WAL checkpoint must be explicitly performed before closing database connections to release file locks.
+
 ---
 
 ## Log Locations

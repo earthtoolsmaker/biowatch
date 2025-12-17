@@ -19,7 +19,8 @@ import {
   createImageDirectoryDatabase,
   insertDeployments,
   insertMedia,
-  insertObservations
+  insertObservations,
+  getStudyIdFromPath
 } from '../src/main/queries.js'
 
 // Test database setup
@@ -577,6 +578,56 @@ describe('Database Query Functions Tests', () => {
       } catch (error) {
         assert(error instanceof Error, 'Should throw an Error')
       }
+    })
+  })
+
+  describe('getStudyIdFromPath', () => {
+    test('should extract studyId from Unix-style path', () => {
+      const unixPath = '/home/user/.biowatch/studies/abc123-def456/study.db'
+      const result = getStudyIdFromPath(unixPath)
+      assert.equal(result, 'abc123-def456', 'Should extract studyId from Unix path')
+    })
+
+    test('should extract studyId from Windows-style path', () => {
+      const windowsPath =
+        'C:\\Users\\user\\AppData\\Roaming\\biowatch\\studies\\abc123-def456\\study.db'
+      const result = getStudyIdFromPath(windowsPath)
+      assert.equal(result, 'abc123-def456', 'Should extract studyId from Windows path')
+    })
+
+    test('should handle mixed path separators', () => {
+      const mixedPath = 'C:\\Users\\user/AppData/Roaming\\biowatch/studies\\abc123-def456/study.db'
+      const result = getStudyIdFromPath(mixedPath)
+      assert.equal(result, 'abc123-def456', 'Should extract studyId from mixed path')
+    })
+
+    test('should return unknown for path without parent directory', () => {
+      const shortPath = 'study.db'
+      const result = getStudyIdFromPath(shortPath)
+      assert.equal(result, 'unknown', 'Should return unknown for single element path')
+    })
+
+    test('should return unknown for empty path', () => {
+      const emptyPath = ''
+      const result = getStudyIdFromPath(emptyPath)
+      assert.equal(result, 'unknown', 'Should return unknown for empty path')
+    })
+
+    test('should handle path with trailing separator', () => {
+      const trailingPath = '/home/user/.biowatch/studies/abc123-def456/'
+      const result = getStudyIdFromPath(trailingPath)
+      // After split, last element is empty string, so second-to-last is the studyId
+      assert.equal(
+        result,
+        'abc123-def456',
+        'Should extract studyId from path with trailing separator'
+      )
+    })
+
+    test('should extract real UUID-style studyId', () => {
+      const realPath = '/mnt/data/biowatch/studies/70d5bc5d-1234-5678-9abc-def012345678/study.db'
+      const result = getStudyIdFromPath(realPath)
+      assert.equal(result, '70d5bc5d-1234-5678-9abc-def012345678', 'Should extract UUID studyId')
     })
   })
 })
