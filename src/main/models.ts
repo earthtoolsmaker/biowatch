@@ -9,7 +9,7 @@ import { is } from '@electron-toolkit/utils'
 import net from 'net'
 import { join, dirname, basename } from 'path'
 import { spawn } from 'child_process'
-import { existsSync, readdir, promises as fsPromises } from 'fs'
+import { existsSync, readdir, promises as fsPromises, constants as fsConstants } from 'fs'
 import log from 'electron-log'
 import kill from 'tree-kill'
 import crypto from 'crypto'
@@ -732,6 +732,24 @@ async function downloadPythonEnvironment({ id, version, requestingModelId = null
       })
       log.info('Cleaning the local archive: ', localTarPath)
       await fsPromises.unlink(localTarPath)
+
+      // Validate Python interpreter after extraction
+      log.info('[Post-Extraction] Validating Python interpreter...')
+      const pythonInterpreter =
+        os.platform() === 'win32'
+          ? join(extractPath, id, 'python.exe')
+          : join(extractPath, id, 'bin', 'python')
+      try {
+        await validateAndFixPythonInterpreter(pythonInterpreter)
+        log.info('[Post-Extraction] ✅ Python interpreter validated')
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        log.error('[Post-Extraction] Python interpreter validation failed:', error)
+        throw new Error(
+          `Python environment extracted but interpreter validation failed: ${errorMessage}`
+        )
+      }
+
       // Clear activeDownloadModelId on success
       writeToManifest({
         manifestFilepath,
@@ -1054,6 +1072,74 @@ export function registerMLModelManagementIPCHandlers() {
 }
 
 /**
+ * Validates that the Python interpreter exists and is executable.
+ * On Unix systems (macOS/Linux), ensures the file has execute permissions.
+ * Retries with delays to handle file system synchronization issues after extraction.
+ *
+ * @async
+ * @param {string} pythonInterpreter - The path to the Python interpreter.
+ * @param {number} maxRetries - Maximum number of retries (default: 5).
+ * @param {number} retryDelay - Delay between retries in milliseconds (default: 500).
+ * @returns {Promise<void>}
+ * @throws {Error} If the Python interpreter cannot be found or made executable.
+ */
+async function validateAndFixPythonInterpreter(
+  pythonInterpreter: string,
+  maxRetries = 5,
+  retryDelay = 500
+): Promise<void> {
+  log.info(`[Python Validation] Checking Python interpreter: ${pythonInterpreter}`)
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      // Check if file exists
+      await fsPromises.access(pythonInterpreter, fsConstants.F_OK)
+      log.info(`[Python Validation] Python interpreter exists (attempt ${attempt + 1})`)
+
+      // On Unix systems, ensure it's executable
+      if (os.platform() !== 'win32') {
+        try {
+          // Check if already executable
+          await fsPromises.access(pythonInterpreter, fsConstants.X_OK)
+          log.info(`[Python Validation] Python interpreter is already executable`)
+        } catch (execError) {
+          // Not executable, fix permissions
+          log.info(`[Python Validation] Making Python interpreter executable`)
+          await fsPromises.chmod(pythonInterpreter, 0o755)
+          log.info(`[Python Validation] Python interpreter permissions fixed`)
+        }
+      }
+
+      // Verify one more time
+      await fsPromises.access(
+        pythonInterpreter,
+        os.platform() === 'win32' ? fsConstants.F_OK : fsConstants.X_OK
+      )
+      log.info(`[Python Validation] ✅ Python interpreter validated successfully`)
+      return
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      if (attempt < maxRetries - 1) {
+        log.warn(
+          `[Python Validation] Python interpreter not ready (attempt ${attempt + 1}/${maxRetries}): ${errorMessage}`
+        )
+        log.info(`[Python Validation] Waiting ${retryDelay}ms before retry...`)
+        await new Promise((resolve) => setTimeout(resolve, retryDelay))
+      } else {
+        log.error(
+          `[Python Validation] Failed to validate Python interpreter after ${maxRetries} attempts`
+        )
+        throw new Error(
+          `Python interpreter not found or not executable: ${pythonInterpreter}. ` +
+            `This may indicate the Python environment was not fully extracted. ` +
+            `Try restarting the application or re-downloading the model.`
+        )
+      }
+    }
+  }
+}
+
+/**
  * Finds a free port on the local machine.
  *
  * This function creates a temporary server that listens on a random port
@@ -1108,6 +1194,9 @@ async function startAndWaitTillServerHealty({
   maxRetries = 30,
   env = {}
 }) {
+  // Validate Python interpreter exists and is executable before starting
+  await validateAndFixPythonInterpreter(pythonInterpreter)
+
   const pythonProcess = spawn(pythonInterpreter, [scriptPath, ...scriptArgs], {
     env: { ...process.env, ...env }
   })

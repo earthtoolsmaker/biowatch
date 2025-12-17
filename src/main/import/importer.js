@@ -1322,6 +1322,7 @@ ipcMain.handle('importer:select-more-images-directory', async (event, id) => {
 
   const directoryPath = result.filePaths[0]
   const importer = new Importer(id, directoryPath, modelReference, country)
+  console.log('importer model', modelReference)
   importers[id] = importer
   await importer.start(true)
   return { success: true, message: 'Importer started successfully' }

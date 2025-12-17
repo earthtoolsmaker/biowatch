@@ -160,6 +160,7 @@ const api = {
     return await electronAPI.ipcRenderer.invoke('importer:stop', id)
   },
   resumeImport: async (id) => {
+    console.log('Resuming import for id:', id)
     return await electronAPI.ipcRenderer.invoke('importer:resume', id)
   },
   selectMoreImagesDirectory: async (id) => {
