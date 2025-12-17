@@ -127,6 +127,7 @@ $ curl -X POST http://localhost:${port}/predict \
 
 import logging
 import pickle
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -645,11 +646,14 @@ class ManasLitAPI(ls.LitAPI, VideoCapableLitAPI):
             device: The device to load the model on (unused, auto-detected).
         """
         del device  # Unused
+        logger.info("[STARTUP] Loading Manas model...")
+        start = time.time()
         self.model = load_model(
             filepath_detector_weights=self.filepath_detector_weights,
             filepath_classifier_weights=self.filepath_classifier_weights,
             filepath_classes=self.filepath_classes,
         )
+        logger.info(f"[STARTUP] Manas model loaded in {time.time() - start:.1f}s")
 
     def decode_request(self, request, **kwargs):
         """
@@ -771,6 +775,7 @@ def main(argv: list[str]) -> None:
         timeout=_TIMEOUT.value,
         enable_shutdown_api=True,
     )
+    logger.info("[STARTUP] Starting Manas HTTP server...")
     server.run(
         port=_PORT.value,
         generate_client_file=False,
