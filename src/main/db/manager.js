@@ -220,6 +220,10 @@ export class StudyDatabaseManager {
   async close() {
     try {
       if (this.sqlite) {
+        // Checkpoint WAL to release file locks (required for Windows)
+        if (!this.readonly) {
+          this.sqlite.pragma('wal_checkpoint(TRUNCATE)')
+        }
         this.sqlite.close()
         log.info(`[DB] Closed database for study ${this.studyId}`)
       }
