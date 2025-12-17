@@ -902,16 +902,16 @@ app.whenReady().then(async () => {
       log.info(`Deleting study: ${studyId}`)
       const studyPath = getStudyPath(app.getPath('userData'), studyId)
 
-      // Notify renderer to update UI before deletion
-      event.sender.send('study:delete', studyId)
-
       if (studyPath && existsSync(studyPath)) {
         await closeStudyDatabase(studyId)
         rmSync(studyPath, { recursive: true, force: true })
         log.info(`Successfully deleted study: ${studyPath}`)
+        // Notify renderer after successful deletion to avoid race condition
+        event.sender.send('study:delete', studyId)
         return { success: true }
       } else {
         log.warn(`Study not found for deletion: ${studyPath}`)
+        event.sender.send('study:delete', studyId)
         return { success: true, message: 'Study already deleted or not found' }
       }
     } catch (error) {
