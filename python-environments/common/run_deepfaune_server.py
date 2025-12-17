@@ -118,11 +118,9 @@ $ curl -X POST http://localhost:${port}/predict \
 ```
 """
 
-import time
-_import_start = time.time()
-
 import logging
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -141,12 +139,9 @@ from ultralytics import YOLO
 
 from video_utils import VideoCapableLitAPI, is_video_file
 
-_import_time = time.time() - _import_start
-
 # Configure logging for diagnostic output
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
-logger.info(f"[STARTUP] Python imports completed in {_import_time:.2f}s")
 
 CROP_SIZE = 182
 BACKBONE = "vit_large_patch14_dinov2.lvd142m"
