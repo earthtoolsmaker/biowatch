@@ -121,8 +121,10 @@ $ curl -X POST http://localhost:${port}/predict \
 ```
 """
 
-import logging
 import time
+_import_start = time.time()
+
+import logging
 
 import litserve as ls
 from absl import app, flags
@@ -131,9 +133,12 @@ from speciesnet import DEFAULT_MODEL, SpeciesNet, file_exists
 
 from video_utils import VideoCapableLitAPI, is_video_file
 
+_import_time = time.time() - _import_start
+
 # Startup logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+logger.info(f"[STARTUP] Python imports completed in {_import_time:.2f}s")
 
 _PORT = flags.DEFINE_integer(
     "port",

@@ -117,9 +117,9 @@ function ModelRow({ model, pythonEnvironment, platform, isDev = false, refreshKe
       // Check for error response from backend
       if (!response.success) {
         console.error('Server failed to start:', response.message)
-        toast.error('Failed to start ML server', {
-          description: response.message,
-          duration: 5000
+        toast.error('Unable to process images', {
+          description: 'The AI model could not start. Please try again or restart the app.',
+          duration: 8000
         })
         setIsHTTPServerStarting(false)
         return
@@ -132,9 +132,9 @@ function ModelRow({ model, pythonEnvironment, platform, isDev = false, refreshKe
       setShutdownApiKey(response.process.shutdownApiKey)
     } catch (error) {
       console.error('Failed to start HTTP server:', error)
-      toast.error('Failed to start ML server', {
-        description: error.message,
-        duration: 5000
+      toast.error('Unable to process images', {
+        description: 'The AI model could not start. Please try again or restart the app.',
+        duration: 8000
       })
       setIsHTTPServerStarting(false)
     }
