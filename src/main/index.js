@@ -906,6 +906,7 @@ app.whenReady().then(async () => {
       event.sender.send('study:delete', studyId)
 
       if (studyPath && existsSync(studyPath)) {
+        await closeStudyDatabase(studyId)
         rmSync(studyPath, { recursive: true, force: true })
         log.info(`Successfully deleted study: ${studyPath}`)
         return { success: true }
