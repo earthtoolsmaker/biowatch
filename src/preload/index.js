@@ -88,6 +88,9 @@ const api = {
   getBestMedia: async (studyId, options = {}) => {
     return await electronAPI.ipcRenderer.invoke('media:get-best', studyId, options)
   },
+  getBestImagePerSpecies: async (studyId) => {
+    return await electronAPI.ipcRenderer.invoke('species:get-best-images', studyId)
+  },
   getSpeciesDailyActivity: async (studyId, species, startDate, endDate) => {
     return await electronAPI.ipcRenderer.invoke(
       'activity:get-daily',
