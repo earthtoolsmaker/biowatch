@@ -61,6 +61,18 @@ function formatToMatchOriginal(newDateTime, originalString) {
 }
 
 /**
+ * Extract study ID from database path
+ * Uses cross-platform path splitting (handles both / and \) to correctly
+ * extract the studyId on Windows, macOS, and Linux
+ * @param {string} dbPath - Path to the SQLite database
+ * @returns {string} - Study ID or 'unknown' if extraction fails
+ */
+export function getStudyIdFromPath(dbPath) {
+  const pathParts = dbPath.split(/[/\\]/)
+  return pathParts[pathParts.length - 2] || 'unknown'
+}
+
+/**
  * Get species distribution from the database using Drizzle ORM
  * @param {string} dbPath - Path to the SQLite database
  * @returns {Promise<Array>} - Species distribution data
@@ -70,9 +82,7 @@ export async function getSpeciesDistribution(dbPath) {
   log.info(`Querying species distribution from: ${dbPath}`)
 
   try {
-    // Extract study ID from path
-    const pathParts = dbPath.split('/')
-    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+    const studyId = getStudyIdFromPath(dbPath)
 
     const db = await getDrizzleDb(studyId, dbPath)
 
@@ -112,9 +122,7 @@ export async function getDeployments(dbPath) {
   log.info(`Querying deployments from: ${dbPath}`)
 
   try {
-    // Extract study ID from path
-    const pathParts = dbPath.split('/')
-    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+    const studyId = getStudyIdFromPath(dbPath)
 
     const db = await getDrizzleDb(studyId, dbPath)
 
@@ -170,9 +178,7 @@ export async function getLocationsActivity(dbPath) {
   log.info(`Querying location activity from: ${dbPath}`)
 
   try {
-    // Extract study ID from path
-    const pathParts = dbPath.split('/')
-    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+    const studyId = getStudyIdFromPath(dbPath)
 
     const db = await getDrizzleDb(studyId, dbPath)
 
@@ -313,9 +319,7 @@ export async function getSpeciesTimeseries(dbPath, speciesNames = []) {
   log.info(`Selected species: ${speciesNames.join(', ')}`)
 
   try {
-    // Extract study ID from path
-    const pathParts = dbPath.split('/')
-    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+    const studyId = getStudyIdFromPath(dbPath)
 
     // Prepare species filter for the complex CTE query
     let speciesFilter = ''
@@ -437,9 +441,7 @@ export async function getSpeciesHeatmapData(
   log.info(`Species: ${species.join(', ')}`)
 
   try {
-    // Extract study ID from path
-    const pathParts = dbPath.split('/')
-    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+    const studyId = getStudyIdFromPath(dbPath)
 
     const db = await getDrizzleDb(studyId, dbPath)
 
@@ -566,9 +568,7 @@ export async function getMedia(dbPath, options = {}) {
   }
 
   try {
-    // Extract study ID from path
-    const pathParts = dbPath.split('/')
-    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+    const studyId = getStudyIdFromPath(dbPath)
 
     const db = await getDrizzleDb(studyId, dbPath)
 
@@ -692,9 +692,7 @@ export async function getSpeciesDailyActivity(dbPath, species, startDate, endDat
   log.info(`Species: ${species.join(', ')}`)
 
   try {
-    // Extract study ID from path
-    const pathParts = dbPath.split('/')
-    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+    const studyId = getStudyIdFromPath(dbPath)
 
     const db = await getDrizzleDb(studyId, dbPath)
 
@@ -774,9 +772,7 @@ export async function createImageDirectoryDatabase(dbPath) {
   log.info(`Creating new database at: ${dbPath}`)
 
   try {
-    // Extract study ID from path
-    const pathParts = dbPath.split('/')
-    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+    const studyId = getStudyIdFromPath(dbPath)
 
     // Use the Drizzle database manager which will create the database and run migrations
     const manager = await getStudyDatabase(studyId, dbPath)
@@ -925,9 +921,7 @@ export async function getDeploymentsActivity(dbPath) {
   log.info(`Querying deployment activity from: ${dbPath}`)
 
   try {
-    // Extract study ID from path
-    const pathParts = dbPath.split('/')
-    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+    const studyId = getStudyIdFromPath(dbPath)
 
     const db = await getDrizzleDb(studyId, dbPath)
 
@@ -1058,9 +1052,7 @@ export async function getFilesData(dbPath) {
   log.info(`Querying files data from: ${dbPath}`)
 
   try {
-    // Extract study ID from path
-    const pathParts = dbPath.split('/')
-    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+    const studyId = getStudyIdFromPath(dbPath)
 
     const db = await getDrizzleDb(studyId, dbPath)
 
@@ -1111,9 +1103,7 @@ export async function getMediaBboxes(dbPath, mediaID, includeWithoutBbox = false
   log.info(`Querying bboxes for media: ${mediaID} (includeWithoutBbox: ${includeWithoutBbox})`)
 
   try {
-    // Extract study ID from path
-    const pathParts = dbPath.split('/')
-    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+    const studyId = getStudyIdFromPath(dbPath)
 
     const db = await getDrizzleDb(studyId, dbPath)
 
@@ -1166,8 +1156,7 @@ export async function getMediaBboxesBatch(dbPath, mediaIDs) {
   log.info(`Querying bboxes for ${mediaIDs.length} media items`)
 
   try {
-    const pathParts = dbPath.split('/')
-    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+    const studyId = getStudyIdFromPath(dbPath)
 
     const db = await getDrizzleDb(studyId, dbPath)
 
@@ -1224,8 +1213,7 @@ export async function checkMediaHaveBboxes(dbPath, mediaIDs) {
   log.info(`Checking bbox existence for ${mediaIDs.length} media items`)
 
   try {
-    const pathParts = dbPath.split('/')
-    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+    const studyId = getStudyIdFromPath(dbPath)
 
     const db = await getDrizzleDb(studyId, dbPath)
 
@@ -1283,9 +1271,7 @@ export async function updateMediaTimestamp(dbPath, mediaID, newTimestamp) {
       throw new Error(`Timestamp year must be between 1970 and 2100, got ${year}`)
     }
 
-    // Extract study ID from path
-    const pathParts = dbPath.split('/')
-    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+    const studyId = getStudyIdFromPath(dbPath)
 
     const db = await getDrizzleDb(studyId, dbPath)
 
@@ -1426,9 +1412,7 @@ export async function updateObservationClassification(dbPath, observationID, upd
   log.info(`Updating observation classification: ${observationID}`)
 
   try {
-    // Extract study ID from path
-    const pathParts = dbPath.split('/')
-    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+    const studyId = getStudyIdFromPath(dbPath)
 
     const db = await getDrizzleDb(studyId, dbPath)
 
@@ -1498,9 +1482,7 @@ export async function updateObservationBbox(dbPath, observationID, bboxUpdates) 
   log.info(`Updating observation bbox: ${observationID}`)
 
   try {
-    // Extract study ID from path
-    const pathParts = dbPath.split('/')
-    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+    const studyId = getStudyIdFromPath(dbPath)
 
     const db = await getDrizzleDb(studyId, dbPath)
 
@@ -1568,9 +1550,7 @@ export async function deleteObservation(dbPath, observationID) {
   log.info(`Deleting observation: ${observationID}`)
 
   try {
-    // Extract study ID from path
-    const pathParts = dbPath.split('/')
-    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+    const studyId = getStudyIdFromPath(dbPath)
 
     const db = await getDrizzleDb(studyId, dbPath)
 
@@ -1608,9 +1588,7 @@ export async function createObservation(dbPath, observationData) {
   log.info(`Creating new observation for media: ${observationData.mediaID}`)
 
   try {
-    // Extract study ID from path
-    const pathParts = dbPath.split('/')
-    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+    const studyId = getStudyIdFromPath(dbPath)
 
     const db = await getDrizzleDb(studyId, dbPath)
 
@@ -1704,9 +1682,7 @@ export async function getDistinctSpecies(dbPath) {
   log.info(`Querying distinct species from: ${dbPath}`)
 
   try {
-    // Extract study ID from path
-    const pathParts = dbPath.split('/')
-    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+    const studyId = getStudyIdFromPath(dbPath)
 
     const db = await getDrizzleDb(studyId, dbPath)
 
@@ -1739,8 +1715,7 @@ export async function checkStudyHasEventIDs(dbPath) {
   log.info(`Checking if study has eventIDs: ${dbPath}`)
 
   try {
-    const pathParts = dbPath.split('/')
-    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+    const studyId = getStudyIdFromPath(dbPath)
     const db = await getDrizzleDb(studyId, dbPath)
 
     const result = await db
@@ -2016,8 +1991,7 @@ export async function getBestMedia(dbPath, options = {}) {
   log.info(`Querying best media (hybrid mode) from: ${dbPath}`)
 
   try {
-    const pathParts = dbPath.split('/')
-    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+    const studyId = getStudyIdFromPath(dbPath)
 
     // Step 1: Get user-marked favorites first
     // Note: We need to join observations via both mediaID AND timestamp (for CamTrap DP datasets
@@ -2317,9 +2291,7 @@ export async function updateMediaFavorite(dbPath, mediaID, favorite) {
       throw new Error('Favorite must be a boolean value')
     }
 
-    // Extract study ID from path
-    const pathParts = dbPath.split('/')
-    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+    const studyId = getStudyIdFromPath(dbPath)
 
     const db = await getDrizzleDb(studyId, dbPath)
 
@@ -2357,8 +2329,7 @@ export async function countMediaWithNullTimestamps(dbPath) {
   log.info(`Counting media with null timestamps from: ${dbPath}`)
 
   try {
-    const pathParts = dbPath.split('/')
-    const studyId = pathParts[pathParts.length - 2] || 'unknown'
+    const studyId = getStudyIdFromPath(dbPath)
 
     const db = await getDrizzleDb(studyId, dbPath)
 
