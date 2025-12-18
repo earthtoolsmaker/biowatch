@@ -10,6 +10,7 @@ import {
   Server,
   Mail
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { platformToKey, findPythonEnvironment } from '../../shared/mlmodels'
 import {
   isOwnEnvironmentDownload,
@@ -156,6 +157,10 @@ function ModelRow({ model, pythonEnvironment, platform, isDev = false, refreshKe
       setModelDownloadStatus(downloadStatus)
       setIsDownloading(false)
       setIsDownloaded(true)
+      toast.success(`${model.name} downloaded`, {
+        description: 'The model is ready to use.',
+        duration: 5000
+      })
     } catch (error) {
       setIsDownloading(false)
       console.error('Failed to download model:', error)
