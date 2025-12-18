@@ -349,7 +349,7 @@ function CustomModelRow() {
             href="https://www.earthtoolsmaker.org/contact"
             target="_blank"
             rel="noopener noreferrer"
-            className="bg-white cursor-pointer transition-colors flex flex-row gap-2 items-center border border-gray-200 px-3 h-8 text-sm shadow-sm rounded-md hover:bg-gray-100"
+            className="bg-white cursor-pointer transition-colors flex flex-row gap-2 items-center border border-gray-200 px-3 h-8 text-sm shadow-sm rounded-md hover:bg-gray-100 whitespace-nowrap"
           >
             <Mail color="black" size={14} />
             Contact Us
@@ -428,7 +428,7 @@ export default function Zoo({ modelZoo }) {
       <div className="flex justify-end mt-4">
         <button
           onClick={() => handleClearAllMLModels()}
-          className="bg-white cursor-pointer transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-3 h-9 text-sm shadow-sm rounded-md hover:bg-gray-50"
+          className="bg-white cursor-pointer transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-3 h-9 text-sm shadow-sm rounded-md hover:bg-gray-50 whitespace-nowrap"
         >
           <Trash2 color="black" size={14} />
           Clear All
