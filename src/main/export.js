@@ -28,6 +28,7 @@ import {
   sanitizeDatapackage,
   CAMTRAP_DP_PROFILE_URL
 } from './export/sanitizers.js'
+import { getStudyIdFromPath } from './queries.js'
 
 function getStudyDatabasePath(userDataPath, studyId) {
   return join(getStudyPath(userDataPath, studyId), 'study.db')
@@ -276,8 +277,7 @@ export async function exportImageDirectories(studyId, options = {}) {
     }
 
     // Get all media with species information from database using Drizzle
-    const pathParts = dbPath.split('/')
-    const studyIdFromPath = pathParts[pathParts.length - 2] || 'unknown'
+    const studyIdFromPath = getStudyIdFromPath(dbPath)
     const db = await getDrizzleDb(studyIdFromPath, dbPath)
 
     // Build query conditions for species media
@@ -826,8 +826,7 @@ export async function exportCamtrapDP(studyId, options = {}) {
       return { success: false, error: 'Database not found for this study' }
     }
 
-    const pathParts = dbPath.split('/')
-    const studyIdFromPath = pathParts[pathParts.length - 2] || 'unknown'
+    const studyIdFromPath = getStudyIdFromPath(dbPath)
     const db = await getDrizzleDb(studyIdFromPath, dbPath)
 
     // Query all deployments
