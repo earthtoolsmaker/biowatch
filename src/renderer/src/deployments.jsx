@@ -99,21 +99,6 @@ const createCameraIcon = (isActive) => {
 const cameraIcon = createCameraIcon(false)
 const activeCameraIcon = createCameraIcon(true)
 
-const ghostCameraIcon = (() => {
-  const ghostIcon = ReactDOMServer.renderToString(
-    <div className="ghost-camera-marker" style={{ opacity: 0.6 }}>
-      <Camera color="#1E40AF" fill="#93C5FD" size={28} />
-    </div>
-  )
-
-  return L.divIcon({
-    html: ghostIcon,
-    className: 'ghost-camera-icon',
-    iconSize: [18, 18],
-    iconAnchor: [14, 14]
-  })
-})()
-
 // Custom cluster icon creator
 const createClusterCustomIcon = (cluster) => {
   const count = cluster.getChildCount()
@@ -148,20 +133,12 @@ function LayerChangeHandler({ onLayerChange }) {
 }
 
 // Component to handle map events for place mode
-function MapEventHandler({ isPlaceMode, onMapClick, onMouseMove, onMouseOut }) {
+function MapEventHandler({ isPlaceMode, onMapClick }) {
   useMapEvents({
     click: (e) => {
       if (isPlaceMode) {
         onMapClick(e.latlng)
       }
-    },
-    mousemove: (e) => {
-      if (isPlaceMode) {
-        onMouseMove(e.latlng)
-      }
-    },
-    mouseout: () => {
-      onMouseOut()
     }
   })
   return null
@@ -197,7 +174,6 @@ function LocationMap({
   studyId
 }) {
   const mapRef = useRef(null)
-  const [mousePosition, setMousePosition] = useState(null)
 
   // Persist map layer selection per study
   const mapLayerKey = `mapLayer:${studyId}`
@@ -238,9 +214,7 @@ function LocationMap({
   }, [validLocations])
 
   return (
-    <div
-      className={`w-full h-full bg-white rounded border border-gray-200 relative ${isPlaceMode ? 'place-mode-active' : ''}`}
-    >
+    <div className="w-full h-full bg-white rounded border border-gray-200 relative">
       <MapContainer
         {...(bounds
           ? { bounds: bounds, boundsOptions: { padding: [30, 30] } }
@@ -269,12 +243,7 @@ function LocationMap({
         <FlyToSelected selectedLocation={selectedLocation} />
 
         {/* Map event handler for place mode */}
-        <MapEventHandler
-          isPlaceMode={isPlaceMode}
-          onMapClick={(latlng) => onPlaceLocation(latlng)}
-          onMouseMove={(latlng) => setMousePosition(latlng)}
-          onMouseOut={() => setMousePosition(null)}
-        />
+        <MapEventHandler isPlaceMode={isPlaceMode} onMapClick={onPlaceLocation} />
 
         <MarkerClusterGroup
           chunkedLoading
@@ -315,16 +284,6 @@ function LocationMap({
             />
           ))}
         </MarkerClusterGroup>
-
-        {/* Ghost marker for place mode preview */}
-        {isPlaceMode && mousePosition && (
-          <Marker
-            position={[mousePosition.lat, mousePosition.lng]}
-            icon={ghostCameraIcon}
-            interactive={false}
-            zIndexOffset={2000}
-          />
-        )}
       </MapContainer>
 
       {/* Place mode indicator */}
@@ -353,6 +312,7 @@ function LocationMap({
 const DeploymentRow = memo(function DeploymentRow({
   location,
   isSelected,
+  isPlaceMode,
   onSelect,
   onNewLatitude,
   onNewLongitude,
@@ -372,10 +332,9 @@ const DeploymentRow = memo(function DeploymentRow({
   const handlePlaceClick = useCallback(
     (e) => {
       e.stopPropagation()
-      onSelect(location)
-      onEnterPlaceMode()
+      onEnterPlaceMode(location)
     },
-    [location, onSelect, onEnterPlaceMode]
+    [location, onEnterPlaceMode]
   )
 
   const handleRowClick = useCallback(() => onSelect(location), [location, onSelect])
@@ -427,8 +386,14 @@ const DeploymentRow = memo(function DeploymentRow({
           />
           <button
             onClick={handlePlaceClick}
-            className="p-1.5 rounded hover:bg-blue-100 text-gray-500 hover:text-blue-600 transition-colors"
-            title="Click on map to set location"
+            className={`p-1.5 rounded transition-colors ${
+              isSelected && isPlaceMode
+                ? 'bg-blue-100 text-blue-600'
+                : 'hover:bg-blue-100 text-gray-500 hover:text-blue-600'
+            }`}
+            title={
+              isSelected && isPlaceMode ? 'Click on map to place' : 'Click on map to set location'
+            }
           >
             <MapPin size={16} />
           </button>
@@ -533,6 +498,7 @@ const LocationGroupHeader = memo(function LocationGroupHeader({
 const GroupedDeploymentRow = memo(function GroupedDeploymentRow({
   location,
   isSelected,
+  isPlaceMode,
   onSelect,
   onNewLatitude,
   onNewLongitude,
@@ -544,6 +510,7 @@ const GroupedDeploymentRow = memo(function GroupedDeploymentRow({
       <DeploymentRow
         location={location}
         isSelected={isSelected}
+        isPlaceMode={isPlaceMode}
         onSelect={onSelect}
         onNewLatitude={onNewLatitude}
         onNewLongitude={onNewLongitude}
@@ -628,6 +595,7 @@ function LocationsList({
   onNewLatitude,
   onNewLongitude,
   onEnterPlaceMode,
+  isPlaceMode,
   groupToExpand,
   onGroupExpanded
 }) {
@@ -799,6 +767,7 @@ function LocationsList({
                   <DeploymentRow
                     location={item.deployment}
                     isSelected={selectedLocation?.deploymentID === item.deployment.deploymentID}
+                    isPlaceMode={isPlaceMode}
                     onSelect={setSelectedLocation}
                     onNewLatitude={onNewLatitude}
                     onNewLongitude={onNewLongitude}
@@ -823,6 +792,7 @@ function LocationsList({
                   <GroupedDeploymentRow
                     location={item.deployment}
                     isSelected={selectedLocation?.deploymentID === item.deployment.deploymentID}
+                    isPlaceMode={isPlaceMode}
                     onSelect={setSelectedLocation}
                     onNewLatitude={onNewLatitude}
                     onNewLongitude={onNewLongitude}
@@ -925,13 +895,20 @@ export default function Deployments({ studyId }) {
     [studyId, queryClient]
   )
 
-  const handleEnterPlaceMode = useCallback(() => {
-    if (!selectedLocation) {
-      console.warn('Please select a deployment first')
-      return
-    }
-    setIsPlaceMode(true)
-  }, [selectedLocation])
+  const handleEnterPlaceMode = useCallback(
+    (location) => {
+      // Use provided location or fall back to selectedLocation
+      if (!location && !selectedLocation) {
+        console.warn('Please select a deployment first')
+        return
+      }
+      if (location) {
+        setSelectedLocation(location)
+      }
+      setIsPlaceMode(true)
+    },
+    [selectedLocation]
+  )
 
   const handleExitPlaceMode = useCallback(() => {
     setIsPlaceMode(false)
@@ -957,7 +934,7 @@ export default function Deployments({ studyId }) {
   }, [])
 
   return (
-    <div className="flex flex-col px-4 h-full gap-4">
+    <div className={`flex flex-col px-4 h-full gap-4 ${isPlaceMode ? 'place-mode-active' : ''}`}>
       <div className="h-96">
         {isLoading ? (
           <SkeletonMap title="Loading Deployments" message="Loading deployment locations..." />
@@ -987,6 +964,7 @@ export default function Deployments({ studyId }) {
             onNewLatitude={onNewLatitude}
             onNewLongitude={onNewLongitude}
             onEnterPlaceMode={handleEnterPlaceMode}
+            isPlaceMode={isPlaceMode}
             groupToExpand={groupToExpand}
             onGroupExpanded={handleGroupExpanded}
           />
