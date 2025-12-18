@@ -1,14 +1,29 @@
-import { useEffect, useState } from 'react'
-import { sortSpeciesHumansLast } from '../utils/speciesUtils'
+import { useEffect, useState, useMemo } from 'react'
+import { sortSpeciesHumansLast, isBlank, BLANK_SENTINEL } from '../utils/speciesUtils'
 
 // Create a module-level cache for common names that persists across component unmounts
 const commonNamesCache = {}
 
-function SpeciesDistribution({ data, taxonomicData, selectedSpecies, onSpeciesChange, palette }) {
+function SpeciesDistribution({
+  data,
+  taxonomicData,
+  selectedSpecies,
+  onSpeciesChange,
+  palette,
+  blankCount = 0
+}) {
   // Add a simple state to force re-renders when cache is updated
   const [, forceUpdate] = useState({})
 
-  const totalCount = data.reduce((sum, item) => sum + item.count, 0)
+  // Combine species data with blank entry if blankCount > 0
+  const displayData = useMemo(() => {
+    if (blankCount > 0) {
+      return [...data, { scientificName: BLANK_SENTINEL, count: blankCount }]
+    }
+    return data
+  }, [data, blankCount])
+
+  const totalCount = displayData.reduce((sum, item) => sum + item.count, 0)
 
   // Create a map of scientific names to common names from taxonomic data
   const scientificToCommonMap = {}
@@ -77,7 +92,7 @@ function SpeciesDistribution({ data, taxonomicData, selectedSpecies, onSpeciesCh
     }
   }
 
-  // Fetch missing common names
+  // Fetch missing common names (skip for blank entries)
   useEffect(() => {
     const fetchMissingCommonNames = async () => {
       if (!data) return
@@ -85,6 +100,7 @@ function SpeciesDistribution({ data, taxonomicData, selectedSpecies, onSpeciesCh
       const missingCommonNames = data.filter(
         (species) =>
           species.scientificName &&
+          !isBlank(species.scientificName) && // Skip blank entries
           !scientificToCommonMap[species.scientificName] &&
           commonNamesCache[species.scientificName] === undefined // Only fetch if not cached
       )
@@ -128,26 +144,33 @@ function SpeciesDistribution({ data, taxonomicData, selectedSpecies, onSpeciesCh
     }
   }
 
-  if (!data || data.length === 0) {
+  if (!displayData || displayData.length === 0) {
     return <div className="text-gray-500">No species data available</div>
   }
+
+  // Count actual species (excluding blank)
+  const speciesCount = blankCount > 0 ? displayData.length - 1 : displayData.length
 
   return (
     <div className="w-full h-full bg-white rounded border border-gray-200 flex flex-col overflow-hidden">
       {/* Header - matches GalleryControls height/style */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-200 flex-shrink-0">
         <span className="text-sm font-medium text-gray-700">Species</span>
-        <span className="text-xs text-gray-400">({data.length})</span>
+        <span className="text-xs text-gray-400">({speciesCount})</span>
       </div>
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto p-3 myscroll">
         <div className="space-y-4">
-          {sortSpeciesHumansLast(data).map((species, index) => {
-            // Try to get the common name from the taxonomic data first, then from the cache
-            const commonName =
-              scientificToCommonMap[species.scientificName] ||
-              commonNamesCache[species.scientificName]
+          {sortSpeciesHumansLast(displayData).map((species, index) => {
+            const isBlankEntry = isBlank(species.scientificName)
+
+            // For blank entries, use "Blank" as display name; otherwise use common name or scientific name
+            const displayName = isBlankEntry
+              ? 'Blank'
+              : scientificToCommonMap[species.scientificName] ||
+                commonNamesCache[species.scientificName] ||
+                species.scientificName
 
             const isSelected = selectedSpecies.some(
               (s) => s.scientificName === species.scientificName
@@ -159,7 +182,7 @@ function SpeciesDistribution({ data, taxonomicData, selectedSpecies, onSpeciesCh
 
             return (
               <div
-                key={index}
+                key={species.scientificName || index}
                 className="cursor-pointer group"
                 onClick={() => handleSpeciesToggle(species)}
               >
@@ -172,14 +195,19 @@ function SpeciesDistribution({ data, taxonomicData, selectedSpecies, onSpeciesCh
                       }}
                     ></div>
 
-                    <span className="capitalize text-sm">
-                      {commonName || species.scientificName}
+                    <span
+                      className={`text-sm ${isBlankEntry ? 'text-gray-500 italic' : 'capitalize'}`}
+                    >
+                      {displayName}
                     </span>
-                    {species.scientificName && commonName !== undefined && (
-                      <span className="text-gray-500 text-sm italic ml-2">
-                        {species.scientificName}
-                      </span>
-                    )}
+                    {!isBlankEntry &&
+                      species.scientificName &&
+                      (scientificToCommonMap[species.scientificName] ||
+                        commonNamesCache[species.scientificName]) && (
+                        <span className="text-gray-500 text-sm italic ml-2">
+                          {species.scientificName}
+                        </span>
+                      )}
                   </div>
                   <span className="text-xs text-gray-500">{species.count}</span>
                 </div>

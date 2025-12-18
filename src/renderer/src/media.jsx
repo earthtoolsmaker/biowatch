@@ -2693,6 +2693,17 @@ export default function Activity({ studyData, studyId }) {
     enabled: !!actualStudyId
   })
 
+  // Fetch blank media count (media without observations)
+  const { data: blankCount = 0 } = useQuery({
+    queryKey: ['blankMediaCount', actualStudyId],
+    queryFn: async () => {
+      const response = await window.api.getBlankMediaCount(actualStudyId)
+      if (response.error) throw new Error(response.error)
+      return response.data
+    },
+    enabled: !!actualStudyId
+  })
+
   // Initialize selectedSpecies when speciesDistributionData loads
   // Excludes humans/vehicles from default selection
   useEffect(() => {
@@ -2805,6 +2816,7 @@ export default function Activity({ studyData, studyId }) {
                   selectedSpecies={selectedSpecies}
                   onSpeciesChange={handleSpeciesChange}
                   palette={palette}
+                  blankCount={blankCount}
                 />
               )}
             </div>

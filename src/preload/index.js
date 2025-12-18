@@ -27,6 +27,9 @@ const api = {
   getSpeciesDistribution: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('species:get-distribution', studyId)
   },
+  getBlankMediaCount: async (studyId) => {
+    return await electronAPI.ipcRenderer.invoke('species:get-blank-count', studyId)
+  },
   getDeployments: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('deployments:get', studyId)
   },
