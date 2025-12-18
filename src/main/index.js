@@ -20,6 +20,7 @@ import {
   checkMediaHaveBboxes,
   getSpeciesDailyActivity,
   getSpeciesDistribution,
+  getBlankMediaCount,
   getSpeciesHeatmapData,
   getSpeciesTimeseries,
   getFilesData,
@@ -775,6 +776,23 @@ app.whenReady().then(async () => {
       return { data: distribution }
     } catch (error) {
       log.error('Error getting species distribution:', error)
+      return { error: error.message }
+    }
+  })
+
+  // Add blank media count handler
+  ipcMain.handle('species:get-blank-count', async (_, studyId) => {
+    try {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) {
+        log.warn(`Database not found for study ID: ${studyId}`)
+        return { error: 'Database not found for this study' }
+      }
+
+      const blankCount = await getBlankMediaCount(dbPath)
+      return { data: blankCount }
+    } catch (error) {
+      log.error('Error getting blank media count:', error)
       return { error: error.message }
     }
   })

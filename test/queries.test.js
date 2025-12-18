@@ -20,7 +20,8 @@ import {
   insertDeployments,
   insertMedia,
   insertObservations,
-  getStudyIdFromPath
+  getStudyIdFromPath,
+  getBlankMediaCount
 } from '../src/main/queries.js'
 
 // Test database setup
@@ -578,6 +579,383 @@ describe('Database Query Functions Tests', () => {
       } catch (error) {
         assert(error instanceof Error, 'Should throw an Error')
       }
+    })
+  })
+
+  describe('getBlankMediaCount', () => {
+    test('should return 0 for mediaID-based dataset with no blanks', async () => {
+      // Standard test data has all media linked to observations via mediaID
+      await createTestData(testDbPath)
+
+      const result = await getBlankMediaCount(testDbPath)
+
+      assert.equal(result, 0, 'Should return 0 when all media have observations')
+    })
+
+    test('should return correct blank count for mediaID-based dataset with blanks', async () => {
+      const manager = await createImageDirectoryDatabase(testDbPath)
+
+      // Create deployments
+      await insertDeployments(manager, {
+        deploy001: {
+          deploymentID: 'deploy001',
+          locationID: 'loc001',
+          locationName: 'Forest Site A',
+          deploymentStart: DateTime.fromISO('2023-03-15T10:00:00Z'),
+          deploymentEnd: DateTime.fromISO('2023-06-15T18:00:00Z'),
+          latitude: 46.7712,
+          longitude: 6.6413
+        }
+      })
+
+      // Create 5 media items
+      await insertMedia(manager, {
+        'media001.jpg': {
+          mediaID: 'media001',
+          deploymentID: 'deploy001',
+          timestamp: DateTime.fromISO('2023-03-20T14:30:15Z'),
+          filePath: 'images/folder1/media001.jpg',
+          fileName: 'media001.jpg',
+          importFolder: 'images',
+          folderName: 'folder1'
+        },
+        'media002.jpg': {
+          mediaID: 'media002',
+          deploymentID: 'deploy001',
+          timestamp: DateTime.fromISO('2023-03-20T14:30:30Z'),
+          filePath: 'images/folder1/media002.jpg',
+          fileName: 'media002.jpg',
+          importFolder: 'images',
+          folderName: 'folder1'
+        },
+        'media003.jpg': {
+          mediaID: 'media003',
+          deploymentID: 'deploy001',
+          timestamp: DateTime.fromISO('2023-03-20T14:30:45Z'),
+          filePath: 'images/folder1/media003.jpg',
+          fileName: 'media003.jpg',
+          importFolder: 'images',
+          folderName: 'folder1'
+        },
+        'media004.jpg': {
+          mediaID: 'media004',
+          deploymentID: 'deploy001',
+          timestamp: DateTime.fromISO('2023-03-20T14:31:00Z'),
+          filePath: 'images/folder1/media004.jpg',
+          fileName: 'media004.jpg',
+          importFolder: 'images',
+          folderName: 'folder1'
+        },
+        'media005.jpg': {
+          mediaID: 'media005',
+          deploymentID: 'deploy001',
+          timestamp: DateTime.fromISO('2023-03-20T14:31:15Z'),
+          filePath: 'images/folder1/media005.jpg',
+          fileName: 'media005.jpg',
+          importFolder: 'images',
+          folderName: 'folder1'
+        }
+      })
+
+      // Create observations only for media001, media002, media003 (leave media004, media005 as blanks)
+      await insertObservations(manager, [
+        {
+          observationID: 'obs001',
+          mediaID: 'media001', // Linked via mediaID
+          deploymentID: 'deploy001',
+          eventID: 'event001',
+          eventStart: DateTime.fromISO('2023-03-20T14:30:15Z'),
+          eventEnd: DateTime.fromISO('2023-03-20T14:30:45Z'),
+          scientificName: 'Cervus elaphus',
+          count: 1
+        },
+        {
+          observationID: 'obs002',
+          mediaID: 'media002', // Linked via mediaID
+          deploymentID: 'deploy001',
+          eventID: 'event001',
+          eventStart: DateTime.fromISO('2023-03-20T14:30:15Z'),
+          eventEnd: DateTime.fromISO('2023-03-20T14:30:45Z'),
+          scientificName: 'Cervus elaphus',
+          count: 1
+        },
+        {
+          observationID: 'obs003',
+          mediaID: 'media003', // Linked via mediaID
+          deploymentID: 'deploy001',
+          eventID: 'event001',
+          eventStart: DateTime.fromISO('2023-03-20T14:30:15Z'),
+          eventEnd: DateTime.fromISO('2023-03-20T14:30:45Z'),
+          scientificName: 'Cervus elaphus',
+          count: 1
+        }
+      ])
+
+      const result = await getBlankMediaCount(testDbPath)
+
+      assert.equal(result, 2, 'Should return 2 blanks (media004 and media005)')
+    })
+
+    test('should return 0 for timestamp-based dataset (CamTrap DP format)', async () => {
+      // Timestamp-based datasets have NULL mediaID in all observations
+      // They link media to observations via eventStart/eventEnd time ranges
+      const manager = await createImageDirectoryDatabase(testDbPath)
+
+      // Create deployments
+      await insertDeployments(manager, {
+        deploy001: {
+          deploymentID: 'deploy001',
+          locationID: 'loc001',
+          locationName: 'Forest Site A',
+          deploymentStart: DateTime.fromISO('2023-03-15T10:00:00Z'),
+          deploymentEnd: DateTime.fromISO('2023-06-15T18:00:00Z'),
+          latitude: 46.7712,
+          longitude: 6.6413
+        }
+      })
+
+      // Create 3 media items in a burst sequence
+      await insertMedia(manager, {
+        'media001.jpg': {
+          mediaID: 'media001',
+          deploymentID: 'deploy001',
+          timestamp: DateTime.fromISO('2023-03-20T14:30:15Z'),
+          filePath: 'images/folder1/media001.jpg',
+          fileName: 'media001.jpg',
+          importFolder: 'images',
+          folderName: 'folder1'
+        },
+        'media002.jpg': {
+          mediaID: 'media002',
+          deploymentID: 'deploy001',
+          timestamp: DateTime.fromISO('2023-03-20T14:30:20Z'),
+          filePath: 'images/folder1/media002.jpg',
+          fileName: 'media002.jpg',
+          importFolder: 'images',
+          folderName: 'folder1'
+        },
+        'media003.jpg': {
+          mediaID: 'media003',
+          deploymentID: 'deploy001',
+          timestamp: DateTime.fromISO('2023-03-20T14:30:25Z'),
+          filePath: 'images/folder1/media003.jpg',
+          fileName: 'media003.jpg',
+          importFolder: 'images',
+          folderName: 'folder1'
+        }
+      })
+
+      // Create observation with NULL mediaID (timestamp-based linking)
+      // This observation covers the entire burst sequence via eventStart/eventEnd
+      await insertObservations(manager, [
+        {
+          observationID: 'obs001',
+          mediaID: null, // NULL = timestamp-based linking (CamTrap DP format)
+          deploymentID: 'deploy001',
+          eventID: 'event001',
+          eventStart: DateTime.fromISO('2023-03-20T14:30:15Z'), // First media timestamp
+          eventEnd: DateTime.fromISO('2023-03-20T14:30:25Z'), // Last media timestamp
+          scientificName: 'Cervus elaphus',
+          count: 1
+        }
+      ])
+
+      const result = await getBlankMediaCount(testDbPath)
+
+      // Should return 0 because this is a timestamp-based dataset
+      // (even though technically media002 and media003 don't have direct mediaID links)
+      assert.equal(result, 0, 'Should return 0 for timestamp-based datasets')
+    })
+
+    test('should return 0 for empty database with no media', async () => {
+      await createImageDirectoryDatabase(testDbPath)
+
+      const result = await getBlankMediaCount(testDbPath)
+
+      assert.equal(result, 0, 'Should return 0 for empty database')
+    })
+
+    test('should correctly distinguish mixed datasets with some mediaID observations', async () => {
+      // This tests a dataset that has SOME observations with mediaID (so it's not timestamp-based)
+      const manager = await createImageDirectoryDatabase(testDbPath)
+
+      await insertDeployments(manager, {
+        deploy001: {
+          deploymentID: 'deploy001',
+          locationID: 'loc001',
+          locationName: 'Forest Site A',
+          deploymentStart: DateTime.fromISO('2023-03-15T10:00:00Z'),
+          deploymentEnd: DateTime.fromISO('2023-06-15T18:00:00Z'),
+          latitude: 46.7712,
+          longitude: 6.6413
+        }
+      })
+
+      await insertMedia(manager, {
+        'media001.jpg': {
+          mediaID: 'media001',
+          deploymentID: 'deploy001',
+          timestamp: DateTime.fromISO('2023-03-20T14:30:15Z'),
+          filePath: 'images/folder1/media001.jpg',
+          fileName: 'media001.jpg',
+          importFolder: 'images',
+          folderName: 'folder1'
+        },
+        'media002.jpg': {
+          mediaID: 'media002',
+          deploymentID: 'deploy001',
+          timestamp: DateTime.fromISO('2023-03-20T14:30:30Z'),
+          filePath: 'images/folder1/media002.jpg',
+          fileName: 'media002.jpg',
+          importFolder: 'images',
+          folderName: 'folder1'
+        }
+      })
+
+      // One observation with mediaID, one without
+      await insertObservations(manager, [
+        {
+          observationID: 'obs001',
+          mediaID: 'media001', // Has mediaID - makes this a mediaID-based dataset
+          deploymentID: 'deploy001',
+          eventID: 'event001',
+          eventStart: DateTime.fromISO('2023-03-20T14:30:15Z'),
+          eventEnd: DateTime.fromISO('2023-03-20T14:30:45Z'),
+          scientificName: 'Cervus elaphus',
+          count: 1
+        },
+        {
+          observationID: 'obs002',
+          mediaID: null, // This one has NULL mediaID
+          deploymentID: 'deploy001',
+          eventID: 'event002',
+          eventStart: DateTime.fromISO('2023-03-20T15:00:00Z'),
+          eventEnd: DateTime.fromISO('2023-03-20T15:00:30Z'),
+          scientificName: 'Vulpes vulpes',
+          count: 1
+        }
+      ])
+
+      const result = await getBlankMediaCount(testDbPath)
+
+      // Should treat as mediaID-based dataset (because at least one obs has mediaID)
+      // media002 has no observation linked via mediaID, so it's blank
+      assert.equal(result, 1, 'Should return 1 blank for mixed dataset')
+    })
+  })
+
+  describe('getMedia with blanks', () => {
+    test('should return blank media when BLANK_SENTINEL is in species list', async () => {
+      const manager = await createImageDirectoryDatabase(testDbPath)
+
+      await insertDeployments(manager, {
+        deploy001: {
+          deploymentID: 'deploy001',
+          locationID: 'loc001',
+          locationName: 'Forest Site A',
+          deploymentStart: DateTime.fromISO('2023-03-15T10:00:00Z'),
+          deploymentEnd: DateTime.fromISO('2023-06-15T18:00:00Z'),
+          latitude: 46.7712,
+          longitude: 6.6413
+        }
+      })
+
+      await insertMedia(manager, {
+        'media001.jpg': {
+          mediaID: 'media001',
+          deploymentID: 'deploy001',
+          timestamp: DateTime.fromISO('2023-03-20T14:30:15Z'),
+          filePath: 'images/folder1/media001.jpg',
+          fileName: 'media001.jpg',
+          importFolder: 'images',
+          folderName: 'folder1'
+        },
+        'blank_media.jpg': {
+          mediaID: 'blank001',
+          deploymentID: 'deploy001',
+          timestamp: DateTime.fromISO('2023-03-20T15:00:00Z'),
+          filePath: 'images/folder1/blank_media.jpg',
+          fileName: 'blank_media.jpg',
+          importFolder: 'images',
+          folderName: 'folder1'
+        }
+      })
+
+      // Only one observation, leaving blank001 as blank
+      await insertObservations(manager, [
+        {
+          observationID: 'obs001',
+          mediaID: 'media001',
+          deploymentID: 'deploy001',
+          eventID: 'event001',
+          eventStart: DateTime.fromISO('2023-03-20T14:30:15Z'),
+          eventEnd: DateTime.fromISO('2023-03-20T14:30:45Z'),
+          scientificName: 'Cervus elaphus',
+          count: 1
+        }
+      ])
+
+      // Query for blanks using the BLANK_SENTINEL value
+      const result = await getMedia(testDbPath, {
+        species: ['__blank__'],
+        limit: 10
+      })
+
+      assert.equal(result.length, 1, 'Should return 1 blank media')
+      assert.equal(result[0].mediaID, 'blank001', 'Should return the blank media')
+      // Blank media have NULL scientificName in the database
+      // The __blank__ sentinel is used by the frontend for display/filtering
+      assert.equal(result[0].scientificName, null, 'Blank media should have null scientificName')
+    })
+
+    test('should return empty array for timestamp-based dataset when requesting only blanks', async () => {
+      const manager = await createImageDirectoryDatabase(testDbPath)
+
+      await insertDeployments(manager, {
+        deploy001: {
+          deploymentID: 'deploy001',
+          locationID: 'loc001',
+          locationName: 'Forest Site A',
+          deploymentStart: DateTime.fromISO('2023-03-15T10:00:00Z'),
+          deploymentEnd: DateTime.fromISO('2023-06-15T18:00:00Z'),
+          latitude: 46.7712,
+          longitude: 6.6413
+        }
+      })
+
+      await insertMedia(manager, {
+        'media001.jpg': {
+          mediaID: 'media001',
+          deploymentID: 'deploy001',
+          timestamp: DateTime.fromISO('2023-03-20T14:30:15Z'),
+          filePath: 'images/folder1/media001.jpg',
+          fileName: 'media001.jpg',
+          importFolder: 'images',
+          folderName: 'folder1'
+        }
+      })
+
+      // Timestamp-based observation (NULL mediaID)
+      await insertObservations(manager, [
+        {
+          observationID: 'obs001',
+          mediaID: null, // NULL = timestamp-based
+          deploymentID: 'deploy001',
+          eventID: 'event001',
+          eventStart: DateTime.fromISO('2023-03-20T14:30:15Z'),
+          eventEnd: DateTime.fromISO('2023-03-20T14:30:45Z'),
+          scientificName: 'Cervus elaphus',
+          count: 1
+        }
+      ])
+
+      // Query for blanks - should return empty for timestamp-based datasets
+      const result = await getMedia(testDbPath, {
+        species: ['__blank__'],
+        limit: 10
+      })
+
+      assert.equal(result.length, 0, 'Should return empty array for timestamp-based dataset')
     })
   })
 

@@ -21,7 +21,8 @@ import {
   gte,
   lte,
   isNull,
-  or
+  or,
+  notExists
 } from 'drizzle-orm'
 import log from 'electron-log'
 import { DateTime } from 'luxon'
@@ -73,6 +74,24 @@ export function getStudyIdFromPath(dbPath) {
 }
 
 /**
+ * Check if a dataset uses timestamp-based linking (CamTrap DP format)
+ * These datasets have NULL mediaID in all observations and link via eventStart/eventEnd ranges.
+ * For these datasets, blank detection is not supported (would require slow range queries).
+ * @param {object} db - Drizzle database instance
+ * @returns {Promise<boolean>} - True if timestamp-based (all observations have NULL mediaID)
+ */
+async function isTimestampBasedDataset(db) {
+  const result = await db
+    .select({
+      hasMediaID: sql`CASE WHEN COUNT(CASE WHEN mediaID IS NOT NULL THEN 1 END) > 0 THEN 1 ELSE 0 END`
+    })
+    .from(observations)
+    .get()
+
+  return result?.hasMediaID === 0
+}
+
+/**
  * Get species distribution from the database using Drizzle ORM
  * @param {string} dbPath - Path to the SQLite database
  * @returns {Promise<Array>} - Species distribution data
@@ -108,6 +127,53 @@ export async function getSpeciesDistribution(dbPath) {
     return result
   } catch (error) {
     log.error(`Error querying species distribution: ${error.message}`)
+    throw error
+  }
+}
+
+/**
+ * Get count of blank media (media with no observations) from the database
+ * For mediaID-based datasets: counts media with no linked observations
+ * For timestamp-based datasets (CamTrap DP): returns 0 (blank detection not supported)
+ * @param {string} dbPath - Path to the SQLite database
+ * @returns {Promise<number>} - Count of media files with no observations
+ */
+export async function getBlankMediaCount(dbPath) {
+  const startTime = Date.now()
+  log.info(`Querying blank media count from: ${dbPath}`)
+
+  try {
+    const studyId = getStudyIdFromPath(dbPath)
+    const db = await getDrizzleDb(studyId, dbPath)
+
+    // Check if this is a timestamp-based dataset (CamTrap DP)
+    // These datasets use eventStart/eventEnd ranges which are slow to query
+    // Return 0 blanks for now (better than showing animals incorrectly as blanks)
+    if (await isTimestampBasedDataset(db)) {
+      const elapsedTime = Date.now() - startTime
+      log.info(`Timestamp-based dataset detected, returning 0 blanks in ${elapsedTime}ms`)
+      return 0
+    }
+
+    // For mediaID-based datasets, count media with no linked observations
+    const matchingObservations = db
+      .select({ one: sql`1` })
+      .from(observations)
+      .where(eq(observations.mediaID, media.mediaID))
+
+    const result = await db
+      .select({ count: count().as('count') })
+      .from(media)
+      .where(notExists(matchingObservations))
+      .get()
+
+    const blankCount = result?.count || 0
+    const elapsedTime = Date.now() - startTime
+    log.info(`Retrieved blank media count: ${blankCount} in ${elapsedTime}ms`)
+
+    return blankCount
+  } catch (error) {
+    log.error(`Error querying blank media count: ${error.message}`)
     throw error
   }
 }
@@ -318,13 +384,27 @@ export async function getSpeciesTimeseries(dbPath, speciesNames = []) {
   log.info(`Querying species timeseries from: ${dbPath} for specific species`)
   log.info(`Selected species: ${speciesNames.join(', ')}`)
 
+  // Check if requesting blanks (media without observations)
+  const BLANK_SENTINEL = '__blank__'
+  const requestingBlanks = speciesNames.includes(BLANK_SENTINEL)
+  const regularSpecies = speciesNames.filter((s) => s !== BLANK_SENTINEL)
+
   try {
     const studyId = getStudyIdFromPath(dbPath)
+    const db = await getDrizzleDb(studyId, dbPath)
+
+    // Check if this is a timestamp-based dataset (CamTrap DP)
+    // For these datasets, blank queries are not supported (would require slow range queries)
+    const isTimestampBased = requestingBlanks ? await isTimestampBasedDataset(db) : false
+    const effectiveRequestingBlanks = requestingBlanks && !isTimestampBased
+    if (requestingBlanks && isTimestampBased) {
+      log.info('Timestamp-based dataset: skipping blank timeseries')
+    }
 
     // Prepare species filter for the complex CTE query
     let speciesFilter = ''
-    if (speciesNames && speciesNames.length > 0) {
-      const quotedSpecies = speciesNames.map((name) => `'${name.replace(/'/g, "''")}'`).join(',')
+    if (regularSpecies && regularSpecies.length > 0) {
+      const quotedSpecies = regularSpecies.map((name) => `'${name.replace(/'/g, "''")}'`).join(',')
       speciesFilter = `AND scientificName IN (${quotedSpecies})`
     }
 
@@ -382,24 +462,97 @@ export async function getSpeciesTimeseries(dbPath, speciesNames = []) {
       ORDER BY wsc.week_start ASC, wsc.scientificName
     `
 
-    const timeseries = await executeRawQuery(studyId, dbPath, timeseriesQuery)
+    let timeseries = []
+    let speciesData = []
+
+    // Run species query if:
+    // - Specific species are requested (regularSpecies.length > 0), OR
+    // - No species filter provided at all (speciesNames.length === 0 = get all species)
+    // Only skip when ONLY blanks are requested (regularSpecies.length === 0 AND requestingBlanks)
+    const shouldRunSpeciesQuery = regularSpecies.length > 0 || !requestingBlanks
+    if (shouldRunSpeciesQuery) {
+      timeseries = await executeRawQuery(studyId, dbPath, timeseriesQuery)
+
+      // Extract species metadata from the timeseries data
+      const speciesMap = new Map()
+      timeseries.forEach((row) => {
+        if (!speciesMap.has(row.scientificName)) {
+          speciesMap.set(row.scientificName, {
+            scientificName: row.scientificName,
+            count: row.total_count
+          })
+        }
+      })
+
+      // Convert the map to an array and sort by count descending
+      speciesData = Array.from(speciesMap.values()).sort((a, b) => b.count - a.count)
+    }
+
+    // If requesting blanks, add blank media weekly counts
+    if (effectiveRequestingBlanks) {
+      const blankTimeseriesQuery = `
+        WITH date_range AS (
+          SELECT
+            date(min(substr(timestamp, 1, 10)), 'weekday 0', '-7 days') AS start_week,
+            date(max(substr(timestamp, 1, 10)), 'weekday 0') AS end_week
+          FROM media
+          WHERE timestamp IS NOT NULL AND substr(timestamp, 1, 4) > '1970'
+        ),
+        weeks(week_start) AS (
+          SELECT start_week FROM date_range
+          UNION ALL
+          SELECT date(week_start, '+7 days')
+          FROM weeks, date_range
+          WHERE week_start < end_week
+        ),
+        blank_media AS (
+          SELECT m.mediaID, m.timestamp
+          FROM media m
+          WHERE m.timestamp IS NOT NULL
+            AND NOT EXISTS (
+              SELECT 1 FROM observations o
+              WHERE o.mediaID = m.mediaID
+            )
+        ),
+        blank_weekly_counts AS (
+          SELECT
+            date(substr(timestamp, 1, 10), 'weekday 0', '-7 days') as week_start,
+            COUNT(*) as count
+          FROM blank_media
+          GROUP BY week_start
+        ),
+        blank_total AS (
+          SELECT COUNT(*) as total_count FROM blank_media
+        )
+        SELECT
+          w.week_start as date,
+          '${BLANK_SENTINEL}' as scientificName,
+          COALESCE(bwc.count, 0) as count,
+          (SELECT total_count FROM blank_total) as total_count
+        FROM weeks w
+        LEFT JOIN blank_weekly_counts bwc ON w.week_start = bwc.week_start
+        ORDER BY w.week_start ASC
+      `
+
+      const blankTimeseries = await executeRawQuery(studyId, dbPath, blankTimeseriesQuery)
+
+      // Add blank data to timeseries
+      if (blankTimeseries.length > 0) {
+        timeseries = [...timeseries, ...blankTimeseries]
+
+        // Add blank to species data
+        const blankTotalCount = blankTimeseries[0]?.total_count || 0
+        if (blankTotalCount > 0) {
+          speciesData.push({
+            scientificName: BLANK_SENTINEL,
+            count: blankTotalCount
+          })
+        }
+      }
+    }
 
     // Process the SQL results into the expected format
     const processedData = processTimeseriesDataFromSql(timeseries)
-
-    // Extract species metadata from the timeseries data
-    const speciesMap = new Map()
-    timeseries.forEach((row) => {
-      if (!speciesMap.has(row.scientificName)) {
-        speciesMap.set(row.scientificName, {
-          scientificName: row.scientificName,
-          count: row.total_count
-        })
-      }
-    })
-
-    // Convert the map to an array and sort by count descending
-    const speciesData = Array.from(speciesMap.values()).sort((a, b) => b.count - a.count)
 
     const elapsedTime = Date.now() - startTime
     log.info(
@@ -555,8 +708,16 @@ export async function getMedia(dbPath, options = {}) {
   log.info(`Querying media files from: ${dbPath} with filtering options`)
   log.info(`Pagination: limit ${queryLimit}, offset ${queryOffset}`)
 
+  // Check if requesting blanks (media without observations)
+  const BLANK_SENTINEL = '__blank__'
+  const requestingBlanks = species.includes(BLANK_SENTINEL)
+  const regularSpecies = species.filter((s) => s !== BLANK_SENTINEL)
+
   if (species.length > 0) {
     log.info(`Species filter: ${species.join(', ')}`)
+    if (requestingBlanks) {
+      log.info(`Including blank media (no observations)`)
+    }
   }
 
   if (dateRange.start && dateRange.end) {
@@ -572,66 +733,83 @@ export async function getMedia(dbPath, options = {}) {
 
     const db = await getDrizzleDb(studyId, dbPath)
 
-    // Build dynamic filter conditions array for base query
-    const baseConditions = [
-      isNotNull(observations.scientificName),
-      ne(observations.scientificName, '')
-    ]
-
-    // Add species filter if provided
-    if (species.length > 0) {
-      baseConditions.push(inArray(observations.scientificName, species))
+    // Check if this is a timestamp-based dataset (CamTrap DP)
+    // For these datasets, blank queries are not supported (would require slow range queries)
+    let effectiveRequestingBlanks = requestingBlanks
+    if (requestingBlanks && (await isTimestampBasedDataset(db))) {
+      log.info('Timestamp-based dataset: blank queries not supported')
+      if (regularSpecies.length === 0) {
+        // Only blanks requested, return empty
+        const elapsedTime = Date.now() - startTime
+        log.info(
+          `Returning empty for blanks-only query on timestamp-based dataset in ${elapsedTime}ms`
+        )
+        return []
+      }
+      // Mixed query: just return species, skip blanks
+      effectiveRequestingBlanks = false
     }
 
+    // Build date/time conditions for media table (used for blank queries)
+    const mediaDateTimeConditions = []
+
     // Add date range filter if provided
+    let startDate, endDate
     if (dateRange.start && dateRange.end) {
-      const startDate =
-        dateRange.start instanceof Date ? dateRange.start.toISOString() : dateRange.start
-      const endDate = dateRange.end instanceof Date ? dateRange.end.toISOString() : dateRange.end
+      startDate = dateRange.start instanceof Date ? dateRange.start.toISOString() : dateRange.start
+      endDate = dateRange.end instanceof Date ? dateRange.end.toISOString() : dateRange.end
 
       log.info(`Formatted date range: ${startDate} to ${endDate}`)
 
       if (includeNullTimestamps) {
-        // Include media with null timestamps OR within date range
-        baseConditions.push(
+        mediaDateTimeConditions.push(
           or(
             isNull(media.timestamp),
             and(gte(media.timestamp, startDate), lte(media.timestamp, endDate))
           )
         )
       } else {
-        baseConditions.push(gte(media.timestamp, startDate))
-        baseConditions.push(lte(media.timestamp, endDate))
+        mediaDateTimeConditions.push(gte(media.timestamp, startDate))
+        mediaDateTimeConditions.push(lte(media.timestamp, endDate))
       }
     }
 
     // Add time of day filter if provided
-    // Note: strftime returns NULL for NULL timestamps, so we need to handle that case
     if (timeRange.start !== undefined && timeRange.end !== undefined) {
       if (timeRange.start < timeRange.end) {
-        // Simple range (e.g., 8:00 to 17:00)
         const timeCondition = and(
           sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) >= ${timeRange.start}`,
           sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) < ${timeRange.end}`
         )
-        // When including null timestamps, allow them through the time filter too
-        baseConditions.push(
+        mediaDateTimeConditions.push(
           includeNullTimestamps ? or(isNull(media.timestamp), timeCondition) : timeCondition
         )
       } else if (timeRange.start > timeRange.end) {
-        // Wrapping range (e.g., 22:00 to 6:00)
         const timeCondition = or(
           sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) >= ${timeRange.start}`,
           sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) < ${timeRange.end}`
         )
-        baseConditions.push(
+        mediaDateTimeConditions.push(
           includeNullTimestamps ? or(isNull(media.timestamp), timeCondition) : timeCondition
         )
       }
     }
 
-    // Select fields for both branches
-    const selectFields = {
+    // Select fields for blank media (no observations, so NULL for observation fields)
+    const blankSelectFields = {
+      mediaID: media.mediaID,
+      filePath: media.filePath,
+      fileName: media.fileName,
+      timestamp: media.timestamp,
+      deploymentID: media.deploymentID,
+      scientificName: sql`NULL`.as('scientificName'),
+      fileMediatype: media.fileMediatype,
+      eventID: sql`NULL`.as('eventID'),
+      favorite: media.favorite
+    }
+
+    // Select fields for species query (with observation data)
+    const speciesSelectFields = {
       mediaID: media.mediaID,
       filePath: media.filePath,
       fileName: media.fileName,
@@ -643,9 +821,49 @@ export async function getMedia(dbPath, options = {}) {
       favorite: media.favorite
     }
 
+    // Correlated subquery for blank detection (only used for mediaID-based datasets)
+    // For timestamp-based datasets, effectiveRequestingBlanks is already false
+    const matchingObservations = db
+      .select({ one: sql`1` })
+      .from(observations)
+      .where(eq(observations.mediaID, media.mediaID))
+
+    // Case 1: Only blanks requested
+    if (effectiveRequestingBlanks && regularSpecies.length === 0) {
+      const blankConditions = [notExists(matchingObservations), ...mediaDateTimeConditions]
+
+      const blankQuery = db
+        .selectDistinct(blankSelectFields)
+        .from(media)
+        .where(and(...blankConditions))
+        .orderBy(sql`${media.timestamp} DESC NULLS LAST`)
+        .limit(queryLimit)
+        .offset(queryOffset)
+
+      const rows = await blankQuery
+
+      const elapsedTime = Date.now() - startTime
+      log.info(
+        `Retrieved ${rows.length} blank media files (offset: ${queryOffset}) in ${elapsedTime}ms`
+      )
+      return rows
+    }
+
+    // Build conditions for species query
+    const baseConditions = [
+      isNotNull(observations.scientificName),
+      ne(observations.scientificName, ''),
+      ...mediaDateTimeConditions
+    ]
+
+    // Add species filter if provided
+    if (regularSpecies.length > 0) {
+      baseConditions.push(inArray(observations.scientificName, regularSpecies))
+    }
+
     // Branch 1: Direct mediaID link (for ML runs, Wildlife Insights, Deepfaune imports)
     const branch1 = db
-      .selectDistinct(selectFields)
+      .selectDistinct(speciesSelectFields)
       .from(media)
       .innerJoin(observations, eq(media.mediaID, observations.mediaID))
       .where(and(...baseConditions))
@@ -653,14 +871,35 @@ export async function getMedia(dbPath, options = {}) {
     // Branch 2: Timestamp link (for CamTrap DP datasets where observations have NULL mediaID)
     const branch2Conditions = [...baseConditions, isNull(observations.mediaID)]
     const branch2 = db
-      .selectDistinct(selectFields)
+      .selectDistinct(speciesSelectFields)
       .from(media)
       .innerJoin(observations, eq(media.timestamp, observations.eventStart))
       .where(and(...branch2Conditions))
 
-    // Combine with UNION, order, and paginate
-    // UNION deduplicates results and allows each branch to use indexes efficiently
-    // Use NULLS LAST to ensure media without timestamps appear at the end
+    // Case 2: Mixed selection (species + blanks)
+    if (effectiveRequestingBlanks && regularSpecies.length > 0) {
+      // Use notExists with the correlated subquery for blank detection
+      const blankConditions = [notExists(matchingObservations), ...mediaDateTimeConditions]
+
+      const blankQuery = db
+        .selectDistinct(blankSelectFields)
+        .from(media)
+        .where(and(...blankConditions))
+
+      // Combine species queries and blank query with UNION
+      const rows = await union(branch1, branch2, blankQuery)
+        .orderBy(sql`timestamp DESC NULLS LAST`)
+        .limit(queryLimit)
+        .offset(queryOffset)
+
+      const elapsedTime = Date.now() - startTime
+      log.info(
+        `Retrieved ${rows.length} media files (species + blanks, offset: ${queryOffset}) in ${elapsedTime}ms`
+      )
+      return rows
+    }
+
+    // Case 3: Regular species query (no blanks)
     const rows = await union(branch1, branch2)
       .orderBy(sql`${media.timestamp} DESC NULLS LAST`)
       .limit(queryLimit)
@@ -691,30 +930,85 @@ export async function getSpeciesDailyActivity(dbPath, species, startDate, endDat
   log.info(`Date range: ${startDate} to ${endDate}`)
   log.info(`Species: ${species.join(', ')}`)
 
+  // Check if requesting blanks (media without observations)
+  const BLANK_SENTINEL = '__blank__'
+  const requestingBlanks = species.includes(BLANK_SENTINEL)
+  const regularSpecies = species.filter((s) => s !== BLANK_SENTINEL)
+
   try {
     const studyId = getStudyIdFromPath(dbPath)
 
     const db = await getDrizzleDb(studyId, dbPath)
 
-    // Use sql template for SQLite-specific hour extraction via strftime
-    const hourColumn = sql`CAST(strftime('%H', ${observations.eventStart}) AS INTEGER)`.as('hour')
+    // Check if this is a timestamp-based dataset (CamTrap DP)
+    // For these datasets, blank queries are not supported (would require slow range queries)
+    const isTimestampBased = requestingBlanks ? await isTimestampBasedDataset(db) : false
+    const effectiveRequestingBlanks = requestingBlanks && !isTimestampBased
+    if (requestingBlanks && isTimestampBased) {
+      log.info('Timestamp-based dataset: skipping blank activity data')
+    }
 
-    const rows = await db
-      .select({
-        hour: hourColumn,
-        scientificName: observations.scientificName,
-        count: count().as('count')
-      })
-      .from(observations)
-      .where(
-        and(
-          inArray(observations.scientificName, species),
-          gte(observations.eventStart, startDate),
-          lte(observations.eventStart, endDate)
+    let rows = []
+
+    // Query regular species if any
+    if (regularSpecies.length > 0) {
+      // Use sql template for SQLite-specific hour extraction via strftime
+      const hourColumn = sql`CAST(strftime('%H', ${observations.eventStart}) AS INTEGER)`.as('hour')
+
+      rows = await db
+        .select({
+          hour: hourColumn,
+          scientificName: observations.scientificName,
+          count: count().as('count')
+        })
+        .from(observations)
+        .where(
+          and(
+            inArray(observations.scientificName, regularSpecies),
+            gte(observations.eventStart, startDate),
+            lte(observations.eventStart, endDate)
+          )
         )
-      )
-      .groupBy(hourColumn, observations.scientificName)
-      .orderBy(hourColumn, observations.scientificName)
+        .groupBy(hourColumn, observations.scientificName)
+        .orderBy(hourColumn, observations.scientificName)
+    }
+
+    // Query blank media hourly distribution if requested
+    if (effectiveRequestingBlanks) {
+      const blankHourColumn = sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER)`.as('hour')
+
+      // Correlated subquery for blank detection (only used for mediaID-based datasets)
+      // For timestamp-based datasets, effectiveRequestingBlanks is already false
+      const matchingObservations = db
+        .select({ one: sql`1` })
+        .from(observations)
+        .where(eq(observations.mediaID, media.mediaID))
+
+      const blankRows = await db
+        .select({
+          hour: blankHourColumn,
+          count: count().as('count')
+        })
+        .from(media)
+        .where(
+          and(
+            notExists(matchingObservations),
+            gte(media.timestamp, startDate),
+            lte(media.timestamp, endDate)
+          )
+        )
+        .groupBy(blankHourColumn)
+        .orderBy(blankHourColumn)
+
+      // Add blank rows with the sentinel as scientificName
+      blankRows.forEach((row) => {
+        rows.push({
+          hour: row.hour,
+          scientificName: BLANK_SENTINEL,
+          count: row.count
+        })
+      })
+    }
 
     // Process the data to create species-specific hourly patterns
     const hourlyData = Array(24)
@@ -727,7 +1021,9 @@ export async function getSpeciesDailyActivity(dbPath, species, startDate, endDat
 
     // Fill in the actual data from the query results
     rows.forEach((row) => {
-      hourlyData[row.hour][row.scientificName] = row.count
+      if (row.hour !== null && hourlyData[row.hour]) {
+        hourlyData[row.hour][row.scientificName] = row.count
+      }
     })
 
     const elapsedTime = Date.now() - startTime
