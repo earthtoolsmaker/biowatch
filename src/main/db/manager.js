@@ -220,10 +220,6 @@ export class StudyDatabaseManager {
   async close() {
     try {
       if (this.sqlite) {
-        // Checkpoint WAL to release file locks (required for Windows)
-        if (!this.readonly) {
-          this.sqlite.pragma('wal_checkpoint(TRUNCATE)')
-        }
         this.sqlite.close()
         log.info(`[DB] Closed database for study ${this.studyId}`)
       }
@@ -298,21 +294,13 @@ export async function getStudyDatabase(studyId, dbPath, options = {}) {
  * Close and remove a study database connection
  */
 export async function closeStudyDatabase(studyId, dbPath = null) {
-  // Debug: log cache state
-  const allKeys = [...dbConnections.keys()]
-  log.info(`[DB] closeStudyDatabase called for study ${studyId}, dbPath=${dbPath || 'null'}`)
-  log.info(`[DB] Cache has ${allKeys.length} entries: ${allKeys.join(', ') || '(empty)'}`)
-
   if (dbPath) {
-    // Fix: try both readonly and readwrite keys (cache key includes the mode suffix)
-    for (const suffix of ['readonly', 'readwrite']) {
-      const cacheKey = `${studyId}:${dbPath}:${suffix}`
-      const manager = dbConnections.get(cacheKey)
-      if (manager) {
-        await manager.close()
-        dbConnections.delete(cacheKey)
-        log.info(`[DB] Closed ${suffix} database connection for study ${studyId}`)
-      }
+    const cacheKey = `${studyId}:${dbPath}`
+    const manager = dbConnections.get(cacheKey)
+    if (manager) {
+      await manager.close()
+      dbConnections.delete(cacheKey)
+      log.info(`[DB] Closed database connection for study ${studyId}`)
     }
   } else {
     // Close all connections for this study ID
@@ -324,7 +312,7 @@ export async function closeStudyDatabase(studyId, dbPath = null) {
       }
     }
     keysToDelete.forEach((key) => dbConnections.delete(key))
-    log.info(`[DB] Closed ${keysToDelete.length} database connections for study ${studyId}`)
+    log.info(`[DB] Closed all database connections for study ${studyId}`)
   }
 }
 
