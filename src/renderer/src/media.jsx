@@ -7,7 +7,6 @@ import {
   Check,
   Search,
   Trash2,
-  Grid3x3,
   Plus,
   Layers,
   Play,
@@ -1645,15 +1644,11 @@ function GalleryControls({
   showBboxes,
   onToggleBboxes,
   hasBboxes,
-  gridColumns,
-  onCycleGrid,
   sequenceGap,
   onSequenceGapChange,
   isExpanded,
   onToggleExpanded
 }) {
-  const gridLabels = { 3: '3x', 4: '4x', 5: '5x' }
-
   // Collapsed state: tiny chevron on the right
   if (!isExpanded) {
     return (
@@ -1704,16 +1699,6 @@ function GalleryControls({
             <span>Boxes</span>
           </button>
         )}
-
-        {/* Grid Density Cycle */}
-        <button
-          onClick={onCycleGrid}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
-          title={`Grid: ${gridColumns} columns (click to cycle)`}
-        >
-          <Grid3x3 size={16} />
-          <span>{gridLabels[gridColumns]}</span>
-        </button>
 
         {/* Collapse toggle - chevron-up on the right */}
         <button
@@ -1798,7 +1783,7 @@ function ThumbnailCard({
   setImageErrors,
   showBboxes,
   bboxes,
-  widthClass,
+  itemWidth,
   isVideoMedia,
   studyId
 }) {
@@ -1852,7 +1837,8 @@ function ThumbnailCard({
 
   return (
     <div
-      className={`border border-gray-300 rounded-lg overflow-hidden min-w-[150px] ${widthClass} flex flex-col transition-all`}
+      className="border border-gray-300 rounded-lg overflow-hidden flex flex-col transition-all"
+      style={{ width: itemWidth ? `${itemWidth}px` : undefined }}
     >
       <div
         ref={containerRef}
@@ -1962,7 +1948,7 @@ function SequenceCard({
   setImageErrors,
   showBboxes,
   bboxesByMedia,
-  widthClass,
+  itemWidth,
   cycleInterval = 1000,
   isVideoMedia,
   studyId
@@ -2065,7 +2051,8 @@ function SequenceCard({
 
   return (
     <div
-      className={`border border-gray-300 rounded-lg overflow-hidden min-w-[150px] ${widthClass} flex flex-col transition-all relative group`}
+      className="border border-gray-300 rounded-lg overflow-hidden flex flex-col transition-all relative group"
+      style={{ width: itemWidth ? `${itemWidth}px` : undefined }}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => {
         setIsHovering(false)
@@ -2226,6 +2213,7 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
   const [selectedMedia, setSelectedMedia] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const loaderRef = useRef(null)
+  const gridContainerRef = useRef(null)
   const PAGE_SIZE = 15
   const PREFETCH_THRESHOLD = 5 // Prefetch when within 5 sequences of end
 
@@ -2243,11 +2231,7 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
     return saved !== null ? JSON.parse(saved) : false
   })
 
-  const gridColumnsKey = `gridColumns:${id}`
-  const [gridColumns, setGridColumns] = useState(() => {
-    const saved = localStorage.getItem(gridColumnsKey)
-    return saved !== null ? Number(saved) : 3
-  })
+  const [itemWidth, setItemWidth] = useState(null)
 
   const [controlsExpanded, setControlsExpanded] = useState(false)
 
@@ -2256,10 +2240,40 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
     localStorage.setItem(showBboxesKey, JSON.stringify(showThumbnailBboxes))
   }, [showThumbnailBboxes, showBboxesKey])
 
-  // Persist gridColumns to localStorage when it changes
+  // Auto-switch grid columns and calculate exact item width based on container width
   useEffect(() => {
-    localStorage.setItem(gridColumnsKey, gridColumns.toString())
-  }, [gridColumns, gridColumnsKey])
+    const container = gridContainerRef.current
+    if (!container) return
+
+    const MIN_THUMBNAIL_WIDTH = 250
+    const GAP = 12
+
+    const updateGridLayout = (containerWidth) => {
+      // Calculate how many columns fit at minimum width
+      // containerWidth = n * itemWidth + (n-1) * gap
+      // Solving for n: n = (containerWidth + gap) / (minWidth + gap)
+      const maxColumns = Math.floor((containerWidth + GAP) / (MIN_THUMBNAIL_WIDTH + GAP))
+      const columns = Math.max(1, Math.min(maxColumns, 7)) // Clamp between 1-7
+
+      // Calculate exact width to fill container perfectly
+      // itemWidth = (containerWidth - (columns - 1) * gap) / columns
+      const width = (containerWidth - (columns - 1) * GAP) / columns
+
+      setItemWidth(Math.floor(width)) // Floor to avoid subpixel issues
+    }
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        updateGridLayout(entry.contentRect.width)
+      }
+    })
+
+    resizeObserver.observe(container)
+    // Initial calculation
+    updateGridLayout(container.offsetWidth)
+
+    return () => resizeObserver.disconnect()
+  }, [])
 
   // Check if study has observations with eventIDs (for default slider value)
   const { data: hasEventIDs = false } = useQuery({
@@ -2356,19 +2370,6 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
     }))
     return [...groupedMedia, ...nullTimestampSequences]
   }, [groupedMedia, nullTimestampMedia])
-
-  // Grid column CSS classes
-  const gridColumnClasses = {
-    3: 'w-[calc(33.333%-8px)]',
-    4: 'w-[calc(25%-9px)]',
-    5: 'w-[calc(20%-10px)]'
-  }
-  const thumbnailWidthClass = gridColumnClasses[gridColumns]
-
-  // Cycle grid density handler
-  const handleCycleGrid = useCallback(() => {
-    setGridColumns((prev) => (prev === 5 ? 3 : prev + 1))
-  }, [])
 
   // Batch fetch bboxes for all visible media when showThumbnailBboxes is enabled
   const mediaIDs = useMemo(() => mediaFiles.map((m) => m.mediaID), [mediaFiles])
@@ -2583,8 +2584,6 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
           showBboxes={showThumbnailBboxes}
           onToggleBboxes={() => setShowThumbnailBboxes((prev) => !prev)}
           hasBboxes={anyMediaHaveBboxes}
-          gridColumns={gridColumns}
-          onCycleGrid={handleCycleGrid}
           sequenceGap={sequenceGap}
           onSequenceGapChange={setSequenceGap}
           isExpanded={controlsExpanded}
@@ -2592,7 +2591,10 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
         />
 
         {/* Grid */}
-        <div className="flex flex-wrap gap-[12px] flex-1 overflow-auto p-3 content-start">
+        <div
+          ref={gridContainerRef}
+          className="flex flex-wrap gap-[12px] flex-1 overflow-auto p-3 content-start"
+        >
           {groupedMedia.map((sequence) => {
             const isMultiItem = sequence.items.length > 1
 
@@ -2607,7 +2609,7 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
                   setImageErrors={setImageErrors}
                   showBboxes={showThumbnailBboxes}
                   bboxesByMedia={bboxesByMedia}
-                  widthClass={thumbnailWidthClass}
+                  itemWidth={itemWidth}
                   isVideoMedia={isVideoMedia}
                   studyId={id}
                 />
@@ -2626,7 +2628,7 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
                 setImageErrors={setImageErrors}
                 showBboxes={showThumbnailBboxes}
                 bboxes={bboxesByMedia[media.mediaID] || []}
-                widthClass={thumbnailWidthClass}
+                itemWidth={itemWidth}
                 isVideoMedia={isVideoMedia}
                 studyId={id}
               />
@@ -2644,7 +2646,7 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
               setImageErrors={setImageErrors}
               showBboxes={showThumbnailBboxes}
               bboxes={bboxesByMedia[media.mediaID] || []}
-              widthClass={thumbnailWidthClass}
+              itemWidth={itemWidth}
               isVideoMedia={isVideoMedia}
               studyId={id}
             />
