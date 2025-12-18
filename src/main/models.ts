@@ -1096,7 +1096,7 @@ export function registerMLModelManagementIPCHandlers() {
           country
         })
         return {
-          sucess: true,
+          success: true,
           process: { pid: process.pid, port: port, shutdownApiKey: shutdownApiKey },
           message: 'ML Model HTTP server successfully started'
         }
@@ -1162,47 +1162,110 @@ async function startAndWaitTillServerHealty({
   scriptArgs,
   healthEndpoint,
   retryInterval = 1000,
-  maxRetries = 30,
+  maxRetries = 120,
+  restartRetries = 60,
+  maxRestarts = 1,
   env = {}
 }) {
-  const pythonProcess = spawn(pythonInterpreter, [scriptPath, ...scriptArgs], {
-    env: { ...process.env, ...env }
-  })
+  for (let attempt = 0; attempt <= maxRestarts; attempt++) {
+    // Use shorter timeout for restart attempts (cache should be warm)
+    const retriesForThisAttempt = attempt === 0 ? maxRetries : restartRetries
 
-  log.info('Python process started:', pythonProcess.pid)
-
-  // Set up error handlers
-  pythonProcess.stderr.on('data', (err) => {
-    log.error('Python error:', err.toString())
-  })
-
-  pythonProcess.on('error', (err) => {
-    log.error('Python process error:', err)
-  })
-  // Wait for server to be ready by polling the endpoint
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      const healthCheck = await fetch(healthEndpoint, {
-        method: 'GET',
-        timeout: 1000
-      })
-
-      if (healthCheck.ok) {
-        log.info('Server is ready')
-        return pythonProcess
-      }
-    } catch (error) {
-      // Server not ready yet, will retry
+    if (attempt > 0) {
+      log.info(
+        `[RESTART] Attempt ${attempt + 1}/${maxRestarts + 1} - restarting server (timeout: ${retriesForThisAttempt}s)...`
+      )
     }
 
-    // Wait before next retry
-    await new Promise((resolve) => setTimeout(resolve, retryInterval))
-    log.info(`Waiting for server to start (attempt ${i + 1}/${maxRetries})`)
-  }
+    const pythonProcess = spawn(pythonInterpreter, [scriptPath, ...scriptArgs], {
+      env: { ...process.env, ...env }
+    })
 
-  // If we get here, the server failed to start
-  kill(pythonProcess.pid)
-  throw new Error('Server failed to start in the expected time')
+    log.info('Python process started:', pythonProcess.pid)
+
+    // Track if process exits unexpectedly
+    let processExited = false
+    let exitCode = null
+
+    pythonProcess.on('exit', (code) => {
+      processExited = true
+      exitCode = code
+      if (code !== null && code !== 0) {
+        log.error(`Python process exited unexpectedly with code ${code}`)
+      }
+    })
+
+    // Set up output handlers
+    pythonProcess.stdout.on('data', (data) => {
+      log.info('Python stdout:', data.toString())
+    })
+
+    pythonProcess.stderr.on('data', (data) => {
+      const message = data.toString().trim()
+      // Uvicorn and Python write INFO/WARNING to stderr - don't call it "error"
+      if (message.includes('INFO:') || message.includes('WARNING:')) {
+        log.info('Python:', message)
+      } else {
+        log.error('Python error:', message)
+      }
+    })
+
+    pythonProcess.on('error', (err) => {
+      log.error('Python process error:', err)
+    })
+
+    // Wait for server to be ready by polling the endpoint
+    for (let i = 0; i < retriesForThisAttempt; i++) {
+      // Check if process crashed during startup
+      if (processExited) {
+        log.warn(`Python process exited during startup (code: ${exitCode})`)
+        break // Exit retry loop, will attempt restart
+      }
+
+      try {
+        const healthCheck = await fetch(healthEndpoint, {
+          method: 'GET',
+          timeout: 1000
+        })
+
+        if (healthCheck.ok) {
+          log.info('Server is ready')
+          return pythonProcess
+        }
+      } catch (error) {
+        // Log health check error on first attempt and every 30 seconds for debugging
+        if (i === 0 || (i + 1) % 30 === 0) {
+          log.debug(`Health check failed: ${error.code || error.message}`)
+        }
+      }
+
+      // Wait before next retry
+      await new Promise((resolve) => setTimeout(resolve, retryInterval))
+      // Log every 10 seconds to reduce spam
+      if ((i + 1) % 10 === 0) {
+        log.info(`Waiting for server to start (${i + 1}s/${retriesForThisAttempt}s)...`)
+      }
+    }
+
+    // Timeout or crash - decide what to do
+    if (!processExited) {
+      // Process still running but didn't respond - kill it
+      log.warn(
+        `Server timeout after ${retriesForThisAttempt}s. Process still running - killing for restart...`
+      )
+      kill(pythonProcess.pid)
+    }
+
+    // If this was the last attempt, throw error
+    if (attempt === maxRestarts) {
+      throw new Error(
+        `Server failed to start after ${maxRestarts + 1} attempt(s). Check Python logs above for details.`
+      )
+    }
+
+    // Brief pause before restart to let resources clean up
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+  }
 }
 
 /**

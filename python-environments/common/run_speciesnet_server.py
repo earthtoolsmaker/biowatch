@@ -121,12 +121,19 @@ $ curl -X POST http://localhost:${port}/predict \
 ```
 """
 
+import logging
+import time
+
 import litserve as ls
 from absl import app, flags
 from fastapi import HTTPException
 from speciesnet import DEFAULT_MODEL, SpeciesNet, file_exists
 
 from video_utils import VideoCapableLitAPI, is_video_file
+
+# Startup logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
 
 _PORT = flags.DEFINE_integer(
     "port",
@@ -219,8 +226,11 @@ class SpeciesNetLitAPI(ls.LitAPI, VideoCapableLitAPI):
 
     def setup(self, device):
         del device  # Unused.
+        logger.info("[STARTUP] Loading SpeciesNet model...")
+        start = time.time()
         # Initialize SpeciesNet with geofence only - country will be passed during prediction
         self.model = SpeciesNet(self.model_name, geofence=self.geofence)
+        logger.info(f"[STARTUP] SpeciesNet model loaded in {time.time() - start:.1f}s")
 
     def decode_request(self, request, **kwargs):
         for instance in request["instances"]:
@@ -301,6 +311,7 @@ def main(argv: list[str]) -> None:
         timeout=_TIMEOUT.value,
         enable_shutdown_api=True,
     )
+    logger.info("[STARTUP] Starting SpeciesNet HTTP server...")
     server.run(
         port=_PORT.value,
         generate_client_file=False,

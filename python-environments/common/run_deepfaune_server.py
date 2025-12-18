@@ -120,6 +120,7 @@ $ curl -X POST http://localhost:${port}/predict \
 
 import logging
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -672,6 +673,8 @@ class DeepFauneLitAPI(ls.LitAPI, VideoCapableLitAPI):
 
     def setup(self, device):
         del device  # Unused.
+        logger.info("[STARTUP] Loading DeepFaune model...")
+        start = time.time()
         self.model = load_model(
             filepath_detector_weights=self.filepath_detector_weights,
             filepath_classifier_weights=self.filepath_classifier_weights,
@@ -679,6 +682,7 @@ class DeepFauneLitAPI(ls.LitAPI, VideoCapableLitAPI):
             classifier_crop_size=CROP_SIZE,
             classifier_num_classes=len(CLASS_LABEL_MAPPING),
         )
+        logger.info(f"[STARTUP] DeepFaune model loaded in {time.time() - start:.1f}s")
 
     def decode_request(self, request, **kwargs):
         for instance in request["instances"]:
@@ -758,6 +762,7 @@ def main(argv: list[str]) -> None:
         timeout=_TIMEOUT.value,
         enable_shutdown_api=True,
     )
+    logger.info("[STARTUP] Starting DeepFaune HTTP server...")
     server.run(
         port=_PORT.value,
         generate_client_file=False,
