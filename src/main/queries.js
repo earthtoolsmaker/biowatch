@@ -74,24 +74,6 @@ export function getStudyIdFromPath(dbPath) {
 }
 
 /**
- * Check if a dataset uses timestamp-based linking (CamTrap DP format)
- * These datasets have NULL mediaID in all observations and link via eventStart/eventEnd ranges.
- * For these datasets, blank detection is not supported (would require slow range queries).
- * @param {object} db - Drizzle database instance
- * @returns {Promise<boolean>} - True if timestamp-based (all observations have NULL mediaID)
- */
-async function isTimestampBasedDataset(db) {
-  const result = await db
-    .select({
-      hasMediaID: sql`CASE WHEN COUNT(CASE WHEN mediaID IS NOT NULL THEN 1 END) > 0 THEN 1 ELSE 0 END`
-    })
-    .from(observations)
-    .get()
-
-  return result?.hasMediaID === 0
-}
-
-/**
  * Get species distribution from the database using Drizzle ORM
  * @param {string} dbPath - Path to the SQLite database
  * @returns {Promise<Array>} - Species distribution data
@@ -133,8 +115,7 @@ export async function getSpeciesDistribution(dbPath) {
 
 /**
  * Get count of blank media (media with no observations) from the database
- * For mediaID-based datasets: counts media with no linked observations
- * For timestamp-based datasets (CamTrap DP): returns 0 (blank detection not supported)
+ * Counts media with no linked observations via mediaID foreign key.
  * @param {string} dbPath - Path to the SQLite database
  * @returns {Promise<number>} - Count of media files with no observations
  */
@@ -146,16 +127,7 @@ export async function getBlankMediaCount(dbPath) {
     const studyId = getStudyIdFromPath(dbPath)
     const db = await getDrizzleDb(studyId, dbPath)
 
-    // Check if this is a timestamp-based dataset (CamTrap DP)
-    // These datasets use eventStart/eventEnd ranges which are slow to query
-    // Return 0 blanks for now (better than showing animals incorrectly as blanks)
-    if (await isTimestampBasedDataset(db)) {
-      const elapsedTime = Date.now() - startTime
-      log.info(`Timestamp-based dataset detected, returning 0 blanks in ${elapsedTime}ms`)
-      return 0
-    }
-
-    // For mediaID-based datasets, count media with no linked observations
+    // Count media with no linked observations
     const matchingObservations = db
       .select({ one: sql`1` })
       .from(observations)
@@ -391,15 +363,6 @@ export async function getSpeciesTimeseries(dbPath, speciesNames = []) {
 
   try {
     const studyId = getStudyIdFromPath(dbPath)
-    const db = await getDrizzleDb(studyId, dbPath)
-
-    // Check if this is a timestamp-based dataset (CamTrap DP)
-    // For these datasets, blank queries are not supported (would require slow range queries)
-    const isTimestampBased = requestingBlanks ? await isTimestampBasedDataset(db) : false
-    const effectiveRequestingBlanks = requestingBlanks && !isTimestampBased
-    if (requestingBlanks && isTimestampBased) {
-      log.info('Timestamp-based dataset: skipping blank timeseries')
-    }
 
     // Prepare species filter for the complex CTE query
     let speciesFilter = ''
@@ -489,7 +452,7 @@ export async function getSpeciesTimeseries(dbPath, speciesNames = []) {
     }
 
     // If requesting blanks, add blank media weekly counts
-    if (effectiveRequestingBlanks) {
+    if (requestingBlanks) {
       const blankTimeseriesQuery = `
         WITH date_range AS (
           SELECT
@@ -733,23 +696,6 @@ export async function getMedia(dbPath, options = {}) {
 
     const db = await getDrizzleDb(studyId, dbPath)
 
-    // Check if this is a timestamp-based dataset (CamTrap DP)
-    // For these datasets, blank queries are not supported (would require slow range queries)
-    let effectiveRequestingBlanks = requestingBlanks
-    if (requestingBlanks && (await isTimestampBasedDataset(db))) {
-      log.info('Timestamp-based dataset: blank queries not supported')
-      if (regularSpecies.length === 0) {
-        // Only blanks requested, return empty
-        const elapsedTime = Date.now() - startTime
-        log.info(
-          `Returning empty for blanks-only query on timestamp-based dataset in ${elapsedTime}ms`
-        )
-        return []
-      }
-      // Mixed query: just return species, skip blanks
-      effectiveRequestingBlanks = false
-    }
-
     // Build date/time conditions for media table (used for blank queries)
     const mediaDateTimeConditions = []
 
@@ -821,15 +767,14 @@ export async function getMedia(dbPath, options = {}) {
       favorite: media.favorite
     }
 
-    // Correlated subquery for blank detection (only used for mediaID-based datasets)
-    // For timestamp-based datasets, effectiveRequestingBlanks is already false
+    // Correlated subquery for blank detection (media with no linked observations)
     const matchingObservations = db
       .select({ one: sql`1` })
       .from(observations)
       .where(eq(observations.mediaID, media.mediaID))
 
     // Case 1: Only blanks requested
-    if (effectiveRequestingBlanks && regularSpecies.length === 0) {
+    if (requestingBlanks && regularSpecies.length === 0) {
       const blankConditions = [notExists(matchingObservations), ...mediaDateTimeConditions]
 
       const blankQuery = db
@@ -861,23 +806,15 @@ export async function getMedia(dbPath, options = {}) {
       baseConditions.push(inArray(observations.scientificName, regularSpecies))
     }
 
-    // Branch 1: Direct mediaID link (for ML runs, Wildlife Insights, Deepfaune imports)
-    const branch1 = db
+    // Species query using direct mediaID join (all observations now have mediaID populated)
+    const speciesQuery = db
       .selectDistinct(speciesSelectFields)
       .from(media)
       .innerJoin(observations, eq(media.mediaID, observations.mediaID))
       .where(and(...baseConditions))
 
-    // Branch 2: Timestamp link (for CamTrap DP datasets where observations have NULL mediaID)
-    const branch2Conditions = [...baseConditions, isNull(observations.mediaID)]
-    const branch2 = db
-      .selectDistinct(speciesSelectFields)
-      .from(media)
-      .innerJoin(observations, eq(media.timestamp, observations.eventStart))
-      .where(and(...branch2Conditions))
-
     // Case 2: Mixed selection (species + blanks)
-    if (effectiveRequestingBlanks && regularSpecies.length > 0) {
+    if (requestingBlanks && regularSpecies.length > 0) {
       // Use notExists with the correlated subquery for blank detection
       const blankConditions = [notExists(matchingObservations), ...mediaDateTimeConditions]
 
@@ -886,8 +823,8 @@ export async function getMedia(dbPath, options = {}) {
         .from(media)
         .where(and(...blankConditions))
 
-      // Combine species queries and blank query with UNION
-      const rows = await union(branch1, branch2, blankQuery)
+      // Combine species query and blank query with UNION
+      const rows = await union(speciesQuery, blankQuery)
         .orderBy(sql`timestamp DESC NULLS LAST`)
         .limit(queryLimit)
         .offset(queryOffset)
@@ -900,7 +837,7 @@ export async function getMedia(dbPath, options = {}) {
     }
 
     // Case 3: Regular species query (no blanks)
-    const rows = await union(branch1, branch2)
+    const rows = await speciesQuery
       .orderBy(sql`${media.timestamp} DESC NULLS LAST`)
       .limit(queryLimit)
       .offset(queryOffset)
@@ -940,14 +877,6 @@ export async function getSpeciesDailyActivity(dbPath, species, startDate, endDat
 
     const db = await getDrizzleDb(studyId, dbPath)
 
-    // Check if this is a timestamp-based dataset (CamTrap DP)
-    // For these datasets, blank queries are not supported (would require slow range queries)
-    const isTimestampBased = requestingBlanks ? await isTimestampBasedDataset(db) : false
-    const effectiveRequestingBlanks = requestingBlanks && !isTimestampBased
-    if (requestingBlanks && isTimestampBased) {
-      log.info('Timestamp-based dataset: skipping blank activity data')
-    }
-
     let rows = []
 
     // Query regular species if any
@@ -974,11 +903,10 @@ export async function getSpeciesDailyActivity(dbPath, species, startDate, endDat
     }
 
     // Query blank media hourly distribution if requested
-    if (effectiveRequestingBlanks) {
+    if (requestingBlanks) {
       const blankHourColumn = sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER)`.as('hour')
 
-      // Correlated subquery for blank detection (only used for mediaID-based datasets)
-      // For timestamp-based datasets, effectiveRequestingBlanks is already false
+      // Correlated subquery for blank detection (media with no linked observations)
       const matchingObservations = db
         .select({ one: sql`1` })
         .from(observations)
@@ -2289,9 +2217,7 @@ export async function getBestMedia(dbPath, options = {}) {
   try {
     const studyId = getStudyIdFromPath(dbPath)
 
-    // Step 1: Get user-marked favorites first
-    // Note: We need to join observations via both mediaID AND timestamp (for CamTrap DP datasets
-    // where observations.mediaID is NULL and link is via eventStart = media.timestamp)
+    // Step 1: Get user-marked favorites first (using direct mediaID join)
     const favoritesQuery = `
       SELECT
         m.mediaID,
@@ -2301,17 +2227,16 @@ export async function getBestMedia(dbPath, options = {}) {
         m.deploymentID,
         m.fileMediatype,
         m.favorite,
-        COALESCE(o1.observationID, o2.observationID) as observationID,
-        COALESCE(o1.scientificName, o2.scientificName) as scientificName,
-        COALESCE(o1.bboxX, o2.bboxX) as bboxX,
-        COALESCE(o1.bboxY, o2.bboxY) as bboxY,
-        COALESCE(o1.bboxWidth, o2.bboxWidth) as bboxWidth,
-        COALESCE(o1.bboxHeight, o2.bboxHeight) as bboxHeight,
-        COALESCE(o1.detectionConfidence, o2.detectionConfidence) as detectionConfidence,
-        COALESCE(o1.classificationProbability, o2.classificationProbability) as classificationProbability,
+        o.observationID,
+        o.scientificName,
+        o.bboxX,
+        o.bboxY,
+        o.bboxWidth,
+        o.bboxHeight,
+        o.detectionConfidence,
+        o.classificationProbability,
         999.0 as compositeScore
       FROM media m
-      -- Strategy 1: Join via mediaID (for ML runs, Wildlife Insights, Deepfaune)
       LEFT JOIN (
         SELECT
           mediaID,
@@ -2323,24 +2248,9 @@ export async function getBestMedia(dbPath, options = {}) {
           ROW_NUMBER() OVER (PARTITION BY mediaID ORDER BY detectionConfidence DESC) as rn
         FROM observations
         WHERE scientificName IS NOT NULL AND scientificName != ''
-          AND mediaID IS NOT NULL
-      ) o1 ON m.mediaID = o1.mediaID AND o1.rn = 1
-      -- Strategy 2: Join via timestamp (for CamTrap DP datasets where mediaID is NULL)
-      LEFT JOIN (
-        SELECT
-          eventStart,
-          observationID,
-          scientificName,
-          bboxX, bboxY, bboxWidth, bboxHeight,
-          detectionConfidence,
-          classificationProbability,
-          ROW_NUMBER() OVER (PARTITION BY eventStart ORDER BY detectionConfidence DESC) as rn
-        FROM observations
-        WHERE scientificName IS NOT NULL AND scientificName != ''
-          AND mediaID IS NULL
-      ) o2 ON m.timestamp = o2.eventStart AND o2.rn = 1
+      ) o ON m.mediaID = o.mediaID AND o.rn = 1
       WHERE m.favorite = 1
-        AND COALESCE(o1.scientificName, o2.scientificName) IS NOT NULL
+        AND o.scientificName IS NOT NULL
       ORDER BY m.timestamp DESC
       LIMIT ?
     `

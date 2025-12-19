@@ -37,7 +37,8 @@ export const media = sqliteTable(
     index('idx_media_deploymentID').on(table.deploymentID),
     index('idx_media_timestamp').on(table.timestamp),
     index('idx_media_filePath').on(table.filePath),
-    index('idx_media_folderName').on(table.folderName)
+    index('idx_media_folderName').on(table.folderName),
+    index('idx_media_deploymentID_timestamp').on(table.deploymentID, table.timestamp)
   ]
 )
 
