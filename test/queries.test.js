@@ -696,9 +696,10 @@ describe('Database Query Functions Tests', () => {
       assert.equal(result, 2, 'Should return 2 blanks (media004 and media005)')
     })
 
-    test('should return 0 for timestamp-based dataset (CamTrap DP format)', async () => {
-      // Timestamp-based datasets have NULL mediaID in all observations
-      // They link media to observations via eventStart/eventEnd time ranges
+    test('should count media as blank when observations have NULL mediaID', async () => {
+      // Note: In real usage, expandObservationsToMedia() runs during import
+      // which populates mediaID for all observations. This test verifies
+      // query behavior when observations have NULL mediaID (edge case).
       const manager = await createImageDirectoryDatabase(testDbPath)
 
       // Create deployments
@@ -745,16 +746,16 @@ describe('Database Query Functions Tests', () => {
         }
       })
 
-      // Create observation with NULL mediaID (timestamp-based linking)
-      // This observation covers the entire burst sequence via eventStart/eventEnd
+      // Create observation with NULL mediaID
+      // Blank detection uses direct mediaID join, so this won't link to any media
       await insertObservations(manager, [
         {
           observationID: 'obs001',
-          mediaID: null, // NULL = timestamp-based linking (CamTrap DP format)
+          mediaID: null, // NULL mediaID = no direct link to media
           deploymentID: 'deploy001',
           eventID: 'event001',
-          eventStart: DateTime.fromISO('2023-03-20T14:30:15Z'), // First media timestamp
-          eventEnd: DateTime.fromISO('2023-03-20T14:30:25Z'), // Last media timestamp
+          eventStart: DateTime.fromISO('2023-03-20T14:30:15Z'),
+          eventEnd: DateTime.fromISO('2023-03-20T14:30:25Z'),
           scientificName: 'Cervus elaphus',
           count: 1
         }
@@ -762,9 +763,9 @@ describe('Database Query Functions Tests', () => {
 
       const result = await getBlankMediaCount(testDbPath)
 
-      // Should return 0 because this is a timestamp-based dataset
-      // (even though technically media002 and media003 don't have direct mediaID links)
-      assert.equal(result, 0, 'Should return 0 for timestamp-based datasets')
+      // With NULL mediaID, observations don't link to media via direct join
+      // All 3 media files are considered blanks
+      assert.equal(result, 3, 'Should count media as blank when observations have NULL mediaID')
     })
 
     test('should return 0 for empty database with no media', async () => {
@@ -908,7 +909,10 @@ describe('Database Query Functions Tests', () => {
       assert.equal(result[0].scientificName, null, 'Blank media should have null scientificName')
     })
 
-    test('should return empty array for timestamp-based dataset when requesting only blanks', async () => {
+    test('should return media as blank when observations have NULL mediaID', async () => {
+      // Note: In real usage, expandObservationsToMedia() runs during import
+      // which populates mediaID for all observations. This test verifies
+      // query behavior when observations have NULL mediaID (edge case).
       const manager = await createImageDirectoryDatabase(testDbPath)
 
       await insertDeployments(manager, {
@@ -935,11 +939,11 @@ describe('Database Query Functions Tests', () => {
         }
       })
 
-      // Timestamp-based observation (NULL mediaID)
+      // Observation with NULL mediaID - won't link to any media via direct join
       await insertObservations(manager, [
         {
           observationID: 'obs001',
-          mediaID: null, // NULL = timestamp-based
+          mediaID: null, // NULL mediaID = no direct link
           deploymentID: 'deploy001',
           eventID: 'event001',
           eventStart: DateTime.fromISO('2023-03-20T14:30:15Z'),
@@ -949,13 +953,20 @@ describe('Database Query Functions Tests', () => {
         }
       ])
 
-      // Query for blanks - should return empty for timestamp-based datasets
+      // Query for blanks - media with NULL mediaID observations are considered blanks
       const result = await getMedia(testDbPath, {
         species: ['__blank__'],
         limit: 10
       })
 
-      assert.equal(result.length, 0, 'Should return empty array for timestamp-based dataset')
+      // With NULL mediaID, the observation doesn't link to media via direct join
+      // So the media is considered blank
+      assert.equal(
+        result.length,
+        1,
+        'Should return media as blank when observation has NULL mediaID'
+      )
+      assert.equal(result[0].mediaID, 'media001', 'Should return the media file')
     })
   })
 

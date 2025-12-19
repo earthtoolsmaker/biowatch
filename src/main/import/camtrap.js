@@ -1,7 +1,9 @@
 import fs from 'fs'
 import path from 'path'
+import crypto from 'crypto'
 import csv from 'csv-parser'
 import { DateTime } from 'luxon'
+import { and, eq, gte, lte, isNull, asc, count } from 'drizzle-orm'
 import { getDrizzleDb, deployments, media, observations, insertMetadata } from '../db/index.js'
 
 // Conditionally import electron modules for production, use fallback for testing
@@ -150,6 +152,26 @@ export async function importCamTrapDatasetWithPath(
       })
 
       log.info(`Successfully imported ${file} into ${name} table`)
+    }
+
+    // Post-process: expand event-based observations to individual media
+    // This ensures every media file has a linked observation for simple queries
+    if (onProgress) {
+      onProgress({
+        currentFile: 'Linking observations to media...',
+        fileIndex: existingFiles.length - 1,
+        totalFiles: existingFiles.length,
+        totalRows: 0,
+        insertedRows: 0,
+        phase: 'expanding'
+      })
+    }
+
+    const expansionResult = await expandObservationsToMedia(db, onProgress)
+    if (expansionResult.created > 0) {
+      log.info(
+        `Observation expansion: ${expansionResult.expanded} event-based observations expanded into ${expansionResult.created} media-linked observations`
+      )
     }
 
     log.info('CamTrap dataset import completed successfully')
@@ -491,4 +513,128 @@ function transformFilePathField(filePath, directoryPath) {
   // Fall back to parent directory (original behavior for backward compatibility)
   const parentDir = path.dirname(directoryPath)
   return path.join(parentDir, normalizedPath)
+}
+
+/**
+ * Expand event-based observations to create one record per matching media.
+ * For observations without mediaID (event-based CamTrap DP datasets):
+ * 1. Find all media matching deploymentID + timestamp within eventStart/eventEnd
+ * 2. Create one observation per matching media (duplicating the original observation data)
+ * 3. Delete the original observation without mediaID
+ *
+ * This ensures every media file has a linked observation for simple queries.
+ *
+ * @param {Object} db - Drizzle database instance
+ * @param {function} onProgress - Optional callback for progress updates
+ * @returns {Promise<{expanded: number, created: number}>} - Count of observations expanded and created
+ */
+export async function expandObservationsToMedia(db, onProgress = null) {
+  await initializeElectronModules()
+
+  // 1. Count observations with NULL mediaID
+  const countResult = await db
+    .select({ count: count() })
+    .from(observations)
+    .where(isNull(observations.mediaID))
+    .get()
+
+  const unlinkedCount = countResult?.count || 0
+
+  if (unlinkedCount === 0) {
+    log.info('All observations have mediaID - skipping expansion step')
+    return { expanded: 0, created: 0 }
+  }
+
+  log.info(`Found ${unlinkedCount} event-based observations, expanding to media...`)
+
+  // 2. Get all observations with NULL mediaID
+  const eventBasedObs = await db.select().from(observations).where(isNull(observations.mediaID))
+
+  let createdCount = 0
+  let deletedCount = 0
+  let processedCount = 0
+
+  for (const obs of eventBasedObs) {
+    processedCount++
+
+    // Skip if missing required fields for matching
+    if (!obs.deploymentID || !obs.eventStart) {
+      log.debug(`Skipping observation ${obs.observationID}: missing deploymentID or eventStart`)
+      continue
+    }
+
+    // Find ALL matching media (not just first) by:
+    // - Same deploymentID
+    // - media.timestamp within eventStart/eventEnd range
+    const eventEnd = obs.eventEnd || obs.eventStart
+    const matchingMedia = await db
+      .select({ mediaID: media.mediaID, timestamp: media.timestamp })
+      .from(media)
+      .where(
+        and(
+          eq(media.deploymentID, obs.deploymentID),
+          gte(media.timestamp, obs.eventStart),
+          lte(media.timestamp, eventEnd)
+        )
+      )
+      .orderBy(asc(media.timestamp))
+
+    if (matchingMedia.length > 0) {
+      // Create one observation per matching media
+      for (const m of matchingMedia) {
+        const newObsID = crypto.randomUUID()
+
+        // Copy all fields from original observation, but with new ID and mediaID
+        await db.insert(observations).values({
+          observationID: newObsID,
+          mediaID: m.mediaID,
+          deploymentID: obs.deploymentID,
+          eventID: obs.eventID,
+          eventStart: obs.eventStart,
+          eventEnd: obs.eventEnd,
+          scientificName: obs.scientificName,
+          observationType: obs.observationType,
+          commonName: obs.commonName,
+          classificationProbability: obs.classificationProbability,
+          count: obs.count,
+          lifeStage: obs.lifeStage,
+          age: obs.age,
+          sex: obs.sex,
+          behavior: obs.behavior,
+          bboxX: obs.bboxX,
+          bboxY: obs.bboxY,
+          bboxWidth: obs.bboxWidth,
+          bboxHeight: obs.bboxHeight,
+          detectionConfidence: obs.detectionConfidence,
+          modelOutputID: obs.modelOutputID,
+          classificationMethod: obs.classificationMethod,
+          classifiedBy: obs.classifiedBy,
+          classificationTimestamp: obs.classificationTimestamp
+        })
+        createdCount++
+      }
+
+      // Delete the original observation without mediaID
+      await db.delete(observations).where(eq(observations.observationID, obs.observationID))
+      deletedCount++
+    }
+
+    // Report progress every 1000 observations
+    if (onProgress && processedCount % 1000 === 0) {
+      onProgress({
+        currentFile: 'Linking observations to media...',
+        fileIndex: 0,
+        totalFiles: 1,
+        totalRows: unlinkedCount,
+        insertedRows: processedCount,
+        phase: 'expanding'
+      })
+    }
+  }
+
+  log.info(
+    `Expanded ${deletedCount} event-based observations into ${createdCount} media-linked observations`
+  )
+
+  return { expanded: deletedCount, created: createdCount }
 }
