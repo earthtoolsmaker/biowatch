@@ -42,7 +42,13 @@ async function initializeElectronModules() {
 export async function importCamTrapDataset(directoryPath, id, onProgress = null, options = {}) {
   await initializeElectronModules()
   const biowatchDataPath = path.join(app.getPath('userData'), 'biowatch-data')
-  return await importCamTrapDatasetWithPath(directoryPath, biowatchDataPath, id, onProgress, options)
+  return await importCamTrapDatasetWithPath(
+    directoryPath,
+    biowatchDataPath,
+    id,
+    onProgress,
+    options
+  )
 }
 
 /**

@@ -1253,22 +1253,27 @@ app.whenReady().then(async () => {
       })
 
       const id = crypto.randomUUID()
-      const { data } = await importCamTrapDataset(camtrapDpDirPath, id, (csvProgress) => {
-        sendDemoImportProgress({
-          stage: 'importing_csvs',
-          stageIndex: 2,
-          totalStages: 3,
-          datasetTitle,
-          csvProgress: {
-            currentFile: csvProgress.currentFile,
-            fileIndex: csvProgress.fileIndex,
-            totalFiles: csvProgress.totalFiles,
-            insertedRows: csvProgress.insertedRows || 0,
-            totalRows: csvProgress.totalRows || 0,
-            phase: csvProgress.phase
-          }
-        })
-      }, { nameOverride: datasetTitle })
+      const { data } = await importCamTrapDataset(
+        camtrapDpDirPath,
+        id,
+        (csvProgress) => {
+          sendDemoImportProgress({
+            stage: 'importing_csvs',
+            stageIndex: 2,
+            totalStages: 3,
+            datasetTitle,
+            csvProgress: {
+              currentFile: csvProgress.currentFile,
+              fileIndex: csvProgress.fileIndex,
+              totalFiles: csvProgress.totalFiles,
+              insertedRows: csvProgress.insertedRows || 0,
+              totalRows: csvProgress.totalRows || 0,
+              phase: csvProgress.phase
+            }
+          })
+        },
+        { nameOverride: datasetTitle }
+      )
 
       const result = {
         path: camtrapDpDirPath,
