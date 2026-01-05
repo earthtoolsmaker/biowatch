@@ -5,7 +5,7 @@ All notable changes to Biowatch will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.5.0] - 2024-12-15
+## [1.5.0] - 2025-12-15
 
 ### Added
 
@@ -107,7 +107,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Demo dataset SQL query
 - Sequence grouping by deployment ID
 
-## [1.4.0] - 2024-12-04
+## [1.4.0] - 2025-12-04
 
 ### Added
 
@@ -135,7 +135,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Timeseries query week start dates calculation
 - Failing tests
 
-## [1.3.0] - 2024-11-24
+## [1.3.0] - 2025-11-24
 
 ### Added
 
