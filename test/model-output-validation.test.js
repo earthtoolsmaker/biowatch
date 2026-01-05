@@ -6,7 +6,7 @@ import {
   deepfauneRawOutputSchema,
   manasRawOutputSchema,
   rawOutputSchema
-} from '../src/main/db/schemas.js'
+} from '../src/main/database/validators.js'
 
 describe('Model Output Zod Validation', () => {
   // ============================================================================

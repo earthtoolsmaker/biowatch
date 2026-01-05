@@ -2,7 +2,12 @@ import { app, ipcMain } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import log from 'electron-log'
-import { getReadonlyDrizzleDb, getDrizzleDb, getMetadata, updateMetadata } from './db/index.js'
+import {
+  getReadonlyDrizzleDb,
+  getDrizzleDb,
+  getMetadata,
+  updateMetadata
+} from './database/index.js'
 
 const studiesPath = path.join(app.getPath('userData'), 'biowatch-data', 'studies')
 

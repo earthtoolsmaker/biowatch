@@ -75,7 +75,7 @@ Common issues and solutions.
 **Cause:** Migration file names don't match journal.
 
 **Solution:**
-1. Check `src/main/db/migrations/meta/_journal.json`
+1. Check `src/main/database/migrations/meta/_journal.json`
 2. Ensure migration files match the `tag` values exactly
 3. Regenerate if needed: `npx drizzle-kit generate --name initial`
 

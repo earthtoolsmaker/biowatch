@@ -10,7 +10,7 @@ import {
   observations,
   closeStudyDatabase,
   insertMetadata
-} from '../db/index.js'
+} from '../database/index.js'
 import { eq } from 'drizzle-orm'
 
 // Conditionally import electron modules for production, use fallback for testing

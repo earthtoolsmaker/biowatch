@@ -194,7 +194,7 @@ See [Drizzle ORM Guide](./drizzle.md) for full details.
 
 ```bash
 # 1. Edit schema
-# src/main/db/schema.js
+# src/main/database/models.js
 
 # 2. Generate migration
 npx drizzle-kit generate --name my_change
@@ -211,7 +211,7 @@ biowatch/
 ├── src/
 │   ├── main/               # Electron main process
 │   │   ├── index.js        # Entry point, IPC handlers
-│   │   ├── db/             # Database layer
+│   │   ├── database/       # Database layer
 │   │   └── *.js            # Feature modules
 │   ├── renderer/src/       # React frontend
 │   │   ├── base.jsx        # App root
@@ -439,8 +439,8 @@ publish:
 
 ### Add new database table
 
-1. Define in `src/main/db/schema.js`
-2. Export from `src/main/db/index.js`
+1. Define in `src/main/database/models.js`
+2. Export from `src/main/database/index.js`
 3. Generate migration: `npx drizzle-kit generate --name add_mytable`
 
 ### Add new ML model

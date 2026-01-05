@@ -8,9 +8,10 @@ import { extname, join } from 'path'
 import icon from '../../resources/icon.png?asset'
 import { importCamTrapDataset } from './import/camtrap'
 import { registerMLModelManagementIPCHandlers, garbageCollect, shutdownAllServers } from './models'
-import { getDrizzleDb, deployments, closeStudyDatabase } from './db/index.js'
-import { eq } from 'drizzle-orm'
 import {
+  getDrizzleDb,
+  deployments,
+  closeStudyDatabase,
   getDeployments,
   getLocationsActivity,
   getDeploymentsActivity,
@@ -34,7 +35,8 @@ import {
   checkStudyHasEventIDs,
   getBestMedia,
   countMediaWithNullTimestamps
-} from './queries'
+} from './database/index.js'
+import { eq } from 'drizzle-orm'
 import './import/importer.js' // Side-effect: registers IPC handlers
 import './studies.js' // Side-effect: registers IPC handlers
 import { importWildlifeDataset } from './import/wildlife'

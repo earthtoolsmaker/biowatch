@@ -1,7 +1,7 @@
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { modelRunOptionsSchema } from '../src/main/db/schemas.js'
+import { modelRunOptionsSchema } from '../src/main/database/validators.js'
 
 describe('Model Run Options Zod Validation', () => {
   describe('modelRunOptionsSchema', () => {

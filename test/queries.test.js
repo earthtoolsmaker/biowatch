@@ -22,7 +22,7 @@ import {
   insertObservations,
   getStudyIdFromPath,
   getBlankMediaCount
-} from '../src/main/queries.js'
+} from '../src/main/database/index.js'
 
 // Test database setup
 let testBiowatchDataPath

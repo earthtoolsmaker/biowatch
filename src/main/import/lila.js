@@ -3,7 +3,13 @@ import path from 'path'
 import os from 'os'
 import { Transform } from 'stream'
 import { DateTime } from 'luxon'
-import { getStudyDatabase, deployments, media, observations, insertMetadata } from '../db/index.js'
+import {
+  getStudyDatabase,
+  deployments,
+  media,
+  observations,
+  insertMetadata
+} from '../database/index.js'
 import { downloadFileWithRetry, extractZip } from '../download.ts'
 import { parser } from 'stream-json'
 import { pick } from 'stream-json/filters/Pick.js'

@@ -14,8 +14,8 @@ extraResources:
   - from: 'python-environments/common'
     to: 'python-environments/common'
     filter: ['*.py']
-  - from: 'src/main/db/migrations'
-    to: 'db/migrations'
+  - from: 'src/main/database/migrations'
+    to: 'database/migrations'
 asarUnpack:
   - resources/**
 win:
