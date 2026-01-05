@@ -1268,11 +1268,14 @@ app.whenReady().then(async () => {
             phase: csvProgress.phase
           }
         })
-      })
+      }, { nameOverride: datasetTitle })
 
       const result = {
         path: camtrapDpDirPath,
-        data,
+        data: {
+          ...data,
+          name: datasetTitle
+        },
         id
       }
 
