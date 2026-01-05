@@ -114,6 +114,17 @@ describe('parseDateFromText', () => {
       assert.ok(result)
       assert.equal(getISODateTimePortion(result.isoString), '2024-06-25T14:30:00.000')
     })
+
+    test('parses single-digit hour with AM and takes precedence over 24-hour format', () => {
+      // This format must match the AM/PM pattern, not the 24-hour pattern
+      const result = parseDateFromText('2015-08-23 6:40:49 AM')
+      assert.ok(result)
+      assert.equal(getISODateTimePortion(result.isoString), '2015-08-23T06:40:49.000')
+      // Verify it matched the 12-hour AM/PM pattern, not the 24-hour pattern
+      assert.equal(result.format, 'YYYY-MM-DD hh:mm:ss A')
+      // The raw match should include the AM suffix
+      assert.equal(result.rawMatch, '2015-08-23 6:40:49 AM')
+    })
   })
 
   describe('US format with 12-hour time (MM/DD/YY hh:mm:ss A)', () => {
