@@ -5,7 +5,15 @@
 
 import { eq, desc } from 'drizzle-orm'
 import { getStudyDatabase, closeStudyDatabase, closeAllDatabases } from './manager.js'
-import { deployments, media, observations, modelRuns, modelOutputs, ocrOutputs, metadata } from './models.js'
+import {
+  deployments,
+  media,
+  observations,
+  modelRuns,
+  modelOutputs,
+  ocrOutputs,
+  metadata
+} from './models.js'
 import {
   metadataSchema,
   metadataUpdateSchema,

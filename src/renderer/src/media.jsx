@@ -2425,35 +2425,6 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
     return [...groupedMedia, ...nullTimestampSequences]
   }, [groupedMedia, nullTimestampMedia])
 
-  // Grid column CSS classes
-  const gridColumnClasses = {
-    3: 'w-[calc(33.333%-8px)]',
-    4: 'w-[calc(25%-9px)]',
-    5: 'w-[calc(20%-10px)]'
-  }
-  const thumbnailWidthClass = gridColumnClasses[gridColumns]
-
-  // Cycle grid density handler
-  const handleCycleGrid = useCallback(() => {
-    setGridColumns((prev) => (prev === 5 ? 3 : prev + 1))
-  }, [])
-
-  // OCR handlers
-  const handleStartOCR = useCallback(async () => {
-    setIsOCRModalOpen(true)
-    setOcrProgress({ stage: 'initializing', current: 0, total: 0 })
-    try {
-      await window.api.ocr.extractTimestamps(id, [])
-    } catch (err) {
-      console.error('OCR failed:', err)
-    }
-  }, [id])
-
-  const handleCancelOCR = useCallback(async () => {
-    await window.api.ocr.cancel()
-    setIsOCRModalOpen(false)
-    setOcrProgress(null)
-  }, [])
   // Batch fetch bboxes for all visible media when showThumbnailBboxes is enabled
   const mediaIDs = useMemo(() => mediaFiles.map((m) => m.mediaID), [mediaFiles])
 

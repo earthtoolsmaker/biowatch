@@ -715,8 +715,15 @@ export async function getMediaTimestampStats(dbPath) {
 
     // Get both counts in parallel
     const [nullResult, totalResult] = await Promise.all([
-      db.select({ count: count().as('count') }).from(media).where(isNull(media.timestamp)).get(),
-      db.select({ count: count().as('count') }).from(media).get()
+      db
+        .select({ count: count().as('count') })
+        .from(media)
+        .where(isNull(media.timestamp))
+        .get(),
+      db
+        .select({ count: count().as('count') })
+        .from(media)
+        .get()
     ])
 
     const nullCount = nullResult?.count || 0

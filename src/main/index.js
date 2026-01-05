@@ -46,7 +46,7 @@ import { extractZip, downloadFile } from './download'
 import migrations from './migrations/index.js'
 import { registerExportIPCHandlers } from './export.js'
 import { registerTranscodeIPCHandlers, cleanExpiredTranscodeCache } from './transcoder.js'
-import { registerOCRIPCHandlers } from './ocr.js'
+import { registerOCRIPCHandlers } from './ocr/index.js'
 import {
   registerImageCacheIPCHandlers,
   cleanExpiredImageCache,

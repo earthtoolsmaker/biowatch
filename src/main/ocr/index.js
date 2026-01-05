@@ -12,12 +12,12 @@ import log from 'electron-log'
 import crypto from 'crypto'
 import os from 'os'
 import { DateTime } from 'luxon'
-import { parseDateFromText, normalizeOCRText } from './date-parser.js'
-import { getDrizzleDb, ocrOutputs, media, observations } from './db/index.js'
+import { parseDateFromText, normalizeOCRText } from '../date-parser.js'
+import { getDrizzleDb, ocrOutputs, media, observations } from '../database/index.js'
 import { eq, isNull } from 'drizzle-orm'
-import { downloadAndCacheImage } from './image-cache.js'
-import { extractFirstFrame, getLocalVideoPath, getVideoDuration } from './transcoder.js'
-import { getTessdataLangPath } from './tessdata-path.js'
+import { downloadAndCacheImage } from '../image-cache.js'
+import { extractFirstFrame, getLocalVideoPath, getVideoDuration } from '../transcoder.js'
+import { getTesseractConfig } from './tesseract-config.js'
 
 /**
  * Get the database path for a study
@@ -56,7 +56,7 @@ async function getLocalImagePath(studyId, imagePath) {
 }
 
 // Tesseract.js version for tracking
-const TESSERACT_VERSION = '5.1.1'
+const TESSERACT_VERSION = '7.0.0'
 const MODEL_ID = 'tesseract'
 
 // Region extraction percentage (top/bottom of image)
@@ -139,6 +139,19 @@ async function ocrRegion(worker, imageBuffer) {
 }
 
 /**
+ * Create a configured Tesseract worker
+ * @returns {Promise<Object>} Configured worker
+ */
+async function createConfiguredWorker() {
+  const config = getTesseractConfig()
+  const worker = await createWorker('eng', 1, config)
+  await worker.setParameters({
+    tessedit_char_whitelist: CHAR_WHITELIST
+  })
+  return worker
+}
+
+/**
  * Extract timestamp from a single image
  * Tries both top and bottom regions, returns best result
  * @param {string} imagePath - Path to image file
@@ -152,12 +165,7 @@ export async function extractTimestampFromImage(imagePath, worker = null) {
   log.info(`[OCR] Starting extraction for: ${fileName}`)
 
   if (!worker) {
-    worker = await createWorker('eng', 1, {
-      langPath: getTessdataLangPath()
-    })
-    await worker.setParameters({
-      tessedit_char_whitelist: CHAR_WHITELIST
-    })
+    worker = await createConfiguredWorker()
   }
 
   try {
@@ -323,13 +331,7 @@ export async function extractTimestampBatch(
   const workers = await Promise.all(
     Array(workerCount)
       .fill(null)
-      .map(async () => {
-        const worker = await createWorker('eng', 1, {
-          langPath: getTessdataLangPath()
-        })
-        await worker.setParameters({ tessedit_char_whitelist: CHAR_WHITELIST })
-        return worker
-      })
+      .map(() => createConfiguredWorker())
   )
 
   log.info(`[OCR] Created ${workerCount} Tesseract workers for parallel processing`)
