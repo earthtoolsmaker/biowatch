@@ -11,9 +11,11 @@ import {
   createImageDirectoryDatabase,
   insertDeployments,
   insertMedia,
-  insertObservations
-} from '../src/main/queries.js'
-import { deployments, media, observations } from '../src/main/db/schema.js'
+  insertObservations,
+  deployments,
+  media,
+  observations
+} from '../src/main/database/index.js'
 import { eq, count, sql } from 'drizzle-orm'
 
 // Test database setup

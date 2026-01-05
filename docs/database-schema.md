@@ -62,7 +62,7 @@ Camera trap deployment information.
 The EXIF-derived fields (`cameraModel`, `cameraID`, `coordinateUncertainty`) are automatically populated during import using mode aggregation (most common value) across all media in the deployment. This ensures CamtrapDP compliance.
 
 ```javascript
-// src/main/db/schema.js
+// src/main/database/models.js
 export const deployments = sqliteTable('deployments', {
   deploymentID: text('deploymentID').primaryKey(),
   locationID: text('locationID'),
@@ -367,11 +367,18 @@ export const modelOutputs = sqliteTable(
 
 | File | Purpose |
 |------|---------|
-| `src/main/db/schema.js` | Table definitions |
-| `src/main/db/manager.js` | Connection pooling |
-| `src/main/db/index.js` | Database interface exports |
-| `src/main/db/queries.js` | Common query functions |
-| `src/main/db/migrations/` | SQL migration files |
+| `src/main/database/models.js` | Table definitions (Drizzle ORM) |
+| `src/main/database/validators.js` | Zod validation schemas |
+| `src/main/database/manager.js` | Connection pooling |
+| `src/main/database/index.js` | Unified database exports |
+| `src/main/database/queries/` | Query functions by domain |
+| `src/main/database/queries/media.js` | Media queries |
+| `src/main/database/queries/species.js` | Species analytics queries |
+| `src/main/database/queries/observations.js` | Observation CRUD |
+| `src/main/database/queries/deployments.js` | Deployment queries |
+| `src/main/database/queries/best-media.js` | Best media selection |
+| `src/main/database/queries/utils.js` | Query utilities |
+| `src/main/database/migrations/` | SQL migration files |
 
 ---
 

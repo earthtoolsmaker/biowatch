@@ -10,8 +10,9 @@ import {
   observations,
   deployments,
   closeStudyDatabase,
-  getMetadata
-} from './db/index.js'
+  getMetadata,
+  getStudyIdFromPath
+} from './database/index.js'
 import { eq, and, isNotNull, ne, or, isNull, asc, inArray } from 'drizzle-orm'
 import { downloadFileWithRetry } from './download.js'
 import crypto from 'crypto'
@@ -28,7 +29,6 @@ import {
   sanitizeDatapackage,
   CAMTRAP_DP_PROFILE_URL
 } from './export/sanitizers.js'
-import { getStudyIdFromPath } from './queries.js'
 
 function getStudyDatabasePath(userDataPath, studyId) {
   return join(getStudyPath(userDataPath, studyId), 'study.db')

@@ -20,7 +20,7 @@ import {
   getLatestModelRun,
   updateMetadata,
   getMetadata
-} from '../db/index.js'
+} from '../database/index.js'
 import { transformBboxToCamtrapDP } from '../transformers/index.js'
 import { eq, isNull, count, sql } from 'drizzle-orm'
 import models from '../models.js'

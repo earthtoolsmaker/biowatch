@@ -74,24 +74,43 @@ System architecture and design patterns for Biowatch.
 src/
 ├── main/                    # Electron main process
 │   ├── index.js             # App entry, IPC handlers
-│   ├── db/                  # Database layer
-│   │   ├── schema.js        # Drizzle table definitions
+│   ├── database/            # Database layer
+│   │   ├── models.js        # Drizzle table definitions
+│   │   ├── validators.js    # Zod validation schemas
 │   │   ├── manager.js       # Connection pooling
-│   │   ├── index.js         # DB interface exports
-│   │   ├── queries.js       # Query functions
+│   │   ├── index.js         # Unified exports (tables + validators + queries)
+│   │   ├── migrations-utils.js
+│   │   ├── queries/         # Query functions by domain
+│   │   │   ├── index.js     # Re-exports all queries
+│   │   │   ├── media.js     # Media queries
+│   │   │   ├── species.js   # Species analytics
+│   │   │   ├── observations.js
+│   │   │   ├── deployments.js
+│   │   │   ├── best-media.js
+│   │   │   └── utils.js
 │   │   └── migrations/      # SQL migration files
-│   ├── queries.js           # Data query logic
-│   ├── camtrap.js           # CamTrap DP importer
-│   ├── wildlife.js          # Wildlife Insights importer
-│   ├── deepfaune.js         # DeepFaune CSV importer
-│   ├── importer.js          # Image folder importer with ML
+│   ├── import/              # Data importers
+│   │   ├── index.js         # Importer exports
+│   │   ├── camtrap.js       # CamTrap DP importer
+│   │   ├── wildlife.js      # Wildlife Insights importer
+│   │   ├── deepfaune.js     # DeepFaune CSV importer
+│   │   ├── lila.js          # LILA dataset importer
+│   │   └── importer.js      # Image folder importer with ML
+│   ├── export/              # Data exporters
+│   │   ├── camtrapDPSchemas.js
+│   │   └── sanitizers.js
 │   ├── export.js            # Export handlers
-│   ├── transcoder.js        # Video transcoding with FFmpeg
+│   ├── migrations/          # App data migrations (not DB)
+│   │   └── *.js             # Version upgrade scripts
+│   ├── transformers/        # Bbox format conversions
+│   │   └── index.js
 │   ├── models.ts            # ML model management
 │   ├── studies.js           # Study metadata management
 │   ├── download.ts          # File download utilities
-│   └── transformers/        # Bbox format conversions
-│       └── index.js
+│   ├── transcoder.js        # Video transcoding with FFmpeg
+│   ├── cache-cleanup.js     # Transcode cache management
+│   ├── image-cache.js       # Image caching utilities
+│   └── videoClassification.js  # Video classification logic
 ├── renderer/src/            # React frontend
 │   ├── base.jsx             # App root, routing, layout
 │   ├── import.jsx           # Data import page
@@ -158,7 +177,8 @@ React Component
          │
          ▼
 ┌─────────────────┐
-│   queries.js    │
+│  database/      │
+│  queries/media  │
 │   getMedia()    │
 └────────┬────────┘
          │
@@ -241,9 +261,10 @@ function getStudyPath(userDataPath, studyId) {
 | `src/main/index.js` | Main process entry, all IPC handlers |
 | `src/preload/index.js` | IPC bridge, exposes `window.api` |
 | `src/renderer/src/base.jsx` | React app root, routing |
-| `src/main/db/schema.js` | Drizzle table definitions |
-| `src/main/db/manager.js` | Database connection pooling |
-| `src/main/queries.js` | Data query functions |
+| `src/main/database/models.js` | Drizzle table definitions |
+| `src/main/database/validators.js` | Zod validation schemas |
+| `src/main/database/manager.js` | Database connection pooling |
+| `src/main/database/queries/` | Data query functions (split by domain) |
 | `src/shared/mlmodels.js` | Model zoo configuration |
 | `src/main/models.ts` | ML model download/server management |
 | `src/main/import/importer.js` | Image import with ML inference |

@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync, unlinkSync } from 'fs'
 import { join } from 'path'
-import { getDrizzleDb, insertMetadata, getMetadata } from '../db/index.js'
+import { getDrizzleDb, insertMetadata, getMetadata } from '../database/index.js'
 
 /**
  * Migration to move study.json files to database metadata table

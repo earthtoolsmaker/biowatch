@@ -9,11 +9,20 @@ Biowatch uses Drizzle ORM with a **per-study database architecture**. Each study
 ## Project Structure
 
 ```
-src/main/db/
-├── schema.js           # Table definitions
+src/main/database/
+├── models.js           # Table definitions (Drizzle ORM)
+├── validators.js       # Zod validation schemas
 ├── manager.js          # Database connection management
-├── index.js           # Main database interface
-└── migrations/        # Generated migration files
+├── index.js            # Main database interface (unified exports)
+├── queries/            # Query functions by domain
+│   ├── index.js        # Re-exports all queries
+│   ├── media.js        # Media queries
+│   ├── species.js      # Species analytics
+│   ├── observations.js # Observation CRUD
+│   ├── deployments.js  # Deployment queries
+│   ├── best-media.js   # Best media selection
+│   └── utils.js        # Query utilities
+└── migrations/         # Generated migration files
     ├── 0000_initial.sql
     ├── 0001_add_column.sql
     └── meta/
@@ -25,7 +34,7 @@ src/main/db/
 
 ### Step 1: Modify the Schema
 
-Edit `src/main/db/schema.js` to add your changes:
+Edit `src/main/database/models.js` to add your changes:
 
 ```javascript
 import { sqliteTable, text, real, integer } from 'drizzle-orm/sqlite-core'
@@ -68,7 +77,7 @@ npx drizzle-kit generate --name create_settings_table
 This will:
 
 - Analyze the schema changes
-- Create a new migration file in `src/main/db/migrations/`
+- Create a new migration file in `src/main/database/migrations/`
 - If using `--name`, creates `0001_initial.sql` instead of auto-generated name
 - Update the migration metadata in `meta/_journal.json`
 
@@ -76,7 +85,7 @@ This will:
 
 ### Step 3: Update Exports (if adding new tables)
 
-If you added new tables, export them from `src/main/db/schema.js`:
+If you added new tables, export them from `src/main/database/models.js`:
 
 ```javascript
 // Export all tables
@@ -86,14 +95,7 @@ export const observations = sqliteTable(...)
 export const settings = sqliteTable(...)  // NEW
 ```
 
-And update the imports in `src/main/db/index.js`:
-
-```javascript
-import { deployments, media, observations, settings } from './schema.js'
-
-// Re-export schema
-export { deployments, media, observations, settings }
-```
+The tables are automatically re-exported from `src/main/database/index.js`, which imports from `models.js`.
 
 ### Step 4: Test the Migration
 
@@ -175,7 +177,7 @@ export const comments = sqliteTable('comments', {
 After adding new tables/columns, use them in your query functions:
 
 ```javascript
-import { getDrizzleDb, deployments, settings } from './db/index.js'
+import { getDrizzleDb, deployments, settings } from './database'
 import { eq } from 'drizzle-orm'
 
 export async function getStudySettings(dbPath) {
@@ -240,8 +242,8 @@ The Drizzle configuration is in `drizzle.config.js`:
 import { defineConfig } from 'drizzle-kit'
 
 export default defineConfig({
-  schema: './src/main/db/schema.js', // Schema location
-  out: './src/main/db/migrations', // Migration output
+  schema: './src/main/database/models.js', // Schema location
+  out: './src/main/database/migrations', // Migration output
   dialect: 'sqlite', // Database type
   verbose: true, // Detailed output
   strict: true // Strict mode
@@ -269,14 +271,14 @@ If you see this message but migration files exist:
    - **Option B**: Regenerate with custom name:
      ```bash
      # Remove current migration files
-     rm -rf src/main/db/migrations/*
+     rm -rf src/main/database/migrations/*
      # Regenerate with custom name
      npx drizzle-kit generate --name initial
      ```
 
 ### Schema Changes Not Detected
 
-1. Ensure you saved `schema.js`
+1. Ensure you saved `models.js`
 2. Run `npx drizzle-kit generate` again
 3. Check that the schema change is significant enough to warrant a migration
 

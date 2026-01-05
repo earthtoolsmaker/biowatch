@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import { selectDiverseMedia, getTemporalBucket } from '../src/main/queries.js'
+import { selectDiverseMedia, getTemporalBucket } from '../src/main/database/index.js'
 
 // ============================================================
 // Helper Functions

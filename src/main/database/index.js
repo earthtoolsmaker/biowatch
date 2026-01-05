@@ -5,13 +5,13 @@
 
 import { eq, desc } from 'drizzle-orm'
 import { getStudyDatabase, closeStudyDatabase, closeAllDatabases } from './manager.js'
-import { deployments, media, observations, modelRuns, modelOutputs, metadata } from './schema.js'
+import { deployments, media, observations, modelRuns, modelOutputs, metadata } from './models.js'
 import {
   metadataSchema,
   metadataUpdateSchema,
   modelRunOptionsSchema,
   rawOutputSchema
-} from './schemas.js'
+} from './validators.js'
 import log from 'electron-log'
 
 // Re-export schema and manager functions
@@ -33,7 +33,7 @@ export {
   deepfauneRawOutputSchema,
   manasRawOutputSchema,
   rawOutputSchema
-} from './schemas.js'
+} from './validators.js'
 
 /**
  * Helper function to get Drizzle database instance for a study
@@ -191,3 +191,48 @@ export async function getLatestModelRun(db) {
   const result = await db.select().from(modelRuns).orderBy(desc(modelRuns.startedAt)).limit(1)
   return result[0] || null
 }
+
+// ============================================================================
+// Re-export all query functions for unified imports
+// ============================================================================
+
+export {
+  // Utils
+  formatToMatchOriginal,
+  getStudyIdFromPath,
+  isTimestampBasedDataset,
+  checkStudyHasEventIDs,
+  createImageDirectoryDatabase,
+  // Deployments
+  getDeployments,
+  getLocationsActivity,
+  insertDeployments,
+  getDeploymentsActivity,
+  // Species
+  getSpeciesDistribution,
+  getBlankMediaCount,
+  getSpeciesTimeseries,
+  getSpeciesHeatmapData,
+  getSpeciesDailyActivity,
+  getDistinctSpecies,
+  // Media
+  getMedia,
+  getFilesData,
+  getMediaBboxes,
+  getMediaBboxesBatch,
+  checkMediaHaveBboxes,
+  updateMediaTimestamp,
+  insertMedia,
+  updateMediaFavorite,
+  countMediaWithNullTimestamps,
+  // Observations
+  updateObservationClassification,
+  updateObservationBbox,
+  deleteObservation,
+  createObservation,
+  insertObservations,
+  // Best media
+  getTemporalBucket,
+  selectDiverseMedia,
+  getBestMedia
+} from './queries/index.js'

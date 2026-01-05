@@ -11,11 +11,11 @@ export function getMigrationsPath(environment) {
     case 'development':
     case 'test':
       // In development and test, use source migrations
-      return join(process.cwd(), 'src', 'main', 'db', 'migrations')
+      return join(process.cwd(), 'src', 'main', 'database', 'migrations')
 
     case 'production':
       // In production, try extraResources first
-      return join(process.resourcesPath, 'db', 'migrations')
+      return join(process.resourcesPath, 'database', 'migrations')
 
     default:
       throw new Error(
@@ -29,7 +29,7 @@ export function getMigrationsPath(environment) {
  * @returns {string[]} Array of alternative production paths
  */
 function getProductionFallbackPaths() {
-  return [join(process.resourcesPath, 'app.asar.unpacked', 'db', 'migrations')]
+  return [join(process.resourcesPath, 'app.asar.unpacked', 'database', 'migrations')]
 }
 
 /**
