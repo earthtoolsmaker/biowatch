@@ -1,4 +1,4 @@
-# common v0.1.2
+# common v0.1.3
 
 This is the `common` python environment.
 It currently contains all the dependencies necessary to run pytorch models
@@ -43,9 +43,62 @@ uv run python run_speciesnet_server.py \
 Load the SpeciesNet Model from a folder and start the server:
 
 ```bash
-run_speciesnet_server.py \
+uv run python run_speciesnet_server.py \
   --port 8000 \
   --model "v4.0.1a/"
 ```
 
 ### Deepfaune
+
+Deepfaune is a wildlife detection and classification model for Alpine/European
+fauna. It uses a YOLO detector (MDV6-yolov10x) and a ViT Large classifier with
+DinoV2 backbone.
+
+Start the server with required weights:
+
+```bash
+uv run python run_deepfaune_server.py \
+  --filepath-detector-weights ./path/to/weights/MDV6-yolov10x.pt \
+  --filepath-classifier-weights ./path/to/weights/deepfaune-vit_large_patch14_dinov2.lvd142m.v3.pt
+```
+
+Start the server with all options:
+
+```bash
+uv run python run_deepfaune_server.py \
+  --port 8000 \
+  --timeout 30 \
+  --workers_per_device 1 \
+  --backlog 2048 \
+  --filepath-detector-weights ./path/to/weights/MDV6-yolov10x.pt \
+  --filepath-classifier-weights ./path/to/weights/deepfaune-vit_large_patch14_dinov2.lvd142m.v3.pt
+```
+
+### Manas
+
+Manas is a wildlife classifier developed by OSI-Panthera and Hex Data for
+classifying wildlife species from camera trap images in Kyrgyzstan, focusing on
+snow leopard (panthera uncia) and other regional fauna. It uses a YOLO detector
+(MDV6-yolov10x) and an EfficientNet V2 Large classifier.
+
+Start the server with required weights:
+
+```bash
+uv run python run_manas_server.py \
+  --filepath-detector-weights ./path/to/weights/MDV6-yolov10x.pt \
+  --filepath-classifier-weights ./path/to/weights/best_model_Fri_Sep__1_18_50_55_2023.pt \
+  --filepath-classes ./path/to/classes/classes_Fri_Sep__1_18_50_55_2023.pickle
+```
+
+Start the server with all options:
+
+```bash
+uv run python run_manas_server.py \
+  --port 8002 \
+  --timeout 30 \
+  --workers_per_device 1 \
+  --backlog 2048 \
+  --filepath-detector-weights ./path/to/weights/MDV6-yolov10x.pt \
+  --filepath-classifier-weights ./path/to/weights/best_model_Fri_Sep__1_18_50_55_2023.pt \
+  --filepath-classes ./path/to/classes/classes_Fri_Sep__1_18_50_55_2023.pickle
+```
