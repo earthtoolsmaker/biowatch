@@ -334,6 +334,36 @@ const api = {
     clearCache: async (studyId) => {
       return await electronAPI.ipcRenderer.invoke('image-cache:clear', studyId)
     }
+  },
+
+  // OCR timestamp extraction
+  ocr: {
+    // Extract timestamps from media files using OCR
+    extractTimestamps: async (studyId, mediaIDs) => {
+      return await electronAPI.ipcRenderer.invoke('ocr:extract-timestamps', studyId, mediaIDs)
+    },
+    // Cancel ongoing OCR operation
+    cancel: async () => {
+      return await electronAPI.ipcRenderer.invoke('ocr:cancel')
+    },
+    // Get current OCR status for a specific study (for restoring state when navigating)
+    getStatus: async (studyId) => {
+      return await electronAPI.ipcRenderer.invoke('ocr:get-status', studyId)
+    },
+    // Get global OCR status (for disabling buttons in other studies)
+    getGlobalStatus: async () => {
+      return await electronAPI.ipcRenderer.invoke('ocr:get-global-status')
+    },
+    // Get timestamp statistics for images (nullCount, totalCount)
+    getTimestampStats: async (studyId) => {
+      return await electronAPI.ipcRenderer.invoke('ocr:get-timestamp-stats', studyId)
+    },
+    // Listen for OCR progress updates
+    onProgress: (callback) => {
+      const handler = (_event, data) => callback(data)
+      electronAPI.ipcRenderer.on('ocr:progress', handler)
+      return () => electronAPI.ipcRenderer.removeListener('ocr:progress', handler)
+    }
   }
 }
 

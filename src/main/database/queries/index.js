@@ -40,7 +40,7 @@ export {
   updateMediaTimestamp,
   insertMedia,
   updateMediaFavorite,
-  countMediaWithNullTimestamps
+  getMediaTimestampStats
 } from './media.js'
 
 // Observations

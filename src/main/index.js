@@ -34,7 +34,7 @@ import {
   getDistinctSpecies,
   checkStudyHasEventIDs,
   getBestMedia,
-  countMediaWithNullTimestamps
+  getMediaTimestampStats
 } from './database/index.js'
 import { eq } from 'drizzle-orm'
 import './import/importer.js' // Side-effect: registers IPC handlers
@@ -46,6 +46,7 @@ import { extractZip, downloadFile } from './download'
 import migrations from './migrations/index.js'
 import { registerExportIPCHandlers } from './export.js'
 import { registerTranscodeIPCHandlers, cleanExpiredTranscodeCache } from './transcoder.js'
+import { registerOCRIPCHandlers } from './ocr/index.js'
 import {
   registerImageCacheIPCHandlers,
   cleanExpiredImageCache,
@@ -1693,6 +1694,7 @@ app.whenReady().then(async () => {
   registerExportIPCHandlers()
   registerTranscodeIPCHandlers()
   registerImageCacheIPCHandlers()
+  registerOCRIPCHandlers()
 })
 
 // Quit when all windows are closed, except on macOS. There, it's common
@@ -1836,7 +1838,7 @@ ipcMain.handle('media:set-favorite', async (_, studyId, mediaID, favorite) => {
   }
 })
 
-ipcMain.handle('media:count-null-timestamps', async (_, studyId) => {
+ipcMain.handle('media:timestamp-stats', async (_, studyId) => {
   try {
     const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
     if (!dbPath || !existsSync(dbPath)) {
@@ -1844,10 +1846,10 @@ ipcMain.handle('media:count-null-timestamps', async (_, studyId) => {
       return { error: 'Database not found for this study' }
     }
 
-    const count = await countMediaWithNullTimestamps(dbPath)
-    return { data: count }
+    const stats = await getMediaTimestampStats(dbPath)
+    return { data: stats }
   } catch (error) {
-    log.error('Error counting media with null timestamps:', error)
+    log.error('Error getting media timestamp stats:', error)
     return { error: error.message }
   }
 })

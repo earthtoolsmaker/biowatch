@@ -13,7 +13,8 @@ import {
   Loader2,
   ChevronDown,
   ChevronUp,
-  Heart
+  Heart,
+  ScanText
 } from 'lucide-react'
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient, useMutation, useInfiniteQuery } from '@tanstack/react-query'
@@ -487,6 +488,8 @@ function ImageModal({
   const [transcodeError, setTranscodeError] = useState(null)
   // Favorite state
   const [isFavorite, setIsFavorite] = useState(media?.favorite ?? false)
+  // OCR state
+  const [isRunningOCR, setIsRunningOCR] = useState(false)
   const queryClient = useQueryClient()
 
   // Refs for positioning the species selector near the label
@@ -831,6 +834,42 @@ function ImageModal({
       setInlineTimestamp(new Date(media.timestamp).toLocaleString())
     }
     setError(null)
+  }
+
+  // Handle OCR timestamp extraction for single image
+  const handleOCRExtract = async () => {
+    if (!media?.mediaID || isRunningOCR) return
+
+    setIsRunningOCR(true)
+    setError(null)
+
+    try {
+      const result = await window.api.ocr.extractTimestamps(studyId, [media.mediaID])
+
+      if (result.extracted > 0) {
+        // Invalidate queries to refresh data
+        queryClient.invalidateQueries({ queryKey: ['media', studyId] })
+        queryClient.invalidateQueries({ queryKey: ['nullTimestampCount', studyId] })
+
+        // Update local timestamp state if extraction was successful
+        if (result.results?.[0]?.timestamp) {
+          const newTimestamp = result.results[0].timestamp
+          setInlineTimestamp(new Date(newTimestamp).toLocaleString())
+          if (onTimestampUpdate) {
+            onTimestampUpdate(media.mediaID, newTimestamp)
+          }
+        }
+      } else if (result.errors?.length > 0) {
+        setError('OCR failed: ' + result.errors[0].error)
+      } else {
+        setError('No timestamp found in image')
+      }
+    } catch (err) {
+      console.error('OCR extraction failed:', err)
+      setError('OCR extraction failed')
+    } finally {
+      setIsRunningOCR(false)
+    }
   }
 
   // Handle inline keyboard events
@@ -1549,6 +1588,21 @@ function ImageModal({
                   >
                     <Calendar size={14} />
                   </button>
+                  {/* OCR button - only for images without a timestamp */}
+                  {!isVideoMedia(media) && !media?.timestamp && (
+                    <button
+                      onClick={handleOCRExtract}
+                      disabled={isRunningOCR}
+                      className="text-gray-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 disabled:opacity-50"
+                      title="Extract timestamp using OCR"
+                    >
+                      {isRunningOCR ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <ScanText size={14} />
+                      )}
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -2744,6 +2798,7 @@ export default function Activity({ studyData, studyId }) {
 
       const startDate = new Date(timeseriesData[startIndex].date)
       const endDate = new Date(timeseriesData[endIndex].date)
+      endDate.setDate(endDate.getDate() + 1) // Include all of the last day
 
       setDateRange([startDate, endDate])
       setFullExtent([startDate, endDate])

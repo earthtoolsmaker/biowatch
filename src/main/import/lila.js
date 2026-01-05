@@ -1181,12 +1181,24 @@ function getMediaTypeFromFileName(fileName) {
 
   const ext = fileName.toLowerCase().split('.').pop()
   const mimeTypes = {
+    // Images
     jpg: 'image/jpeg',
     jpeg: 'image/jpeg',
     png: 'image/png',
     gif: 'image/gif',
     bmp: 'image/bmp',
-    webp: 'image/webp'
+    webp: 'image/webp',
+    // Videos
+    avi: 'video/x-msvideo',
+    mp4: 'video/mp4',
+    mkv: 'video/x-matroska',
+    mov: 'video/quicktime',
+    m4v: 'video/x-m4v',
+    wmv: 'video/x-ms-wmv',
+    flv: 'video/x-flv',
+    '3gp': 'video/3gpp',
+    webm: 'video/webm',
+    ogv: 'video/ogg'
   }
 
   return mimeTypes[ext] || 'image/jpeg'
