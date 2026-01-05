@@ -35,12 +35,20 @@ async function initializeElectronModules() {
  * @param {string} directoryPath - Path to the CamTrapDP dataset directory
  * @param {string} id - Unique ID for the study
  * @param {function} onProgress - Optional callback for progress updates
+ * @param {Object} options - Optional import options
+ * @param {string} [options.nameOverride] - Override the dataset name (instead of using name from datapackage.json)
  * @returns {Promise<Object>} - Object containing dbPath and name
  */
-export async function importCamTrapDataset(directoryPath, id, onProgress = null) {
+export async function importCamTrapDataset(directoryPath, id, onProgress = null, options = {}) {
   await initializeElectronModules()
   const biowatchDataPath = path.join(app.getPath('userData'), 'biowatch-data')
-  return await importCamTrapDatasetWithPath(directoryPath, biowatchDataPath, id, onProgress)
+  return await importCamTrapDatasetWithPath(
+    directoryPath,
+    biowatchDataPath,
+    id,
+    onProgress,
+    options
+  )
 }
 
 /**
@@ -49,13 +57,16 @@ export async function importCamTrapDataset(directoryPath, id, onProgress = null)
  * @param {string} biowatchDataPath - Path to the biowatch-data directory
  * @param {string} id - Unique ID for the study
  * @param {function} onProgress - Optional callback for progress updates
+ * @param {Object} options - Optional import options
+ * @param {string} [options.nameOverride] - Override the dataset name (instead of using name from datapackage.json)
  * @returns {Promise<Object>} - Object containing dbPath and data
  */
 export async function importCamTrapDatasetWithPath(
   directoryPath,
   biowatchDataPath,
   id,
-  onProgress = null
+  onProgress = null,
+  options = {}
 ) {
   await initializeElectronModules()
   log.info('Starting CamTrap dataset import')
@@ -157,7 +168,7 @@ export async function importCamTrapDatasetWithPath(
     // Insert metadata into the database
     const metadataRecord = {
       id,
-      name: data.name || null,
+      name: options.nameOverride || data.name || null,
       title: data.title || null,
       description: data.description || null,
       created: new Date().toISOString(),
