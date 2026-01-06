@@ -267,13 +267,14 @@ function AppContent() {
 
   return (
     <div className={`relative flex h-svh flex-row`}>
-      <div className="w-64 h-full flex flex-col fixed">
+      <div data-testid="studies-sidebar" className="w-64 h-full flex flex-col fixed">
         {/* Header */}
         <div className="p-4 border-b border-gray-200">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-gray-900">Studies</h2>
             <NavLink
               to="/import"
+              data-testid="add-study-btn"
               className="h-7 w-7 p-0 flex items-center justify-center rounded hover:bg-gray-100 transition-colors"
               title="Add a new study"
             >
@@ -287,6 +288,7 @@ function AppContent() {
             <input
               type="text"
               placeholder="Search studies..."
+              data-testid="search-studies"
               className="w-full pl-8 h-9 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -296,9 +298,13 @@ function AppContent() {
 
         {/* Studies List */}
         <div className="flex-1 overflow-y-auto">
-          <div className="p-2">
+          <div data-testid="studies-list" className="p-2">
             {filteredStudies.map((study) => (
-              <div key={study.id} onContextMenu={(e) => handleContextMenu(e, study)}>
+              <div
+                key={study.id}
+                data-testid={`study-item-${study.id}`}
+                onContextMenu={(e) => handleContextMenu(e, study)}
+              >
                 {renamingStudyId === study.id ? (
                   <input
                     ref={renameInputRef}
@@ -362,11 +368,13 @@ function AppContent() {
       {/* Context Menu */}
       {contextMenu && (
         <div
+          data-testid="study-context-menu"
           className="fixed z-50 bg-white rounded-md shadow-lg border border-gray-200 py-1 min-w-[140px]"
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onClick={(e) => e.stopPropagation()}
         >
           <button
+            data-testid="context-menu-rename"
             onClick={() => startRename(contextMenu.study)}
             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 text-left"
           >
@@ -374,6 +382,7 @@ function AppContent() {
             Rename
           </button>
           <button
+            data-testid="context-menu-delete"
             onClick={() => startDelete(contextMenu.study)}
             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-gray-100 text-left"
           >

@@ -1,7 +1,7 @@
 # Biowatch Makefile
 # Unified interface for development tasks
 
-.PHONY: install dev build test lint format fix clean help \
+.PHONY: install dev build test test-e2e test-e2e-headed test-e2e-debug lint format fix clean help \
         check-node check-uv \
         build-win build-mac build-mac-no-sign build-linux
 
@@ -88,6 +88,18 @@ build:
 ## test: Run all tests
 test:
 	npm test
+
+## test-e2e: Run E2E tests (builds app first)
+test-e2e: build
+	npm run test:e2e
+
+## test-e2e-headed: Run E2E tests with visible window
+test-e2e-headed: build
+	npm run test:e2e:headed
+
+## test-e2e-debug: Run E2E tests in debug mode
+test-e2e-debug: build
+	npm run test:e2e:debug
 
 ## lint: Check code style (JavaScript and Python)
 lint:

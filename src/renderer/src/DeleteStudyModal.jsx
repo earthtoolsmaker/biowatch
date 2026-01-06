@@ -48,6 +48,7 @@ function DeleteStudyModal({ isOpen, onConfirm, onCancel, studyName }) {
       onClick={onCancel}
     >
       <div
+        data-testid="delete-modal"
         className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
@@ -90,6 +91,7 @@ function DeleteStudyModal({ isOpen, onConfirm, onCancel, studyName }) {
             </span>
             <input
               type="text"
+              data-testid="delete-confirm-input"
               value={confirmText}
               onChange={(e) => setConfirmText(e.target.value)}
               onKeyDown={handleKeyPress}
@@ -108,6 +110,7 @@ function DeleteStudyModal({ isOpen, onConfirm, onCancel, studyName }) {
             Cancel
           </button>
           <button
+            data-testid="delete-confirm-btn"
             onClick={handleConfirm}
             disabled={!canDelete}
             className={`px-4 py-2 text-sm font-medium text-white rounded-md transition-colors ${

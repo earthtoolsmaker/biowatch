@@ -64,6 +64,7 @@ Opens Electron app with hot reload enabled.
 | `npm run format` | Format code with Prettier |
 | `npm test` | Run all tests |
 | `npm run test:watch` | Run tests in watch mode |
+| `npm run test:e2e` | Run E2E tests (requires `npm run build` first) |
 
 ### Build scripts
 
@@ -147,6 +148,11 @@ npm run test:rebuild && node --test test/integration/camtrap-import.test.js
 
 ```
 test/
+├── e2e/                  # E2E Playwright tests
+│   ├── fixtures.js       # Electron test fixtures
+│   ├── utils.js          # Test utilities
+│   ├── demo-import.spec.js
+│   └── study-management.spec.js
 ├── main/                 # Mirrors src/main/
 │   ├── database/         # Database tests
 │   │   ├── schema.test.js
@@ -201,6 +207,36 @@ Tests require rebuilding `better-sqlite3` for Node.js (vs Electron):
 npm run test:rebuild      # Before tests (for Node.js)
 npm run test:rebuild-electron  # After tests (restore for Electron)
 ```
+
+### E2E Tests (Playwright)
+
+End-to-end tests use Playwright to test the full Electron application.
+
+```bash
+# Build the app first (required)
+npm run build
+
+# Run all E2E tests
+npm run test:e2e
+
+# Run with visible Electron window (for debugging)
+npm run test:e2e:headed
+
+# Run with Playwright inspector (step-by-step debugging)
+npm run test:e2e:debug
+
+# Run specific test file
+npx playwright test test/e2e/demo-import.spec.js
+```
+
+E2E tests are in `test/e2e/` with `.spec.js` extension (separate from unit tests which use `.test.js`).
+
+**Test coverage:**
+- Demo dataset import flow
+- Study search/filter
+- Study rename via context menu
+- Study delete with confirmation
+- Tab navigation
 
 ## Database Migrations
 
