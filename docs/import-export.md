@@ -72,7 +72,7 @@ User Selection
 3. Transform file paths to absolute paths
 4. Insert study metadata
 
-**Key file:** `src/main/import/camtrap.js`
+**Key file:** `src/main/services/import/parsers/camtrapDP.js`
 
 ```javascript
 // Import order matters for foreign keys
@@ -94,7 +94,7 @@ const filesToProcess = [
 4. Generate observation IDs as `{image_id}_obs`
 5. Construct scientificName from `genus + species`
 
-**Key file:** `src/main/import/wildlife.js`
+**Key file:** `src/main/services/import/parsers/wildlifeInsights.js`
 
 ## LILA Dataset Import
 
@@ -211,7 +211,7 @@ For large datasets like Snapshot Serengeti (7.1M images), a streaming architectu
   - WAL mode enabled for better write performance
 - Sequence information imported (seq_id → eventID with eventStart/eventEnd bounds)
 
-**Key file:** `src/main/import/lila.js`
+**Key file:** `src/main/services/import/parsers/lila.js`
 
 ```javascript
 // COCO bbox normalization
@@ -273,7 +273,7 @@ Most complex import pipeline with streaming ML inference.
 └─────────────────┘
 ```
 
-**Key file:** `src/main/import/importer.js`
+**Key file:** `src/main/services/import/importer.js`
 
 ### Prediction Flow
 
@@ -316,7 +316,7 @@ async function* getPredictions({ imagesPath, port, signal }) {
 Different models output bboxes differently. All are normalized to CamTrap DP format:
 
 ```javascript
-// src/main/transformers/index.js
+// src/main/utils/bbox.js
 
 // SpeciesNet: [x_min, y_min, x_max, y_max] → CamTrap DP
 function transformSpeciesNetBbox(bbox) {
@@ -400,7 +400,7 @@ export/
     └── ...
 ```
 
-**Key file:** `src/main/export.js`
+**Key file:** `src/main/services/export/exporter.js`
 
 ### datapackage.json Generation
 
@@ -535,7 +535,7 @@ Remote images from GBIF, Agouti, and LILA imports are cached to disk for offline
 - **Expiration:** 30 days (auto-cleaned at app startup)
 - **Strategy:** Lazy caching (on first display, not eagerly)
 
-**Key file:** `src/main/image-cache.js`
+**Key file:** `src/main/services/cache/image.js`
 
 ```javascript
 // Protocol flow
@@ -566,14 +566,14 @@ if (activeExport.isCancelled) {
 
 | File | Purpose |
 |------|---------|
-| `src/main/import/camtrap.js` | CamTrap DP import |
-| `src/main/import/wildlife.js` | Wildlife Insights import |
-| `src/main/import/deepfaune.js` | DeepFaune CSV import |
-| `src/main/import/lila.js` | LILA dataset import (COCO Camera Traps) |
-| `src/main/import/importer.js` | Image folder import with ML |
-| `src/main/import/index.js` | Re-exports all import functions |
-| `src/main/export.js` | All export functionality |
-| `src/main/download.ts` | File download with retry |
-| `src/main/transformers/index.js` | Bbox format conversions |
-| `src/main/image-cache.js` | Remote image caching for Best Captures |
-| `src/main/cache-cleanup.js` | Cache expiration cleanup |
+| `src/main/services/import/parsers/camtrapDP.js` | CamTrap DP import |
+| `src/main/services/import/parsers/wildlifeInsights.js` | Wildlife Insights import |
+| `src/main/services/import/parsers/deepfaune.js` | DeepFaune CSV import |
+| `src/main/services/import/parsers/lila.js` | LILA dataset import (COCO Camera Traps) |
+| `src/main/services/import/importer.js` | Image folder import with ML |
+| `src/main/services/import/index.js` | Re-exports all import functions |
+| `src/main/services/export/exporter.js` | All export functionality |
+| `src/main/services/download.ts` | File download with retry |
+| `src/main/utils/bbox.js` | Bbox format conversions |
+| `src/main/services/cache/image.js` | Remote image caching for Best Captures |
+| `src/main/services/cache/cleanup.js` | Cache expiration cleanup |

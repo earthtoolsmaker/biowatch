@@ -14,8 +14,8 @@ import { existsSync, mkdirSync, statSync, readdirSync, unlinkSync, rmSync } from
 import { join, basename, extname } from 'path'
 import ffmpegPath from 'ffmpeg-static'
 
-import { cleanExpiredTranscodeCacheImpl } from './cache-cleanup.js'
-import { downloadFileWithRetry } from './download'
+import { cleanExpiredTranscodeCacheImpl } from './cleanup.js'
+import { downloadFileWithRetry } from '../download.ts'
 
 // Browser-compatible video formats (don't need transcoding)
 const BROWSER_COMPATIBLE_FORMATS = new Set(['.mp4', '.webm', '.ogg', '.ogv'])

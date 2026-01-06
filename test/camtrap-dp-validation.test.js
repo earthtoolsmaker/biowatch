@@ -7,7 +7,7 @@ import {
   mediaSchema,
   deploymentSchema,
   datapackageSchema
-} from '../src/main/export/camtrapDPSchemas.js'
+} from '../src/main/services/export/schemas.js'
 import {
   sanitizeObservation,
   sanitizeMedia,
@@ -23,7 +23,7 @@ import {
   mapClassificationMethod,
   sanitizeCount,
   sanitizeClassificationProbability
-} from '../src/main/export/sanitizers.js'
+} from '../src/main/services/export/sanitizers.js'
 
 /**
  * Helper to create a valid observation row for testing

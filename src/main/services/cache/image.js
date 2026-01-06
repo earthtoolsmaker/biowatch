@@ -11,8 +11,8 @@ import log from 'electron-log'
 import { existsSync, mkdirSync, statSync, readdirSync, rmSync, writeFileSync } from 'fs'
 import { join, basename, extname } from 'path'
 
-import { downloadFileWithRetry } from './download'
-import { cleanExpiredImageCacheImpl } from './cache-cleanup.js'
+import { downloadFileWithRetry } from '../download.ts'
+import { cleanExpiredImageCacheImpl } from './cleanup.js'
 
 // Track in-progress downloads to prevent duplicates
 const inProgressDownloads = new Map()

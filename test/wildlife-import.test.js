@@ -6,7 +6,7 @@ import { tmpdir } from 'os'
 import Database from 'better-sqlite3'
 
 // Import the function we want to test
-import { importWildlifeDatasetWithPath } from '../src/main/import/wildlife.js'
+import { importWildlifeDatasetWithPath } from '../src/main/services/import/parsers/wildlifeInsights.js'
 
 // Test data paths
 let testBiowatchDataPath

@@ -73,12 +73,60 @@ System architecture and design patterns for Biowatch.
 ```
 src/
 ├── main/                    # Electron main process
-│   ├── index.js             # App entry, IPC handlers
+│   ├── index.js             # Minimal app entry point
+│   ├── app/                 # Application lifecycle
+│   │   ├── index.js         # Re-exports
+│   │   ├── lifecycle.js     # Window creation, initialization
+│   │   ├── protocols.js     # Custom protocol handlers
+│   │   └── session.js       # Session configuration
+│   ├── ipc/                 # IPC handlers (presentation layer)
+│   │   ├── index.js         # Registers all handlers
+│   │   ├── species.js       # Species-related handlers
+│   │   ├── deployments.js   # Deployment handlers
+│   │   ├── media.js         # Media handlers
+│   │   ├── observations.js  # Observation handlers
+│   │   ├── activity.js      # Activity handlers
+│   │   ├── study.js         # Study management handlers
+│   │   ├── import.js        # Import handlers
+│   │   ├── files.js         # File operation handlers
+│   │   ├── dialog.js        # Dialog handlers
+│   │   └── shell.js         # Shell operation handlers
+│   ├── services/            # Business logic layer
+│   │   ├── paths.js         # Path utilities
+│   │   ├── progress.js      # Progress reporting
+│   │   ├── extractor.js     # Metadata extraction
+│   │   ├── study.js         # Study metadata management
+│   │   ├── download.ts      # File download utilities
+│   │   ├── import/          # Data importers
+│   │   │   ├── index.js     # Importer exports
+│   │   │   ├── importer.js  # Image folder importer with ML
+│   │   │   └── parsers/     # Format-specific parsers
+│   │   │       ├── camtrapDP.js      # CamTrap DP importer
+│   │   │       ├── wildlifeInsights.js # Wildlife Insights importer
+│   │   │       ├── deepfaune.js      # DeepFaune CSV importer
+│   │   │       └── lila.js           # LILA dataset importer
+│   │   ├── export/          # Data exporters
+│   │   │   ├── exporter.js  # Export handlers
+│   │   │   ├── schemas.js   # CamTrap DP validation schemas
+│   │   │   └── sanitizers.js
+│   │   ├── ml/              # ML model services
+│   │   │   ├── index.js     # Re-exports
+│   │   │   ├── paths.ts     # Path utilities for models/environments
+│   │   │   ├── server.ts    # Server lifecycle (start/stop/health)
+│   │   │   ├── download.ts  # Download and installation management
+│   │   │   └── classification.js  # Video classification logic
+│   │   └── cache/           # Caching services
+│   │       ├── video.js     # Video transcoding with FFmpeg
+│   │       ├── image.js     # Image caching utilities
+│   │       └── cleanup.js   # Cache cleanup
+│   ├── utils/               # Pure utilities
+│   │   ├── index.js         # Re-exports
+│   │   └── bbox.js          # Bbox format conversions
 │   ├── database/            # Database layer
 │   │   ├── models.js        # Drizzle table definitions
 │   │   ├── validators.js    # Zod validation schemas
 │   │   ├── manager.js       # Connection pooling
-│   │   ├── index.js         # Unified exports (tables + validators + queries)
+│   │   ├── index.js         # Unified exports
 │   │   ├── migrations-utils.js
 │   │   ├── queries/         # Query functions by domain
 │   │   │   ├── index.js     # Re-exports all queries
@@ -89,28 +137,8 @@ src/
 │   │   │   ├── best-media.js
 │   │   │   └── utils.js
 │   │   └── migrations/      # SQL migration files
-│   ├── import/              # Data importers
-│   │   ├── index.js         # Importer exports
-│   │   ├── camtrap.js       # CamTrap DP importer
-│   │   ├── wildlife.js      # Wildlife Insights importer
-│   │   ├── deepfaune.js     # DeepFaune CSV importer
-│   │   ├── lila.js          # LILA dataset importer
-│   │   └── importer.js      # Image folder importer with ML
-│   ├── export/              # Data exporters
-│   │   ├── camtrapDPSchemas.js
-│   │   └── sanitizers.js
-│   ├── export.js            # Export handlers
-│   ├── migrations/          # App data migrations (not DB)
-│   │   └── *.js             # Version upgrade scripts
-│   ├── transformers/        # Bbox format conversions
-│   │   └── index.js
-│   ├── models.ts            # ML model management
-│   ├── studies.js           # Study metadata management
-│   ├── download.ts          # File download utilities
-│   ├── transcoder.js        # Video transcoding with FFmpeg
-│   ├── cache-cleanup.js     # Transcode cache management
-│   ├── image-cache.js       # Image caching utilities
-│   └── videoClassification.js  # Video classification logic
+│   └── migrations/          # App data migrations (not DB)
+│       └── *.js             # Version upgrade scripts
 ├── renderer/src/            # React frontend
 │   ├── base.jsx             # App root, routing, layout
 │   ├── import.jsx           # Data import page
@@ -244,7 +272,7 @@ biowatch-data/
 
 **Database path resolution**:
 ```javascript
-// src/main/index.js:93-98
+// src/main/services/paths.js
 function getStudyDatabasePath(userDataPath, studyId) {
   return join(getStudyPath(userDataPath, studyId), 'study.db')
 }
@@ -258,7 +286,9 @@ function getStudyPath(userDataPath, studyId) {
 
 | File | Purpose |
 |------|---------|
-| `src/main/index.js` | Main process entry, all IPC handlers |
+| `src/main/index.js` | Minimal app entry point |
+| `src/main/app/lifecycle.js` | Window creation, app initialization |
+| `src/main/ipc/index.js` | Registers all IPC handlers |
 | `src/preload/index.js` | IPC bridge, exposes `window.api` |
 | `src/renderer/src/base.jsx` | React app root, routing |
 | `src/main/database/models.js` | Drizzle table definitions |
@@ -266,14 +296,16 @@ function getStudyPath(userDataPath, studyId) {
 | `src/main/database/manager.js` | Database connection pooling |
 | `src/main/database/queries/` | Data query functions (split by domain) |
 | `src/shared/mlmodels.js` | Model zoo configuration |
-| `src/main/models.ts` | ML model download/server management |
-| `src/main/import/importer.js` | Image import with ML inference |
-| `src/main/import/camtrap.js` | CamTrap DP format importer |
-| `src/main/import/wildlife.js` | Wildlife Insights format importer |
-| `src/main/import/deepfaune.js` | DeepFaune CSV format importer |
-| `src/main/export.js` | CamTrap DP exporter |
-| `src/main/transcoder.js` | Video format conversion for browser playback |
-| `src/main/transformers/index.js` | Bbox format conversions |
+| `src/main/services/ml/server.ts` | ML server lifecycle (start/stop/health) |
+| `src/main/services/ml/download.ts` | ML model download and installation |
+| `src/main/ipc/ml.js` | ML model IPC handlers |
+| `src/main/services/import/importer.js` | Image import with ML inference |
+| `src/main/services/import/parsers/camtrapDP.js` | CamTrap DP format importer |
+| `src/main/services/import/parsers/wildlifeInsights.js` | Wildlife Insights format importer |
+| `src/main/services/import/parsers/deepfaune.js` | DeepFaune CSV format importer |
+| `src/main/services/export/exporter.js` | CamTrap DP exporter |
+| `src/main/services/cache/video.js` | Video format conversion for browser playback |
+| `src/main/utils/bbox.js` | Bbox format conversions |
 
 ## IPC Pattern
 
@@ -288,7 +320,7 @@ const api = {
 }
 contextBridge.exposeInMainWorld('api', api)
 
-// 2. Main handles IPC (src/main/index.js)
+// 2. Main handles IPC (src/main/ipc/media.js)
 ipcMain.handle('media:get', async (_, studyId, options = {}) => {
   const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
   const media = await getMedia(dbPath, options)

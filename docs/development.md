@@ -210,9 +210,16 @@ npm run dev
 biowatch/
 ├── src/
 │   ├── main/               # Electron main process
-│   │   ├── index.js        # Entry point, IPC handlers
-│   │   ├── database/       # Database layer
-│   │   └── *.js            # Feature modules
+│   │   ├── index.js        # Minimal entry point
+│   │   ├── app/            # Application lifecycle
+│   │   ├── ipc/            # IPC handlers (presentation layer)
+│   │   ├── services/       # Business logic layer
+│   │   │   ├── import/     # Data importers
+│   │   │   ├── export/     # Data exporters
+│   │   │   ├── ml/         # ML model services
+│   │   │   └── cache/      # Caching services
+│   │   ├── utils/          # Pure utilities
+│   │   └── database/       # Database layer
 │   ├── renderer/src/       # React frontend
 │   │   ├── base.jsx        # App root
 │   │   └── *.jsx           # Page components
@@ -412,19 +419,30 @@ publish:
 
 ### Add new IPC handler
 
-1. Add handler in `src/main/index.js`:
+1. Create handler file in `src/main/ipc/myfeature.js`:
    ```javascript
-   ipcMain.handle('myfeature:action', async (_, params) => { ... })
+   import { ipcMain } from 'electron'
+
+   export function registerMyFeatureIPCHandlers() {
+     ipcMain.handle('myfeature:action', async (_, params) => { ... })
+   }
    ```
 
-2. Expose in `src/preload/index.js`:
+2. Register in `src/main/ipc/index.js`:
+   ```javascript
+   import { registerMyFeatureIPCHandlers } from './myfeature.js'
+   // In registerAllIPCHandlers():
+   registerMyFeatureIPCHandlers()
+   ```
+
+3. Expose in `src/preload/index.js`:
    ```javascript
    myAction: async (params) => {
      return await electronAPI.ipcRenderer.invoke('myfeature:action', params)
    }
    ```
 
-3. Call from React:
+4. Call from React:
    ```javascript
    const result = await window.api.myAction(params)
    ```

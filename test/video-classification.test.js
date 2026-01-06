@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import { selectVideoClassificationWinner } from '../src/main/videoClassification.js'
+import { selectVideoClassificationWinner } from '../src/main/services/ml/classification.js'
 
 describe('selectVideoClassificationWinner', () => {
   test('single species - returns that species', () => {

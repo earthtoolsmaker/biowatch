@@ -9,8 +9,8 @@ import {
   media,
   observations,
   insertMetadata
-} from '../database/index.js'
-import { downloadFileWithRetry, extractZip } from '../download.ts'
+} from '../../../database/index.js'
+import { downloadFileWithRetry, extractZip } from '../../download.ts'
 import { parser } from 'stream-json'
 import { pick } from 'stream-json/filters/Pick.js'
 import { streamArray } from 'stream-json/streamers/StreamArray.js'

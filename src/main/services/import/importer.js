@@ -20,12 +20,12 @@ import {
   getLatestModelRun,
   updateMetadata,
   getMetadata
-} from '../database/index.js'
-import { transformBboxToCamtrapDP } from '../transformers/index.js'
+} from '../../database/index.js'
+import { transformBboxToCamtrapDP } from '../../utils/bbox.js'
 import { eq, isNull, count, sql } from 'drizzle-orm'
-import models from '../models.js'
-import mlmodels from '../../shared/mlmodels.js'
-import { selectVideoClassificationWinner } from '../videoClassification.js'
+import { startMLModelHTTPServer, stopMLModelHTTPServer } from '../ml/server.js'
+import mlmodels from '../../../shared/mlmodels.js'
+import { selectVideoClassificationWinner } from '../ml/classification.js'
 
 // Map file extensions to IANA media types (Camtrap DP compliant)
 const extensionToMediatype = {
@@ -838,7 +838,7 @@ export class Importer {
     }
 
     if (this.pythonProcess) {
-      return await models.stopMLModelHTTPServer({
+      return await stopMLModelHTTPServer({
         pid: this.pythonProcess.pid,
         port: this.pythonProcessPort,
         shutdownApiKey: this.pythonProcessShutdownApiKey
@@ -930,12 +930,11 @@ export class Importer {
             `Python environment not found: ${model.pythonEnvironment.id} ${model.pythonEnvironment.version}`
           )
         }
-        models
-          .startMLModelHTTPServer({
-            pythonEnvironment: pythonEnvironment,
-            modelReference: modelReference,
-            country: this.country
-          })
+        startMLModelHTTPServer({
+          pythonEnvironment: pythonEnvironment,
+          modelReference: modelReference,
+          country: this.country
+        })
           .then(async ({ port, process, shutdownApiKey }) => {
             log.info('New python process', port, process.pid)
             this.pythonProcess = process

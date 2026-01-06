@@ -8,7 +8,7 @@ import {
   media,
   observations,
   insertMetadata
-} from '../database/index.js'
+} from '../../../database/index.js'
 
 // Conditionally import electron modules for production, use fallback for testing
 let app, log
