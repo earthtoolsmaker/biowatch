@@ -37,7 +37,7 @@
     "@headlessui/react": "^2.2.4",
     "@tailwindcss/vite": "^4.0.17",
     "@tanstack/react-query": "^5.80.10",
-    "@tanstack/react-virtual": "^3.13.13",
+    "@tanstack/react-virtual": "^3.13.17",
     "better-sqlite3": "^12.1.0",
     "csv-parser": "^3.2.0",
     "drizzle-orm": "^0.39.0",
