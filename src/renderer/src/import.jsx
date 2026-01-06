@@ -384,6 +384,7 @@ export default function Import({ onNewStudy }) {
         selectedModel,
         null // no country needed
       )
+      // Errors (e.g., ML server failed to start) are handled via IPC event in base.jsx
       if (!id) return
       queryClient.invalidateQueries(['studies'])
       navigate(`/study/${id}`)
@@ -393,15 +394,19 @@ export default function Import({ onNewStudy }) {
   const handleCountrySelected = async (countryCode) => {
     if (!pendingDirectoryPath) return
 
+    // Close modal immediately - don't wait for server startup
+    const directoryPath = pendingDirectoryPath
+    setShowCountryPicker(false)
+    setPendingDirectoryPath(null)
+
     const { id } = await window.api.selectImagesDirectoryWithModel(
-      pendingDirectoryPath,
+      directoryPath,
       selectedModel,
       countryCode
     )
+    // Errors (e.g., ML server failed to start) are handled via IPC event in base.jsx
     if (!id) return
 
-    setShowCountryPicker(false)
-    setPendingDirectoryPath(null)
     queryClient.invalidateQueries(['studies'])
     navigate(`/study/${id}`)
   }

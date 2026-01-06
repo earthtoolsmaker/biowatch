@@ -282,6 +282,7 @@ class SpeciesNetLitAPI(ls.LitAPI, VideoCapableLitAPI):
 def main(argv: list[str]) -> None:
     del argv  # Unused.
 
+    print("[STARTUP] Starting SpeciesNet LitServer...")
     api = SpeciesNetLitAPI(
         model_name=_MODEL.value,
         geofence=_GEOFENCE.value,
