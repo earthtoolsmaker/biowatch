@@ -69,7 +69,7 @@
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",
     "@playwright/test": "^1.57.0",
     "@vitejs/plugin-react": "^4.3.4",
-    "drizzle-kit": "^0.31.4",
+    "drizzle-kit": "^0.31.8",
     "electron": "^39.2.7",
     "electron-builder": "^25.1.8",
     "electron-vite": "^3.0.0",
