@@ -103,10 +103,10 @@ dataset/
 | `classificationProbability` | number | Confidence score (0-1) |
 
 **Key files:**
-- Import: `src/main/import/camtrap.js`
-- Export: `src/main/export.js`
-- Validation schemas: `src/main/export/camtrapDPSchemas.js`
-- Sanitization: `src/main/export/sanitizers.js`
+- Import: `src/main/services/import/parsers/camtrapDP.js`
+- Export: `src/main/services/export/exporter.js`
+- Validation schemas: `src/main/services/export/schemas.js`
+- Sanitization: `src/main/services/export/sanitizers.js`
 
 ### Export Validation
 
@@ -226,7 +226,7 @@ Combined media + observations in one file:
 | `behavior` | behavior |
 | `sequence_id` | eventID |
 
-**Key file:** `src/main/import/wildlife.js`
+**Key file:** `src/main/services/import/parsers/wildlifeInsights.js`
 
 ---
 
@@ -244,7 +244,7 @@ Single CSV file with image paths and predictions.
 | `prediction` | Species prediction |
 | `score` | Classification probability |
 
-**Key file:** `src/main/import/deepfaune.js`
+**Key file:** `src/main/services/import/parsers/deepfaune.js`
 
 ---
 
@@ -321,7 +321,7 @@ Many LILA datasets include sequence information where images are grouped into "b
 - Bounding boxes are converted from pixel coordinates to normalized (0-1)
 - Invalid JSON containing Python `NaN` values is automatically sanitized
 
-**Key file:** `src/main/import/lila.js`
+**Key file:** `src/main/services/import/parsers/lila.js`
 
 ---
 
@@ -342,7 +342,7 @@ Direct import from a folder of images with optional ML inference.
 4. Create deployments from folder structure
 5. Generate media and observation records
 
-**Key file:** `src/main/import/importer.js`
+**Key file:** `src/main/services/import/importer.js`
 
 ---
 
@@ -442,7 +442,7 @@ bboxX, bboxY, bboxWidth, bboxHeight
 - Values: normalized (0-1)
 - Conversion: `x = x_center - width/2`, `y = y_center - height/2`
 
-**Transformation code:** `src/main/transformers/index.js`
+**Transformation code:** `src/main/utils/bbox.js`
 
 ---
 
@@ -503,4 +503,4 @@ export/
     └── image4.jpg
 ```
 
-**Key file:** `src/main/export.js`
+**Key file:** `src/main/services/export/exporter.js`

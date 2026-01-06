@@ -140,19 +140,35 @@ npm test
 npm run test:watch
 
 # Specific test file
-npm run test:rebuild && node --test test/camtrap.test.js
+npm run test:rebuild && node --test test/integration/camtrap-import.test.js
 ```
 
 ### Test structure
 
 ```
 test/
-├── camtrap.test.js       # CamTrap DP import tests
-├── wildlife.test.js      # Wildlife Insights import tests
-├── deepfaune.test.js     # DeepFaune import tests
-├── db-schema.test.js     # Database schema tests
-├── migrations.test.js    # Migration tests
-└── test-data/            # Test fixtures
+├── main/                 # Mirrors src/main/
+│   ├── database/         # Database tests
+│   │   ├── schema.test.js
+│   │   ├── queries.test.js
+│   │   ├── selectDiverseMedia.test.js
+│   │   ├── studies.test.js
+│   │   └── validators/   # Zod schema tests
+│   └── services/         # Service tests
+│       ├── cache/
+│       ├── export/
+│       └── ml/
+├── shared/               # Mirrors src/shared/
+├── renderer/             # Mirrors src/renderer/
+├── integration/          # Cross-module integration tests
+│   ├── import/           # Dataset import tests
+│   │   ├── camtrapDP.test.js
+│   │   ├── camtrapDP-null-fks.test.js
+│   │   ├── deepfaune.test.js
+│   │   └── wildlifeInsights.test.js
+│   └── migrations/       # Migration tests
+│       └── migrations.test.js
+└── data/                 # Test fixtures
 ```
 
 ### Writing tests
@@ -210,9 +226,16 @@ npm run dev
 biowatch/
 ├── src/
 │   ├── main/               # Electron main process
-│   │   ├── index.js        # Entry point, IPC handlers
-│   │   ├── database/       # Database layer
-│   │   └── *.js            # Feature modules
+│   │   ├── index.js        # Minimal entry point
+│   │   ├── app/            # Application lifecycle
+│   │   ├── ipc/            # IPC handlers (presentation layer)
+│   │   ├── services/       # Business logic layer
+│   │   │   ├── import/     # Data importers
+│   │   │   ├── export/     # Data exporters
+│   │   │   ├── ml/         # ML model services
+│   │   │   └── cache/      # Caching services
+│   │   ├── utils/          # Pure utilities
+│   │   └── database/       # Database layer
 │   ├── renderer/src/       # React frontend
 │   │   ├── base.jsx        # App root
 │   │   └── *.jsx           # Page components
@@ -412,19 +435,30 @@ publish:
 
 ### Add new IPC handler
 
-1. Add handler in `src/main/index.js`:
+1. Create handler file in `src/main/ipc/myfeature.js`:
    ```javascript
-   ipcMain.handle('myfeature:action', async (_, params) => { ... })
+   import { ipcMain } from 'electron'
+
+   export function registerMyFeatureIPCHandlers() {
+     ipcMain.handle('myfeature:action', async (_, params) => { ... })
+   }
    ```
 
-2. Expose in `src/preload/index.js`:
+2. Register in `src/main/ipc/index.js`:
+   ```javascript
+   import { registerMyFeatureIPCHandlers } from './myfeature.js'
+   // In registerAllIPCHandlers():
+   registerMyFeatureIPCHandlers()
+   ```
+
+3. Expose in `src/preload/index.js`:
    ```javascript
    myAction: async (params) => {
      return await electronAPI.ipcRenderer.invoke('myfeature:action', params)
    }
    ```
 
-3. Call from React:
+4. Call from React:
    ```javascript
    const result = await window.api.myAction(params)
    ```

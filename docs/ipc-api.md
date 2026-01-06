@@ -242,8 +242,11 @@ const unsubscribe = window.api.transcode.onProgress(({ filePath, progress }) => 
 ### 1. Add handler in main process
 
 ```javascript
-// src/main/index.js
-ipcMain.handle('myfeature:do-something', async (_, studyId, param1, param2) => {
+// src/main/ipc/myfeature.js (create new file)
+import { ipcMain } from 'electron'
+
+export function registerMyFeatureIPCHandlers() {
+  ipcMain.handle('myfeature:do-something', async (_, studyId, param1, param2) => {
   try {
     const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
     if (!dbPath || !existsSync(dbPath)) {
@@ -314,10 +317,14 @@ const data = response.data
 
 | File | Purpose |
 |------|---------|
-| `src/main/index.js` | IPC handler definitions |
+| `src/main/index.js` | Minimal app entry point |
+| `src/main/ipc/index.js` | Registers all IPC handlers |
+| `src/main/ipc/*.js` | Individual IPC handler modules |
 | `src/preload/index.js` | API bridge to renderer |
-| `src/main/queries.js` | Database query implementations |
-| `src/main/export.js` | Export handler implementations |
-| `src/main/models.ts` | ML model handler implementations |
-| `src/main/transcoder.js` | Video transcoding with FFmpeg |
-| `src/main/image-cache.js` | Remote image caching for GBIF/Agouti imports |
+| `src/main/database/queries/` | Database query implementations |
+| `src/main/services/export/exporter.js` | Export handler implementations |
+| `src/main/ipc/ml.js` | ML model IPC handlers |
+| `src/main/services/ml/server.ts` | ML server lifecycle management |
+| `src/main/services/ml/download.ts` | ML model download/installation |
+| `src/main/services/cache/video.js` | Video transcoding with FFmpeg |
+| `src/main/services/cache/image.js` | Remote image caching for GBIF/Agouti imports |

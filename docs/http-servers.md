@@ -35,7 +35,7 @@ Biowatch uses an **HTTP-based ML model serving architecture** where each machine
 │  │   Renderer   │◄──────────►│      Main Process           │   │
 │  │   (React)    │            │                             │   │
 │  │              │            │  ┌─────────────────────┐    │   │
-│  │ models.jsx   │            │  │   models.ts         │    │   │
+│  │ models.jsx   │            │  │   server.ts         │    │   │
 │  │ - UI controls│            │  │ - start/stop server │    │   │
 │  │ - status     │            │  │ - health checks     │    │   │
 │  └──────────────┘            │  │ - process lifecycle │    │   │
@@ -76,14 +76,19 @@ Biowatch uses an **HTTP-based ML model serving architecture** where each machine
 ```
 src/
 ├── shared/
-│   └── mlmodels.js             # Model zoo configuration (all models defined here)
+│   └── mlmodels.js                      # Model zoo configuration (all models defined here)
 ├── main/
-│   ├── models.ts               # Server lifecycle management (start/stop/health)
-│   └── importer.js             # Prediction consumer (fetches and stores results)
+│   └── services/
+│       ├── ml/
+│       │   ├── server.ts                # Server lifecycle management (start/stop/health)
+│       │   ├── download.ts              # Model download and installation
+│       │   └── paths.ts                 # Path utilities for models/environments
+│       └── import/
+│           └── importer.js              # Prediction consumer (fetches and stores results)
 ├── preload/
-│   └── index.js                # IPC bridge (exposes APIs to renderer)
+│   └── index.js                         # IPC bridge (exposes APIs to renderer)
 └── renderer/src/
-    └── models.jsx              # UI component for model management
+    └── models.jsx                       # UI component for model management
 
 python-environments/common/
 ├── run_speciesnet_server.py    # SpeciesNet LitServe implementation
@@ -117,7 +122,7 @@ When a user clicks "Run" on a model, the following sequence occurs:
    └─► UI shows server info and API documentation link
 ```
 
-**Key function**: `startAndWaitTillServerHealty()` in `src/main/models.ts:1016`
+**Key function**: `startAndWaitTillServerHealty()` in `src/main/services/ml/server.ts`
 
 ```javascript
 // Health check polling loop
@@ -155,7 +160,7 @@ for (let i = 0; i < maxRetries; i++) {
    └─► Includes raw model output, parsed species, bounding boxes
 ```
 
-**Key function**: `getPredictions()` generator in `src/main/import/importer.js`
+**Key function**: `getPredictions()` generator in `src/main/services/import/importer.js`
 
 ```javascript
 async function* getPredictions({ imagesPath, port, signal }) {
@@ -203,7 +208,7 @@ Servers support graceful shutdown via a secure API endpoint:
    └─► If graceful shutdown times out, send SIGKILL
 ```
 
-**Key function**: `stopMLModelHTTPServer()` in `src/main/models.ts:1340`
+**Key function**: `stopMLModelHTTPServer()` in `src/main/services/ml/server.ts`
 
 ```javascript
 // Try graceful shutdown first
@@ -425,7 +430,7 @@ export const modelZoo = [
 
 ### Step 3: Add Server Startup Function
 
-Add a new function in `src/main/models.ts`:
+Add a new function in `src/main/services/ml/server.ts`:
 
 ```typescript
 async function startYourModelHTTPServer({
@@ -473,7 +478,7 @@ async function startYourModelHTTPServer({
 
 ### Step 4: Register in Main Switch Statement
 
-Add a case to `startMLModelHTTPServer()` in `src/main/models.ts`:
+Add a case to `startMLModelHTTPServer()` in `src/main/services/ml/server.ts`:
 
 ```typescript
 async function startMLModelHTTPServer({ pythonEnvironment, modelReference, country = null }) {
@@ -505,7 +510,7 @@ async function startMLModelHTTPServer({ pythonEnvironment, modelReference, count
 
 ### Step 5: Handle Prediction Output (If Needed)
 
-If your model's prediction format differs from existing models, update the parsing logic in `src/main/import/importer.js`:
+If your model's prediction format differs from existing models, update the parsing logic in `src/main/services/import/importer.js`:
 
 ```javascript
 function parseScientificName({ modelId, label }) {
