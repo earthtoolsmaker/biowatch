@@ -337,7 +337,11 @@ function AppContent() {
         <div className="p-2 border-t border-gray-200">
           <NavLink
             to="/settings/ml_zoo"
-            className="w-full flex items-center justify-start gap-2 px-3 py-2 text-sm hover:bg-gray-100 rounded-md transition-colors"
+            className={`w-full flex items-center justify-start gap-2 px-3 py-2 text-sm rounded-md transition-colors ${
+              location.pathname.startsWith('/settings')
+                ? 'bg-blue-50 text-blue-700'
+                : 'text-gray-700 hover:bg-gray-100'
+            }`}
           >
             <Settings className="h-4 w-4" />
             Settings
