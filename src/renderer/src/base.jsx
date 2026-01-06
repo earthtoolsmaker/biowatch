@@ -2,7 +2,7 @@ import { Pencil, Plus, Settings, Trash2, Search, ChevronRight } from 'lucide-rea
 import { ErrorBoundary } from 'react-error-boundary'
 import { HashRouter, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
-import { Toaster } from 'sonner'
+import { Toaster, toast } from 'sonner'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import Import from './import'
 import Study from './study'
@@ -169,6 +169,27 @@ function AppContent() {
       window.electron.ipcRenderer.removeListener('study:delete', handleDeleteStudy)
     }
   }, [studies, location, navigate])
+
+  // Add listener for importer errors (e.g., ML server failed to start)
+  useEffect(() => {
+    const handleImporterError = (event, { message, studyId }) => {
+      toast.error('Unable to process images', {
+        id: `importer-error-${studyId}`,
+        description: message,
+        duration: 8000
+      })
+      // Invalidate import status to reset loading spinner and "Starting" button
+      if (studyId) {
+        queryClient.invalidateQueries({ queryKey: ['importStatus', studyId] })
+      }
+    }
+
+    window.electron.ipcRenderer.on('importer:error', handleImporterError)
+
+    return () => {
+      window.electron.ipcRenderer.removeListener('importer:error', handleImporterError)
+    }
+  }, [])
 
   const onNewStudy = (study) => {
     const isValid = study && study.id && study.name && study.data && study.path

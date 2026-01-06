@@ -753,6 +753,7 @@ def main(argv: list[str]) -> None:
     """
     del argv  # Unused
 
+    print("[STARTUP] Starting Manas LitServer...")
     api = ManasLitAPI(
         filepath_classifier_weights=Path(_FILEPATH_CLASSIFIER_WEIGHTS.value),
         filepath_detector_weights=Path(_FILEPATH_DETECTOR_WEIGHTS.value),

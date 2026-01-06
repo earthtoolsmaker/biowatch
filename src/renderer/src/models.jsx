@@ -113,13 +113,30 @@ function ModelRow({ model, pythonEnvironment, platform, isDev = false, refreshKe
         pythonEnvironment
       })
       console.log(JSON.stringify(response))
+
+      // Check for error response from backend
+      if (!response.success) {
+        console.error('Server failed to start:', response.message)
+        toast.error('Unable to process images', {
+          description: 'The AI model could not start. Please try again or restart the app.',
+          duration: 8000
+        })
+        setIsHTTPServerStarting(false)
+        return
+      }
+
       setIsHTTPServerRunning(true)
       setIsHTTPServerStarting(false)
       setPortHTTPServer(response.process.port)
       setPidPythonProcess(response.process.pid)
       setShutdownApiKey(response.process.shutdownApiKey)
     } catch (error) {
-      console.error('Failed to delete the local model:', error)
+      console.error('Failed to start HTTP server:', error)
+      toast.error('Unable to process images', {
+        description: 'The AI model could not start. Please try again or restart the app.',
+        duration: 8000
+      })
+      setIsHTTPServerStarting(false)
     }
   }
 

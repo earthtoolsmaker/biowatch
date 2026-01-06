@@ -741,6 +741,7 @@ class DeepFauneLitAPI(ls.LitAPI, VideoCapableLitAPI):
 
 
 def main(argv: list[str]) -> None:
+    print("[STARTUP] Starting DeepFaune LitServer...")
     api = DeepFauneLitAPI(
         filepath_classifier_weights=Path(_FILEPATH_CLASSIFIER_WEIGHTS.value),
         filepath_detector_weights=Path(_FILEPATH_DETECTOR_WEIGHTS.value),
