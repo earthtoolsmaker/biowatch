@@ -8,7 +8,7 @@ import {
   metadataUpdateSchema,
   metadataCreateSchema,
   contributorRoles
-} from '../src/main/database/validators.js'
+} from '../../../../src/main/database/validators.js'
 
 describe('Metadata Zod Validation', () => {
   describe('contributorSchema', () => {

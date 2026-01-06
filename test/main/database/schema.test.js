@@ -15,7 +15,7 @@ import {
   deployments,
   media,
   observations
-} from '../src/main/database/index.js'
+} from '../../../src/main/database/index.js'
 import { eq, count, sql } from 'drizzle-orm'
 
 // Test database setup

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import {
   computeBboxLabelPosition,
   computeSelectorPosition
-} from '../src/renderer/src/utils/positioning.js'
+} from '../../src/renderer/src/utils/positioning.js'
 
 // Helper to extract numeric percentage value from string like "30%"
 function parsePercent(str) {

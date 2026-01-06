@@ -12,7 +12,7 @@ import {
   platformToKey,
   modelZoo,
   pythonEnvironments
-} from '../src/shared/mlmodels.js'
+} from '../../src/shared/mlmodels.js'
 
 // Test paths
 let testUserDataPath

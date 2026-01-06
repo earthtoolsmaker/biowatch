@@ -5,7 +5,7 @@ import {
   isDownloadComplete,
   determineInitialDownloadState,
   calculateProgressInfo
-} from '../src/shared/downloadState.js'
+} from '../../src/shared/downloadState.js'
 
 describe('Download State Logic', () => {
   describe('isOwnEnvironmentDownload', () => {

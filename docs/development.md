@@ -140,19 +140,35 @@ npm test
 npm run test:watch
 
 # Specific test file
-npm run test:rebuild && node --test test/camtrap.test.js
+npm run test:rebuild && node --test test/integration/camtrap-import.test.js
 ```
 
 ### Test structure
 
 ```
 test/
-├── camtrap.test.js       # CamTrap DP import tests
-├── wildlife.test.js      # Wildlife Insights import tests
-├── deepfaune.test.js     # DeepFaune import tests
-├── db-schema.test.js     # Database schema tests
-├── migrations.test.js    # Migration tests
-└── test-data/            # Test fixtures
+├── main/                 # Mirrors src/main/
+│   ├── database/         # Database tests
+│   │   ├── schema.test.js
+│   │   ├── queries.test.js
+│   │   ├── selectDiverseMedia.test.js
+│   │   ├── studies.test.js
+│   │   └── validators/   # Zod schema tests
+│   └── services/         # Service tests
+│       ├── cache/
+│       ├── export/
+│       └── ml/
+├── shared/               # Mirrors src/shared/
+├── renderer/             # Mirrors src/renderer/
+├── integration/          # Cross-module integration tests
+│   ├── import/           # Dataset import tests
+│   │   ├── camtrapDP.test.js
+│   │   ├── camtrapDP-null-fks.test.js
+│   │   ├── deepfaune.test.js
+│   │   └── wildlifeInsights.test.js
+│   └── migrations/       # Migration tests
+│       └── migrations.test.js
+└── data/                 # Test fixtures
 ```
 
 ### Writing tests

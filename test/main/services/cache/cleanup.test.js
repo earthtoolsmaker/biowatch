@@ -5,7 +5,7 @@ import { join } from 'path'
 import { tmpdir } from 'os'
 import fs from 'fs/promises'
 
-import { cleanExpiredTranscodeCacheImpl } from '../src/main/services/cache/cleanup.js'
+import { cleanExpiredTranscodeCacheImpl } from '../../../../src/main/services/cache/cleanup.js'
 
 // Test paths
 let testStudiesPath

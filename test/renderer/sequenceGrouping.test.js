@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import {
   groupMediaIntoSequences,
   groupMediaByEventID
-} from '../src/renderer/src/utils/sequenceGrouping.js'
+} from '../../src/renderer/src/utils/sequenceGrouping.js'
 
 // Helper: Create a media item with timestamp
 function createMedia(id, timestamp) {

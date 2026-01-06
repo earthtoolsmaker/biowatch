@@ -9,7 +9,7 @@ import {
   runMigrations,
   getMigrationStatus,
   rollbackToVersion
-} from '../src/main/migrations/index.js'
+} from '../../../src/main/migrations/index.js'
 
 // Test data path - will be unique for each test
 let testUserDataPath
