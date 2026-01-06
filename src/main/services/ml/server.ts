@@ -206,7 +206,9 @@ export async function startAndWaitTillServerHealty({
       } catch (error) {
         // Log health check error on first attempt and every 30 seconds for debugging
         if (i === 0 || (i + 1) % 30 === 0) {
-          log.debug(`Health check failed: ${(error as Error & { code?: string }).code || (error as Error).message}`)
+          log.debug(
+            `Health check failed: ${(error as Error & { code?: string }).code || (error as Error).message}`
+          )
         }
       }
 
