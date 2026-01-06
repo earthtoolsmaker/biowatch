@@ -19,7 +19,7 @@ import {
   notExists
 } from 'drizzle-orm'
 import log from 'electron-log'
-import { getStudyIdFromPath, isTimestampBasedDataset } from './utils.js'
+import { getStudyIdFromPath } from './utils.js'
 
 /**
  * Get species distribution from the database using Drizzle ORM
@@ -63,8 +63,7 @@ export async function getSpeciesDistribution(dbPath) {
 
 /**
  * Get count of blank media (media with no observations) from the database
- * For mediaID-based datasets: counts media with no linked observations
- * For timestamp-based datasets (CamTrap DP): returns 0 (blank detection not supported)
+ * Counts media with no linked observations via mediaID foreign key.
  * @param {string} dbPath - Path to the SQLite database
  * @returns {Promise<number>} - Count of media files with no observations
  */
@@ -76,16 +75,7 @@ export async function getBlankMediaCount(dbPath) {
     const studyId = getStudyIdFromPath(dbPath)
     const db = await getDrizzleDb(studyId, dbPath)
 
-    // Check if this is a timestamp-based dataset (CamTrap DP)
-    // These datasets use eventStart/eventEnd ranges which are slow to query
-    // Return 0 blanks for now (better than showing animals incorrectly as blanks)
-    if (await isTimestampBasedDataset(db)) {
-      const elapsedTime = Date.now() - startTime
-      log.info(`Timestamp-based dataset detected, returning 0 blanks in ${elapsedTime}ms`)
-      return 0
-    }
-
-    // For mediaID-based datasets, count media with no linked observations
+    // Count media with no linked observations
     const matchingObservations = db
       .select({ one: sql`1` })
       .from(observations)
@@ -148,15 +138,6 @@ export async function getSpeciesTimeseries(dbPath, speciesNames = []) {
 
   try {
     const studyId = getStudyIdFromPath(dbPath)
-    const db = await getDrizzleDb(studyId, dbPath)
-
-    // Check if this is a timestamp-based dataset (CamTrap DP)
-    // For these datasets, blank queries are not supported (would require slow range queries)
-    const isTimestampBased = requestingBlanks ? await isTimestampBasedDataset(db) : false
-    const effectiveRequestingBlanks = requestingBlanks && !isTimestampBased
-    if (requestingBlanks && isTimestampBased) {
-      log.info('Timestamp-based dataset: skipping blank timeseries')
-    }
 
     // Prepare species filter for the complex CTE query
     let speciesFilter = ''
@@ -246,7 +227,7 @@ export async function getSpeciesTimeseries(dbPath, speciesNames = []) {
     }
 
     // If requesting blanks, add blank media weekly counts
-    if (effectiveRequestingBlanks) {
+    if (requestingBlanks) {
       const blankTimeseriesQuery = `
         WITH date_range AS (
           SELECT
@@ -460,14 +441,6 @@ export async function getSpeciesDailyActivity(dbPath, species, startDate, endDat
 
     const db = await getDrizzleDb(studyId, dbPath)
 
-    // Check if this is a timestamp-based dataset (CamTrap DP)
-    // For these datasets, blank queries are not supported (would require slow range queries)
-    const isTimestampBased = requestingBlanks ? await isTimestampBasedDataset(db) : false
-    const effectiveRequestingBlanks = requestingBlanks && !isTimestampBased
-    if (requestingBlanks && isTimestampBased) {
-      log.info('Timestamp-based dataset: skipping blank activity data')
-    }
-
     let rows = []
 
     // Query regular species if any
@@ -494,11 +467,10 @@ export async function getSpeciesDailyActivity(dbPath, species, startDate, endDat
     }
 
     // Query blank media hourly distribution if requested
-    if (effectiveRequestingBlanks) {
+    if (requestingBlanks) {
       const blankHourColumn = sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER)`.as('hour')
 
-      // Correlated subquery for blank detection (only used for mediaID-based datasets)
-      // For timestamp-based datasets, effectiveRequestingBlanks is already false
+      // Correlated subquery for blank detection (media with no linked observations)
       const matchingObservations = db
         .select({ one: sql`1` })
         .from(observations)

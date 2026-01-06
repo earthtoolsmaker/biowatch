@@ -200,7 +200,6 @@ export {
   // Utils
   formatToMatchOriginal,
   getStudyIdFromPath,
-  isTimestampBasedDataset,
   checkStudyHasEventIDs,
   createImageDirectoryDatabase,
   // Deployments

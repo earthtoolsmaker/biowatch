@@ -5,6 +5,7 @@
 
 import { getDrizzleDb, getStudyDatabase, observations } from '../index.js'
 import { sql } from 'drizzle-orm'
+// Note: observations import kept for checkStudyHasEventIDs
 import log from 'electron-log'
 
 /**
@@ -51,24 +52,6 @@ export function formatToMatchOriginal(newDateTime, originalString) {
 export function getStudyIdFromPath(dbPath) {
   const pathParts = dbPath.split(/[/\\]/)
   return pathParts[pathParts.length - 2] || 'unknown'
-}
-
-/**
- * Check if a dataset uses timestamp-based linking (CamTrap DP format)
- * These datasets have NULL mediaID in all observations and link via eventStart/eventEnd ranges.
- * For these datasets, blank detection is not supported (would require slow range queries).
- * @param {object} db - Drizzle database instance
- * @returns {Promise<boolean>} - True if timestamp-based (all observations have NULL mediaID)
- */
-export async function isTimestampBasedDataset(db) {
-  const result = await db
-    .select({
-      hasMediaID: sql`CASE WHEN COUNT(CASE WHEN mediaID IS NOT NULL THEN 1 END) > 0 THEN 1 ELSE 0 END`
-    })
-    .from(observations)
-    .get()
-
-  return result?.hasMediaID === 0
 }
 
 /**
