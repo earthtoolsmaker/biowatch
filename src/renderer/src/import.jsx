@@ -8,7 +8,7 @@ import GbifImportProgress from './GbifImportProgress.jsx'
 import DemoImportProgress from './DemoImportProgress.jsx'
 import LilaImportProgress from './LilaImportProgress.jsx'
 
-function ImportButton({ onClick, children, className = '', disabled = false }) {
+function ImportButton({ onClick, children, className = '', disabled = false, ...props }) {
   const [isImporting, setIsImporting] = useState(false)
 
   const handleClick = async () => {
@@ -27,6 +27,7 @@ function ImportButton({ onClick, children, className = '', disabled = false }) {
       className={`cursor-pointer transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-2 h-10 text-sm shadow-sm rounded-md hover:bg-gray-50 ${
         isImporting || disabled ? 'opacity-70' : ''
       } ${className}`}
+      {...props}
     >
       {isImporting ? <span className="animate-pulse">Importing...</span> : children}
     </button>
@@ -580,7 +581,7 @@ export default function Import({ onNewStudy }) {
               Import a sample dataset to explore the application features and functionality.
             </p>
             <div className="flex justify-start">
-              <ImportButton onClick={handleDemoDataset} className="">
+              <ImportButton onClick={handleDemoDataset} data-testid="import-demo-btn" className="">
                 Use Demo Dataset
               </ImportButton>
             </div>
@@ -593,7 +594,7 @@ export default function Import({ onNewStudy }) {
               Import a camera trap dataset in the Camera Trap Data Package format.
             </p>
             <div className="flex justify-start">
-              <ImportButton onClick={handleCamTrapDP} className="">
+              <ImportButton onClick={handleCamTrapDP} data-testid="import-camtrap-btn" className="">
                 Select Camtrap DP
               </ImportButton>
             </div>
@@ -606,7 +607,11 @@ export default function Import({ onNewStudy }) {
               Import a camera trap dataset in the Wildlife Insights format.
             </p>
             <div className="flex justify-start">
-              <ImportButton onClick={handleWildlifeInsights} className="">
+              <ImportButton
+                onClick={handleWildlifeInsights}
+                data-testid="import-wildlife-btn"
+                className=""
+              >
                 Select Wildlife Insights
               </ImportButton>
             </div>

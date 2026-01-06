@@ -8,3 +8,10 @@ python/build/
 test-species/build/
 resources/python/
 __pycache__/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/.e2e-test-data/

@@ -26,6 +26,9 @@
     "test:watch": "npm run test:rebuild && node --test --watch test/**/*.test.js",
     "test:rebuild": "npm rebuild better-sqlite3",
     "test:rebuild-electron": "npx electron-rebuild -f -w better-sqlite3",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug",
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
@@ -64,6 +67,7 @@
   "devDependencies": {
     "@electron-toolkit/eslint-config": "^2.0.0",
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",
+    "@playwright/test": "^1.57.0",
     "@vitejs/plugin-react": "^4.3.4",
     "drizzle-kit": "^0.31.4",
     "electron": "^34.2.0",
