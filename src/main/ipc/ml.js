@@ -77,7 +77,7 @@ export function registerMLIPCHandlers() {
           country
         })
         return {
-          sucess: true,
+          success: true,
           process: { pid: process.pid, port: port, shutdownApiKey: shutdownApiKey },
           message: 'ML Model HTTP server successfully started'
         }
