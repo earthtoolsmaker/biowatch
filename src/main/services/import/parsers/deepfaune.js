@@ -12,32 +12,8 @@ import {
   insertMetadata
 } from '../../../database/index.js'
 import { eq } from 'drizzle-orm'
-
-// Conditionally import electron modules for production, use fallback for testing
-let app, log
-
-// Initialize electron modules with proper async handling
-async function initializeElectronModules() {
-  if (app && log) return // Already initialized
-
-  try {
-    const electron = await import('electron')
-    app = electron.app
-    const electronLog = await import('electron-log')
-    log = electronLog.default
-  } catch {
-    // Fallback for testing environment
-    app = {
-      getPath: () => '/tmp'
-    }
-    log = {
-      info: () => {},
-      error: () => {},
-      warn: () => {},
-      debug: () => {}
-    }
-  }
-}
+import log from '../../logger.js'
+import { getBiowatchDataPath } from '../../paths.js'
 
 /**
  * Import Deepfaune CSV dataset from a CSV file into a SQLite database
@@ -46,8 +22,7 @@ async function initializeElectronModules() {
  * @returns {Promise<Object>} - Object containing study data
  */
 export async function importDeepfauneDataset(csvPath, id) {
-  await initializeElectronModules()
-  const biowatchDataPath = path.join(app.getPath('userData'), 'biowatch-data')
+  const biowatchDataPath = getBiowatchDataPath()
   return await importDeepfauneDatasetWithPath(csvPath, biowatchDataPath, id)
 }
 
@@ -59,7 +34,6 @@ export async function importDeepfauneDataset(csvPath, id) {
  * @returns {Promise<Object>} - Object containing study data
  */
 export async function importDeepfauneDatasetWithPath(csvPath, biowatchDataPath, id) {
-  await initializeElectronModules()
   log.info('Starting Deepfaune CSV dataset import')
 
   // Create database in the specified biowatch-data directory

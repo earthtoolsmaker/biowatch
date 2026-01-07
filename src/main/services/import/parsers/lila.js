@@ -15,32 +15,8 @@ import { parser } from 'stream-json'
 import { pick } from 'stream-json/filters/Pick.js'
 import { streamArray } from 'stream-json/streamers/StreamArray.js'
 import { chain } from 'stream-chain'
-
-// Conditionally import electron modules for production, use fallback for testing
-let app, log
-
-// Initialize electron modules with proper async handling
-async function initializeElectronModules() {
-  if (app && log) return // Already initialized
-
-  try {
-    const electron = await import('electron')
-    app = electron.app
-    const electronLog = await import('electron-log')
-    log = electronLog.default
-  } catch {
-    // Fallback for testing environment
-    app = {
-      getPath: () => '/tmp'
-    }
-    log = {
-      info: () => {},
-      error: () => {},
-      warn: () => {},
-      debug: () => {}
-    }
-  }
-}
+import log from '../../logger.js'
+import { getBiowatchDataPath } from '../../paths.js'
 
 /**
  * Whitelisted LILA datasets with their metadata and access URLs
@@ -561,8 +537,7 @@ function buildContributors(dataset) {
  * @returns {Promise<Object>} - Object containing dbPath and metadata
  */
 export async function importLilaDataset(datasetId, id, onProgress = null) {
-  await initializeElectronModules()
-  const biowatchDataPath = path.join(app.getPath('userData'), 'biowatch-data')
+  const biowatchDataPath = getBiowatchDataPath()
   return await importLilaDatasetWithPath(datasetId, biowatchDataPath, id, onProgress)
 }
 
@@ -580,7 +555,6 @@ export async function importLilaDatasetWithPath(
   id,
   onProgress = null
 ) {
-  await initializeElectronModules()
   log.info(`Starting LILA dataset import for: ${datasetId}`)
 
   // Find the dataset configuration
@@ -834,8 +808,6 @@ export async function importLilaDatasetWithPath(
  * Download and parse LILA metadata (JSON or ZIP)
  */
 async function downloadAndParseMetadata(dataset, onProgress) {
-  await initializeElectronModules()
-
   const tempDir = path.join(os.tmpdir(), 'biowatch-lila-import')
   if (!fs.existsSync(tempDir)) {
     fs.mkdirSync(tempDir, { recursive: true })
@@ -1236,8 +1208,6 @@ function createBulkInserter(sqlite, tableName, columns) {
  * @param {object} manager - StudyDatabaseManager instance for raw SQLite access
  */
 async function batchInsert(db, table, data, tableName, onProgress, manager) {
-  await initializeElectronModules()
-
   if (data.length === 0) {
     log.info(`No data to insert for ${tableName}`)
     return
@@ -1289,8 +1259,6 @@ const CHUNK_SIZE = 2000
  * @returns {Promise<Map>} - Map of category_id → category_name
  */
 async function streamCategories(jsonPath) {
-  await initializeElectronModules()
-
   return new Promise((resolve, reject) => {
     const categoryMap = new Map()
 
@@ -1347,8 +1315,6 @@ async function computeBoundsAndWriteJsonl(
   deploymentBounds,
   onProgress
 ) {
-  await initializeElectronModules()
-
   // Clear temp JSONL file if it exists
   if (fs.existsSync(tempJsonlPath)) {
     fs.unlinkSync(tempJsonlPath)
@@ -1517,8 +1483,6 @@ async function computeBoundsAndWriteJsonl(
  * @returns {Promise<number>} - Total number of media records inserted
  */
 async function insertMediaFromJsonl(tempJsonlPath, mainDb, dataset, onProgress, manager) {
-  await initializeElectronModules()
-
   // Create bulk inserter for media table using raw SQL
   const sqlite = manager.getSqlite()
   const mediaColumns = [
@@ -1634,8 +1598,6 @@ async function insertMediaFromJsonl(tempJsonlPath, mainDb, dataset, onProgress, 
  * @returns {Promise<Map>} - Map of image_id → image metadata
  */
 async function loadImageMapFromJsonl(tempJsonlPath, expectedCount = 0, onProgress = null) {
-  await initializeElectronModules()
-
   // Immediate progress update at phase start
   if (onProgress) {
     onProgress({
@@ -1712,8 +1674,6 @@ async function loadImageMapFromJsonl(tempJsonlPath, expectedCount = 0, onProgres
  * @returns {Promise<number>} - Total number of annotations
  */
 async function countAnnotationsStreaming(jsonPath, onProgress = null) {
-  await initializeElectronModules()
-
   // Get file size for byte-based progress estimation
   const fileStats = fs.statSync(jsonPath)
   const totalBytes = fileStats.size
@@ -1810,8 +1770,6 @@ async function streamAnnotationsPass(
   onProgress,
   manager
 ) {
-  await initializeElectronModules()
-
   // Create bulk inserter for observations table using raw SQL
   const sqlite = manager.getSqlite()
   const observationsColumns = [
@@ -2000,8 +1958,6 @@ async function streamAnnotationsPass(
  * @returns {Promise<number>} - Number of deployments inserted
  */
 async function insertDeploymentsFromBounds(deploymentBounds, mainDb, manager) {
-  await initializeElectronModules()
-
   const deploymentEntries = Array.from(deploymentBounds.entries())
 
   if (deploymentEntries.length === 0) {
@@ -2054,7 +2010,6 @@ async function insertDeploymentsFromBounds(deploymentBounds, mainDb, manager) {
  * Uses JSONL temp file and in-memory bounds to avoid memory exhaustion
  */
 async function importLilaDatasetStreaming(dataset, dbPath, id, onProgress) {
-  await initializeElectronModules()
   log.info(`Starting STREAMING import for large dataset: ${dataset.id}`)
 
   const tempDir = path.join(os.tmpdir(), 'biowatch-lila-import')
@@ -2249,8 +2204,6 @@ async function importLilaDatasetStreaming(dataset, dbPath, id, onProgress) {
  * (Extracted from downloadAndParseMetadata for streaming use)
  */
 async function downloadAndExtractMetadata(dataset, onProgress) {
-  await initializeElectronModules()
-
   const tempDir = path.join(os.tmpdir(), 'biowatch-lila-import')
   if (!fs.existsSync(tempDir)) {
     fs.mkdirSync(tempDir, { recursive: true })

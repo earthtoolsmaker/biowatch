@@ -2,6 +2,7 @@
  * Services module re-exports
  *
  * Business logic layer providing:
+ * - Logger (centralized electron-log/console fallback)
  * - Path utilities
  * - Progress broadcasting
  * - Dataset extraction
@@ -12,6 +13,7 @@
  * - Cache services
  */
 
+export { default as log, getLogger } from './logger.js'
 export * from './paths.js'
 export * from './progress.js'
 export * from './extractor.js'

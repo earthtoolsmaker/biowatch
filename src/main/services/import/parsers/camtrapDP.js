@@ -1,7 +1,9 @@
 import fs from 'fs'
 import path from 'path'
+import crypto from 'crypto'
 import csv from 'csv-parser'
 import { DateTime } from 'luxon'
+import { and, eq, gte, lte, sql, isNull, inArray } from 'drizzle-orm'
 import {
   getDrizzleDb,
   deployments,
@@ -9,32 +11,8 @@ import {
   observations,
   insertMetadata
 } from '../../../database/index.js'
-
-// Conditionally import electron modules for production, use fallback for testing
-let app, log
-
-// Initialize electron modules with proper async handling
-async function initializeElectronModules() {
-  if (app && log) return // Already initialized
-
-  try {
-    const electron = await import('electron')
-    app = electron.app
-    const electronLog = await import('electron-log')
-    log = electronLog.default
-  } catch {
-    // Fallback for testing environment
-    app = {
-      getPath: () => '/tmp'
-    }
-    log = {
-      info: () => {},
-      error: () => {},
-      warn: () => {},
-      debug: () => {}
-    }
-  }
-}
+import log from '../../logger.js'
+import { getBiowatchDataPath } from '../../paths.js'
 
 /**
  * Import CamTrapDP dataset from a directory into a SQLite database
@@ -46,8 +24,7 @@ async function initializeElectronModules() {
  * @returns {Promise<Object>} - Object containing dbPath and name
  */
 export async function importCamTrapDataset(directoryPath, id, onProgress = null, options = {}) {
-  await initializeElectronModules()
-  const biowatchDataPath = path.join(app.getPath('userData'), 'biowatch-data')
+  const biowatchDataPath = getBiowatchDataPath()
   return await importCamTrapDatasetWithPath(
     directoryPath,
     biowatchDataPath,
@@ -74,7 +51,6 @@ export async function importCamTrapDatasetWithPath(
   onProgress = null,
   options = {}
 ) {
-  await initializeElectronModules()
   log.info('Starting CamTrap dataset import')
   // Create database in the specified biowatch-data directory
   const dbPath = path.join(biowatchDataPath, 'studies', id, 'study.db')
@@ -169,6 +145,26 @@ export async function importCamTrapDatasetWithPath(
       log.info(`Successfully imported ${file} into ${name} table`)
     }
 
+    // Post-process: expand event-based observations to individual media
+    // This ensures every media file has a linked observation for simple queries
+    if (onProgress) {
+      onProgress({
+        currentFile: 'Linking observations to media...',
+        fileIndex: existingFiles.length - 1,
+        totalFiles: existingFiles.length,
+        totalRows: 0,
+        insertedRows: 0,
+        phase: 'expanding'
+      })
+    }
+
+    const expansionResult = await expandObservationsToMedia(db, onProgress)
+    if (expansionResult.created > 0) {
+      log.info(
+        `Observation expansion: ${expansionResult.expanded} event-based observations expanded into ${expansionResult.created} media-linked observations`
+      )
+    }
+
     log.info('CamTrap dataset import completed successfully')
 
     // Insert metadata into the database
@@ -203,7 +199,6 @@ export async function importCamTrapDatasetWithPath(
  * @returns {Promise<string[]>} - Array of column names
  */
 async function getCSVColumns(filePath) {
-  await initializeElectronModules()
   log.debug(`Reading columns from: ${filePath}`)
   return new Promise((resolve, reject) => {
     let columns = []
@@ -244,7 +239,6 @@ async function insertCSVData(
   directoryPath,
   onProgress = null
 ) {
-  await initializeElectronModules()
   log.debug(`Beginning data insertion from ${filePath} to table ${tableName}`)
 
   return new Promise((resolve, reject) => {
@@ -508,4 +502,145 @@ function transformFilePathField(filePath, directoryPath) {
   // Fall back to parent directory (original behavior for backward compatibility)
   const parentDir = path.dirname(directoryPath)
   return path.join(parentDir, normalizedPath)
+}
+
+/**
+ * Expand event-based observations to create one record per matching media.
+ * For observations without mediaID (event-based CamTrap DP datasets):
+ * 1. Find all media matching deploymentID + timestamp within eventStart/eventEnd
+ * 2. Create one observation per matching media (duplicating the original observation data)
+ * 3. Delete the original observation without mediaID
+ *
+ * This ensures every media file has a linked observation for simple queries.
+ *
+ * OPTIMIZED: Uses single JOIN query + batch inserts/deletes instead of N+1 queries.
+ * For demo dataset: ~245,000 operations → ~250 batch operations (~1000x faster)
+ *
+ * @param {Object} db - Drizzle database instance
+ * @param {function} onProgress - Optional callback for progress updates
+ * @returns {Promise<{expanded: number, created: number}>} - Count of observations expanded and created
+ */
+export async function expandObservationsToMedia(db, onProgress = null) {
+  const BATCH_SIZE = 1000
+  const DELETE_BATCH_SIZE = 500 // SQLite has 999 parameter limit
+
+  // 1. Single JOIN query to get ALL observation-media pairs at once
+  // This replaces N individual SELECT queries with 1 query
+  log.info('Finding observation-media pairs with single JOIN query...')
+
+  const pairs = await db
+    .select({
+      // Observation fields
+      observationID: observations.observationID,
+      deploymentID: observations.deploymentID,
+      eventID: observations.eventID,
+      eventStart: observations.eventStart,
+      eventEnd: observations.eventEnd,
+      scientificName: observations.scientificName,
+      observationType: observations.observationType,
+      commonName: observations.commonName,
+      classificationProbability: observations.classificationProbability,
+      count: observations.count,
+      lifeStage: observations.lifeStage,
+      age: observations.age,
+      sex: observations.sex,
+      behavior: observations.behavior,
+      bboxX: observations.bboxX,
+      bboxY: observations.bboxY,
+      bboxWidth: observations.bboxWidth,
+      bboxHeight: observations.bboxHeight,
+      detectionConfidence: observations.detectionConfidence,
+      modelOutputID: observations.modelOutputID,
+      classificationMethod: observations.classificationMethod,
+      classifiedBy: observations.classifiedBy,
+      classificationTimestamp: observations.classificationTimestamp,
+      // New mediaID from JOIN
+      newMediaID: media.mediaID
+    })
+    .from(observations)
+    .innerJoin(
+      media,
+      and(
+        eq(observations.deploymentID, media.deploymentID),
+        gte(media.timestamp, observations.eventStart),
+        lte(media.timestamp, sql`COALESCE(${observations.eventEnd}, ${observations.eventStart})`)
+      )
+    )
+    .where(isNull(observations.mediaID))
+
+  if (pairs.length === 0) {
+    log.info('No observation-media pairs found - skipping expansion step')
+    return { expanded: 0, created: 0 }
+  }
+
+  // Get unique original observation IDs for deletion
+  const originalObsIDs = [...new Set(pairs.map((p) => p.observationID))]
+
+  log.info(
+    `Found ${pairs.length} observation-media pairs from ${originalObsIDs.length} original observations`
+  )
+
+  // 2. Build new observations array in memory
+  const newObservations = pairs.map((pair) => ({
+    observationID: crypto.randomUUID(),
+    mediaID: pair.newMediaID,
+    deploymentID: pair.deploymentID,
+    eventID: pair.eventID,
+    eventStart: pair.eventStart,
+    eventEnd: pair.eventEnd,
+    scientificName: pair.scientificName,
+    observationType: pair.observationType,
+    commonName: pair.commonName,
+    classificationProbability: pair.classificationProbability,
+    count: pair.count,
+    lifeStage: pair.lifeStage,
+    age: pair.age,
+    sex: pair.sex,
+    behavior: pair.behavior,
+    bboxX: pair.bboxX,
+    bboxY: pair.bboxY,
+    bboxWidth: pair.bboxWidth,
+    bboxHeight: pair.bboxHeight,
+    detectionConfidence: pair.detectionConfidence,
+    modelOutputID: pair.modelOutputID,
+    classificationMethod: pair.classificationMethod,
+    classifiedBy: pair.classifiedBy,
+    classificationTimestamp: pair.classificationTimestamp
+  }))
+
+  // 3. Batch insert new observations
+  log.info(`Inserting ${newObservations.length} new observations in batches of ${BATCH_SIZE}...`)
+
+  for (let i = 0; i < newObservations.length; i += BATCH_SIZE) {
+    const batch = newObservations.slice(i, i + BATCH_SIZE)
+    await db.insert(observations).values(batch)
+
+    // Report progress after each batch
+    if (onProgress) {
+      onProgress({
+        currentFile: 'Linking observations to media...',
+        fileIndex: 0,
+        totalFiles: 1,
+        totalRows: newObservations.length,
+        insertedRows: Math.min(i + BATCH_SIZE, newObservations.length),
+        phase: 'expanding'
+      })
+    }
+  }
+
+  // 4. Batch delete original observations (SQLite has 999 parameter limit)
+  log.info(
+    `Deleting ${originalObsIDs.length} original observations in batches of ${DELETE_BATCH_SIZE}...`
+  )
+
+  for (let i = 0; i < originalObsIDs.length; i += DELETE_BATCH_SIZE) {
+    const batch = originalObsIDs.slice(i, i + DELETE_BATCH_SIZE)
+    await db.delete(observations).where(inArray(observations.observationID, batch))
+  }
+
+  log.info(
+    `Expanded ${originalObsIDs.length} event-based observations into ${newObservations.length} media-linked observations`
+  )
+
+  return { expanded: originalObsIDs.length, created: newObservations.length }
 }

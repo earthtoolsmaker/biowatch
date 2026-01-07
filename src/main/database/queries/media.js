@@ -21,7 +21,7 @@ import {
 } from 'drizzle-orm'
 import { DateTime } from 'luxon'
 import log from 'electron-log'
-import { getStudyIdFromPath, isTimestampBasedDataset, formatToMatchOriginal } from './utils.js'
+import { getStudyIdFromPath, formatToMatchOriginal } from './utils.js'
 
 /**
  * Get media files from the database that have animal observations with optional filtering
@@ -76,23 +76,6 @@ export async function getMedia(dbPath, options = {}) {
     const studyId = getStudyIdFromPath(dbPath)
 
     const db = await getDrizzleDb(studyId, dbPath)
-
-    // Check if this is a timestamp-based dataset (CamTrap DP)
-    // For these datasets, blank queries are not supported (would require slow range queries)
-    let effectiveRequestingBlanks = requestingBlanks
-    if (requestingBlanks && (await isTimestampBasedDataset(db))) {
-      log.info('Timestamp-based dataset: blank queries not supported')
-      if (regularSpecies.length === 0) {
-        // Only blanks requested, return empty
-        const elapsedTime = Date.now() - startTime
-        log.info(
-          `Returning empty for blanks-only query on timestamp-based dataset in ${elapsedTime}ms`
-        )
-        return []
-      }
-      // Mixed query: just return species, skip blanks
-      effectiveRequestingBlanks = false
-    }
 
     // Build date/time conditions for media table (used for blank queries)
     const mediaDateTimeConditions = []
@@ -165,15 +148,14 @@ export async function getMedia(dbPath, options = {}) {
       favorite: media.favorite
     }
 
-    // Correlated subquery for blank detection (only used for mediaID-based datasets)
-    // For timestamp-based datasets, effectiveRequestingBlanks is already false
+    // Correlated subquery for blank detection (media with no linked observations)
     const matchingObservations = db
       .select({ one: sql`1` })
       .from(observations)
       .where(eq(observations.mediaID, media.mediaID))
 
     // Case 1: Only blanks requested
-    if (effectiveRequestingBlanks && regularSpecies.length === 0) {
+    if (requestingBlanks && regularSpecies.length === 0) {
       const blankConditions = [notExists(matchingObservations), ...mediaDateTimeConditions]
 
       const blankQuery = db
@@ -205,23 +187,15 @@ export async function getMedia(dbPath, options = {}) {
       baseConditions.push(inArray(observations.scientificName, regularSpecies))
     }
 
-    // Branch 1: Direct mediaID link (for ML runs, Wildlife Insights, Deepfaune imports)
-    const branch1 = db
+    // Species query using direct mediaID join (all observations now have mediaID populated)
+    const speciesQuery = db
       .selectDistinct(speciesSelectFields)
       .from(media)
       .innerJoin(observations, eq(media.mediaID, observations.mediaID))
       .where(and(...baseConditions))
 
-    // Branch 2: Timestamp link (for CamTrap DP datasets where observations have NULL mediaID)
-    const branch2Conditions = [...baseConditions, isNull(observations.mediaID)]
-    const branch2 = db
-      .selectDistinct(speciesSelectFields)
-      .from(media)
-      .innerJoin(observations, eq(media.timestamp, observations.eventStart))
-      .where(and(...branch2Conditions))
-
     // Case 2: Mixed selection (species + blanks)
-    if (effectiveRequestingBlanks && regularSpecies.length > 0) {
+    if (requestingBlanks && regularSpecies.length > 0) {
       // Use notExists with the correlated subquery for blank detection
       const blankConditions = [notExists(matchingObservations), ...mediaDateTimeConditions]
 
@@ -230,8 +204,8 @@ export async function getMedia(dbPath, options = {}) {
         .from(media)
         .where(and(...blankConditions))
 
-      // Combine species queries and blank query with UNION
-      const rows = await union(branch1, branch2, blankQuery)
+      // Combine species query and blank query with UNION
+      const rows = await union(speciesQuery, blankQuery)
         .orderBy(sql`timestamp DESC NULLS LAST`)
         .limit(queryLimit)
         .offset(queryOffset)
@@ -244,7 +218,7 @@ export async function getMedia(dbPath, options = {}) {
     }
 
     // Case 3: Regular species query (no blanks)
-    const rows = await union(branch1, branch2)
+    const rows = await speciesQuery
       .orderBy(sql`${media.timestamp} DESC NULLS LAST`)
       .limit(queryLimit)
       .offset(queryOffset)
