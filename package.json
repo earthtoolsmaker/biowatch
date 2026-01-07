@@ -62,7 +62,7 @@
     "tree-kill": "^1.2.2",
     "umzug": "^3.8.2",
     "unzipper": "^0.12.3",
-    "zod": "^4.1.13"
+    "zod": "^4.3.5"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config": "^2.0.0",
