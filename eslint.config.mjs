@@ -27,7 +27,10 @@ export default [
     },
     rules: {
       ...eslintPluginReactHooks.configs.recommended.rules,
-      ...eslintPluginReactRefresh.configs.vite.rules
+      ...eslintPluginReactRefresh.configs.vite.rules,
+      // Disable new v7 rules that require code refactoring
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/immutability': 'off'
     }
   },
   eslintConfigPrettier

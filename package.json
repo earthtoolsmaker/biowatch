@@ -75,7 +75,7 @@
     "electron-vite": "^5.0.0",
     "eslint": "^9.39.2",
     "eslint-plugin-react": "^7.37.4",
-    "eslint-plugin-react-hooks": "^5.1.0",
+    "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.26",
     "prettier": "^3.7.4",
     "react": "^19.2.3",
