@@ -17,7 +17,7 @@ import {
 } from 'lucide-react'
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient, useMutation, useInfiniteQuery } from '@tanstack/react-query'
-import { useParams } from 'react-router'
+import { useParams, useSearchParams } from 'react-router'
 import CircularTimeFilter, { DailyActivityRadar } from './ui/clock'
 import SpeciesDistribution from './ui/speciesDistribution'
 import TimelineChart from './ui/timeseries'
@@ -2676,6 +2676,7 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
 export default function Activity({ studyData, studyId }) {
   const { id } = useParams()
   const actualStudyId = studyId || id // Use passed studyId or from params
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const [selectedSpecies, setSelectedSpecies] = useState([])
   const [dateRange, setDateRange] = useState([null, null])
@@ -2707,12 +2708,30 @@ export default function Activity({ studyData, studyId }) {
   })
 
   // Initialize selectedSpecies when speciesDistributionData loads
-  // Excludes humans/vehicles from default selection
+  // Check URL params first (from overview click), then default to top species
   useEffect(() => {
-    if (speciesDistributionData && selectedSpecies.length === 0) {
+    if (!speciesDistributionData) return
+
+    const preSelectedSpecies = searchParams.get('species')
+
+    if (preSelectedSpecies) {
+      // Find the species in distribution data to get full object with count
+      const speciesData = speciesDistributionData.find(
+        (s) => s.scientificName === preSelectedSpecies
+      )
+      if (speciesData) {
+        setSelectedSpecies([speciesData])
+        // Clear the URL param after applying
+        setSearchParams({}, { replace: true })
+        return
+      }
+    }
+
+    // Default: select top 2 non-human species if no selection yet
+    if (selectedSpecies.length === 0) {
       setSelectedSpecies(getTopNonHumanSpecies(speciesDistributionData, 2))
     }
-  }, [speciesDistributionData, selectedSpecies.length])
+  }, [speciesDistributionData, searchParams, setSearchParams, selectedSpecies.length])
 
   // Memoize speciesNames to avoid unnecessary re-renders
   const speciesNames = useMemo(

@@ -9,7 +9,8 @@ import { getStudyDatabasePath } from '../services/paths.js'
 import {
   getSpeciesDistribution,
   getBlankMediaCount,
-  getDistinctSpecies
+  getDistinctSpecies,
+  getBestImagePerSpecies
 } from '../database/index.js'
 
 /**
@@ -61,6 +62,23 @@ export function registerSpeciesIPCHandlers() {
       return { data: species }
     } catch (error) {
       log.error('Error getting distinct species:', error)
+      return { error: error.message }
+    }
+  })
+
+  // Get best image per species for hover tooltips
+  ipcMain.handle('species:get-best-images', async (_, studyId) => {
+    try {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) {
+        log.warn(`Database not found for study ID: ${studyId}`)
+        return { error: 'Database not found for this study' }
+      }
+
+      const bestImages = await getBestImagePerSpecies(dbPath)
+      return { data: bestImages }
+    } catch (error) {
+      log.error('Error getting best images per species:', error)
       return { error: error.message }
     }
   })

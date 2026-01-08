@@ -542,3 +542,149 @@ export async function getBestMedia(dbPath, options = {}) {
     throw error
   }
 }
+
+/**
+ * Get the single best image for each species (for hover tooltips)
+ * Reuses the exact scoring formula from getBestMedia but returns one image per species.
+ * @param {string} dbPath - Path to the SQLite database
+ * @returns {Promise<Array>} - Array of { scientificName, filePath, mediaID, compositeScore }
+ */
+export async function getBestImagePerSpecies(dbPath) {
+  const startTime = Date.now()
+  log.info(`Querying best image per species from: ${dbPath}`)
+
+  try {
+    const studyId = getStudyIdFromPath(dbPath)
+
+    // Use the same scoring formula as getBestMedia but return only one per species
+    const query = `
+      WITH
+      -- Calculate species counts for rarity scoring
+      species_counts AS (
+        SELECT scientificName, COUNT(*) as species_total
+        FROM observations
+        WHERE scientificName IS NOT NULL AND scientificName != ''
+          AND (observationType IS NULL OR observationType != 'blank')
+        GROUP BY scientificName
+      ),
+      -- Get max species count for normalization
+      max_species_count AS (
+        SELECT MAX(species_total) as max_count FROM species_counts
+      ),
+      scored_observations AS (
+        SELECT
+          o.mediaID,
+          o.scientificName,
+          -- Calculate bbox area
+          (o.bboxWidth * o.bboxHeight) as bboxArea,
+          -- Check if fully visible (1 = yes, 0 = no)
+          CASE WHEN o.bboxX >= 0 AND o.bboxY >= 0
+               AND (o.bboxX + o.bboxWidth) <= 1.0
+               AND (o.bboxY + o.bboxHeight) <= 1.0
+          THEN 1.0 ELSE 0.0 END as isFullyVisible,
+          -- Calculate padding (minimum distance to any edge)
+          MIN(o.bboxX, o.bboxY, 1.0 - o.bboxX - o.bboxWidth, 1.0 - o.bboxY - o.bboxHeight) as padding,
+          -- Rarity score
+          COALESCE(
+            CASE
+              WHEN sc.species_total IS NULL THEN 0.5
+              WHEN sc.species_total <= 1 THEN 1.0
+              ELSE MAX(0.0, 1.0 - (LOG(sc.species_total + 1.0) / LOG(COALESCE((SELECT max_count FROM max_species_count), 100.0) + 1.0)))
+            END,
+            0.5
+          ) as rarityScore,
+          -- Daytime score
+          CASE
+            WHEN m.timestamp IS NULL THEN 0.5
+            WHEN CAST(strftime('%H', m.timestamp) AS INTEGER) BETWEEN 8 AND 16 THEN 1.0
+            WHEN CAST(strftime('%H', m.timestamp) AS INTEGER) BETWEEN 6 AND 18 THEN 0.7
+            ELSE 0.2
+          END as daytimeScore,
+          o.detectionConfidence,
+          o.classificationProbability
+        FROM observations o
+        INNER JOIN media m ON o.mediaID = m.mediaID
+        LEFT JOIN species_counts sc ON o.scientificName = sc.scientificName
+        WHERE o.bboxX IS NOT NULL
+          AND o.bboxWidth IS NOT NULL
+          AND o.bboxWidth > 0
+          AND o.bboxHeight > 0
+          AND o.scientificName IS NOT NULL
+          AND o.scientificName != ''
+          -- Exclude videos (images only)
+          AND (m.fileMediatype IS NULL OR m.fileMediatype NOT LIKE 'video/%')
+          -- Exclude blanks
+          AND (o.observationType IS NULL OR o.observationType != 'blank')
+      ),
+      scored_with_formula AS (
+        SELECT
+          mediaID,
+          scientificName,
+          -- Exact same scoring formula as getBestMedia
+          (
+            -- Area component (15%) - sweet spot 10-60%
+            CASE
+              WHEN bboxArea < 0.05 THEN bboxArea / 0.05 * 0.3
+              WHEN bboxArea < 0.10 THEN 0.3 + (bboxArea - 0.05) / 0.05 * 0.3
+              WHEN bboxArea <= 0.60 THEN 0.6 + (bboxArea - 0.10) / 0.50 * 0.4
+              WHEN bboxArea <= 0.90 THEN 1.0 - (bboxArea - 0.60) / 0.30 * 0.3
+              ELSE 0.7 - (bboxArea - 0.90) / 0.10 * 0.4
+            END * 0.15
+            -- Visibility component (20%)
+            + isFullyVisible * 0.20
+            -- Padding component (15%), capped at padding >= 0.20
+            + MIN(MAX(padding, 0) * 5, 1.0) * 0.15
+            -- Detection confidence (15%)
+            + COALESCE(detectionConfidence, 0.5) * 0.15
+            -- Classification probability (10%)
+            + COALESCE(classificationProbability, 0.5) * 0.10
+            -- Rarity boost (15%)
+            + rarityScore * 0.15
+            -- Daytime boost (10%)
+            + daytimeScore * 0.10
+          ) as compositeScore
+        FROM scored_observations
+      ),
+      -- Get best observation per media (avoid duplicates)
+      best_per_media AS (
+        SELECT
+          mediaID,
+          scientificName,
+          compositeScore,
+          ROW_NUMBER() OVER (PARTITION BY mediaID ORDER BY compositeScore DESC) as rn
+        FROM scored_with_formula
+      ),
+      unique_media AS (
+        SELECT * FROM best_per_media WHERE rn = 1
+      ),
+      -- Rank within each species and take only the best one
+      ranked_per_species AS (
+        SELECT
+          mediaID,
+          scientificName,
+          compositeScore,
+          ROW_NUMBER() OVER (PARTITION BY scientificName ORDER BY compositeScore DESC) as species_rank
+        FROM unique_media
+      )
+      SELECT
+        r.scientificName,
+        m.filePath,
+        m.mediaID,
+        r.compositeScore
+      FROM ranked_per_species r
+      INNER JOIN media m ON r.mediaID = m.mediaID
+      WHERE r.species_rank = 1
+      ORDER BY r.scientificName
+    `
+
+    const results = await executeRawQuery(studyId, dbPath, query, [])
+
+    const elapsedTime = Date.now() - startTime
+    log.info(`Retrieved best images for ${results.length} species in ${elapsedTime}ms`)
+
+    return results
+  } catch (error) {
+    log.error(`Error querying best image per species: ${error.message}`)
+    throw error
+  }
+}
