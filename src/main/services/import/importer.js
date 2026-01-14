@@ -1035,6 +1035,13 @@ export class Importer {
 
         // Link main abort to batch abort so external cancellation still works
         const abortHandler = () => batchAbortController.abort()
+
+        // Check if cleanup was called while we were processing
+        if (!this.abortController) {
+          log.info('AbortController was cleared during processing, stopping batch loop')
+          break
+        }
+
         this.abortController.signal.addEventListener('abort', abortHandler)
 
         try {
@@ -1099,7 +1106,9 @@ export class Importer {
           }
         } finally {
           // Clean up listener to prevent memory leaks on the main abort controller
-          this.abortController.signal.removeEventListener('abort', abortHandler)
+          if (this.abortController) {
+            this.abortController.signal.removeEventListener('abort', abortHandler)
+          }
         }
 
         log.info(`Processed batch of ${mediaQueue.length} media files`)
