@@ -1,4 +1,4 @@
-import { app, dialog, ipcMain } from 'electron'
+import { app, dialog, ipcMain, BrowserWindow } from 'electron'
 import log from 'electron-log'
 import exifr from 'exifr'
 import fs from 'fs'
@@ -930,6 +930,8 @@ export class Importer {
             `Python environment not found: ${model.pythonEnvironment.id} ${model.pythonEnvironment.version}`
           )
         }
+        // Start server in background (fire-and-forget)
+        // This allows immediate navigation to study while server starts
         startMLModelHTTPServer({
           pythonEnvironment: pythonEnvironment,
           modelReference: modelReference,
@@ -941,236 +943,37 @@ export class Importer {
             this.pythonProcessPort = port
             this.pythonProcessShutdownApiKey = shutdownApiKey
 
-            // Create AbortController for cancelling in-flight requests
-            this.abortController = new AbortController()
-
-            // Create a model run record for this processing session
-            const runID = crypto.randomUUID()
-            await this.db.insert(modelRuns).values({
-              id: runID,
-              modelID: modelReference.id,
-              modelVersion: modelReference.version,
-              startedAt: new Date().toISOString(),
-              status: 'running',
-              importPath: this.folder,
-              options: this.country ? { country: this.country } : null
-            })
-            log.info(
-              `Created model run ${runID} for ${modelReference.id} v${modelReference.version}`
-            )
-
-            try {
-              while (true) {
-                // Check if we've been aborted before starting a new batch
-                if (!this.abortController || this.abortController.signal.aborted) {
-                  log.info('Processing aborted, stopping batch loop')
-                  break
-                }
-
-                const batchStart = DateTime.now()
-                const mediaBatch = await nextMediaToPredict(this.db, this.batchSize)
-                if (mediaBatch.length === 0) {
-                  log.info('No more media to process')
-                  break
-                }
-
-                // Separate images and videos for different processing
-                const images = mediaBatch.filter((m) => !isVideoMediatype(m.fileMediatype))
-                const videos = mediaBatch.filter((m) => isVideoMediatype(m.fileMediatype))
-                const mediaQueue = mediaBatch.map((m) => m.filePath)
-
-                log.info(
-                  `Processing batch of ${mediaQueue.length} media files (${images.length} images, ${videos.length} videos)`
-                )
-
-                // Create a fresh AbortController for each batch to prevent listener accumulation
-                const batchAbortController = new AbortController()
-
-                // Link main abort to batch abort so external cancellation still works
-                const abortHandler = () => batchAbortController.abort()
-                this.abortController.signal.addEventListener('abort', abortHandler)
-
-                try {
-                  // For videos, we need to collect all frame predictions before processing
-                  const videoPredictionsMap = new Map() // filepath -> predictions[]
-
-                  for await (const prediction of getPredictions(
-                    mediaQueue,
-                    port,
-                    batchAbortController.signal
-                  )) {
-                    // Check if this is a video frame prediction
-                    const isVideoFrame = prediction.frame_number !== undefined
-
-                    if (isVideoFrame) {
-                      // Collect video frame predictions
-                      if (!videoPredictionsMap.has(prediction.filepath)) {
-                        videoPredictionsMap.set(prediction.filepath, [])
-                      }
-                      videoPredictionsMap.get(prediction.filepath).push(prediction)
-                    } else {
-                      // Process image prediction immediately (existing logic)
-                      const mediaRecord = await getMedia(this.db, prediction.filepath)
-                      if (!mediaRecord) {
-                        log.warn(`No media found for prediction: ${prediction.filepath}`)
-                        continue
-                      }
-
-                      // Create model_output record for this media (with validated rawOutput)
-                      const modelOutputID = crypto.randomUUID()
-                      await insertModelOutput(this.db, {
-                        id: modelOutputID,
-                        mediaID: mediaRecord.mediaID,
-                        runID: runID,
-                        rawOutput: prediction // Store full prediction as JSON
-                      })
-
-                      // Insert prediction with model provenance
-                      await insertPrediction(this.db, prediction, {
-                        modelOutputID,
-                        modelID: modelReference.id,
-                        modelVersion: modelReference.version,
-                        detectionConfidenceThreshold: model.detectionConfidenceThreshold
-                      })
-                    }
-                  }
-
-                  // Process collected video predictions (aggregate per video)
-                  for (const [filepath, predictions] of videoPredictionsMap) {
-                    const mediaRecord = await getMedia(this.db, filepath)
-                    if (!mediaRecord) {
-                      log.warn(`No media found for video: ${filepath}`)
-                      continue
-                    }
-
-                    await insertVideoPredictions(this.db, predictions, mediaRecord, {
-                      runID: runID,
-                      modelID: modelReference.id,
-                      modelVersion: modelReference.version,
-                      detectionConfidenceThreshold: model.detectionConfidenceThreshold
-                    })
-                  }
-                } finally {
-                  // Clean up listener to prevent memory leaks on the main abort controller
-                  this.abortController.signal.removeEventListener('abort', abortHandler)
-                }
-
-                log.info(`Processed batch of ${mediaQueue.length} media files`)
-                const batchEnd = DateTime.now()
-                lastBatchDuration = batchEnd.diff(batchStart, 'seconds').seconds
-              }
-
-              // Auto-populate temporal dates from media timestamps (if not already set)
-              // This must happen BEFORE setting status to 'completed' so the renderer
-              // sees the updated dates when it invalidates the query
-              try {
-                log.info(`Attempting to auto-populate temporal dates for study ${this.id}`)
-
-                // Calculate cutoff date (24 hours ago) to exclude media without EXIF data
-                // (which default to DateTime.now())
-                const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-
-                const dateRange = await this.db
-                  .select({
-                    minDate:
-                      sql`MIN(CASE WHEN ${media.timestamp} < ${oneDayAgo} THEN ${media.timestamp} ELSE NULL END)`.as(
-                        'minDate'
-                      ),
-                    maxDate:
-                      sql`MAX(CASE WHEN ${media.timestamp} < ${oneDayAgo} THEN ${media.timestamp} ELSE NULL END)`.as(
-                        'maxDate'
-                      )
-                  })
-                  .from(media)
-                  .get()
-
-                log.info(`Date range query result: ${JSON.stringify(dateRange)}`)
-
-                if (dateRange && dateRange.minDate && dateRange.maxDate) {
-                  // Get current metadata to check if dates are already set
-                  const currentMetadata = await getMetadata(this.db)
-
-                  // Only update if values are not already set (don't overwrite user edits)
-                  const updates = {}
-                  if (!currentMetadata?.startDate) {
-                    updates.startDate = dateRange.minDate.split('T')[0]
-                  }
-                  if (!currentMetadata?.endDate) {
-                    updates.endDate = dateRange.maxDate.split('T')[0]
-                  }
-
-                  if (Object.keys(updates).length > 0) {
-                    await updateMetadata(this.db, this.id, updates)
-                    log.info(
-                      `Updated temporal dates for study ${this.id}: ${updates.startDate || 'unchanged'} to ${updates.endDate || 'unchanged'}`
-                    )
-                  }
-                }
-              } catch (temporalError) {
-                log.warn(`Could not auto-populate temporal dates: ${temporalError.message}`)
-              }
-
-              // Aggregate deployment metadata from EXIF data (using mode/most common value)
-              try {
-                log.info(`Aggregating deployment EXIF metadata for study ${this.id}`)
-                const allDeployments = await this.db
-                  .select({ deploymentID: deployments.deploymentID })
-                  .from(deployments)
-
-                for (const { deploymentID } of allDeployments) {
-                  await aggregateDeploymentMetadata(this.db, deploymentID)
-                }
-                log.info(
-                  `Completed EXIF metadata aggregation for ${allDeployments.length} deployments`
-                )
-              } catch (exifError) {
-                log.warn(`Could not aggregate deployment EXIF metadata: ${exifError.message}`)
-              }
-
-              // Update model run status to completed
-              await this.db
-                .update(modelRuns)
-                .set({ status: 'completed' })
-                .where(eq(modelRuns.id, runID))
-              log.info(`Model run ${runID} completed`)
-            } catch (error) {
-              // Handle AbortError gracefully - not a real error when stopping
-              if (error.name === 'AbortError') {
-                log.info('Background processing was aborted')
-                // Update model run status to aborted
-                await this.db
-                  .update(modelRuns)
-                  .set({ status: 'aborted' })
-                  .where(eq(modelRuns.id, runID))
-              } else {
-                // Update model run status to failed
-                await this.db
-                  .update(modelRuns)
-                  .set({ status: 'failed' })
-                  .where(eq(modelRuns.id, runID))
-                log.error(`Model run ${runID} failed:`, error)
-                throw error
-              }
-            }
-
-            this.cleanup()
+            // Start background processing
+            await this._processMediaInBackground(port, modelReference, model)
           })
           .catch(async (error) => {
-            // Handle AbortError gracefully - not a real error when stopping
             if (error.name === 'AbortError') {
               log.info('Background processing was aborted')
               return
             }
-            log.error('Error during background processing:', error)
+            log.error('Error starting ML server or processing:', error)
+
+            // Emit error event to frontend for toast notification
+            const [mainWindow] = BrowserWindow.getAllWindows()
+            if (mainWindow) {
+              mainWindow.webContents.send('importer:error', {
+                studyId: this.id,
+                message: 'The AI model could not start. Please try again or restart the app.'
+              })
+            }
+
             await closeStudyDatabase(this.id, this.dbPath)
             this.cleanup()
+            delete importers[this.id]
           })
-        //it's important to return after the db is created. Other parts of the app depend on this
+
+        // Return study ID immediately - don't wait for server
         return this.id
       } catch (error) {
-        log.error('Error starting ML model server:', error)
+        log.error('Error setting up ML model server:', error)
         await closeStudyDatabase(this.id, this.dbPath)
         this.cleanup()
+        throw error
       }
     } catch (error) {
       console.error('Error starting importer:', error)
@@ -1178,7 +981,224 @@ export class Importer {
         await closeStudyDatabase(this.id, this.dbPath)
       }
       this.cleanup()
+      throw error
     }
+  }
+
+  /**
+   * Process media files in the background after server startup.
+   * This method runs asynchronously and handles all image/video prediction processing.
+   */
+  async _processMediaInBackground(port, modelReference, model) {
+    // Create AbortController for cancelling in-flight requests
+    this.abortController = new AbortController()
+
+    // Create a model run record for this processing session
+    const runID = crypto.randomUUID()
+    await this.db.insert(modelRuns).values({
+      id: runID,
+      modelID: modelReference.id,
+      modelVersion: modelReference.version,
+      startedAt: new Date().toISOString(),
+      status: 'running',
+      importPath: this.folder,
+      options: this.country ? { country: this.country } : null
+    })
+    log.info(`Created model run ${runID} for ${modelReference.id} v${modelReference.version}`)
+
+    try {
+      while (true) {
+        // Check if we've been aborted before starting a new batch
+        if (!this.abortController || this.abortController.signal.aborted) {
+          log.info('Processing aborted, stopping batch loop')
+          break
+        }
+
+        const batchStart = DateTime.now()
+        const mediaBatch = await nextMediaToPredict(this.db, this.batchSize)
+        if (mediaBatch.length === 0) {
+          log.info('No more media to process')
+          break
+        }
+
+        // Separate images and videos for different processing
+        const images = mediaBatch.filter((m) => !isVideoMediatype(m.fileMediatype))
+        const videos = mediaBatch.filter((m) => isVideoMediatype(m.fileMediatype))
+        const mediaQueue = mediaBatch.map((m) => m.filePath)
+
+        log.info(
+          `Processing batch of ${mediaQueue.length} media files (${images.length} images, ${videos.length} videos)`
+        )
+
+        // Create a fresh AbortController for each batch to prevent listener accumulation
+        const batchAbortController = new AbortController()
+
+        // Link main abort to batch abort so external cancellation still works
+        const abortHandler = () => batchAbortController.abort()
+
+        // Check if cleanup was called while we were processing
+        if (!this.abortController) {
+          log.info('AbortController was cleared during processing, stopping batch loop')
+          break
+        }
+
+        this.abortController.signal.addEventListener('abort', abortHandler)
+
+        try {
+          // For videos, we need to collect all frame predictions before processing
+          const videoPredictionsMap = new Map() // filepath -> predictions[]
+
+          for await (const prediction of getPredictions(
+            mediaQueue,
+            port,
+            batchAbortController.signal
+          )) {
+            // Check if this is a video frame prediction
+            const isVideoFrame = prediction.frame_number !== undefined
+
+            if (isVideoFrame) {
+              // Collect video frame predictions
+              if (!videoPredictionsMap.has(prediction.filepath)) {
+                videoPredictionsMap.set(prediction.filepath, [])
+              }
+              videoPredictionsMap.get(prediction.filepath).push(prediction)
+            } else {
+              // Process image prediction immediately (existing logic)
+              const mediaRecord = await getMedia(this.db, prediction.filepath)
+              if (!mediaRecord) {
+                log.warn(`No media found for prediction: ${prediction.filepath}`)
+                continue
+              }
+
+              // Create model_output record for this media (with validated rawOutput)
+              const modelOutputID = crypto.randomUUID()
+              await insertModelOutput(this.db, {
+                id: modelOutputID,
+                mediaID: mediaRecord.mediaID,
+                runID: runID,
+                rawOutput: prediction // Store full prediction as JSON
+              })
+
+              // Insert prediction with model provenance
+              await insertPrediction(this.db, prediction, {
+                modelOutputID,
+                modelID: modelReference.id,
+                modelVersion: modelReference.version,
+                detectionConfidenceThreshold: model.detectionConfidenceThreshold
+              })
+            }
+          }
+
+          // Process collected video predictions (aggregate per video)
+          for (const [filepath, predictions] of videoPredictionsMap) {
+            const mediaRecord = await getMedia(this.db, filepath)
+            if (!mediaRecord) {
+              log.warn(`No media found for video: ${filepath}`)
+              continue
+            }
+
+            await insertVideoPredictions(this.db, predictions, mediaRecord, {
+              runID: runID,
+              modelID: modelReference.id,
+              modelVersion: modelReference.version,
+              detectionConfidenceThreshold: model.detectionConfidenceThreshold
+            })
+          }
+        } finally {
+          // Clean up listener to prevent memory leaks on the main abort controller
+          if (this.abortController) {
+            this.abortController.signal.removeEventListener('abort', abortHandler)
+          }
+        }
+
+        log.info(`Processed batch of ${mediaQueue.length} media files`)
+        const batchEnd = DateTime.now()
+        lastBatchDuration = batchEnd.diff(batchStart, 'seconds').seconds
+      }
+
+      // Auto-populate temporal dates from media timestamps (if not already set)
+      // This must happen BEFORE setting status to 'completed' so the renderer
+      // sees the updated dates when it invalidates the query
+      try {
+        log.info(`Attempting to auto-populate temporal dates for study ${this.id}`)
+
+        // Calculate cutoff date (24 hours ago) to exclude media without EXIF data
+        // (which default to DateTime.now())
+        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+
+        const dateRange = await this.db
+          .select({
+            minDate:
+              sql`MIN(CASE WHEN ${media.timestamp} < ${oneDayAgo} THEN ${media.timestamp} ELSE NULL END)`.as(
+                'minDate'
+              ),
+            maxDate:
+              sql`MAX(CASE WHEN ${media.timestamp} < ${oneDayAgo} THEN ${media.timestamp} ELSE NULL END)`.as(
+                'maxDate'
+              )
+          })
+          .from(media)
+          .get()
+
+        log.info(`Date range query result: ${JSON.stringify(dateRange)}`)
+
+        if (dateRange && dateRange.minDate && dateRange.maxDate) {
+          // Get current metadata to check if dates are already set
+          const currentMetadata = await getMetadata(this.db)
+
+          // Only update if values are not already set (don't overwrite user edits)
+          const updates = {}
+          if (!currentMetadata?.startDate) {
+            updates.startDate = dateRange.minDate.split('T')[0]
+          }
+          if (!currentMetadata?.endDate) {
+            updates.endDate = dateRange.maxDate.split('T')[0]
+          }
+
+          if (Object.keys(updates).length > 0) {
+            await updateMetadata(this.db, this.id, updates)
+            log.info(
+              `Updated temporal dates for study ${this.id}: ${updates.startDate || 'unchanged'} to ${updates.endDate || 'unchanged'}`
+            )
+          }
+        }
+      } catch (temporalError) {
+        log.warn(`Could not auto-populate temporal dates: ${temporalError.message}`)
+      }
+
+      // Aggregate deployment metadata from EXIF data (using mode/most common value)
+      try {
+        log.info(`Aggregating deployment EXIF metadata for study ${this.id}`)
+        const allDeployments = await this.db
+          .select({ deploymentID: deployments.deploymentID })
+          .from(deployments)
+
+        for (const { deploymentID } of allDeployments) {
+          await aggregateDeploymentMetadata(this.db, deploymentID)
+        }
+        log.info(`Completed EXIF metadata aggregation for ${allDeployments.length} deployments`)
+      } catch (exifError) {
+        log.warn(`Could not aggregate deployment EXIF metadata: ${exifError.message}`)
+      }
+
+      // Update model run status to completed
+      await this.db.update(modelRuns).set({ status: 'completed' }).where(eq(modelRuns.id, runID))
+      log.info(`Model run ${runID} completed`)
+    } catch (error) {
+      // Handle AbortError gracefully - not a real error when stopping
+      if (error.name === 'AbortError') {
+        log.info('Background processing was aborted')
+        // Update model run status to aborted
+        await this.db.update(modelRuns).set({ status: 'aborted' }).where(eq(modelRuns.id, runID))
+      } else {
+        // Update model run status to failed
+        await this.db.update(modelRuns).set({ status: 'failed' }).where(eq(modelRuns.id, runID))
+        log.error(`Model run ${runID} failed:`, error)
+        throw error
+      }
+    }
+
+    this.cleanup()
   }
 }
 
