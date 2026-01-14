@@ -17,8 +17,11 @@ import {
 } from 'lucide-react'
 import PlaceholderMap from './ui/PlaceholderMap'
 import BestMediaCarousel from './ui/BestMediaCarousel'
+import SpeciesTooltipContent from './ui/SpeciesTooltipContent'
+import * as Tooltip from '@radix-ui/react-tooltip'
 import { useImportStatus } from '@renderer/hooks/import'
 import { useQueryClient, useQuery, useQueries } from '@tanstack/react-query'
+import { useNavigate } from 'react-router'
 import DateTimePicker from './ui/DateTimePicker'
 import { sortSpeciesHumansLast } from './utils/speciesUtils'
 
@@ -218,8 +221,32 @@ async function fetchGbifCommonName(scientificName) {
 }
 
 // Export SpeciesDistribution so it can be imported in activity.jsx
-function SpeciesDistribution({ data, taxonomicData }) {
+function SpeciesDistribution({ data, taxonomicData, studyId }) {
   const totalCount = data.reduce((sum, item) => sum + item.count, 0)
+  const navigate = useNavigate()
+
+  // Fetch best image per species for hover tooltips
+  const { data: bestImagesData } = useQuery({
+    queryKey: ['bestImagesPerSpecies', studyId],
+    queryFn: async () => {
+      const response = await window.api.getBestImagePerSpecies(studyId)
+      if (response.error) throw new Error(response.error)
+      return response.data
+    },
+    enabled: !!studyId,
+    staleTime: 60000 // Cache for 1 minute
+  })
+
+  // Create lookup map: scientificName -> imageData
+  const speciesImageMap = useMemo(() => {
+    const map = {}
+    if (bestImagesData) {
+      bestImagesData.forEach((item) => {
+        map[item.scientificName] = item
+      })
+    }
+    return map
+  }, [bestImagesData])
 
   // Create a map of scientific names to common names from taxonomic data
   const scientificToCommonMap = useMemo(() => {
@@ -268,34 +295,66 @@ function SpeciesDistribution({ data, taxonomicData }) {
     return <div className="text-gray-500">No species data available</div>
   }
 
+  // Navigate to media tab with species filter
+  const handleRowClick = (species) => {
+    navigate(`/study/${studyId}/media?species=${encodeURIComponent(species.scientificName)}`)
+  }
+
   return (
-    <div className="w-1/2 bg-white rounded border border-gray-200 p-3 overflow-y-auto">
-      <div className="space-y-4">
+    <div className="w-1/2 bg-white rounded border border-gray-200 p-3 overflow-y-auto relative">
+      <div className="space-y-2">
         {sortSpeciesHumansLast(data).map((species) => {
           // Try to get the common name from the taxonomic data first, then from GBIF query results
           const commonName =
             scientificToCommonMap[species.scientificName] || gbifCommonNames[species.scientificName]
+          const hasImage = !!speciesImageMap[species.scientificName]
 
           return (
-            <div key={species.scientificName} className="">
-              <div className="flex justify-between mb-1 items-center">
-                <div>
-                  <span className="capitalize text-sm">{commonName || species.scientificName}</span>
-                  {species.scientificName && commonName !== undefined && (
-                    <span className="text-gray-500 text-sm italic ml-2">
-                      ({species.scientificName})
-                    </span>
-                  )}
-                </div>
-                <span className="text-xs text-gray-500">{species.count}</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
+            <Tooltip.Root key={species.scientificName}>
+              <Tooltip.Trigger asChild>
                 <div
-                  className="bg-blue-600 h-2 rounded-full"
-                  style={{ width: `${(species.count / totalCount) * 100}%` }}
-                ></div>
-              </div>
-            </div>
+                  className="cursor-pointer hover:bg-gray-50 transition-colors rounded py-1"
+                  onClick={() => handleRowClick(species)}
+                >
+                  <div className="flex justify-between mb-1 items-center">
+                    <div>
+                      <span className="capitalize text-sm">
+                        {commonName || species.scientificName}
+                      </span>
+                      {species.scientificName && commonName !== undefined && (
+                        <span className="text-gray-500 text-sm italic ml-2">
+                          ({species.scientificName})
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs text-gray-500">{species.count}</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-blue-600 h-2 rounded-full"
+                      style={{ width: `${(species.count / totalCount) * 100}%` }}
+                    ></div>
+                  </div>
+                </div>
+              </Tooltip.Trigger>
+              {hasImage && (
+                <Tooltip.Portal>
+                  <Tooltip.Content
+                    side="right"
+                    sideOffset={12}
+                    align="start"
+                    avoidCollisions={true}
+                    collisionPadding={16}
+                    className="z-[10000]"
+                  >
+                    <SpeciesTooltipContent
+                      imageData={speciesImageMap[species.scientificName]}
+                      studyId={studyId}
+                    />
+                  </Tooltip.Content>
+                </Tooltip.Portal>
+              )}
+            </Tooltip.Root>
           )
         })}
       </div>
@@ -1131,7 +1190,11 @@ export default function Overview({ data, studyId, studyName }) {
         <>
           <div className="flex flex-row gap-4 flex-1 min-h-0 mt-2">
             {speciesData && speciesData.length > 0 && (
-              <SpeciesDistribution data={speciesData} taxonomicData={taxonomicData} />
+              <SpeciesDistribution
+                data={speciesData}
+                taxonomicData={taxonomicData}
+                studyId={studyId}
+              />
             )}
             <DeploymentMap key={studyId} deployments={deploymentsData} studyId={studyId} />
           </div>

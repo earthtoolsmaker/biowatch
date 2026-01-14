@@ -233,5 +233,6 @@ export {
   // Best media
   getTemporalBucket,
   selectDiverseMedia,
-  getBestMedia
+  getBestMedia,
+  getBestImagePerSpecies
 } from './queries/index.js'
