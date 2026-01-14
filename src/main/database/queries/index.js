@@ -7,7 +7,6 @@
 export {
   formatToMatchOriginal,
   getStudyIdFromPath,
-  isTimestampBasedDataset,
   checkStudyHasEventIDs,
   createImageDirectoryDatabase
 } from './utils.js'
