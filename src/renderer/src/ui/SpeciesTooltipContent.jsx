@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { CameraOff, Loader2 } from 'lucide-react'
 
 /**
@@ -23,13 +23,12 @@ function isRemoteUrl(filePath) {
 }
 
 /**
- * Species hover tooltip showing best image for a species
+ * Species tooltip content showing best image for a species
+ * Used with Radix UI Tooltip
  */
-export default function SpeciesTooltip({ imageData, position, studyId }) {
+export default function SpeciesTooltipContent({ imageData, studyId }) {
   const [imageError, setImageError] = useState(false)
   const [imageLoaded, setImageLoaded] = useState(false)
-  const tooltipRef = useRef(null)
-  const [adjustedPosition, setAdjustedPosition] = useState(position)
 
   // Reset state when imageData changes
   useEffect(() => {
@@ -37,43 +36,12 @@ export default function SpeciesTooltip({ imageData, position, studyId }) {
     setImageLoaded(false)
   }, [imageData?.mediaID])
 
-  // Adjust position to stay within viewport
-  useEffect(() => {
-    if (!tooltipRef.current) return
-
-    const TOOLTIP_WIDTH = 280
-    const TOOLTIP_HEIGHT = 230
-    const PADDING = 16
-
-    let { x, y } = position
-
-    // Horizontal adjustment - stay within viewport
-    if (x + TOOLTIP_WIDTH > window.innerWidth - PADDING) {
-      x = position.x - TOOLTIP_WIDTH - 16 // Position to the left instead
-    }
-
-    // Vertical adjustment - prefer below, fallback to above
-    if (y + TOOLTIP_HEIGHT > window.innerHeight - PADDING) {
-      y = Math.max(PADDING, window.innerHeight - TOOLTIP_HEIGHT - PADDING)
-    }
-
-    setAdjustedPosition({ x, y })
-  }, [position])
-
   if (!imageData?.filePath) {
     return null
   }
 
   return (
-    <div
-      ref={tooltipRef}
-      className="fixed z-[10000] bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden pointer-events-none"
-      style={{
-        left: adjustedPosition.x,
-        top: adjustedPosition.y,
-        width: 280
-      }}
-    >
+    <div className="w-[280px] bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden">
       {/* Image */}
       <div className="relative w-full h-[180px] bg-gray-100">
         {imageError ? (

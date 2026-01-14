@@ -17,7 +17,8 @@ import {
 } from 'lucide-react'
 import PlaceholderMap from './ui/PlaceholderMap'
 import BestMediaCarousel from './ui/BestMediaCarousel'
-import SpeciesTooltip from './ui/SpeciesTooltip'
+import SpeciesTooltipContent from './ui/SpeciesTooltipContent'
+import * as Tooltip from '@radix-ui/react-tooltip'
 import { useImportStatus } from '@renderer/hooks/import'
 import { useQueryClient, useQuery, useQueries } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
@@ -222,8 +223,6 @@ async function fetchGbifCommonName(scientificName) {
 // Export SpeciesDistribution so it can be imported in activity.jsx
 function SpeciesDistribution({ data, taxonomicData, studyId }) {
   const totalCount = data.reduce((sum, item) => sum + item.count, 0)
-  const [hoveredSpecies, setHoveredSpecies] = useState(null)
-  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 })
   const navigate = useNavigate()
 
   // Fetch best image per species for hover tooltips
@@ -296,27 +295,6 @@ function SpeciesDistribution({ data, taxonomicData, studyId }) {
     return <div className="text-gray-500">No species data available</div>
   }
 
-  // Handle mouse enter on species name - position tooltip near pointer
-  const handleMouseEnter = (e, scientificName) => {
-    if (speciesImageMap[scientificName]) {
-      setTooltipPosition({
-        x: e.clientX + 12,
-        y: e.clientY + 12
-      })
-      setHoveredSpecies(scientificName)
-    }
-  }
-
-  // Update tooltip position as mouse moves
-  const handleMouseMove = (e, scientificName) => {
-    if (speciesImageMap[scientificName] && hoveredSpecies === scientificName) {
-      setTooltipPosition({
-        x: e.clientX + 12,
-        y: e.clientY + 12
-      })
-    }
-  }
-
   // Navigate to media tab with species filter
   const handleRowClick = (species) => {
     navigate(`/study/${studyId}/media?species=${encodeURIComponent(species.scientificName)}`)
@@ -329,46 +307,57 @@ function SpeciesDistribution({ data, taxonomicData, studyId }) {
           // Try to get the common name from the taxonomic data first, then from GBIF query results
           const commonName =
             scientificToCommonMap[species.scientificName] || gbifCommonNames[species.scientificName]
+          const hasImage = !!speciesImageMap[species.scientificName]
 
           return (
-            <div
-              key={species.scientificName}
-              className="cursor-pointer hover:bg-gray-50 transition-colors rounded py-1"
-              onClick={() => handleRowClick(species)}
-              onMouseEnter={(e) => handleMouseEnter(e, species.scientificName)}
-              onMouseMove={(e) => handleMouseMove(e, species.scientificName)}
-              onMouseLeave={() => setHoveredSpecies(null)}
-            >
-              <div className="flex justify-between mb-1 items-center">
-                <div>
-                  <span className="capitalize text-sm">{commonName || species.scientificName}</span>
-                  {species.scientificName && commonName !== undefined && (
-                    <span className="text-gray-500 text-sm italic ml-2">
-                      ({species.scientificName})
-                    </span>
-                  )}
-                </div>
-                <span className="text-xs text-gray-500">{species.count}</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
+            <Tooltip.Root key={species.scientificName}>
+              <Tooltip.Trigger asChild>
                 <div
-                  className="bg-blue-600 h-2 rounded-full"
-                  style={{ width: `${(species.count / totalCount) * 100}%` }}
-                ></div>
-              </div>
-            </div>
+                  className="cursor-pointer hover:bg-gray-50 transition-colors rounded py-1"
+                  onClick={() => handleRowClick(species)}
+                >
+                  <div className="flex justify-between mb-1 items-center">
+                    <div>
+                      <span className="capitalize text-sm">
+                        {commonName || species.scientificName}
+                      </span>
+                      {species.scientificName && commonName !== undefined && (
+                        <span className="text-gray-500 text-sm italic ml-2">
+                          ({species.scientificName})
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs text-gray-500">{species.count}</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-blue-600 h-2 rounded-full"
+                      style={{ width: `${(species.count / totalCount) * 100}%` }}
+                    ></div>
+                  </div>
+                </div>
+              </Tooltip.Trigger>
+              {hasImage && (
+                <Tooltip.Portal>
+                  <Tooltip.Content
+                    side="right"
+                    sideOffset={12}
+                    align="start"
+                    avoidCollisions={true}
+                    collisionPadding={16}
+                    className="z-[10000]"
+                  >
+                    <SpeciesTooltipContent
+                      imageData={speciesImageMap[species.scientificName]}
+                      studyId={studyId}
+                    />
+                  </Tooltip.Content>
+                </Tooltip.Portal>
+              )}
+            </Tooltip.Root>
           )
         })}
       </div>
-
-      {/* Species image tooltip */}
-      {hoveredSpecies && speciesImageMap[hoveredSpecies] && (
-        <SpeciesTooltip
-          imageData={speciesImageMap[hoveredSpecies]}
-          position={tooltipPosition}
-          studyId={studyId}
-        />
-      )}
     </div>
   )
 }
