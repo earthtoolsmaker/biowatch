@@ -729,8 +729,8 @@ function LocationsList({
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-      <header className="sticky top-0 bg-white z-10 pl-68 py-3 border-b border-gray-300">
+    <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+      <header className="bg-white z-10 pl-68 py-3 border-b border-gray-300">
         <div className="flex justify-between text-xs text-gray-600">
           {dateMarkers.map((date, i) => (
             <div key={i} className="flex flex-col items-center" style={{ width: '20%' }}>
@@ -740,7 +740,7 @@ function LocationsList({
           ))}
         </div>
       </header>
-      <div ref={parentRef} className="flex-1 overflow-auto">
+      <div ref={parentRef} className="flex-1 overflow-auto min-h-0">
         <div
           style={{
             height: `${rowVirtualizer.getTotalSize()}px`,
@@ -934,7 +934,9 @@ export default function Deployments({ studyId }) {
   }, [])
 
   return (
-    <div className={`flex flex-col px-4 h-full gap-4 ${isPlaceMode ? 'place-mode-active' : ''}`}>
+    <div
+      className={`flex flex-col px-4 h-full gap-4 overflow-hidden ${isPlaceMode ? 'place-mode-active' : ''}`}
+    >
       <div className="h-96">
         {isLoading ? (
           <SkeletonMap title="Loading Deployments" message="Loading deployment locations..." />
@@ -953,7 +955,7 @@ export default function Deployments({ studyId }) {
           />
         )}
       </div>
-      <div className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0 flex flex-col">
         {isLoading ? (
           <SkeletonDeploymentsList itemCount={6} />
         ) : activity ? (
