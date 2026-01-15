@@ -243,7 +243,8 @@ export function registerImportIPCHandlers() {
         mkdirSync(downloadDir, { recursive: true })
       }
 
-      const demoDatasetUrl = 'https://gbif.mnhn.lu/ipt/archive.do?r=luxvalmoni20223025'
+      const demoDatasetUrl =
+        'https://github.com/earthtoolsmaker/biowatch/releases/download/v1.5.0/camtrapdp-demo-dataset.zip'
       const zipPath = join(downloadDir, 'demo-dataset.zip')
       const extractPath = join(downloadDir, 'extracted')
 
