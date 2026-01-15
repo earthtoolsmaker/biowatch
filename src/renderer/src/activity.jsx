@@ -489,6 +489,7 @@ export default function Activity({ studyData, studyId }) {
                   selectedSpecies={selectedSpecies}
                   onSpeciesChange={handleSpeciesChange}
                   palette={palette}
+                  studyId={actualStudyId}
                 />
               )}
             </div>
