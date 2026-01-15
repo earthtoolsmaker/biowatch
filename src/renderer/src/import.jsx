@@ -393,7 +393,7 @@ export default function Import({ onNewStudy }) {
   }
 
   return (
-    <div className="h-full overflow-y-auto">
+    <div className="h-full overflow-y-auto bg-popover">
       <div className="max-w-4xl mx-auto p-8">
         {/* Header */}
         <div className="mb-10">
@@ -615,27 +615,33 @@ export default function Import({ onNewStudy }) {
                   <h4 className="mb-1 font-medium">GBIF Dataset</h4>
                   <p className="text-sm text-gray-500 mb-3">Published Camera Trap format</p>
                   <div className="flex gap-3">
-                    <select
+                    <Select
                       value={selectedGbifDataset?.key || ''}
-                      onChange={(e) => {
-                        const dataset = gbifDatasets.find((d) => d.key === e.target.value)
+                      onValueChange={(value) => {
+                        const dataset = gbifDatasets.find((d) => d.key === value)
                         setSelectedGbifDataset(dataset || null)
                       }}
                       disabled={loadingGbifDatasets}
-                      className="w-full max-w-lg px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 truncate"
                     >
-                      {loadingGbifDatasets ? (
-                        <option>Loading datasets...</option>
-                      ) : gbifDatasets.length === 0 ? (
-                        <option>No datasets available</option>
-                      ) : (
-                        gbifDatasets.map((dataset) => (
-                          <option key={dataset.key} value={dataset.key}>
-                            {dataset.title}
-                          </option>
-                        ))
-                      )}
-                    </select>
+                      <SelectTrigger className="w-full max-w-lg bg-white border-gray-200">
+                        <SelectValue>
+                          {loadingGbifDatasets
+                            ? 'Loading datasets...'
+                            : gbifDatasets.length === 0
+                              ? 'No datasets available'
+                              : selectedGbifDataset?.title || 'Select a dataset'}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {!loadingGbifDatasets &&
+                          gbifDatasets.length > 0 &&
+                          gbifDatasets.map((dataset) => (
+                            <SelectItem key={dataset.key} value={dataset.key}>
+                              {dataset.title}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
                     <Button
                       variant="outline"
                       className="shrink-0 w-40 ml-auto"
@@ -663,27 +669,35 @@ export default function Import({ onNewStudy }) {
                     LILA camera trap datasets (remote access)
                   </p>
                   <div className="flex gap-3">
-                    <select
+                    <Select
                       value={selectedLilaDataset?.id || ''}
-                      onChange={(e) => {
-                        const dataset = lilaDatasets.find((d) => d.id === e.target.value)
+                      onValueChange={(value) => {
+                        const dataset = lilaDatasets.find((d) => d.id === value)
                         setSelectedLilaDataset(dataset || null)
                       }}
                       disabled={loadingLilaDatasets}
-                      className="w-full max-w-lg px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 truncate"
                     >
-                      {loadingLilaDatasets ? (
-                        <option>Loading datasets...</option>
-                      ) : lilaDatasets.length === 0 ? (
-                        <option>No datasets available</option>
-                      ) : (
-                        lilaDatasets.map((dataset) => (
-                          <option key={dataset.id} value={dataset.id}>
-                            {dataset.name} ({dataset.imageCount?.toLocaleString()} images)
-                          </option>
-                        ))
-                      )}
-                    </select>
+                      <SelectTrigger className="w-full max-w-lg bg-white border-gray-200">
+                        <SelectValue>
+                          {loadingLilaDatasets
+                            ? 'Loading datasets...'
+                            : lilaDatasets.length === 0
+                              ? 'No datasets available'
+                              : selectedLilaDataset
+                                ? `${selectedLilaDataset.name} (${selectedLilaDataset.imageCount?.toLocaleString()} images)`
+                                : 'Select a dataset'}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {!loadingLilaDatasets &&
+                          lilaDatasets.length > 0 &&
+                          lilaDatasets.map((dataset) => (
+                            <SelectItem key={dataset.id} value={dataset.id}>
+                              {dataset.name} ({dataset.imageCount?.toLocaleString()} images)
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
                     <Button
                       variant="outline"
                       className="shrink-0 w-40 ml-auto"
