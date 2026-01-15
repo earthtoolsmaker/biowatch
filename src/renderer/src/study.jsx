@@ -19,7 +19,7 @@ import Media from './media'
 import Files from './files'
 import StudySettings from './StudySettings'
 import { useImportStatus } from '@renderer/hooks/import'
-import { Tab } from './components/Tab'
+import { Tab } from './ui/Tab'
 
 // Error fallback component
 function ErrorFallback({ error, resetErrorBoundary }) {
