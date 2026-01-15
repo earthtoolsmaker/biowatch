@@ -1,5 +1,8 @@
 import { useEffect, useState, useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import * as Tooltip from '@radix-ui/react-tooltip'
 import { sortSpeciesHumansLast, isBlank, BLANK_SENTINEL } from '../utils/speciesUtils'
+import SpeciesTooltipContent from './SpeciesTooltipContent'
 
 // Create a module-level cache for common names that persists across component unmounts
 const commonNamesCache = {}
@@ -10,7 +13,8 @@ function SpeciesDistribution({
   selectedSpecies,
   onSpeciesChange,
   palette,
-  blankCount = 0
+  blankCount = 0,
+  studyId = null
 }) {
   // Add a simple state to force re-renders when cache is updated
   const [, forceUpdate] = useState({})
@@ -24,6 +28,29 @@ function SpeciesDistribution({
   }, [data, blankCount])
 
   const totalCount = displayData.reduce((sum, item) => sum + item.count, 0)
+
+  // Fetch best image per species for hover tooltips (only when studyId is provided)
+  const { data: bestImagesData } = useQuery({
+    queryKey: ['bestImagesPerSpecies', studyId],
+    queryFn: async () => {
+      const response = await window.api.getBestImagePerSpecies(studyId)
+      if (response.error) throw new Error(response.error)
+      return response.data
+    },
+    enabled: !!studyId,
+    staleTime: 60000 // Cache for 1 minute
+  })
+
+  // Create lookup map: scientificName -> imageData
+  const speciesImageMap = useMemo(() => {
+    const map = {}
+    if (bestImagesData) {
+      bestImagesData.forEach((item) => {
+        map[item.scientificName] = item
+      })
+    }
+    return map
+  }, [bestImagesData])
 
   // Create a map of scientific names to common names from taxonomic data
   const scientificToCommonMap = {}
@@ -180,12 +207,12 @@ function SpeciesDistribution({
             )
             const color = colorIndex >= 0 ? palette[colorIndex % palette.length] : '#ccc'
 
-            return (
-              <div
-                key={species.scientificName || index}
-                className="cursor-pointer group"
-                onClick={() => handleSpeciesToggle(species)}
-              >
+            // Check if tooltip should be enabled for this species
+            const hasImage = !isBlankEntry && !!speciesImageMap[species.scientificName]
+            const enableTooltip = studyId && hasImage
+
+            const rowContent = (
+              <div className="cursor-pointer group" onClick={() => handleSpeciesToggle(species)}>
                 <div className="flex justify-between mb-1 items-center cursor-pointer">
                   <div className="flex items-center cursor-pointer">
                     <div
@@ -222,6 +249,32 @@ function SpeciesDistribution({
                 </div>
               </div>
             )
+
+            // Only wrap with Tooltip if studyId provided and image exists
+            if (enableTooltip) {
+              return (
+                <Tooltip.Root key={species.scientificName || index}>
+                  <Tooltip.Trigger asChild>{rowContent}</Tooltip.Trigger>
+                  <Tooltip.Portal>
+                    <Tooltip.Content
+                      side="right"
+                      sideOffset={12}
+                      align="start"
+                      avoidCollisions={true}
+                      collisionPadding={16}
+                      className="z-[10000]"
+                    >
+                      <SpeciesTooltipContent
+                        imageData={speciesImageMap[species.scientificName]}
+                        studyId={studyId}
+                      />
+                    </Tooltip.Content>
+                  </Tooltip.Portal>
+                </Tooltip.Root>
+              )
+            }
+
+            return <div key={species.scientificName || index}>{rowContent}</div>
           })}
         </div>
       </div>

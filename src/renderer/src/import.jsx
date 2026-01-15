@@ -499,7 +499,7 @@ export default function Import({ onNewStudy }) {
       <div className="max-w-4xl w-full">
         <div className="text-center mb-8">
           <p className="text-gray-500">
-            Import your dataset and we'll generate summaries and visualizations for you.
+            Import your dataset and we&apos;ll generate summaries and visualizations for you.
           </p>
         </div>
 

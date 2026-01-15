@@ -2838,6 +2838,7 @@ export default function Activity({ studyData, studyId }) {
                   onSpeciesChange={handleSpeciesChange}
                   palette={palette}
                   blankCount={blankCount}
+                  studyId={actualStudyId}
                 />
               )}
             </div>
