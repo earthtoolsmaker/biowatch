@@ -1,5 +1,5 @@
 import 'leaflet/dist/leaflet.css'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router'
 import { modelZoo } from '../../shared/mlmodels.js'
 import { useQueryClient } from '@tanstack/react-query'
@@ -139,6 +139,17 @@ export default function Import({ onNewStudy }) {
     },
     [isModelInstalled, isEnvironmentInstalled]
   )
+
+  const selectedModelDisplayText = useMemo(() => {
+    if (!selectedModel) return 'Select a model'
+    
+    const model = modelZoo.find(
+      (m) =>
+        m.reference.id === selectedModel.id &&
+        m.reference.version === selectedModel.version
+    )
+    return model ? `${model.name} v${model.reference.version}` : ''
+  }, [selectedModel])
 
   useEffect(() => {
     const fetchInstalledData = async () => {
@@ -453,18 +464,7 @@ export default function Import({ onNewStudy }) {
                         }}
                       >
                         <SelectTrigger className="bg-white border-gray-200 h-11 w-full">
-                          <SelectValue>
-                            {selectedModel
-                              ? (() => {
-                                  const model = modelZoo.find(
-                                    (m) =>
-                                      m.reference.id === selectedModel.id &&
-                                      m.reference.version === selectedModel.version
-                                  )
-                                  return model ? `${model.name} v${model.reference.version}` : ''
-                                })()
-                              : 'Select a model'}
-                          </SelectValue>
+                          <SelectValue>{selectedModelDisplayText}</SelectValue>
                         </SelectTrigger>
                         <SelectContent>
                           {modelZoo.map((model) => {
