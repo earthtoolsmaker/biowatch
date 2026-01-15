@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { BrainCircuit, Info, Github, Earth, Loader2 } from 'lucide-react'
 import Zoo from './models'
 import { modelZoo } from '../../shared/mlmodels'
-import { Tab } from './components/Tab'
+import { Tab } from './ui/Tab'
 
 function SettingsFooter({ className }) {
   return (
