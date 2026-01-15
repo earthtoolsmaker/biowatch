@@ -148,7 +148,7 @@ export default function Import({ onNewStudy }) {
         m.reference.id === selectedModel.id &&
         m.reference.version === selectedModel.version
     )
-    return model ? `${model.name} v${model.reference.version}` : ''
+    return model ? `${model.name} v${model.reference.version}` : 'Model not found'
   }, [selectedModel])
 
   useEffect(() => {
