@@ -5,6 +5,24 @@ All notable changes to Biowatch will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.1] - 2026-01-15
+
+### Added
+
+- Species image tooltip to Activity and Media tabs showing best capture on hover
+- New reusable UI components: Button, Card, Input, Select
+- TypeScript configuration support
+
+### Changed
+
+- Redesigned import screen with card-based layout
+- Improved import page copy and documentation
+- Moved Tab component to ui/ directory
+
+### Fixed
+
+- Escape apostrophe in import.jsx lint error
+
 ## [1.6.0] - 2026-01-15
 
 ### Added
@@ -193,6 +211,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Activity heatmaps
 - Overview statistics
 
+[1.6.1]: https://github.com/earthtoolsmaker/biowatch/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/earthtoolsmaker/biowatch/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/earthtoolsmaker/biowatch/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/earthtoolsmaker/biowatch/compare/v1.3.0...v1.4.0
