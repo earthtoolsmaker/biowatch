@@ -221,7 +221,7 @@ function ModelRow({ model, pythonEnvironment, platform, isDev = false, refreshKe
               Downloading
             </span>
           ) : (
-            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 whitespace-nowrap">
               Not downloaded
             </span>
           )}
