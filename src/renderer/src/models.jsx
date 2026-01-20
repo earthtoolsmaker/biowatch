@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Download,
   LucideLoader,
@@ -420,7 +420,7 @@ export default function Zoo({ modelZoo }) {
     queryAllDownloadStatuses()
   }, [modelZoo, refreshKey])
 
-  const handleDownloadStatusChange = (modelId, isDownloaded) => {
+  const handleDownloadStatusChange = useCallback((modelId, isDownloaded) => {
     setDownloadedModels((prev) => {
       const next = new Set(prev)
       if (isDownloaded) {
@@ -430,7 +430,7 @@ export default function Zoo({ modelZoo }) {
       }
       return next
     })
-  }
+  }, [])
 
   const handleClearAllMLModels = async () => {
     console.log('[CLEAR ALL] Frontend: Starting clear all operation...')
