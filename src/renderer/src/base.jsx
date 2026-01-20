@@ -379,7 +379,10 @@ function AppContent() {
       <main className="ml-64 relative flex w-[calc(100%-16rem)] flex-1 bg-transparent pt-3 pr-3">
         <div className="flex-col bg-white shadow w-full rounded-xl overflow-hidden">
           <Routes>
-            <Route path="/import" element={<Import onNewStudy={onNewStudy} />} />
+            <Route
+              path="/import"
+              element={<Import onNewStudy={onNewStudy} isFirstTimeUser={studies.length === 0} />}
+            />
             <Route path="/study/:id/*" element={<Study />} />
             <Route path="/settings/*" element={<SettingsPage />} />
             <Route path="*" element={null} />
