@@ -400,26 +400,6 @@ export default function Zoo({ modelZoo }) {
   const [refreshKey, setRefreshKey] = useState(0)
   const [downloadedModels, setDownloadedModels] = useState(new Set())
 
-  // Query the download status of all models on mount and when refreshKey changes
-  useEffect(() => {
-    const queryAllDownloadStatuses = async () => {
-      const downloadedSet = new Set()
-      for (const model of modelZoo) {
-        const pythonEnvironment = findPythonEnvironment(model.pythonEnvironment)
-        const downloadStatus = await window.api.getMLModelDownloadStatus({
-          modelReference: model.reference,
-          pythonEnvironmentReference: pythonEnvironment.reference
-        })
-        const modelState = downloadStatus['model']['state']
-        if (modelState === 'downloaded') {
-          downloadedSet.add(model.reference.id)
-        }
-      }
-      setDownloadedModels(downloadedSet)
-    }
-    queryAllDownloadStatuses()
-  }, [modelZoo, refreshKey])
-
   const handleDownloadStatusChange = useCallback((modelId, isDownloaded) => {
     setDownloadedModels((prev) => {
       const next = new Set(prev)
