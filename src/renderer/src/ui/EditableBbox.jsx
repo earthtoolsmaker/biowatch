@@ -2,11 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   getImageBounds,
   screenToNormalized,
+  screenToNormalizedWithZoom,
   clampBbox,
   getCursorForHandle,
   resizeBboxFromHandle,
   moveBbox,
-  pixelToNormalizedDelta
+  pixelToNormalizedDeltaWithZoom
 } from '../utils/bboxCoordinates'
 
 const CORNER_HANDLE_SIZE = 8 // pixels
@@ -17,6 +18,7 @@ const NUDGE_PIXELS = 1 // pixels to move with arrow keys
 /**
  * Editable bounding box with move and resize capabilities.
  * Supports 8 handles (4 corners + 4 edge midpoints).
+ * Supports zoom-aware coordinate conversion when zoomTransform is provided.
  */
 export default function EditableBbox({
   bbox,
@@ -25,6 +27,7 @@ export default function EditableBbox({
   onUpdate,
   imageRef,
   containerRef,
+  zoomTransform,
   color = '#84cc16'
 }) {
   const [localBbox, setLocalBbox] = useState(null)
@@ -37,6 +40,12 @@ export default function EditableBbox({
   const initialBboxRef = useRef(null)
   const rafRef = useRef(null)
   const imageBoundsRef = useRef(null) // Store bounds in ref to avoid closure issues
+  const zoomTransformRef = useRef(zoomTransform) // Store zoom transform for closure-safe access
+
+  // Keep zoom transform ref up to date
+  useEffect(() => {
+    zoomTransformRef.current = zoomTransform
+  }, [zoomTransform])
 
   // Helper function to get current image bounds
   const getCurrentBounds = useCallback(() => {
@@ -95,7 +104,13 @@ export default function EditableBbox({
     // Use RAF for performance
     if (rafRef.current) return
     rafRef.current = requestAnimationFrame(() => {
-      const current = screenToNormalized(e.clientX, e.clientY, bounds)
+      // Use zoom-aware coordinate conversion if zoom transform is present
+      const zoom = zoomTransformRef.current
+      const current =
+        zoom && zoom.scale !== 1
+          ? screenToNormalizedWithZoom(e.clientX, e.clientY, bounds, zoom)
+          : screenToNormalized(e.clientX, e.clientY, bounds)
+
       if (!current) {
         rafRef.current = null
         return
@@ -179,21 +194,25 @@ export default function EditableBbox({
         const bounds = imageBoundsRef.current || getCurrentBounds()
         if (!bounds || !onUpdate) return
 
+        // Use zoom-aware delta conversion if zoomed
+        const zoom = zoomTransformRef.current
+        const scale = zoom?.scale || 1
+
         let deltaX = 0
         let deltaY = 0
 
         switch (e.key) {
           case 'ArrowUp':
-            deltaY = -pixelToNormalizedDelta(NUDGE_PIXELS, bounds, 'y')
+            deltaY = -pixelToNormalizedDeltaWithZoom(NUDGE_PIXELS, bounds, 'y', scale)
             break
           case 'ArrowDown':
-            deltaY = pixelToNormalizedDelta(NUDGE_PIXELS, bounds, 'y')
+            deltaY = pixelToNormalizedDeltaWithZoom(NUDGE_PIXELS, bounds, 'y', scale)
             break
           case 'ArrowLeft':
-            deltaX = -pixelToNormalizedDelta(NUDGE_PIXELS, bounds, 'x')
+            deltaX = -pixelToNormalizedDeltaWithZoom(NUDGE_PIXELS, bounds, 'x', scale)
             break
           case 'ArrowRight':
-            deltaX = pixelToNormalizedDelta(NUDGE_PIXELS, bounds, 'x')
+            deltaX = pixelToNormalizedDeltaWithZoom(NUDGE_PIXELS, bounds, 'x', scale)
             break
         }
 
@@ -225,7 +244,12 @@ export default function EditableBbox({
 
       imageBoundsRef.current = bounds
 
-      const normalized = screenToNormalized(e.clientX, e.clientY, bounds)
+      // Use zoom-aware coordinate conversion if zoom transform is present
+      const zoom = zoomTransformRef.current
+      const normalized =
+        zoom && zoom.scale !== 1
+          ? screenToNormalizedWithZoom(e.clientX, e.clientY, bounds, zoom)
+          : screenToNormalized(e.clientX, e.clientY, bounds)
       if (!normalized) return
 
       dragStartRef.current = normalized

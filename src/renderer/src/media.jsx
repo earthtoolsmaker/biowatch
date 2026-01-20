@@ -15,7 +15,10 @@ import {
   ChevronUp,
   ChevronLeft,
   ChevronRight,
-  Heart
+  Heart,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw
 } from 'lucide-react'
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient, useMutation, useInfiniteQuery } from '@tanstack/react-query'
@@ -26,7 +29,12 @@ import TimelineChart from './ui/timeseries'
 import DateTimePicker from './ui/DateTimePicker'
 import EditableBbox from './ui/EditableBbox'
 import { computeBboxLabelPosition, computeSelectorPosition } from './utils/positioning'
-import { getImageBounds, screenToNormalized } from './utils/bboxCoordinates'
+import {
+  getImageBounds,
+  screenToNormalized,
+  screenToNormalizedWithZoom
+} from './utils/bboxCoordinates'
+import { useZoomPan } from './hooks/useZoomPan'
 import { groupMediaIntoSequences, groupMediaByEventID } from './utils/sequenceGrouping'
 import { getTopNonHumanSpecies } from './utils/speciesUtils'
 
@@ -317,11 +325,18 @@ const BboxLabel = forwardRef(function BboxLabel(
  * Overlay for drawing new bounding boxes.
  * Handles mouse events for click-drag bbox creation.
  * Simple manual mode - when active, captures all mouse events for drawing.
+ * Supports zoom-aware coordinate conversion when zoomTransform is provided.
  */
-function DrawingOverlay({ imageRef, containerRef, onComplete }) {
+function DrawingOverlay({ imageRef, containerRef, onComplete, zoomTransform }) {
   const [drawStart, setDrawStart] = useState(null)
   const [drawCurrent, setDrawCurrent] = useState(null)
   const imageBoundsRef = useRef(null)
+  const zoomTransformRef = useRef(zoomTransform)
+
+  // Keep zoom transform ref up to date
+  useEffect(() => {
+    zoomTransformRef.current = zoomTransform
+  }, [zoomTransform])
 
   // Minimum bbox size (5% of image dimension)
   const MIN_SIZE = 0.05
@@ -345,7 +360,12 @@ function DrawingOverlay({ imageRef, containerRef, onComplete }) {
     const bounds = imageBoundsRef.current
     if (!bounds) return
 
-    const normalized = screenToNormalized(e.clientX, e.clientY, bounds)
+    // Use zoom-aware coordinate conversion if zoom transform is present
+    const zoom = zoomTransformRef.current
+    const normalized =
+      zoom && zoom.scale !== 1
+        ? screenToNormalizedWithZoom(e.clientX, e.clientY, bounds, zoom)
+        : screenToNormalized(e.clientX, e.clientY, bounds)
     if (!normalized) return
 
     // Only start if click is within image bounds (0-1)
@@ -362,7 +382,12 @@ function DrawingOverlay({ imageRef, containerRef, onComplete }) {
       const bounds = imageBoundsRef.current
       if (!bounds) return
 
-      const normalized = screenToNormalized(e.clientX, e.clientY, bounds)
+      // Use zoom-aware coordinate conversion if zoom transform is present
+      const zoom = zoomTransformRef.current
+      const normalized =
+        zoom && zoom.scale !== 1
+          ? screenToNormalizedWithZoom(e.clientX, e.clientY, bounds, zoom)
+          : screenToNormalized(e.clientX, e.clientY, bounds)
       if (!normalized) return
 
       // Clamp to image bounds
@@ -490,6 +515,19 @@ function ImageModal({
   // Favorite state
   const [isFavorite, setIsFavorite] = useState(media?.favorite ?? false)
   const queryClient = useQueryClient()
+
+  // Zoom and pan state for image viewing
+  const {
+    transform: zoomTransform,
+    isZoomed,
+    containerRef: zoomContainerRef,
+    handleWheel: handleZoomWheel,
+    handlePanStart,
+    zoomIn,
+    zoomOut,
+    resetZoom,
+    getTransformStyle
+  } = useZoomPan({ minScale: 1, maxScale: 5, zoomStep: 0.25 })
 
   // Refs for positioning the species selector near the label
   const imageContainerRef = useRef(null)
@@ -1135,9 +1173,26 @@ function ImageModal({
           onNext()
         }
       } else if (e.key === 'Escape') {
-        onClose()
+        // If zoomed, reset zoom first; otherwise close modal
+        if (isZoomed) {
+          resetZoom()
+        } else {
+          onClose()
+        }
       } else if (e.key === 'b' || e.key === 'B') {
         setShowBboxes((prev) => !prev)
+      } else if (e.key === '+' || e.key === '=') {
+        // Zoom in
+        e.preventDefault()
+        zoomIn()
+      } else if (e.key === '-' || e.key === '_') {
+        // Zoom out
+        e.preventDefault()
+        zoomOut()
+      } else if (e.key === '0') {
+        // Reset zoom
+        e.preventDefault()
+        resetZoom()
       }
     }
 
@@ -1158,14 +1213,19 @@ function ImageModal({
     showDatePicker,
     selectedBboxId,
     isDrawMode,
-    handleDeleteObservation
+    handleDeleteObservation,
+    isZoomed,
+    resetZoom,
+    zoomIn,
+    zoomOut
   ])
 
-  // Reset selection and draw mode when changing images
+  // Reset selection, draw mode, and zoom when changing images
   useEffect(() => {
     setSelectedBboxId(null)
     setIsDrawMode(false)
-  }, [media?.mediaID])
+    resetZoom()
+  }, [media?.mediaID, resetZoom])
 
   if (!isOpen || !media) return null
 
@@ -1315,12 +1375,29 @@ function ImageModal({
           onClick={(e) => e.stopPropagation()}
         >
           <div
-            ref={imageContainerRef}
+            ref={(el) => {
+              imageContainerRef.current = el
+              zoomContainerRef.current = el
+            }}
             className="flex items-center justify-center bg-gray-100 overflow-hidden relative"
             onClick={() => {
               setSelectedBboxId(null)
               setShowSpeciesSelector(false)
             }}
+            onWheel={!isVideoMedia(media) ? handleZoomWheel : undefined}
+            onMouseDown={(e) => {
+              // Only start pan if zoomed, not in draw mode, not clicking on a bbox
+              if (
+                isZoomed &&
+                !isDrawMode &&
+                !selectedBboxId &&
+                e.target.tagName !== 'rect' &&
+                !e.target.closest('button')
+              ) {
+                handlePanStart(e)
+              }
+            }}
+            style={{ cursor: isZoomed && !isDrawMode && !selectedBboxId ? 'grab' : undefined }}
           >
             {isVideoMedia(media) ? (
               // Transcoding states
@@ -1409,76 +1486,132 @@ function ImageModal({
               </div>
             ) : (
               <>
-                <img
-                  ref={imageRef}
-                  src={constructImageUrl(media.filePath)}
-                  alt={media.fileName || `Media ${media.mediaID}`}
-                  className="max-w-full max-h-[calc(90vh-120px)] w-auto h-auto object-contain"
-                  onError={() => setImageError(true)}
-                />
-                {/* Bbox overlay - editable bounding boxes (only for images) */}
-                {showBboxes && hasBboxes && (
-                  <>
-                    <svg
-                      className="absolute inset-0 w-full h-full"
-                      style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: '100%'
-                      }}
-                    >
-                      {bboxes.map((bbox) => (
-                        <EditableBbox
-                          key={bbox.observationID}
-                          bbox={bbox}
-                          isSelected={bbox.observationID === selectedBboxId}
-                          onSelect={() => {
-                            // Clicking bbox selects it for geometry editing only, NOT species selector
-                            setSelectedBboxId(
-                              bbox.observationID === selectedBboxId ? null : bbox.observationID
-                            )
-                            setShowSpeciesSelector(false) // Close species selector when clicking bbox
-                          }}
-                          onUpdate={(newBbox) => handleBboxUpdate(bbox.observationID, newBbox)}
-                          imageRef={imageRef}
-                          containerRef={imageContainerRef}
-                          color={bbox.classificationMethod === 'human' ? '#22c55e' : '#84cc16'}
-                        />
-                      ))}
-                    </svg>
-
-                    {/* Clickable bbox labels - clicking label opens species selector */}
-                    <div className="absolute inset-0 w-full h-full pointer-events-none">
-                      {bboxes.map((bbox) => (
-                        <BboxLabel
-                          key={bbox.observationID}
-                          ref={(el) => {
-                            bboxLabelRefs.current[bbox.observationID] = el
-                          }}
-                          bbox={bbox}
-                          isSelected={bbox.observationID === selectedBboxId}
-                          isHuman={bbox.classificationMethod === 'human'}
-                          onClick={() => {
-                            // Clicking label selects bbox AND opens species selector
-                            setSelectedBboxId(bbox.observationID)
-                            setShowSpeciesSelector(true)
-                          }}
-                          onDelete={() => handleDeleteObservation(bbox.observationID)}
-                        />
-                      ))}
-                    </div>
-                  </>
-                )}
-
-                {/* Drawing overlay - only show when in draw mode (images only) */}
-                {isDrawMode && (
-                  <DrawingOverlay
-                    imageRef={imageRef}
-                    containerRef={imageContainerRef}
-                    onComplete={handleDrawComplete}
+                {/* Zoomable container - wraps image and all overlays */}
+                <div
+                  className="relative"
+                  style={{
+                    transform: getTransformStyle(),
+                    transformOrigin: 'center center',
+                    transition: 'transform 0.1s ease-out'
+                  }}
+                >
+                  <img
+                    ref={imageRef}
+                    src={constructImageUrl(media.filePath)}
+                    alt={media.fileName || `Media ${media.mediaID}`}
+                    className="max-w-full max-h-[calc(90vh-120px)] w-auto h-auto object-contain"
+                    onError={() => setImageError(true)}
+                    draggable={false}
                   />
+                  {/* Bbox overlay - editable bounding boxes (only for images) */}
+                  {showBboxes && hasBboxes && (
+                    <>
+                      <svg
+                        className="absolute inset-0 w-full h-full"
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          height: '100%'
+                        }}
+                      >
+                        {bboxes.map((bbox) => (
+                          <EditableBbox
+                            key={bbox.observationID}
+                            bbox={bbox}
+                            isSelected={bbox.observationID === selectedBboxId}
+                            onSelect={() => {
+                              // Clicking bbox selects it for geometry editing only, NOT species selector
+                              setSelectedBboxId(
+                                bbox.observationID === selectedBboxId ? null : bbox.observationID
+                              )
+                              setShowSpeciesSelector(false) // Close species selector when clicking bbox
+                            }}
+                            onUpdate={(newBbox) => handleBboxUpdate(bbox.observationID, newBbox)}
+                            imageRef={imageRef}
+                            containerRef={imageContainerRef}
+                            zoomTransform={zoomTransform}
+                            color={bbox.classificationMethod === 'human' ? '#22c55e' : '#84cc16'}
+                          />
+                        ))}
+                      </svg>
+
+                      {/* Clickable bbox labels - clicking label opens species selector */}
+                      <div className="absolute inset-0 w-full h-full pointer-events-none">
+                        {bboxes.map((bbox) => (
+                          <BboxLabel
+                            key={bbox.observationID}
+                            ref={(el) => {
+                              bboxLabelRefs.current[bbox.observationID] = el
+                            }}
+                            bbox={bbox}
+                            isSelected={bbox.observationID === selectedBboxId}
+                            isHuman={bbox.classificationMethod === 'human'}
+                            onClick={() => {
+                              // Clicking label selects bbox AND opens species selector
+                              setSelectedBboxId(bbox.observationID)
+                              setShowSpeciesSelector(true)
+                            }}
+                            onDelete={() => handleDeleteObservation(bbox.observationID)}
+                          />
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  {/* Drawing overlay - only show when in draw mode (images only) */}
+                  {isDrawMode && (
+                    <DrawingOverlay
+                      imageRef={imageRef}
+                      containerRef={imageContainerRef}
+                      onComplete={handleDrawComplete}
+                      zoomTransform={zoomTransform}
+                    />
+                  )}
+                </div>
+
+                {/* Zoom controls - positioned at top center, outside the transformed container */}
+                {!isDrawMode && (
+                  <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 bg-black/70 rounded-full px-3 py-1.5 shadow-lg">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        zoomOut()
+                      }}
+                      className="p-1 text-white hover:text-lime-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={zoomTransform.scale <= 1}
+                      title="Zoom out (-)"
+                    >
+                      <ZoomOut size={18} />
+                    </button>
+                    <span className="text-white text-sm font-medium min-w-[3rem] text-center">
+                      {Math.round(zoomTransform.scale * 100)}%
+                    </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        zoomIn()
+                      }}
+                      className="p-1 text-white hover:text-lime-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={zoomTransform.scale >= 5}
+                      title="Zoom in (+)"
+                    >
+                      <ZoomIn size={18} />
+                    </button>
+                    {isZoomed && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          resetZoom()
+                        }}
+                        className="p-1 text-white hover:text-lime-400 transition-colors ml-1"
+                        title="Reset zoom (0 or Esc)"
+                      >
+                        <RotateCcw size={16} />
+                      </button>
+                    )}
+                  </div>
                 )}
               </>
             )}

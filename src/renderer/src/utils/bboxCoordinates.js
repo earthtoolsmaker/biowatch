@@ -286,3 +286,77 @@ export function pixelToNormalizedDelta(pixelDelta, imageBounds, direction) {
     return pixelDelta / imageBounds.renderedHeight
   }
 }
+
+/**
+ * Convert screen coordinates to normalized coordinates while accounting for zoom transform.
+ * When a container is transformed with scale and translate, getBoundingClientRect()
+ * returns the transformed (screen) coordinates. We need to reverse the transform
+ * to get the actual content coordinates.
+ *
+ * @param {number} clientX - Mouse clientX (screen coordinates)
+ * @param {number} clientY - Mouse clientY (screen coordinates)
+ * @param {Object} imageBounds - Result from getImageBounds()
+ * @param {Object} zoomTransform - { scale, translateX, translateY }
+ * @returns {Object|null} - { x, y } in normalized 0-1 coordinates, or null if invalid
+ */
+export function screenToNormalizedWithZoom(clientX, clientY, imageBounds, zoomTransform) {
+  if (!imageBounds) return null
+
+  const { offsetX, offsetY, renderedWidth, renderedHeight, containerRect } = imageBounds
+  const { scale = 1, translateX = 0, translateY = 0 } = zoomTransform || {}
+
+  // Get position relative to container
+  const relativeToContainerX = clientX - containerRect.left
+  const relativeToContainerY = clientY - containerRect.top
+
+  // Reverse the zoom transform to get content coordinates
+  // The transform is applied as: scale(s) translate(tx, ty)
+  // So a point P in content space becomes: (P + translate) * scale in screen space
+  // To reverse: P = (screen / scale) - translate
+
+  // First, get position relative to container center (where transform-origin is)
+  const containerCenterX = containerRect.width / 2
+  const containerCenterY = containerRect.height / 2
+
+  // Position from center in screen space
+  const fromCenterScreenX = relativeToContainerX - containerCenterX
+  const fromCenterScreenY = relativeToContainerY - containerCenterY
+
+  // Reverse scale
+  const fromCenterContentX = fromCenterScreenX / scale
+  const fromCenterContentY = fromCenterScreenY / scale
+
+  // Reverse translation and convert back from center-relative to top-left relative
+  const contentX = fromCenterContentX - translateX + containerCenterX
+  const contentY = fromCenterContentY - translateY + containerCenterY
+
+  // Now calculate normalized coordinates relative to the image
+  const relativeX = contentX - offsetX
+  const relativeY = contentY - offsetY
+
+  return {
+    x: relativeX / renderedWidth,
+    y: relativeY / renderedHeight
+  }
+}
+
+/**
+ * Convert a pixel delta to normalized delta while accounting for zoom scale.
+ * When zoomed in, a pixel movement represents a smaller normalized change.
+ *
+ * @param {number} pixelDelta - Pixels to convert
+ * @param {Object} imageBounds - Result from getImageBounds()
+ * @param {string} direction - 'x' or 'y'
+ * @param {number} scale - Current zoom scale (default: 1)
+ * @returns {number} - Normalized delta
+ */
+export function pixelToNormalizedDeltaWithZoom(pixelDelta, imageBounds, direction, scale = 1) {
+  if (!imageBounds) return 0
+
+  // When zoomed, the effective rendered size is scaled
+  if (direction === 'x') {
+    return pixelDelta / (imageBounds.renderedWidth * scale)
+  } else {
+    return pixelDelta / (imageBounds.renderedHeight * scale)
+  }
+}
