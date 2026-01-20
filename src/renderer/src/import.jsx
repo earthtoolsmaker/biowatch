@@ -12,7 +12,7 @@ import { Button } from './ui/button.jsx'
 import { Card, CardContent } from './ui/card.jsx'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select.jsx'
 
-export default function Import({ onNewStudy }) {
+export default function Import({ onNewStudy, isFirstTimeUser = false }) {
   let navigate = useNavigate()
   const [selectedModel, setSelectedModel] = useState(modelZoo[0]?.reference || null)
   const [installedModels, setInstalledModels] = useState([])
@@ -419,107 +419,141 @@ export default function Import({ onNewStudy }) {
         </div>
 
         {/* Primary Import - Featured */}
-        <Card className="mb-8 border-2 border-blue-500/20 bg-linear-to-br from-blue-50/50 to-blue-100/30 shadow-lg">
-          <CardContent className="p-6">
-            <div className="flex gap-5 items-start mb-5">
-              <div className="size-14 rounded-2xl bg-linear-to-br from-blue-500 to-blue-600 flex items-center justify-center shrink-0 shadow-lg">
-                <FolderOpen className="size-7 text-white" />
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="text-xl font-semibold">Images Directory</h3>
-                  <span className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 text-xs border border-blue-500/20">
-                    Recommended
-                  </span>
+        {isFirstTimeUser ? (
+          /* First-time user: Show Demo Dataset as featured */
+          <Card className="mb-8 border-2 border-blue-500/20 bg-linear-to-br from-blue-50/50 to-blue-100/30 shadow-lg">
+            <CardContent className="p-6">
+              <div className="flex gap-5 items-start mb-5">
+                <div className="size-14 rounded-2xl bg-linear-to-br from-blue-500 to-blue-600 flex items-center justify-center shrink-0 shadow-lg">
+                  <Sparkles className="size-7 text-white" />
                 </div>
-                <p className="text-sm text-gray-600">
-                  Import images and automatically detect and classify species using AI models.
-                </p>
-              </div>
-            </div>
-
-            {getCompletelyInstalledModels().length === 0 ? (
-              /* No complete models installed - show Install AI Models button */
-              <div className="flex gap-3 items-end">
-                <Button onClick={() => navigate('/settings/ml_zoo')} className="h-11 px-6">
-                  {getInstalledModels().length === 0
-                    ? 'Install AI Models'
-                    : 'Install AI Environments'}
-                </Button>
-              </div>
-            ) : (
-              /* Some models installed - show enhanced dropdown */
-              <div className="flex gap-3 items-end">
                 <div className="flex-1">
-                  <label className="block mb-2 text-sm font-medium">Classification Model</label>
-                  <div className="flex gap-3">
-                    <div className="relative w-60">
-                      <Select
-                        value={selectedModel ? `${selectedModel.id}-${selectedModel.version}` : ''}
-                        onValueChange={(value) => {
-                          const [id, version] = value.split('-')
-                          const model = modelZoo.find(
-                            (m) => m.reference.id === id && m.reference.version === version
-                          )
-                          if (model && isModelCompletelyInstalled(model.reference)) {
-                            setSelectedModel(model.reference)
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-xl font-semibold">Demo Dataset</h3>
+                    <span className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 text-xs border border-blue-500/20">
+                      Recommended
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    Explore all features with sample camera trap data. Perfect for getting started.
+                  </p>
+                </div>
+              </div>
+              <Button
+                onClick={handleDemoDataset}
+                data-testid="import-demo-btn"
+                className="h-11 px-6"
+              >
+                Load Demo Dataset
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          /* Returning user: Show Images Directory as featured */
+          <Card className="mb-8 border-2 border-blue-500/20 bg-linear-to-br from-blue-50/50 to-blue-100/30 shadow-lg">
+            <CardContent className="p-6">
+              <div className="flex gap-5 items-start mb-5">
+                <div className="size-14 rounded-2xl bg-linear-to-br from-blue-500 to-blue-600 flex items-center justify-center shrink-0 shadow-lg">
+                  <FolderOpen className="size-7 text-white" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-xl font-semibold">Images Directory</h3>
+                    <span className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 text-xs border border-blue-500/20">
+                      Recommended
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    Import images and automatically detect and classify species using AI models.
+                  </p>
+                </div>
+              </div>
+
+              {getCompletelyInstalledModels().length === 0 ? (
+                /* No complete models installed - show Install AI Models button */
+                <div className="flex gap-3 items-end">
+                  <Button onClick={() => navigate('/settings/ml_zoo')} className="h-11 px-6">
+                    {getInstalledModels().length === 0
+                      ? 'Install AI Models'
+                      : 'Install AI Environments'}
+                  </Button>
+                </div>
+              ) : (
+                /* Some models installed - show enhanced dropdown */
+                <div className="flex gap-3 items-end">
+                  <div className="flex-1">
+                    <label className="block mb-2 text-sm font-medium">Classification Model</label>
+                    <div className="flex gap-3">
+                      <div className="relative w-60">
+                        <Select
+                          value={
+                            selectedModel ? `${selectedModel.id}-${selectedModel.version}` : ''
                           }
-                        }}
-                      >
-                        <SelectTrigger className="bg-white border-gray-200 h-11 w-full">
-                          <SelectValue>
-                            {selectedModel
-                              ? (() => {
-                                  const model = modelZoo.find(
-                                    (m) =>
-                                      m.reference.id === selectedModel.id &&
-                                      m.reference.version === selectedModel.version
-                                  )
-                                  return model ? `${model.name} v${model.reference.version}` : ''
-                                })()
-                              : 'Select a model'}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {modelZoo.map((model) => {
-                            const modelInstalled = isModelInstalled(model.reference)
-                            const envInstalled = isEnvironmentInstalled(model.pythonEnvironment)
-                            const completelyInstalled = modelInstalled && envInstalled
-
-                            let statusText = ''
-                            if (!modelInstalled) {
-                              statusText = ' (not installed)'
-                            } else if (!envInstalled) {
-                              statusText = ' (environment missing)'
-                            }
-
-                            return (
-                              <SelectItem
-                                key={`${model.reference.id}-${model.reference.version}`}
-                                value={`${model.reference.id}-${model.reference.version}`}
-                                disabled={!completelyInstalled}
-                                className={
-                                  !completelyInstalled ? 'opacity-50 cursor-not-allowed' : ''
-                                }
-                              >
-                                {model.name} v{model.reference.version}
-                                {statusText}
-                              </SelectItem>
+                          onValueChange={(value) => {
+                            const [id, version] = value.split('-')
+                            const model = modelZoo.find(
+                              (m) => m.reference.id === id && m.reference.version === version
                             )
-                          })}
-                        </SelectContent>
-                      </Select>
+                            if (model && isModelCompletelyInstalled(model.reference)) {
+                              setSelectedModel(model.reference)
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="bg-white border-gray-200 h-11 w-full">
+                            <SelectValue>
+                              {selectedModel
+                                ? (() => {
+                                    const model = modelZoo.find(
+                                      (m) =>
+                                        m.reference.id === selectedModel.id &&
+                                        m.reference.version === selectedModel.version
+                                    )
+                                    return model ? `${model.name} v${model.reference.version}` : ''
+                                  })()
+                                : 'Select a model'}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {modelZoo.map((model) => {
+                              const modelInstalled = isModelInstalled(model.reference)
+                              const envInstalled = isEnvironmentInstalled(model.pythonEnvironment)
+                              const completelyInstalled = modelInstalled && envInstalled
+
+                              let statusText = ''
+                              if (!modelInstalled) {
+                                statusText = ' (not installed)'
+                              } else if (!envInstalled) {
+                                statusText = ' (environment missing)'
+                              }
+
+                              return (
+                                <SelectItem
+                                  key={`${model.reference.id}-${model.reference.version}`}
+                                  value={`${model.reference.id}-${model.reference.version}`}
+                                  disabled={!completelyInstalled}
+                                  className={
+                                    !completelyInstalled ? 'opacity-50 cursor-not-allowed' : ''
+                                  }
+                                >
+                                  {model.name} v{model.reference.version}
+                                  {statusText}
+                                </SelectItem>
+                              )
+                            })}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button onClick={handleImportImages} className="h-11 px-6">
+                        <FolderOpen className="size-4 mr-2" />
+                        Select Folder
+                      </Button>
                     </div>
-                    <Button onClick={handleImportImages} className="h-11 px-6">
-                      <FolderOpen className="size-4 mr-2" />
-                      Select Folder
-                    </Button>
                   </div>
                 </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Alternative Import Methods */}
         <div className="mb-3">
@@ -527,28 +561,122 @@ export default function Import({ onNewStudy }) {
         </div>
 
         <div className="space-y-3">
-          {/* Demo Dataset Card */}
-          <Card className="group hover:border-blue-500/20 transition-all hover:shadow-md">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-4">
-                <div className="size-12 rounded-xl bg-gray-100 flex items-center justify-center shrink-0 group-hover:bg-blue-50 transition-colors">
-                  <Sparkles className="size-5 text-gray-500 group-hover:text-blue-600 transition-colors" />
+          {/* First-time user: Images Directory as alternative; Returning user: Demo Dataset as alternative */}
+          {isFirstTimeUser ? (
+            /* Images Directory Card - for first-time users */
+            <Card className="group hover:border-blue-500/20 transition-all hover:shadow-md">
+              <CardContent className="p-5">
+                <div className="flex items-center gap-4">
+                  <div className="size-12 rounded-xl bg-gray-100 flex items-center justify-center shrink-0 group-hover:bg-blue-50 transition-colors">
+                    <FolderOpen className="size-5 text-gray-500 group-hover:text-blue-600 transition-colors" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="mb-1 font-medium">Images Directory</h4>
+                    <p className="text-sm text-gray-500">
+                      Import images and classify species using AI
+                    </p>
+                  </div>
+                  <div className="shrink-0 flex flex-col gap-2">
+                    {getCompletelyInstalledModels().length === 0 ? (
+                      <Button
+                        variant="outline"
+                        className="w-40"
+                        onClick={() => navigate('/settings/ml_zoo')}
+                      >
+                        Install AI Models
+                      </Button>
+                    ) : (
+                      <>
+                        <Select
+                          value={
+                            selectedModel ? `${selectedModel.id}-${selectedModel.version}` : ''
+                          }
+                          onValueChange={(value) => {
+                            const [id, version] = value.split('-')
+                            const model = modelZoo.find(
+                              (m) => m.reference.id === id && m.reference.version === version
+                            )
+                            if (model && isModelCompletelyInstalled(model.reference)) {
+                              setSelectedModel(model.reference)
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="w-40 bg-white border-gray-200">
+                            <SelectValue>
+                              {selectedModel
+                                ? (() => {
+                                    const model = modelZoo.find(
+                                      (m) =>
+                                        m.reference.id === selectedModel.id &&
+                                        m.reference.version === selectedModel.version
+                                    )
+                                    return model ? `${model.name} v${model.reference.version}` : ''
+                                  })()
+                                : 'Select a model'}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {modelZoo.map((model) => {
+                              const modelInstalled = isModelInstalled(model.reference)
+                              const envInstalled = isEnvironmentInstalled(model.pythonEnvironment)
+                              const completelyInstalled = modelInstalled && envInstalled
+
+                              let statusText = ''
+                              if (!modelInstalled) {
+                                statusText = ' (not installed)'
+                              } else if (!envInstalled) {
+                                statusText = ' (environment missing)'
+                              }
+
+                              return (
+                                <SelectItem
+                                  key={`${model.reference.id}-${model.reference.version}`}
+                                  value={`${model.reference.id}-${model.reference.version}`}
+                                  disabled={!completelyInstalled}
+                                  className={
+                                    !completelyInstalled ? 'opacity-50 cursor-not-allowed' : ''
+                                  }
+                                >
+                                  {model.name} v{model.reference.version}
+                                  {statusText}
+                                </SelectItem>
+                              )
+                            })}
+                          </SelectContent>
+                        </Select>
+                        <Button variant="outline" className="w-40" onClick={handleImportImages}>
+                          Select Folder
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="mb-1 font-medium">Demo Dataset</h4>
-                  <p className="text-sm text-gray-500">Explore features with sample data</p>
+              </CardContent>
+            </Card>
+          ) : (
+            /* Demo Dataset Card - for returning users */
+            <Card className="group hover:border-blue-500/20 transition-all hover:shadow-md">
+              <CardContent className="p-5">
+                <div className="flex items-center gap-4">
+                  <div className="size-12 rounded-xl bg-gray-100 flex items-center justify-center shrink-0 group-hover:bg-blue-50 transition-colors">
+                    <Sparkles className="size-5 text-gray-500 group-hover:text-blue-600 transition-colors" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="mb-1 font-medium">Demo Dataset</h4>
+                    <p className="text-sm text-gray-500">Explore features with sample data</p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    className="shrink-0 w-40"
+                    onClick={handleDemoDataset}
+                    data-testid="import-demo-btn"
+                  >
+                    Select
+                  </Button>
                 </div>
-                <Button
-                  variant="outline"
-                  className="shrink-0 w-40"
-                  onClick={handleDemoDataset}
-                  data-testid="import-demo-btn"
-                >
-                  Select
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Camtrap DP Card */}
           <Card className="group hover:border-blue-500/20 transition-all hover:shadow-md">
