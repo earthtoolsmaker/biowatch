@@ -41,65 +41,87 @@ import { groupMediaIntoSequences, groupMediaByEventID } from './utils/sequenceGr
 import { getTopNonHumanSpecies } from './utils/speciesUtils'
 
 /**
- * Observation list panel - always visible list of all detections
+ * Observation list panel - collapsible list of all detections
+ * Fixed-height header ensures stable image positioning during navigation
  */
 function ObservationListPanel({ bboxes, selectedId, onSelect, onDelete }) {
-  if (!bboxes || bboxes.length === 0) return null
+  const [isExpanded, setIsExpanded] = useState(false)
+  const hasObservations = bboxes && bboxes.length > 0
 
   return (
-    <div className="border-t border-gray-200 bg-gray-50 max-h-32 overflow-y-auto flex-shrink-0">
-      <div className="px-4 py-1.5 text-xs font-medium text-gray-500 sticky top-0 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+    <div className="border-t border-gray-200 bg-gray-50 flex-shrink-0">
+      {/* Header - always visible, fixed height */}
+      <button
+        onClick={() => hasObservations && setIsExpanded(!isExpanded)}
+        className={`w-full px-4 py-2 text-xs font-medium text-gray-500 flex items-center justify-between ${
+          hasObservations ? 'hover:bg-gray-100 cursor-pointer' : 'cursor-default'
+        }`}
+        disabled={!hasObservations}
+      >
         <span>
-          {bboxes.length} detection{bboxes.length !== 1 ? 's' : ''}
+          {hasObservations
+            ? `${bboxes.length} detection${bboxes.length !== 1 ? 's' : ''}`
+            : 'No detections'}
         </span>
-        <span className="text-gray-400">Click to edit</span>
-      </div>
-      {bboxes.map((bbox) => (
-        <div
-          key={bbox.observationID}
-          className={`w-full px-4 py-2 flex items-center justify-between hover:bg-gray-100 transition-colors ${
-            selectedId === bbox.observationID ? 'bg-lime-100' : ''
-          }`}
-        >
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onSelect(bbox.observationID === selectedId ? null : bbox.observationID)
-            }}
-            className="flex items-center gap-2 flex-1 text-left"
-          >
-            <span
-              className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                bbox.classificationMethod === 'human' ? 'bg-green-500' : 'bg-lime-500'
+        {hasObservations && (
+          <span className="flex items-center gap-1 text-gray-400">
+            <span>{isExpanded ? 'Hide' : 'Show'}</span>
+            {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </span>
+        )}
+      </button>
+
+      {/* Content - expandable */}
+      {hasObservations && isExpanded && (
+        <div className="max-h-32 overflow-y-auto border-t border-gray-200">
+          {bboxes.map((bbox) => (
+            <div
+              key={bbox.observationID}
+              className={`w-full px-4 py-2 flex items-center justify-between hover:bg-gray-100 transition-colors ${
+                selectedId === bbox.observationID ? 'bg-lime-100' : ''
               }`}
-            />
-            <span className="text-sm font-medium truncate max-w-[200px]">
-              {bbox.scientificName || 'Blank'}
-            </span>
-            {bbox.classificationMethod === 'human' && (
-              <span className="text-xs text-green-600">✓</span>
-            )}
-          </button>
-          <div className="flex items-center gap-2">
-            {bbox.classificationProbability && (
-              <span className="text-xs text-gray-400">
-                {Math.round(bbox.classificationProbability * 100)}%
-              </span>
-            )}
-            <Pencil size={14} className="text-gray-400" />
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                onDelete(bbox.observationID)
-              }}
-              className="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-500 transition-colors"
-              title="Delete observation"
             >
-              <Trash2 size={14} />
-            </button>
-          </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onSelect(bbox.observationID === selectedId ? null : bbox.observationID)
+                }}
+                className="flex items-center gap-2 flex-1 text-left"
+              >
+                <span
+                  className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                    bbox.classificationMethod === 'human' ? 'bg-green-500' : 'bg-lime-500'
+                  }`}
+                />
+                <span className="text-sm font-medium truncate max-w-[200px]">
+                  {bbox.scientificName || 'Blank'}
+                </span>
+                {bbox.classificationMethod === 'human' && (
+                  <span className="text-xs text-green-600">✓</span>
+                )}
+              </button>
+              <div className="flex items-center gap-2">
+                {bbox.classificationProbability && (
+                  <span className="text-xs text-gray-400">
+                    {Math.round(bbox.classificationProbability * 100)}%
+                  </span>
+                )}
+                <Pencil size={14} className="text-gray-400" />
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onDelete(bbox.observationID)
+                  }}
+                  className="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-500 transition-colors"
+                  title="Delete observation"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   )
 }
@@ -1460,7 +1482,7 @@ function ImageModal({
                     console.log('Final video src:', videoSrc)
                     return videoSrc
                   })()}
-                  className="max-w-full max-h-[calc(90vh-120px)] w-auto h-auto object-contain"
+                  className="max-w-full max-h-[calc(90vh-152px)] w-auto h-auto object-contain"
                   controls
                   autoPlay
                   onLoadStart={(e) => {
@@ -1484,7 +1506,7 @@ function ImageModal({
                 />
               )
             ) : imageError ? (
-              <div className="flex flex-col items-center justify-center bg-gray-800 text-gray-400 aspect-[4/3] min-w-[70vw] max-h-[calc(90vh-120px)]">
+              <div className="flex flex-col items-center justify-center bg-gray-800 text-gray-400 aspect-[4/3] min-w-[70vw] max-h-[calc(90vh-152px)]">
                 <CameraOff size={128} />
                 <span className="mt-4 text-lg font-medium">Image not available</span>
                 <span className="mt-2 text-sm">{media.fileName}</span>
@@ -1504,7 +1526,7 @@ function ImageModal({
                     ref={imageRef}
                     src={constructImageUrl(media.filePath)}
                     alt={media.fileName || `Media ${media.mediaID}`}
-                    className="max-w-full max-h-[calc(90vh-120px)] w-auto h-auto object-contain"
+                    className="max-w-full max-h-[calc(90vh-152px)] w-auto h-auto object-contain"
                     onLoad={() => setIsCurrentImageReady(true)}
                     onError={() => setImageError(true)}
                     draggable={false}
