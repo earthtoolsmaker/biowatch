@@ -112,11 +112,18 @@ const createClusterCustomIcon = (cluster) => {
     large: 'w-12 h-12 text-base'
   }
 
-  return L.divIcon({
+  const icon = L.divIcon({
     html: `<div class="flex items-center justify-center ${sizeClasses[size]} bg-blue-500 text-white rounded-full border-2 border-white shadow-lg font-semibold">${count}</div>`,
     className: 'custom-cluster-icon',
     iconSize: L.point(40, 40, true)
   })
+
+  // Remove default title and replace with tooltip
+  cluster.options.title = ''
+  cluster.unbindTooltip()
+  cluster.bindTooltip(`${count} deployments`, { direction: 'top', offset: [0, -15] })
+
+  return icon
 }
 
 // Component to handle map layer change events for persistence
@@ -159,6 +166,81 @@ function FlyToSelected({ selectedLocation }) {
   }, [selectedLocation, map])
 
   return null
+}
+
+// Draggable marker component that manually controls dragging via ref
+// This is needed because react-leaflet v5 doesn't properly update the draggable prop dynamically
+function DraggableMarker({
+  location,
+  isSelected,
+  onSelect,
+  onDragEnd,
+  isPlaceMode,
+  onExitPlaceMode,
+  onExpandGroup
+}) {
+  const markerRef = useRef(null)
+  const tooltipName = location.locationName || location.locationID
+
+  useEffect(() => {
+    const marker = markerRef.current
+    if (!marker) return
+
+    // Control dragging
+    if (marker.dragging) {
+      if (isSelected) {
+        marker.dragging.enable()
+      } else {
+        marker.dragging.disable()
+      }
+    }
+
+    // Control tooltip - unbind existing and rebind with correct permanent state
+    marker.unbindTooltip()
+    marker.bindTooltip(tooltipName, {
+      direction: 'top',
+      offset: [0, -15],
+      permanent: isSelected
+    })
+  }, [isSelected, tooltipName])
+
+  return (
+    <Marker
+      ref={markerRef}
+      key={location.locationID}
+      position={[parseFloat(location.latitude), parseFloat(location.longitude)]}
+      icon={isSelected ? activeCameraIcon : cameraIcon}
+      draggable={true}
+      zIndexOffset={isSelected ? 1000 : 0}
+      eventHandlers={{
+        add: (e) => {
+          const marker = e.target
+          // Disable dragging immediately when marker is added if not selected
+          if (!isSelected && marker.dragging) {
+            marker.dragging.disable()
+          }
+          // Bind tooltip on add with correct permanent state
+          marker.bindTooltip(tooltipName, {
+            direction: 'top',
+            offset: [0, -15],
+            permanent: isSelected
+          })
+        },
+        click: () => {
+          if (isPlaceMode) {
+            onExitPlaceMode()
+          }
+          onSelect(location)
+          onExpandGroup?.(location.locationID)
+        },
+        dragend: (e) => {
+          const marker = e.target
+          const position = marker.getLatLng()
+          onDragEnd(position.lat.toFixed(6), position.lng.toFixed(6))
+        }
+      }}
+    />
+  )
 }
 
 function LocationMap({
@@ -252,35 +334,24 @@ function LocationMap({
           spiderfyOnMaxZoom
           showCoverageOnHover={false}
           zoomToBoundsOnClick
+          polygonOptions={{ opacity: 0 }}
+          singleMarkerMode={false}
         >
           {validLocations.map((location) => (
-            <Marker
+            <DraggableMarker
               key={location.locationID}
-              title={location.locationID}
-              position={[parseFloat(location.latitude), parseFloat(location.longitude)]}
-              icon={
-                selectedLocation?.deploymentID === location.deploymentID
-                  ? activeCameraIcon
-                  : cameraIcon
-              }
-              draggable={selectedLocation?.deploymentID === location.deploymentID}
-              zIndexOffset={selectedLocation?.deploymentID === location.deploymentID ? 1000 : 0}
-              eventHandlers={{
-                click: () => {
-                  if (isPlaceMode) {
-                    onExitPlaceMode()
-                  }
-                  setSelectedLocation(location)
-                  // Expand the location group in the list
-                  onExpandGroup?.(location.locationID)
-                },
-                dragend: (e) => {
-                  const marker = e.target
-                  const position = marker.getLatLng()
-                  onNewLatitude(location.deploymentID, position.lat.toFixed(6))
-                  onNewLongitude(location.deploymentID, position.lng.toFixed(6))
+              location={location}
+              isSelected={selectedLocation?.locationID === location.locationID}
+              onSelect={setSelectedLocation}
+              onDragEnd={(lat, lng) => {
+                if (selectedLocation) {
+                  onNewLatitude(selectedLocation.deploymentID, lat)
+                  onNewLongitude(selectedLocation.deploymentID, lng)
                 }
               }}
+              isPlaceMode={isPlaceMode}
+              onExitPlaceMode={onExitPlaceMode}
+              onExpandGroup={onExpandGroup}
             />
           ))}
         </MarkerClusterGroup>
