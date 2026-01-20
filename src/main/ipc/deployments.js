@@ -98,4 +98,29 @@ export function registerDeploymentsIPCHandlers() {
       return { error: error.message }
     }
   })
+
+  ipcMain.handle('deployments:set-location-name', async (_, studyId, locationID, locationName) => {
+    try {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) {
+        log.warn(`Database not found for study ID: ${studyId}`)
+        return { error: 'Database not found for this study' }
+      }
+
+      const db = await getDrizzleDb(studyId, dbPath)
+
+      // Update ALL deployments with this locationID (handles grouped deployments)
+      await db
+        .update(deployments)
+        .set({ locationName: locationName.trim() })
+        .where(eq(deployments.locationID, locationID))
+
+      await closeStudyDatabase(studyId, dbPath)
+      log.info(`Updated locationName for locationID ${locationID} to "${locationName}"`)
+      return { success: true }
+    } catch (error) {
+      log.error('Error updating deployment location name:', error)
+      return { error: error.message }
+    }
+  })
 }
