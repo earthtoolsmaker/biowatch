@@ -106,7 +106,16 @@ function ObservationListPanel({ bboxes, selectedId, onSelect, onDelete }) {
                     {Math.round(bbox.classificationProbability * 100)}%
                   </span>
                 )}
-                <Pencil size={14} className="text-gray-400" />
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onSelect(bbox.observationID)
+                  }}
+                  className="p-1 rounded hover:bg-lime-100 text-gray-400 hover:text-lime-600 transition-colors"
+                  title="Edit bounding box"
+                >
+                  <Pencil size={14} />
+                </button>
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
