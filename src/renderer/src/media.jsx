@@ -13,6 +13,8 @@ import {
   Loader2,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   Heart
 } from 'lucide-react'
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -1264,6 +1266,49 @@ function ImageModal({
             <Plus size={24} />
           </button>
         )}
+
+        {/* Navigation arrows */}
+        {!isEditingTimestamp &&
+          !showDatePicker &&
+          !isDrawMode &&
+          !selectedBboxId &&
+          (hasPreviousInSequence || hasPrevious) && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                if (hasPreviousInSequence) {
+                  onSequencePrevious()
+                } else {
+                  onPrevious()
+                }
+              }}
+              className="absolute left-4 top-1/2 -translate-y-1/2 z-20 p-3 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors"
+              aria-label="Previous image"
+            >
+              <ChevronLeft size={28} />
+            </button>
+          )}
+
+        {!isEditingTimestamp &&
+          !showDatePicker &&
+          !isDrawMode &&
+          !selectedBboxId &&
+          (hasNextInSequence || hasNext) && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                if (hasNextInSequence) {
+                  onSequenceNext()
+                } else {
+                  onNext()
+                }
+              }}
+              className="absolute right-4 top-1/2 -translate-y-1/2 z-20 p-3 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors"
+              aria-label="Next image"
+            >
+              <ChevronRight size={28} />
+            </button>
+          )}
 
         <div
           className="bg-white rounded-lg overflow-hidden shadow-2xl max-h-[90vh] flex flex-col max-w-full"
