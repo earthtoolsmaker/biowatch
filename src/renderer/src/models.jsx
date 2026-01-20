@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Download,
   LucideLoader,
@@ -41,7 +41,14 @@ function formatSizeInMiB(size_in_MiB) {
   return size_in_MiB + ' MiB'
 }
 
-function ModelRow({ model, pythonEnvironment, platform, isDev = false, refreshKey = 0 }) {
+function ModelRow({
+  model,
+  pythonEnvironment,
+  platform,
+  isDev = false,
+  refreshKey = 0,
+  onDownloadStatusChange
+}) {
   const [modelDownloadStatus, setModelDownloadStatus] = useState({
     model: {},
     pythonEnvironment: {}
@@ -103,6 +110,13 @@ function ModelRow({ model, pythonEnvironment, platform, isDev = false, refreshKe
 
     getMLModelDownloadStatus()
   }, [model.reference, pythonEnvironment.reference, refreshKey])
+
+  // Notify parent when download status changes
+  useEffect(() => {
+    if (onDownloadStatusChange) {
+      onDownloadStatusChange(model.reference.id, isDownloaded)
+    }
+  }, [isDownloaded, model.reference.id, onDownloadStatusChange])
 
   const handleRunHTTPServer = async ({ modelReference, pythonEnvironment }) => {
     setIsHTTPServerStarting(true)
@@ -384,6 +398,19 @@ function CustomModelRow() {
 
 export default function Zoo({ modelZoo }) {
   const [refreshKey, setRefreshKey] = useState(0)
+  const [downloadedModels, setDownloadedModels] = useState(new Set())
+
+  const handleDownloadStatusChange = useCallback((modelId, isDownloaded) => {
+    setDownloadedModels((prev) => {
+      const next = new Set(prev)
+      if (isDownloaded) {
+        next.add(modelId)
+      } else {
+        next.delete(modelId)
+      }
+      return next
+    })
+  }, [])
 
   const handleClearAllMLModels = async () => {
     console.log('[CLEAR ALL] Frontend: Starting clear all operation...')
@@ -441,21 +468,24 @@ export default function Zoo({ modelZoo }) {
                 platform={window.electron.process.platform}
                 isDev={window.electron.process.env.NODE_ENV == 'development'}
                 refreshKey={refreshKey}
+                onDownloadStatusChange={handleDownloadStatusChange}
               />
             ))}
             <CustomModelRow />
           </tbody>
         </table>
       </div>
-      <div className="flex justify-end mt-4">
-        <button
-          onClick={() => handleClearAllMLModels()}
-          className="bg-white cursor-pointer transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-3 h-9 text-sm shadow-sm rounded-md hover:bg-gray-50 whitespace-nowrap"
-        >
-          <Trash2 color="black" size={14} />
-          Clear All
-        </button>
-      </div>
+      {downloadedModels.size > 0 && (
+        <div className="flex justify-end mt-4">
+          <button
+            onClick={() => handleClearAllMLModels()}
+            className="bg-white cursor-pointer transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-3 h-9 text-sm shadow-sm rounded-md hover:bg-gray-50 whitespace-nowrap"
+          >
+            <Trash2 color="black" size={14} />
+            Clear All
+          </button>
+        </div>
+      )}
     </div>
   )
 }
