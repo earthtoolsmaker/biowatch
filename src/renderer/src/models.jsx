@@ -102,7 +102,7 @@ function ModelRow({ model, pythonEnvironment, platform, isDev = false, refreshKe
     }
 
     getMLModelDownloadStatus()
-  }, [model.reference, pythonEnvironment.reference, refreshKey]) // Run this effect when the model reference changes or refreshKey changes
+  }, [model.reference, pythonEnvironment.reference, refreshKey])
 
   const handleRunHTTPServer = async ({ modelReference, pythonEnvironment }) => {
     setIsHTTPServerStarting(true)
