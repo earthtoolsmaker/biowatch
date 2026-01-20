@@ -166,9 +166,19 @@ export default function Import({ onNewStudy }) {
 
         if (completelyInstalledModels.length > 0) {
           const firstCompleteModel = completelyInstalledModels[0]
-          if (!selectedModel || !isModelCompletelyInstalled(selectedModel)) {
-            setSelectedModel(firstCompleteModel.reference)
-          }
+          // Use functional update to avoid depending on selectedModel in deps
+          setSelectedModel((currentSelected) => {
+            if (!currentSelected) {
+              return firstCompleteModel.reference
+            }
+            // Check if current selection is still valid
+            const isCurrentValid = completelyInstalledModels.some(
+              (m) =>
+                m.reference.id === currentSelected.id &&
+                m.reference.version === currentSelected.version
+            )
+            return isCurrentValid ? currentSelected : firstCompleteModel.reference
+          })
         }
       } catch (error) {
         console.error('Failed to fetch installed models and environments:', error)
@@ -177,7 +187,7 @@ export default function Import({ onNewStudy }) {
       }
     }
     fetchInstalledData()
-  }, [selectedModel, isModelCompletelyInstalled])
+  }, []) // Run only on mount - callbacks close over current state
 
   const getCompletelyInstalledModels = () => {
     return modelZoo.filter(
