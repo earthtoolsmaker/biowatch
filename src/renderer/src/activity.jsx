@@ -2,8 +2,8 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { MapPin } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { LayersControl, MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { LayersControl, MapContainer, Marker, TileLayer, useMap } from 'react-leaflet'
 import MarkerClusterGroup from 'react-leaflet-cluster'
 import { useParams } from 'react-router'
 import CircularTimeFilter, { DailyActivityRadar } from './ui/clock'
@@ -131,6 +131,62 @@ const SpeciesMap = ({ heatmapData, selectedSpecies, palette, geoKey, studyId }) 
     })
   }
 
+  // Create tooltip content for species counts
+  const createTooltipContent = (counts) => {
+    const entries = Object.entries(counts)
+      .filter(([species]) => selectedSpecies.some((s) => s.scientificName === species))
+      .sort((a, b) => b[1] - a[1])
+
+    const total = entries.reduce((sum, [, count]) => sum + count, 0)
+
+    const rows = entries
+      .map(([species, count]) => {
+        const index = selectedSpecies.findIndex((s) => s.scientificName === species)
+        const color = palette[index % palette.length]
+        return `
+      <div style="display: flex; align-items: center; gap: 8px; padding: 2px 0;">
+        <span style="width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background-color: ${color};"></span>
+        <span style="font-size: 12px; font-style: italic; flex: 1;">${species}</span>
+        <span style="font-size: 11px; color: #6b7280;">${count}</span>
+      </div>
+    `
+      })
+      .join('')
+
+    return `
+    <div style="padding: 8px; min-width: 160px;">
+      <div style="font-size: 11px; font-weight: 500; color: #6b7280; margin-bottom: 4px; padding-bottom: 4px; border-bottom: 1px solid #e5e7eb;">
+        ${total} observation${total !== 1 ? 's' : ''}
+      </div>
+      ${rows}
+    </div>
+  `
+  }
+
+  // PieChartMarker component with tooltip binding
+  function PieChartMarker({ point, icon }) {
+    const markerRef = useRef(null)
+
+    useEffect(() => {
+      const marker = markerRef.current
+      if (!marker) return
+
+      const tooltipHtml = createTooltipContent(point.counts)
+      marker.unbindTooltip()
+      marker.bindTooltip(tooltipHtml, {
+        direction: 'top',
+        offset: [0, -10],
+        className: 'species-map-tooltip'
+      })
+
+      return () => marker.unbindTooltip()
+    }, [point.counts])
+
+    return (
+      <Marker ref={markerRef} position={[point.lat, point.lng]} icon={icon} counts={point.counts} />
+    )
+  }
+
   // Process data points
   const processPointData = () => {
     const locations = {}
@@ -237,29 +293,20 @@ const SpeciesMap = ({ heatmapData, selectedSpecies, palette, geoKey, studyId }) 
                 Object.entries(combinedCounts).filter(([, count]) => count > 0)
               )
 
+              // Bind tooltip to cluster
+              const tooltipHtml = createTooltipContent(filteredCounts)
+              cluster.unbindTooltip()
+              cluster.bindTooltip(tooltipHtml, {
+                direction: 'top',
+                offset: [0, -10],
+                className: 'species-map-tooltip'
+              })
+
               return createPieChartIcon(filteredCounts)
             }}
           >
             {locationPoints.map((point, index) => (
-              <Marker
-                key={index}
-                position={[point.lat, point.lng]}
-                icon={createPieChartIcon(point.counts)}
-                counts={point.counts}
-              >
-                <Popup>
-                  <div className="text-sm">
-                    <h3 className="font-bold mb-1">Species Data</h3>
-                    <ul>
-                      {Object.entries(point.counts).map(([species, count], i) => (
-                        <li key={i}>
-                          <span className="italic">{species}</span>: {count} observations
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </Popup>
-              </Marker>
+              <PieChartMarker key={index} point={point} icon={createPieChartIcon(point.counts)} />
             ))}
           </MarkerClusterGroup>
         </LayersControl.Overlay>
