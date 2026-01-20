@@ -190,6 +190,14 @@ const api = {
       longitude
     )
   },
+  setDeploymentLocationName: async (studyId, locationID, locationName) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'deployments:set-location-name',
+      studyId,
+      locationID,
+      locationName
+    )
+  },
   setMediaTimestamp: async (studyId, mediaID, timestamp) => {
     return await electronAPI.ipcRenderer.invoke('media:set-timestamp', studyId, mediaID, timestamp)
   },

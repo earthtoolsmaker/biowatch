@@ -64,6 +64,9 @@ const { data, error } = await window.api.getMedia(studyId, { limit: 100 })
 | `getDeploymentsActivity(studyId)` | `deployments:get-activity` | studyId | `{ data: Activity[] }` |
 | `setDeploymentLatitude(studyId, deploymentID, latitude)` | `deployments:set-latitude` | studyId, deploymentID, latitude | `{ success: boolean }` |
 | `setDeploymentLongitude(studyId, deploymentID, longitude)` | `deployments:set-longitude` | studyId, deploymentID, longitude | `{ success: boolean }` |
+| `setDeploymentLocationName(studyId, locationID, locationName)` | `deployments:set-location-name` | studyId, locationID, locationName | `{ success: boolean }` |
+
+**Note on `setDeploymentLocationName`:** This updates the `locationName` for ALL deployments with the given `locationID`. When deployments share a `locationID` (grouped deployments), renaming any one updates the entire group.
 
 ### Locations
 

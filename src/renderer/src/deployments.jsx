@@ -1,6 +1,6 @@
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { Camera, ChevronDown, ChevronRight, MapPin, X } from 'lucide-react'
+import { Camera, Check, ChevronDown, ChevronRight, MapPin, Pencil, X } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ReactDOMServer from 'react-dom/server'
 import { LayersControl, MapContainer, Marker, TileLayer, useMap, useMapEvents } from 'react-leaflet'
@@ -379,6 +379,137 @@ function LocationMap({
   )
 }
 
+// Editable location name component with inline editing
+const EditableLocationName = memo(function EditableLocationName({
+  locationID,
+  locationName,
+  isSelected,
+  onRename
+}) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [editValue, setEditValue] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+  const inputRef = useRef(null)
+
+  const displayName = locationName || locationID || 'Unnamed Location'
+
+  const startEditing = useCallback(
+    (e) => {
+      e.stopPropagation()
+      setEditValue(displayName)
+      setIsEditing(true)
+    },
+    [displayName]
+  )
+
+  const cancelEditing = useCallback(() => {
+    setIsEditing(false)
+    setEditValue('')
+  }, [])
+
+  const saveEdit = useCallback(async () => {
+    const trimmed = editValue.trim()
+    // Cancel if empty or unchanged
+    if (!trimmed || trimmed === displayName) {
+      cancelEditing()
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      await onRename(locationID, trimmed)
+      setIsEditing(false)
+    } catch (error) {
+      console.error('Error renaming location:', error)
+      // Keep edit mode open for retry
+    } finally {
+      setIsSaving(false)
+    }
+  }, [editValue, displayName, locationID, onRename, cancelEditing])
+
+  const handleKeyDown = useCallback(
+    (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        saveEdit()
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        cancelEditing()
+      }
+    },
+    [saveEdit, cancelEditing]
+  )
+
+  const handleBlur = useCallback(() => {
+    if (!isSaving) {
+      saveEdit()
+    }
+  }, [isSaving, saveEdit])
+
+  // Focus and select input when entering edit mode
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.select()
+    }
+  }, [isEditing])
+
+  if (isEditing) {
+    return (
+      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+        <input
+          ref={inputRef}
+          type="text"
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onBlur={handleBlur}
+          maxLength={100}
+          disabled={isSaving}
+          className="text-sm border border-blue-400 rounded px-1.5 py-0.5 w-48 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        />
+        <button
+          onClick={saveEdit}
+          disabled={isSaving}
+          className="p-0.5 hover:bg-green-100 rounded text-green-600"
+          title="Save (Enter)"
+        >
+          <Check size={14} />
+        </button>
+        <button
+          onClick={cancelEditing}
+          disabled={isSaving}
+          className="p-0.5 hover:bg-red-100 rounded text-red-600"
+          title="Cancel (Esc)"
+        >
+          <X size={14} />
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="group flex items-center gap-1">
+      <span
+        onClick={startEditing}
+        className={`cursor-pointer text-sm truncate ${
+          isSelected ? 'font-semibold text-blue-700' : 'text-gray-700'
+        }`}
+        title={`${displayName} (click to rename)`}
+      >
+        {displayName}
+      </span>
+      <button
+        onClick={startEditing}
+        className="p-0.5 opacity-0 group-hover:opacity-100 hover:bg-gray-200 rounded text-gray-500 transition-opacity"
+        title="Rename"
+      >
+        <Pencil size={12} />
+      </button>
+    </div>
+  )
+})
+
 // Memoized deployment row component
 const DeploymentRow = memo(function DeploymentRow({
   location,
@@ -388,6 +519,7 @@ const DeploymentRow = memo(function DeploymentRow({
   onNewLatitude,
   onNewLongitude,
   onEnterPlaceMode,
+  onRenameLocation,
   percentile90Count
 }) {
   const handleLatitudeChange = useCallback(
@@ -422,13 +554,13 @@ const DeploymentRow = memo(function DeploymentRow({
       }`}
     >
       <div className="flex flex-col gap-2">
-        <div
-          className={`cursor-pointer text-sm w-62 truncate ${
-            isSelected ? 'font-semibold text-blue-700' : 'text-gray-700'
-          }`}
-          title={location.deploymentStart}
-        >
-          {location.locationName || location.locationID || 'Unnamed Location'}
+        <div className="w-62">
+          <EditableLocationName
+            locationID={location.locationID}
+            locationName={location.locationName}
+            isSelected={isSelected}
+            onRename={onRenameLocation}
+          />
         </div>
         <div className="flex gap-2 items-center">
           <input
@@ -500,7 +632,8 @@ const LocationGroupHeader = memo(function LocationGroupHeader({
   isExpanded,
   onToggle,
   percentile90Count,
-  isSelected
+  isSelected,
+  onRenameLocation
 }) {
   const handleClick = useCallback(() => {
     onToggle(group.locationID)
@@ -525,11 +658,12 @@ const LocationGroupHeader = memo(function LocationGroupHeader({
 
       <div className="flex flex-col gap-1 w-56">
         <div className="flex items-center gap-2">
-          <span
-            className={`text-sm truncate ${isSelected ? 'font-semibold text-blue-700' : 'font-medium text-gray-700'}`}
-          >
-            {group.locationName || group.locationID || 'Unnamed Location'}
-          </span>
+          <EditableLocationName
+            locationID={group.locationID}
+            locationName={group.locationName}
+            isSelected={isSelected}
+            onRename={onRenameLocation}
+          />
           <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded flex-shrink-0">
             {group.deployments.length}
           </span>
@@ -574,6 +708,7 @@ const GroupedDeploymentRow = memo(function GroupedDeploymentRow({
   onNewLatitude,
   onNewLongitude,
   onEnterPlaceMode,
+  onRenameLocation,
   percentile90Count
 }) {
   return (
@@ -586,6 +721,7 @@ const GroupedDeploymentRow = memo(function GroupedDeploymentRow({
         onNewLatitude={onNewLatitude}
         onNewLongitude={onNewLongitude}
         onEnterPlaceMode={onEnterPlaceMode}
+        onRenameLocation={onRenameLocation}
         percentile90Count={percentile90Count}
       />
     </div>
@@ -666,6 +802,7 @@ function LocationsList({
   onNewLatitude,
   onNewLongitude,
   onEnterPlaceMode,
+  onRenameLocation,
   isPlaceMode,
   groupToExpand,
   onGroupExpanded
@@ -843,6 +980,7 @@ function LocationsList({
                     onNewLatitude={onNewLatitude}
                     onNewLongitude={onNewLongitude}
                     onEnterPlaceMode={onEnterPlaceMode}
+                    onRenameLocation={onRenameLocation}
                     percentile90Count={activity.percentile90Count}
                   />
                 )}
@@ -856,6 +994,7 @@ function LocationsList({
                     isSelected={item.group.deployments.some(
                       (d) => d.deploymentID === selectedLocation?.deploymentID
                     )}
+                    onRenameLocation={onRenameLocation}
                   />
                 )}
 
@@ -868,6 +1007,7 @@ function LocationsList({
                     onNewLatitude={onNewLatitude}
                     onNewLongitude={onNewLongitude}
                     onEnterPlaceMode={onEnterPlaceMode}
+                    onRenameLocation={onRenameLocation}
                     percentile90Count={activity.percentile90Count}
                   />
                 )}
@@ -1004,6 +1144,39 @@ export default function Deployments({ studyId }) {
     setGroupToExpand(null)
   }, [])
 
+  const onRenameLocation = useCallback(
+    async (locationID, newName) => {
+      try {
+        const result = await window.api.setDeploymentLocationName(studyId, locationID, newName)
+
+        if (result.error) {
+          console.error('Error renaming location:', result.error)
+          throw new Error(result.error)
+        }
+
+        // Optimistic update via queryClient
+        queryClient.setQueryData(['deploymentsActivity', studyId], (prevActivity) => {
+          if (!prevActivity) return prevActivity
+          const updatedDeployments = prevActivity.deployments.map((deployment) => {
+            if (deployment.locationID === locationID) {
+              return { ...deployment, locationName: newName }
+            }
+            return deployment
+          })
+          return { ...prevActivity, deployments: updatedDeployments }
+        })
+
+        // Invalidate related caches so other views update
+        queryClient.invalidateQueries({ queryKey: ['deployments', studyId] })
+        queryClient.invalidateQueries({ queryKey: ['heatmapData', studyId] })
+      } catch (error) {
+        console.error('Error renaming location:', error)
+        throw error
+      }
+    },
+    [studyId, queryClient]
+  )
+
   return (
     <div
       className={`flex flex-col px-4 h-full gap-4 overflow-hidden ${isPlaceMode ? 'place-mode-active' : ''}`}
@@ -1037,6 +1210,7 @@ export default function Deployments({ studyId }) {
             onNewLatitude={onNewLatitude}
             onNewLongitude={onNewLongitude}
             onEnterPlaceMode={handleEnterPlaceMode}
+            onRenameLocation={onRenameLocation}
             isPlaceMode={isPlaceMode}
             groupToExpand={groupToExpand}
             onGroupExpanded={handleGroupExpanded}
