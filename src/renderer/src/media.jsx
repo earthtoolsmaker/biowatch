@@ -20,6 +20,7 @@ import {
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient, useMutation, useInfiniteQuery } from '@tanstack/react-query'
 import { useParams, useSearchParams } from 'react-router'
+import * as Tooltip from '@radix-ui/react-tooltip'
 import CircularTimeFilter, { DailyActivityRadar } from './ui/clock'
 import SpeciesDistribution from './ui/speciesDistribution'
 import TimelineChart from './ui/timeseries'
@@ -1678,8 +1679,8 @@ const palette = [
 function formatGapValue(seconds) {
   if (seconds === 0) return 'Off'
   if (seconds < 60) return `${seconds}s`
-  if (seconds < 120) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
-  return `${Math.round(seconds / 60)}m`
+  if (seconds < 120) return `${Math.floor(seconds / 60)}min ${seconds % 60}s`
+  return `${Math.round(seconds / 60)}min`
 }
 
 /**
@@ -1715,34 +1716,80 @@ function GalleryControls({
       {/* Sequence Gap Slider */}
       <div className="flex items-center gap-2">
         <Layers size={16} className={sequenceGap > 0 ? 'text-blue-500' : 'text-gray-400'} />
-        <input
-          type="range"
-          min="0"
-          max="300"
-          step="10"
-          value={sequenceGap}
-          onChange={(e) => onSequenceGapChange(Number(e.target.value))}
-          className="w-24 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
-          title={`Sequence grouping: ${formatGapValue(sequenceGap)}`}
-        />
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <input
+              type="range"
+              min="0"
+              max="300"
+              step="10"
+              value={sequenceGap}
+              onChange={(e) => onSequenceGapChange(Number(e.target.value))}
+              className="w-24 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
+              aria-label={`Sequence grouping: ${formatGapValue(sequenceGap)}`}
+            />
+          </Tooltip.Trigger>
+          <Tooltip.Portal>
+            <Tooltip.Content
+              side="bottom"
+              sideOffset={8}
+              align="start"
+              className="z-[10000] max-w-xs px-3 py-2 bg-gray-900 text-white text-xs rounded-md shadow-lg"
+            >
+              <p className="font-medium mb-1">Sequence Grouping</p>
+              <p className="text-gray-300 mb-1.5">
+                Groups nearby photos/videos into sequences for easier browsing.
+              </p>
+              <ul className="text-gray-300 space-y-0.5">
+                <li>
+                  <span className="text-white font-medium">Off:</span> Preserves original event
+                  groupings from import
+                </li>
+                <li>
+                  <span className="text-white font-medium">On:</span> Groups media taken within the
+                  specified time gap
+                </li>
+              </ul>
+              <Tooltip.Arrow className="fill-gray-900" />
+            </Tooltip.Content>
+          </Tooltip.Portal>
+        </Tooltip.Root>
         <span className="text-xs text-gray-600 w-12">{formatGapValue(sequenceGap)}</span>
       </div>
 
       <div className="flex items-center gap-2">
         {/* Show Bboxes Toggle - only render if bboxes exist */}
         {hasBboxes && (
-          <button
-            onClick={onToggleBboxes}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-              showBboxes
-                ? 'bg-lime-500 text-white hover:bg-lime-600'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-            title="Show bounding boxes on thumbnails"
-          >
-            <Square size={16} />
-            <span>Boxes</span>
-          </button>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <button
+                onClick={onToggleBboxes}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  showBboxes
+                    ? 'bg-lime-500 text-white hover:bg-lime-600'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <Square size={16} />
+                <span>Boxes</span>
+              </button>
+            </Tooltip.Trigger>
+            <Tooltip.Portal>
+              <Tooltip.Content
+                side="bottom"
+                sideOffset={8}
+                align="end"
+                className="z-[10000] max-w-xs px-3 py-2 bg-gray-900 text-white text-xs rounded-md shadow-lg"
+              >
+                <p className="font-medium mb-1">Bounding Boxes</p>
+                <p className="text-gray-300">
+                  Show detection boxes on thumbnails highlighting where animals were identified by
+                  the AI model.
+                </p>
+                <Tooltip.Arrow className="fill-gray-900" />
+              </Tooltip.Content>
+            </Tooltip.Portal>
+          </Tooltip.Root>
         )}
 
         {/* Collapse toggle - chevron-up on the right */}
