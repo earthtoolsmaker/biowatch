@@ -36,6 +36,7 @@ import {
   screenToNormalizedWithZoom
 } from './utils/bboxCoordinates'
 import { useZoomPan } from './hooks/useZoomPan'
+import { useImagePrefetch } from './hooks/useImagePrefetch'
 import { groupMediaIntoSequences, groupMediaByEventID } from './utils/sequenceGrouping'
 import { getTopNonHumanSpecies } from './utils/speciesUtils'
 
@@ -508,6 +509,8 @@ function ImageModal({
   const [isDrawMode, setIsDrawMode] = useState(false)
   const [videoError, setVideoError] = useState(false)
   const [imageError, setImageError] = useState(false)
+  // Track when current image has finished loading (for coordinating bbox rendering)
+  const [isCurrentImageReady, setIsCurrentImageReady] = useState(false)
   // Transcoding state: 'idle' | 'checking' | 'transcoding' | 'ready' | 'error'
   const [transcodeState, setTranscodeState] = useState('idle')
   const [transcodeProgress, setTranscodeProgress] = useState(0)
@@ -1221,10 +1224,11 @@ function ImageModal({
     zoomOut
   ])
 
-  // Reset selection, draw mode, and zoom when changing images
+  // Reset selection, draw mode, zoom, and image ready state when changing images
   useEffect(() => {
     setSelectedBboxId(null)
     setIsDrawMode(false)
+    setIsCurrentImageReady(false)
     resetZoom()
   }, [media?.mediaID, resetZoom])
 
@@ -1501,11 +1505,18 @@ function ImageModal({
                     src={constructImageUrl(media.filePath)}
                     alt={media.fileName || `Media ${media.mediaID}`}
                     className="max-w-full max-h-[calc(90vh-120px)] w-auto h-auto object-contain"
+                    onLoad={() => setIsCurrentImageReady(true)}
                     onError={() => setImageError(true)}
                     draggable={false}
                   />
-                  {/* Bbox overlay - editable bounding boxes (only for images) */}
-                  {showBboxes && hasBboxes && (
+                  {/* Loading overlay - show spinner while image is loading */}
+                  {!isCurrentImageReady && !imageError && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-gray-900/30 z-10 pointer-events-none">
+                      <Loader2 size={32} className="animate-spin text-white/70" />
+                    </div>
+                  )}
+                  {/* Bbox overlay - editable bounding boxes (only for images, only after image loads) */}
+                  {showBboxes && hasBboxes && isCurrentImageReady && (
                     <>
                       <svg
                         className="absolute inset-0 w-full h-full"
@@ -2653,6 +2664,13 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
     return `local-file://get?path=${encodeURIComponent(fullFilePath)}`
   }
 
+  // Image prefetching for smooth modal navigation
+  const { prefetchNeighbors } = useImagePrefetch({
+    constructImageUrl,
+    isVideoMedia,
+    prefetchRadius: 2
+  })
+
   // Handle click on single image or sequence
   const handleImageClick = (media, sequence = null) => {
     setSelectedMedia(media)
@@ -2780,6 +2798,13 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
   const hasNextInSequence =
     currentSequence && currentSequenceIndex < currentSequence.items.length - 1
   const hasPreviousInSequence = currentSequence && currentSequenceIndex > 0
+
+  // Prefetch neighboring images when modal is open
+  useEffect(() => {
+    if (isModalOpen && currentSeqIdx >= 0) {
+      prefetchNeighbors(allNavigableItems, currentSeqIdx)
+    }
+  }, [isModalOpen, currentSeqIdx, allNavigableItems, prefetchNeighbors])
 
   return (
     <>
