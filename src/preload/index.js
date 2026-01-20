@@ -100,6 +100,42 @@ const api = {
       endDate
     )
   },
+  // Sequence-aware species distribution APIs
+  getSpeciesDistributionByMedia: async (studyId) => {
+    return await electronAPI.ipcRenderer.invoke('species:get-distribution-by-media', studyId)
+  },
+  getSpeciesTimeseriesByMedia: async (studyId, species) => {
+    return await electronAPI.ipcRenderer.invoke('species:get-timeseries-by-media', studyId, species)
+  },
+  getSpeciesHeatmapDataByMedia: async (
+    studyId,
+    species,
+    startDate,
+    endDate,
+    startTime,
+    endTime,
+    includeNullTimestamps = false
+  ) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'activity:get-heatmap-data-by-media',
+      studyId,
+      species,
+      startDate,
+      endDate,
+      startTime,
+      endTime,
+      includeNullTimestamps
+    )
+  },
+  getSpeciesDailyActivityByMedia: async (studyId, species, startDate, endDate) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'activity:get-daily-by-media',
+      studyId,
+      species,
+      startDate,
+      endDate
+    )
+  },
   // ML Model Management
   downloadMLModel: async ({ id, version }) => {
     return await electronAPI.ipcRenderer.invoke('model:download', id, version)

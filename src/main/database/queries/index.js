@@ -26,7 +26,11 @@ export {
   getSpeciesTimeseries,
   getSpeciesHeatmapData,
   getSpeciesDailyActivity,
-  getDistinctSpecies
+  getDistinctSpecies,
+  getSpeciesDistributionByMedia,
+  getSpeciesTimeseriesByMedia,
+  getSpeciesHeatmapDataByMedia,
+  getSpeciesDailyActivityByMedia
 } from './species.js'
 
 // Media

@@ -55,6 +55,31 @@ const { data, error } = await window.api.getMedia(studyId, { limit: 100 })
 |--------|---------|------------|---------|
 | `getSpeciesDistribution(studyId)` | `species:get-distribution` | studyId | `{ data: Distribution[] }` |
 | `getDistinctSpecies(studyId)` | `species:get-distinct` | studyId | `{ data: string[] }` |
+| `getSpeciesDistributionByMedia(studyId)` | `species:get-distribution-by-media` | studyId | `{ data: MediaDistribution[] }` |
+| `getSpeciesTimeseriesByMedia(studyId, species)` | `species:get-timeseries-by-media` | studyId, species[] | `{ data: MediaTimeseries[] }` |
+
+**Sequence-Aware Species Counting:**
+
+The `*ByMedia` endpoints return per-media observation counts for sequence-aware counting in the frontend:
+
+1. Media are grouped into sequences based on the gap slider setting (or eventID for CamtrapDP imports)
+2. For each sequence, the **MAX count** of each species is taken (represents minimum individuals)
+3. Max counts are summed across all sequences
+
+Example: If a deer walks past a camera triggering 3 photos with 2, 3, and 1 deer respectively, the sequence-aware count is 3 (not 6), representing the max observed at any point in that sequence.
+
+`MediaDistribution` structure:
+```javascript
+{
+  scientificName: string,  // Species scientific name
+  mediaID: string,         // Media identifier
+  timestamp: string,       // ISO timestamp
+  deploymentID: string,    // Deployment/camera location
+  eventID: string|null,    // CamtrapDP event ID (if available)
+  fileMediatype: string,   // MIME type (for video detection)
+  count: number            // Observation count for this species on this media
+}
+```
 
 ### Deployments
 
@@ -81,6 +106,10 @@ const { data, error } = await window.api.getMedia(studyId, { limit: 100 })
 | `getSpeciesTimeseries(studyId, species)` | `activity:get-timeseries` | studyId, species | `{ data: TimeseriesPoint[] }` |
 | `getSpeciesDailyActivity(studyId, species, startDate, endDate)` | `activity:get-daily` | studyId, species, startDate?, endDate? | `{ data: DailyActivity[] }` |
 | `getSpeciesHeatmapData(studyId, species, startDate, endDate, startTime, endTime)` | `activity:get-heatmap-data` | studyId, species, filters... | `{ data: HeatmapData }` |
+| `getSpeciesHeatmapDataByMedia(studyId, species, startDate, endDate, startTime, endTime, includeNullTimestamps)` | `activity:get-heatmap-data-by-media` | studyId, species, filters... | `{ data: MediaHeatmap[] }` |
+| `getSpeciesDailyActivityByMedia(studyId, species, startDate, endDate)` | `activity:get-daily-by-media` | studyId, species, dates | `{ data: MediaDailyActivity[] }` |
+
+**Note:** The `*ByMedia` endpoints return per-media observation data for sequence-aware counting (see Species & Distribution section above).
 
 ### Media
 

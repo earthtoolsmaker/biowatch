@@ -1,7 +1,6 @@
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { MapPin } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { LayersControl, MapContainer, Marker, TileLayer, useMap } from 'react-leaflet'
 import MarkerClusterGroup from 'react-leaflet-cluster'
@@ -12,6 +11,12 @@ import SpeciesDistribution from './ui/speciesDistribution'
 import TimelineChart from './ui/timeseries'
 import { useImportStatus } from './hooks/import'
 import { getTopNonHumanSpecies } from './utils/speciesUtils'
+import {
+  useSequenceAwareSpeciesDistribution,
+  useSequenceAwareTimeseries,
+  useSequenceAwareHeatmap,
+  useSequenceAwareDailyActivity
+} from './hooks/useSequenceAwareSpeciesDistribution'
 
 // Component to handle map layer change events for persistence
 function LayerChangeHandler({ onLayerChange }) {
@@ -347,20 +352,45 @@ export default function Activity({ studyData, studyId }) {
   const [timeRange, setTimeRange] = useState({ start: 0, end: 24 })
   const { importStatus } = useImportStatus(actualStudyId, 5000)
 
+  // Sequence gap - read from localStorage (same key as media.jsx)
+  const sequenceGapKey = `sequenceGap:${actualStudyId}`
+  const [sequenceGap, setSequenceGap] = useState(() => {
+    const saved = localStorage.getItem(sequenceGapKey)
+    return saved !== null ? Number(saved) : 120
+  })
+
+  // Listen for localStorage changes (when user changes gap in media.jsx)
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === sequenceGapKey && e.newValue !== null) {
+        setSequenceGap(Number(e.newValue))
+      }
+    }
+    window.addEventListener('storage', handleStorageChange)
+    return () => window.removeEventListener('storage', handleStorageChange)
+  }, [sequenceGapKey])
+
+  // Also poll for localStorage changes (storage event doesn't fire in same tab)
+  useEffect(() => {
+    const checkLocalStorage = () => {
+      const saved = localStorage.getItem(sequenceGapKey)
+      if (saved !== null && Number(saved) !== sequenceGap) {
+        setSequenceGap(Number(saved))
+      }
+    }
+    const interval = setInterval(checkLocalStorage, 1000)
+    return () => clearInterval(interval)
+  }, [sequenceGapKey, sequenceGap])
+
   // Get taxonomic data from studyData
   const taxonomicData = studyData?.taxonomic || null
 
-  // Fetch species distribution data
-  const { data: speciesDistributionData, error: speciesDistributionError } = useQuery({
-    queryKey: ['speciesDistribution', actualStudyId],
-    queryFn: async () => {
-      const response = await window.api.getSpeciesDistribution(actualStudyId)
-      if (response.error) throw new Error(response.error)
-      return response.data
-    },
-    enabled: !!actualStudyId,
-    refetchInterval: importStatus?.isRunning ? 5000 : false
-  })
+  // Fetch sequence-aware species distribution data
+  const { data: speciesDistributionData, error: speciesDistributionError } =
+    useSequenceAwareSpeciesDistribution(actualStudyId, sequenceGap, {
+      enabled: !!actualStudyId,
+      refetchInterval: importStatus?.isRunning ? 5000 : false
+    })
 
   // Initialize selectedSpecies when speciesDistributionData loads
   // Excludes humans/vehicles from default selection
@@ -376,16 +406,13 @@ export default function Activity({ studyData, studyId }) {
     [selectedSpecies]
   )
 
-  // Fetch timeseries data
-  const { data: timeseriesData } = useQuery({
-    queryKey: ['speciesTimeseries', actualStudyId, speciesNames],
-    queryFn: async () => {
-      const response = await window.api.getSpeciesTimeseries(actualStudyId, speciesNames)
-      if (response.error) throw new Error(response.error)
-      return response.data.timeseries
-    },
-    enabled: !!actualStudyId && speciesNames.length > 0
-  })
+  // Fetch sequence-aware timeseries data
+  const { timeseries: timeseriesData } = useSequenceAwareTimeseries(
+    actualStudyId,
+    speciesNames,
+    sequenceGap,
+    { enabled: !!actualStudyId && speciesNames.length > 0 }
+  )
 
   // Initialize dateRange and fullExtent from timeseries data (side effect, keep as useEffect)
   useEffect(() => {
@@ -417,34 +444,18 @@ export default function Activity({ studyData, studyId }) {
     return startMatch && endMatch
   }, [fullExtent, dateRange])
 
-  // Fetch heatmap data
-  const { data: heatmapData, isLoading: isHeatmapLoading } = useQuery({
-    queryKey: [
-      'heatmapData',
-      actualStudyId,
-      speciesNames,
-      dateRange[0]?.toISOString(),
-      dateRange[1]?.toISOString(),
-      timeRange.start,
-      timeRange.end,
-      isFullRange
-    ],
-    queryFn: async () => {
-      const response = await window.api.getSpeciesHeatmapData(
-        actualStudyId,
-        speciesNames,
-        dateRange[0].toISOString(),
-        dateRange[1].toISOString(),
-        timeRange.start,
-        timeRange.end,
-        isFullRange
-      )
-      if (response.error) throw new Error(response.error)
-      return response.data
-    },
-    enabled: !!actualStudyId && speciesNames.length > 0 && !!dateRange[0] && !!dateRange[1],
-    placeholderData: (previousData) => previousData
-  })
+  // Fetch sequence-aware heatmap data
+  const { data: heatmapData, isLoading: isHeatmapLoading } = useSequenceAwareHeatmap(
+    actualStudyId,
+    speciesNames,
+    dateRange[0]?.toISOString(),
+    dateRange[1]?.toISOString(),
+    timeRange.start,
+    timeRange.end,
+    isFullRange,
+    sequenceGap,
+    { enabled: !!actualStudyId && speciesNames.length > 0 && !!dateRange[0] && !!dateRange[1] }
+  )
 
   // Derive heatmap status from query state and data
   const heatmapStatus = useMemo(() => {
@@ -453,27 +464,15 @@ export default function Activity({ studyData, studyId }) {
     return hasPoints ? 'hasData' : 'noData'
   }, [heatmapData, isHeatmapLoading])
 
-  // Fetch daily activity data
-  const { data: dailyActivityData } = useQuery({
-    queryKey: [
-      'dailyActivity',
-      actualStudyId,
-      speciesNames,
-      dateRange[0]?.toISOString(),
-      dateRange[1]?.toISOString()
-    ],
-    queryFn: async () => {
-      const response = await window.api.getSpeciesDailyActivity(
-        actualStudyId,
-        speciesNames,
-        dateRange[0].toISOString(),
-        dateRange[1].toISOString()
-      )
-      if (response.error) throw new Error(response.error)
-      return response.data
-    },
-    enabled: !!actualStudyId && speciesNames.length > 0 && !!dateRange[0] && !!dateRange[1]
-  })
+  // Fetch sequence-aware daily activity data
+  const { data: dailyActivityData } = useSequenceAwareDailyActivity(
+    actualStudyId,
+    speciesNames,
+    dateRange[0]?.toISOString(),
+    dateRange[1]?.toISOString(),
+    sequenceGap,
+    { enabled: !!actualStudyId && speciesNames.length > 0 && !!dateRange[0] && !!dateRange[1] }
+  )
 
   // Handle time range changes
   const handleTimeRangeChange = useCallback((newTimeRange) => {

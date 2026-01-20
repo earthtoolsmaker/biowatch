@@ -24,6 +24,7 @@ import { useQueryClient, useQuery, useQueries } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
 import DateTimePicker from './ui/DateTimePicker'
 import { sortSpeciesHumansLast } from './utils/speciesUtils'
+import { useSequenceAwareSpeciesDistribution } from './hooks/useSequenceAwareSpeciesDistribution'
 
 // Component to handle map layer change events for persistence
 function LayerChangeHandler({ onLayerChange }) {
@@ -369,6 +370,36 @@ export default function Overview({ data, studyId, studyName }) {
   const [canScrollRight, setCanScrollRight] = useState(false)
   const { importStatus } = useImportStatus(studyId)
 
+  // Sequence gap - read from localStorage (same key as media.jsx)
+  const sequenceGapKey = `sequenceGap:${studyId}`
+  const [sequenceGap, setSequenceGap] = useState(() => {
+    const saved = localStorage.getItem(sequenceGapKey)
+    return saved !== null ? Number(saved) : 120
+  })
+
+  // Listen for localStorage changes (when user changes gap in media.jsx)
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === sequenceGapKey && e.newValue !== null) {
+        setSequenceGap(Number(e.newValue))
+      }
+    }
+    window.addEventListener('storage', handleStorageChange)
+    return () => window.removeEventListener('storage', handleStorageChange)
+  }, [sequenceGapKey])
+
+  // Also poll for localStorage changes (storage event doesn't fire in same tab)
+  useEffect(() => {
+    const checkLocalStorage = () => {
+      const saved = localStorage.getItem(sequenceGapKey)
+      if (saved !== null && Number(saved) !== sequenceGap) {
+        setSequenceGap(Number(saved))
+      }
+    }
+    const interval = setInterval(checkLocalStorage, 1000)
+    return () => clearInterval(interval)
+  }, [sequenceGapKey, sequenceGap])
+
   // Use useQuery for deployments data - automatically handles caching per studyId
   const { data: deploymentsData, error: deploymentsError } = useQuery({
     queryKey: ['deployments', studyId],
@@ -383,19 +414,15 @@ export default function Overview({ data, studyId, studyName }) {
     refetchInterval: importStatus?.isRunning ? 5000 : false
   })
 
-  // Use useQuery for species data - automatically handles caching per studyId
-  const { data: speciesData, error: speciesError } = useQuery({
-    queryKey: ['species', studyId],
-    queryFn: async () => {
-      const response = await window.api.getSpeciesDistribution(studyId)
-      if (response.error) {
-        throw new Error(response.error)
-      }
-      return response.data
-    },
-    enabled: !!studyId,
-    refetchInterval: importStatus?.isRunning ? 5000 : false
-  })
+  // Use sequence-aware species distribution
+  const { data: speciesData, error: speciesError } = useSequenceAwareSpeciesDistribution(
+    studyId,
+    sequenceGap,
+    {
+      enabled: !!studyId,
+      refetchInterval: importStatus?.isRunning ? 5000 : false
+    }
+  )
 
   const error = speciesError?.message || deploymentsError?.message || null
 

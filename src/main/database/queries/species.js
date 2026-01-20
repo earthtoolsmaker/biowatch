@@ -530,6 +530,314 @@ export async function getSpeciesDailyActivity(dbPath, species, startDate, endDat
 }
 
 /**
+ * Get species distribution data grouped by media for sequence-aware counting.
+ * Returns one row per (species, media) combination with the count of observations.
+ * Used by the frontend to calculate sequence-aware species counts by:
+ * 1. Grouping media into sequences based on timestamp proximity
+ * 2. Taking the MAX count of each species within each sequence
+ * 3. Summing the max counts across all sequences
+ *
+ * @param {string} dbPath - Path to the SQLite database
+ * @returns {Promise<Array>} - Array of { scientificName, mediaID, timestamp, deploymentID, eventID, fileMediatype, count }
+ */
+export async function getSpeciesDistributionByMedia(dbPath) {
+  const startTime = Date.now()
+  log.info(`Querying species distribution by media from: ${dbPath}`)
+
+  try {
+    const studyId = getStudyIdFromPath(dbPath)
+
+    const db = await getDrizzleDb(studyId, dbPath)
+
+    const result = await db
+      .select({
+        scientificName: observations.scientificName,
+        mediaID: media.mediaID,
+        timestamp: media.timestamp,
+        deploymentID: media.deploymentID,
+        eventID: observations.eventID,
+        fileMediatype: media.fileMediatype,
+        count: count(observations.observationID).as('count')
+      })
+      .from(observations)
+      .innerJoin(media, eq(observations.mediaID, media.mediaID))
+      .where(
+        and(
+          isNotNull(observations.scientificName),
+          ne(observations.scientificName, ''),
+          sql`(${observations.observationType} IS NULL OR ${observations.observationType} != 'blank')`
+        )
+      )
+      .groupBy(observations.scientificName, media.mediaID)
+      .orderBy(media.timestamp)
+
+    const elapsedTime = Date.now() - startTime
+    log.info(
+      `Retrieved species distribution by media: ${result.length} species-media combinations in ${elapsedTime}ms`
+    )
+
+    return result
+  } catch (error) {
+    log.error(`Error querying species distribution by media: ${error.message}`)
+    throw error
+  }
+}
+
+/**
+ * Get species timeseries data by media for sequence-aware counting.
+ * Returns observations with media-level detail for frontend sequence grouping.
+ * @param {string} dbPath - Path to the SQLite database
+ * @param {Array<string>} speciesNames - List of scientific names to include
+ * @returns {Promise<Array>} - Array of { scientificName, mediaID, timestamp, deploymentID, eventID, fileMediatype, weekStart, count }
+ */
+export async function getSpeciesTimeseriesByMedia(dbPath, speciesNames = []) {
+  const startTime = Date.now()
+  log.info(`Querying species timeseries by media from: ${dbPath}`)
+
+  const BLANK_SENTINEL = '__blank__'
+  const requestingBlanks = speciesNames.includes(BLANK_SENTINEL)
+  const regularSpecies = speciesNames.filter((s) => s !== BLANK_SENTINEL)
+
+  try {
+    const studyId = getStudyIdFromPath(dbPath)
+
+    let speciesFilter = ''
+    if (regularSpecies && regularSpecies.length > 0) {
+      const quotedSpecies = regularSpecies.map((name) => `'${name.replace(/'/g, "''")}'`).join(',')
+      speciesFilter = `AND o.scientificName IN (${quotedSpecies})`
+    }
+
+    const shouldRunSpeciesQuery = regularSpecies.length > 0 || !requestingBlanks
+
+    let results = []
+
+    if (shouldRunSpeciesQuery) {
+      const query = `
+        SELECT
+          o.scientificName,
+          m.mediaID,
+          m.timestamp,
+          m.deploymentID,
+          o.eventID,
+          m.fileMediatype,
+          date(substr(m.timestamp, 1, 10), 'weekday 0', '-7 days') as weekStart,
+          COUNT(o.observationID) as count
+        FROM observations o
+        INNER JOIN media m ON o.mediaID = m.mediaID
+        WHERE o.scientificName IS NOT NULL
+          AND o.scientificName != ''
+          AND (o.observationType IS NULL OR o.observationType != 'blank')
+          ${speciesFilter}
+        GROUP BY o.scientificName, m.mediaID
+        ORDER BY m.timestamp ASC
+      `
+
+      results = await executeRawQuery(studyId, dbPath, query)
+    }
+
+    // Handle blanks if requested
+    if (requestingBlanks) {
+      const blankQuery = `
+        SELECT
+          '${BLANK_SENTINEL}' as scientificName,
+          m.mediaID,
+          m.timestamp,
+          m.deploymentID,
+          NULL as eventID,
+          m.fileMediatype,
+          date(substr(m.timestamp, 1, 10), 'weekday 0', '-7 days') as weekStart,
+          1 as count
+        FROM media m
+        WHERE m.timestamp IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM observations o
+            WHERE o.mediaID = m.mediaID
+          )
+        ORDER BY m.timestamp ASC
+      `
+
+      const blankResults = await executeRawQuery(studyId, dbPath, blankQuery)
+      results = [...results, ...blankResults]
+    }
+
+    const elapsedTime = Date.now() - startTime
+    log.info(`Retrieved species timeseries by media: ${results.length} rows in ${elapsedTime}ms`)
+
+    return results
+  } catch (error) {
+    log.error(`Error querying species timeseries by media: ${error.message}`)
+    throw error
+  }
+}
+
+/**
+ * Get species heatmap data by media for sequence-aware counting.
+ * Returns observations with media-level detail for frontend sequence grouping.
+ * @param {string} dbPath - Path to the SQLite database
+ * @param {Array<string>} species - List of scientific names to include
+ * @param {string} startDate - ISO date string for range start
+ * @param {string} endDate - ISO date string for range end
+ * @param {number} startHour - Starting hour of day (0-24)
+ * @param {number} endHour - Ending hour of day (0-24)
+ * @param {boolean} includeNullTimestamps - Whether to include observations with null timestamps
+ * @returns {Promise<Array>} - Array of { scientificName, mediaID, timestamp, deploymentID, eventID, fileMediatype, latitude, longitude, locationName, count }
+ */
+export async function getSpeciesHeatmapDataByMedia(
+  dbPath,
+  species,
+  startDate,
+  endDate,
+  startHour = 0,
+  endHour = 24,
+  includeNullTimestamps = false
+) {
+  const startTime = Date.now()
+  log.info(`Querying species heatmap data by media from: ${dbPath}`)
+
+  try {
+    const studyId = getStudyIdFromPath(dbPath)
+
+    const quotedSpecies = species.map((name) => `'${name.replace(/'/g, "''")}'`).join(',')
+
+    let timeOfDayFilter = ''
+    if (startHour < endHour) {
+      timeOfDayFilter = `AND CAST(strftime('%H', m.timestamp) AS INTEGER) >= ${startHour}
+                          AND CAST(strftime('%H', m.timestamp) AS INTEGER) < ${endHour}`
+    } else if (startHour > endHour) {
+      timeOfDayFilter = `AND (CAST(strftime('%H', m.timestamp) AS INTEGER) >= ${startHour}
+                          OR CAST(strftime('%H', m.timestamp) AS INTEGER) < ${endHour})`
+    }
+
+    let dateFilter = ''
+    if (includeNullTimestamps) {
+      dateFilter = `AND (m.timestamp IS NULL OR (m.timestamp >= '${startDate}' AND m.timestamp <= '${endDate}'))`
+    } else {
+      dateFilter = `AND m.timestamp >= '${startDate}' AND m.timestamp <= '${endDate}'`
+    }
+
+    const query = `
+      SELECT
+        o.scientificName,
+        m.mediaID,
+        m.timestamp,
+        m.deploymentID,
+        o.eventID,
+        m.fileMediatype,
+        d.latitude,
+        d.longitude,
+        d.locationName,
+        COUNT(o.observationID) as count
+      FROM observations o
+      INNER JOIN media m ON o.mediaID = m.mediaID
+      INNER JOIN deployments d ON m.deploymentID = d.deploymentID
+      WHERE o.scientificName IN (${quotedSpecies})
+        AND d.latitude IS NOT NULL
+        AND d.longitude IS NOT NULL
+        ${dateFilter}
+        ${timeOfDayFilter}
+      GROUP BY o.scientificName, m.mediaID
+      ORDER BY m.timestamp ASC
+    `
+
+    const results = await executeRawQuery(studyId, dbPath, query)
+
+    const elapsedTime = Date.now() - startTime
+    log.info(`Retrieved species heatmap data by media: ${results.length} rows in ${elapsedTime}ms`)
+
+    return results
+  } catch (error) {
+    log.error(`Error querying species heatmap data by media: ${error.message}`)
+    throw error
+  }
+}
+
+/**
+ * Get species daily activity data by media for sequence-aware counting.
+ * Returns observations with media-level detail for frontend sequence grouping.
+ * @param {string} dbPath - Path to the SQLite database
+ * @param {Array<string>} species - List of scientific names to include
+ * @param {string} startDate - ISO date string for range start
+ * @param {string} endDate - ISO date string for range end
+ * @returns {Promise<Array>} - Array of { scientificName, mediaID, timestamp, deploymentID, eventID, fileMediatype, hour, count }
+ */
+export async function getSpeciesDailyActivityByMedia(dbPath, species, startDate, endDate) {
+  const startTime = Date.now()
+  log.info(`Querying species daily activity by media from: ${dbPath}`)
+
+  const BLANK_SENTINEL = '__blank__'
+  const requestingBlanks = species.includes(BLANK_SENTINEL)
+  const regularSpecies = species.filter((s) => s !== BLANK_SENTINEL)
+
+  try {
+    const studyId = getStudyIdFromPath(dbPath)
+
+    let results = []
+
+    if (regularSpecies.length > 0) {
+      const quotedSpecies = regularSpecies.map((name) => `'${name.replace(/'/g, "''")}'`).join(',')
+
+      const query = `
+        SELECT
+          o.scientificName,
+          m.mediaID,
+          m.timestamp,
+          m.deploymentID,
+          o.eventID,
+          m.fileMediatype,
+          CAST(strftime('%H', m.timestamp) AS INTEGER) as hour,
+          COUNT(o.observationID) as count
+        FROM observations o
+        INNER JOIN media m ON o.mediaID = m.mediaID
+        WHERE o.scientificName IN (${quotedSpecies})
+          AND m.timestamp >= '${startDate}'
+          AND m.timestamp <= '${endDate}'
+        GROUP BY o.scientificName, m.mediaID
+        ORDER BY m.timestamp ASC
+      `
+
+      results = await executeRawQuery(studyId, dbPath, query)
+    }
+
+    // Handle blanks if requested
+    if (requestingBlanks) {
+      const blankQuery = `
+        SELECT
+          '${BLANK_SENTINEL}' as scientificName,
+          m.mediaID,
+          m.timestamp,
+          m.deploymentID,
+          NULL as eventID,
+          m.fileMediatype,
+          CAST(strftime('%H', m.timestamp) AS INTEGER) as hour,
+          1 as count
+        FROM media m
+        WHERE m.timestamp IS NOT NULL
+          AND m.timestamp >= '${startDate}'
+          AND m.timestamp <= '${endDate}'
+          AND NOT EXISTS (
+            SELECT 1 FROM observations o
+            WHERE o.mediaID = m.mediaID
+          )
+        ORDER BY m.timestamp ASC
+      `
+
+      const blankResults = await executeRawQuery(studyId, dbPath, blankQuery)
+      results = [...results, ...blankResults]
+    }
+
+    const elapsedTime = Date.now() - startTime
+    log.info(
+      `Retrieved species daily activity by media: ${results.length} rows in ${elapsedTime}ms`
+    )
+
+    return results
+  } catch (error) {
+    log.error(`Error querying species daily activity by media: ${error.message}`)
+    throw error
+  }
+}
+
+/**
  * Get all distinct species names from the observations table
  * Used to populate dropdowns for species selection
  * @param {string} dbPath - Path to the SQLite database

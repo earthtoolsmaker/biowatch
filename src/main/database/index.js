@@ -214,6 +214,10 @@ export {
   getSpeciesHeatmapData,
   getSpeciesDailyActivity,
   getDistinctSpecies,
+  getSpeciesDistributionByMedia,
+  getSpeciesTimeseriesByMedia,
+  getSpeciesHeatmapDataByMedia,
+  getSpeciesDailyActivityByMedia,
   // Media
   getMedia,
   getFilesData,
