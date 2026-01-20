@@ -162,12 +162,11 @@ function DeploymentMap({ deployments, studyId }) {
           >
             <Popup>
               <div>
-                <h3 className="font-medium">{deployment.locationName || 'Unnamed Location'}</h3>
+                <h3 className="text-base font-semibold">
+                  {deployment.locationName || 'Unnamed Location'}
+                </h3>
                 <p className="text-sm">
                   {formatDate(deployment.deploymentStart)} - {formatDate(deployment.deploymentEnd)}
-                </p>
-                <p className="text-xs text-gray-500">
-                  Coordinates: {deployment.latitude}, {deployment.longitude}
                 </p>
               </div>
             </Popup>
