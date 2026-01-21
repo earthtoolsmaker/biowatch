@@ -1,1 +1,0 @@
-CREATE INDEX IF NOT EXISTS `idx_media_deploymentID_timestamp` ON `media` (`deploymentID`, `timestamp`);
