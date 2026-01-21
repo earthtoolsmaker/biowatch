@@ -165,7 +165,7 @@ function DeploymentMap({ deployments, studyId }) {
             <Popup>
               <div>
                 <h3 className="text-base font-semibold">
-                  {deployment.locationName || 'Unnamed Location'}
+                  {deployment.locationName || deployment.locationID || 'Unnamed Location'}
                 </h3>
                 <p className="text-sm">
                   {formatDate(deployment.deploymentStart)} - {formatDate(deployment.deploymentEnd)}
@@ -372,11 +372,11 @@ export default function Overview({ data, studyId, studyName }) {
   const { importStatus } = useImportStatus(studyId)
   const { sequenceGap } = useSequenceGap(studyId)
 
-  // Use useQuery for deployments data - automatically handles caching per studyId
-  const { data: deploymentsData, error: deploymentsError } = useQuery({
-    queryKey: ['deployments', studyId],
+  // Use useQuery for deployments data - use same query as Deployments tab
+  const { data: deploymentsActivityData, error: deploymentsError } = useQuery({
+    queryKey: ['deploymentsActivity', studyId],
     queryFn: async () => {
-      const response = await window.api.getDeployments(studyId)
+      const response = await window.api.getDeploymentsActivity(studyId)
       if (response.error) {
         throw new Error(response.error)
       }
@@ -385,6 +385,20 @@ export default function Overview({ data, studyId, studyName }) {
     enabled: !!studyId,
     refetchInterval: importStatus?.isRunning ? 5000 : false
   })
+
+  // De-duplicate deployments by coordinates for map (one marker per location)
+  const deploymentsData = useMemo(() => {
+    if (!deploymentsActivityData?.deployments) return []
+    const seen = new Map()
+    for (const d of deploymentsActivityData.deployments) {
+      const key = `${d.latitude},${d.longitude}`
+      // Keep the first deployment (or could pick by most recent date)
+      if (!seen.has(key)) {
+        seen.set(key, d)
+      }
+    }
+    return Array.from(seen.values())
+  }, [deploymentsActivityData])
 
   // Use sequence-aware species distribution
   const { data: speciesData, error: speciesError } = useSequenceAwareSpeciesDistribution(
