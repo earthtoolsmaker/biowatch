@@ -1,4 +1,4 @@
-import { Pencil, Plus, Settings, Trash2, Search, ChevronRight } from 'lucide-react'
+import { Pencil, Plus, Settings, Trash2, Search, ChevronRight, FolderPlus } from 'lucide-react'
 import { ErrorBoundary } from 'react-error-boundary'
 import { HashRouter, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
@@ -117,7 +117,14 @@ function AppContent() {
   })
 
   useEffect(() => {
-    if (isLoading) return
+    if (isLoading) {
+      return
+    }
+
+    if (location.pathname !== '/') {
+      return
+    }
+
     const lastUrl = localStorage.getItem('lastUrl')
 
     if (studies.length === 0) {
@@ -292,7 +299,7 @@ function AppContent() {
       <div data-testid="studies-sidebar" className="w-64 h-full flex flex-col fixed">
         {/* Header */}
         <div className="p-4 border-b border-gray-200">
-          <div className="flex items-center justify-between mb-3">
+          <div className={`flex items-center justify-between ${studies.length > 0 ? 'mb-3' : ''}`}>
             <h2 className="text-gray-900">Studies</h2>
             <NavLink
               to="/import"
@@ -304,23 +311,43 @@ function AppContent() {
             </NavLink>
           </div>
 
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Search studies..."
-              data-testid="search-studies"
-              className="w-full pl-8 h-9 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
+          {/* Search - only show when there are studies */}
+          {studies.length > 0 && (
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search studies..."
+                data-testid="search-studies"
+                className="w-full pl-8 h-9 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+          )}
         </div>
 
         {/* Studies List */}
         <div className="flex-1 overflow-y-auto">
           <div data-testid="studies-list" className="p-2">
+            {filteredStudies.length === 0 && !searchQuery && (
+              <div className="p-4 text-center">
+                <div className="p-3 bg-blue-50 rounded-full w-fit mx-auto mb-3">
+                  <FolderPlus className="h-6 w-6 text-blue-500" />
+                </div>
+                <p className="text-sm font-medium text-gray-700 mb-1">No studies yet</p>
+                <p className="text-xs text-gray-500 mb-4">
+                  Create your first study to start analyzing wildlife data
+                </p>
+                <NavLink
+                  to="/import"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Create Study
+                </NavLink>
+              </div>
+            )}
             {filteredStudies.map((study) => (
               <div
                 key={study.id}
@@ -381,7 +408,7 @@ function AppContent() {
           <Routes>
             <Route
               path="/import"
-              element={<Import onNewStudy={onNewStudy} isFirstTimeUser={studies.length === 0} />}
+              element={<Import onNewStudy={onNewStudy} studiesCount={studies.length} />}
             />
             <Route path="/study/:id/*" element={<Study />} />
             <Route path="/settings/*" element={<SettingsPage />} />

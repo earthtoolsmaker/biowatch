@@ -12,8 +12,9 @@ import { Button } from './ui/button.jsx'
 import { Card, CardContent } from './ui/card.jsx'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select.jsx'
 
-export default function Import({ onNewStudy, isFirstTimeUser = false }) {
-  let navigate = useNavigate()
+export default function Import({ onNewStudy, studiesCount = 0 }) {
+  const navigate = useNavigate()
+  const isFirstTimeUser = studiesCount === 0
   const [selectedModel, setSelectedModel] = useState(modelZoo[0]?.reference || null)
   const [installedModels, setInstalledModels] = useState([])
   const [installedEnvironments, setInstalledEnvironments] = useState([])
@@ -234,7 +235,7 @@ export default function Import({ onNewStudy, isFirstTimeUser = false }) {
         datasetTitle: 'Demo Dataset'
       })
 
-      const { data, id } = await window.api.downloadDemoDataset()
+      const { data, id, path } = await window.api.downloadDemoDataset()
 
       if (!id) {
         setIsDemoImporting(false)
@@ -248,7 +249,7 @@ export default function Import({ onNewStudy, isFirstTimeUser = false }) {
       setTimeout(() => {
         setIsDemoImporting(false)
         setDemoImportProgress(null)
-        onNewStudy({ id, name: data.name, data })
+        onNewStudy({ id, name: data.name, data, path })
         navigate(`/study/${id}`)
       }, 800)
     } catch (error) {
@@ -363,7 +364,7 @@ export default function Import({ onNewStudy, isFirstTimeUser = false }) {
         datasetTitle: 'LILA Dataset'
       })
 
-      const { data, id } = await window.api.importLilaDataset(datasetId)
+      const { data, id, path } = await window.api.importLilaDataset(datasetId)
 
       if (!id) {
         setIsLilaImporting(false)
@@ -377,7 +378,7 @@ export default function Import({ onNewStudy, isFirstTimeUser = false }) {
       setTimeout(() => {
         setIsLilaImporting(false)
         setLilaImportProgress(null)
-        onNewStudy({ id, name: data.name, data })
+        onNewStudy({ id, name: data.name, data, path })
         navigate(`/study/${id}`)
       }, 800)
     } catch (error) {
@@ -411,10 +412,13 @@ export default function Import({ onNewStudy, isFirstTimeUser = false }) {
             <div className="size-10 rounded-xl bg-blue-50 flex items-center justify-center">
               <Database className="size-5 text-blue-600" />
             </div>
-            <h1 className="text-2xl font-semibold">Import Dataset</h1>
+            <h1 className="text-2xl font-semibold">
+              {studiesCount === 0 ? 'Create Your First Study' : 'Create New Study'}
+            </h1>
           </div>
           <p className="text-gray-500">
-            Import your dataset and we&apos;ll generate summaries and visualizations for you.
+            Choose a data source below. Each study organizes your camera trap data with automatic
+            species detection and visualizations.
           </p>
         </div>
 
