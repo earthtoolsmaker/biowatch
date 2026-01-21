@@ -1,20 +1,13 @@
 /**
- * Custom hook for fetching and computing sequence-aware species distribution.
+ * Custom hooks for fetching sequence-aware species data.
  *
- * This hook:
- * 1. Fetches raw species distribution data by media from the backend
- * 2. Computes sequence-aware counts using the sequenceAwareSpeciesCount utility
- * 3. Recalculates when gapSeconds changes (no backend refetch needed)
+ * These hooks fetch pre-computed sequence-aware data from the main thread,
+ * where all sequence grouping and counting is performed. This avoids
+ * transferring raw media-level data to the renderer and keeps computation
+ * off the UI thread.
  */
 
 import { useQuery } from '@tanstack/react-query'
-import { useMemo } from 'react'
-import {
-  calculateSequenceAwareSpeciesCounts,
-  calculateSequenceAwareTimeseries,
-  calculateSequenceAwareHeatmap,
-  calculateSequenceAwareDailyActivity
-} from '../utils/sequenceAwareSpeciesCount'
 
 /**
  * Hook for fetching sequence-aware species distribution.
@@ -24,20 +17,15 @@ import {
  * @param {Object} options - Additional options
  * @param {boolean} options.enabled - Whether the query is enabled (default: true)
  * @param {number|false} options.refetchInterval - Refetch interval in ms (default: false)
- * @returns {Object} - { data: Array, rawData: Array, isLoading: boolean, error: Error|null }
+ * @returns {Object} - { data: Array, isLoading: boolean, error: Error|null }
  */
 export function useSequenceAwareSpeciesDistribution(studyId, gapSeconds, options = {}) {
   const { enabled = true, refetchInterval = false } = options
 
-  // Fetch raw data from backend (only refetch when studyId changes or during import)
-  const {
-    data: rawData,
-    isLoading,
-    error
-  } = useQuery({
-    queryKey: ['speciesDistributionByMedia', studyId],
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['sequenceAwareSpeciesDistribution', studyId, gapSeconds],
     queryFn: async () => {
-      const response = await window.api.getSpeciesDistributionByMedia(studyId)
+      const response = await window.api.getSequenceAwareSpeciesDistribution(studyId, gapSeconds)
       if (response.error) throw new Error(response.error)
       return response.data
     },
@@ -45,15 +33,8 @@ export function useSequenceAwareSpeciesDistribution(studyId, gapSeconds, options
     refetchInterval
   })
 
-  // Compute sequence-aware counts whenever rawData or gapSeconds changes
-  const data = useMemo(() => {
-    if (!rawData) return null
-    return calculateSequenceAwareSpeciesCounts(rawData, gapSeconds)
-  }, [rawData, gapSeconds])
-
   return {
-    data,
-    rawData,
+    data: data ?? null,
     isLoading,
     error: error ? new Error(error.message || 'Failed to fetch species distribution') : null
   }
@@ -71,29 +52,23 @@ export function useSequenceAwareSpeciesDistribution(studyId, gapSeconds, options
 export function useSequenceAwareTimeseries(studyId, speciesNames, gapSeconds, options = {}) {
   const { enabled = true } = options
 
-  const {
-    data: rawData,
-    isLoading,
-    error
-  } = useQuery({
-    queryKey: ['speciesTimeseriesByMedia', studyId, [...speciesNames].sort()],
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['sequenceAwareTimeseries', studyId, [...speciesNames].sort(), gapSeconds],
     queryFn: async () => {
-      const response = await window.api.getSpeciesTimeseriesByMedia(studyId, speciesNames)
+      const response = await window.api.getSequenceAwareTimeseries(
+        studyId,
+        speciesNames,
+        gapSeconds
+      )
       if (response.error) throw new Error(response.error)
       return response.data
     },
     enabled: enabled && !!studyId && speciesNames.length > 0
   })
 
-  const { timeseries, allSpecies } = useMemo(() => {
-    if (!rawData) return { timeseries: [], allSpecies: [] }
-    return calculateSequenceAwareTimeseries(rawData, gapSeconds)
-  }, [rawData, gapSeconds])
-
   return {
-    timeseries,
-    allSpecies,
-    rawData,
+    timeseries: data?.timeseries ?? [],
+    allSpecies: data?.allSpecies ?? [],
     isLoading,
     error: error ? new Error(error.message || 'Failed to fetch timeseries') : null
   }
@@ -126,46 +101,42 @@ export function useSequenceAwareHeatmap(
 ) {
   const { enabled = true } = options
 
-  const {
-    data: rawData,
-    isLoading,
-    error
-  } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: [
-      'speciesHeatmapByMedia',
+      'sequenceAwareHeatmap',
       studyId,
       [...speciesNames].sort(),
       startDate,
       endDate,
       startHour,
       endHour,
-      includeNullTimestamps
+      includeNullTimestamps,
+      gapSeconds
     ],
     queryFn: async () => {
-      const response = await window.api.getSpeciesHeatmapDataByMedia(
+      const response = await window.api.getSequenceAwareHeatmap(
         studyId,
         speciesNames,
         startDate,
         endDate,
         startHour,
         endHour,
-        includeNullTimestamps
+        includeNullTimestamps,
+        gapSeconds
       )
       if (response.error) throw new Error(response.error)
       return response.data
     },
-    enabled: enabled && !!studyId && speciesNames.length > 0 && !!startDate && !!endDate,
+    enabled:
+      enabled &&
+      !!studyId &&
+      speciesNames.length > 0 &&
+      (includeNullTimestamps || (!!startDate && !!endDate)),
     placeholderData: (previousData) => previousData
   })
 
-  const data = useMemo(() => {
-    if (!rawData) return null
-    return calculateSequenceAwareHeatmap(rawData, gapSeconds)
-  }, [rawData, gapSeconds])
-
   return {
-    data,
-    rawData,
+    data: data ?? null,
     isLoading,
     error: error ? new Error(error.message || 'Failed to fetch heatmap data') : null
   }
@@ -192,24 +163,22 @@ export function useSequenceAwareDailyActivity(
 ) {
   const { enabled = true } = options
 
-  const {
-    data: rawData,
-    isLoading,
-    error
-  } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: [
-      'speciesDailyActivityByMedia',
+      'sequenceAwareDailyActivity',
       studyId,
       [...speciesNames].sort(),
       startDate,
-      endDate
+      endDate,
+      gapSeconds
     ],
     queryFn: async () => {
-      const response = await window.api.getSpeciesDailyActivityByMedia(
+      const response = await window.api.getSequenceAwareDailyActivity(
         studyId,
         speciesNames,
         startDate,
-        endDate
+        endDate,
+        gapSeconds
       )
       if (response.error) throw new Error(response.error)
       return response.data
@@ -217,14 +186,8 @@ export function useSequenceAwareDailyActivity(
     enabled: enabled && !!studyId && speciesNames.length > 0 && !!startDate && !!endDate
   })
 
-  const data = useMemo(() => {
-    if (!rawData) return null
-    return calculateSequenceAwareDailyActivity(rawData, gapSeconds, speciesNames)
-  }, [rawData, gapSeconds, speciesNames])
-
   return {
-    data,
-    rawData,
+    data: data ?? null,
     isLoading,
     error: error ? new Error(error.message || 'Failed to fetch daily activity') : null
   }
