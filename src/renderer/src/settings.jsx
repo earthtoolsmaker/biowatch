@@ -1,12 +1,21 @@
-import { Navigate, Route, Routes } from 'react-router'
+import { useState } from 'react'
+import { Navigate, Route, Routes, useNavigate } from 'react-router'
 import { ErrorBoundary } from 'react-error-boundary'
 import { useQuery } from '@tanstack/react-query'
-import { BrainCircuit, Info, Github, Earth, Loader2 } from 'lucide-react'
+import { BrainCircuit, Info, Github, Earth, Loader2, Settings2 } from 'lucide-react'
 import Zoo from './models'
 import { modelZoo } from '../../shared/mlmodels'
 import { Tab } from './ui/Tab'
+import Diagnostics from './Diagnostics'
 
-function SettingsFooter({ className }) {
+function SettingsFooter({ className, onRevealAdvanced }) {
+  const handleLogoClick = (e) => {
+    if (e.shiftKey) {
+      e.preventDefault()
+      onRevealAdvanced()
+    }
+  }
+
   return (
     <div className={`flex justify-center py-8 ${className || ''}`}>
       <div className="flex flex-col items-center">
@@ -14,6 +23,7 @@ function SettingsFooter({ className }) {
         <img
           className="w-14 mb-4 transition-transform duration-700 ease-in-out hover:rotate-[360deg]"
           src="https://avatars.githubusercontent.com/u/165696201?s=200&v=4"
+          onClick={handleLogoClick}
         />
         <span>
           Made with 💙 by{' '}
@@ -112,8 +122,17 @@ function ErrorFallback({ error, resetErrorBoundary }) {
 }
 
 export default function SettingsPage() {
+  const navigate = useNavigate()
   const version = import.meta.env.VITE_APP_VERSION
   const platform = window.electron.process.platform
+
+  // Track if Advanced tab should be visible (only for current session)
+  const [showAdvanced, setShowAdvanced] = useState(false)
+
+  const handleRevealAdvanced = () => {
+    setShowAdvanced(true)
+    navigate('/settings/advanced')
+  }
 
   // Poll model download status to show spinner on AI Models tab
   const { data: modelDownloadStatus } = useQuery({
@@ -141,6 +160,11 @@ export default function SettingsPage() {
           <Tab to="/settings/info" icon={Info}>
             Info
           </Tab>
+          {showAdvanced && (
+            <Tab to="/settings/advanced" icon={Settings2}>
+              Advanced
+            </Tab>
+          )}
         </nav>
       </header>
       <div className="flex-1 overflow-y-auto pb-4">
@@ -151,7 +175,7 @@ export default function SettingsPage() {
               <ErrorBoundary FallbackComponent={ErrorFallback} key={'ml_zoo'}>
                 <div className="min-h-full flex flex-col">
                   <Zoo modelZoo={modelZoo} />
-                  <SettingsFooter className="mt-auto" />
+                  <SettingsFooter className="mt-auto" onRevealAdvanced={handleRevealAdvanced} />
                 </div>
               </ErrorBoundary>
             }
@@ -162,7 +186,19 @@ export default function SettingsPage() {
               <ErrorBoundary FallbackComponent={ErrorFallback} key={'info'}>
                 <div className="min-h-full flex flex-col">
                   <SettingsInfo version={version} platform={platform} />
-                  <SettingsFooter className="mt-auto" />
+                  <SettingsFooter className="mt-auto" onRevealAdvanced={handleRevealAdvanced} />
+                </div>
+              </ErrorBoundary>
+            }
+          />
+          {/* Advanced tab - visible after Shift+click on ETM logo */}
+          <Route
+            path="advanced"
+            element={
+              <ErrorBoundary FallbackComponent={ErrorFallback} key={'advanced'}>
+                <div className="min-h-full flex flex-col">
+                  <Diagnostics />
+                  <SettingsFooter className="mt-auto" onRevealAdvanced={handleRevealAdvanced} />
                 </div>
               </ErrorBoundary>
             }

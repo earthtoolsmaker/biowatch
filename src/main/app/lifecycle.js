@@ -19,6 +19,7 @@ import { shutdownAllServers, garbageCollect } from '../services/ml/index.js'
 import { cleanExpiredTranscodeCache, cleanExpiredImageCache } from '../services/cache/index.js'
 import { registerLocalFileProtocol, registerCachedImageProtocol } from './protocols.js'
 import { setupRemoteMediaCORS } from './session.js'
+import { setupRendererLogCapture, closeRendererLog } from '../services/renderer-logger.js'
 
 // Track shutdown state to prevent multiple shutdown attempts
 let isShuttingDown = false
@@ -61,6 +62,9 @@ export function createWindow() {
     // Prevent navigation when dropping files
     event.preventDefault()
   })
+
+  // Setup renderer console log capture for diagnostics
+  setupRendererLogCapture(mainWindow)
 
   // HMR for renderer based on electron-vite cli.
   // Load the remote URL for development or the local html file for production.
@@ -176,6 +180,9 @@ export function setupShutdownHandlers() {
     } catch (error) {
       log.error('[Shutdown] Error during graceful shutdown:', error)
     }
+
+    // Close renderer log stream
+    closeRendererLog()
 
     // Now actually quit, we call exit so we don't re-enter this handler
     app.exit()
