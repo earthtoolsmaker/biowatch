@@ -25,6 +25,7 @@ import { useNavigate } from 'react-router'
 import DateTimePicker from './ui/DateTimePicker'
 import { sortSpeciesHumansLast } from './utils/speciesUtils'
 import { useSequenceAwareSpeciesDistribution } from './hooks/useSequenceAwareSpeciesDistribution'
+import { useSequenceGap } from './hooks/useSequenceGap'
 
 // Component to handle map layer change events for persistence
 function LayerChangeHandler({ onLayerChange }) {
@@ -369,36 +370,7 @@ export default function Overview({ data, studyId, studyName }) {
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(false)
   const { importStatus } = useImportStatus(studyId)
-
-  // Sequence gap - read from localStorage (same key as media.jsx)
-  const sequenceGapKey = `sequenceGap:${studyId}`
-  const [sequenceGap, setSequenceGap] = useState(() => {
-    const saved = localStorage.getItem(sequenceGapKey)
-    return saved !== null ? Number(saved) : 120
-  })
-
-  // Listen for localStorage changes (when user changes gap in media.jsx)
-  useEffect(() => {
-    const handleStorageChange = (e) => {
-      if (e.key === sequenceGapKey && e.newValue !== null) {
-        setSequenceGap(Number(e.newValue))
-      }
-    }
-    window.addEventListener('storage', handleStorageChange)
-    return () => window.removeEventListener('storage', handleStorageChange)
-  }, [sequenceGapKey])
-
-  // Also poll for localStorage changes (storage event doesn't fire in same tab)
-  useEffect(() => {
-    const checkLocalStorage = () => {
-      const saved = localStorage.getItem(sequenceGapKey)
-      if (saved !== null && Number(saved) !== sequenceGap) {
-        setSequenceGap(Number(saved))
-      }
-    }
-    const interval = setInterval(checkLocalStorage, 1000)
-    return () => clearInterval(interval)
-  }, [sequenceGapKey, sequenceGap])
+  const { sequenceGap } = useSequenceGap(studyId)
 
   // Use useQuery for deployments data - automatically handles caching per studyId
   const { data: deploymentsData, error: deploymentsError } = useQuery({

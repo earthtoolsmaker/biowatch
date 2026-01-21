@@ -17,6 +17,7 @@ import {
   useSequenceAwareHeatmap,
   useSequenceAwareDailyActivity
 } from './hooks/useSequenceAwareSpeciesDistribution'
+import { useSequenceGap } from './hooks/useSequenceGap'
 
 // Component to handle map layer change events for persistence
 function LayerChangeHandler({ onLayerChange }) {
@@ -351,36 +352,7 @@ export default function Activity({ studyData, studyId }) {
   const [fullExtent, setFullExtent] = useState([null, null])
   const [timeRange, setTimeRange] = useState({ start: 0, end: 24 })
   const { importStatus } = useImportStatus(actualStudyId, 5000)
-
-  // Sequence gap - read from localStorage (same key as media.jsx)
-  const sequenceGapKey = `sequenceGap:${actualStudyId}`
-  const [sequenceGap, setSequenceGap] = useState(() => {
-    const saved = localStorage.getItem(sequenceGapKey)
-    return saved !== null ? Number(saved) : 120
-  })
-
-  // Listen for localStorage changes (when user changes gap in media.jsx)
-  useEffect(() => {
-    const handleStorageChange = (e) => {
-      if (e.key === sequenceGapKey && e.newValue !== null) {
-        setSequenceGap(Number(e.newValue))
-      }
-    }
-    window.addEventListener('storage', handleStorageChange)
-    return () => window.removeEventListener('storage', handleStorageChange)
-  }, [sequenceGapKey])
-
-  // Also poll for localStorage changes (storage event doesn't fire in same tab)
-  useEffect(() => {
-    const checkLocalStorage = () => {
-      const saved = localStorage.getItem(sequenceGapKey)
-      if (saved !== null && Number(saved) !== sequenceGap) {
-        setSequenceGap(Number(saved))
-      }
-    }
-    const interval = setInterval(checkLocalStorage, 1000)
-    return () => clearInterval(interval)
-  }, [sequenceGapKey, sequenceGap])
+  const { sequenceGap } = useSequenceGap(actualStudyId)
 
   // Get taxonomic data from studyData
   const taxonomicData = studyData?.taxonomic || null

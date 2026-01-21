@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { X, Layers, AlertTriangle } from 'lucide-react'
+import { useSequenceGap } from './hooks/useSequenceGap'
 
 /**
  * Format sequence gap value for display
@@ -20,12 +21,8 @@ function CamtrapDPExportModal({ isOpen, onConfirm, onCancel, studyId }) {
   const [error, setError] = useState(null)
   const [nullTimestampCount, setNullTimestampCount] = useState(0)
 
-  // Sequence gap state - initialized from localStorage
-  const sequenceGapKey = `sequenceGap:${studyId}`
-  const [sequenceGap, setSequenceGap] = useState(() => {
-    const saved = localStorage.getItem(sequenceGapKey)
-    return saved !== null ? Number(saved) : 120 // Default 2 minutes
-  })
+  // Sequence gap - uses React Query cache for sync with media.jsx
+  const { sequenceGap, setSequenceGap } = useSequenceGap(studyId)
 
   // Fetch species list and null timestamp count when modal opens
   useEffect(() => {

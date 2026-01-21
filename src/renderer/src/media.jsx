@@ -44,6 +44,7 @@ import {
   useSequenceAwareTimeseries,
   useSequenceAwareDailyActivity
 } from './hooks/useSequenceAwareSpeciesDistribution'
+import { useSequenceGap } from './hooks/useSequenceGap'
 
 /**
  * Observation list panel - collapsible list of all detections
@@ -2558,30 +2559,18 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
     staleTime: Infinity // Cache permanently per study
   })
 
-  // Sequence gap - persisted per study in localStorage
-  const sequenceGapKey = `sequenceGap:${id}`
-  const [sequenceGap, setSequenceGap] = useState(() => {
-    const saved = localStorage.getItem(sequenceGapKey)
-    return saved !== null ? Number(saved) : 120
-  })
+  // Sequence gap - uses React Query cache for cross-component sync
+  const { sequenceGap, setSequenceGap } = useSequenceGap(id)
 
-  // Persist sequenceGap to localStorage when it changes
+  // Set default based on hasEventIDs when there's no saved preference
   useEffect(() => {
-    localStorage.setItem(sequenceGapKey, sequenceGap.toString())
-  }, [sequenceGap, sequenceGapKey])
-
-  // Reset sequenceGap when study changes, and set default based on hasEventIDs
-  useEffect(() => {
-    const saved = localStorage.getItem(sequenceGapKey)
-    if (saved !== null) {
-      setSequenceGap(Number(saved))
-    } else if (hasEventIDs) {
-      // Default to "Off" (0) if study has eventIDs and no saved preference
-      setSequenceGap(0)
-    } else {
-      setSequenceGap(120)
+    if (hasEventIDs !== undefined) {
+      const saved = localStorage.getItem(`sequenceGap:${id}`)
+      if (saved === null) {
+        setSequenceGap(hasEventIDs ? 0 : 120)
+      }
     }
-  }, [sequenceGapKey, hasEventIDs])
+  }, [id, hasEventIDs, setSequenceGap])
 
   // Fetch media with infinite query for pagination
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useInfiniteQuery({
