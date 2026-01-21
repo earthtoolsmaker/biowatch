@@ -39,6 +39,12 @@ const api = {
   checkStudyHasEventIDs: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('study:has-event-ids', studyId)
   },
+  getSequenceGap: async (studyId) => {
+    return await electronAPI.ipcRenderer.invoke('study:get-sequence-gap', studyId)
+  },
+  setSequenceGap: async (studyId, sequenceGap) => {
+    return await electronAPI.ipcRenderer.invoke('study:set-sequence-gap', studyId, sequenceGap)
+  },
   getLocationsActivity: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('locations:get-activity', studyId)
   },

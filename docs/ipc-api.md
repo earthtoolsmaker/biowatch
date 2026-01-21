@@ -38,6 +38,8 @@ const { data, error } = await window.api.getMedia(studyId, { limit: 100 })
 | `updateStudy(id, update)` | `studies:update` | studyId, update object | `Study` |
 | `deleteStudyDatabase(studyId)` | `study:delete-database` | studyId | `{ success: boolean }` |
 | `checkStudyHasEventIDs(studyId)` | `study:has-event-ids` | studyId | `{ data: boolean }` |
+| `getSequenceGap(studyId)` | `study:get-sequence-gap` | studyId | `{ data: number \| null }` |
+| `setSequenceGap(studyId, sequenceGap)` | `study:set-sequence-gap` | studyId, sequenceGap (0-600) | `{ data: number }` |
 
 ### Data Import
 
