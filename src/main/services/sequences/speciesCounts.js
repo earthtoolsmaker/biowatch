@@ -109,12 +109,23 @@ export function calculateSequenceAwareSpeciesCounts(observationsByMedia, gapSeco
     }
   }
 
-  // Process null-timestamp media (each is its own "sequence")
+  // Process null-timestamp media (each is treated as its own single-item "sequence")
+  // Since we can't determine temporal relationships without timestamps, each media
+  // is considered an independent observation event. For consistency with sequence
+  // logic, we apply the same max-per-sequence approach (which for a single-item
+  // sequence simply uses that item's count).
   for (const media of nullTimestampMedia) {
     const mediaObs = observationsByMediaID.get(media.mediaID) || []
+    // Create a mini-sequence with just this media and compute max counts
+    const singleMediaMaxCounts = new Map()
     for (const { scientificName, count } of mediaObs) {
-      const current = speciesCounts.get(scientificName) || 0
-      speciesCounts.set(scientificName, current + count)
+      const current = singleMediaMaxCounts.get(scientificName) || 0
+      singleMediaMaxCounts.set(scientificName, Math.max(current, count))
+    }
+    // Add this "sequence's" max counts to total
+    for (const [species, maxCount] of singleMediaMaxCounts) {
+      const current = speciesCounts.get(species) || 0
+      speciesCounts.set(species, current + maxCount)
     }
   }
 

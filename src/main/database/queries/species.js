@@ -20,6 +20,7 @@ import {
 } from 'drizzle-orm'
 import log from 'electron-log'
 import { getStudyIdFromPath } from './utils.js'
+import { BLANK_SENTINEL } from '../../../shared/constants.js'
 
 /**
  * Get species distribution from the database using Drizzle ORM
@@ -163,7 +164,6 @@ export async function getSpeciesTimeseriesByMedia(dbPath, speciesNames = []) {
   const startTime = Date.now()
   log.info(`Querying species timeseries by media from: ${dbPath}`)
 
-  const BLANK_SENTINEL = '__blank__'
   const requestingBlanks = speciesNames.includes(BLANK_SENTINEL)
   const regularSpecies = speciesNames.filter((s) => s !== BLANK_SENTINEL)
 
@@ -362,7 +362,6 @@ export async function getSpeciesDailyActivityByMedia(dbPath, species, startDate,
   const startTime = Date.now()
   log.info(`Querying species daily activity by media from: ${dbPath}`)
 
-  const BLANK_SENTINEL = '__blank__'
   const requestingBlanks = species.includes(BLANK_SENTINEL)
   const regularSpecies = species.filter((s) => s !== BLANK_SENTINEL)
 

@@ -60,30 +60,7 @@ export function registerSequencesIPCHandlers() {
       }
 
       const rawData = await getSpeciesTimeseriesByMedia(dbPath, speciesNames)
-      log.info(
-        `[sequences] Timeseries raw data: ${rawData.length} rows for species: ${speciesNames.join(', ')}`
-      )
-      if (rawData.length > 0) {
-        log.info(`[sequences] First row sample:`, JSON.stringify(rawData[0]))
-        // Check how many rows have null weekStart vs valid weekStart
-        const nullWeekStart = rawData.filter((r) => !r.weekStart).length
-        const withWeekStart = rawData.filter((r) => r.weekStart).length
-        log.info(
-          `[sequences] weekStart stats: ${withWeekStart} valid, ${nullWeekStart} null out of ${rawData.length}`
-        )
-        // Check timestamp format
-        const nullTimestamp = rawData.filter((r) => !r.timestamp).length
-        log.info(
-          `[sequences] timestamp stats: ${rawData.length - nullTimestamp} valid, ${nullTimestamp} null`
-        )
-        if (rawData[0].timestamp) {
-          log.info(`[sequences] Sample timestamp format: "${rawData[0].timestamp}"`)
-        }
-      }
       const data = calculateSequenceAwareTimeseries(rawData, gapSeconds)
-      log.info(
-        `[sequences] Timeseries result: ${data.timeseries.length} weeks, ${data.allSpecies.length} species`
-      )
       return { data }
     } catch (error) {
       log.error('Error getting sequence-aware timeseries:', error)

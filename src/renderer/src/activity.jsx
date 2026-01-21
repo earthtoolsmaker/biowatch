@@ -378,6 +378,17 @@ export default function Activity({ studyData, studyId }) {
     [selectedSpecies]
   )
 
+  // Memoize geoKey to prevent MarkerClusterGroup remounts on unrelated state changes
+  const geoKey = useMemo(
+    () =>
+      selectedSpecies.map((s) => s.scientificName).join(',') +
+      (dateRange[0]?.toISOString() || '') +
+      (dateRange[1]?.toISOString() || '') +
+      timeRange.start +
+      timeRange.end,
+    [selectedSpecies, dateRange, timeRange]
+  )
+
   // Fetch sequence-aware timeseries data
   const { timeseries: timeseriesData } = useSequenceAwareTimeseries(
     actualStudyId,
@@ -491,14 +502,7 @@ export default function Activity({ studyData, studyId }) {
                   selectedSpecies={selectedSpecies}
                   palette={palette}
                   studyId={actualStudyId}
-                  geoKey={
-                    selectedSpecies.map((s) => s.scientificName).join(', ') +
-                    ' ' +
-                    dateRange +
-                    ' ' +
-                    timeRange.start +
-                    timeRange.end
-                  }
+                  geoKey={geoKey}
                 />
               )}
               {heatmapStatus === 'noData' && !isHeatmapLoading && (

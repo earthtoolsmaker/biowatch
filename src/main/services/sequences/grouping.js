@@ -171,8 +171,12 @@ export function groupMediaIntoSequences(mediaFiles, gapThresholdSeconds, isVideo
  * Media with null/invalid timestamps are separated and returned in nullTimestampMedia array.
  * Used when the sequence slider is set to "Off" (0) for CamtrapDP datasets with imported events.
  *
+ * WARNING: This function assumes the dataset has meaningful eventIDs from CamtrapDP import.
+ * If most media lack eventIDs or all share the same eventID, consider using timestamp-based
+ * grouping (groupMediaIntoSequences) instead for more meaningful sequence boundaries.
+ *
  * @param {Array} mediaFiles - Array of media files with mediaID, timestamp, eventID
- * @returns {{ sequences: Array<{ id, items, startTime, endTime }>, nullTimestampMedia: Array }} Object with sequences array and nullTimestampMedia array
+ * @returns {{ sequences: Array<{ id, items, startTime, endTime }>, nullTimestampMedia: Array, warnings: Array<string> }} Object with sequences array, nullTimestampMedia array, and optional warnings
  */
 export function groupMediaByEventID(mediaFiles) {
   if (!mediaFiles || mediaFiles.length === 0) {
@@ -241,8 +245,33 @@ export function groupMediaByEventID(mediaFiles) {
   }
 
   // Sort all sequences by startTime (descending to match gallery display)
+  const sortedSequences = sequences.sort((a, b) => b.startTime.getTime() - a.startTime.getTime())
+
+  // Generate warnings for potentially problematic eventID usage
+  const warnings = []
+  const totalValidMedia = validMedia.length
+  const mediaWithEventID = totalValidMedia - noEventItems.length
+
+  // Warn if most media lack eventIDs (eventID-based grouping may not be useful)
+  if (totalValidMedia > 0 && mediaWithEventID / totalValidMedia < 0.1) {
+    warnings.push(
+      `Only ${Math.round((mediaWithEventID / totalValidMedia) * 100)}% of media have eventIDs. ` +
+        'Consider using timestamp-based grouping for more meaningful sequences.'
+    )
+  }
+
+  // Warn if a single eventID contains most of the media (likely auto-generated or default value)
+  const largestEventSize = Math.max(...Array.from(eventGroups.values()).map((g) => g.length), 0)
+  if (mediaWithEventID > 10 && largestEventSize / mediaWithEventID > 0.5) {
+    warnings.push(
+      `A single eventID contains ${Math.round((largestEventSize / mediaWithEventID) * 100)}% of media. ` +
+        'eventIDs may not represent meaningful event boundaries.'
+    )
+  }
+
   return {
-    sequences: sequences.sort((a, b) => b.startTime.getTime() - a.startTime.getTime()),
-    nullTimestampMedia
+    sequences: sortedSequences,
+    nullTimestampMedia,
+    warnings
   }
 }

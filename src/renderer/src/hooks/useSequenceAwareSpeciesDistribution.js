@@ -30,7 +30,8 @@ export function useSequenceAwareSpeciesDistribution(studyId, gapSeconds, options
       return response.data
     },
     enabled: enabled && !!studyId,
-    refetchInterval
+    refetchInterval,
+    placeholderData: (previousData) => previousData
   })
 
   return {
@@ -63,7 +64,8 @@ export function useSequenceAwareTimeseries(studyId, speciesNames, gapSeconds, op
       if (response.error) throw new Error(response.error)
       return response.data
     },
-    enabled: enabled && !!studyId && speciesNames.length > 0
+    enabled: enabled && !!studyId && speciesNames.length > 0,
+    placeholderData: (previousData) => previousData
   })
 
   return {
@@ -183,7 +185,8 @@ export function useSequenceAwareDailyActivity(
       if (response.error) throw new Error(response.error)
       return response.data
     },
-    enabled: enabled && !!studyId && speciesNames.length > 0 && !!startDate && !!endDate
+    enabled: enabled && !!studyId && speciesNames.length > 0 && !!startDate && !!endDate,
+    placeholderData: (previousData) => previousData
   })
 
   return {

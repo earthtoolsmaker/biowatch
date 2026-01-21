@@ -4,10 +4,10 @@
  * and blanks (media without observations) to the very end.
  */
 
-/**
- * Sentinel value for blank media (media without observations)
- */
-export const BLANK_SENTINEL = '__blank__'
+import { BLANK_SENTINEL } from '../../../shared/constants.js'
+
+// Re-export for convenience
+export { BLANK_SENTINEL }
 
 /**
  * Check if a species entry represents blank media (no observations)

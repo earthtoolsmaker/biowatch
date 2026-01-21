@@ -22,6 +22,7 @@ import {
 import { DateTime } from 'luxon'
 import log from 'electron-log'
 import { getStudyIdFromPath, formatToMatchOriginal } from './utils.js'
+import { BLANK_SENTINEL } from '../../../shared/constants.js'
 
 /**
  * Get media files from the database that have animal observations with optional filtering
@@ -53,7 +54,6 @@ export async function getMedia(dbPath, options = {}) {
   log.info(`Pagination: limit ${queryLimit}, offset ${queryOffset}`)
 
   // Check if requesting blanks (media without observations)
-  const BLANK_SENTINEL = '__blank__'
   const requestingBlanks = species.includes(BLANK_SENTINEL)
   const regularSpecies = species.filter((s) => s !== BLANK_SENTINEL)
 

@@ -1,7 +1,6 @@
 import { useCallback, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-
-const DEFAULT_SEQUENCE_GAP = 120
+import { DEFAULT_SEQUENCE_GAP } from '../../../shared/constants.js'
 
 /**
  * Custom hook for managing sequence gap state with React Query caching.
@@ -36,20 +35,23 @@ export function useSequenceGap(studyId) {
         throw new Error(response.error)
       }
       return value
-    },
-    onSuccess: (value) => {
-      // Update cache immediately after successful mutation
-      queryClient.setQueryData(queryKey, value)
     }
   })
 
   // setSequenceGap updates database AND React Query cache
   const setSequenceGap = useCallback(
     (value) => {
+      // Save previous value for rollback on error
+      const previousValue = queryClient.getQueryData(queryKey)
       // Optimistic update for instant UI feedback
       queryClient.setQueryData(queryKey, value)
-      // Persist to database
-      mutation.mutate(value)
+      // Persist to database with rollback on error
+      mutation.mutate(value, {
+        onError: () => {
+          // Rollback to previous value if mutation fails
+          queryClient.setQueryData(queryKey, previousValue)
+        }
+      })
     },
     [queryClient, queryKey, mutation]
   )
@@ -64,4 +66,5 @@ export function useSequenceGap(studyId) {
   }
 }
 
+// Re-export for convenience
 export { DEFAULT_SEQUENCE_GAP }
