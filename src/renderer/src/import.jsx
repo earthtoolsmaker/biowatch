@@ -448,8 +448,8 @@ export default function Import({ onNewStudy, isFirstTimeUser = false }) {
           /* Returning user: Show Images Directory as featured */
           <Card className="mb-8 border-2 border-blue-500/20 bg-linear-to-br from-blue-50/50 to-blue-100/30 shadow-lg">
             <CardContent className="p-6">
-              <div className="flex gap-5 items-start mb-5">
-                <div className="size-14 rounded-2xl bg-linear-to-br from-blue-500 to-blue-600 flex items-center justify-center shrink-0 shadow-lg">
+              <div className="flex gap-5 items-stretch mb-5">
+                <div className="size-14 rounded-2xl bg-linear-to-br from-blue-500 to-blue-600 flex items-center justify-center shrink-0 shadow-lg self-center">
                   <FolderOpen className="size-7 text-white" />
                 </div>
                 <div className="flex-1">
@@ -461,31 +461,27 @@ export default function Import({ onNewStudy, isFirstTimeUser = false }) {
                   </div>
                   <p className="text-sm text-gray-600">
                     Import images and automatically detect and classify species using AI models.
+                    {getCompletelyInstalledModels().length === 0 &&
+                      ' To import from an images folder, you need to install an AI model first.'}
                   </p>
                 </div>
-              </div>
-
-              {getCompletelyInstalledModels().length === 0 ? (
-                /* No complete models installed - show Install AI Models button */
-                <div className="flex items-center gap-4">
-                  <p className="flex-1 text-sm text-gray-600">
-                    To import from an images folder, you need to install an AI model first. The
-                    model will automatically detect and classify species in your images.
-                  </p>
+                {getCompletelyInstalledModels().length === 0 && (
                   <Button
                     onClick={() => navigate('/settings/ml_zoo')}
-                    className="h-11 px-6 shrink-0"
+                    className="h-11 px-6 shrink-0 self-end"
                   >
                     Install AI Models
                   </Button>
-                </div>
-              ) : (
+                )}
+              </div>
+
+              {getCompletelyInstalledModels().length === 0 ? null : (
                 /* Some models installed - show enhanced dropdown */
                 <div className="flex gap-3 items-end">
                   <div className="flex-1">
-                    <label className="block mb-2 text-sm font-medium">Classification Model</label>
+                    <label className="block mb-2 text-sm font-medium">Choose a model</label>
                     <div className="flex gap-3">
-                      <div className="relative w-60">
+                      <div className="flex-1">
                         <Select
                           value={
                             selectedModel ? `${selectedModel.id}-${selectedModel.version}` : ''
@@ -500,7 +496,7 @@ export default function Import({ onNewStudy, isFirstTimeUser = false }) {
                             }
                           }}
                         >
-                          <SelectTrigger className="bg-white border-gray-200 h-11 w-full">
+                          <SelectTrigger className="w-full bg-white border-gray-200 h-11">
                             <SelectValue>
                               {selectedModel
                                 ? (() => {
@@ -567,8 +563,8 @@ export default function Import({ onNewStudy, isFirstTimeUser = false }) {
             /* Images Directory Card - for first-time users */
             <Card className="group hover:border-blue-500/20 transition-all hover:shadow-md">
               <CardContent className="p-5">
-                <div className="flex items-center gap-4">
-                  <div className="size-12 rounded-xl bg-gray-100 flex items-center justify-center shrink-0 group-hover:bg-blue-50 transition-colors">
+                <div className="flex items-stretch gap-4">
+                  <div className="size-12 rounded-xl bg-gray-100 flex items-center justify-center shrink-0 group-hover:bg-blue-50 transition-colors self-center">
                     <FolderOpen className="size-5 text-gray-500 group-hover:text-blue-600 transition-colors" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -577,7 +573,7 @@ export default function Import({ onNewStudy, isFirstTimeUser = false }) {
                       Import images and classify species using AI
                     </p>
                   </div>
-                  <div className="shrink-0 flex flex-col items-end gap-2">
+                  <div className="shrink-0 flex flex-col items-end justify-end gap-2">
                     {getCompletelyInstalledModels().length === 0 ? (
                       <>
                         <p className="text-xs text-gray-500">Requires an AI model</p>
