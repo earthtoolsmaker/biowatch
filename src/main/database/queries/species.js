@@ -600,63 +600,74 @@ export async function getSpeciesTimeseriesByMedia(dbPath, speciesNames = []) {
 
   try {
     const studyId = getStudyIdFromPath(dbPath)
-
-    let speciesFilter = ''
-    if (regularSpecies && regularSpecies.length > 0) {
-      const quotedSpecies = regularSpecies.map((name) => `'${name.replace(/'/g, "''")}'`).join(',')
-      speciesFilter = `AND o.scientificName IN (${quotedSpecies})`
-    }
+    const db = await getDrizzleDb(studyId, dbPath)
 
     const shouldRunSpeciesQuery = regularSpecies.length > 0 || !requestingBlanks
 
     let results = []
 
     if (shouldRunSpeciesQuery) {
-      const query = `
-        SELECT
-          o.scientificName,
-          m.mediaID,
-          m.timestamp,
-          m.deploymentID,
-          o.eventID,
-          m.fileMediatype,
-          date(substr(m.timestamp, 1, 10), 'weekday 0', '-7 days') as weekStart,
-          COUNT(o.observationID) as count
-        FROM observations o
-        INNER JOIN media m ON o.mediaID = m.mediaID
-        WHERE o.scientificName IS NOT NULL
-          AND o.scientificName != ''
-          AND (o.observationType IS NULL OR o.observationType != 'blank')
-          ${speciesFilter}
-        GROUP BY o.scientificName, m.mediaID
-        ORDER BY m.timestamp ASC
-      `
+      // Build species filter condition
+      const speciesCondition =
+        regularSpecies.length > 0
+          ? inArray(observations.scientificName, regularSpecies)
+          : isNotNull(observations.scientificName)
 
-      results = await executeRawQuery(studyId, dbPath, query)
+      // Week start calculation using SQLite date functions
+      const weekStartColumn =
+        sql`date(substr(${media.timestamp}, 1, 10), 'weekday 0', '-7 days')`.as('weekStart')
+
+      results = await db
+        .select({
+          scientificName: observations.scientificName,
+          mediaID: media.mediaID,
+          timestamp: media.timestamp,
+          deploymentID: media.deploymentID,
+          eventID: observations.eventID,
+          fileMediatype: media.fileMediatype,
+          weekStart: weekStartColumn,
+          count: count(observations.observationID).as('count')
+        })
+        .from(observations)
+        .innerJoin(media, eq(observations.mediaID, media.mediaID))
+        .where(
+          and(
+            isNotNull(observations.scientificName),
+            ne(observations.scientificName, ''),
+            or(isNull(observations.observationType), ne(observations.observationType, 'blank')),
+            speciesCondition
+          )
+        )
+        .groupBy(observations.scientificName, media.mediaID)
+        .orderBy(media.timestamp)
     }
 
     // Handle blanks if requested
     if (requestingBlanks) {
-      const blankQuery = `
-        SELECT
-          '${BLANK_SENTINEL}' as scientificName,
-          m.mediaID,
-          m.timestamp,
-          m.deploymentID,
-          NULL as eventID,
-          m.fileMediatype,
-          date(substr(m.timestamp, 1, 10), 'weekday 0', '-7 days') as weekStart,
-          1 as count
-        FROM media m
-        WHERE m.timestamp IS NOT NULL
-          AND NOT EXISTS (
-            SELECT 1 FROM observations o
-            WHERE o.mediaID = m.mediaID
-          )
-        ORDER BY m.timestamp ASC
-      `
+      const weekStartColumn =
+        sql`date(substr(${media.timestamp}, 1, 10), 'weekday 0', '-7 days')`.as('weekStart')
 
-      const blankResults = await executeRawQuery(studyId, dbPath, blankQuery)
+      // Correlated subquery for blank detection
+      const matchingObservations = db
+        .select({ one: sql`1` })
+        .from(observations)
+        .where(eq(observations.mediaID, media.mediaID))
+
+      const blankResults = await db
+        .select({
+          scientificName: sql`${BLANK_SENTINEL}`.as('scientificName'),
+          mediaID: media.mediaID,
+          timestamp: media.timestamp,
+          deploymentID: media.deploymentID,
+          eventID: sql`NULL`.as('eventID'),
+          fileMediatype: media.fileMediatype,
+          weekStart: weekStartColumn,
+          count: sql`1`.as('count')
+        })
+        .from(media)
+        .where(and(isNotNull(media.timestamp), notExists(matchingObservations)))
+        .orderBy(media.timestamp)
+
       results = [...results, ...blankResults]
     }
 
@@ -696,50 +707,59 @@ export async function getSpeciesHeatmapDataByMedia(
 
   try {
     const studyId = getStudyIdFromPath(dbPath)
+    const db = await getDrizzleDb(studyId, dbPath)
 
-    const quotedSpecies = species.map((name) => `'${name.replace(/'/g, "''")}'`).join(',')
+    // Build base conditions
+    const baseConditions = [
+      inArray(observations.scientificName, species),
+      isNotNull(deployments.latitude),
+      isNotNull(deployments.longitude)
+    ]
 
-    let timeOfDayFilter = ''
-    if (startHour < endHour) {
-      timeOfDayFilter = `AND CAST(strftime('%H', m.timestamp) AS INTEGER) >= ${startHour}
-                          AND CAST(strftime('%H', m.timestamp) AS INTEGER) < ${endHour}`
-    } else if (startHour > endHour) {
-      timeOfDayFilter = `AND (CAST(strftime('%H', m.timestamp) AS INTEGER) >= ${startHour}
-                          OR CAST(strftime('%H', m.timestamp) AS INTEGER) < ${endHour})`
-    }
-
-    let dateFilter = ''
+    // Add date range filter with null timestamp support
     if (includeNullTimestamps) {
-      dateFilter = `AND (m.timestamp IS NULL OR (m.timestamp >= '${startDate}' AND m.timestamp <= '${endDate}'))`
+      baseConditions.push(
+        or(
+          isNull(media.timestamp),
+          and(gte(media.timestamp, startDate), lte(media.timestamp, endDate))
+        )
+      )
     } else {
-      dateFilter = `AND m.timestamp >= '${startDate}' AND m.timestamp <= '${endDate}'`
+      baseConditions.push(gte(media.timestamp, startDate))
+      baseConditions.push(lte(media.timestamp, endDate))
     }
 
-    const query = `
-      SELECT
-        o.scientificName,
-        m.mediaID,
-        m.timestamp,
-        m.deploymentID,
-        o.eventID,
-        m.fileMediatype,
-        d.latitude,
-        d.longitude,
-        d.locationName,
-        COUNT(o.observationID) as count
-      FROM observations o
-      INNER JOIN media m ON o.mediaID = m.mediaID
-      INNER JOIN deployments d ON m.deploymentID = d.deploymentID
-      WHERE o.scientificName IN (${quotedSpecies})
-        AND d.latitude IS NOT NULL
-        AND d.longitude IS NOT NULL
-        ${dateFilter}
-        ${timeOfDayFilter}
-      GROUP BY o.scientificName, m.mediaID
-      ORDER BY m.timestamp ASC
-    `
+    // Add time-of-day condition using sql template for SQLite strftime
+    const hourColumn = sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER)`
+    if (startHour < endHour) {
+      // Simple range (e.g., 8:00 to 17:00)
+      baseConditions.push(sql`${hourColumn} >= ${startHour}`)
+      baseConditions.push(sql`${hourColumn} < ${endHour}`)
+    } else if (startHour > endHour) {
+      // Wrapping range (e.g., 22:00 to 6:00)
+      baseConditions.push(or(sql`${hourColumn} >= ${startHour}`, sql`${hourColumn} < ${endHour}`))
+    }
+    // If startHour equals endHour, we include all hours (full day)
 
-    const results = await executeRawQuery(studyId, dbPath, query)
+    const results = await db
+      .select({
+        scientificName: observations.scientificName,
+        mediaID: media.mediaID,
+        timestamp: media.timestamp,
+        deploymentID: media.deploymentID,
+        eventID: observations.eventID,
+        fileMediatype: media.fileMediatype,
+        latitude: deployments.latitude,
+        longitude: deployments.longitude,
+        locationName: deployments.locationName,
+        count: count(observations.observationID).as('count')
+      })
+      .from(observations)
+      .innerJoin(media, eq(observations.mediaID, media.mediaID))
+      .innerJoin(deployments, eq(media.deploymentID, deployments.deploymentID))
+      .where(and(...baseConditions))
+      .groupBy(observations.scientificName, media.mediaID)
+      .orderBy(media.timestamp)
 
     const elapsedTime = Date.now() - startTime
     log.info(`Retrieved species heatmap data by media: ${results.length} rows in ${elapsedTime}ms`)
@@ -770,58 +790,68 @@ export async function getSpeciesDailyActivityByMedia(dbPath, species, startDate,
 
   try {
     const studyId = getStudyIdFromPath(dbPath)
+    const db = await getDrizzleDb(studyId, dbPath)
 
     let results = []
 
+    // Hour extraction using SQLite strftime
+    const hourColumn = sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER)`.as('hour')
+
     if (regularSpecies.length > 0) {
-      const quotedSpecies = regularSpecies.map((name) => `'${name.replace(/'/g, "''")}'`).join(',')
-
-      const query = `
-        SELECT
-          o.scientificName,
-          m.mediaID,
-          m.timestamp,
-          m.deploymentID,
-          o.eventID,
-          m.fileMediatype,
-          CAST(strftime('%H', m.timestamp) AS INTEGER) as hour,
-          COUNT(o.observationID) as count
-        FROM observations o
-        INNER JOIN media m ON o.mediaID = m.mediaID
-        WHERE o.scientificName IN (${quotedSpecies})
-          AND m.timestamp >= '${startDate}'
-          AND m.timestamp <= '${endDate}'
-        GROUP BY o.scientificName, m.mediaID
-        ORDER BY m.timestamp ASC
-      `
-
-      results = await executeRawQuery(studyId, dbPath, query)
+      results = await db
+        .select({
+          scientificName: observations.scientificName,
+          mediaID: media.mediaID,
+          timestamp: media.timestamp,
+          deploymentID: media.deploymentID,
+          eventID: observations.eventID,
+          fileMediatype: media.fileMediatype,
+          hour: hourColumn,
+          count: count(observations.observationID).as('count')
+        })
+        .from(observations)
+        .innerJoin(media, eq(observations.mediaID, media.mediaID))
+        .where(
+          and(
+            inArray(observations.scientificName, regularSpecies),
+            gte(media.timestamp, startDate),
+            lte(media.timestamp, endDate)
+          )
+        )
+        .groupBy(observations.scientificName, media.mediaID)
+        .orderBy(media.timestamp)
     }
 
     // Handle blanks if requested
     if (requestingBlanks) {
-      const blankQuery = `
-        SELECT
-          '${BLANK_SENTINEL}' as scientificName,
-          m.mediaID,
-          m.timestamp,
-          m.deploymentID,
-          NULL as eventID,
-          m.fileMediatype,
-          CAST(strftime('%H', m.timestamp) AS INTEGER) as hour,
-          1 as count
-        FROM media m
-        WHERE m.timestamp IS NOT NULL
-          AND m.timestamp >= '${startDate}'
-          AND m.timestamp <= '${endDate}'
-          AND NOT EXISTS (
-            SELECT 1 FROM observations o
-            WHERE o.mediaID = m.mediaID
-          )
-        ORDER BY m.timestamp ASC
-      `
+      // Correlated subquery for blank detection
+      const matchingObservations = db
+        .select({ one: sql`1` })
+        .from(observations)
+        .where(eq(observations.mediaID, media.mediaID))
 
-      const blankResults = await executeRawQuery(studyId, dbPath, blankQuery)
+      const blankResults = await db
+        .select({
+          scientificName: sql`${BLANK_SENTINEL}`.as('scientificName'),
+          mediaID: media.mediaID,
+          timestamp: media.timestamp,
+          deploymentID: media.deploymentID,
+          eventID: sql`NULL`.as('eventID'),
+          fileMediatype: media.fileMediatype,
+          hour: hourColumn,
+          count: sql`1`.as('count')
+        })
+        .from(media)
+        .where(
+          and(
+            isNotNull(media.timestamp),
+            gte(media.timestamp, startDate),
+            lte(media.timestamp, endDate),
+            notExists(matchingObservations)
+          )
+        )
+        .orderBy(media.timestamp)
+
       results = [...results, ...blankResults]
     }
 
