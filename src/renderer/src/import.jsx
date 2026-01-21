@@ -562,28 +562,18 @@ export default function Import({ onNewStudy, isFirstTimeUser = false }) {
             /* Images Directory Card - for first-time users */
             <Card className="group hover:border-blue-500/20 transition-all hover:shadow-md">
               <CardContent className="p-5">
-                <div className="flex items-start gap-4">
+                <div
+                  className={`flex ${getCompletelyInstalledModels().length === 0 ? 'items-center' : 'items-start'} gap-4`}
+                >
                   <div className="size-12 rounded-xl bg-gray-100 flex items-center justify-center shrink-0 group-hover:bg-blue-50 transition-colors">
                     <FolderOpen className="size-5 text-gray-500 group-hover:text-blue-600 transition-colors" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <h4 className="mb-1 font-medium">Images Directory</h4>
                     {getCompletelyInstalledModels().length === 0 ? (
-                      <>
-                        <p className="text-sm text-gray-500 mb-3">
-                          Import images and classify species using AI
-                        </p>
-                        <div className="flex gap-3 items-center">
-                          <p className="text-sm text-gray-500">Requires an AI model</p>
-                          <Button
-                            variant="outline"
-                            className="shrink-0 w-40 ml-auto"
-                            onClick={() => navigate('/settings/ml_zoo')}
-                          >
-                            Install AI Models
-                          </Button>
-                        </div>
-                      </>
+                      <p className="text-sm text-gray-500">
+                        Import images and classify species using AI
+                      </p>
                     ) : (
                       <>
                         <p className="text-sm text-gray-500 mb-3">
@@ -660,6 +650,15 @@ export default function Import({ onNewStudy, isFirstTimeUser = false }) {
                       </>
                     )}
                   </div>
+                  {getCompletelyInstalledModels().length === 0 && (
+                    <Button
+                      variant="outline"
+                      className="shrink-0 w-40"
+                      onClick={() => navigate('/settings/ml_zoo')}
+                    >
+                      Install AI Models
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
