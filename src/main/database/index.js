@@ -210,9 +210,6 @@ export {
   // Species
   getSpeciesDistribution,
   getBlankMediaCount,
-  getSpeciesTimeseries,
-  getSpeciesHeatmapData,
-  getSpeciesDailyActivity,
   getDistinctSpecies,
   getSpeciesDistributionByMedia,
   getSpeciesTimeseriesByMedia,

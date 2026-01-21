@@ -39,29 +39,6 @@ const api = {
   checkStudyHasEventIDs: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('study:has-event-ids', studyId)
   },
-  getSpeciesTimeseries: async (studyId, species) => {
-    return await electronAPI.ipcRenderer.invoke('activity:get-timeseries', studyId, species)
-  },
-  getSpeciesHeatmapData: async (
-    studyId,
-    species,
-    startDate,
-    endDate,
-    startTime,
-    endTime,
-    includeNullTimestamps = false
-  ) => {
-    return await electronAPI.ipcRenderer.invoke(
-      'activity:get-heatmap-data',
-      studyId,
-      species,
-      startDate,
-      endDate,
-      startTime,
-      endTime,
-      includeNullTimestamps
-    )
-  },
   getLocationsActivity: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('locations:get-activity', studyId)
   },
@@ -90,15 +67,6 @@ const api = {
   },
   getBestImagePerSpecies: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('species:get-best-images', studyId)
-  },
-  getSpeciesDailyActivity: async (studyId, species, startDate, endDate) => {
-    return await electronAPI.ipcRenderer.invoke(
-      'activity:get-daily',
-      studyId,
-      species,
-      startDate,
-      endDate
-    )
   },
   // Sequence-aware species distribution APIs
   getSpeciesDistributionByMedia: async (studyId) => {

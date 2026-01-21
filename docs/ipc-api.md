@@ -103,9 +103,6 @@ Example: If a deer walks past a camera triggering 3 photos with 2, 3, and 1 deer
 
 | Method | Channel | Parameters | Returns |
 |--------|---------|------------|---------|
-| `getSpeciesTimeseries(studyId, species)` | `activity:get-timeseries` | studyId, species | `{ data: TimeseriesPoint[] }` |
-| `getSpeciesDailyActivity(studyId, species, startDate, endDate)` | `activity:get-daily` | studyId, species, startDate?, endDate? | `{ data: DailyActivity[] }` |
-| `getSpeciesHeatmapData(studyId, species, startDate, endDate, startTime, endTime)` | `activity:get-heatmap-data` | studyId, species, filters... | `{ data: HeatmapData }` |
 | `getSpeciesHeatmapDataByMedia(studyId, species, startDate, endDate, startTime, endTime, includeNullTimestamps)` | `activity:get-heatmap-data-by-media` | studyId, species, filters... | `{ data: MediaHeatmap[] }` |
 | `getSpeciesDailyActivityByMedia(studyId, species, startDate, endDate)` | `activity:get-daily-by-media` | studyId, species, dates | `{ data: MediaDailyActivity[] }` |
 
