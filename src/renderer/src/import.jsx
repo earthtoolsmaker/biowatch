@@ -476,77 +476,71 @@ export default function Import({ onNewStudy, isFirstTimeUser = false }) {
               </div>
 
               {getCompletelyInstalledModels().length === 0 ? null : (
-                /* Some models installed - show enhanced dropdown */
-                <div className="flex gap-3 items-end">
-                  <div className="flex-1">
-                    <label className="block mb-2 text-sm font-medium">Choose a model</label>
-                    <div className="flex gap-3">
-                      <div className="flex-1">
-                        <Select
-                          value={
-                            selectedModel ? `${selectedModel.id}-${selectedModel.version}` : ''
+                /* Some models installed - show dropdown matching GBIF/LILA style */
+                <>
+                  <p className="text-sm text-gray-500 mb-3">
+                    Choose a model to classify your images.
+                  </p>
+                  <div className="flex gap-3">
+                    <Select
+                      value={selectedModel ? `${selectedModel.id}-${selectedModel.version}` : ''}
+                      onValueChange={(value) => {
+                        const [id, version] = value.split('-')
+                        const model = modelZoo.find(
+                          (m) => m.reference.id === id && m.reference.version === version
+                        )
+                        if (model && isModelCompletelyInstalled(model.reference)) {
+                          setSelectedModel(model.reference)
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-full max-w-lg bg-white border-gray-200 h-11">
+                        <SelectValue>
+                          {selectedModel
+                            ? (() => {
+                                const model = modelZoo.find(
+                                  (m) =>
+                                    m.reference.id === selectedModel.id &&
+                                    m.reference.version === selectedModel.version
+                                )
+                                return model ? `${model.name} v${model.reference.version}` : ''
+                              })()
+                            : 'Select a model'}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {modelZoo.map((model) => {
+                          const modelInstalled = isModelInstalled(model.reference)
+                          const envInstalled = isEnvironmentInstalled(model.pythonEnvironment)
+                          const completelyInstalled = modelInstalled && envInstalled
+
+                          let statusText = ''
+                          if (!modelInstalled) {
+                            statusText = ' (not installed)'
+                          } else if (!envInstalled) {
+                            statusText = ' (environment missing)'
                           }
-                          onValueChange={(value) => {
-                            const [id, version] = value.split('-')
-                            const model = modelZoo.find(
-                              (m) => m.reference.id === id && m.reference.version === version
-                            )
-                            if (model && isModelCompletelyInstalled(model.reference)) {
-                              setSelectedModel(model.reference)
-                            }
-                          }}
-                        >
-                          <SelectTrigger className="w-full bg-white border-gray-200 h-11">
-                            <SelectValue>
-                              {selectedModel
-                                ? (() => {
-                                    const model = modelZoo.find(
-                                      (m) =>
-                                        m.reference.id === selectedModel.id &&
-                                        m.reference.version === selectedModel.version
-                                    )
-                                    return model ? `${model.name} v${model.reference.version}` : ''
-                                  })()
-                                : 'Select a model'}
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent>
-                            {modelZoo.map((model) => {
-                              const modelInstalled = isModelInstalled(model.reference)
-                              const envInstalled = isEnvironmentInstalled(model.pythonEnvironment)
-                              const completelyInstalled = modelInstalled && envInstalled
 
-                              let statusText = ''
-                              if (!modelInstalled) {
-                                statusText = ' (not installed)'
-                              } else if (!envInstalled) {
-                                statusText = ' (environment missing)'
-                              }
-
-                              return (
-                                <SelectItem
-                                  key={`${model.reference.id}-${model.reference.version}`}
-                                  value={`${model.reference.id}-${model.reference.version}`}
-                                  disabled={!completelyInstalled}
-                                  className={
-                                    !completelyInstalled ? 'opacity-50 cursor-not-allowed' : ''
-                                  }
-                                >
-                                  {model.name} v{model.reference.version}
-                                  {statusText}
-                                </SelectItem>
-                              )
-                            })}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <Button onClick={handleImportImages} className="h-11 px-6">
-                        <FolderOpen className="size-4 mr-2" />
-                        Select Folder
-                      </Button>
-                    </div>
+                          return (
+                            <SelectItem
+                              key={`${model.reference.id}-${model.reference.version}`}
+                              value={`${model.reference.id}-${model.reference.version}`}
+                              disabled={!completelyInstalled}
+                              className={!completelyInstalled ? 'opacity-50 cursor-not-allowed' : ''}
+                            >
+                              {model.name} v{model.reference.version}
+                              {statusText}
+                            </SelectItem>
+                          )
+                        })}
+                      </SelectContent>
+                    </Select>
+                    <Button onClick={handleImportImages} className="shrink-0 w-40 ml-auto h-11">
+                      <FolderOpen className="size-4 mr-2" />
+                      Select Folder
+                    </Button>
                   </div>
-                </div>
+                </>
               )}
             </CardContent>
           </Card>
@@ -563,90 +557,101 @@ export default function Import({ onNewStudy, isFirstTimeUser = false }) {
             /* Images Directory Card - for first-time users */
             <Card className="group hover:border-blue-500/20 transition-all hover:shadow-md">
               <CardContent className="p-5">
-                <div className="flex items-stretch gap-4">
-                  <div className="size-12 rounded-xl bg-gray-100 flex items-center justify-center shrink-0 group-hover:bg-blue-50 transition-colors self-center">
+                <div className="flex items-start gap-4">
+                  <div className="size-12 rounded-xl bg-gray-100 flex items-center justify-center shrink-0 group-hover:bg-blue-50 transition-colors">
                     <FolderOpen className="size-5 text-gray-500 group-hover:text-blue-600 transition-colors" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <h4 className="mb-1 font-medium">Images Directory</h4>
-                    <p className="text-sm text-gray-500">
-                      Import images and classify species using AI
-                    </p>
-                  </div>
-                  <div className="shrink-0 flex flex-col items-end justify-end gap-2">
                     {getCompletelyInstalledModels().length === 0 ? (
                       <>
-                        <p className="text-xs text-gray-500">Requires an AI model</p>
-                        <Button
-                          variant="outline"
-                          className="w-40"
-                          onClick={() => navigate('/settings/ml_zoo')}
-                        >
-                          Install AI Models
-                        </Button>
+                        <p className="text-sm text-gray-500 mb-3">
+                          Import images and classify species using AI
+                        </p>
+                        <div className="flex gap-3 items-center">
+                          <p className="text-sm text-gray-500">Requires an AI model</p>
+                          <Button
+                            variant="outline"
+                            className="shrink-0 w-40 ml-auto"
+                            onClick={() => navigate('/settings/ml_zoo')}
+                          >
+                            Install AI Models
+                          </Button>
+                        </div>
                       </>
                     ) : (
                       <>
-                        <Select
-                          value={
-                            selectedModel ? `${selectedModel.id}-${selectedModel.version}` : ''
-                          }
-                          onValueChange={(value) => {
-                            const [id, version] = value.split('-')
-                            const model = modelZoo.find(
-                              (m) => m.reference.id === id && m.reference.version === version
-                            )
-                            if (model && isModelCompletelyInstalled(model.reference)) {
-                              setSelectedModel(model.reference)
+                        <p className="text-sm text-gray-500 mb-3">
+                          Choose a model to classify your images.
+                        </p>
+                        <div className="flex gap-3">
+                          <Select
+                            value={
+                              selectedModel ? `${selectedModel.id}-${selectedModel.version}` : ''
                             }
-                          }}
-                        >
-                          <SelectTrigger className="w-40 bg-white border-gray-200">
-                            <SelectValue>
-                              {selectedModel
-                                ? (() => {
-                                    const model = modelZoo.find(
-                                      (m) =>
-                                        m.reference.id === selectedModel.id &&
-                                        m.reference.version === selectedModel.version
-                                    )
-                                    return model ? `${model.name} v${model.reference.version}` : ''
-                                  })()
-                                : 'Select a model'}
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent>
-                            {modelZoo.map((model) => {
-                              const modelInstalled = isModelInstalled(model.reference)
-                              const envInstalled = isEnvironmentInstalled(model.pythonEnvironment)
-                              const completelyInstalled = modelInstalled && envInstalled
-
-                              let statusText = ''
-                              if (!modelInstalled) {
-                                statusText = ' (not installed)'
-                              } else if (!envInstalled) {
-                                statusText = ' (environment missing)'
-                              }
-
-                              return (
-                                <SelectItem
-                                  key={`${model.reference.id}-${model.reference.version}`}
-                                  value={`${model.reference.id}-${model.reference.version}`}
-                                  disabled={!completelyInstalled}
-                                  className={
-                                    !completelyInstalled ? 'opacity-50 cursor-not-allowed' : ''
-                                  }
-                                >
-                                  {model.name} v{model.reference.version}
-                                  {statusText}
-                                </SelectItem>
+                            onValueChange={(value) => {
+                              const [id, version] = value.split('-')
+                              const model = modelZoo.find(
+                                (m) => m.reference.id === id && m.reference.version === version
                               )
-                            })}
-                          </SelectContent>
-                        </Select>
-                        <Button variant="outline" className="w-40" onClick={handleImportImages}>
-                          Select Folder
-                        </Button>
+                              if (model && isModelCompletelyInstalled(model.reference)) {
+                                setSelectedModel(model.reference)
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="w-full max-w-lg bg-white border-gray-200">
+                              <SelectValue>
+                                {selectedModel
+                                  ? (() => {
+                                      const model = modelZoo.find(
+                                        (m) =>
+                                          m.reference.id === selectedModel.id &&
+                                          m.reference.version === selectedModel.version
+                                      )
+                                      return model
+                                        ? `${model.name} v${model.reference.version}`
+                                        : ''
+                                    })()
+                                  : 'Select a model'}
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                              {modelZoo.map((model) => {
+                                const modelInstalled = isModelInstalled(model.reference)
+                                const envInstalled = isEnvironmentInstalled(model.pythonEnvironment)
+                                const completelyInstalled = modelInstalled && envInstalled
+
+                                let statusText = ''
+                                if (!modelInstalled) {
+                                  statusText = ' (not installed)'
+                                } else if (!envInstalled) {
+                                  statusText = ' (environment missing)'
+                                }
+
+                                return (
+                                  <SelectItem
+                                    key={`${model.reference.id}-${model.reference.version}`}
+                                    value={`${model.reference.id}-${model.reference.version}`}
+                                    disabled={!completelyInstalled}
+                                    className={
+                                      !completelyInstalled ? 'opacity-50 cursor-not-allowed' : ''
+                                    }
+                                  >
+                                    {model.name} v{model.reference.version}
+                                    {statusText}
+                                  </SelectItem>
+                                )
+                              })}
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            variant="outline"
+                            className="shrink-0 w-40 ml-auto"
+                            onClick={handleImportImages}
+                          >
+                            Select Folder
+                          </Button>
+                        </div>
                       </>
                     )}
                   </div>
