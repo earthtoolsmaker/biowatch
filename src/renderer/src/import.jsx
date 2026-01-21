@@ -419,7 +419,7 @@ export default function Import({ onNewStudy, isFirstTimeUser = false }) {
           /* First-time user: Show Demo Dataset as featured */
           <Card className="mb-8 border-2 border-blue-500/20 bg-linear-to-br from-blue-50/50 to-blue-100/30 shadow-lg">
             <CardContent className="p-6">
-              <div className="flex gap-5 items-start mb-5">
+              <div className="flex gap-5 items-start">
                 <div className="size-14 rounded-2xl bg-linear-to-br from-blue-500 to-blue-600 flex items-center justify-center shrink-0 shadow-lg">
                   <Sparkles className="size-7 text-white" />
                 </div>
@@ -430,18 +430,21 @@ export default function Import({ onNewStudy, isFirstTimeUser = false }) {
                       Recommended
                     </span>
                   </div>
-                  <p className="text-sm text-gray-600">
-                    Explore all features with sample camera trap data. Perfect for getting started.
-                  </p>
+                  <div className="flex gap-3 items-center">
+                    <p className="text-sm text-gray-600">
+                      Explore all features with sample camera trap data. Perfect for getting
+                      started.
+                    </p>
+                    <Button
+                      onClick={handleDemoDataset}
+                      data-testid="import-demo-btn"
+                      className="shrink-0 w-40 ml-auto"
+                    >
+                      Get Started
+                    </Button>
+                  </div>
                 </div>
               </div>
-              <Button
-                onClick={handleDemoDataset}
-                data-testid="import-demo-btn"
-                className="h-11 px-6"
-              >
-                Load Demo Dataset
-              </Button>
             </CardContent>
           </Card>
         ) : (
@@ -526,7 +529,9 @@ export default function Import({ onNewStudy, isFirstTimeUser = false }) {
                               key={`${model.reference.id}-${model.reference.version}`}
                               value={`${model.reference.id}-${model.reference.version}`}
                               disabled={!completelyInstalled}
-                              className={!completelyInstalled ? 'opacity-50 cursor-not-allowed' : ''}
+                              className={
+                                !completelyInstalled ? 'opacity-50 cursor-not-allowed' : ''
+                              }
                             >
                               {model.name} v{model.reference.version}
                               {statusText}
