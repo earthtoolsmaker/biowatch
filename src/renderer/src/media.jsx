@@ -44,7 +44,7 @@ import {
   useSequenceAwareTimeseries,
   useSequenceAwareDailyActivity
 } from './hooks/useSequenceAwareSpeciesDistribution'
-import { useSequenceGap } from './hooks/useSequenceGap'
+import { useSequenceGap, DEFAULT_SEQUENCE_GAP } from './hooks/useSequenceGap'
 
 /**
  * Observation list panel - collapsible list of all detections
@@ -2560,17 +2560,23 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
   })
 
   // Sequence gap - uses React Query cache for cross-component sync
-  const { sequenceGap, setSequenceGap } = useSequenceGap(id)
+  const {
+    sequenceGap,
+    rawSequenceGap,
+    setSequenceGap,
+    isLoading: isSequenceGapLoading
+  } = useSequenceGap(id)
 
   // Set default based on hasEventIDs when there's no saved preference
   useEffect(() => {
-    if (hasEventIDs !== undefined) {
-      const saved = localStorage.getItem(`sequenceGap:${id}`)
-      if (saved === null) {
-        setSequenceGap(hasEventIDs ? 0 : 120)
-      }
+    // Wait for database value to load
+    if (isSequenceGapLoading || hasEventIDs === undefined) return
+
+    // If no value in database, set smart default based on hasEventIDs
+    if (rawSequenceGap === null) {
+      setSequenceGap(hasEventIDs ? 0 : DEFAULT_SEQUENCE_GAP)
     }
-  }, [id, hasEventIDs, setSequenceGap])
+  }, [id, hasEventIDs, rawSequenceGap, isSequenceGapLoading, setSequenceGap])
 
   // Fetch media with infinite query for pagination
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useInfiniteQuery({
@@ -2958,35 +2964,8 @@ export default function Activity({ studyData, studyId }) {
   const [fullExtent, setFullExtent] = useState([null, null])
   const [timeRange, setTimeRange] = useState({ start: 0, end: 24 })
 
-  // Sequence gap - read from localStorage (same key as MediaTab)
-  const sequenceGapKey = `sequenceGap:${actualStudyId}`
-  const [sequenceGap, setSequenceGap] = useState(() => {
-    const saved = localStorage.getItem(sequenceGapKey)
-    return saved !== null ? Number(saved) : 120
-  })
-
-  // Listen for localStorage changes (when user changes gap in MediaTab)
-  useEffect(() => {
-    const handleStorageChange = (e) => {
-      if (e.key === sequenceGapKey && e.newValue !== null) {
-        setSequenceGap(Number(e.newValue))
-      }
-    }
-    window.addEventListener('storage', handleStorageChange)
-    return () => window.removeEventListener('storage', handleStorageChange)
-  }, [sequenceGapKey])
-
-  // Also poll for localStorage changes (storage event doesn't fire in same tab)
-  useEffect(() => {
-    const checkLocalStorage = () => {
-      const saved = localStorage.getItem(sequenceGapKey)
-      if (saved !== null && Number(saved) !== sequenceGap) {
-        setSequenceGap(Number(saved))
-      }
-    }
-    const interval = setInterval(checkLocalStorage, 1000)
-    return () => clearInterval(interval)
-  }, [sequenceGapKey, sequenceGap])
+  // Sequence gap - uses React Query for sync across components
+  const { sequenceGap } = useSequenceGap(actualStudyId)
 
   const taxonomicData = studyData?.taxonomic || null
 

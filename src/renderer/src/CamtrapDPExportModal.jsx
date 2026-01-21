@@ -71,7 +71,7 @@ function CamtrapDPExportModal({ isOpen, onConfirm, onCancel, studyId }) {
       includeMedia,
       selectedSpecies: Array.from(selectedSpecies),
       includeBlank,
-      sequenceGap
+      sequenceGap: sequenceGap
     })
   }
 
