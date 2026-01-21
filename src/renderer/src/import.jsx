@@ -196,10 +196,6 @@ export default function Import({ onNewStudy, isFirstTimeUser = false }) {
     )
   }
 
-  const getInstalledModels = () => {
-    return modelZoo.filter((model) => isModelInstalled(model.reference))
-  }
-
   const handleCamTrapDP = async () => {
     const { id } = await window.api.selectCamtrapDPDataset()
     if (!id) return
@@ -471,11 +467,16 @@ export default function Import({ onNewStudy, isFirstTimeUser = false }) {
 
               {getCompletelyInstalledModels().length === 0 ? (
                 /* No complete models installed - show Install AI Models button */
-                <div className="flex gap-3 items-end">
-                  <Button onClick={() => navigate('/settings/ml_zoo')} className="h-11 px-6">
-                    {getInstalledModels().length === 0
-                      ? 'Install AI Models'
-                      : 'Install AI Environments'}
+                <div className="flex items-center gap-4">
+                  <p className="flex-1 text-sm text-gray-600">
+                    To import from an images folder, you need to install an AI model first. The
+                    model will automatically detect and classify species in your images.
+                  </p>
+                  <Button
+                    onClick={() => navigate('/settings/ml_zoo')}
+                    className="h-11 px-6 shrink-0"
+                  >
+                    Install AI Models
                   </Button>
                 </div>
               ) : (
@@ -576,15 +577,18 @@ export default function Import({ onNewStudy, isFirstTimeUser = false }) {
                       Import images and classify species using AI
                     </p>
                   </div>
-                  <div className="shrink-0 flex flex-col gap-2">
+                  <div className="shrink-0 flex flex-col items-end gap-2">
                     {getCompletelyInstalledModels().length === 0 ? (
-                      <Button
-                        variant="outline"
-                        className="w-40"
-                        onClick={() => navigate('/settings/ml_zoo')}
-                      >
-                        Install AI Models
-                      </Button>
+                      <>
+                        <p className="text-xs text-gray-500">Requires an AI model</p>
+                        <Button
+                          variant="outline"
+                          className="w-40"
+                          onClick={() => navigate('/settings/ml_zoo')}
+                        >
+                          Install AI Models
+                        </Button>
+                      </>
                     ) : (
                       <>
                         <Select
