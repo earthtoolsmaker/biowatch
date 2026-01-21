@@ -57,6 +57,18 @@ export function calculateSequenceAwareSpeciesCounts(observationsByMedia, gapSeco
     }
   }
 
+  // Build index: mediaID -> array of {scientificName, count}
+  const observationsByMediaID = new Map()
+  for (const obs of observationsByMedia) {
+    if (!observationsByMediaID.has(obs.mediaID)) {
+      observationsByMediaID.set(obs.mediaID, [])
+    }
+    observationsByMediaID.get(obs.mediaID).push({
+      scientificName: obs.scientificName,
+      count: obs.count
+    })
+  }
+
   // Convert media map to array for grouping
   const mediaArray = Array.from(mediaMap.values())
 
@@ -83,11 +95,10 @@ export function calculateSequenceAwareSpeciesCounts(observationsByMedia, gapSeco
 
     // Find max count for each species in this sequence
     for (const media of sequence.items) {
-      for (const obs of observationsByMedia) {
-        if (obs.mediaID === media.mediaID) {
-          const current = sequenceMaxCounts.get(obs.scientificName) || 0
-          sequenceMaxCounts.set(obs.scientificName, Math.max(current, obs.count))
-        }
+      const mediaObs = observationsByMediaID.get(media.mediaID) || []
+      for (const { scientificName, count } of mediaObs) {
+        const current = sequenceMaxCounts.get(scientificName) || 0
+        sequenceMaxCounts.set(scientificName, Math.max(current, count))
       }
     }
 
@@ -100,11 +111,10 @@ export function calculateSequenceAwareSpeciesCounts(observationsByMedia, gapSeco
 
   // Process null-timestamp media (each is its own "sequence")
   for (const media of nullTimestampMedia) {
-    for (const obs of observationsByMedia) {
-      if (obs.mediaID === media.mediaID) {
-        const current = speciesCounts.get(obs.scientificName) || 0
-        speciesCounts.set(obs.scientificName, current + obs.count)
-      }
+    const mediaObs = observationsByMediaID.get(media.mediaID) || []
+    for (const { scientificName, count } of mediaObs) {
+      const current = speciesCounts.get(scientificName) || 0
+      speciesCounts.set(scientificName, current + count)
     }
   }
 

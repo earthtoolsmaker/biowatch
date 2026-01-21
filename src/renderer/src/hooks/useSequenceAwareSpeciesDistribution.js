@@ -76,7 +76,7 @@ export function useSequenceAwareTimeseries(studyId, speciesNames, gapSeconds, op
     isLoading,
     error
   } = useQuery({
-    queryKey: ['speciesTimeseriesByMedia', studyId, speciesNames],
+    queryKey: ['speciesTimeseriesByMedia', studyId, [...speciesNames].sort()],
     queryFn: async () => {
       const response = await window.api.getSpeciesTimeseriesByMedia(studyId, speciesNames)
       if (response.error) throw new Error(response.error)
@@ -134,7 +134,7 @@ export function useSequenceAwareHeatmap(
     queryKey: [
       'speciesHeatmapByMedia',
       studyId,
-      speciesNames,
+      [...speciesNames].sort(),
       startDate,
       endDate,
       startHour,
@@ -197,7 +197,13 @@ export function useSequenceAwareDailyActivity(
     isLoading,
     error
   } = useQuery({
-    queryKey: ['speciesDailyActivityByMedia', studyId, speciesNames, startDate, endDate],
+    queryKey: [
+      'speciesDailyActivityByMedia',
+      studyId,
+      [...speciesNames].sort(),
+      startDate,
+      endDate
+    ],
     queryFn: async () => {
       const response = await window.api.getSpeciesDailyActivityByMedia(
         studyId,
