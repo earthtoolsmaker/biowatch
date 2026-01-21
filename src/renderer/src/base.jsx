@@ -301,14 +301,35 @@ function AppContent() {
         <div className="p-4 border-b border-gray-200">
           <div className={`flex items-center justify-between ${studies.length > 0 ? 'mb-3' : ''}`}>
             <h2 className="text-gray-900">Studies</h2>
-            <NavLink
-              to="/import"
-              data-testid="add-study-btn"
-              className="h-7 w-7 p-0 flex items-center justify-center rounded hover:bg-gray-100 transition-colors"
-              title="Add a new study"
-            >
-              <Plus className="h-4 w-4" />
-            </NavLink>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <NavLink
+                  to="/import"
+                  data-testid="add-study-btn"
+                  className={`h-7 w-7 p-0 flex items-center justify-center rounded transition-colors ${
+                    location.pathname === '/import'
+                      ? 'bg-blue-50 text-blue-700'
+                      : 'hover:bg-gray-100'
+                  }`}
+                >
+                  <Plus className="h-4 w-4" />
+                </NavLink>
+              </Tooltip.Trigger>
+              <Tooltip.Portal>
+                <Tooltip.Content
+                  side="bottom"
+                  sideOffset={8}
+                  align="end"
+                  className="z-[10000] max-w-xs px-3 py-2 bg-gray-900 text-white text-xs rounded-md shadow-lg"
+                >
+                  <p className="font-medium mb-1">Add Study</p>
+                  <p className="text-gray-300">
+                    Create a new study by importing camera trap images.
+                  </p>
+                  <Tooltip.Arrow className="fill-gray-900" />
+                </Tooltip.Content>
+              </Tooltip.Portal>
+            </Tooltip.Root>
           </div>
 
           {/* Search - only show when there are studies */}
