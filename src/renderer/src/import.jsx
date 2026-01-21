@@ -242,9 +242,10 @@ export default function Import({ onNewStudy, studiesCount = 0 }) {
       console.log('Demo dataset downloaded:', data, id)
 
       // Brief delay to show completion state, then navigate
-      setTimeout(() => {
+      setTimeout(async () => {
         setIsDemoImporting(false)
         setDemoImportProgress(null)
+        await queryClient.invalidateQueries({ queryKey: ['studies'] })
         onNewStudy({ id, name: data.name, data, path })
         navigate(`/study/${id}`)
       }, 800)
@@ -332,9 +333,10 @@ export default function Import({ onNewStudy, studiesCount = 0 }) {
       console.log('GBIF dataset imported:', data, id)
 
       // Brief delay to show completion state, then navigate
-      setTimeout(() => {
+      setTimeout(async () => {
         setIsGbifImporting(false)
         setGbifImportProgress(null)
+        await queryClient.invalidateQueries({ queryKey: ['studies'] })
         onNewStudy({ id, name: data.name, data, path })
         navigate(`/study/${id}`)
       }, 800)
@@ -371,9 +373,10 @@ export default function Import({ onNewStudy, studiesCount = 0 }) {
       console.log('LILA dataset imported:', data, id)
 
       // Brief delay to show completion state, then navigate
-      setTimeout(() => {
+      setTimeout(async () => {
         setIsLilaImporting(false)
         setLilaImportProgress(null)
+        await queryClient.invalidateQueries({ queryKey: ['studies'] })
         onNewStudy({ id, name: data.name, data, path })
         navigate(`/study/${id}`)
       }, 800)
