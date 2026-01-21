@@ -10,9 +10,7 @@ import {
   getSpeciesDistribution,
   getBlankMediaCount,
   getDistinctSpecies,
-  getBestImagePerSpecies,
-  getSpeciesDistributionByMedia,
-  getSpeciesTimeseriesByMedia
+  getBestImagePerSpecies
 } from '../database/index.js'
 
 /**
@@ -81,40 +79,6 @@ export function registerSpeciesIPCHandlers() {
       return { data: bestImages }
     } catch (error) {
       log.error('Error getting best images per species:', error)
-      return { error: error.message }
-    }
-  })
-
-  // Get species distribution grouped by media for sequence-aware counting
-  ipcMain.handle('species:get-distribution-by-media', async (_, studyId) => {
-    try {
-      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
-      if (!dbPath || !existsSync(dbPath)) {
-        log.warn(`Database not found for study ID: ${studyId}`)
-        return { error: 'Database not found for this study' }
-      }
-
-      const distribution = await getSpeciesDistributionByMedia(dbPath)
-      return { data: distribution }
-    } catch (error) {
-      log.error('Error getting species distribution by media:', error)
-      return { error: error.message }
-    }
-  })
-
-  // Get species timeseries by media for sequence-aware counting
-  ipcMain.handle('species:get-timeseries-by-media', async (_, studyId, species) => {
-    try {
-      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
-      if (!dbPath || !existsSync(dbPath)) {
-        log.warn(`Database not found for study ID: ${studyId}`)
-        return { error: 'Database not found for this study' }
-      }
-
-      const timeseries = await getSpeciesTimeseriesByMedia(dbPath, species)
-      return { data: timeseries }
-    } catch (error) {
-      log.error('Error getting species timeseries by media:', error)
       return { error: error.message }
     }
   })

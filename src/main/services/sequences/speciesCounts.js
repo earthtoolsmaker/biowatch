@@ -9,12 +9,12 @@
  * - This represents the minimum number of individuals observed in that event
  *
  * Example:
- * - Sequence 1: Photo A (2 deer), Photo B (3 deer), Photo C (1 deer) → max deer = 3
- * - Sequence 2: Photo D (5 deer), Photo E (2 deer) → max deer = 5
+ * - Sequence 1: Photo A (2 deer), Photo B (3 deer), Photo C (1 deer) -> max deer = 3
+ * - Sequence 2: Photo D (5 deer), Photo E (2 deer) -> max deer = 5
  * - Total deer = 3 + 5 = 8 (instead of 13 if we counted each observation)
  */
 
-import { groupMediaIntoSequences, groupMediaByEventID } from './sequenceGrouping.js'
+import { groupMediaIntoSequences, groupMediaByEventID } from './grouping.js'
 
 /**
  * Check if a media item is a video based on fileMediatype
@@ -141,7 +141,24 @@ export function calculateSequenceAwareTimeseries(observationsByMedia, gapSeconds
   // Group observations by week
   const observationsByWeek = new Map()
   for (const obs of observationsByMedia) {
-    const week = obs.weekStart
+    let week = obs.weekStart
+
+    // Fallback: compute weekStart from timestamp if weekStart is null
+    if (!week && obs.timestamp) {
+      try {
+        const date = new Date(obs.timestamp)
+        if (!isNaN(date.getTime())) {
+          // Get Monday of the week (ISO week)
+          const day = date.getUTCDay()
+          const diff = date.getUTCDate() - day + (day === 0 ? -6 : 1)
+          date.setUTCDate(diff)
+          week = date.toISOString().slice(0, 10)
+        }
+      } catch {
+        // Invalid date, skip
+      }
+    }
+
     if (!week) continue
     if (!observationsByWeek.has(week)) {
       observationsByWeek.set(week, [])

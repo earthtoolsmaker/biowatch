@@ -286,7 +286,10 @@ export async function getSpeciesHeatmapDataByMedia(
     ]
 
     // Add date range filter with null timestamp support
-    if (includeNullTimestamps) {
+    // Skip date filtering entirely if includeNullTimestamps=true and no dates provided
+    if (includeNullTimestamps && (!startDate || !endDate)) {
+      // No date filtering - include all records regardless of timestamp
+    } else if (includeNullTimestamps) {
       baseConditions.push(
         or(
           isNull(media.timestamp),
@@ -299,14 +302,20 @@ export async function getSpeciesHeatmapDataByMedia(
     }
 
     // Add time-of-day condition using sql template for SQLite strftime
+    // When includeNullTimestamps=true, also allow null timestamps through
     const hourColumn = sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER)`
     if (startHour < endHour) {
       // Simple range (e.g., 8:00 to 17:00)
-      baseConditions.push(sql`${hourColumn} >= ${startHour}`)
-      baseConditions.push(sql`${hourColumn} < ${endHour}`)
+      const timeCondition = and(sql`${hourColumn} >= ${startHour}`, sql`${hourColumn} < ${endHour}`)
+      baseConditions.push(
+        includeNullTimestamps ? or(isNull(media.timestamp), timeCondition) : timeCondition
+      )
     } else if (startHour > endHour) {
       // Wrapping range (e.g., 22:00 to 6:00)
-      baseConditions.push(or(sql`${hourColumn} >= ${startHour}`, sql`${hourColumn} < ${endHour}`))
+      const timeCondition = or(sql`${hourColumn} >= ${startHour}`, sql`${hourColumn} < ${endHour}`)
+      baseConditions.push(
+        includeNullTimestamps ? or(isNull(media.timestamp), timeCondition) : timeCondition
+      )
     }
     // If startHour equals endHour, we include all hours (full day)
 

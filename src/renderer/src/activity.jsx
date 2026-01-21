@@ -386,14 +386,14 @@ export default function Activity({ studyData, studyId }) {
     { enabled: !!actualStudyId && speciesNames.length > 0 }
   )
 
+  // Check if dataset has temporal data
+  const hasTemporalData = useMemo(() => {
+    return timeseriesData && timeseriesData.length > 0
+  }, [timeseriesData])
+
   // Initialize dateRange and fullExtent from timeseries data (side effect, keep as useEffect)
   useEffect(() => {
-    if (
-      timeseriesData &&
-      timeseriesData.length > 0 &&
-      dateRange[0] === null &&
-      dateRange[1] === null
-    ) {
+    if (hasTemporalData && dateRange[0] === null && dateRange[1] === null) {
       const startIndex = 0
       const endIndex = timeseriesData.length - 1
 
@@ -403,10 +403,12 @@ export default function Activity({ studyData, studyId }) {
       setDateRange([startDate, endDate])
       setFullExtent([startDate, endDate])
     }
-  }, [timeseriesData, dateRange])
+  }, [hasTemporalData, timeseriesData, dateRange])
 
   // Compute if user has selected full temporal range (with 1 day tolerance)
+  // Also true when dataset has no temporal data (to include all null-timestamp media)
   const isFullRange = useMemo(() => {
+    if (!hasTemporalData) return true
     if (!fullExtent[0] || !fullExtent[1] || !dateRange[0] || !dateRange[1]) {
       return false
     }
@@ -414,9 +416,10 @@ export default function Activity({ studyData, studyId }) {
     const startMatch = Math.abs(fullExtent[0].getTime() - dateRange[0].getTime()) < tolerance
     const endMatch = Math.abs(fullExtent[1].getTime() - dateRange[1].getTime()) < tolerance
     return startMatch && endMatch
-  }, [fullExtent, dateRange])
+  }, [hasTemporalData, fullExtent, dateRange])
 
   // Fetch sequence-aware heatmap data
+  // Enable when: we have study + species AND (no temporal data OR valid date range)
   const { data: heatmapData, isLoading: isHeatmapLoading } = useSequenceAwareHeatmap(
     actualStudyId,
     speciesNames,
@@ -426,7 +429,12 @@ export default function Activity({ studyData, studyId }) {
     timeRange.end,
     isFullRange,
     sequenceGap,
-    { enabled: !!actualStudyId && speciesNames.length > 0 && !!dateRange[0] && !!dateRange[1] }
+    {
+      enabled:
+        !!actualStudyId &&
+        speciesNames.length > 0 &&
+        (!hasTemporalData || (!!dateRange[0] && !!dateRange[1]))
+    }
   )
 
   // Derive heatmap status from query state and data
@@ -443,7 +451,12 @@ export default function Activity({ studyData, studyId }) {
     dateRange[0]?.toISOString(),
     dateRange[1]?.toISOString(),
     sequenceGap,
-    { enabled: !!actualStudyId && speciesNames.length > 0 && !!dateRange[0] && !!dateRange[1] }
+    {
+      enabled:
+        !!actualStudyId &&
+        speciesNames.length > 0 &&
+        (!hasTemporalData || (!!dateRange[0] && !!dateRange[1]))
+    }
   )
 
   // Handle time range changes

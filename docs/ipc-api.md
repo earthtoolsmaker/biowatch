@@ -57,31 +57,6 @@ const { data, error } = await window.api.getMedia(studyId, { limit: 100 })
 |--------|---------|------------|---------|
 | `getSpeciesDistribution(studyId)` | `species:get-distribution` | studyId | `{ data: Distribution[] }` |
 | `getDistinctSpecies(studyId)` | `species:get-distinct` | studyId | `{ data: string[] }` |
-| `getSpeciesDistributionByMedia(studyId)` | `species:get-distribution-by-media` | studyId | `{ data: MediaDistribution[] }` |
-| `getSpeciesTimeseriesByMedia(studyId, species)` | `species:get-timeseries-by-media` | studyId, species[] | `{ data: MediaTimeseries[] }` |
-
-**Sequence-Aware Species Counting:**
-
-The `*ByMedia` endpoints return per-media observation counts for sequence-aware counting in the frontend:
-
-1. Media are grouped into sequences based on the gap slider setting (or eventID for CamtrapDP imports)
-2. For each sequence, the **MAX count** of each species is taken (represents minimum individuals)
-3. Max counts are summed across all sequences
-
-Example: If a deer walks past a camera triggering 3 photos with 2, 3, and 1 deer respectively, the sequence-aware count is 3 (not 6), representing the max observed at any point in that sequence.
-
-`MediaDistribution` structure:
-```javascript
-{
-  scientificName: string,  // Species scientific name
-  mediaID: string,         // Media identifier
-  timestamp: string,       // ISO timestamp
-  deploymentID: string,    // Deployment/camera location
-  eventID: string|null,    // CamtrapDP event ID (if available)
-  fileMediatype: string,   // MIME type (for video detection)
-  count: number            // Observation count for this species on this media
-}
-```
 
 ### Deployments
 
@@ -101,14 +76,24 @@ Example: If a deer walks past a camera triggering 3 photos with 2, 3, and 1 deer
 |--------|---------|------------|---------|
 | `getLocationsActivity(studyId)` | `locations:get-activity` | studyId | `{ data: Activity[] }` |
 
-### Activity Analysis
+### Sequence-Aware Species Counts
+
+These endpoints perform sequence grouping and counting in the main thread, returning pre-computed results. This avoids transferring raw media-level data to the renderer and keeps computation off the UI thread.
 
 | Method | Channel | Parameters | Returns |
 |--------|---------|------------|---------|
-| `getSpeciesHeatmapDataByMedia(studyId, species, startDate, endDate, startTime, endTime, includeNullTimestamps)` | `activity:get-heatmap-data-by-media` | studyId, species, filters... | `{ data: MediaHeatmap[] }` |
-| `getSpeciesDailyActivityByMedia(studyId, species, startDate, endDate)` | `activity:get-daily-by-media` | studyId, species, dates | `{ data: MediaDailyActivity[] }` |
+| `getSequenceAwareSpeciesDistribution(studyId, gapSeconds)` | `sequences:get-species-distribution` | studyId, gapSeconds | `{ data: [{scientificName, count}] }` |
+| `getSequenceAwareTimeseries(studyId, speciesNames, gapSeconds)` | `sequences:get-timeseries` | studyId, species[], gapSeconds | `{ data: {timeseries, allSpecies} }` |
+| `getSequenceAwareHeatmap(studyId, speciesNames, startDate, endDate, startHour, endHour, includeNullTimestamps, gapSeconds)` | `sequences:get-heatmap` | studyId, species[], dates, hours, includeNull, gapSeconds | `{ data: {species -> locations[]} }` |
+| `getSequenceAwareDailyActivity(studyId, speciesNames, startDate, endDate, gapSeconds)` | `sequences:get-daily-activity` | studyId, species[], dates, gapSeconds | `{ data: [24 hourly objects] }` |
 
-**Note:** The `*ByMedia` endpoints return per-media observation data for sequence-aware counting (see Species & Distribution section above).
+**Parameters:**
+- `gapSeconds`: Sequence gap threshold in seconds. Use `0` for eventID-based grouping (CamtrapDP datasets with imported events).
+- `speciesNames`: Array of scientific names to include in the analysis.
+
+**Benefits:**
+- Computed in main thread = better UI responsiveness
+- Query cache key includes `gapSeconds` for instant slider feedback
 
 ### Media
 
@@ -351,9 +336,11 @@ const data = response.data
 | `src/main/index.js` | Minimal app entry point |
 | `src/main/ipc/index.js` | Registers all IPC handlers |
 | `src/main/ipc/*.js` | Individual IPC handler modules |
+| `src/main/ipc/sequences.js` | Sequence-aware counting IPC handlers |
 | `src/preload/index.js` | API bridge to renderer |
 | `src/main/database/queries/` | Database query implementations |
 | `src/main/services/export/exporter.js` | Export handler implementations |
+| `src/main/services/sequences/` | Sequence grouping and counting logic |
 | `src/main/ipc/ml.js` | ML model IPC handlers |
 | `src/main/services/ml/server.ts` | ML server lifecycle management |
 | `src/main/services/ml/download.ts` | ML model download/installation |
