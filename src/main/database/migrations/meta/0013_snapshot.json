@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "357a43d8-b2d7-4e00-ad56-902ea997a15b",
-  "prevId": "06a6bca5-7a27-498d-8089-c75fee8fe556",
+  "id": "7c7d832d-a368-4e8f-beda-4b253c14f452",
+  "prevId": "357a43d8-b2d7-4e00-ad56-902ea997a15b",
   "tables": {
     "deployments": {
       "name": "deployments",
@@ -294,6 +294,13 @@
         "endDate": {
           "name": "endDate",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "sequenceGap": {
+          "name": "sequenceGap",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
