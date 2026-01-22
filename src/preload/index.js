@@ -349,6 +349,11 @@ const api = {
     }
   },
 
+  // Diagnostics
+  exportDiagnostics: async () => {
+    return await electronAPI.ipcRenderer.invoke('diagnostics:export')
+  },
+
   // Remote image caching (for GBIF/Agouti imported images)
   imageCache: {
     // Get cached image path if it exists

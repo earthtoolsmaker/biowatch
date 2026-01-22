@@ -327,12 +327,37 @@ biowatch-data/
 
 ---
 
+## Exporting Diagnostics
+
+Biowatch includes a hidden Advanced tab with diagnostics tools. To access it:
+
+1. Go to **Settings** (either AI Models or Info tab)
+2. **Hold Shift and click** the EarthToolsMaker logo in the footer
+3. The **Advanced** tab will appear in the tab bar (visible until app restart)
+4. Click **Export** on the Export Logs card
+5. Choose where to save the diagnostics zip file
+
+### What's included in the export
+
+- `system-info.json` - App version, OS, platform, architecture, memory, study list (IDs/names only)
+- `logs/main.log` - Main process (Electron) logs
+- `logs/renderer.log` - Renderer process (web console) logs
+
+### What's NOT included (privacy)
+
+- Study databases or actual data
+- Image/media files
+- User credentials
+
+---
+
 ## Getting Help
 
-1. **Check logs** for specific error messages
-2. **Search existing issues**: [GitHub Issues](https://github.com/earthtoolsmaker/biowatch/issues)
-3. **Open new issue** with:
+1. **Export diagnostics** using the method above
+2. **Check logs** for specific error messages
+3. **Search existing issues**: [GitHub Issues](https://github.com/earthtoolsmaker/biowatch/issues)
+4. **Open new issue** with:
    - Biowatch version
    - Operating system
    - Steps to reproduce
-   - Relevant log output
+   - Diagnostics zip file (or relevant log output)
