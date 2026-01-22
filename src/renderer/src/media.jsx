@@ -939,6 +939,7 @@ function ImageModal({
       queryClient.invalidateQueries({ queryKey: ['mediaBboxes', studyId, media?.mediaID] })
       queryClient.invalidateQueries({ queryKey: ['speciesDistribution'] })
       queryClient.invalidateQueries({ queryKey: ['distinctSpecies', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['thumbnailBboxesBatch'] })
     }
   })
 
