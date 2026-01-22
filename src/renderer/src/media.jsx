@@ -41,6 +41,7 @@ import { groupMediaIntoSequences, groupMediaByEventID } from './utils/sequenceGr
 import { getTopNonHumanSpecies } from './utils/speciesUtils'
 import { useSequenceGap } from './hooks/useSequenceGap'
 import { SequenceGapSlider } from './ui/SequenceGapSlider'
+import { getSpeciesFromBboxes, getSpeciesFromSequence } from './utils/speciesFromBboxes'
 
 /**
  * Observation list panel - collapsible list of all detections
@@ -940,6 +941,7 @@ function ImageModal({
       queryClient.invalidateQueries({ queryKey: ['mediaBboxes', studyId, media?.mediaID] })
       queryClient.invalidateQueries({ queryKey: ['speciesDistribution'] })
       queryClient.invalidateQueries({ queryKey: ['distinctSpecies', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['thumbnailBboxesBatch'] })
     }
   })
 
@@ -1714,7 +1716,9 @@ function ImageModal({
                   )}
                 </button>
               ) : (
-                <h3 className="text-lg font-semibold">{media.scientificName}</h3>
+                <h3 className="text-lg font-semibold">
+                  {getSpeciesFromBboxes(bboxes, media.scientificName)}
+                </h3>
               )}
             </div>
 
@@ -2145,7 +2149,9 @@ function ThumbnailCard({
       </div>
 
       <div className="p-2">
-        <h3 className="text-sm font-semibold truncate">{media.scientificName}</h3>
+        <h3 className="text-sm font-semibold truncate">
+          {getSpeciesFromBboxes(bboxes, media.scientificName)}
+        </h3>
         <p className="text-xs text-gray-500">
           {media.timestamp ? new Date(media.timestamp).toLocaleString() : 'No timestamp'}
         </p>
@@ -2402,7 +2408,9 @@ function SequenceCard({
 
       {/* Info section */}
       <div className="p-2">
-        <h3 className="text-sm font-semibold truncate">{currentMedia.scientificName}</h3>
+        <h3 className="text-sm font-semibold truncate">
+          {getSpeciesFromSequence(sequence.items, bboxesByMedia)}
+        </h3>
         <p className="text-xs text-gray-500">
           {currentMedia.timestamp
             ? new Date(currentMedia.timestamp).toLocaleString()
@@ -2557,7 +2565,7 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
     return [...groupedMedia, ...nullTimestampSequences]
   }, [groupedMedia, nullTimestampMedia])
 
-  // Batch fetch bboxes for all visible media when showThumbnailBboxes is enabled
+  // Batch fetch bboxes for all visible media (needed for species name display and bbox overlays)
   const mediaIDs = useMemo(() => mediaFiles.map((m) => m.mediaID), [mediaFiles])
 
   const { data: bboxesByMedia = {} } = useQuery({
@@ -2566,7 +2574,7 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
       const response = await window.api.getMediaBboxesBatch(id, mediaIDs)
       return response.data || {}
     },
-    enabled: showThumbnailBboxes && mediaIDs.length > 0 && !!id,
+    enabled: mediaIDs.length > 0 && !!id,
     staleTime: 60000
   })
 
