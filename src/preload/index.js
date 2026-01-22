@@ -39,28 +39,11 @@ const api = {
   checkStudyHasEventIDs: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('study:has-event-ids', studyId)
   },
-  getSpeciesTimeseries: async (studyId, species) => {
-    return await electronAPI.ipcRenderer.invoke('activity:get-timeseries', studyId, species)
+  getSequenceGap: async (studyId) => {
+    return await electronAPI.ipcRenderer.invoke('study:get-sequence-gap', studyId)
   },
-  getSpeciesHeatmapData: async (
-    studyId,
-    species,
-    startDate,
-    endDate,
-    startTime,
-    endTime,
-    includeNullTimestamps = false
-  ) => {
-    return await electronAPI.ipcRenderer.invoke(
-      'activity:get-heatmap-data',
-      studyId,
-      species,
-      startDate,
-      endDate,
-      startTime,
-      endTime,
-      includeNullTimestamps
-    )
+  setSequenceGap: async (studyId, sequenceGap) => {
+    return await electronAPI.ipcRenderer.invoke('study:set-sequence-gap', studyId, sequenceGap)
   },
   getLocationsActivity: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('locations:get-activity', studyId)
@@ -91,13 +74,52 @@ const api = {
   getBestImagePerSpecies: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('species:get-best-images', studyId)
   },
-  getSpeciesDailyActivity: async (studyId, species, startDate, endDate) => {
+  // Sequence-aware species distribution APIs (pre-computed in main thread)
+  getSequenceAwareSpeciesDistribution: async (studyId, gapSeconds) => {
     return await electronAPI.ipcRenderer.invoke(
-      'activity:get-daily',
+      'sequences:get-species-distribution',
       studyId,
-      species,
+      gapSeconds
+    )
+  },
+  getSequenceAwareTimeseries: async (studyId, speciesNames, gapSeconds) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'sequences:get-timeseries',
+      studyId,
+      speciesNames,
+      gapSeconds
+    )
+  },
+  getSequenceAwareHeatmap: async (
+    studyId,
+    speciesNames,
+    startDate,
+    endDate,
+    startHour,
+    endHour,
+    includeNullTimestamps,
+    gapSeconds
+  ) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'sequences:get-heatmap',
+      studyId,
+      speciesNames,
       startDate,
-      endDate
+      endDate,
+      startHour,
+      endHour,
+      includeNullTimestamps,
+      gapSeconds
+    )
+  },
+  getSequenceAwareDailyActivity: async (studyId, speciesNames, startDate, endDate, gapSeconds) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'sequences:get-daily-activity',
+      studyId,
+      speciesNames,
+      startDate,
+      endDate,
+      gapSeconds
     )
   },
   // ML Model Management

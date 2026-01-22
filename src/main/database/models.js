@@ -53,7 +53,8 @@ export const metadata = sqliteTable('metadata', {
   contributors: text('contributors', { mode: 'json' }), // JSON: [{title, email, role, organization, path}]
   updatedAt: text('updatedAt'), // Last modification
   startDate: text('startDate'), // Temporal start (ISO date)
-  endDate: text('endDate') // Temporal end (ISO date)
+  endDate: text('endDate'), // Temporal end (ISO date)
+  sequenceGap: integer('sequenceGap') // Media grouping threshold in seconds (null = use smart default)
 })
 
 // Track model execution sessions

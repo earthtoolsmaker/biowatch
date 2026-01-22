@@ -7,7 +7,13 @@ import log from 'electron-log'
 import { existsSync, rmSync } from 'fs'
 import { getStudyDatabasePath, getStudyPath } from '../services/paths.js'
 import { listStudies, updateStudy } from '../services/study.js'
-import { closeStudyDatabase, checkStudyHasEventIDs } from '../database/index.js'
+import {
+  closeStudyDatabase,
+  checkStudyHasEventIDs,
+  getMetadata,
+  updateMetadata,
+  getDrizzleDb
+} from '../database/index.js'
 
 /**
  * Register all study-related IPC handlers
@@ -58,6 +64,42 @@ export function registerStudyIPCHandlers() {
     } catch (error) {
       log.error('Error checking study eventIDs:', error)
       return { error: error.message, data: false }
+    }
+  })
+
+  // Get sequenceGap from study metadata
+  ipcMain.handle('study:get-sequence-gap', async (_, studyId) => {
+    try {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) {
+        log.warn(`Database not found for study ID: ${studyId}`)
+        return { data: null }
+      }
+
+      const db = await getDrizzleDb(studyId, dbPath, { readonly: true })
+      const meta = await getMetadata(db)
+      return { data: meta?.sequenceGap ?? null }
+    } catch (error) {
+      log.error('Error getting study sequenceGap:', error)
+      return { error: error.message, data: null }
+    }
+  })
+
+  // Set sequenceGap in study metadata
+  ipcMain.handle('study:set-sequence-gap', async (_, studyId, sequenceGap) => {
+    try {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) {
+        log.warn(`Database not found for study ID: ${studyId}`)
+        return { error: 'Database not found' }
+      }
+
+      const db = await getDrizzleDb(studyId, dbPath)
+      await updateMetadata(db, studyId, { sequenceGap })
+      return { data: sequenceGap }
+    } catch (error) {
+      log.error('Error setting study sequenceGap:', error)
+      return { error: error.message }
     }
   })
 }

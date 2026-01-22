@@ -12,6 +12,7 @@ import {
 } from '../../../database/index.js'
 import log from '../../logger.js'
 import { getBiowatchDataPath } from '../../paths.js'
+import { DEFAULT_SEQUENCE_GAP } from '../../../../shared/constants.js'
 
 /**
  * Import Wildlife Insights dataset from a directory into a SQLite database
@@ -133,7 +134,8 @@ export async function importWildlifeDatasetWithPath(directoryPath, biowatchDataP
     description: data.data?.description || null,
     created: new Date().toISOString(),
     importerName: 'wildlife/folder',
-    contributors: data.data?.contributors || null
+    contributors: data.data?.contributors || null,
+    sequenceGap: DEFAULT_SEQUENCE_GAP
   }
   await insertMetadata(db, metadataRecord)
   log.info('Inserted study metadata into database')

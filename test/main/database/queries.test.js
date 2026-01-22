@@ -9,10 +9,7 @@ import { DateTime } from 'luxon'
 import {
   getSpeciesDistribution,
   getLocationsActivity,
-  getSpeciesTimeseries,
-  getSpeciesHeatmapData,
   getMedia,
-  getSpeciesDailyActivity,
   getDeployments,
   getDeploymentsActivity,
   getFilesData,
@@ -324,99 +321,6 @@ describe('Database Query Functions Tests', () => {
     })
   })
 
-  describe('getSpeciesTimeseries', () => {
-    test('should return timeseries data for all species', async () => {
-      await createTestData(testDbPath)
-
-      const result = await getSpeciesTimeseries(testDbPath)
-
-      assert(result.allSpecies, 'Should have allSpecies array')
-      assert(result.timeseries, 'Should have timeseries array')
-      assert(Array.isArray(result.allSpecies), 'allSpecies should be an array')
-      assert(Array.isArray(result.timeseries), 'timeseries should be an array')
-
-      // Should have 3 species
-      assert.equal(result.allSpecies.length, 3, 'Should have 3 species')
-
-      // Species should be sorted by count descending
-      assert(
-        result.allSpecies[0].count >= result.allSpecies[1].count,
-        'Species should be sorted by count descending'
-      )
-
-      // Timeseries should have data points
-      assert(result.timeseries.length > 0, 'Should have timeseries data points')
-
-      // Each timeseries point should have date and species data
-      result.timeseries.forEach((point) => {
-        assert(point.date, 'Timeseries point should have date')
-      })
-    })
-
-    test('should filter by specific species', async () => {
-      await createTestData(testDbPath)
-
-      const result = await getSpeciesTimeseries(testDbPath, ['Cervus elaphus'])
-
-      assert.equal(result.allSpecies.length, 1, 'Should return only filtered species')
-      assert.equal(
-        result.allSpecies[0].scientificName,
-        'Cervus elaphus',
-        'Should return correct filtered species'
-      )
-    })
-  })
-
-  describe('getSpeciesHeatmapData', () => {
-    test('should return heatmap data for specified species', async () => {
-      await createTestData(testDbPath)
-
-      const species = ['Cervus elaphus', 'Vulpes vulpes']
-      const startDate = '2023-03-01T00:00:00Z'
-      const endDate = '2023-05-01T00:00:00Z'
-
-      const result = await getSpeciesHeatmapData(testDbPath, species, startDate, endDate)
-
-      assert(typeof result === 'object', 'Should return an object')
-      assert(result['Cervus elaphus'], 'Should have data for Cervus elaphus')
-      assert(result['Vulpes vulpes'], 'Should have data for Vulpes vulpes')
-
-      // Check data structure for each species
-      species.forEach((speciesName) => {
-        if (result[speciesName] && result[speciesName].length > 0) {
-          result[speciesName].forEach((point) => {
-            assert(typeof point.lat === 'number', 'Should have numeric latitude')
-            assert(typeof point.lng === 'number', 'Should have numeric longitude')
-            assert(typeof point.count === 'number', 'Should have numeric count')
-            assert(point.locationName, 'Should have location name')
-          })
-        }
-      })
-    })
-
-    test('should handle time range filtering', async () => {
-      await createTestData(testDbPath)
-
-      const species = ['Sus scrofa'] // Only observed at 22:00
-      const startDate = '2023-03-01T00:00:00Z'
-      const endDate = '2023-05-01T00:00:00Z'
-      const startHour = 21 // 9 PM
-      const endHour = 23 // 11 PM
-
-      const result = await getSpeciesHeatmapData(
-        testDbPath,
-        species,
-        startDate,
-        endDate,
-        startHour,
-        endHour
-      )
-
-      assert(result['Sus scrofa'], 'Should include Sus scrofa within time range')
-      assert(result['Sus scrofa'].length > 0, 'Should have data points for Sus scrofa')
-    })
-  })
-
   describe('getMedia', () => {
     test('should return media with pagination', async () => {
       await createTestData(testDbPath)
@@ -472,31 +376,6 @@ describe('Database Query Functions Tests', () => {
           mediaDate >= startDate && mediaDate <= endDate,
           'Media timestamp should be within specified date range'
         )
-      })
-    })
-  })
-
-  describe('getSpeciesDailyActivity', () => {
-    test('should return hourly activity patterns', async () => {
-      await createTestData(testDbPath)
-
-      const species = ['Cervus elaphus', 'Vulpes vulpes']
-      const startDate = '2023-03-01T00:00:00Z'
-      const endDate = '2023-05-01T00:00:00Z'
-
-      const result = await getSpeciesDailyActivity(testDbPath, species, startDate, endDate)
-
-      assert(Array.isArray(result), 'Should return an array')
-      assert.equal(result.length, 24, 'Should return 24 hours of data')
-
-      result.forEach((hourData, hour) => {
-        assert.equal(hourData.hour, hour, 'Should have correct hour')
-        species.forEach((speciesName) => {
-          assert(
-            typeof hourData[speciesName] === 'number',
-            `Should have numeric count for ${speciesName}`
-          )
-        })
       })
     })
   })

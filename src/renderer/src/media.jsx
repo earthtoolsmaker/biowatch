@@ -39,6 +39,8 @@ import { useZoomPan } from './hooks/useZoomPan'
 import { useImagePrefetch } from './hooks/useImagePrefetch'
 import { groupMediaIntoSequences, groupMediaByEventID } from './utils/sequenceGrouping'
 import { getTopNonHumanSpecies } from './utils/speciesUtils'
+import { useSequenceGap } from './hooks/useSequenceGap'
+import { SequenceGapSlider } from './ui/SequenceGapSlider'
 import { getSpeciesFromBboxes, getSpeciesFromSequence } from './utils/speciesFromBboxes'
 
 /**
@@ -1853,16 +1855,6 @@ const palette = [
 ]
 
 /**
- * Format sequence gap value for display
- */
-function formatGapValue(seconds) {
-  if (seconds === 0) return 'Off'
-  if (seconds < 60) return `${seconds}s`
-  if (seconds < 120) return `${Math.floor(seconds / 60)}min ${seconds % 60}s`
-  return `${Math.round(seconds / 60)}min`
-}
-
-/**
  * Collapsible control bar for gallery view options
  */
 function GalleryControls({
@@ -1893,48 +1885,7 @@ function GalleryControls({
   return (
     <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-gray-200 flex-shrink-0">
       {/* Sequence Gap Slider */}
-      <div className="flex items-center gap-2">
-        <Layers size={16} className={sequenceGap > 0 ? 'text-blue-500' : 'text-gray-400'} />
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>
-            <input
-              type="range"
-              min="0"
-              max="300"
-              step="10"
-              value={sequenceGap}
-              onChange={(e) => onSequenceGapChange(Number(e.target.value))}
-              className="w-24 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
-              aria-label={`Sequence grouping: ${formatGapValue(sequenceGap)}`}
-            />
-          </Tooltip.Trigger>
-          <Tooltip.Portal>
-            <Tooltip.Content
-              side="bottom"
-              sideOffset={8}
-              align="start"
-              className="z-[10000] max-w-xs px-3 py-2 bg-gray-900 text-white text-xs rounded-md shadow-lg"
-            >
-              <p className="font-medium mb-1">Sequence Grouping</p>
-              <p className="text-gray-300 mb-1.5">
-                Groups nearby photos/videos into sequences for easier browsing.
-              </p>
-              <ul className="text-gray-300 space-y-0.5">
-                <li>
-                  <span className="text-white font-medium">Off:</span> Preserves original event
-                  groupings from import
-                </li>
-                <li>
-                  <span className="text-white font-medium">On:</span> Groups media taken within the
-                  specified time gap
-                </li>
-              </ul>
-              <Tooltip.Arrow className="fill-gray-900" />
-            </Tooltip.Content>
-          </Tooltip.Portal>
-        </Tooltip.Root>
-        <span className="text-xs text-gray-600 w-12">{formatGapValue(sequenceGap)}</span>
-      </div>
+      <SequenceGapSlider value={sequenceGap} onChange={onSequenceGapChange} variant="compact" />
 
       <div className="flex items-center gap-2">
         {/* Show Bboxes Toggle - only render if bboxes exist */}
@@ -2550,41 +2501,9 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
     return () => resizeObserver.disconnect()
   }, [])
 
-  // Check if study has observations with eventIDs (for default slider value)
-  const { data: hasEventIDs = false } = useQuery({
-    queryKey: ['studyHasEventIDs', id],
-    queryFn: async () => {
-      const response = await window.api.checkStudyHasEventIDs(id)
-      return response.data || false
-    },
-    enabled: !!id,
-    staleTime: Infinity // Cache permanently per study
-  })
-
-  // Sequence gap - persisted per study in localStorage
-  const sequenceGapKey = `sequenceGap:${id}`
-  const [sequenceGap, setSequenceGap] = useState(() => {
-    const saved = localStorage.getItem(sequenceGapKey)
-    return saved !== null ? Number(saved) : 120
-  })
-
-  // Persist sequenceGap to localStorage when it changes
-  useEffect(() => {
-    localStorage.setItem(sequenceGapKey, sequenceGap.toString())
-  }, [sequenceGap, sequenceGapKey])
-
-  // Reset sequenceGap when study changes, and set default based on hasEventIDs
-  useEffect(() => {
-    const saved = localStorage.getItem(sequenceGapKey)
-    if (saved !== null) {
-      setSequenceGap(Number(saved))
-    } else if (hasEventIDs) {
-      // Default to "Off" (0) if study has eventIDs and no saved preference
-      setSequenceGap(0)
-    } else {
-      setSequenceGap(120)
-    }
-  }, [sequenceGapKey, hasEventIDs])
+  // Sequence gap - uses React Query cache for cross-component sync
+  // Default value is set during study import based on whether the dataset has eventIDs
+  const { sequenceGap, setSequenceGap } = useSequenceGap(id)
 
   // Fetch media with infinite query for pagination
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useInfiniteQuery({
@@ -2616,7 +2535,7 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
         ? allPages.length * PAGE_SIZE // offset = number of pages * page size
         : undefined // no more pages
     },
-    enabled: !!id && !!dateRange[0] && !!dateRange[1]
+    enabled: !!id && (includeNullTimestamps || (!!dateRange[0] && !!dateRange[1]))
   })
 
   // Flatten all pages into a single array
@@ -2624,11 +2543,11 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
 
   // Group media into sequences using memoization
   // Videos are excluded from grouping - they always form their own sequence
-  // When sequenceGap is 0 (Off), use eventID-based grouping for CamtrapDP datasets
+  // When sequenceGap is null (Off), use eventID-based grouping for CamtrapDP datasets
   // When sequenceGap > 0, use timestamp-based grouping
   // Media with null timestamps are separated and displayed at the end
   const { sequences: groupedMedia, nullTimestampMedia } = useMemo(() => {
-    if (sequenceGap === 0) {
+    if (sequenceGap === null) {
       return groupMediaByEventID(mediaFiles)
     }
     return groupMediaIntoSequences(mediaFiles, sequenceGap, isVideoMedia)
@@ -2972,17 +2891,24 @@ export default function Activity({ studyData, studyId }) {
   const [fullExtent, setFullExtent] = useState([null, null])
   const [timeRange, setTimeRange] = useState({ start: 0, end: 24 })
 
+  // Sequence gap - uses React Query for sync across components
+  const { sequenceGap } = useSequenceGap(actualStudyId)
+
   const taxonomicData = studyData?.taxonomic || null
 
-  // Fetch species distribution data
+  // Fetch sequence-aware species distribution data
   const { data: speciesDistributionData, error: speciesDistributionError } = useQuery({
-    queryKey: ['speciesDistribution', actualStudyId],
+    queryKey: ['sequenceAwareSpeciesDistribution', actualStudyId, sequenceGap],
     queryFn: async () => {
-      const response = await window.api.getSpeciesDistribution(actualStudyId)
+      const response = await window.api.getSequenceAwareSpeciesDistribution(
+        actualStudyId,
+        sequenceGap
+      )
       if (response.error) throw new Error(response.error)
       return response.data
     },
-    enabled: !!actualStudyId
+    enabled: !!actualStudyId,
+    placeholderData: (prev) => prev
   })
 
   // Fetch blank media count (media without observations)
@@ -3028,25 +2954,31 @@ export default function Activity({ studyData, studyId }) {
     [selectedSpecies]
   )
 
-  // Fetch timeseries data
-  const { data: timeseriesData } = useQuery({
-    queryKey: ['speciesTimeseries', actualStudyId, speciesNames],
+  // Fetch sequence-aware timeseries data
+  const { data: timeseriesQueryData } = useQuery({
+    queryKey: ['sequenceAwareTimeseries', actualStudyId, [...speciesNames].sort(), sequenceGap],
     queryFn: async () => {
-      const response = await window.api.getSpeciesTimeseries(actualStudyId, speciesNames)
+      const response = await window.api.getSequenceAwareTimeseries(
+        actualStudyId,
+        speciesNames,
+        sequenceGap
+      )
       if (response.error) throw new Error(response.error)
-      return response.data.timeseries
+      return response.data
     },
-    enabled: !!actualStudyId && speciesNames.length > 0
+    enabled: !!actualStudyId && speciesNames.length > 0,
+    placeholderData: (prev) => prev
   })
+  const timeseriesData = timeseriesQueryData?.timeseries ?? []
+
+  // Check if dataset has temporal data
+  const hasTemporalData = useMemo(() => {
+    return timeseriesData && timeseriesData.length > 0
+  }, [timeseriesData])
 
   // Initialize dateRange and fullExtent from timeseries data (side effect, keep as useEffect)
   useEffect(() => {
-    if (
-      timeseriesData &&
-      timeseriesData.length > 0 &&
-      dateRange[0] === null &&
-      dateRange[1] === null
-    ) {
+    if (hasTemporalData && dateRange[0] === null && dateRange[1] === null) {
       const startIndex = 0
       const endIndex = timeseriesData.length - 1
 
@@ -3056,10 +2988,12 @@ export default function Activity({ studyData, studyId }) {
       setDateRange([startDate, endDate])
       setFullExtent([startDate, endDate])
     }
-  }, [timeseriesData, dateRange])
+  }, [hasTemporalData, timeseriesData, dateRange])
 
   // Compute if user has selected full temporal range (with 1 day tolerance)
+  // Also true when dataset has no temporal data (to include all null-timestamp media)
   const isFullRange = useMemo(() => {
+    if (!hasTemporalData) return true
     if (!fullExtent[0] || !fullExtent[1] || !dateRange[0] || !dateRange[1]) {
       return false
     }
@@ -3067,22 +3001,31 @@ export default function Activity({ studyData, studyId }) {
     const startMatch = Math.abs(fullExtent[0].getTime() - dateRange[0].getTime()) < tolerance
     const endMatch = Math.abs(fullExtent[1].getTime() - dateRange[1].getTime()) < tolerance
     return startMatch && endMatch
-  }, [fullExtent, dateRange])
+  }, [hasTemporalData, fullExtent, dateRange])
 
-  // Fetch daily activity data
+  // Fetch sequence-aware daily activity data
   const { data: dailyActivityData } = useQuery({
-    queryKey: ['dailyActivity', actualStudyId, speciesNames, dateRange],
+    queryKey: [
+      'sequenceAwareDailyActivity',
+      actualStudyId,
+      [...speciesNames].sort(),
+      dateRange[0]?.toISOString(),
+      dateRange[1]?.toISOString(),
+      sequenceGap
+    ],
     queryFn: async () => {
-      const response = await window.api.getSpeciesDailyActivity(
+      const response = await window.api.getSequenceAwareDailyActivity(
         actualStudyId,
         speciesNames,
-        dateRange[0].toISOString(),
-        dateRange[1].toISOString()
+        dateRange[0]?.toISOString(),
+        dateRange[1]?.toISOString(),
+        sequenceGap
       )
       if (response.error) throw new Error(response.error)
       return response.data
     },
-    enabled: !!actualStudyId && speciesNames.length > 0 && !!dateRange[0] && !!dateRange[1]
+    enabled: !!actualStudyId && speciesNames.length > 0 && !!dateRange[0] && !!dateRange[1],
+    placeholderData: (prev) => prev
   })
 
   // Handle time range changes

@@ -38,6 +38,8 @@ const { data, error } = await window.api.getMedia(studyId, { limit: 100 })
 | `updateStudy(id, update)` | `studies:update` | studyId, update object | `Study` |
 | `deleteStudyDatabase(studyId)` | `study:delete-database` | studyId | `{ success: boolean }` |
 | `checkStudyHasEventIDs(studyId)` | `study:has-event-ids` | studyId | `{ data: boolean }` |
+| `getSequenceGap(studyId)` | `study:get-sequence-gap` | studyId | `{ data: number \| null }` |
+| `setSequenceGap(studyId, sequenceGap)` | `study:set-sequence-gap` | studyId, sequenceGap (0-600) | `{ data: number }` |
 
 ### Data Import
 
@@ -74,13 +76,24 @@ const { data, error } = await window.api.getMedia(studyId, { limit: 100 })
 |--------|---------|------------|---------|
 | `getLocationsActivity(studyId)` | `locations:get-activity` | studyId | `{ data: Activity[] }` |
 
-### Activity Analysis
+### Sequence-Aware Species Counts
+
+These endpoints perform sequence grouping and counting in the main thread, returning pre-computed results. This avoids transferring raw media-level data to the renderer and keeps computation off the UI thread.
 
 | Method | Channel | Parameters | Returns |
 |--------|---------|------------|---------|
-| `getSpeciesTimeseries(studyId, species)` | `activity:get-timeseries` | studyId, species | `{ data: TimeseriesPoint[] }` |
-| `getSpeciesDailyActivity(studyId, species, startDate, endDate)` | `activity:get-daily` | studyId, species, startDate?, endDate? | `{ data: DailyActivity[] }` |
-| `getSpeciesHeatmapData(studyId, species, startDate, endDate, startTime, endTime)` | `activity:get-heatmap-data` | studyId, species, filters... | `{ data: HeatmapData }` |
+| `getSequenceAwareSpeciesDistribution(studyId, gapSeconds)` | `sequences:get-species-distribution` | studyId, gapSeconds | `{ data: [{scientificName, count}] }` |
+| `getSequenceAwareTimeseries(studyId, speciesNames, gapSeconds)` | `sequences:get-timeseries` | studyId, species[], gapSeconds | `{ data: {timeseries, allSpecies} }` |
+| `getSequenceAwareHeatmap(studyId, speciesNames, startDate, endDate, startHour, endHour, includeNullTimestamps, gapSeconds)` | `sequences:get-heatmap` | studyId, species[], dates, hours, includeNull, gapSeconds | `{ data: {species -> locations[]} }` |
+| `getSequenceAwareDailyActivity(studyId, speciesNames, startDate, endDate, gapSeconds)` | `sequences:get-daily-activity` | studyId, species[], dates, gapSeconds | `{ data: [24 hourly objects] }` |
+
+**Parameters:**
+- `gapSeconds`: Sequence gap threshold in seconds. Use `0` for eventID-based grouping (CamtrapDP datasets with imported events).
+- `speciesNames`: Array of scientific names to include in the analysis.
+
+**Benefits:**
+- Computed in main thread = better UI responsiveness
+- Query cache key includes `gapSeconds` for instant slider feedback
 
 ### Media
 
@@ -323,9 +336,11 @@ const data = response.data
 | `src/main/index.js` | Minimal app entry point |
 | `src/main/ipc/index.js` | Registers all IPC handlers |
 | `src/main/ipc/*.js` | Individual IPC handler modules |
+| `src/main/ipc/sequences.js` | Sequence-aware counting IPC handlers |
 | `src/preload/index.js` | API bridge to renderer |
 | `src/main/database/queries/` | Database query implementations |
 | `src/main/services/export/exporter.js` | Export handler implementations |
+| `src/main/services/sequences/` | Sequence grouping and counting logic |
 | `src/main/ipc/ml.js` | ML model IPC handlers |
 | `src/main/services/ml/server.ts` | ML server lifecycle management |
 | `src/main/services/ml/download.ts` | ML model download/installation |
