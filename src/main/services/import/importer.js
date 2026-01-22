@@ -26,6 +26,7 @@ import { eq, isNull, count, sql } from 'drizzle-orm'
 import { startMLModelHTTPServer, stopMLModelHTTPServer } from '../ml/server.js'
 import mlmodels from '../../../shared/mlmodels.js'
 import { selectVideoClassificationWinner } from '../ml/classification.js'
+import { DEFAULT_SEQUENCE_GAP } from '../../../shared/constants.js'
 
 // Map file extensions to IANA media types (Camtrap DP compliant)
 const extensionToMediatype = {
@@ -1290,7 +1291,8 @@ ipcMain.handle(
         description: null,
         created: new Date().toISOString(),
         importerName: 'local/ml_run',
-        contributors: null
+        contributors: null,
+        sequenceGap: DEFAULT_SEQUENCE_GAP
       }
       await insertMetadata(db, metadataRecord)
       log.info('Inserted study metadata into database')

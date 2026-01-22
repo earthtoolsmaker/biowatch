@@ -1,6 +1,5 @@
 import { useCallback, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { DEFAULT_SEQUENCE_GAP } from '../../../shared/constants.js'
 
 /**
  * Custom hook for managing sequence gap state with React Query caching.
@@ -8,8 +7,12 @@ import { DEFAULT_SEQUENCE_GAP } from '../../../shared/constants.js'
  * This hook uses IPC to persist sequenceGap in the SQLite database
  * and React Query's cache for instant synchronization across components.
  *
+ * Sequence gap semantics:
+ * - null = use eventID-based grouping (Off) - used by CamtrapDP datasets
+ * - number > 0 = use timestamp-based grouping with that gap in seconds
+ *
  * @param {string} studyId - The study ID
- * @returns {Object} - { sequenceGap: number, rawSequenceGap: number | null, setSequenceGap: (value: number) => void, isLoading: boolean }
+ * @returns {Object} - { sequenceGap: number | null, setSequenceGap: (value: number | null) => void, isLoading: boolean }
  */
 export function useSequenceGap(studyId) {
   const queryClient = useQueryClient()
@@ -57,14 +60,9 @@ export function useSequenceGap(studyId) {
   )
 
   return {
-    // Return effective value (never null for consumers)
-    sequenceGap: rawSequenceGap ?? DEFAULT_SEQUENCE_GAP,
-    // Expose raw value for checking if default needs to be set
-    rawSequenceGap,
+    // null = eventID-based grouping (Off), number > 0 = timestamp-based grouping
+    sequenceGap: rawSequenceGap,
     setSequenceGap,
     isLoading
   }
 }
-
-// Re-export for convenience
-export { DEFAULT_SEQUENCE_GAP }

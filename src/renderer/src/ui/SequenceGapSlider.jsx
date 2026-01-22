@@ -3,11 +3,11 @@ import * as Tooltip from '@radix-ui/react-tooltip'
 
 /**
  * Format sequence gap value for display
- * @param {number} seconds - The gap in seconds
+ * @param {number | null} seconds - The gap in seconds, or null for Off
  * @returns {string} - Formatted string (e.g., "Off", "30s", "1m 30s", "2m")
  */
 function formatGapValue(seconds) {
-  if (seconds === 0) return 'Off'
+  if (seconds === null || seconds === 0) return 'Off'
   if (seconds < 60) return `${seconds}s`
   if (seconds < 120) return `${Math.floor(seconds / 60)}min ${seconds % 60}s`
   return `${Math.round(seconds / 60)}min`
@@ -17,8 +17,8 @@ function formatGapValue(seconds) {
  * Reusable sequence gap slider component
  *
  * @param {Object} props
- * @param {number} props.value - Current gap in seconds (0-300)
- * @param {function} props.onChange - Callback when value changes
+ * @param {number | null} props.value - Current gap in seconds (null or 10-300), null = Off
+ * @param {function} props.onChange - Callback when value changes (receives null for Off, or number > 0)
  * @param {'compact' | 'full'} [props.variant='full'] - Display variant
  * @param {boolean} [props.showDescription=false] - Show description text below slider
  * @param {boolean} [props.disabled=false] - Disable the slider
@@ -32,10 +32,17 @@ export function SequenceGapSlider({
   disabled = false,
   max = 300
 }) {
+  // Convert null to 0 for slider display, and 0 back to null on change
+  const sliderValue = value ?? 0
+  const handleChange = (e) => {
+    const newValue = Number(e.target.value)
+    onChange(newValue === 0 ? null : newValue)
+  }
+
   if (variant === 'compact') {
     return (
       <div className="flex items-center gap-2">
-        <Layers size={16} className={value > 0 ? 'text-blue-500' : 'text-gray-400'} />
+        <Layers size={16} className={value !== null ? 'text-blue-500' : 'text-gray-400'} />
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <input
@@ -43,8 +50,8 @@ export function SequenceGapSlider({
               min="0"
               max={max}
               step="10"
-              value={value}
-              onChange={(e) => onChange(Number(e.target.value))}
+              value={sliderValue}
+              onChange={handleChange}
               disabled={disabled}
               className="w-24 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label={`Sequence grouping: ${formatGapValue(value)}`}
@@ -85,7 +92,7 @@ export function SequenceGapSlider({
     <div>
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <Layers size={16} className={value > 0 ? 'text-blue-500' : 'text-gray-400'} />
+          <Layers size={16} className={value !== null ? 'text-blue-500' : 'text-gray-400'} />
           <span className="text-sm font-medium text-gray-900">Sequence grouping</span>
         </div>
         <span className="text-sm font-medium text-blue-600">{formatGapValue(value)}</span>
@@ -95,15 +102,15 @@ export function SequenceGapSlider({
         min="0"
         max={max}
         step="10"
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
+        value={sliderValue}
+        onChange={handleChange}
         disabled={disabled}
         className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
         aria-label={`Sequence grouping: ${formatGapValue(value)}`}
       />
       {showDescription && (
         <p className="text-xs text-gray-500 mt-2">
-          {value === 0
+          {value === null
             ? 'Preserves imported event groupings (eventID from original data)'
             : `Groups observations within ${formatGapValue(value)} into sequences (generates new eventIDs)`}
         </p>

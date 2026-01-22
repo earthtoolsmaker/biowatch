@@ -168,6 +168,7 @@ export async function importCamTrapDatasetWithPath(
     log.info('CamTrap dataset import completed successfully')
 
     // Insert metadata into the database
+    // CamtrapDP datasets have eventIDs, so sequenceGap is null (use eventID-based grouping)
     const metadataRecord = {
       id,
       name: options.nameOverride || data.name || null,
@@ -177,7 +178,8 @@ export async function importCamTrapDatasetWithPath(
       importerName: 'camtrap/datapackage',
       contributors: data.contributors || null,
       startDate: data.temporal?.start || null,
-      endDate: data.temporal?.end || null
+      endDate: data.temporal?.end || null,
+      sequenceGap: null
     }
     await insertMetadata(db, metadataRecord)
     log.info('Inserted study metadata into database')

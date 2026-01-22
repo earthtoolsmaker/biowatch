@@ -39,7 +39,7 @@ import { useZoomPan } from './hooks/useZoomPan'
 import { useImagePrefetch } from './hooks/useImagePrefetch'
 import { groupMediaIntoSequences, groupMediaByEventID } from './utils/sequenceGrouping'
 import { getTopNonHumanSpecies } from './utils/speciesUtils'
-import { useSequenceGap, DEFAULT_SEQUENCE_GAP } from './hooks/useSequenceGap'
+import { useSequenceGap } from './hooks/useSequenceGap'
 import { SequenceGapSlider } from './ui/SequenceGapSlider'
 
 /**
@@ -2493,35 +2493,9 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
     return () => resizeObserver.disconnect()
   }, [])
 
-  // Check if study has observations with eventIDs (for default slider value)
-  const { data: hasEventIDs = false } = useQuery({
-    queryKey: ['studyHasEventIDs', id],
-    queryFn: async () => {
-      const response = await window.api.checkStudyHasEventIDs(id)
-      return response.data || false
-    },
-    enabled: !!id,
-    staleTime: Infinity // Cache permanently per study
-  })
-
   // Sequence gap - uses React Query cache for cross-component sync
-  const {
-    sequenceGap,
-    rawSequenceGap,
-    setSequenceGap,
-    isLoading: isSequenceGapLoading
-  } = useSequenceGap(id)
-
-  // Set default based on hasEventIDs when there's no saved preference
-  useEffect(() => {
-    // Wait for database value to load
-    if (isSequenceGapLoading || hasEventIDs === undefined) return
-
-    // If no value in database, set smart default based on hasEventIDs
-    if (rawSequenceGap === null) {
-      setSequenceGap(hasEventIDs ? 0 : DEFAULT_SEQUENCE_GAP)
-    }
-  }, [id, hasEventIDs, rawSequenceGap, isSequenceGapLoading, setSequenceGap])
+  // Default value is set during study import based on whether the dataset has eventIDs
+  const { sequenceGap, setSequenceGap } = useSequenceGap(id)
 
   // Fetch media with infinite query for pagination
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useInfiniteQuery({
@@ -2561,11 +2535,11 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
 
   // Group media into sequences using memoization
   // Videos are excluded from grouping - they always form their own sequence
-  // When sequenceGap is 0 (Off), use eventID-based grouping for CamtrapDP datasets
+  // When sequenceGap is null (Off), use eventID-based grouping for CamtrapDP datasets
   // When sequenceGap > 0, use timestamp-based grouping
   // Media with null timestamps are separated and displayed at the end
   const { sequences: groupedMedia, nullTimestampMedia } = useMemo(() => {
-    if (sequenceGap === 0) {
+    if (sequenceGap === null) {
       return groupMediaByEventID(mediaFiles)
     }
     return groupMediaIntoSequences(mediaFiles, sequenceGap, isVideoMedia)
