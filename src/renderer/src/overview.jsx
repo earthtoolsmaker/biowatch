@@ -24,7 +24,6 @@ import { useQueryClient, useQuery, useQueries } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
 import DateTimePicker from './ui/DateTimePicker'
 import { sortSpeciesHumansLast } from './utils/speciesUtils'
-import { useSequenceAwareSpeciesDistribution } from './hooks/useSequenceAwareSpeciesDistribution'
 import { useSequenceGap } from './hooks/useSequenceGap'
 
 // Component to handle map layer change events for persistence
@@ -401,14 +400,17 @@ export default function Overview({ data, studyId, studyName }) {
   }, [deploymentsActivityData])
 
   // Use sequence-aware species distribution
-  const { data: speciesData, error: speciesError } = useSequenceAwareSpeciesDistribution(
-    studyId,
-    sequenceGap,
-    {
-      enabled: !!studyId,
-      refetchInterval: importStatus?.isRunning ? 5000 : false
-    }
-  )
+  const { data: speciesData, error: speciesError } = useQuery({
+    queryKey: ['sequenceAwareSpeciesDistribution', studyId, sequenceGap],
+    queryFn: async () => {
+      const response = await window.api.getSequenceAwareSpeciesDistribution(studyId, sequenceGap)
+      if (response.error) throw new Error(response.error)
+      return response.data
+    },
+    enabled: !!studyId,
+    refetchInterval: importStatus?.isRunning ? 5000 : false,
+    placeholderData: (prev) => prev
+  })
 
   const error = speciesError?.message || deploymentsError?.message || null
 

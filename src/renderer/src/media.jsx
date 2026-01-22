@@ -39,11 +39,6 @@ import { useZoomPan } from './hooks/useZoomPan'
 import { useImagePrefetch } from './hooks/useImagePrefetch'
 import { groupMediaIntoSequences, groupMediaByEventID } from './utils/sequenceGrouping'
 import { getTopNonHumanSpecies } from './utils/speciesUtils'
-import {
-  useSequenceAwareSpeciesDistribution,
-  useSequenceAwareTimeseries,
-  useSequenceAwareDailyActivity
-} from './hooks/useSequenceAwareSpeciesDistribution'
 import { useSequenceGap, DEFAULT_SEQUENCE_GAP } from './hooks/useSequenceGap'
 import { SequenceGapSlider } from './ui/SequenceGapSlider'
 
@@ -2920,10 +2915,19 @@ export default function Activity({ studyData, studyId }) {
   const taxonomicData = studyData?.taxonomic || null
 
   // Fetch sequence-aware species distribution data
-  const { data: speciesDistributionData, error: speciesDistributionError } =
-    useSequenceAwareSpeciesDistribution(actualStudyId, sequenceGap, {
-      enabled: !!actualStudyId
-    })
+  const { data: speciesDistributionData, error: speciesDistributionError } = useQuery({
+    queryKey: ['sequenceAwareSpeciesDistribution', actualStudyId, sequenceGap],
+    queryFn: async () => {
+      const response = await window.api.getSequenceAwareSpeciesDistribution(
+        actualStudyId,
+        sequenceGap
+      )
+      if (response.error) throw new Error(response.error)
+      return response.data
+    },
+    enabled: !!actualStudyId,
+    placeholderData: (prev) => prev
+  })
 
   // Fetch blank media count (media without observations)
   const { data: blankCount = 0 } = useQuery({
@@ -2969,12 +2973,21 @@ export default function Activity({ studyData, studyId }) {
   )
 
   // Fetch sequence-aware timeseries data
-  const { timeseries: timeseriesData } = useSequenceAwareTimeseries(
-    actualStudyId,
-    speciesNames,
-    sequenceGap,
-    { enabled: !!actualStudyId && speciesNames.length > 0 }
-  )
+  const { data: timeseriesQueryData } = useQuery({
+    queryKey: ['sequenceAwareTimeseries', actualStudyId, [...speciesNames].sort(), sequenceGap],
+    queryFn: async () => {
+      const response = await window.api.getSequenceAwareTimeseries(
+        actualStudyId,
+        speciesNames,
+        sequenceGap
+      )
+      if (response.error) throw new Error(response.error)
+      return response.data
+    },
+    enabled: !!actualStudyId && speciesNames.length > 0,
+    placeholderData: (prev) => prev
+  })
+  const timeseriesData = timeseriesQueryData?.timeseries ?? []
 
   // Check if dataset has temporal data
   const hasTemporalData = useMemo(() => {
@@ -3009,19 +3022,29 @@ export default function Activity({ studyData, studyId }) {
   }, [hasTemporalData, fullExtent, dateRange])
 
   // Fetch sequence-aware daily activity data
-  const { data: dailyActivityData } = useSequenceAwareDailyActivity(
-    actualStudyId,
-    speciesNames,
-    dateRange[0]?.toISOString(),
-    dateRange[1]?.toISOString(),
-    sequenceGap,
-    {
-      enabled:
-        !!actualStudyId &&
-        speciesNames.length > 0 &&
-        (!hasTemporalData || (!!dateRange[0] && !!dateRange[1]))
-    }
-  )
+  const { data: dailyActivityData } = useQuery({
+    queryKey: [
+      'sequenceAwareDailyActivity',
+      actualStudyId,
+      [...speciesNames].sort(),
+      dateRange[0]?.toISOString(),
+      dateRange[1]?.toISOString(),
+      sequenceGap
+    ],
+    queryFn: async () => {
+      const response = await window.api.getSequenceAwareDailyActivity(
+        actualStudyId,
+        speciesNames,
+        dateRange[0]?.toISOString(),
+        dateRange[1]?.toISOString(),
+        sequenceGap
+      )
+      if (response.error) throw new Error(response.error)
+      return response.data
+    },
+    enabled: !!actualStudyId && speciesNames.length > 0 && !!dateRange[0] && !!dateRange[1],
+    placeholderData: (prev) => prev
+  })
 
   // Handle time range changes
   const handleTimeRangeChange = useCallback((newTimeRange) => {

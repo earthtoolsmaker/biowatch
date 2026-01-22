@@ -5,18 +5,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { LayersControl, MapContainer, Marker, TileLayer, useMap } from 'react-leaflet'
 import MarkerClusterGroup from 'react-leaflet-cluster'
 import { useParams } from 'react-router'
+import { useQuery } from '@tanstack/react-query'
 import CircularTimeFilter, { DailyActivityRadar } from './ui/clock'
 import PlaceholderMap from './ui/PlaceholderMap'
 import SpeciesDistribution from './ui/speciesDistribution'
 import TimelineChart from './ui/timeseries'
 import { useImportStatus } from './hooks/import'
 import { getTopNonHumanSpecies } from './utils/speciesUtils'
-import {
-  useSequenceAwareSpeciesDistribution,
-  useSequenceAwareTimeseries,
-  useSequenceAwareHeatmap,
-  useSequenceAwareDailyActivity
-} from './hooks/useSequenceAwareSpeciesDistribution'
 import { useSequenceGap } from './hooks/useSequenceGap'
 
 // Component to handle map layer change events for persistence
@@ -358,11 +353,20 @@ export default function Activity({ studyData, studyId }) {
   const taxonomicData = studyData?.taxonomic || null
 
   // Fetch sequence-aware species distribution data
-  const { data: speciesDistributionData, error: speciesDistributionError } =
-    useSequenceAwareSpeciesDistribution(actualStudyId, sequenceGap, {
-      enabled: !!actualStudyId,
-      refetchInterval: importStatus?.isRunning ? 5000 : false
-    })
+  const { data: speciesDistributionData, error: speciesDistributionError } = useQuery({
+    queryKey: ['sequenceAwareSpeciesDistribution', actualStudyId, sequenceGap],
+    queryFn: async () => {
+      const response = await window.api.getSequenceAwareSpeciesDistribution(
+        actualStudyId,
+        sequenceGap
+      )
+      if (response.error) throw new Error(response.error)
+      return response.data
+    },
+    enabled: !!actualStudyId,
+    refetchInterval: importStatus?.isRunning ? 5000 : false,
+    placeholderData: (prev) => prev
+  })
 
   // Initialize selectedSpecies when speciesDistributionData loads
   // Excludes humans/vehicles from default selection
@@ -390,12 +394,21 @@ export default function Activity({ studyData, studyId }) {
   )
 
   // Fetch sequence-aware timeseries data
-  const { timeseries: timeseriesData } = useSequenceAwareTimeseries(
-    actualStudyId,
-    speciesNames,
-    sequenceGap,
-    { enabled: !!actualStudyId && speciesNames.length > 0 }
-  )
+  const { data: timeseriesQueryData } = useQuery({
+    queryKey: ['sequenceAwareTimeseries', actualStudyId, [...speciesNames].sort(), sequenceGap],
+    queryFn: async () => {
+      const response = await window.api.getSequenceAwareTimeseries(
+        actualStudyId,
+        speciesNames,
+        sequenceGap
+      )
+      if (response.error) throw new Error(response.error)
+      return response.data
+    },
+    enabled: !!actualStudyId && speciesNames.length > 0,
+    placeholderData: (prev) => prev
+  })
+  const timeseriesData = timeseriesQueryData?.timeseries ?? []
 
   // Check if dataset has temporal data
   const hasTemporalData = useMemo(() => {
@@ -431,22 +444,38 @@ export default function Activity({ studyData, studyId }) {
 
   // Fetch sequence-aware heatmap data
   // Enable when: we have study + species AND (no temporal data OR valid date range)
-  const { data: heatmapData, isLoading: isHeatmapLoading } = useSequenceAwareHeatmap(
-    actualStudyId,
-    speciesNames,
-    dateRange[0]?.toISOString(),
-    dateRange[1]?.toISOString(),
-    timeRange.start,
-    timeRange.end,
-    isFullRange,
-    sequenceGap,
-    {
-      enabled:
-        !!actualStudyId &&
-        speciesNames.length > 0 &&
-        (!hasTemporalData || (!!dateRange[0] && !!dateRange[1]))
-    }
-  )
+  const { data: heatmapData, isLoading: isHeatmapLoading } = useQuery({
+    queryKey: [
+      'sequenceAwareHeatmap',
+      actualStudyId,
+      [...speciesNames].sort(),
+      dateRange[0]?.toISOString(),
+      dateRange[1]?.toISOString(),
+      timeRange.start,
+      timeRange.end,
+      isFullRange,
+      sequenceGap
+    ],
+    queryFn: async () => {
+      const response = await window.api.getSequenceAwareHeatmap(
+        actualStudyId,
+        speciesNames,
+        dateRange[0]?.toISOString(),
+        dateRange[1]?.toISOString(),
+        timeRange.start,
+        timeRange.end,
+        isFullRange,
+        sequenceGap
+      )
+      if (response.error) throw new Error(response.error)
+      return response.data
+    },
+    enabled:
+      !!actualStudyId &&
+      speciesNames.length > 0 &&
+      (isFullRange || (!!dateRange[0] && !!dateRange[1])),
+    placeholderData: (prev) => prev
+  })
 
   // Derive heatmap status from query state and data
   const heatmapStatus = useMemo(() => {
@@ -456,19 +485,29 @@ export default function Activity({ studyData, studyId }) {
   }, [heatmapData, isHeatmapLoading])
 
   // Fetch sequence-aware daily activity data
-  const { data: dailyActivityData } = useSequenceAwareDailyActivity(
-    actualStudyId,
-    speciesNames,
-    dateRange[0]?.toISOString(),
-    dateRange[1]?.toISOString(),
-    sequenceGap,
-    {
-      enabled:
-        !!actualStudyId &&
-        speciesNames.length > 0 &&
-        (!hasTemporalData || (!!dateRange[0] && !!dateRange[1]))
-    }
-  )
+  const { data: dailyActivityData } = useQuery({
+    queryKey: [
+      'sequenceAwareDailyActivity',
+      actualStudyId,
+      [...speciesNames].sort(),
+      dateRange[0]?.toISOString(),
+      dateRange[1]?.toISOString(),
+      sequenceGap
+    ],
+    queryFn: async () => {
+      const response = await window.api.getSequenceAwareDailyActivity(
+        actualStudyId,
+        speciesNames,
+        dateRange[0]?.toISOString(),
+        dateRange[1]?.toISOString(),
+        sequenceGap
+      )
+      if (response.error) throw new Error(response.error)
+      return response.data
+    },
+    enabled: !!actualStudyId && speciesNames.length > 0 && !!dateRange[0] && !!dateRange[1],
+    placeholderData: (prev) => prev
+  })
 
   // Handle time range changes
   const handleTimeRangeChange = useCallback((newTimeRange) => {
