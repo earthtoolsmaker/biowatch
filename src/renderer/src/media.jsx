@@ -45,6 +45,7 @@ import {
   useSequenceAwareDailyActivity
 } from './hooks/useSequenceAwareSpeciesDistribution'
 import { useSequenceGap, DEFAULT_SEQUENCE_GAP } from './hooks/useSequenceGap'
+import { SequenceGapSlider } from './ui/SequenceGapSlider'
 
 /**
  * Observation list panel - collapsible list of all detections
@@ -1855,16 +1856,6 @@ const palette = [
 ]
 
 /**
- * Format sequence gap value for display
- */
-function formatGapValue(seconds) {
-  if (seconds === 0) return 'Off'
-  if (seconds < 60) return `${seconds}s`
-  if (seconds < 120) return `${Math.floor(seconds / 60)}min ${seconds % 60}s`
-  return `${Math.round(seconds / 60)}min`
-}
-
-/**
  * Collapsible control bar for gallery view options
  */
 function GalleryControls({
@@ -1895,48 +1886,7 @@ function GalleryControls({
   return (
     <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-gray-200 flex-shrink-0">
       {/* Sequence Gap Slider */}
-      <div className="flex items-center gap-2">
-        <Layers size={16} className={sequenceGap > 0 ? 'text-blue-500' : 'text-gray-400'} />
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>
-            <input
-              type="range"
-              min="0"
-              max="300"
-              step="10"
-              value={sequenceGap}
-              onChange={(e) => onSequenceGapChange(Number(e.target.value))}
-              className="w-24 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
-              aria-label={`Sequence grouping: ${formatGapValue(sequenceGap)}`}
-            />
-          </Tooltip.Trigger>
-          <Tooltip.Portal>
-            <Tooltip.Content
-              side="bottom"
-              sideOffset={8}
-              align="start"
-              className="z-[10000] max-w-xs px-3 py-2 bg-gray-900 text-white text-xs rounded-md shadow-lg"
-            >
-              <p className="font-medium mb-1">Sequence Grouping</p>
-              <p className="text-gray-300 mb-1.5">
-                Groups nearby photos/videos into sequences for easier browsing.
-              </p>
-              <ul className="text-gray-300 space-y-0.5">
-                <li>
-                  <span className="text-white font-medium">Off:</span> Preserves original event
-                  groupings from import
-                </li>
-                <li>
-                  <span className="text-white font-medium">On:</span> Groups media taken within the
-                  specified time gap
-                </li>
-              </ul>
-              <Tooltip.Arrow className="fill-gray-900" />
-            </Tooltip.Content>
-          </Tooltip.Portal>
-        </Tooltip.Root>
-        <span className="text-xs text-gray-600 w-12">{formatGapValue(sequenceGap)}</span>
-      </div>
+      <SequenceGapSlider value={sequenceGap} onChange={onSequenceGapChange} variant="compact" />
 
       <div className="flex items-center gap-2">
         {/* Show Bboxes Toggle - only render if bboxes exist */}
