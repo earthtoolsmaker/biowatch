@@ -113,8 +113,8 @@ export const pythonEnvironments = [
       windows: {
         downloadURL:
           'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.3-Windows.tar.gz',
-        size_in_MiB: 505,
-        size_in_MiB_installed: 2200,
+        size_in_MiB: 3200,
+        size_in_MiB_installed: 6200,
         files: 53286
       }
     }
@@ -132,7 +132,7 @@ export const modelZoo = [
     reference: { id: 'speciesnet', version: '4.0.1a' },
     pythonEnvironment: { id: 'common', version: '0.1.3' },
     name: 'SpeciesNet',
-    size_in_MiB: 468,
+    size_in_MiB: 500,
     files: 6,
     downloadURL:
       'https://huggingface.co/earthtoolsmaker/speciesnet/resolve/main/4.0.1a.tar.gz?download=true',
@@ -160,7 +160,7 @@ export const modelZoo = [
     reference: { id: 'manas', version: '1.0' },
     pythonEnvironment: { id: 'common', version: '0.1.3' },
     name: 'Manas',
-    size_in_MiB: 502,
+    size_in_MiB: 500,
     files: 3,
     downloadURL:
       'https://huggingface.co/earthtoolsmaker/manas/resolve/main/1.0.tar.gz?download=true',
