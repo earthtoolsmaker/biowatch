@@ -33,14 +33,16 @@ const MODEL_LOGOS = {
 
 /**
  * Converts a size in MB to GB or returns the size in MB if it is less than or equal to 1000.
+ * Rounds to the nearest 50MB.
  * @param {number} size_in_MB - The size in MB to convert.
  * @returns {string} The size in GB if greater than 1000, otherwise in MB.
  */
 function formatSizeInMB(size_in_MB) {
-  if (size_in_MB > 1000) {
-    return (size_in_MB / 1000).toFixed(2) + ' GB'
+  const rounded = Math.round(size_in_MB / 50) * 50
+  if (rounded > 1000) {
+    return (rounded / 1000).toFixed(2) + ' GB'
   }
-  return size_in_MB + ' MB'
+  return rounded + ' MB'
 }
 
 function ModelRow({
