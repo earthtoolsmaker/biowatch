@@ -300,7 +300,7 @@ function AppContent() {
         <div className="p-4 border-b border-gray-200">
           <div className={`flex items-center justify-between ${studies.length > 0 ? 'mb-3' : ''}`}>
             <h2 className="text-gray-900">Studies</h2>
-            <Tooltip.Root>
+            <Tooltip.Root delayDuration={500}>
               <Tooltip.Trigger asChild>
                 <NavLink
                   to="/import"
