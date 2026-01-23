@@ -8,9 +8,11 @@ import {
   CpuIcon,
   Book,
   Server,
-  Mail
+  Mail,
+  Info
 } from 'lucide-react'
 import { toast } from 'sonner'
+import * as Tooltip from '@radix-ui/react-tooltip'
 import { platformToKey, findPythonEnvironment } from '../../shared/mlmodels'
 import {
   isOwnEnvironmentDownload,
@@ -218,9 +220,25 @@ function ModelRow({
               />
             )}
             <div className="font-medium text-sm">{name}</div>
+            <Tooltip.Root delayDuration={500}>
+              <Tooltip.Trigger asChild>
+                <button className="inline-flex items-center">
+                  <Info size={16} className="text-gray-400 hover:text-gray-600 cursor-help" />
+                </button>
+              </Tooltip.Trigger>
+              <Tooltip.Portal>
+                <Tooltip.Content
+                  side="right"
+                  sideOffset={8}
+                  className="z-[10000] max-w-xs px-3 py-2 bg-gray-900 text-white text-xs rounded-md shadow-lg"
+                >
+                  {description}
+                  <Tooltip.Arrow className="fill-gray-900" />
+                </Tooltip.Content>
+              </Tooltip.Portal>
+            </Tooltip.Root>
           </div>
         </td>
-        <td className="p-4 text-sm text-gray-700 max-w-md">{description}</td>
         <td className="p-4 text-sm text-center">{formatSizeInMiB(size_in_MiB)}</td>
         <td className="p-4 text-sm text-center">
           {formatSizeInMiB(pythonEnvironment['platform'][platformToKey(platform)]['size_in_MiB'])}
@@ -327,7 +345,7 @@ function ModelRow({
       </tr>
       {isHTTPServerRunning && (
         <tr className="border-b border-gray-200 bg-blue-50">
-          <td colSpan="6" className="p-4">
+          <td colSpan="5" className="p-4">
             <div className="text-sm flex items-center gap-6">
               <span className="flex items-center gap-2">
                 <Server size={14} />
@@ -355,6 +373,9 @@ function ModelRow({
 }
 
 function CustomModelRow() {
+  const customDescription =
+    'Need an AI model tailored to your specific wildlife monitoring needs? EarthToolsMaker can develop and integrate custom models directly into BioWatch for your unique species, regions, or use cases.'
+
   return (
     <tr className="border-b border-gray-200 hover:bg-gray-50">
       <td className="p-4">
@@ -365,12 +386,24 @@ function CustomModelRow() {
             className="h-8 w-8 object-contain flex-shrink-0 rounded-full"
           />
           <div className="font-medium text-sm">Your Custom Model</div>
+          <Tooltip.Root delayDuration={500}>
+            <Tooltip.Trigger asChild>
+              <button className="inline-flex items-center">
+                <Info size={16} className="text-gray-400 hover:text-gray-600 cursor-help" />
+              </button>
+            </Tooltip.Trigger>
+            <Tooltip.Portal>
+              <Tooltip.Content
+                side="right"
+                sideOffset={8}
+                className="z-[10000] max-w-xs px-3 py-2 bg-gray-900 text-white text-xs rounded-md shadow-lg"
+              >
+                {customDescription}
+                <Tooltip.Arrow className="fill-gray-900" />
+              </Tooltip.Content>
+            </Tooltip.Portal>
+          </Tooltip.Root>
         </div>
-      </td>
-      <td className="p-4 text-sm text-gray-700 max-w-md">
-        Need an AI model tailored to your specific wildlife monitoring needs? EarthToolsMaker can
-        develop and integrate custom models directly into BioWatch for your unique species, regions,
-        or use cases.
       </td>
       <td className="p-4 text-sm text-center text-gray-400">-</td>
       <td className="p-4 text-sm text-center text-gray-400">-</td>
@@ -441,9 +474,6 @@ export default function Zoo({ modelZoo }) {
             <tr>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                 Model
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                Description
               </th>
               <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">
                 Model Size
