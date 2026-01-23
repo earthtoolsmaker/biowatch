@@ -32,15 +32,15 @@ const MODEL_LOGOS = {
 }
 
 /**
- * Converts a size in MiB to GiB or returns the size in MiB if it is less than or equal to 1000.
- * @param {number} size_in_MiB - The size in MiB to convert.
- * @returns {string} The size in GiB if greater than 1000, otherwise in MiB.
+ * Converts a size in MB to GB or returns the size in MB if it is less than or equal to 1000.
+ * @param {number} size_in_MB - The size in MB to convert.
+ * @returns {string} The size in GB if greater than 1000, otherwise in MB.
  */
-function formatSizeInMiB(size_in_MiB) {
-  if (size_in_MiB > 1000) {
-    return (size_in_MiB / 1024).toFixed(2) + ' GiB'
+function formatSizeInMB(size_in_MB) {
+  if (size_in_MB > 1000) {
+    return (size_in_MB / 1000).toFixed(2) + ' GB'
   }
-  return size_in_MiB + ' MiB'
+  return size_in_MB + ' MB'
 }
 
 function ModelRow({
@@ -200,7 +200,7 @@ function ModelRow({
     }
   }
 
-  const { name, description, reference, size_in_MiB, logo } = model
+  const { name, description, reference, size_in_MB, logo } = model
   const { downloadMessage, downloadProgress } = calculateProgressInfo({
     modelStatus: modelDownloadStatus.model,
     envStatus: modelDownloadStatus.pythonEnvironment,
@@ -239,9 +239,9 @@ function ModelRow({
             </Tooltip.Root>
           </div>
         </td>
-        <td className="p-4 text-sm text-center">{formatSizeInMiB(size_in_MiB)}</td>
+        <td className="p-4 text-sm text-center">{formatSizeInMB(size_in_MB)}</td>
         <td className="p-4 text-sm text-center">
-          {formatSizeInMiB(pythonEnvironment['platform'][platformToKey(platform)]['size_in_MiB'])}
+          {formatSizeInMB(pythonEnvironment['platform'][platformToKey(platform)]['size_in_MB'])}
         </td>
         <td className="p-4 text-sm">
           {isDownloaded ? (

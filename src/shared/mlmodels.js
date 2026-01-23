@@ -10,7 +10,7 @@ export const pythonEnvironments = [
   /**
    * An array of Python environment configurations.
    * Each environment includes details such as type, reference information,
-   * size in MiB for various operating systems, and download URLs.
+   * size in MB for various operating systems, and download URLs.
    */
   {
     type: 'conda',
@@ -19,21 +19,21 @@ export const pythonEnvironments = [
       mac: {
         downloadURL:
           'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.0-macOS.tar.gz',
-        size_in_MiB: 349,
-        size_in_MiB_installed: 1300,
+        size_in_MB: 349,
+        size_in_MB_installed: 1300,
         files: 54414
       },
       linux: {
         downloadURL:
           'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.0-Linux.tar.gz',
-        size_in_MiB: 3220,
-        size_in_MiB_installed: 6200,
+        size_in_MB: 3220,
+        size_in_MB_installed: 6200,
         files: 54247
       },
       windows: {
         downloadURL:
           'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.0-Windows.tar.gz',
-        size_in_MiB: 522,
+        size_in_MB: 522,
         files: 52231
       }
     }
@@ -45,22 +45,22 @@ export const pythonEnvironments = [
       mac: {
         downloadURL:
           'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.1-macOS.tar.gz',
-        size_in_MiB: 349,
-        size_in_MiB_installed: 1300,
+        size_in_MB: 349,
+        size_in_MB_installed: 1300,
         files: 54414
       },
       linux: {
         downloadURL:
           'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.1-Linux.tar.gz',
-        size_in_MiB: 3220,
-        size_in_MiB_installed: 6200,
+        size_in_MB: 3220,
+        size_in_MB_installed: 6200,
         files: 54247
       },
       windows: {
         downloadURL:
           'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.1-Windows.tar.gz',
-        size_in_MiB: 499,
-        size_in_MiB_installed: 2100,
+        size_in_MB: 499,
+        size_in_MB_installed: 2100,
         files: 52231
       }
     }
@@ -72,22 +72,22 @@ export const pythonEnvironments = [
       mac: {
         downloadURL:
           'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.2-macOS.tar.gz',
-        size_in_MiB: 354,
-        size_in_MiB_installed: 1300,
+        size_in_MB: 354,
+        size_in_MB_installed: 1300,
         files: 55470
       },
       linux: {
         downloadURL:
           'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.2-Linux.tar.gz',
-        size_in_MiB: 3200,
-        size_in_MiB_installed: 6200,
+        size_in_MB: 3200,
+        size_in_MB_installed: 6200,
         files: 55869
       },
       windows: {
         downloadURL:
           'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.2-Windows.tar.gz',
-        size_in_MiB: 505,
-        size_in_MiB_installed: 2200,
+        size_in_MB: 505,
+        size_in_MB_installed: 2200,
         files: 53286
       }
     }
@@ -99,22 +99,22 @@ export const pythonEnvironments = [
       mac: {
         downloadURL:
           'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.3-macOS.tar.gz',
-        size_in_MiB: 354,
-        size_in_MiB_installed: 1300,
+        size_in_MB: 354,
+        size_in_MB_installed: 1300,
         files: 55470
       },
       linux: {
         downloadURL:
           'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.3-Linux.tar.gz',
-        size_in_MiB: 3200,
-        size_in_MiB_installed: 6200,
+        size_in_MB: 3200,
+        size_in_MB_installed: 6200,
         files: 55869
       },
       windows: {
         downloadURL:
           'https://pub-5a51774bae6b4020a4948aaf91b72172.r2.dev/conda-environments/common-0.1.3-Windows.tar.gz',
-        size_in_MiB: 3200,
-        size_in_MiB_installed: 6200,
+        size_in_MB: 3200,
+        size_in_MB_installed: 6200,
         files: 53286
       }
     }
@@ -125,14 +125,14 @@ export const modelZoo = [
   /**
    * An array of models available in the model zoo.
    * Each model includes details such as name, associated Python environment,
-   * size in MiB, reference information including version and download URL,
+   * size in MB, reference information including version and download URL,
    * a description of the model, and a link to the model's website.
    */
   {
     reference: { id: 'speciesnet', version: '4.0.1a' },
     pythonEnvironment: { id: 'common', version: '0.1.3' },
     name: 'SpeciesNet',
-    size_in_MiB: 500,
+    size_in_MB: 450,
     files: 6,
     downloadURL:
       'https://huggingface.co/earthtoolsmaker/speciesnet/resolve/main/4.0.1a.tar.gz?download=true',
@@ -146,7 +146,7 @@ export const modelZoo = [
     reference: { id: 'deepfaune', version: '1.3' },
     pythonEnvironment: { id: 'common', version: '0.1.3' },
     name: 'DeepFaune',
-    size_in_MiB: 1200,
+    size_in_MB: 1200,
     files: 2,
     downloadURL:
       'https://huggingface.co/earthtoolsmaker/deepfaune/resolve/main/1.3.tar.gz?download=true',
@@ -160,7 +160,7 @@ export const modelZoo = [
     reference: { id: 'manas', version: '1.0' },
     pythonEnvironment: { id: 'common', version: '0.1.3' },
     name: 'Manas',
-    size_in_MiB: 500,
+    size_in_MB: 500,
     files: 3,
     downloadURL:
       'https://huggingface.co/earthtoolsmaker/manas/resolve/main/1.0.tar.gz?download=true',
