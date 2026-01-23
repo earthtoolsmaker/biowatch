@@ -508,10 +508,10 @@ export default function Zoo({ modelZoo }) {
         </table>
       </div>
       {downloadedModels.size > 0 && (
-        <div className="flex justify-end mt-4">
+        <div className="flex justify-end mt-8">
           <button
             onClick={() => handleClearAllMLModels()}
-            className="bg-white cursor-pointer transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-3 h-9 text-sm shadow-xs rounded-md hover:bg-gray-50 whitespace-nowrap"
+            className="bg-white cursor-pointer transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-3 h-9 text-sm shadow-sm rounded-md hover:bg-gray-50 whitespace-nowrap"
           >
             <Trash2 color="black" size={14} />
             Clear All
