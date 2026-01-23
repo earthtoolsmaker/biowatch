@@ -300,7 +300,7 @@ function AppContent() {
         <div className="p-4 border-b border-gray-200">
           <div className={`flex items-center justify-between ${studies.length > 0 ? 'mb-3' : ''}`}>
             <h2 className="text-gray-900">Studies</h2>
-            <Tooltip.Root>
+            <Tooltip.Root delayDuration={500}>
               <Tooltip.Trigger asChild>
                 <NavLink
                   to="/import"
@@ -349,9 +349,9 @@ function AppContent() {
 
         {/* Studies List */}
         <div className="flex-1 overflow-y-auto">
-          <div data-testid="studies-list" className="p-2">
-            {filteredStudies.length === 0 && !searchQuery && (
-              <div className="p-4 text-center">
+          {filteredStudies.length === 0 && !searchQuery && (
+            <div className="flex items-center h-full pb-20">
+              <div className="p-4 text-center flex items-center flex-col">
                 <div className="p-3 bg-blue-50 rounded-full w-fit mx-auto mb-3">
                   <FolderPlus className="h-6 w-6 text-blue-500" />
                 </div>
@@ -367,7 +367,9 @@ function AppContent() {
                   Create Study
                 </NavLink>
               </div>
-            )}
+            </div>
+          )}
+          <div data-testid="studies-list" className="p-2">
             {filteredStudies.map((study) => (
               <div
                 key={study.id}

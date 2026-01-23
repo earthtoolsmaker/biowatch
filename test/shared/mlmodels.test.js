@@ -105,7 +105,7 @@ describe('ML Model Management Tests', () => {
         assert(model.reference.version, 'Model should have version')
         assert(model.pythonEnvironment, 'Model should have pythonEnvironment')
         assert(model.name, 'Model should have name')
-        assert(typeof model.size_in_MiB === 'number', 'Model should have numeric size')
+        assert(typeof model.size_in_MB === 'number', 'Model should have numeric size')
         assert(model.downloadURL, 'Model should have downloadURL')
         assert(model.description, 'Model should have description')
       })
@@ -133,7 +133,7 @@ describe('ML Model Management Tests', () => {
           assert(platformConfig, `Platform ${platform} should have configuration`)
           assert(platformConfig.downloadURL, `${platform} should have downloadURL`)
           assert(typeof platformConfig.files === 'number', `${platform} should have files count`)
-          assert(typeof platformConfig.size_in_MiB === 'number', `${platform} should have size`)
+          assert(typeof platformConfig.size_in_MB === 'number', `${platform} should have size`)
         })
       })
     })
@@ -439,8 +439,8 @@ describe('ML Model Management Tests', () => {
         assert(ref.version.length > 0, `Model version should not be empty for ${ref.id}`)
 
         // Size should be positive number
-        assert(typeof model.size_in_MiB === 'number', `Size should be number for ${ref.id}`)
-        assert(model.size_in_MiB > 0, `Size should be positive for ${ref.id}`)
+        assert(typeof model.size_in_MB === 'number', `Size should be number for ${ref.id}`)
+        assert(model.size_in_MB > 0, `Size should be positive for ${ref.id}`)
 
         // Files count should be positive number
         assert(typeof model.files === 'number', `Files count should be number for ${ref.id}`)

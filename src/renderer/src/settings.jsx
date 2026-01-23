@@ -175,7 +175,6 @@ export default function SettingsPage() {
               <ErrorBoundary FallbackComponent={ErrorFallback} key={'ml_zoo'}>
                 <div className="min-h-full flex flex-col">
                   <Zoo modelZoo={modelZoo} />
-                  <SettingsFooter className="mt-auto" onRevealAdvanced={handleRevealAdvanced} />
                 </div>
               </ErrorBoundary>
             }

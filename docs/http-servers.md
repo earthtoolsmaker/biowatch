@@ -243,7 +243,7 @@ All models are defined in `src/shared/mlmodels.js`. Each model entry has the fol
 
   // Download configuration
   downloadURL: 'https://huggingface.co/.../model.tar.gz?download=true',
-  size_in_MiB: 500,
+  size_in_MB: 500,
   files: 3,  // Number of files in the archive
 
   // Inference configuration
@@ -260,8 +260,8 @@ All models are defined in `src/shared/mlmodels.js`. Each model entry has the fol
   platform: {
     mac: {
       downloadURL: 'https://.../common-0.1.3-macOS.tar.gz',
-      size_in_MiB: 354,
-      size_in_MiB_installed: 1300,
+      size_in_MB: 354,
+      size_in_MB_installed: 1300,
       files: 55470
     },
     linux: { /* ... */ },
@@ -277,7 +277,7 @@ All models are defined in `src/shared/mlmodels.js`. Each model entry has the fol
   reference: { id: 'speciesnet', version: '4.0.1a' },
   pythonEnvironment: { id: 'common', version: '0.1.3' },
   name: 'SpeciesNet',
-  size_in_MiB: 468,
+  size_in_MB: 468,
   files: 6,
   downloadURL: 'https://huggingface.co/earthtoolsmaker/speciesnet/resolve/main/4.0.1a.tar.gz?download=true',
   description: "Google's SpeciesNet is an open-source AI model...",
@@ -417,7 +417,7 @@ export const modelZoo = [
     reference: { id: 'yourmodel', version: '1.0' },
     pythonEnvironment: { id: 'common', version: '0.1.3' },
     name: 'YourModel',
-    size_in_MiB: 500,  // Size of the downloaded archive
+    size_in_MB: 500,  // Size of the downloaded archive
     files: 3,          // Number of files in the archive
     downloadURL: 'https://your-model-host.com/yourmodel-1.0.tar.gz',
     description: 'Description of what your model does...',
