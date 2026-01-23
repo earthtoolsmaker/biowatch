@@ -132,7 +132,7 @@ export const modelZoo = [
     reference: { id: 'speciesnet', version: '4.0.1a' },
     pythonEnvironment: { id: 'common', version: '0.1.3' },
     name: 'SpeciesNet',
-    size_in_MB: 450,
+    size_in_MB: 468,
     files: 6,
     downloadURL:
       'https://huggingface.co/earthtoolsmaker/speciesnet/resolve/main/4.0.1a.tar.gz?download=true',
@@ -160,7 +160,7 @@ export const modelZoo = [
     reference: { id: 'manas', version: '1.0' },
     pythonEnvironment: { id: 'common', version: '0.1.3' },
     name: 'Manas',
-    size_in_MB: 500,
+    size_in_MB: 502,
     files: 3,
     downloadURL:
       'https://huggingface.co/earthtoolsmaker/manas/resolve/main/1.0.tar.gz?download=true',
