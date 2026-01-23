@@ -210,7 +210,7 @@ function ModelRow({
   return (
     <>
       <tr className="border-b border-gray-200 hover:bg-gray-50">
-        <td className="p-4">
+        <td className="p-4 py-8">
           <div className="flex items-center gap-3">
             {logo && MODEL_LOGOS[logo] && (
               <img
@@ -222,7 +222,7 @@ function ModelRow({
             <div className="font-medium text-sm">{name}</div>
             <Tooltip.Root delayDuration={500}>
               <Tooltip.Trigger asChild>
-                <button className="inline-flex items-center">
+                <button className="inline-flex items-center shadow-xs">
                   <Info size={16} className="text-gray-400 hover:text-gray-600 cursor-help" />
                 </button>
               </Tooltip.Trigger>
@@ -275,7 +275,7 @@ function ModelRow({
                 <>
                   <button
                     onClick={() => handleDelete(reference)}
-                    className="cursor-pointer transition-colors flex flex-row gap-2 items-center border border-gray-200 px-3 h-8 text-sm shadow-sm rounded-md hover:bg-gray-100"
+                    className="cursor-pointer transition-colors flex flex-row gap-2 items-center border border-gray-200 px-3 h-8 text-sm shadow-xs rounded-md hover:bg-gray-100"
                     title="Delete model"
                   >
                     <Trash2 color="black" size={14} />
@@ -292,7 +292,7 @@ function ModelRow({
                               shutdownApiKey: shutdownApiKey
                             })
                           }
-                          className="cursor-pointer transition-colors flex flex-row gap-2 items-center border border-gray-200 px-3 h-8 text-sm shadow-sm rounded-md hover:bg-gray-100"
+                          className="cursor-pointer transition-colors flex flex-row gap-2 items-center border border-gray-200 px-3 h-8 text-sm shadow-xs rounded-md hover:bg-gray-100"
                           title="Stop HTTP server"
                         >
                           <CircleOff color="black" size={14} />
@@ -300,7 +300,7 @@ function ModelRow({
                         </button>
                       ) : isHTTPServerStarting ? (
                         <button
-                          className="cursor-not-allowed flex flex-row gap-2 items-center border border-gray-200 px-3 h-8 text-sm shadow-sm rounded-md opacity-70"
+                          className="cursor-not-allowed flex flex-row gap-2 items-center border border-gray-200 px-3 h-8 text-sm shadow-xs rounded-md opacity-70"
                           disabled
                         >
                           <LucideLoader color="black" size={14} className="animate-spin" />
@@ -314,7 +314,7 @@ function ModelRow({
                               pythonEnvironment: pythonEnvironment
                             })
                           }
-                          className="cursor-pointer transition-colors flex flex-row gap-2 items-center border border-gray-200 px-3 h-8 text-sm shadow-sm rounded-md hover:bg-gray-100"
+                          className="cursor-pointer transition-colors flex flex-row gap-2 items-center border border-gray-200 px-3 h-8 text-sm shadow-xs rounded-md hover:bg-gray-100"
                           title="Run HTTP server"
                         >
                           <PlayIcon color="black" size={14} />
@@ -332,7 +332,7 @@ function ModelRow({
                       pythonEnvironment: pythonEnvironment
                     })
                   }
-                  className="bg-white cursor-pointer transition-colors flex flex-row gap-2 items-center border border-gray-200 px-3 h-8 text-sm shadow-sm rounded-md hover:bg-gray-100"
+                  className="bg-white cursor-pointer transition-colors flex flex-row gap-2 items-center border border-gray-200 px-3 h-8 text-sm shadow-xs rounded-md hover:bg-gray-100"
                   title="Download model"
                 >
                   <Download color="black" size={14} />
@@ -378,7 +378,7 @@ function CustomModelRow() {
 
   return (
     <tr className="border-b border-gray-200 hover:bg-gray-50">
-      <td className="p-4">
+      <td className="p-4 py-8">
         <div className="flex items-center gap-3">
           <img
             src={etmLogo}
@@ -388,7 +388,7 @@ function CustomModelRow() {
           <div className="font-medium text-sm">Your Custom Model</div>
           <Tooltip.Root delayDuration={500}>
             <Tooltip.Trigger asChild>
-              <button className="inline-flex items-center">
+              <button className="inline-flex items-center shadow-xs">
                 <Info size={16} className="text-gray-400 hover:text-gray-600 cursor-help" />
               </button>
             </Tooltip.Trigger>
@@ -509,7 +509,7 @@ export default function Zoo({ modelZoo }) {
         <div className="flex justify-end mt-4">
           <button
             onClick={() => handleClearAllMLModels()}
-            className="bg-white cursor-pointer transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-3 h-9 text-sm shadow-sm rounded-md hover:bg-gray-50 whitespace-nowrap"
+            className="bg-white cursor-pointer transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-3 h-9 text-sm shadow-xs rounded-md hover:bg-gray-50 whitespace-nowrap"
           >
             <Trash2 color="black" size={14} />
             Clear All
