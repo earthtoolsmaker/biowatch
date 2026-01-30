@@ -32,10 +32,19 @@ export class StudyDatabaseManager {
 
       // Create SQLite connection with appropriate mode
       if (this.readonly) {
+        // Run migrations using a temporary read-write connection
+        const migrationSqlite = new Database(this.dbPath)
+        migrationSqlite.pragma('foreign_keys = ON')
+        migrationSqlite.pragma('journal_mode = WAL')
+
+        this.sqlite = migrationSqlite
+        await this.runMigrations()
+        migrationSqlite.close()
+
+        // Re-open as readonly after migrations
         this.sqlite = new Database(this.dbPath, { readonly: true })
         log.info(`[DB] Initialized READONLY database for study ${this.studyId}: ${this.dbPath}`)
 
-        // Skip migrations and foreign key setup for readonly connections
         this.db = drizzle(this.sqlite, { schema })
       } else {
         this.sqlite = new Database(this.dbPath)
