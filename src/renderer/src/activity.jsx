@@ -382,17 +382,20 @@ export default function Activity({ studyData, studyId }) {
     [selectedSpecies]
   )
 
+  // Memoize joined species names string for use in keys
+  const speciesNamesKey = useMemo(() => speciesNames.join(','), [speciesNames])
+
   // Memoize geoKey to prevent MarkerClusterGroup remounts on unrelated state changes
   // Uses primitive values as dependencies to avoid reference equality issues
   const geoKey = useMemo(
     () =>
-      selectedSpecies.map((s) => s.scientificName).join(',') +
+      speciesNamesKey +
       (dateRange[0]?.toISOString() || '') +
       (dateRange[1]?.toISOString() || '') +
       timeRange.start +
       timeRange.end,
     [
-      selectedSpecies,
+      speciesNamesKey,
       dateRange[0]?.toISOString(),
       dateRange[1]?.toISOString(),
       timeRange.start,
