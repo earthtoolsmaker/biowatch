@@ -8,6 +8,7 @@ export {
   configureLogging,
   createWindow,
   initializeMigrations,
+  initializeStudyDatabaseMigrations,
   initializeApp,
   setupShutdownHandlers
 } from './lifecycle.js'
