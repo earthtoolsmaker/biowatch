@@ -7,6 +7,7 @@ import CountryPickerModal from './CountryPickerModal.jsx'
 import GbifImportProgress from './GbifImportProgress.jsx'
 import DemoImportProgress from './DemoImportProgress.jsx'
 import LilaImportProgress from './LilaImportProgress.jsx'
+import CamtrapDPImportProgress from './CamtrapDPImportProgress.jsx'
 import { Database, FolderOpen, Camera, FileSpreadsheet, Globe, Sparkles } from 'lucide-react'
 import { Button } from './ui/button.jsx'
 import { Card, CardContent } from './ui/card.jsx'
@@ -33,6 +34,10 @@ export default function Import({ onNewStudy, studiesCount = 0 }) {
   // LILA import progress state
   const [lilaImportProgress, setLilaImportProgress] = useState(null)
   const [isLilaImporting, setIsLilaImporting] = useState(false)
+
+  // CamtrapDP import progress state
+  const [camtrapDPImportProgress, setCamtrapDPImportProgress] = useState(null)
+  const [isCamtrapDPImporting, setIsCamtrapDPImporting] = useState(false)
 
   // GBIF datasets state
   const [gbifDatasets, setGbifDatasets] = useState([])
@@ -64,6 +69,14 @@ export default function Import({ onNewStudy, studiesCount = 0 }) {
   useEffect(() => {
     const cleanup = window.api.onLilaImportProgress?.((progress) => {
       setLilaImportProgress(progress)
+    })
+    return cleanup
+  }, [])
+
+  // Listen for CamtrapDP import progress events
+  useEffect(() => {
+    const cleanup = window.api.onCamtrapDPImportProgress?.((progress) => {
+      setCamtrapDPImportProgress(progress)
     })
     return cleanup
   }, [])
@@ -198,11 +211,39 @@ export default function Import({ onNewStudy, studiesCount = 0 }) {
   }
 
   const handleCamTrapDP = async () => {
-    const { id } = await window.api.selectCamtrapDPDataset()
-    if (!id) return
-    // onNewStudy({ id, name: data.name, data, path })
-    queryClient.invalidateQueries(['studies'])
-    navigate(`/study/${id}`)
+    try {
+      setIsCamtrapDPImporting(true)
+      setCamtrapDPImportProgress({
+        stage: 'importing_csvs',
+        stageIndex: 0,
+        totalStages: 1,
+        datasetTitle: 'CamTrap DP Dataset'
+      })
+
+      const result = await window.api.selectCamtrapDPDataset()
+
+      if (!result || !result.id) {
+        setIsCamtrapDPImporting(false)
+        setCamtrapDPImportProgress(null)
+        return
+      }
+
+      // Brief delay to show completion state, then navigate
+      setTimeout(async () => {
+        setIsCamtrapDPImporting(false)
+        setCamtrapDPImportProgress(null)
+        await queryClient.invalidateQueries({ queryKey: ['studies'] })
+        navigate(`/study/${result.id}`)
+      }, 800)
+    } catch (error) {
+      console.error('Failed to import CamTrap DP dataset:', error)
+      // Error state is already set via IPC progress event
+    }
+  }
+
+  const handleCancelCamtrapDPImport = () => {
+    setIsCamtrapDPImporting(false)
+    setCamtrapDPImportProgress(null)
   }
 
   const handleWildlifeInsights = async () => {
@@ -894,6 +935,12 @@ export default function Import({ onNewStudy, studiesCount = 0 }) {
         isOpen={isLilaImporting}
         progress={lilaImportProgress}
         onCancel={handleCancelLilaImport}
+      />
+
+      <CamtrapDPImportProgress
+        isOpen={isCamtrapDPImporting}
+        progress={camtrapDPImportProgress}
+        onCancel={handleCancelCamtrapDPImport}
       />
     </div>
   )

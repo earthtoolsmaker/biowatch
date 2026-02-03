@@ -42,3 +42,16 @@ export function sendLilaImportProgress(progressData) {
     }
   })
 }
+
+/**
+ * Send CamtrapDP import progress to all renderer windows
+ * @param {Object} progressData - Progress data to send
+ */
+export function sendCamtrapDPImportProgress(progressData) {
+  const windows = BrowserWindow.getAllWindows()
+  windows.forEach((win) => {
+    if (!win.isDestroyed()) {
+      win.webContents.send('camtrap-dp-import:progress', progressData)
+    }
+  })
+}
