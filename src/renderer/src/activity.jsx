@@ -382,16 +382,12 @@ export default function Activity({ studyData, studyId }) {
     [selectedSpecies]
   )
 
-  // Memoize geoKey to prevent MarkerClusterGroup remounts on unrelated state changes
-  const geoKey = useMemo(
-    () =>
-      selectedSpecies.map((s) => s.scientificName).join(',') +
-      (dateRange[0]?.toISOString() || '') +
-      (dateRange[1]?.toISOString() || '') +
-      timeRange.start +
-      timeRange.end,
-    [selectedSpecies, dateRange, timeRange]
-  )
+  const geoKey =
+    selectedSpecies.map((s) => s.scientificName).join(',') +
+    (dateRange[0]?.toISOString() || '') +
+    (dateRange[1]?.toISOString() || '') +
+    timeRange.start +
+    timeRange.end
 
   // Fetch sequence-aware timeseries data
   const { data: timeseriesQueryData } = useQuery({
