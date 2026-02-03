@@ -32,7 +32,6 @@ export {
 
 // Media
 export {
-  getMedia,
   getFilesData,
   getMediaBboxes,
   getMediaBboxesBatch,

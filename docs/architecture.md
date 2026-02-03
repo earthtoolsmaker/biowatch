@@ -195,25 +195,25 @@ User selects dataset
 ```
 React Component
         │
-        │ useQuery({ queryFn: () => window.api.getMedia() })
+        │ useQuery({ queryFn: () => window.api.getSequences() })
         ▼
 ┌─────────────────┐
 │   preload/      │
 │   index.js      │
 └────────┬────────┘
-         │ ipcRenderer.invoke('media:get', studyId, options)
+         │ ipcRenderer.invoke('sequences:get-paginated', studyId, options)
          ▼
 ┌─────────────────┐
 │   main/         │
-│   index.js      │  ──▶ ipcMain.handle('media:get', ...)
+│   ipc/sequences │  ──▶ ipcMain.handle('sequences:get-paginated', ...)
 └────────┬────────┘
          │
          ▼
-┌─────────────────┐
-│  database/      │
-│  queries/media  │
-│   getMedia()    │
-└────────┬────────┘
+┌─────────────────────────┐
+│  database/              │
+│  queries/sequences      │
+│  getMediaForSequence... │
+└────────┬────────────────┘
          │
          ▼
 ┌─────────────────┐
@@ -321,21 +321,21 @@ All renderer ↔ main communication follows this pattern:
 ```javascript
 // 1. Preload exposes API (src/preload/index.js)
 const api = {
-  getMedia: async (studyId, options = {}) => {
-    return await electronAPI.ipcRenderer.invoke('media:get', studyId, options)
+  getSequences: async (studyId, options = {}) => {
+    return await electronAPI.ipcRenderer.invoke('sequences:get-paginated', studyId, options)
   }
 }
 contextBridge.exposeInMainWorld('api', api)
 
-// 2. Main handles IPC (src/main/ipc/media.js)
-ipcMain.handle('media:get', async (_, studyId, options = {}) => {
+// 2. Main handles IPC (src/main/ipc/sequences.js)
+ipcMain.handle('sequences:get-paginated', async (_, studyId, options = {}) => {
   const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
-  const media = await getMedia(dbPath, options)
-  return { data: media }
+  const result = await getPaginatedSequences(dbPath, options)
+  return { data: result }
 })
 
 // 3. Renderer calls API (src/renderer/src/*.jsx)
-const { data } = await window.api.getMedia(studyId, { limit: 100 })
+const { data } = await window.api.getSequences(studyId, { limit: 20 })
 ```
 
 ## Technology Stack

@@ -51,9 +51,6 @@ const api = {
   getDeploymentsActivity: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('deployments:get-activity', studyId)
   },
-  getMedia: async (studyId, options = {}) => {
-    return await electronAPI.ipcRenderer.invoke('media:get', studyId, options)
-  },
   getMediaBboxes: async (studyId, mediaID, includeWithoutBbox = false) => {
     return await electronAPI.ipcRenderer.invoke(
       'media:get-bboxes',

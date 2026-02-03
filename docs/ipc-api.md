@@ -9,7 +9,7 @@ Biowatch uses Electron's IPC for communication:
 ```
 Renderer Process          Preload Script          Main Process
      │                         │                       │
-     │  window.api.getMedia()  │                       │
+     │ window.api.getSequences()│                       │
      ├────────────────────────►│                       │
      │                         │  ipcRenderer.invoke() │
      │                         ├──────────────────────►│
@@ -25,7 +25,7 @@ From renderer (React components):
 
 ```javascript
 // All IPC methods are available on window.api
-const { data, error } = await window.api.getMedia(studyId, { limit: 100 })
+const { data, error } = await window.api.getSequences(studyId, { limit: 20 })
 ```
 
 ## Handler Reference
@@ -160,7 +160,6 @@ const { data, fetchNextPage, hasNextPage } = useInfiniteQuery({
 
 | Method | Channel | Parameters | Returns |
 |--------|---------|------------|---------|
-| `getMedia(studyId, options)` | `media:get` | studyId, { limit?, offset?, filters? } | `{ data: Media[] }` |
 | `getMediaBboxes(studyId, mediaID)` | `media:get-bboxes` | studyId, mediaID | `{ data: Bbox[] }` |
 | `getMediaBboxesBatch(studyId, mediaIDs)` | `media:get-bboxes-batch` | studyId, mediaID[] | `{ data: Map<mediaID, Bbox[]> }` |
 | `checkMediaHaveBboxes(studyId, mediaIDs)` | `media:have-bboxes` | studyId, mediaID[] | `{ data: boolean }` |

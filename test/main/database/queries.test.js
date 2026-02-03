@@ -9,7 +9,6 @@ import { DateTime } from 'luxon'
 import {
   getSpeciesDistribution,
   getLocationsActivity,
-  getMedia,
   getDeployments,
   getDeploymentsActivity,
   getFilesData,
@@ -20,7 +19,6 @@ import {
   getStudyIdFromPath,
   getBlankMediaCount
 } from '../../../src/main/database/index.js'
-import { BLANK_SENTINEL } from '../../../src/shared/constants.js'
 
 // Test database setup
 let testBiowatchDataPath
@@ -318,65 +316,6 @@ describe('Database Query Functions Tests', () => {
           assert(period.end, 'Period should have end date')
           assert(typeof period.count === 'number', 'Period should have numeric count')
         })
-      })
-    })
-  })
-
-  describe('getMedia', () => {
-    test('should return media with pagination', async () => {
-      await createTestData(testDbPath)
-
-      const result = await getMedia(testDbPath, { limit: 3, offset: 0 })
-
-      assert(Array.isArray(result), 'Should return an array')
-      assert(result.length <= 3, 'Should respect limit parameter')
-
-      result.forEach((media) => {
-        assert(media.mediaID, 'Media should have ID')
-        assert(media.filePath, 'Media should have file path')
-        assert(media.fileName, 'Media should have file name')
-        assert(media.timestamp, 'Media should have timestamp')
-        assert(media.scientificName, 'Media should have associated species')
-      })
-    })
-
-    test('should filter by species', async () => {
-      await createTestData(testDbPath)
-
-      const result = await getMedia(testDbPath, {
-        species: ['Cervus elaphus'],
-        limit: 10
-      })
-
-      result.forEach((media) => {
-        assert.equal(
-          media.scientificName,
-          'Cervus elaphus',
-          'All returned media should be for specified species'
-        )
-      })
-    })
-
-    test('should filter by date range', async () => {
-      await createTestData(testDbPath)
-
-      const result = await getMedia(testDbPath, {
-        dateRange: {
-          start: '2023-03-15T00:00:00Z',
-          end: '2023-03-30T23:59:59Z'
-        },
-        limit: 10
-      })
-
-      result.forEach((media) => {
-        const mediaDate = new Date(media.timestamp)
-        const startDate = new Date('2023-03-15T00:00:00Z')
-        const endDate = new Date('2023-03-30T23:59:59Z')
-
-        assert(
-          mediaDate >= startDate && mediaDate <= endDate,
-          'Media timestamp should be within specified date range'
-        )
       })
     })
   })
@@ -722,122 +661,6 @@ describe('Database Query Functions Tests', () => {
       // Should treat as mediaID-based dataset (because at least one obs has mediaID)
       // media002 has no observation linked via mediaID, so it's blank
       assert.equal(result, 1, 'Should return 1 blank for mixed dataset')
-    })
-  })
-
-  describe('getMedia with blanks', () => {
-    test('should return blank media when BLANK_SENTINEL is in species list', async () => {
-      const manager = await createImageDirectoryDatabase(testDbPath)
-
-      await insertDeployments(manager, {
-        deploy001: {
-          deploymentID: 'deploy001',
-          locationID: 'loc001',
-          locationName: 'Forest Site A',
-          deploymentStart: DateTime.fromISO('2023-03-15T10:00:00Z'),
-          deploymentEnd: DateTime.fromISO('2023-06-15T18:00:00Z'),
-          latitude: 46.7712,
-          longitude: 6.6413
-        }
-      })
-
-      await insertMedia(manager, {
-        'media001.jpg': {
-          mediaID: 'media001',
-          deploymentID: 'deploy001',
-          timestamp: DateTime.fromISO('2023-03-20T14:30:15Z'),
-          filePath: 'images/folder1/media001.jpg',
-          fileName: 'media001.jpg',
-          importFolder: 'images',
-          folderName: 'folder1'
-        },
-        'blank_media.jpg': {
-          mediaID: 'blank001',
-          deploymentID: 'deploy001',
-          timestamp: DateTime.fromISO('2023-03-20T15:00:00Z'),
-          filePath: 'images/folder1/blank_media.jpg',
-          fileName: 'blank_media.jpg',
-          importFolder: 'images',
-          folderName: 'folder1'
-        }
-      })
-
-      // Only one observation, leaving blank001 as blank
-      await insertObservations(manager, [
-        {
-          observationID: 'obs001',
-          mediaID: 'media001',
-          deploymentID: 'deploy001',
-          eventID: 'event001',
-          eventStart: DateTime.fromISO('2023-03-20T14:30:15Z'),
-          eventEnd: DateTime.fromISO('2023-03-20T14:30:45Z'),
-          scientificName: 'Cervus elaphus',
-          count: 1
-        }
-      ])
-
-      // Query for blanks using the BLANK_SENTINEL value
-      const result = await getMedia(testDbPath, {
-        species: [BLANK_SENTINEL],
-        limit: 10
-      })
-
-      assert.equal(result.length, 1, 'Should return 1 blank media')
-      assert.equal(result[0].mediaID, 'blank001', 'Should return the blank media')
-      // Blank media have NULL scientificName in the database
-      // The __blank__ sentinel is used by the frontend for display/filtering
-      assert.equal(result[0].scientificName, null, 'Blank media should have null scientificName')
-    })
-
-    test('should return all media as blank for timestamp-based dataset (observations have NULL mediaID)', async () => {
-      const manager = await createImageDirectoryDatabase(testDbPath)
-
-      await insertDeployments(manager, {
-        deploy001: {
-          deploymentID: 'deploy001',
-          locationID: 'loc001',
-          locationName: 'Forest Site A',
-          deploymentStart: DateTime.fromISO('2023-03-15T10:00:00Z'),
-          deploymentEnd: DateTime.fromISO('2023-06-15T18:00:00Z'),
-          latitude: 46.7712,
-          longitude: 6.6413
-        }
-      })
-
-      await insertMedia(manager, {
-        'media001.jpg': {
-          mediaID: 'media001',
-          deploymentID: 'deploy001',
-          timestamp: DateTime.fromISO('2023-03-20T14:30:15Z'),
-          filePath: 'images/folder1/media001.jpg',
-          fileName: 'media001.jpg',
-          importFolder: 'images',
-          folderName: 'folder1'
-        }
-      })
-
-      // Timestamp-based observation (NULL mediaID)
-      await insertObservations(manager, [
-        {
-          observationID: 'obs001',
-          mediaID: null, // NULL = timestamp-based
-          deploymentID: 'deploy001',
-          eventID: 'event001',
-          eventStart: DateTime.fromISO('2023-03-20T14:30:15Z'),
-          eventEnd: DateTime.fromISO('2023-03-20T14:30:45Z'),
-          scientificName: 'Cervus elaphus',
-          count: 1
-        }
-      ])
-
-      // Query for blanks - returns all media because blank detection uses mediaID join
-      // and timestamp-based observations have NULL mediaID (no match)
-      const result = await getMedia(testDbPath, {
-        species: [BLANK_SENTINEL],
-        limit: 10
-      })
-
-      assert.equal(result.length, 1, 'Should return all media as blank for timestamp-based dataset')
     })
   })
 

@@ -216,7 +216,6 @@ export {
   getSpeciesHeatmapDataByMedia,
   getSpeciesDailyActivityByMedia,
   // Media
-  getMedia,
   getFilesData,
   getMediaBboxes,
   getMediaBboxesBatch,
