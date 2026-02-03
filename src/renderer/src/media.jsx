@@ -18,7 +18,8 @@ import {
   Heart,
   ZoomIn,
   ZoomOut,
-  RotateCcw
+  RotateCcw,
+  Info
 } from 'lucide-react'
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient, useMutation, useInfiniteQuery } from '@tanstack/react-query'
@@ -1187,9 +1188,37 @@ function ImageModal({
       if (selectedBboxId) {
         if (e.key === 'Escape') {
           setSelectedBboxId(null)
+          return
         } else if (e.key === 'Delete' || e.key === 'Backspace') {
           e.preventDefault()
           handleDeleteObservation(selectedBboxId)
+          return
+        }
+        // Allow Tab to fall through to bbox cycling below
+        if (e.key !== 'Tab') {
+          return
+        }
+      }
+
+      // Cycle through bboxes with Tab/Shift+Tab
+      if (e.key === 'Tab') {
+        const visibleBboxes = bboxes.filter((b) => b.bboxX !== null && b.bboxX !== undefined)
+        if (visibleBboxes.length > 0) {
+          e.preventDefault() // Prevent default browser tab behavior
+
+          const currentIndex = visibleBboxes.findIndex((b) => b.observationID === selectedBboxId)
+
+          let nextIndex
+          if (e.shiftKey) {
+            // Shift+Tab: go to previous bbox
+            nextIndex = currentIndex <= 0 ? visibleBboxes.length - 1 : currentIndex - 1
+          } else {
+            // Tab: go to next bbox
+            nextIndex = currentIndex >= visibleBboxes.length - 1 ? 0 : currentIndex + 1
+          }
+
+          setSelectedBboxId(visibleBboxes[nextIndex].observationID)
+          setShowSpeciesSelector(false) // Don't auto-open species selector
         }
         return
       }
@@ -1255,7 +1284,8 @@ function ImageModal({
     isZoomed,
     resetZoom,
     zoomIn,
-    zoomOut
+    zoomOut,
+    bboxes
   ])
 
   // Reset selection, draw mode, zoom, and image ready state when changing images
@@ -1657,6 +1687,47 @@ function ImageModal({
                         <RotateCcw size={16} />
                       </button>
                     )}
+                    {/* Keyboard shortcuts info */}
+                    <div className="w-px h-5 bg-white/30" />
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <button
+                          onClick={(e) => e.stopPropagation()}
+                          className="p-1 text-white hover:text-lime-400 transition-colors"
+                          aria-label="Keyboard shortcuts"
+                        >
+                          <Info size={18} />
+                        </button>
+                      </Tooltip.Trigger>
+                      <Tooltip.Portal>
+                        <Tooltip.Content
+                          side="bottom"
+                          sideOffset={8}
+                          className="z-[10000] max-w-xs px-3 py-2 bg-gray-900 text-white text-xs rounded-md shadow-lg"
+                        >
+                          <div className="font-medium mb-1">Keyboard Shortcuts</div>
+                          <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
+                            <kbd className="text-lime-400">Tab</kbd>
+                            <span>Next bbox</span>
+                            <kbd className="text-lime-400">Shift+Tab</kbd>
+                            <span>Previous bbox</span>
+                            <kbd className="text-lime-400">←/→</kbd>
+                            <span>Navigate images</span>
+                            <kbd className="text-lime-400">B</kbd>
+                            <span>Toggle bboxes</span>
+                            <kbd className="text-lime-400">+/-</kbd>
+                            <span>Zoom in/out</span>
+                            <kbd className="text-lime-400">0</kbd>
+                            <span>Reset zoom</span>
+                            <kbd className="text-lime-400">Del</kbd>
+                            <span>Delete bbox</span>
+                            <kbd className="text-lime-400">Esc</kbd>
+                            <span>Deselect/Close</span>
+                          </div>
+                          <Tooltip.Arrow className="fill-gray-900" />
+                        </Tooltip.Content>
+                      </Tooltip.Portal>
+                    </Tooltip.Root>
                   </div>
                 )}
               </>
