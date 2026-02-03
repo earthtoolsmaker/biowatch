@@ -8,7 +8,10 @@
 
 import log from '../logger.js'
 import { groupMediaIntoSequences, groupMediaByEventID } from './grouping.js'
-import { getMediaForSequencePagination, hasTimestampedMedia } from '../../database/queries/sequences.js'
+import {
+  getMediaForSequencePagination,
+  hasTimestampedMedia
+} from '../../database/queries/sequences.js'
 
 /**
  * Default batch size for fetching media from DB
@@ -74,12 +77,7 @@ function isVideoMedia(media) {
  * @returns {Promise<{ sequences: Array, nextCursor: string|null, hasMore: boolean }>}
  */
 export async function getPaginatedSequences(dbPath, options = {}) {
-  const {
-    gapSeconds = 60,
-    limit = 20,
-    cursor: cursorStr = null,
-    filters = {}
-  } = options
+  const { gapSeconds = 60, limit = 20, cursor: cursorStr = null, filters = {} } = options
 
   const { species = [], dateRange = {}, timeRange = {} } = filters
 
@@ -173,14 +171,7 @@ export async function getPaginatedSequences(dbPath, options = {}) {
  * @returns {Promise<{ sequences: Array, nextCursor: Object|null, hasMoreNull: boolean }>}
  */
 async function fetchTimestampedSequences(dbPath, options) {
-  const {
-    gapSeconds,
-    limit,
-    cursor,
-    species,
-    dateRange,
-    timeRange
-  } = options
+  const { gapSeconds, limit, cursor, species, dateRange, timeRange } = options
 
   // Fetch a batch of media
   const batchSize = Math.max(DEFAULT_BATCH_SIZE, limit * 10) // Ensure we have enough for look-ahead
@@ -263,11 +254,8 @@ async function fetchTimestampedSequences(dbPath, options) {
 
   // We're returning all complete sequences
   if (sequencesToReturn.length > 0) {
-    // Find the start of the incomplete sequence (first item of last sequence in allSequences)
+    // Find the earliest timestamp in the incomplete sequence to use as cursor
     const incompleteSeq = allSequences[allSequences.length - 1]
-    const firstItemOfIncomplete = incompleteSeq.items[0]
-
-    // Sort items to find the earliest timestamp in the incomplete sequence
     const sortedItems = [...incompleteSeq.items].sort(
       (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
     )
@@ -296,15 +284,7 @@ async function fetchTimestampedSequences(dbPath, options) {
  * Keep fetching until we find the sequence boundary
  */
 async function fetchMoreForLargeSequence(dbPath, options) {
-  const {
-    gapSeconds,
-    limit,
-    species,
-    dateRange,
-    timeRange,
-    existingMedia,
-    batchSize
-  } = options
+  const { gapSeconds, limit, species, dateRange, timeRange, existingMedia, batchSize } = options
 
   let allMedia = [...existingMedia]
   let lastItem = allMedia[allMedia.length - 1]
@@ -363,15 +343,12 @@ async function fetchMoreForLargeSequence(dbPath, options) {
       const hasMoreSeqs = completeSequences.length > limit || dbResult.hasMoreTimestamped
 
       if (hasMoreSeqs) {
-        // Determine next cursor
-        const nextSeqStart = completeSequences.length > limit
-          ? completeSequences[limit].items[0]
-          : allSequences[allSequences.length - 1].items[0]
-
-        const sortedItems = [...(completeSequences.length > limit
-          ? completeSequences[limit].items
-          : allSequences[allSequences.length - 1].items
-        )].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+        // Find earliest timestamp in the next sequence to use as cursor
+        const sortedItems = [
+          ...(completeSequences.length > limit
+            ? completeSequences[limit].items
+            : allSequences[allSequences.length - 1].items)
+        ].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
 
         return {
           sequences: sequencesToReturn.map(formatSequence),
@@ -417,11 +394,7 @@ async function fetchMoreForLargeSequence(dbPath, options) {
  * @returns {Promise<{ sequences: Array, hasMore: boolean }>}
  */
 async function fetchNullTimestampSequences(dbPath, options) {
-  const {
-    limit,
-    offset,
-    species
-  } = options
+  const { limit, offset, species } = options
 
   const dbResult = await getMediaForSequencePagination(dbPath, {
     cursor: { phase: 'null', offset },

@@ -8,7 +8,6 @@ import { getDrizzleDb, media, observations } from '../index.js'
 import {
   eq,
   and,
-  desc,
   sql,
   isNotNull,
   ne,
@@ -43,13 +42,7 @@ import { BLANK_SENTINEL } from '../../../shared/constants.js'
  * @returns {Promise<{ media: Array, hasMoreTimestamped: boolean, hasMoreNull: boolean }>}
  */
 export async function getMediaForSequencePagination(dbPath, options = {}) {
-  const {
-    cursor = null,
-    batchSize = 200,
-    species = [],
-    dateRange = {},
-    timeRange = {}
-  } = options
+  const { cursor = null, batchSize = 200, species = [], dateRange = {}, timeRange = {} } = options
 
   const startTime = Date.now()
   const phase = cursor?.phase || 'timestamped'
@@ -63,9 +56,6 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
     const requestingBlanks = species.includes(BLANK_SENTINEL)
     const regularSpecies = species.filter((s) => s !== BLANK_SENTINEL)
 
-    // Build common date/time conditions
-    const dateTimeConditions = []
-
     // Date range filter (only applies to timestamped phase)
     let startDate, endDate
     if (dateRange.start && dateRange.end) {
@@ -75,8 +65,7 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
     }
 
     // Time of day filter (only applies to timestamped media)
-    const hasTimeFilter =
-      timeRange.start !== undefined && timeRange.end !== undefined
+    const hasTimeFilter = timeRange.start !== undefined && timeRange.end !== undefined
 
     // Select fields for all queries
     const selectFields = {

@@ -294,9 +294,7 @@ describe('Large dataset scenarios', () => {
     // 500 items, 50 sequences of 10 items each (items 30s apart, sequences 200s apart)
     for (let seq = 0; seq < 50; seq++) {
       for (let item = 0; item < 10; item++) {
-        batch.push(
-          createMediaAtOffset(`seq${seq}_item${item}`, baseTime, seq * 200 + item * 30)
-        )
+        batch.push(createMediaAtOffset(`seq${seq}_item${item}`, baseTime, seq * 200 + item * 30))
       }
     }
 
