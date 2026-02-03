@@ -8,9 +8,11 @@ import {
   CpuIcon,
   Book,
   Server,
-  Mail
+  Mail,
+  Info
 } from 'lucide-react'
 import { toast } from 'sonner'
+import * as Tooltip from '@radix-ui/react-tooltip'
 import { platformToKey, findPythonEnvironment } from '../../shared/mlmodels'
 import {
   isOwnEnvironmentDownload,
@@ -30,15 +32,17 @@ const MODEL_LOGOS = {
 }
 
 /**
- * Converts a size in MiB to GiB or returns the size in MiB if it is less than or equal to 1000.
- * @param {number} size_in_MiB - The size in MiB to convert.
- * @returns {string} The size in GiB if greater than 1000, otherwise in MiB.
+ * Converts a size in MB to GB or returns the size in MB if it is less than or equal to 1000.
+ * Rounds to the nearest 50MB.
+ * @param {number} size_in_MB - The size in MB to convert.
+ * @returns {string} The size in GB if greater than 1000, otherwise in MB.
  */
-function formatSizeInMiB(size_in_MiB) {
-  if (size_in_MiB > 1000) {
-    return (size_in_MiB / 1024).toFixed(2) + ' GiB'
+function formatSizeInMB(size_in_MB) {
+  const rounded = Math.round(size_in_MB / 50) * 50
+  if (rounded > 1000) {
+    return (rounded / 1000).toFixed(2) + ' GB'
   }
-  return size_in_MiB + ' MiB'
+  return rounded + ' MB'
 }
 
 function ModelRow({
@@ -198,7 +202,7 @@ function ModelRow({
     }
   }
 
-  const { name, description, reference, size_in_MiB, logo } = model
+  const { name, description, reference, size_in_MB, logo } = model
   const { downloadMessage, downloadProgress } = calculateProgressInfo({
     modelStatus: modelDownloadStatus.model,
     envStatus: modelDownloadStatus.pythonEnvironment,
@@ -208,7 +212,7 @@ function ModelRow({
   return (
     <>
       <tr className="border-b border-gray-200 hover:bg-gray-50">
-        <td className="p-4">
+        <td className="p-4 py-8">
           <div className="flex items-center gap-3">
             {logo && MODEL_LOGOS[logo] && (
               <img
@@ -218,12 +222,28 @@ function ModelRow({
               />
             )}
             <div className="font-medium text-sm">{name}</div>
+            <Tooltip.Root delayDuration={500}>
+              <Tooltip.Trigger asChild>
+                <button className="inline-flex items-center shadow-xs">
+                  <Info size={16} className="text-gray-400 hover:text-gray-600 cursor-help" />
+                </button>
+              </Tooltip.Trigger>
+              <Tooltip.Portal>
+                <Tooltip.Content
+                  side="right"
+                  sideOffset={8}
+                  className="z-[10000] max-w-xs px-3 py-2 bg-gray-900 text-white text-xs rounded-md shadow-lg"
+                >
+                  {description}
+                  <Tooltip.Arrow className="fill-gray-900" />
+                </Tooltip.Content>
+              </Tooltip.Portal>
+            </Tooltip.Root>
           </div>
         </td>
-        <td className="p-4 text-sm text-gray-700 max-w-md">{description}</td>
-        <td className="p-4 text-sm text-center">{formatSizeInMiB(size_in_MiB)}</td>
+        <td className="p-4 text-sm text-center">{formatSizeInMB(size_in_MB)}</td>
         <td className="p-4 text-sm text-center">
-          {formatSizeInMiB(pythonEnvironment['platform'][platformToKey(platform)]['size_in_MiB'])}
+          {formatSizeInMB(pythonEnvironment['platform'][platformToKey(platform)]['size_in_MB'])}
         </td>
         <td className="p-4 text-sm">
           {isDownloaded ? (
@@ -257,7 +277,7 @@ function ModelRow({
                 <>
                   <button
                     onClick={() => handleDelete(reference)}
-                    className="cursor-pointer transition-colors flex flex-row gap-2 items-center border border-gray-200 px-3 h-8 text-sm shadow-sm rounded-md hover:bg-gray-100"
+                    className="cursor-pointer transition-colors flex flex-row gap-2 items-center border border-gray-200 px-3 h-8 text-sm shadow-xs rounded-md hover:bg-gray-100"
                     title="Delete model"
                   >
                     <Trash2 color="black" size={14} />
@@ -274,7 +294,7 @@ function ModelRow({
                               shutdownApiKey: shutdownApiKey
                             })
                           }
-                          className="cursor-pointer transition-colors flex flex-row gap-2 items-center border border-gray-200 px-3 h-8 text-sm shadow-sm rounded-md hover:bg-gray-100"
+                          className="cursor-pointer transition-colors flex flex-row gap-2 items-center border border-gray-200 px-3 h-8 text-sm shadow-xs rounded-md hover:bg-gray-100"
                           title="Stop HTTP server"
                         >
                           <CircleOff color="black" size={14} />
@@ -282,7 +302,7 @@ function ModelRow({
                         </button>
                       ) : isHTTPServerStarting ? (
                         <button
-                          className="cursor-not-allowed flex flex-row gap-2 items-center border border-gray-200 px-3 h-8 text-sm shadow-sm rounded-md opacity-70"
+                          className="cursor-not-allowed flex flex-row gap-2 items-center border border-gray-200 px-3 h-8 text-sm shadow-xs rounded-md opacity-70"
                           disabled
                         >
                           <LucideLoader color="black" size={14} className="animate-spin" />
@@ -296,7 +316,7 @@ function ModelRow({
                               pythonEnvironment: pythonEnvironment
                             })
                           }
-                          className="cursor-pointer transition-colors flex flex-row gap-2 items-center border border-gray-200 px-3 h-8 text-sm shadow-sm rounded-md hover:bg-gray-100"
+                          className="cursor-pointer transition-colors flex flex-row gap-2 items-center border border-gray-200 px-3 h-8 text-sm shadow-xs rounded-md hover:bg-gray-100"
                           title="Run HTTP server"
                         >
                           <PlayIcon color="black" size={14} />
@@ -314,7 +334,7 @@ function ModelRow({
                       pythonEnvironment: pythonEnvironment
                     })
                   }
-                  className="bg-white cursor-pointer transition-colors flex flex-row gap-2 items-center border border-gray-200 px-3 h-8 text-sm shadow-sm rounded-md hover:bg-gray-100"
+                  className="bg-white cursor-pointer transition-colors flex flex-row gap-2 items-center border border-gray-200 px-3 h-8 text-sm shadow-xs rounded-md hover:bg-gray-100"
                   title="Download model"
                 >
                   <Download color="black" size={14} />
@@ -327,7 +347,7 @@ function ModelRow({
       </tr>
       {isHTTPServerRunning && (
         <tr className="border-b border-gray-200 bg-blue-50">
-          <td colSpan="6" className="p-4">
+          <td colSpan="5" className="p-4">
             <div className="text-sm flex items-center gap-6">
               <span className="flex items-center gap-2">
                 <Server size={14} />
@@ -355,9 +375,12 @@ function ModelRow({
 }
 
 function CustomModelRow() {
+  const customDescription =
+    'Need an AI model tailored to your specific wildlife monitoring needs? EarthToolsMaker can develop and integrate custom models directly into BioWatch for your unique species, regions, or use cases.'
+
   return (
     <tr className="border-b border-gray-200 hover:bg-gray-50">
-      <td className="p-4">
+      <td className="p-4 py-8">
         <div className="flex items-center gap-3">
           <img
             src={etmLogo}
@@ -365,12 +388,24 @@ function CustomModelRow() {
             className="h-8 w-8 object-contain flex-shrink-0 rounded-full"
           />
           <div className="font-medium text-sm">Your Custom Model</div>
+          <Tooltip.Root delayDuration={500}>
+            <Tooltip.Trigger asChild>
+              <button className="inline-flex items-center shadow-xs">
+                <Info size={16} className="text-gray-400 hover:text-gray-600 cursor-help" />
+              </button>
+            </Tooltip.Trigger>
+            <Tooltip.Portal>
+              <Tooltip.Content
+                side="right"
+                sideOffset={8}
+                className="z-[10000] max-w-xs px-3 py-2 bg-gray-900 text-white text-xs rounded-md shadow-lg"
+              >
+                {customDescription}
+                <Tooltip.Arrow className="fill-gray-900" />
+              </Tooltip.Content>
+            </Tooltip.Portal>
+          </Tooltip.Root>
         </div>
-      </td>
-      <td className="p-4 text-sm text-gray-700 max-w-md">
-        Need an AI model tailored to your specific wildlife monitoring needs? EarthToolsMaker can
-        develop and integrate custom models directly into BioWatch for your unique species, regions,
-        or use cases.
       </td>
       <td className="p-4 text-sm text-center text-gray-400">-</td>
       <td className="p-4 text-sm text-center text-gray-400">-</td>
@@ -442,9 +477,6 @@ export default function Zoo({ modelZoo }) {
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                 Model
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                Description
-              </th>
               <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">
                 Model Size
               </th>
@@ -476,7 +508,7 @@ export default function Zoo({ modelZoo }) {
         </table>
       </div>
       {downloadedModels.size > 0 && (
-        <div className="flex justify-end mt-4">
+        <div className="flex justify-end mt-8">
           <button
             onClick={() => handleClearAllMLModels()}
             className="bg-white cursor-pointer transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-3 h-9 text-sm shadow-sm rounded-md hover:bg-gray-50 whitespace-nowrap"
