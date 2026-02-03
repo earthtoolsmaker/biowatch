@@ -27,7 +27,7 @@ describe('computeBboxLabelPosition', () => {
 
     assertPercentApprox(result.left, 30)
     assertPercentApprox(result.top, 30)
-    assert.equal(result.transform, 'translateY(-100%)')
+    assert.equal(result.transform, 'translateY(calc(-100% - 2px))')
   })
 
   test('bbox near top edge - label positioned below bbox', () => {
@@ -48,7 +48,7 @@ describe('computeBboxLabelPosition', () => {
     assertPercentApprox(result.left, 90)
     assertPercentApprox(result.top, 30)
     assert.ok(result.transform.includes('translateX(-100%)'))
-    assert.ok(result.transform.includes('translateY(-100%)'))
+    assert.ok(result.transform.includes('translateY(calc(-100% - 2px))'))
   })
 
   test('bbox near top-right corner - label below AND shifted left (regression test)', () => {
@@ -71,7 +71,7 @@ describe('computeBboxLabelPosition', () => {
 
     assertPercentApprox(result.left, 10)
     assertPercentApprox(result.top, 80)
-    assert.equal(result.transform, 'translateY(-100%)')
+    assert.equal(result.transform, 'translateY(calc(-100% - 2px))')
   })
 
   test('bbox at bottom-right - label above, shifted left', () => {
@@ -80,7 +80,7 @@ describe('computeBboxLabelPosition', () => {
 
     assertPercentApprox(result.left, 95) // bboxX + bboxWidth
     assert.ok(result.transform.includes('translateX(-100%)'))
-    assert.ok(result.transform.includes('translateY(-100%)'))
+    assert.ok(result.transform.includes('translateY(calc(-100% - 2px))'))
   })
 
   test('edge case: bbox exactly at threshold', () => {
@@ -89,7 +89,7 @@ describe('computeBboxLabelPosition', () => {
     const result = computeBboxLabelPosition(bbox)
 
     // Should be above (not near top)
-    assert.equal(result.transform, 'translateY(-100%)')
+    assert.equal(result.transform, 'translateY(calc(-100% - 2px))')
   })
 
   test('edge case: bbox right edge just under threshold', () => {
@@ -99,7 +99,7 @@ describe('computeBboxLabelPosition', () => {
 
     // 0.64 + 0.2 = 0.84, which is NOT > 0.85, so should be left-aligned
     assertPercentApprox(result.left, 64)
-    assert.equal(result.transform, 'translateY(-100%)')
+    assert.equal(result.transform, 'translateY(calc(-100% - 2px))')
   })
 
   test('edge case: bbox right edge just over threshold', () => {

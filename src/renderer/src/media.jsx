@@ -47,7 +47,7 @@ import { useImportStatus } from './hooks/import'
  * Observation list panel - collapsible list of all detections
  * Fixed-height header ensures stable image positioning during navigation
  */
-function ObservationListPanel({ bboxes, selectedId, onSelect, onDelete }) {
+function ObservationListPanel({ bboxes, selectedId, onSelect, onEdit, onDelete }) {
   const [isExpanded, setIsExpanded] = useState(false)
   const hasObservations = bboxes && bboxes.length > 0
 
@@ -99,6 +99,13 @@ function ObservationListPanel({ bboxes, selectedId, onSelect, onDelete }) {
                 <span className="text-sm font-medium truncate max-w-[200px]">
                   {bbox.scientificName || 'Blank'}
                 </span>
+                {bbox.sex && bbox.sex !== 'unknown' && (
+                  <span
+                    className={`text-base font-bold ${bbox.sex === 'female' ? 'text-pink-500' : 'text-blue-500'}`}
+                  >
+                    {bbox.sex === 'female' ? '♀' : '♂'}
+                  </span>
+                )}
                 {bbox.classificationMethod === 'human' && (
                   <span className="text-xs text-green-600">✓</span>
                 )}
@@ -112,10 +119,10 @@ function ObservationListPanel({ bboxes, selectedId, onSelect, onDelete }) {
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
-                    onSelect(bbox.observationID)
+                    onEdit(bbox.observationID)
                   }}
                   className="p-1 rounded hover:bg-lime-100 text-gray-400 hover:text-lime-600 transition-colors"
-                  title="Edit bounding box"
+                  title="Edit observation"
                 >
                   <Pencil size={14} />
                 </button>
@@ -139,14 +146,145 @@ function ObservationListPanel({ bboxes, selectedId, onSelect, onDelete }) {
 }
 
 /**
- * Species selection dropdown for editing observation classifications
+ * Sex icon components
  */
-function SpeciesSelector({ bbox, studyId, onClose, onUpdate }) {
+function FemaleIcon({ size = 20, className = '' }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <circle cx="12" cy="8" r="5" />
+      <line x1="12" y1="13" x2="12" y2="21" />
+      <line x1="9" y1="18" x2="15" y2="18" />
+    </svg>
+  )
+}
+
+function MaleIcon({ size = 20, className = '' }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <circle cx="10" cy="14" r="5" />
+      <line x1="19" y1="5" x2="13.6" y2="10.4" />
+      <polyline points="19 5 19 11" />
+      <polyline points="19 5 13 5" />
+    </svg>
+  )
+}
+
+function UnknownIcon({ size = 20, className = '' }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.5 9a3 3 0 0 1 5.5 1.5c0 2-3 3-3 3" />
+      <circle cx="12" cy="17" r="0.5" fill="currentColor" />
+    </svg>
+  )
+}
+
+/**
+ * Sex selector toggle buttons for observation attributes
+ */
+function SexSelector({ value, onChange }) {
+  const options = [
+    {
+      value: 'female',
+      label: 'Female',
+      Icon: FemaleIcon,
+      selectedClass: 'bg-rose-500 text-white border-rose-500 ring-2 ring-rose-200',
+      hoverClass: 'hover:bg-rose-50 hover:border-rose-300 hover:text-rose-600'
+    },
+    {
+      value: 'male',
+      label: 'Male',
+      Icon: MaleIcon,
+      selectedClass: 'bg-blue-500 text-white border-blue-500 ring-2 ring-blue-200',
+      hoverClass: 'hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600'
+    },
+    {
+      value: 'unknown',
+      label: 'Unknown',
+      Icon: UnknownIcon,
+      selectedClass: 'bg-gray-500 text-white border-gray-500 ring-2 ring-gray-200',
+      hoverClass: 'hover:bg-gray-100 hover:border-gray-400 hover:text-gray-600'
+    }
+  ]
+
+  const handleClick = (optionValue) => {
+    // Clicking the selected value clears it (sets to null)
+    if (value === optionValue) {
+      onChange(null)
+    } else {
+      onChange(optionValue)
+    }
+  }
+
+  return (
+    <div className="flex gap-2">
+      {options.map((option) => {
+        const isSelected = value === option.value
+        return (
+          <button
+            key={option.value}
+            onClick={() => handleClick(option.value)}
+            className={`flex-1 flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border transition-all ${
+              isSelected
+                ? option.selectedClass
+                : `bg-white text-gray-500 border-gray-200 ${option.hoverClass}`
+            }`}
+            title={option.label}
+          >
+            <option.Icon size={22} />
+            <span className="text-xs font-medium">{option.label}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+/**
+ * Observation editor with tabs for species selection and attributes
+ */
+function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'species' }) {
+  const [activeTab, setActiveTab] = useState(initialTab)
   const [searchTerm, setSearchTerm] = useState('')
   const [customSpecies, setCustomSpecies] = useState('')
   const [showCustomInput, setShowCustomInput] = useState(false)
   const inputRef = useRef(null)
   const customInputRef = useRef(null)
+
+  // Sync activeTab with initialTab when it changes (e.g., clicking sex badge vs species label)
+  useEffect(() => {
+    setActiveTab(initialTab)
+  }, [initialTab])
 
   // Fetch distinct species for the dropdown
   const { data: speciesList = [] } = useQuery({
@@ -158,14 +296,16 @@ function SpeciesSelector({ bbox, studyId, onClose, onUpdate }) {
     staleTime: 30000 // Cache for 30 seconds
   })
 
-  // Focus input on mount
+  // Focus input on mount and tab change
   useEffect(() => {
-    if (showCustomInput && customInputRef.current) {
-      customInputRef.current.focus()
-    } else if (inputRef.current) {
-      inputRef.current.focus()
+    if (activeTab === 'species') {
+      if (showCustomInput && customInputRef.current) {
+        customInputRef.current.focus()
+      } else if (inputRef.current) {
+        inputRef.current.focus()
+      }
     }
-  }, [showCustomInput])
+  }, [showCustomInput, activeTab])
 
   // Handle keyboard navigation
   useEffect(() => {
@@ -206,90 +346,137 @@ function SpeciesSelector({ bbox, studyId, onClose, onUpdate }) {
     }
   }
 
+  const handleSexChange = (sex) => {
+    onUpdate({
+      observationID: bbox.observationID,
+      sex
+    })
+  }
+
   return (
     <div
-      className="absolute z-20 bg-white rounded-lg shadow-xl border border-gray-200 w-72 max-h-80 overflow-hidden"
+      className="absolute z-20 bg-white rounded-lg shadow-xl border border-gray-200 w-72 overflow-hidden"
       onClick={(e) => e.stopPropagation()}
     >
-      {/* Search/Custom input header */}
-      <div className="p-2 border-b border-gray-100">
-        {showCustomInput ? (
-          <form onSubmit={handleCustomSubmit} className="flex gap-2">
-            <input
-              ref={customInputRef}
-              type="text"
-              value={customSpecies}
-              onChange={(e) => setCustomSpecies(e.target.value)}
-              placeholder="Enter species name..."
-              className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent"
-            />
-            <button
-              type="submit"
-              disabled={!customSpecies.trim()}
-              className="px-2 py-1.5 bg-lime-500 text-white rounded hover:bg-lime-600 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Check size={16} />
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowCustomInput(false)}
-              className="px-2 py-1.5 bg-gray-200 text-gray-600 rounded hover:bg-gray-300"
-            >
-              <X size={16} />
-            </button>
-          </form>
-        ) : (
-          <div className="relative">
-            <Search size={16} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              ref={inputRef}
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search species..."
-              className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent"
-            />
-          </div>
-        )}
+      {/* Tab bar */}
+      <div className="flex border-b border-gray-200">
+        <button
+          className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
+            activeTab === 'species'
+              ? 'text-lime-600 border-b-2 border-lime-500 bg-lime-50/50'
+              : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+          }`}
+          onClick={() => setActiveTab('species')}
+        >
+          Species
+        </button>
+        <button
+          className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
+            activeTab === 'attributes'
+              ? 'text-lime-600 border-b-2 border-lime-500 bg-lime-50/50'
+              : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+          }`}
+          onClick={() => setActiveTab('attributes')}
+        >
+          Attributes
+        </button>
       </div>
 
-      {/* Species list */}
-      <div className="max-h-52 overflow-y-auto">
-        {/* Add Custom option */}
-        {!showCustomInput && (
-          <button
-            onClick={() => setShowCustomInput(true)}
-            className="w-full px-3 py-2 text-left hover:bg-blue-50 flex items-center gap-2 text-blue-600 border-b border-gray-100"
-          >
-            <span className="text-sm">+ Add custom species</span>
-          </button>
-        )}
-
-        {/* Filtered species list */}
-        {filteredSpecies.map((species) => (
-          <button
-            key={species.scientificName}
-            onClick={() => handleSelectSpecies(species.scientificName, species.commonName)}
-            className={`w-full px-3 py-2 text-left hover:bg-lime-50 flex items-center justify-between ${
-              species.scientificName === bbox.scientificName ? 'bg-lime-100' : ''
-            }`}
-          >
-            <div>
-              <span className="text-sm font-medium">{species.scientificName}</span>
-              {species.commonName && (
-                <span className="text-xs text-gray-500 ml-2">({species.commonName})</span>
-              )}
-            </div>
-            <span className="text-xs text-gray-400">{species.observationCount}</span>
-          </button>
-        ))}
-
-        {filteredSpecies.length === 0 && searchTerm && (
-          <div className="px-3 py-4 text-sm text-gray-500 text-center">
-            No species found. Click &quot;Add custom species&quot; to add a new one.
+      {/* Species tab content */}
+      {activeTab === 'species' && (
+        <>
+          {/* Search/Custom input header */}
+          <div className="p-2 border-b border-gray-100">
+            {showCustomInput ? (
+              <form onSubmit={handleCustomSubmit} className="flex gap-2">
+                <input
+                  ref={customInputRef}
+                  type="text"
+                  value={customSpecies}
+                  onChange={(e) => setCustomSpecies(e.target.value)}
+                  placeholder="Enter species name..."
+                  className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent"
+                />
+                <button
+                  type="submit"
+                  disabled={!customSpecies.trim()}
+                  className="px-2 py-1.5 bg-lime-500 text-white rounded hover:bg-lime-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Check size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowCustomInput(false)}
+                  className="px-2 py-1.5 bg-gray-200 text-gray-600 rounded hover:bg-gray-300"
+                >
+                  <X size={16} />
+                </button>
+              </form>
+            ) : (
+              <div className="relative">
+                <Search
+                  size={16}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"
+                />
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search species..."
+                  className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent"
+                />
+              </div>
+            )}
           </div>
-        )}
-      </div>
+
+          {/* Species list */}
+          <div className="max-h-52 overflow-y-auto">
+            {/* Add Custom option */}
+            {!showCustomInput && (
+              <button
+                onClick={() => setShowCustomInput(true)}
+                className="w-full px-3 py-2 text-left hover:bg-blue-50 flex items-center gap-2 text-blue-600 border-b border-gray-100"
+              >
+                <span className="text-sm">+ Add custom species</span>
+              </button>
+            )}
+
+            {/* Filtered species list */}
+            {filteredSpecies.map((species) => (
+              <button
+                key={species.scientificName}
+                onClick={() => handleSelectSpecies(species.scientificName, species.commonName)}
+                className={`w-full px-3 py-2 text-left hover:bg-lime-50 flex items-center justify-between ${
+                  species.scientificName === bbox.scientificName ? 'bg-lime-100' : ''
+                }`}
+              >
+                <div>
+                  <span className="text-sm font-medium">{species.scientificName}</span>
+                  {species.commonName && (
+                    <span className="text-xs text-gray-500 ml-2">({species.commonName})</span>
+                  )}
+                </div>
+                <span className="text-xs text-gray-400">{species.observationCount}</span>
+              </button>
+            ))}
+
+            {filteredSpecies.length === 0 && searchTerm && (
+              <div className="px-3 py-4 text-sm text-gray-500 text-center">
+                No species found. Click &quot;Add custom species&quot; to add a new one.
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Attributes tab content */}
+      {activeTab === 'attributes' && (
+        <div className="p-3">
+          <div className="text-xs font-medium text-gray-500 mb-2">Sex</div>
+          <SexSelector value={bbox.sex} onChange={handleSexChange} />
+        </div>
+      )}
     </div>
   )
 }
@@ -300,13 +487,14 @@ function SpeciesSelector({ bbox, studyId, onClose, onUpdate }) {
  * - Labels near right edge are right-aligned
  */
 const BboxLabel = forwardRef(function BboxLabel(
-  { bbox, isSelected, onClick, onDelete, isHuman },
+  { bbox, isSelected, onClick, onSexClick, onDelete, isHuman },
   ref
 ) {
   const displayName = bbox.scientificName || 'Blank'
   const confidence = bbox.classificationProbability
     ? `${Math.round(bbox.classificationProbability * 100)}%`
     : null
+  const sexSymbol = bbox.sex === 'female' ? '♀' : bbox.sex === 'male' ? '♂' : null
 
   // Use the extracted positioning function
   const { left: leftPos, top: topPos, transform: transformVal } = computeBboxLabelPosition(bbox)
@@ -322,32 +510,46 @@ const BboxLabel = forwardRef(function BboxLabel(
   }
 
   return (
-    <div ref={ref} className="absolute flex items-center gap-1 pointer-events-auto" style={style}>
+    <div ref={ref} className="absolute flex items-center pointer-events-auto -ml-px" style={style}>
       <button
         onClick={(e) => {
           e.stopPropagation()
           onClick()
         }}
-        className={`px-2 py-0.5 rounded text-xs font-medium transition-all cursor-pointer hover:scale-105 ${
+        className={`h-5 px-2 text-xs font-medium transition-all cursor-pointer hover:brightness-110 flex items-center ${
           isSelected
             ? 'bg-lime-500 text-white ring-2 ring-lime-300'
             : isHuman
-              ? 'bg-green-500 text-white hover:bg-green-600'
-              : 'bg-lime-500/90 text-white hover:bg-lime-600'
+              ? 'bg-green-500 text-white'
+              : 'bg-lime-500/90 text-white'
         }`}
-        title={`${displayName}${confidence ? ` (${confidence})` : ''} - Click to edit`}
+        title={`${displayName}${sexSymbol ? ` ${sexSymbol}` : ''}${confidence ? ` (${confidence})` : ''} - Click to edit`}
       >
         {displayName}
         {confidence && !isHuman && <span className="ml-1 opacity-75">{confidence}</span>}
         {isHuman && <span className="ml-1">✓</span>}
       </button>
+      {sexSymbol && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onSexClick()
+          }}
+          className={`ml-0.5 h-5 px-1.5 text-sm font-bold text-white cursor-pointer hover:brightness-110 transition-all flex items-center ${
+            bbox.sex === 'female' ? 'bg-pink-500' : 'bg-blue-500'
+          }`}
+          title="Edit sex"
+        >
+          {sexSymbol}
+        </button>
+      )}
       {isSelected && (
         <button
           onClick={(e) => {
             e.stopPropagation()
             onDelete()
           }}
-          className="p-1 rounded bg-red-500 text-white hover:bg-red-600 transition-colors"
+          className="ml-1 p-1 rounded bg-red-500 text-white hover:bg-red-600 transition-colors"
           title="Delete observation"
         >
           <Trash2 size={12} />
@@ -537,7 +739,8 @@ function ImageModal({
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState(null)
   const [selectedBboxId, setSelectedBboxId] = useState(null)
-  const [showSpeciesSelector, setShowSpeciesSelector] = useState(false) // Only show when clicking label
+  const [showObservationEditor, setShowObservationEditor] = useState(false) // Only show when clicking label
+  const [editorInitialTab, setEditorInitialTab] = useState('species') // Which tab to show when editor opens
   const [selectorPosition, setSelectorPosition] = useState(null)
   // Draw mode state for creating new bboxes
   const [isDrawMode, setIsDrawMode] = useState(false)
@@ -567,7 +770,7 @@ function ImageModal({
     getTransformStyle
   } = useZoomPan({ minScale: 1, maxScale: 5, zoomStep: 0.25 })
 
-  // Refs for positioning the species selector near the label
+  // Refs for positioning the observation editor near the label
   const imageContainerRef = useRef(null)
   const bboxLabelRefs = useRef({})
   const imageRef = useRef(null)
@@ -686,9 +889,9 @@ function ImageModal({
     }
   }, [isOpen, media, isVideoMedia, studyId])
 
-  // Compute selector position when a bbox is selected AND species selector should be shown
+  // Compute selector position when a bbox is selected AND observation editor should be shown
   useEffect(() => {
-    if (!selectedBboxId || !showSpeciesSelector) {
+    if (!selectedBboxId || !showObservationEditor) {
       setSelectorPosition(null)
       return
     }
@@ -740,11 +943,11 @@ function ImageModal({
 
     const position = computeSelectorPosition(labelRect, containerRect)
     setSelectorPosition(position)
-  }, [selectedBboxId, showSpeciesSelector, media, isVideoMedia])
+  }, [selectedBboxId, showObservationEditor, media, isVideoMedia])
 
   // Recalculate position on window resize
   useEffect(() => {
-    if (!selectedBboxId || !showSpeciesSelector) return
+    if (!selectedBboxId || !showObservationEditor) return
 
     const handleResize = () => {
       // For videos, use footer label ref
@@ -794,7 +997,7 @@ function ImageModal({
 
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
-  }, [selectedBboxId, showSpeciesSelector, media, isVideoMedia])
+  }, [selectedBboxId, showObservationEditor, media, isVideoMedia])
 
   // For videos, include observations without bbox geometry
   const isVideo = isVideoMedia(media)
@@ -925,12 +1128,20 @@ function ImageModal({
 
   // Mutation for updating observation classification
   const updateMutation = useMutation({
-    mutationFn: async ({ observationID, scientificName, commonName, observationType }) => {
-      const response = await window.api.updateObservationClassification(studyId, observationID, {
-        scientificName,
-        commonName,
-        observationType
-      })
+    mutationFn: async ({ observationID, scientificName, commonName, observationType, sex }) => {
+      // Only include fields that are explicitly provided (not undefined)
+      // This prevents overwriting existing values with null
+      const updates = {}
+      if (scientificName !== undefined) updates.scientificName = scientificName
+      if (commonName !== undefined) updates.commonName = commonName
+      if (observationType !== undefined) updates.observationType = observationType
+      if (sex !== undefined) updates.sex = sex
+
+      const response = await window.api.updateObservationClassification(
+        studyId,
+        observationID,
+        updates
+      )
       if (response.error) {
         throw new Error(response.error)
       }
@@ -994,13 +1205,13 @@ function ImageModal({
     // Find observation without bbox coordinates for this image
     const obsWithoutBbox = bboxes.find((b) => b.bboxX === null || b.bboxX === undefined)
     if (obsWithoutBbox) {
-      // Existing observation - select it and show species selector
+      // Existing observation - select it and show observation editor
       setSelectedBboxId(obsWithoutBbox.observationID)
-      setShowSpeciesSelector(true)
+      setShowObservationEditor(true)
     } else {
       // No observation exists - we'll create one when species is selected
       setSelectedBboxId('new-observation')
-      setShowSpeciesSelector(true)
+      setShowObservationEditor(true)
     }
   }, [bboxes])
 
@@ -1074,7 +1285,7 @@ function ImageModal({
       // Clear selection if deleted bbox was selected
       if (selectedBboxId === observationID) {
         setSelectedBboxId(null)
-        setShowSpeciesSelector(false)
+        setShowObservationEditor(false)
       }
 
       return { previous }
@@ -1218,7 +1429,7 @@ function ImageModal({
           }
 
           setSelectedBboxId(visibleBboxes[nextIndex].observationID)
-          setShowSpeciesSelector(false) // Don't auto-open species selector
+          setShowObservationEditor(false) // Don't auto-open observation editor
         }
         return
       }
@@ -1381,7 +1592,7 @@ function ImageModal({
               e.stopPropagation()
               setIsDrawMode(true)
               setSelectedBboxId(null)
-              setShowSpeciesSelector(false)
+              setShowObservationEditor(false)
               setShowBboxes(true) // Ensure bboxes are visible when adding
             }}
             className={`absolute top-0 z-10 rounded-full p-2 transition-colors ${
@@ -1451,7 +1662,7 @@ function ImageModal({
             className="flex items-center justify-center bg-gray-100 overflow-hidden relative"
             onClick={() => {
               setSelectedBboxId(null)
-              setShowSpeciesSelector(false)
+              setShowObservationEditor(false)
             }}
             onWheel={!isVideoMedia(media) ? handleZoomWheel : undefined}
             onMouseDown={(e) => {
@@ -1598,11 +1809,11 @@ function ImageModal({
                             bbox={bbox}
                             isSelected={bbox.observationID === selectedBboxId}
                             onSelect={() => {
-                              // Clicking bbox selects it for geometry editing only, NOT species selector
+                              // Clicking bbox selects it for geometry editing only, NOT observation editor
                               setSelectedBboxId(
                                 bbox.observationID === selectedBboxId ? null : bbox.observationID
                               )
-                              setShowSpeciesSelector(false) // Close species selector when clicking bbox
+                              setShowObservationEditor(false) // Close observation editor when clicking bbox
                             }}
                             onUpdate={(newBbox) => handleBboxUpdate(bbox.observationID, newBbox)}
                             imageRef={imageRef}
@@ -1613,7 +1824,7 @@ function ImageModal({
                         ))}
                       </svg>
 
-                      {/* Clickable bbox labels - clicking label opens species selector */}
+                      {/* Clickable bbox labels - clicking label opens observation editor */}
                       <div className="absolute inset-0 w-full h-full pointer-events-none">
                         {bboxes.map((bbox) => (
                           <BboxLabel
@@ -1625,9 +1836,16 @@ function ImageModal({
                             isSelected={bbox.observationID === selectedBboxId}
                             isHuman={bbox.classificationMethod === 'human'}
                             onClick={() => {
-                              // Clicking label selects bbox AND opens species selector
+                              // Clicking label selects bbox AND opens observation editor
                               setSelectedBboxId(bbox.observationID)
-                              setShowSpeciesSelector(true)
+                              setEditorInitialTab('species')
+                              setShowObservationEditor(true)
+                            }}
+                            onSexClick={() => {
+                              // Clicking sex badge opens editor on attributes tab
+                              setSelectedBboxId(bbox.observationID)
+                              setEditorInitialTab('attributes')
+                              setShowObservationEditor(true)
                             }}
                             onDelete={() => handleDeleteObservation(bbox.observationID)}
                           />
@@ -1740,6 +1958,11 @@ function ImageModal({
               bboxes={bboxesWithCoords}
               selectedId={selectedBboxId}
               onSelect={setSelectedBboxId}
+              onEdit={(observationID) => {
+                setSelectedBboxId(observationID)
+                setEditorInitialTab('species')
+                setShowObservationEditor(true)
+              }}
               onDelete={handleDeleteObservation}
             />
           )}
@@ -1754,7 +1977,7 @@ function ImageModal({
                   onClick={() => {
                     // Select the video's observation (first/only one)
                     setSelectedBboxId(bboxes[0].observationID)
-                    setShowSpeciesSelector(true)
+                    setShowObservationEditor(true)
                   }}
                   className="text-lg font-semibold text-left hover:text-lime-600 cursor-pointer flex items-center gap-2 group"
                   title="Click to edit species"
@@ -1881,12 +2104,12 @@ function ImageModal({
           </div>
         </div>
 
-        {/* Species selector - positioned near the BboxLabel, only shown when clicking label */}
-        {selectedBbox && showSpeciesSelector && selectorPosition && (
+        {/* Observation editor - positioned near the BboxLabel, only shown when clicking label */}
+        {selectedBbox && showObservationEditor && selectorPosition && (
           <div
             className="fixed inset-0 z-[60]"
             onClick={() => {
-              setShowSpeciesSelector(false)
+              setShowObservationEditor(false)
               setSelectedBboxId(null)
             }}
           >
@@ -1899,11 +2122,12 @@ function ImageModal({
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              <SpeciesSelector
+              <ObservationEditor
                 bbox={selectedBbox}
                 studyId={studyId}
+                initialTab={editorInitialTab}
                 onClose={() => {
-                  setShowSpeciesSelector(false)
+                  setShowObservationEditor(false)
                   setSelectedBboxId(null)
                 }}
                 onUpdate={handleUpdateObservation}

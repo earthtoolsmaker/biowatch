@@ -39,7 +39,6 @@ export async function updateObservationClassification(dbPath, observationID, upd
 
     // Prepare update values following CamTrap DP specification
     const updateValues = {
-      scientificName: updates.scientificName || null,
       classificationMethod: 'human',
       classifiedBy: 'User',
       classificationTimestamp: new Date().toISOString(),
@@ -48,7 +47,11 @@ export async function updateObservationClassification(dbPath, observationID, upd
       classificationProbability: null
     }
 
-    // Add optional fields if provided
+    // Add optional fields if provided (only update if explicitly passed)
+    if (updates.scientificName !== undefined) {
+      updateValues.scientificName = updates.scientificName || null
+    }
+
     if (updates.commonName !== undefined) {
       updateValues.commonName = updates.commonName
     }
