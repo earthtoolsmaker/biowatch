@@ -12,7 +12,8 @@ import { processDataset } from '../services/extractor.js'
 import {
   sendGbifImportProgress,
   sendDemoImportProgress,
-  sendLilaImportProgress
+  sendLilaImportProgress,
+  sendCamtrapDPImportProgress
 } from '../services/progress.js'
 import {
   importCamTrapDataset,
@@ -50,7 +51,38 @@ export function registerImportIPCHandlers() {
     const selectedPath = result.filePaths[0]
     const id = crypto.randomUUID()
 
-    return await processDataset(selectedPath, id)
+    try {
+      const importResult = await processDataset(selectedPath, id, (progress) => {
+        sendCamtrapDPImportProgress({
+          ...progress,
+          datasetTitle: 'CamTrap DP Dataset'
+        })
+      })
+
+      // Send completion progress
+      sendCamtrapDPImportProgress({
+        stage: 'complete',
+        stageIndex: importResult?.data ? 2 : 1,
+        totalStages: importResult?.data ? 2 : 1,
+        datasetTitle: importResult?.data?.name || 'CamTrap DP Dataset'
+      })
+
+      return importResult
+    } catch (error) {
+      log.error('Error importing CamTrap DP dataset:', error)
+
+      sendCamtrapDPImportProgress({
+        stage: 'error',
+        stageIndex: -1,
+        totalStages: 2,
+        datasetTitle: 'CamTrap DP Dataset',
+        error: {
+          message: error.message
+        }
+      })
+
+      throw error
+    }
   })
 
   // Add Wildlife Insights dataset selection handler

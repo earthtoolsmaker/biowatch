@@ -247,6 +247,12 @@ const api = {
     electronAPI.ipcRenderer.on('lila-import:progress', handler)
     return () => electronAPI.ipcRenderer.removeListener('lila-import:progress', handler)
   },
+  // CamtrapDP import progress events
+  onCamtrapDPImportProgress: (callback) => {
+    const handler = (_event, data) => callback(data)
+    electronAPI.ipcRenderer.on('camtrap-dp-import:progress', handler)
+    return () => electronAPI.ipcRenderer.removeListener('camtrap-dp-import:progress', handler)
+  },
   cancelExport: async () => {
     return await electronAPI.ipcRenderer.invoke('export:cancel')
   },

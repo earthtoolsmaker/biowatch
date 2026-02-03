@@ -48,6 +48,7 @@ const { data, error } = await window.api.getMedia(studyId, { limit: 100 })
 | `selectDeepfauneDataset()` | `import:select-deepfaune` | - | `{ path, data, id }` |
 | `downloadDemoDataset()` | `import:download-demo` | - | `{ path, data, id }` |
 | `importGbifDataset(datasetKey)` | `import:gbif-dataset` | GBIF dataset key | `{ path, data, id }` |
+| `onCamtrapDPImportProgress(callback)` | `camtrap-dp-import:progress` | callback function | unsubscribe function |
 
 ### Species & Distribution
 

@@ -14,18 +14,30 @@ import { importCamTrapDataset } from './import/index.js'
  * If a zip file is provided, it will be extracted first
  * @param {string} inputPath - Path to the dataset (directory or zip file)
  * @param {string} id - Unique ID for the study
+ * @param {Function} [onProgress] - Optional progress callback
  * @returns {Promise<Object>} Object containing path, data, and id
  */
-export async function processDataset(inputPath, id) {
+export async function processDataset(inputPath, id, onProgress) {
   let pathToImport = inputPath
 
   try {
     // Check if selected path is a file (potential zip) or directory
     const stats = statSync(inputPath)
     const isZip = stats.isFile() && inputPath.toLowerCase().endsWith('.zip')
+    const totalStages = isZip ? 2 : 1
 
     if (isZip) {
       log.info(`Processing zip file: ${inputPath}`)
+
+      // Notify extracting stage
+      if (onProgress) {
+        onProgress({
+          stage: 'extracting',
+          stageIndex: 0,
+          totalStages,
+          isZip: true
+        })
+      }
 
       // Create a directory for extraction in app data
       const extractPath = join(app.getPath('userData'), id)
@@ -102,8 +114,35 @@ export async function processDataset(inputPath, id) {
       throw new Error('The selected path is neither a directory nor a zip file')
     }
 
-    // Import the dataset
-    const { data } = await importCamTrapDataset(pathToImport, id)
+    // Notify importing_csvs stage
+    if (onProgress) {
+      onProgress({
+        stage: 'importing_csvs',
+        stageIndex: isZip ? 1 : 0,
+        totalStages,
+        isZip
+      })
+    }
+
+    // Import the dataset with progress callback
+    const { data } = await importCamTrapDataset(pathToImport, id, (csvProgress) => {
+      if (onProgress) {
+        onProgress({
+          stage: 'importing_csvs',
+          stageIndex: isZip ? 1 : 0,
+          totalStages,
+          isZip,
+          csvProgress: {
+            currentFile: csvProgress.currentFile,
+            fileIndex: csvProgress.fileIndex,
+            totalFiles: csvProgress.totalFiles,
+            insertedRows: csvProgress.insertedRows || 0,
+            totalRows: csvProgress.totalRows || 0,
+            phase: csvProgress.phase
+          }
+        })
+      }
+    })
 
     if (!data) {
       return
