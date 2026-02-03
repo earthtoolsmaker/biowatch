@@ -149,7 +149,8 @@ describe('Metadata Zod Validation', () => {
         contributors: [{ title: 'John Doe' }],
         updatedAt: '2024-01-16T14:00:00.000Z',
         startDate: '2024-01-01',
-        endDate: '2024-12-31'
+        endDate: '2024-12-31',
+        sequenceGap: 60
       }
 
       const result = metadataSchema.safeParse(validMetadata)
@@ -167,7 +168,8 @@ describe('Metadata Zod Validation', () => {
         contributors: null,
         updatedAt: null,
         startDate: null,
-        endDate: null
+        endDate: null,
+        sequenceGap: null
       }
 
       const result = metadataSchema.safeParse(minimalMetadata)
