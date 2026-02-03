@@ -20,6 +20,7 @@ import { cleanExpiredTranscodeCache, cleanExpiredImageCache } from '../services/
 import { registerLocalFileProtocol, registerCachedImageProtocol } from './protocols.js'
 import { setupRemoteMediaCORS } from './session.js'
 import { setupRendererLogCapture, closeRendererLog } from '../services/renderer-logger.js'
+import { migrateAllStudyDatabases } from '../services/study-db-migrations.js'
 
 // Track shutdown state to prevent multiple shutdown attempts
 let isShuttingDown = false
@@ -111,15 +112,40 @@ export async function initializeMigrations() {
 }
 
 /**
+ * Run Drizzle migrations for all study databases at startup.
+ * This ensures all databases have the latest schema before any
+ * readonly connections are opened (e.g., when listing studies).
+ */
+export async function initializeStudyDatabaseMigrations() {
+  log.info('[Startup] Running Drizzle migrations for study databases...')
+
+  const result = await migrateAllStudyDatabases()
+
+  if (result.failed.length > 0) {
+    log.warn(`[Startup] ${result.failed.length} study migration(s) failed:`)
+    for (const { studyId, error } of result.failed) {
+      log.warn(`  - Study ${studyId}: ${error.message}`)
+    }
+  }
+
+  log.info(`[Startup] Study DB migrations: ${result.succeeded}/${result.total} succeeded`)
+}
+
+/**
  * Initialize the application
  * Called after app.whenReady()
  */
 export async function initializeApp() {
-  // Initialize migrations first, before creating any windows
+  // Initialize app-level migrations first (Umzug), before creating any windows
   const migrationSuccess = await initializeMigrations()
   if (!migrationSuccess) {
     return false // App will quit if migrations failed and user chose to quit
   }
+
+  // Run Drizzle migrations for all study databases
+  // This ensures all databases are up-to-date before the UI opens and
+  // readonly connections are made (e.g., when listing studies)
+  await initializeStudyDatabaseMigrations()
 
   // Set app user model id for windows
   electronApp.setAppUserModelId('org.biowatch')
