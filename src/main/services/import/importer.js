@@ -1217,15 +1217,16 @@ async function status(id) {
       .from(media)
       .get()
 
-    // Get count of observations
-    const obsResult = await db
-      .select({ obsCount: count(observations.observationID) })
-      .from(observations)
+    // Get count of distinct media files that have observations (processed)
+    const processedResult = await db
+      .select({ processedCount: sql`COUNT(DISTINCT ${media.mediaID})` })
+      .from(media)
+      .innerJoin(observations, eq(media.mediaID, observations.mediaID))
       .get()
 
     const mediaCount = mediaResult?.mediaCount || 0
-    const obsCount = obsResult?.obsCount || 0
-    const remain = mediaCount - obsCount
+    const processedCount = processedResult?.processedCount || 0
+    const remain = mediaCount - processedCount
     const estimatedMinutesRemaining = lastBatchDuration
       ? (remain * lastBatchDuration) / batchSize / 60
       : null
@@ -1236,7 +1237,7 @@ async function status(id) {
 
     return {
       total: mediaCount,
-      done: obsCount,
+      done: processedCount,
       isRunning: !!importers[id],
       estimatedMinutesRemaining: estimatedMinutesRemaining,
       speed: Math.round(speed)

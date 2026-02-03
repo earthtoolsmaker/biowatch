@@ -42,6 +42,7 @@ import { getTopNonHumanSpecies } from './utils/speciesUtils'
 import { useSequenceGap } from './hooks/useSequenceGap'
 import { SequenceGapSlider } from './ui/SequenceGapSlider'
 import { getSpeciesFromBboxes, getSpeciesFromSequence } from './utils/speciesFromBboxes'
+import { useImportStatus } from './hooks/import'
 
 /**
  * Observation list panel - collapsible list of all detections
@@ -2890,6 +2891,7 @@ export default function Activity({ studyData, studyId }) {
   const [dateRange, setDateRange] = useState([null, null])
   const [fullExtent, setFullExtent] = useState([null, null])
   const [timeRange, setTimeRange] = useState({ start: 0, end: 24 })
+  const { importStatus } = useImportStatus(actualStudyId, 5000)
 
   // Sequence gap - uses React Query for sync across components
   const { sequenceGap } = useSequenceGap(actualStudyId)
@@ -2908,7 +2910,8 @@ export default function Activity({ studyData, studyId }) {
       return response.data
     },
     enabled: !!actualStudyId,
-    placeholderData: (prev) => prev
+    placeholderData: (prev) => prev,
+    refetchInterval: importStatus?.isRunning ? 5000 : false
   })
 
   // Fetch blank media count (media without observations)
@@ -2919,7 +2922,8 @@ export default function Activity({ studyData, studyId }) {
       if (response.error) throw new Error(response.error)
       return response.data
     },
-    enabled: !!actualStudyId
+    enabled: !!actualStudyId,
+    refetchInterval: importStatus?.isRunning ? 5000 : false
   })
 
   // Initialize selectedSpecies when speciesDistributionData loads
@@ -2967,7 +2971,8 @@ export default function Activity({ studyData, studyId }) {
       return response.data
     },
     enabled: !!actualStudyId && speciesNames.length > 0,
-    placeholderData: (prev) => prev
+    placeholderData: (prev) => prev,
+    refetchInterval: importStatus?.isRunning ? 5000 : false
   })
   const timeseriesData = timeseriesQueryData?.timeseries ?? []
 
@@ -3025,7 +3030,8 @@ export default function Activity({ studyData, studyId }) {
       return response.data
     },
     enabled: !!actualStudyId && speciesNames.length > 0 && !!dateRange[0] && !!dateRange[1],
-    placeholderData: (prev) => prev
+    placeholderData: (prev) => prev,
+    refetchInterval: importStatus?.isRunning ? 5000 : false
   })
 
   // Handle time range changes
