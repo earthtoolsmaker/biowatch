@@ -6,6 +6,7 @@ import { getDrizzleDb, observations } from '../index.js'
 import { eq } from 'drizzle-orm'
 import log from 'electron-log'
 import { getStudyIdFromPath } from './utils.js'
+import { lifeStageSchema, sexSchema, behaviorSchema } from '../validators.js'
 
 /**
  * Update an observation's classification (species) with CamTrap DP compliant fields.
@@ -22,6 +23,9 @@ import { getStudyIdFromPath } from './utils.js'
  * @param {string} updates.scientificName - The new scientific name (can be empty for blank)
  * @param {string} [updates.commonName] - Optional common name
  * @param {string} [updates.observationType] - Optional observation type (e.g., 'blank', 'animal')
+ * @param {string} [updates.sex] - Sex of the individual ('female', 'male', 'unknown')
+ * @param {string} [updates.lifeStage] - Life stage ('adult', 'subadult', 'juvenile')
+ * @param {string[]} [updates.behavior] - Array of observed behaviors
  * @returns {Promise<Object>} - The updated observation
  */
 export async function updateObservationClassification(dbPath, observationID, updates) {
@@ -51,6 +55,22 @@ export async function updateObservationClassification(dbPath, observationID, upd
 
     if (updates.observationType !== undefined) {
       updateValues.observationType = updates.observationType
+    }
+
+    // Add Camtrap DP observation fields with validation
+    if (updates.sex !== undefined) {
+      sexSchema.parse(updates.sex)
+      updateValues.sex = updates.sex
+    }
+
+    if (updates.lifeStage !== undefined) {
+      lifeStageSchema.parse(updates.lifeStage)
+      updateValues.lifeStage = updates.lifeStage
+    }
+
+    if (updates.behavior !== undefined) {
+      behaviorSchema.parse(updates.behavior)
+      updateValues.behavior = updates.behavior
     }
 
     // Perform the update
@@ -198,6 +218,9 @@ export async function deleteObservation(dbPath, observationID) {
  * @param {number} observationData.bboxY - Top edge (0-1 normalized)
  * @param {number} observationData.bboxWidth - Width (0-1 normalized)
  * @param {number} observationData.bboxHeight - Height (0-1 normalized)
+ * @param {string} [observationData.sex] - Sex of the individual ('female', 'male', 'unknown')
+ * @param {string} [observationData.lifeStage] - Life stage ('adult', 'subadult', 'juvenile')
+ * @param {string[]} [observationData.behavior] - Array of observed behaviors
  * @returns {Promise<Object>} - The created observation
  */
 export async function createObservation(dbPath, observationData) {
@@ -218,7 +241,10 @@ export async function createObservation(dbPath, observationData) {
       bboxX,
       bboxY,
       bboxWidth,
-      bboxHeight
+      bboxHeight,
+      sex,
+      lifeStage,
+      behavior
     } = observationData
 
     // Only validate bbox if coordinates are provided (allow null for observations without bbox)
@@ -238,6 +264,17 @@ export async function createObservation(dbPath, observationData) {
       ) {
         throw new Error('Invalid bbox coordinates: must be normalized (0-1) and within bounds')
       }
+    }
+
+    // Validate Camtrap DP observation fields if provided
+    if (sex !== undefined) {
+      sexSchema.parse(sex)
+    }
+    if (lifeStage !== undefined) {
+      lifeStageSchema.parse(lifeStage)
+    }
+    if (behavior !== undefined) {
+      behaviorSchema.parse(behavior)
     }
 
     // Generate IDs
@@ -264,7 +301,11 @@ export async function createObservation(dbPath, observationData) {
       modelOutputID: null, // No model involved
       classificationMethod: 'human',
       classifiedBy: 'User',
-      classificationTimestamp: new Date().toISOString()
+      classificationTimestamp: new Date().toISOString(),
+      // Camtrap DP observation fields
+      sex: sex || null,
+      lifeStage: lifeStage || null,
+      behavior: behavior || null
     }
 
     // Insert the observation

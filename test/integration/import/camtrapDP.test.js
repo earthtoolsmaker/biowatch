@@ -674,5 +674,91 @@ media001,deploy001,${mediaUrl},image.jpg,2023-03-20T14:30:15Z`
         'Should indicate missing datapackage.json'
       )
     })
+
+    test('should import sex, lifeStage, and behavior fields correctly', async () => {
+      const studyId = 'test-camtrap-observation-fields'
+      await importCamTrapDatasetWithPath(testCamTrapDataPath, testBiowatchDataPath, studyId)
+
+      const dbPath = join(testBiowatchDataPath, 'studies', studyId, 'study.db')
+
+      // Test obs001: sex=male, lifeStage=adult, behavior=grazing|alert (pipe-separated -> JSON array)
+      const obs001 = queryDatabase(
+        dbPath,
+        "SELECT sex, lifeStage, behavior FROM observations WHERE observationID = 'obs001'"
+      )
+      assert.equal(obs001.length, 1, 'Should find obs001')
+      assert.equal(obs001[0].sex, 'male', 'obs001: sex should be male')
+      assert.equal(obs001[0].lifeStage, 'adult', 'obs001: lifeStage should be adult')
+      // Behavior is stored as JSON array string in SQLite
+      const behavior001 = JSON.parse(obs001[0].behavior)
+      assert(Array.isArray(behavior001), 'obs001: behavior should be a JSON array')
+      assert.deepEqual(
+        behavior001,
+        ['grazing', 'alert'],
+        'obs001: behavior should contain grazing and alert'
+      )
+
+      // Test obs002: sex=female, lifeStage=subadult, behavior=rooting (single behavior)
+      const obs002 = queryDatabase(
+        dbPath,
+        "SELECT sex, lifeStage, behavior FROM observations WHERE observationID = 'obs002'"
+      )
+      assert.equal(obs002[0].sex, 'female', 'obs002: sex should be female')
+      assert.equal(obs002[0].lifeStage, 'subadult', 'obs002: lifeStage should be subadult')
+      const behavior002 = JSON.parse(obs002[0].behavior)
+      assert.deepEqual(behavior002, ['rooting'], 'obs002: behavior should contain rooting')
+
+      // Test obs003: Empty observation - all fields should be null
+      const obs003 = queryDatabase(
+        dbPath,
+        "SELECT sex, lifeStage, behavior FROM observations WHERE observationID = 'obs003'"
+      )
+      assert.equal(obs003[0].sex, null, 'obs003: sex should be null for empty observation')
+      assert.equal(
+        obs003[0].lifeStage,
+        null,
+        'obs003: lifeStage should be null for empty observation'
+      )
+      assert.equal(
+        obs003[0].behavior,
+        null,
+        'obs003: behavior should be null for empty observation'
+      )
+
+      // Test obs005: Multiple behaviors with pipe separator
+      const obs005 = queryDatabase(
+        dbPath,
+        "SELECT behavior FROM observations WHERE observationID = 'obs005'"
+      )
+      const behavior005 = JSON.parse(obs005[0].behavior)
+      assert.deepEqual(
+        behavior005,
+        ['hunting', 'stalking'],
+        'obs005: should have hunting and stalking'
+      )
+
+      // Test obs007: No sex/lifeStage/behavior provided
+      const obs007 = queryDatabase(
+        dbPath,
+        "SELECT sex, lifeStage, behavior FROM observations WHERE observationID = 'obs007'"
+      )
+      assert.equal(obs007[0].sex, null, 'obs007: sex should be null when not provided')
+      assert.equal(obs007[0].lifeStage, null, 'obs007: lifeStage should be null when not provided')
+      assert.equal(obs007[0].behavior, null, 'obs007: behavior should be null when not provided')
+    })
+
+    test('should handle unknown sex value correctly', async () => {
+      const studyId = 'test-camtrap-unknown-sex'
+      await importCamTrapDatasetWithPath(testCamTrapDataPath, testBiowatchDataPath, studyId)
+
+      const dbPath = join(testBiowatchDataPath, 'studies', studyId, 'study.db')
+
+      // Test obs004: sex=unknown (our extension to Camtrap DP)
+      const obs004 = queryDatabase(
+        dbPath,
+        "SELECT sex FROM observations WHERE observationID = 'obs004'"
+      )
+      assert.equal(obs004[0].sex, 'unknown', 'obs004: sex should preserve unknown value')
+    })
   })
 })

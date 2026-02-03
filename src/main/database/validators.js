@@ -91,6 +91,55 @@ export const metadataCreateSchema = z.object({
 })
 
 // ============================================================================
+// Observation Field Vocabularies (Camtrap DP aligned)
+// ============================================================================
+
+// Camtrap DP lifeStage vocabulary (GBIF standard)
+export const lifeStageValues = /** @type {const} */ (['adult', 'subadult', 'juvenile'])
+
+// Sex vocabulary (extended with 'unknown' for practical use)
+export const sexValues = /** @type {const} */ (['female', 'male', 'unknown'])
+
+// Suggested behavior vocabulary (not strictly enforced per Camtrap DP spec)
+// Behavior is stored as a JSON array of strings (e.g., ["running", "alert"])
+export const suggestedBehaviorValues = /** @type {const} */ ([
+  // General movement
+  'running',
+  'walking',
+  'standing',
+  'resting',
+  'alert',
+  'vigilance',
+  // Herbivore feeding
+  'grazing',
+  'browsing',
+  'rooting',
+  'foraging',
+  // Predator behaviors
+  'hunting',
+  'stalking',
+  'chasing',
+  'feeding',
+  'carrying prey',
+  // Social behaviors
+  'grooming',
+  'playing',
+  'fighting',
+  'mating',
+  'nursing',
+  // Other
+  'drinking',
+  'scent-marking',
+  'digging'
+])
+
+// Zod schemas for validation
+export const lifeStageSchema = z.enum(lifeStageValues).nullable().optional()
+export const sexSchema = z.enum(sexValues).nullable().optional()
+// Behavior stored as JSON array of strings (e.g., ["running", "alert"])
+export const behaviorSchema = z.array(z.string()).nullable().optional()
+
+// ============================================================================
 // Model Run Options Schema
 // ============================================================================
 

@@ -125,6 +125,31 @@ export function mapClassificationMethod(value) {
 }
 
 /**
+ * Convert behavior from JSON array to pipe-separated string for Camtrap DP.
+ * Internal storage uses JSON array (e.g., ["running", "alert"])
+ * Camtrap DP spec uses pipe-separated string (e.g., "running|alert")
+ *
+ * @param {string[]|string|null|undefined} value - Behavior array or string from database
+ * @returns {string|null} - Pipe-separated string or null
+ */
+export function convertBehaviorToString(value) {
+  if (!value) return null
+
+  // If already a string (legacy or pipe-separated), return as-is
+  if (typeof value === 'string') {
+    return value.trim() || null
+  }
+
+  // If array, join with pipe
+  if (Array.isArray(value)) {
+    const filtered = value.filter((b) => b && typeof b === 'string' && b.trim())
+    return filtered.length > 0 ? filtered.join('|') : null
+  }
+
+  return null
+}
+
+/**
  * Sanitize count value.
  * Per spec: count must be >= 1 when present.
  * Convert 0 or negative to null.
@@ -175,7 +200,7 @@ export function sanitizeObservation(row) {
     mediaID: row.mediaID || null,
     eventID: row.eventID || null,
     scientificName: row.scientificName || null,
-    behavior: row.behavior || null,
+    behavior: convertBehaviorToString(row.behavior),
     individualID: row.individualID || null,
     classifiedBy: row.classifiedBy || null,
     observationTags: row.observationTags || null,
