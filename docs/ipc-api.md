@@ -95,6 +95,67 @@ These endpoints perform sequence grouping and counting in the main thread, retur
 - Computed in main thread = better UI responsiveness
 - Query cache key includes `gapSeconds` for instant slider feedback
 
+### Paginated Sequences (Media Gallery)
+
+Returns pre-grouped sequences with cursor-based pagination for the media gallery. This moves sequence grouping from the client to the main process, supporting large datasets that would be too memory-intensive to group client-side.
+
+| Method | Channel | Parameters | Returns |
+|--------|---------|------------|---------|
+| `getSequences(studyId, options)` | `sequences:get-paginated` | studyId, options object | `{ data: { sequences, nextCursor, hasMore } }` |
+
+**Options:**
+```javascript
+{
+  gapSeconds: number | null,  // Gap threshold in seconds (null = eventID grouping)
+  limit: number,              // Sequences per page (default: 20)
+  cursor: string | null,      // Opaque cursor from previous response (null = first page)
+  filters: {
+    species: string[],        // Species to filter by
+    dateRange: { start, end }, // Date range filter
+    timeRange: { start, end }  // Time of day range (hours 0-23)
+  }
+}
+```
+
+**Response:**
+```javascript
+{
+  data: {
+    sequences: [
+      {
+        id: string,              // Sequence identifier
+        startTime: string | null, // ISO timestamp (null for null-timestamp media)
+        endTime: string | null,   // ISO timestamp
+        items: MediaItem[]        // Media items in the sequence
+      }
+    ],
+    nextCursor: string | null,   // Pass to next request (null = no more data)
+    hasMore: boolean             // Whether more sequences exist
+  }
+}
+```
+
+**Two-Phase Pagination:**
+1. **Timestamped phase**: Returns sequences grouped by timestamp proximity (or eventID)
+2. **Null-timestamp phase**: After all timestamped sequences, returns media without timestamps as individual single-item sequences
+
+The cursor is opaque to the client - just pass it back to get the next page. The server handles the phase transition automatically.
+
+**Usage:**
+```javascript
+// React Query infinite scroll
+const { data, fetchNextPage, hasNextPage } = useInfiniteQuery({
+  queryKey: ['sequences', studyId, filters, sequenceGap],
+  queryFn: ({ pageParam }) => window.api.getSequences(studyId, {
+    gapSeconds: sequenceGap,
+    limit: 20,
+    cursor: pageParam,
+    filters
+  }),
+  getNextPageParam: (lastPage) => lastPage.data.hasMore ? lastPage.data.nextCursor : undefined
+})
+```
+
 ### Media
 
 | Method | Channel | Parameters | Returns |

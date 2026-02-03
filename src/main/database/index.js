@@ -235,5 +235,8 @@ export {
   getTemporalBucket,
   selectDiverseMedia,
   getBestMedia,
-  getBestImagePerSpecies
+  getBestImagePerSpecies,
+  // Sequences
+  getMediaForSequencePagination,
+  hasTimestampedMedia
 } from './queries/index.js'

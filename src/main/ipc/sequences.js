@@ -19,7 +19,8 @@ import {
   calculateSequenceAwareSpeciesCounts,
   calculateSequenceAwareTimeseries,
   calculateSequenceAwareHeatmap,
-  calculateSequenceAwareDailyActivity
+  calculateSequenceAwareDailyActivity,
+  getPaginatedSequences
 } from '../services/sequences/index.js'
 
 /**
@@ -138,4 +139,43 @@ export function registerSequencesIPCHandlers() {
       }
     }
   )
+
+  /**
+   * Get paginated sequences
+   * Returns pre-grouped sequences with cursor-based pagination
+   *
+   * @param {string} studyId - Study identifier
+   * @param {Object} options - Pagination options
+   * @param {number|null} options.gapSeconds - Gap threshold for grouping (null = eventID grouping)
+   * @param {number} options.limit - Maximum sequences per page (default: 20)
+   * @param {string|null} options.cursor - Opaque cursor from previous response
+   * @param {Object} options.filters - Filter options
+   * @param {Array<string>} options.filters.species - Species filter
+   * @param {Object} options.filters.dateRange - Date range { start, end }
+   * @param {Object} options.filters.timeRange - Time range { start, end } (hours)
+   * @returns {{ data: { sequences, nextCursor, hasMore } } | { error: string }}
+   */
+  ipcMain.handle('sequences:get-paginated', async (_, studyId, options = {}) => {
+    try {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) {
+        log.warn(`Database not found for study ID: ${studyId}`)
+        return { error: 'Database not found for this study' }
+      }
+
+      const { gapSeconds = 60, limit = 20, cursor = null, filters = {} } = options
+
+      const result = await getPaginatedSequences(dbPath, {
+        gapSeconds,
+        limit,
+        cursor,
+        filters
+      })
+
+      return { data: result }
+    } catch (error) {
+      log.error('Error getting paginated sequences:', error)
+      return { error: error.message }
+    }
+  })
 }

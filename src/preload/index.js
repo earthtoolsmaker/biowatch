@@ -122,6 +122,10 @@ const api = {
       gapSeconds
     )
   },
+  // Paginated sequences API for media gallery
+  getSequences: async (studyId, options = {}) => {
+    return await electronAPI.ipcRenderer.invoke('sequences:get-paginated', studyId, options)
+  },
   // ML Model Management
   downloadMLModel: async ({ id, version }) => {
     return await electronAPI.ipcRenderer.invoke('model:download', id, version)

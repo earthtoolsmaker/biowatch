@@ -59,3 +59,6 @@ export {
   getBestMedia,
   getBestImagePerSpecies
 } from './best-media.js'
+
+// Sequences
+export { getMediaForSequencePagination, hasTimestampedMedia } from './sequences.js'

@@ -10,3 +10,5 @@ export {
   calculateSequenceAwareHeatmap,
   calculateSequenceAwareDailyActivity
 } from './speciesCounts.js'
+
+export { getPaginatedSequences } from './pagination.js'

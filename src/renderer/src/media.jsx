@@ -37,7 +37,7 @@ import {
 } from './utils/bboxCoordinates'
 import { useZoomPan } from './hooks/useZoomPan'
 import { useImagePrefetch } from './hooks/useImagePrefetch'
-import { groupMediaIntoSequences, groupMediaByEventID } from './utils/sequenceGrouping'
+// Note: Sequence grouping is now done server-side via window.api.getSequences
 import { getTopNonHumanSpecies } from './utils/speciesUtils'
 import { useSequenceGap } from './hooks/useSequenceGap'
 import { SequenceGapSlider } from './ui/SequenceGapSlider'
@@ -2506,11 +2506,13 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
   // Default value is set during study import based on whether the dataset has eventIDs
   const { sequenceGap, setSequenceGap } = useSequenceGap(id)
 
-  // Fetch media with infinite query for pagination
+  // Fetch pre-grouped sequences from main process with cursor-based pagination
+  // This moves the grouping logic to the main process, keeping the client "dumb"
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useInfiniteQuery({
     queryKey: [
-      'media',
+      'sequences',
       id,
+      sequenceGap,
       JSON.stringify(species),
       dateRange[0]?.toISOString(),
       dateRange[1]?.toISOString(),
@@ -2518,53 +2520,39 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
       timeRange.end,
       includeNullTimestamps
     ],
-    queryFn: async ({ pageParam = 0 }) => {
-      const response = await window.api.getMedia(id, {
-        species,
-        dateRange: { start: dateRange[0], end: dateRange[1] },
-        timeRange,
+    queryFn: async ({ pageParam = null }) => {
+      const response = await window.api.getSequences(id, {
+        gapSeconds: sequenceGap,
         limit: PAGE_SIZE,
-        offset: pageParam,
-        includeNullTimestamps
+        cursor: pageParam,
+        filters: {
+          species,
+          dateRange: dateRange[0] && dateRange[1] ? { start: dateRange[0], end: dateRange[1] } : {},
+          timeRange
+        }
       })
       if (response.error) throw new Error(response.error)
       return response.data
     },
-    getNextPageParam: (lastPage, allPages) => {
-      // If last page has PAGE_SIZE items, there might be more
-      return lastPage.length === PAGE_SIZE
-        ? allPages.length * PAGE_SIZE // offset = number of pages * page size
-        : undefined // no more pages
+    getNextPageParam: (lastPage) => {
+      // Use cursor-based pagination - server returns nextCursor
+      return lastPage.hasMore ? lastPage.nextCursor : undefined
     },
     enabled: !!id && (includeNullTimestamps || (!!dateRange[0] && !!dateRange[1]))
   })
 
-  // Flatten all pages into a single array
-  const mediaFiles = useMemo(() => data?.pages.flat() ?? [], [data])
+  // Flatten all pages of sequences into a single array
+  // Server already handles null-timestamp media as individual sequences at the end
+  const allNavigableItems = useMemo(
+    () => data?.pages.flatMap((page) => page.sequences) ?? [],
+    [data]
+  )
 
-  // Group media into sequences using memoization
-  // Videos are excluded from grouping - they always form their own sequence
-  // When sequenceGap is null (Off), use eventID-based grouping for CamtrapDP datasets
-  // When sequenceGap > 0, use timestamp-based grouping
-  // Media with null timestamps are separated and displayed at the end
-  const { sequences: groupedMedia, nullTimestampMedia } = useMemo(() => {
-    if (sequenceGap === null) {
-      return groupMediaByEventID(mediaFiles)
-    }
-    return groupMediaIntoSequences(mediaFiles, sequenceGap, isVideoMedia)
-  }, [mediaFiles, sequenceGap])
-
-  // Combine sequences and null-timestamp media for navigation
-  // Each null-timestamp item becomes a single-item "sequence" for navigation purposes
-  const allNavigableItems = useMemo(() => {
-    const nullTimestampSequences = nullTimestampMedia.map((media) => ({
-      id: media.mediaID,
-      items: [media],
-      startTime: null,
-      endTime: null
-    }))
-    return [...groupedMedia, ...nullTimestampSequences]
-  }, [groupedMedia, nullTimestampMedia])
+  // Extract all media files from sequences for bbox fetching
+  const mediaFiles = useMemo(
+    () => allNavigableItems.flatMap((seq) => seq.items),
+    [allNavigableItems]
+  )
 
   // Batch fetch bboxes for all visible media (needed for species name display and bbox overlays)
   const mediaIDs = useMemo(() => mediaFiles.map((m) => m.mediaID), [mediaFiles])
@@ -2804,7 +2792,8 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
           ref={gridContainerRef}
           className="flex flex-wrap gap-[12px] flex-1 overflow-auto p-3 content-start"
         >
-          {groupedMedia.map((sequence) => {
+          {/* Sequences are returned pre-grouped from server, including null-timestamp items as individual sequences */}
+          {allNavigableItems.map((sequence) => {
             const isMultiItem = sequence.items.length > 1
 
             if (isMultiItem) {
@@ -2843,23 +2832,6 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
               />
             )
           })}
-
-          {/* Null-timestamp media as individual thumbnails at the end */}
-          {nullTimestampMedia.map((media) => (
-            <ThumbnailCard
-              key={media.mediaID}
-              media={media}
-              constructImageUrl={constructImageUrl}
-              onImageClick={(m) => handleImageClick(m, null)}
-              imageErrors={imageErrors}
-              setImageErrors={setImageErrors}
-              showBboxes={showThumbnailBboxes}
-              bboxes={bboxesByMedia[media.mediaID] || []}
-              itemWidth={itemWidth}
-              isVideoMedia={isVideoMedia}
-              studyId={id}
-            />
-          ))}
 
           {/* Loading indicator and intersection target */}
           <div ref={loaderRef} className="w-full flex justify-center p-4">
