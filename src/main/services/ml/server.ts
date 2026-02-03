@@ -134,7 +134,7 @@ export async function startAndWaitTillServerHealty({
   scriptArgs,
   healthEndpoint,
   retryInterval = 1000,
-  maxRetries = 120,
+  maxRetries = 240,
   restartRetries = 60,
   maxRestarts = 1,
   env = {}
