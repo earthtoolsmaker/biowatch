@@ -440,7 +440,7 @@ function transformObservationRow(row) {
     lifeStage: row.lifeStage || row.life_stage || null,
     age: row.age || null,
     sex: row.sex || null,
-    behavior: row.behavior || null,
+    behavior: transformBehaviorField(row.behavior),
     // Bounding box fields (Camtrap DP format)
     // Use ?? (nullish coalescing) to prefer the first column name, falling back to snake_case
     // Use parseFloatOrNull to properly handle 0 values (which are falsy but valid coordinates)
@@ -459,6 +459,25 @@ function transformDateField(dateValue) {
 
   const date = DateTime.fromISO(dateValue)
   return date.isValid ? date.toUTC().toISO() : null
+}
+
+/**
+ * Transform Camtrap DP behavior field from pipe-separated string to JSON array
+ * Camtrap DP spec uses pipe-separated values (e.g., "running|alert")
+ * We store as JSON array (e.g., ["running", "alert"])
+ * @param {string|null} behavior - Pipe-separated behavior string
+ * @returns {string[]|null} - Array of behavior strings or null
+ */
+function transformBehaviorField(behavior) {
+  if (!behavior || behavior.trim() === '') {
+    return null
+  }
+  // Split by pipe and trim whitespace from each value
+  const behaviors = behavior
+    .split('|')
+    .map((b) => b.trim())
+    .filter((b) => b !== '')
+  return behaviors.length > 0 ? behaviors : null
 }
 
 /**

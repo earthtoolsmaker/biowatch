@@ -107,7 +107,7 @@ export const observations = sqliteTable(
     lifeStage: text('lifeStage'),
     age: text('age'),
     sex: text('sex'),
-    behavior: text('behavior'),
+    behavior: text('behavior', { mode: 'json' }), // JSON array of behavior strings
     // Bounding box fields (Camtrap DP format: top-left corner, normalized 0-1)
     bboxX: real('bboxX'),
     bboxY: real('bboxY'),
