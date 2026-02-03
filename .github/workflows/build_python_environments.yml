@@ -86,7 +86,7 @@ jobs:
           mkdir -p dist
           CONDA_BASE=$(conda info --base)
           CONDA_ENV_PATH=$CONDA_BASE/envs/common
-          ENVIRONMENT_VERSION=$(grep 'version' ./python-environments/common/pyproject.toml | awk -F '=' '{print $2}' | tr -d ' "')
+          ENVIRONMENT_VERSION=$(grep '^version' ./python-environments/common/pyproject.toml | awk -F '=' '{print $2}' | tr -d ' "')
           echo "${ENVIRONMENT_VERSION}"
 
           tar -czf dist/common-"${ENVIRONMENT_VERSION}"-${{ runner.os }}.tar.gz -C "${CONDA_BASE}"/envs common
