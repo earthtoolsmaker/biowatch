@@ -42,6 +42,38 @@ let activeExport = {
 // Concurrency limit for parallel downloads
 const DOWNLOAD_CONCURRENCY = 5
 
+// Batch size for inArray queries (SQLite limit is ~999 variables)
+const INARRAY_BATCH_SIZE = 500
+
+/**
+ * Query media records in batches to avoid SQLite's SQL variable limit.
+ * SQLite has a limit of ~999 variables per query, so we batch large inArray queries.
+ * @param {object} db - Drizzle database instance
+ * @param {string[]} mediaIDs - Array of media IDs to query
+ * @returns {Promise<Array>} - Array of media records sorted by mediaID
+ */
+async function queryMediaInBatches(db, mediaIDs) {
+  const results = []
+  for (let i = 0; i < mediaIDs.length; i += INARRAY_BATCH_SIZE) {
+    const batch = mediaIDs.slice(i, i + INARRAY_BATCH_SIZE)
+    const batchResults = await db
+      .select({
+        mediaID: media.mediaID,
+        deploymentID: media.deploymentID,
+        timestamp: media.timestamp,
+        filePath: media.filePath,
+        fileName: media.fileName,
+        exifData: media.exifData,
+        favorite: media.favorite
+      })
+      .from(media)
+      .where(inArray(media.mediaID, batch))
+    results.push(...batchResults)
+  }
+  // Sort by mediaID to maintain consistent ordering
+  return results.sort((a, b) => a.mediaID.localeCompare(b.mediaID))
+}
+
 /**
  * Cancel the currently active export
  */
@@ -88,9 +120,14 @@ function getFileNameFromUrl(url, originalFileName) {
 }
 
 /**
- * Deduplicate filename if it already exists in the set
+ * Deduplicate filename if it already exists in the set.
+ * Uses baseNameCounters map to track next counter per base name (O(n) instead of O(n²)).
+ * @param {string} fileName - The filename to deduplicate
+ * @param {Set} existingNames - Set of already used filenames
+ * @param {Map|null} baseNameCounters - Optional map tracking next counter per base name for O(n) performance
+ * @returns {string} - Deduplicated filename
  */
-function deduplicateFileName(fileName, existingNames) {
+function deduplicateFileName(fileName, existingNames, baseNameCounters = null) {
   if (!existingNames.has(fileName)) {
     existingNames.add(fileName)
     return fileName
@@ -98,12 +135,19 @@ function deduplicateFileName(fileName, existingNames) {
 
   const ext = extname(fileName)
   const base = basename(fileName, ext)
-  let counter = 1
+
+  // Use tracked counter if available, otherwise start from 1
+  let counter = baseNameCounters?.get(base) || 1
   let newName = `${base}_${counter}${ext}`
 
   while (existingNames.has(newName)) {
     counter++
     newName = `${base}_${counter}${ext}`
+  }
+
+  // Track next counter for this base name
+  if (baseNameCounters) {
+    baseNameCounters.set(base, counter + 1)
   }
 
   existingNames.add(newName)
@@ -372,11 +416,12 @@ export async function exportImageDirectories(studyId, options = {}) {
         continue
       }
 
-      // Initialize filename set for this species (for deduplication)
+      // Initialize filename set and counter map for this species (for deduplication)
       if (!usedFileNames.has(scientificName)) {
-        usedFileNames.set(scientificName, new Set())
+        usedFileNames.set(scientificName, { names: new Set(), counters: new Map() })
       }
-      const speciesFileNames = usedFileNames.get(scientificName)
+      const { names: speciesFileNames, counters: speciesBaseNameCounters } =
+        usedFileNames.get(scientificName)
 
       // Prepare each file with its destination
       for (const file of files) {
@@ -385,7 +430,7 @@ export async function exportImageDirectories(studyId, options = {}) {
 
         // Determine and deduplicate filename
         let fileName = isRemote ? getFileNameFromUrl(sourcePath, file.fileName) : file.fileName
-        fileName = deduplicateFileName(fileName, speciesFileNames)
+        fileName = deduplicateFileName(fileName, speciesFileNames, speciesBaseNameCounters)
 
         preparedFiles.push({
           sourcePath,
@@ -993,19 +1038,7 @@ export async function exportCamtrapDP(studyId, options = {}) {
     let nullTimestampObservationsCount = 0
 
     if (filteredMediaIDs.length > 0) {
-      const allMediaData = await db
-        .select({
-          mediaID: media.mediaID,
-          deploymentID: media.deploymentID,
-          timestamp: media.timestamp,
-          filePath: media.filePath,
-          fileName: media.fileName,
-          exifData: media.exifData,
-          favorite: media.favorite
-        })
-        .from(media)
-        .where(inArray(media.mediaID, filteredMediaIDs))
-        .orderBy(asc(media.mediaID))
+      const allMediaData = await queryMediaInBatches(db, filteredMediaIDs)
 
       // Filter out media with null timestamps (CamtrapDP requires timestamp)
       mediaData = allMediaData.filter((m) => m.timestamp !== null)
@@ -1038,13 +1071,14 @@ export async function exportCamtrapDP(studyId, options = {}) {
 
     // Build filename mapping for deduplication when includeMedia is true
     const usedFileNames = new Set()
+    const baseNameCounters = new Map() // Track next counter per base name for O(n) deduplication
     const mediaFileNameMap = new Map() // mediaID -> deduplicated fileName
 
     if (includeMedia) {
       for (const m of mediaData) {
         const isRemote = isRemoteUrl(m.filePath)
         let fileName = isRemote ? getFileNameFromUrl(m.filePath, m.fileName) : m.fileName
-        fileName = deduplicateFileName(fileName, usedFileNames)
+        fileName = deduplicateFileName(fileName, usedFileNames, baseNameCounters)
         mediaFileNameMap.set(m.mediaID, fileName)
       }
     }
