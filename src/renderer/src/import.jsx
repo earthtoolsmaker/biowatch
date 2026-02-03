@@ -8,6 +8,7 @@ import GbifImportProgress from './GbifImportProgress.jsx'
 import DemoImportProgress from './DemoImportProgress.jsx'
 import LilaImportProgress from './LilaImportProgress.jsx'
 import CamtrapDPImportProgress from './CamtrapDPImportProgress.jsx'
+import { toast } from 'sonner'
 import { Database, FolderOpen, Camera, FileSpreadsheet, Globe, Sparkles } from 'lucide-react'
 import { Button } from './ui/button.jsx'
 import { Card, CardContent } from './ui/card.jsx'
@@ -77,6 +78,11 @@ export default function Import({ onNewStudy, studiesCount = 0 }) {
   useEffect(() => {
     const cleanup = window.api.onCamtrapDPImportProgress?.((progress) => {
       setCamtrapDPImportProgress(progress)
+      if (progress.stage === 'error') {
+        toast.error('CamtrapDP import failed', {
+          description: progress.error?.message || 'Unknown error'
+        })
+      }
     })
     return cleanup
   }, [])

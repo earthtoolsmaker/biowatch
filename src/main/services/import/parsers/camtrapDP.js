@@ -74,13 +74,11 @@ export async function importCamTrapDatasetWithPath(
       data = datapackage
       log.info(`Found dataset name: ${data.name}`)
     } else {
-      log.warn('datapackage.json not found in directory')
-      return {
-        error: 'datapackage.json not found in directory'
-      }
+      throw new Error('datapackage.json not found in directory')
     }
   } catch (error) {
     log.error('Error reading datapackage.json:', error)
+    throw error
   }
 
   log.info(`Using dataset directory: ${directoryPath}`)
