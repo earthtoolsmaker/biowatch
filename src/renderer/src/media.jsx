@@ -2871,13 +2871,11 @@ export default function Activity({ studyData, studyId }) {
   const taxonomicData = studyData?.taxonomic || null
 
   // Fetch sequence-aware species distribution data
+  // sequenceGap in queryKey ensures refetch when slider changes (backend fetches from metadata)
   const { data: speciesDistributionData, error: speciesDistributionError } = useQuery({
     queryKey: ['sequenceAwareSpeciesDistribution', actualStudyId, sequenceGap],
     queryFn: async () => {
-      const response = await window.api.getSequenceAwareSpeciesDistribution(
-        actualStudyId,
-        sequenceGap
-      )
+      const response = await window.api.getSequenceAwareSpeciesDistribution(actualStudyId)
       if (response.error) throw new Error(response.error)
       return response.data
     },
@@ -2931,14 +2929,11 @@ export default function Activity({ studyData, studyId }) {
   )
 
   // Fetch sequence-aware timeseries data
+  // sequenceGap in queryKey ensures refetch when slider changes (backend fetches from metadata)
   const { data: timeseriesQueryData } = useQuery({
     queryKey: ['sequenceAwareTimeseries', actualStudyId, [...speciesNames].sort(), sequenceGap],
     queryFn: async () => {
-      const response = await window.api.getSequenceAwareTimeseries(
-        actualStudyId,
-        speciesNames,
-        sequenceGap
-      )
+      const response = await window.api.getSequenceAwareTimeseries(actualStudyId, speciesNames)
       if (response.error) throw new Error(response.error)
       return response.data
     },
@@ -2981,6 +2976,7 @@ export default function Activity({ studyData, studyId }) {
   }, [hasTemporalData, fullExtent, dateRange])
 
   // Fetch sequence-aware daily activity data
+  // sequenceGap in queryKey ensures refetch when slider changes (backend fetches from metadata)
   const { data: dailyActivityData } = useQuery({
     queryKey: [
       'sequenceAwareDailyActivity',
@@ -2995,8 +2991,7 @@ export default function Activity({ studyData, studyId }) {
         actualStudyId,
         speciesNames,
         dateRange[0]?.toISOString(),
-        dateRange[1]?.toISOString(),
-        sequenceGap
+        dateRange[1]?.toISOString()
       )
       if (response.error) throw new Error(response.error)
       return response.data

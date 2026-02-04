@@ -400,10 +400,11 @@ export default function Overview({ data, studyId, studyName }) {
   }, [deploymentsActivityData])
 
   // Use sequence-aware species distribution
+  // sequenceGap in queryKey ensures refetch when slider changes (backend fetches from metadata)
   const { data: speciesData, error: speciesError } = useQuery({
     queryKey: ['sequenceAwareSpeciesDistribution', studyId, sequenceGap],
     queryFn: async () => {
-      const response = await window.api.getSequenceAwareSpeciesDistribution(studyId, sequenceGap)
+      const response = await window.api.getSequenceAwareSpeciesDistribution(studyId)
       if (response.error) throw new Error(response.error)
       return response.data
     },

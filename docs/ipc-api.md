@@ -82,18 +82,18 @@ These endpoints perform sequence grouping and counting in the main thread, retur
 
 | Method | Channel | Parameters | Returns |
 |--------|---------|------------|---------|
-| `getSequenceAwareSpeciesDistribution(studyId, gapSeconds)` | `sequences:get-species-distribution` | studyId, gapSeconds | `{ data: [{scientificName, count}] }` |
-| `getSequenceAwareTimeseries(studyId, speciesNames, gapSeconds)` | `sequences:get-timeseries` | studyId, species[], gapSeconds | `{ data: {timeseries, allSpecies} }` |
-| `getSequenceAwareHeatmap(studyId, speciesNames, startDate, endDate, startHour, endHour, includeNullTimestamps, gapSeconds)` | `sequences:get-heatmap` | studyId, species[], dates, hours, includeNull, gapSeconds | `{ data: {species -> locations[]} }` |
-| `getSequenceAwareDailyActivity(studyId, speciesNames, startDate, endDate, gapSeconds)` | `sequences:get-daily-activity` | studyId, species[], dates, gapSeconds | `{ data: [24 hourly objects] }` |
+| `getSequenceAwareSpeciesDistribution(studyId)` | `sequences:get-species-distribution` | studyId | `{ data: [{scientificName, count}] }` |
+| `getSequenceAwareTimeseries(studyId, speciesNames)` | `sequences:get-timeseries` | studyId, species[] | `{ data: {timeseries, allSpecies} }` |
+| `getSequenceAwareHeatmap(studyId, speciesNames, startDate, endDate, startHour, endHour, includeNullTimestamps)` | `sequences:get-heatmap` | studyId, species[], dates, hours, includeNull | `{ data: {species -> locations[]} }` |
+| `getSequenceAwareDailyActivity(studyId, speciesNames, startDate, endDate)` | `sequences:get-daily-activity` | studyId, species[], dates | `{ data: [24 hourly objects] }` |
 
 **Parameters:**
-- `gapSeconds`: Sequence gap threshold in seconds. Use `0` for eventID-based grouping (CamtrapDP datasets with imported events).
 - `speciesNames`: Array of scientific names to include in the analysis.
+- `gapSeconds` is **not passed by the frontend**. The backend fetches it from the study's metadata table. When metadata has no `sequenceGap` stored, it defaults to `null` (eventID-based grouping for CamtrapDP datasets).
 
 **Benefits:**
 - Computed in main thread = better UI responsiveness
-- Query cache key includes `gapSeconds` for instant slider feedback
+- Frontend query cache keys include `sequenceGap` for instant slider feedback (refetch triggered on change)
 
 ### Paginated Sequences (Media Gallery)
 

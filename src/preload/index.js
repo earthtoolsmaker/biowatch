@@ -72,20 +72,12 @@ const api = {
     return await electronAPI.ipcRenderer.invoke('species:get-best-images', studyId)
   },
   // Sequence-aware species distribution APIs (pre-computed in main thread)
-  getSequenceAwareSpeciesDistribution: async (studyId, gapSeconds) => {
-    return await electronAPI.ipcRenderer.invoke(
-      'sequences:get-species-distribution',
-      studyId,
-      gapSeconds
-    )
+  // gapSeconds is fetched from study metadata in the backend
+  getSequenceAwareSpeciesDistribution: async (studyId) => {
+    return await electronAPI.ipcRenderer.invoke('sequences:get-species-distribution', studyId)
   },
-  getSequenceAwareTimeseries: async (studyId, speciesNames, gapSeconds) => {
-    return await electronAPI.ipcRenderer.invoke(
-      'sequences:get-timeseries',
-      studyId,
-      speciesNames,
-      gapSeconds
-    )
+  getSequenceAwareTimeseries: async (studyId, speciesNames) => {
+    return await electronAPI.ipcRenderer.invoke('sequences:get-timeseries', studyId, speciesNames)
   },
   getSequenceAwareHeatmap: async (
     studyId,
@@ -94,8 +86,7 @@ const api = {
     endDate,
     startHour,
     endHour,
-    includeNullTimestamps,
-    gapSeconds
+    includeNullTimestamps
   ) => {
     return await electronAPI.ipcRenderer.invoke(
       'sequences:get-heatmap',
@@ -105,18 +96,16 @@ const api = {
       endDate,
       startHour,
       endHour,
-      includeNullTimestamps,
-      gapSeconds
+      includeNullTimestamps
     )
   },
-  getSequenceAwareDailyActivity: async (studyId, speciesNames, startDate, endDate, gapSeconds) => {
+  getSequenceAwareDailyActivity: async (studyId, speciesNames, startDate, endDate) => {
     return await electronAPI.ipcRenderer.invoke(
       'sequences:get-daily-activity',
       studyId,
       speciesNames,
       startDate,
-      endDate,
-      gapSeconds
+      endDate
     )
   },
   // Paginated sequences API for media gallery

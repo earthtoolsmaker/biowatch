@@ -10,6 +10,8 @@ import log from 'electron-log'
 import { existsSync } from 'fs'
 import { getStudyDatabasePath } from '../services/paths.js'
 import {
+  getDrizzleDb,
+  getMetadata,
   getSpeciesDistributionByMedia,
   getSpeciesTimeseriesByMedia,
   getSpeciesHeatmapDataByMedia,
@@ -24,12 +26,26 @@ import {
 } from '../services/sequences/index.js'
 
 /**
+ * Helper to fetch sequenceGap from study metadata
+ * @param {string} studyId - Study identifier
+ * @param {string} dbPath - Path to database file
+ * @returns {Promise<number|null>} sequenceGap value or null for eventID-based grouping
+ */
+async function getSequenceGapFromMetadata(studyId, dbPath) {
+  const db = await getDrizzleDb(studyId, dbPath, { readonly: true })
+  const meta = await getMetadata(db)
+  return meta?.sequenceGap ?? null
+}
+
+/**
  * Register all sequence-related IPC handlers
  */
 export function registerSequencesIPCHandlers() {
   /**
    * Get sequence-aware species distribution
    * Fetches raw media data and computes sequence-aware counts in main thread
+   * @param {string} studyId - Study identifier
+   * @param {number|null} [gapSeconds] - Optional gap threshold; fetched from metadata if not provided
    */
   ipcMain.handle('sequences:get-species-distribution', async (_, studyId, gapSeconds) => {
     try {
@@ -39,8 +55,12 @@ export function registerSequencesIPCHandlers() {
         return { error: 'Database not found for this study' }
       }
 
+      // If gapSeconds not provided, fetch from metadata
+      const effectiveGapSeconds =
+        gapSeconds !== undefined ? gapSeconds : await getSequenceGapFromMetadata(studyId, dbPath)
+
       const rawData = await getSpeciesDistributionByMedia(dbPath)
-      const data = calculateSequenceAwareSpeciesCounts(rawData, gapSeconds)
+      const data = calculateSequenceAwareSpeciesCounts(rawData, effectiveGapSeconds)
       return { data }
     } catch (error) {
       log.error('Error getting sequence-aware species distribution:', error)
@@ -51,6 +71,9 @@ export function registerSequencesIPCHandlers() {
   /**
    * Get sequence-aware species timeseries
    * Fetches raw media data and computes sequence-aware timeseries in main thread
+   * @param {string} studyId - Study identifier
+   * @param {Array<string>} speciesNames - Species to include in timeseries
+   * @param {number|null} [gapSeconds] - Optional gap threshold; fetched from metadata if not provided
    */
   ipcMain.handle('sequences:get-timeseries', async (_, studyId, speciesNames, gapSeconds) => {
     try {
@@ -60,8 +83,12 @@ export function registerSequencesIPCHandlers() {
         return { error: 'Database not found for this study' }
       }
 
+      // If gapSeconds not provided, fetch from metadata
+      const effectiveGapSeconds =
+        gapSeconds !== undefined ? gapSeconds : await getSequenceGapFromMetadata(studyId, dbPath)
+
       const rawData = await getSpeciesTimeseriesByMedia(dbPath, speciesNames)
-      const data = calculateSequenceAwareTimeseries(rawData, gapSeconds)
+      const data = calculateSequenceAwareTimeseries(rawData, effectiveGapSeconds)
       return { data }
     } catch (error) {
       log.error('Error getting sequence-aware timeseries:', error)
@@ -72,6 +99,14 @@ export function registerSequencesIPCHandlers() {
   /**
    * Get sequence-aware species heatmap
    * Fetches raw media data and computes sequence-aware heatmap in main thread
+   * @param {string} studyId - Study identifier
+   * @param {Array<string>} speciesNames - Species to include in heatmap
+   * @param {string|null} startDate - Start date filter (ISO string)
+   * @param {string|null} endDate - End date filter (ISO string)
+   * @param {number} startHour - Start hour filter (0-24)
+   * @param {number} endHour - End hour filter (0-24)
+   * @param {boolean} includeNullTimestamps - Whether to include media without timestamps
+   * @param {number|null} [gapSeconds] - Optional gap threshold; fetched from metadata if not provided
    */
   ipcMain.handle(
     'sequences:get-heatmap',
@@ -93,6 +128,10 @@ export function registerSequencesIPCHandlers() {
           return { error: 'Database not found for this study' }
         }
 
+        // If gapSeconds not provided, fetch from metadata
+        const effectiveGapSeconds =
+          gapSeconds !== undefined ? gapSeconds : await getSequenceGapFromMetadata(studyId, dbPath)
+
         const rawData = await getSpeciesHeatmapDataByMedia(
           dbPath,
           speciesNames,
@@ -102,7 +141,7 @@ export function registerSequencesIPCHandlers() {
           endHour,
           includeNullTimestamps
         )
-        const data = calculateSequenceAwareHeatmap(rawData, gapSeconds)
+        const data = calculateSequenceAwareHeatmap(rawData, effectiveGapSeconds)
         return { data }
       } catch (error) {
         log.error('Error getting sequence-aware heatmap:', error)
@@ -114,6 +153,11 @@ export function registerSequencesIPCHandlers() {
   /**
    * Get sequence-aware daily activity
    * Fetches raw media data and computes sequence-aware daily activity in main thread
+   * @param {string} studyId - Study identifier
+   * @param {Array<string>} speciesNames - Species to include in daily activity
+   * @param {string|null} startDate - Start date filter (ISO string)
+   * @param {string|null} endDate - End date filter (ISO string)
+   * @param {number|null} [gapSeconds] - Optional gap threshold; fetched from metadata if not provided
    */
   ipcMain.handle(
     'sequences:get-daily-activity',
@@ -125,13 +169,17 @@ export function registerSequencesIPCHandlers() {
           return { error: 'Database not found for this study' }
         }
 
+        // If gapSeconds not provided, fetch from metadata
+        const effectiveGapSeconds =
+          gapSeconds !== undefined ? gapSeconds : await getSequenceGapFromMetadata(studyId, dbPath)
+
         const rawData = await getSpeciesDailyActivityByMedia(
           dbPath,
           speciesNames,
           startDate,
           endDate
         )
-        const data = calculateSequenceAwareDailyActivity(rawData, gapSeconds, speciesNames)
+        const data = calculateSequenceAwareDailyActivity(rawData, effectiveGapSeconds, speciesNames)
         return { data }
       } catch (error) {
         log.error('Error getting sequence-aware daily activity:', error)
