@@ -202,7 +202,8 @@ describe('Umzug Migration System', () => {
         contributors TEXT,
         updatedAt TEXT,
         startDate TEXT,
-        endDate TEXT
+        endDate TEXT,
+        sequenceGap INTEGER
       )
     `)
     db.close()
@@ -267,7 +268,8 @@ describe('Umzug Migration System', () => {
         contributors TEXT,
         updatedAt TEXT,
         startDate TEXT,
-        endDate TEXT
+        endDate TEXT,
+        sequenceGap INTEGER
       )
     `)
 
@@ -357,7 +359,8 @@ describe('Umzug Migration System', () => {
           contributors TEXT,
           updatedAt TEXT,
           startDate TEXT,
-          endDate TEXT
+          endDate TEXT,
+          sequenceGap INTEGER
         )
       `)
       db.close()

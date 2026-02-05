@@ -18,6 +18,7 @@ import { registerFilesIPCHandlers } from './files.js'
 import { registerDialogIPCHandlers } from './dialog.js'
 import { registerShellIPCHandlers } from './shell.js'
 import { registerMLIPCHandlers } from './ml.js'
+import { registerSequencesIPCHandlers } from './sequences.js'
 import { registerDiagnosticsIPCHandlers } from './diagnostics.js'
 
 /**
@@ -39,6 +40,7 @@ export function registerAllIPCHandlers() {
   registerDialogIPCHandlers()
   registerShellIPCHandlers()
   registerMLIPCHandlers()
+  registerSequencesIPCHandlers()
   registerDiagnosticsIPCHandlers()
 
   log.info('All IPC handlers registered')
@@ -57,5 +59,6 @@ export {
   registerDialogIPCHandlers,
   registerShellIPCHandlers,
   registerMLIPCHandlers,
+  registerSequencesIPCHandlers,
   registerDiagnosticsIPCHandlers
 }

@@ -7,7 +7,6 @@ import log from 'electron-log'
 import { existsSync } from 'fs'
 import { getStudyDatabasePath } from '../services/paths.js'
 import {
-  getMedia,
   getMediaBboxes,
   getMediaBboxesBatch,
   checkMediaHaveBboxes,
@@ -22,22 +21,6 @@ import {
  * Register all media-related IPC handlers
  */
 export function registerMediaIPCHandlers() {
-  ipcMain.handle('media:get', async (_, studyId, options = {}) => {
-    try {
-      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
-      if (!dbPath || !existsSync(dbPath)) {
-        log.warn(`Database not found for study ID: ${studyId}`)
-        return { error: 'Database not found for this study' }
-      }
-
-      const media = await getMedia(dbPath, options)
-      return { data: media }
-    } catch (error) {
-      log.error('Error getting media:', error)
-      return { error: error.message }
-    }
-  })
-
   // Get bounding boxes for a specific media file
   // includeWithoutBbox: true to include observations without bbox (for videos)
   ipcMain.handle('media:get-bboxes', async (_, studyId, mediaID, includeWithoutBbox = false) => {

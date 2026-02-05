@@ -9,7 +9,7 @@ Biowatch uses Electron's IPC for communication:
 ```
 Renderer Process          Preload Script          Main Process
      │                         │                       │
-     │  window.api.getMedia()  │                       │
+     │ window.api.getSequences()│                       │
      ├────────────────────────►│                       │
      │                         │  ipcRenderer.invoke() │
      │                         ├──────────────────────►│
@@ -25,7 +25,7 @@ From renderer (React components):
 
 ```javascript
 // All IPC methods are available on window.api
-const { data, error } = await window.api.getMedia(studyId, { limit: 100 })
+const { data, error } = await window.api.getSequences(studyId, { limit: 20 })
 ```
 
 ## Handler Reference
@@ -38,6 +38,8 @@ const { data, error } = await window.api.getMedia(studyId, { limit: 100 })
 | `updateStudy(id, update)` | `studies:update` | studyId, update object | `Study` |
 | `deleteStudyDatabase(studyId)` | `study:delete-database` | studyId | `{ success: boolean }` |
 | `checkStudyHasEventIDs(studyId)` | `study:has-event-ids` | studyId | `{ data: boolean }` |
+| `getSequenceGap(studyId)` | `study:get-sequence-gap` | studyId | `{ data: number \| null }` |
+| `setSequenceGap(studyId, sequenceGap)` | `study:set-sequence-gap` | studyId, sequenceGap (0-600) | `{ data: number }` |
 
 ### Data Import
 
@@ -75,19 +77,90 @@ const { data, error } = await window.api.getMedia(studyId, { limit: 100 })
 |--------|---------|------------|---------|
 | `getLocationsActivity(studyId)` | `locations:get-activity` | studyId | `{ data: Activity[] }` |
 
-### Activity Analysis
+### Sequence-Aware Species Counts
+
+These endpoints perform sequence grouping and counting in the main thread, returning pre-computed results. This avoids transferring raw media-level data to the renderer and keeps computation off the UI thread.
 
 | Method | Channel | Parameters | Returns |
 |--------|---------|------------|---------|
-| `getSpeciesTimeseries(studyId, species)` | `activity:get-timeseries` | studyId, species | `{ data: TimeseriesPoint[] }` |
-| `getSpeciesDailyActivity(studyId, species, startDate, endDate)` | `activity:get-daily` | studyId, species, startDate?, endDate? | `{ data: DailyActivity[] }` |
-| `getSpeciesHeatmapData(studyId, species, startDate, endDate, startTime, endTime)` | `activity:get-heatmap-data` | studyId, species, filters... | `{ data: HeatmapData }` |
+| `getSequenceAwareSpeciesDistribution(studyId)` | `sequences:get-species-distribution` | studyId | `{ data: [{scientificName, count}] }` |
+| `getSequenceAwareTimeseries(studyId, speciesNames)` | `sequences:get-timeseries` | studyId, species[] | `{ data: {timeseries, allSpecies} }` |
+| `getSequenceAwareHeatmap(studyId, speciesNames, startDate, endDate, startHour, endHour, includeNullTimestamps)` | `sequences:get-heatmap` | studyId, species[], dates, hours, includeNull | `{ data: {species -> locations[]} }` |
+| `getSequenceAwareDailyActivity(studyId, speciesNames, startDate, endDate)` | `sequences:get-daily-activity` | studyId, species[], dates | `{ data: [24 hourly objects] }` |
+
+**Parameters:**
+- `speciesNames`: Array of scientific names to include in the analysis.
+- `gapSeconds` is **not passed by the frontend**. The backend fetches it from the study's metadata table. When metadata has no `sequenceGap` stored, it defaults to `null` (eventID-based grouping for CamtrapDP datasets).
+
+**Benefits:**
+- Computed in main thread = better UI responsiveness
+- Frontend query cache keys include `sequenceGap` for instant slider feedback (refetch triggered on change)
+
+### Paginated Sequences (Media Gallery)
+
+Returns pre-grouped sequences with cursor-based pagination for the media gallery. This moves sequence grouping from the client to the main process, supporting large datasets that would be too memory-intensive to group client-side.
+
+| Method | Channel | Parameters | Returns |
+|--------|---------|------------|---------|
+| `getSequences(studyId, options)` | `sequences:get-paginated` | studyId, options object | `{ data: { sequences, nextCursor, hasMore } }` |
+
+**Options:**
+```javascript
+{
+  gapSeconds: number | null,  // Gap threshold in seconds (null = eventID grouping)
+  limit: number,              // Sequences per page (default: 20)
+  cursor: string | null,      // Opaque cursor from previous response (null = first page)
+  filters: {
+    species: string[],        // Species to filter by
+    dateRange: { start, end }, // Date range filter
+    timeRange: { start, end }  // Time of day range (hours 0-23)
+  }
+}
+```
+
+**Response:**
+```javascript
+{
+  data: {
+    sequences: [
+      {
+        id: string,              // Sequence identifier
+        startTime: string | null, // ISO timestamp (null for null-timestamp media)
+        endTime: string | null,   // ISO timestamp
+        items: MediaItem[]        // Media items in the sequence
+      }
+    ],
+    nextCursor: string | null,   // Pass to next request (null = no more data)
+    hasMore: boolean             // Whether more sequences exist
+  }
+}
+```
+
+**Two-Phase Pagination:**
+1. **Timestamped phase**: Returns sequences grouped by timestamp proximity (or eventID)
+2. **Null-timestamp phase**: After all timestamped sequences, returns media without timestamps as individual single-item sequences
+
+The cursor is opaque to the client - just pass it back to get the next page. The server handles the phase transition automatically.
+
+**Usage:**
+```javascript
+// React Query infinite scroll
+const { data, fetchNextPage, hasNextPage } = useInfiniteQuery({
+  queryKey: ['sequences', studyId, filters, sequenceGap],
+  queryFn: ({ pageParam }) => window.api.getSequences(studyId, {
+    gapSeconds: sequenceGap,
+    limit: 20,
+    cursor: pageParam,
+    filters
+  }),
+  getNextPageParam: (lastPage) => lastPage.data.hasMore ? lastPage.data.nextCursor : undefined
+})
+```
 
 ### Media
 
 | Method | Channel | Parameters | Returns |
 |--------|---------|------------|---------|
-| `getMedia(studyId, options)` | `media:get` | studyId, { limit?, offset?, filters? } | `{ data: Media[] }` |
 | `getMediaBboxes(studyId, mediaID)` | `media:get-bboxes` | studyId, mediaID | `{ data: Bbox[] }` |
 | `getMediaBboxesBatch(studyId, mediaIDs)` | `media:get-bboxes-batch` | studyId, mediaID[] | `{ data: Map<mediaID, Bbox[]> }` |
 | `checkMediaHaveBboxes(studyId, mediaIDs)` | `media:have-bboxes` | studyId, mediaID[] | `{ data: boolean }` |
@@ -324,9 +397,11 @@ const data = response.data
 | `src/main/index.js` | Minimal app entry point |
 | `src/main/ipc/index.js` | Registers all IPC handlers |
 | `src/main/ipc/*.js` | Individual IPC handler modules |
+| `src/main/ipc/sequences.js` | Sequence-aware counting IPC handlers |
 | `src/preload/index.js` | API bridge to renderer |
 | `src/main/database/queries/` | Database query implementations |
 | `src/main/services/export/exporter.js` | Export handler implementations |
+| `src/main/services/sequences/` | Sequence grouping and counting logic |
 | `src/main/ipc/ml.js` | ML model IPC handlers |
 | `src/main/services/ml/server.ts` | ML server lifecycle management |
 | `src/main/services/ml/download.ts` | ML model download/installation |

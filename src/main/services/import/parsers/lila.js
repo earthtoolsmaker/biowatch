@@ -17,6 +17,7 @@ import { streamArray } from 'stream-json/streamers/StreamArray.js'
 import { chain } from 'stream-chain'
 import log from '../../logger.js'
 import { getBiowatchDataPath } from '../../paths.js'
+import { DEFAULT_SEQUENCE_GAP } from '../../../../shared/constants.js'
 
 /**
  * Whitelisted LILA datasets with their metadata and access URLs
@@ -761,7 +762,8 @@ export async function importLilaDatasetWithPath(
       importerName: 'lila/coco',
       contributors: buildContributors(dataset),
       startDate: null,
-      endDate: null
+      endDate: null,
+      sequenceGap: DEFAULT_SEQUENCE_GAP
     }
     await insertMetadata(db, metadataRecord)
     log.info('Inserted study metadata into database')
@@ -2162,7 +2164,8 @@ async function importLilaDatasetStreaming(dataset, dbPath, id, onProgress) {
       importerName: 'lila/coco',
       contributors: buildContributors(dataset),
       startDate: null,
-      endDate: null
+      endDate: null,
+      sequenceGap: DEFAULT_SEQUENCE_GAP
     }
     await insertMetadata(mainDb, metadataRecord)
     log.info('Inserted study metadata')

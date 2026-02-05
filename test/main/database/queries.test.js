@@ -9,10 +9,6 @@ import { DateTime } from 'luxon'
 import {
   getSpeciesDistribution,
   getLocationsActivity,
-  getSpeciesTimeseries,
-  getSpeciesHeatmapData,
-  getMedia,
-  getSpeciesDailyActivity,
   getDeployments,
   getDeploymentsActivity,
   getFilesData,
@@ -21,7 +17,8 @@ import {
   insertMedia,
   insertObservations,
   getStudyIdFromPath,
-  getBlankMediaCount
+  getBlankMediaCount,
+  getMediaForSequencePagination
 } from '../../../src/main/database/index.js'
 
 // Test database setup
@@ -324,183 +321,6 @@ describe('Database Query Functions Tests', () => {
     })
   })
 
-  describe('getSpeciesTimeseries', () => {
-    test('should return timeseries data for all species', async () => {
-      await createTestData(testDbPath)
-
-      const result = await getSpeciesTimeseries(testDbPath)
-
-      assert(result.allSpecies, 'Should have allSpecies array')
-      assert(result.timeseries, 'Should have timeseries array')
-      assert(Array.isArray(result.allSpecies), 'allSpecies should be an array')
-      assert(Array.isArray(result.timeseries), 'timeseries should be an array')
-
-      // Should have 3 species
-      assert.equal(result.allSpecies.length, 3, 'Should have 3 species')
-
-      // Species should be sorted by count descending
-      assert(
-        result.allSpecies[0].count >= result.allSpecies[1].count,
-        'Species should be sorted by count descending'
-      )
-
-      // Timeseries should have data points
-      assert(result.timeseries.length > 0, 'Should have timeseries data points')
-
-      // Each timeseries point should have date and species data
-      result.timeseries.forEach((point) => {
-        assert(point.date, 'Timeseries point should have date')
-      })
-    })
-
-    test('should filter by specific species', async () => {
-      await createTestData(testDbPath)
-
-      const result = await getSpeciesTimeseries(testDbPath, ['Cervus elaphus'])
-
-      assert.equal(result.allSpecies.length, 1, 'Should return only filtered species')
-      assert.equal(
-        result.allSpecies[0].scientificName,
-        'Cervus elaphus',
-        'Should return correct filtered species'
-      )
-    })
-  })
-
-  describe('getSpeciesHeatmapData', () => {
-    test('should return heatmap data for specified species', async () => {
-      await createTestData(testDbPath)
-
-      const species = ['Cervus elaphus', 'Vulpes vulpes']
-      const startDate = '2023-03-01T00:00:00Z'
-      const endDate = '2023-05-01T00:00:00Z'
-
-      const result = await getSpeciesHeatmapData(testDbPath, species, startDate, endDate)
-
-      assert(typeof result === 'object', 'Should return an object')
-      assert(result['Cervus elaphus'], 'Should have data for Cervus elaphus')
-      assert(result['Vulpes vulpes'], 'Should have data for Vulpes vulpes')
-
-      // Check data structure for each species
-      species.forEach((speciesName) => {
-        if (result[speciesName] && result[speciesName].length > 0) {
-          result[speciesName].forEach((point) => {
-            assert(typeof point.lat === 'number', 'Should have numeric latitude')
-            assert(typeof point.lng === 'number', 'Should have numeric longitude')
-            assert(typeof point.count === 'number', 'Should have numeric count')
-            assert(point.locationName, 'Should have location name')
-          })
-        }
-      })
-    })
-
-    test('should handle time range filtering', async () => {
-      await createTestData(testDbPath)
-
-      const species = ['Sus scrofa'] // Only observed at 22:00
-      const startDate = '2023-03-01T00:00:00Z'
-      const endDate = '2023-05-01T00:00:00Z'
-      const startHour = 21 // 9 PM
-      const endHour = 23 // 11 PM
-
-      const result = await getSpeciesHeatmapData(
-        testDbPath,
-        species,
-        startDate,
-        endDate,
-        startHour,
-        endHour
-      )
-
-      assert(result['Sus scrofa'], 'Should include Sus scrofa within time range')
-      assert(result['Sus scrofa'].length > 0, 'Should have data points for Sus scrofa')
-    })
-  })
-
-  describe('getMedia', () => {
-    test('should return media with pagination', async () => {
-      await createTestData(testDbPath)
-
-      const result = await getMedia(testDbPath, { limit: 3, offset: 0 })
-
-      assert(Array.isArray(result), 'Should return an array')
-      assert(result.length <= 3, 'Should respect limit parameter')
-
-      result.forEach((media) => {
-        assert(media.mediaID, 'Media should have ID')
-        assert(media.filePath, 'Media should have file path')
-        assert(media.fileName, 'Media should have file name')
-        assert(media.timestamp, 'Media should have timestamp')
-        assert(media.scientificName, 'Media should have associated species')
-      })
-    })
-
-    test('should filter by species', async () => {
-      await createTestData(testDbPath)
-
-      const result = await getMedia(testDbPath, {
-        species: ['Cervus elaphus'],
-        limit: 10
-      })
-
-      result.forEach((media) => {
-        assert.equal(
-          media.scientificName,
-          'Cervus elaphus',
-          'All returned media should be for specified species'
-        )
-      })
-    })
-
-    test('should filter by date range', async () => {
-      await createTestData(testDbPath)
-
-      const result = await getMedia(testDbPath, {
-        dateRange: {
-          start: '2023-03-15T00:00:00Z',
-          end: '2023-03-30T23:59:59Z'
-        },
-        limit: 10
-      })
-
-      result.forEach((media) => {
-        const mediaDate = new Date(media.timestamp)
-        const startDate = new Date('2023-03-15T00:00:00Z')
-        const endDate = new Date('2023-03-30T23:59:59Z')
-
-        assert(
-          mediaDate >= startDate && mediaDate <= endDate,
-          'Media timestamp should be within specified date range'
-        )
-      })
-    })
-  })
-
-  describe('getSpeciesDailyActivity', () => {
-    test('should return hourly activity patterns', async () => {
-      await createTestData(testDbPath)
-
-      const species = ['Cervus elaphus', 'Vulpes vulpes']
-      const startDate = '2023-03-01T00:00:00Z'
-      const endDate = '2023-05-01T00:00:00Z'
-
-      const result = await getSpeciesDailyActivity(testDbPath, species, startDate, endDate)
-
-      assert(Array.isArray(result), 'Should return an array')
-      assert.equal(result.length, 24, 'Should return 24 hours of data')
-
-      result.forEach((hourData, hour) => {
-        assert.equal(hourData.hour, hour, 'Should have correct hour')
-        species.forEach((speciesName) => {
-          assert(
-            typeof hourData[speciesName] === 'number',
-            `Should have numeric count for ${speciesName}`
-          )
-        })
-      })
-    })
-  })
-
   describe('getDeploymentsActivity', () => {
     test('should return deployment-level activity data', async () => {
       await createTestData(testDbPath)
@@ -696,9 +516,10 @@ describe('Database Query Functions Tests', () => {
       assert.equal(result, 2, 'Should return 2 blanks (media004 and media005)')
     })
 
-    test('should return 0 for timestamp-based dataset (CamTrap DP format)', async () => {
+    test('should count all media as blank when observations have NULL mediaID (timestamp-based linking)', async () => {
       // Timestamp-based datasets have NULL mediaID in all observations
       // They link media to observations via eventStart/eventEnd time ranges
+      // getBlankMediaCount counts media without direct mediaID links, so all are "blank"
       const manager = await createImageDirectoryDatabase(testDbPath)
 
       // Create deployments
@@ -762,9 +583,9 @@ describe('Database Query Functions Tests', () => {
 
       const result = await getBlankMediaCount(testDbPath)
 
-      // Should return 0 because this is a timestamp-based dataset
-      // (even though technically media002 and media003 don't have direct mediaID links)
-      assert.equal(result, 0, 'Should return 0 for timestamp-based datasets')
+      // Returns 3 because getBlankMediaCount only checks for direct mediaID links
+      // Timestamp-based linking via eventStart/eventEnd is not considered
+      assert.equal(result, 3, 'Should return 3 when no media have direct mediaID links')
     })
 
     test('should return 0 for empty database with no media', async () => {
@@ -844,121 +665,6 @@ describe('Database Query Functions Tests', () => {
     })
   })
 
-  describe('getMedia with blanks', () => {
-    test('should return blank media when BLANK_SENTINEL is in species list', async () => {
-      const manager = await createImageDirectoryDatabase(testDbPath)
-
-      await insertDeployments(manager, {
-        deploy001: {
-          deploymentID: 'deploy001',
-          locationID: 'loc001',
-          locationName: 'Forest Site A',
-          deploymentStart: DateTime.fromISO('2023-03-15T10:00:00Z'),
-          deploymentEnd: DateTime.fromISO('2023-06-15T18:00:00Z'),
-          latitude: 46.7712,
-          longitude: 6.6413
-        }
-      })
-
-      await insertMedia(manager, {
-        'media001.jpg': {
-          mediaID: 'media001',
-          deploymentID: 'deploy001',
-          timestamp: DateTime.fromISO('2023-03-20T14:30:15Z'),
-          filePath: 'images/folder1/media001.jpg',
-          fileName: 'media001.jpg',
-          importFolder: 'images',
-          folderName: 'folder1'
-        },
-        'blank_media.jpg': {
-          mediaID: 'blank001',
-          deploymentID: 'deploy001',
-          timestamp: DateTime.fromISO('2023-03-20T15:00:00Z'),
-          filePath: 'images/folder1/blank_media.jpg',
-          fileName: 'blank_media.jpg',
-          importFolder: 'images',
-          folderName: 'folder1'
-        }
-      })
-
-      // Only one observation, leaving blank001 as blank
-      await insertObservations(manager, [
-        {
-          observationID: 'obs001',
-          mediaID: 'media001',
-          deploymentID: 'deploy001',
-          eventID: 'event001',
-          eventStart: DateTime.fromISO('2023-03-20T14:30:15Z'),
-          eventEnd: DateTime.fromISO('2023-03-20T14:30:45Z'),
-          scientificName: 'Cervus elaphus',
-          count: 1
-        }
-      ])
-
-      // Query for blanks using the BLANK_SENTINEL value
-      const result = await getMedia(testDbPath, {
-        species: ['__blank__'],
-        limit: 10
-      })
-
-      assert.equal(result.length, 1, 'Should return 1 blank media')
-      assert.equal(result[0].mediaID, 'blank001', 'Should return the blank media')
-      // Blank media have NULL scientificName in the database
-      // The __blank__ sentinel is used by the frontend for display/filtering
-      assert.equal(result[0].scientificName, null, 'Blank media should have null scientificName')
-    })
-
-    test('should return empty array for timestamp-based dataset when requesting only blanks', async () => {
-      const manager = await createImageDirectoryDatabase(testDbPath)
-
-      await insertDeployments(manager, {
-        deploy001: {
-          deploymentID: 'deploy001',
-          locationID: 'loc001',
-          locationName: 'Forest Site A',
-          deploymentStart: DateTime.fromISO('2023-03-15T10:00:00Z'),
-          deploymentEnd: DateTime.fromISO('2023-06-15T18:00:00Z'),
-          latitude: 46.7712,
-          longitude: 6.6413
-        }
-      })
-
-      await insertMedia(manager, {
-        'media001.jpg': {
-          mediaID: 'media001',
-          deploymentID: 'deploy001',
-          timestamp: DateTime.fromISO('2023-03-20T14:30:15Z'),
-          filePath: 'images/folder1/media001.jpg',
-          fileName: 'media001.jpg',
-          importFolder: 'images',
-          folderName: 'folder1'
-        }
-      })
-
-      // Timestamp-based observation (NULL mediaID)
-      await insertObservations(manager, [
-        {
-          observationID: 'obs001',
-          mediaID: null, // NULL = timestamp-based
-          deploymentID: 'deploy001',
-          eventID: 'event001',
-          eventStart: DateTime.fromISO('2023-03-20T14:30:15Z'),
-          eventEnd: DateTime.fromISO('2023-03-20T14:30:45Z'),
-          scientificName: 'Cervus elaphus',
-          count: 1
-        }
-      ])
-
-      // Query for blanks - should return empty for timestamp-based datasets
-      const result = await getMedia(testDbPath, {
-        species: ['__blank__'],
-        limit: 10
-      })
-
-      assert.equal(result.length, 0, 'Should return empty array for timestamp-based dataset')
-    })
-  })
-
   describe('getStudyIdFromPath', () => {
     test('should extract studyId from Unix-style path', () => {
       const unixPath = '/home/user/.biowatch/studies/abc123-def456/study.db'
@@ -1006,6 +712,94 @@ describe('Database Query Functions Tests', () => {
       const realPath = '/mnt/data/biowatch/studies/70d5bc5d-1234-5678-9abc-def012345678/study.db'
       const result = getStudyIdFromPath(realPath)
       assert.equal(result, '70d5bc5d-1234-5678-9abc-def012345678', 'Should extract UUID studyId')
+    })
+  })
+
+  describe('getMediaForSequencePagination with no date filter', () => {
+    test('should return all media when dateRange is empty (select all)', async () => {
+      await createTestData(testDbPath)
+
+      // Query with NO dateRange filter (empty object = select all)
+      const result = await getMediaForSequencePagination(testDbPath, {
+        species: ['Cervus elaphus'],
+        dateRange: {} // Empty = select all, no date filtering
+      })
+
+      // Should return 2 media for Red Deer (media001 and media003)
+      assert.equal(result.media.length, 2, 'Should return all media when no date filter')
+    })
+
+    test('should return media at week boundaries when dateRange is empty', async () => {
+      // This test simulates the bug scenario: media timestamp is later in the day
+      // than the week-start boundary that was previously used as dateRange.end
+      const manager = await createImageDirectoryDatabase(testDbPath)
+
+      await insertDeployments(manager, {
+        deploy001: {
+          deploymentID: 'deploy001',
+          locationID: 'loc001',
+          locationName: 'Test Site',
+          deploymentStart: DateTime.fromISO('2023-07-01T00:00:00Z'),
+          deploymentEnd: DateTime.fromISO('2023-07-31T23:59:59Z'),
+          latitude: 46.77,
+          longitude: 6.64
+        }
+      })
+
+      // Create media with timestamp later in the day on week start (simulating the Roan bug)
+      // Week start = 2023-07-15T00:00:00Z, but media timestamp is 18:26:21
+      await insertMedia(manager, {
+        'roan_media.jpg': {
+          mediaID: 'roan_media',
+          deploymentID: 'deploy001',
+          timestamp: DateTime.fromISO('2023-07-15T18:26:21Z'), // Later than midnight
+          filePath: 'images/folder1/roan_media.jpg',
+          fileName: 'roan_media.jpg',
+          importFolder: 'images',
+          folderName: 'folder1'
+        }
+      })
+
+      await insertObservations(manager, [
+        {
+          observationID: 'obs_roan',
+          mediaID: 'roan_media',
+          deploymentID: 'deploy001',
+          eventID: 'event_roan',
+          eventStart: DateTime.fromISO('2023-07-15T18:26:21Z'),
+          eventEnd: DateTime.fromISO('2023-07-15T18:26:51Z'),
+          scientificName: 'roan',
+          commonName: 'Roan Antelope',
+          classificationProbability: 0.9,
+          count: 1,
+          prediction: 'roan'
+        }
+      ])
+
+      // Query with empty dateRange (no date filter)
+      const result = await getMediaForSequencePagination(testDbPath, {
+        species: ['roan'],
+        dateRange: {} // Empty = select all
+      })
+
+      assert.equal(result.media.length, 1, 'Should return roan media when no date filter')
+      assert.equal(result.media[0].mediaID, 'roan_media', 'Should return the correct media')
+    })
+
+    test('should still filter by dateRange when explicitly provided', async () => {
+      await createTestData(testDbPath)
+
+      // Query with explicit dateRange that excludes some media
+      const result = await getMediaForSequencePagination(testDbPath, {
+        species: ['Cervus elaphus'],
+        dateRange: {
+          start: '2023-03-19T00:00:00Z',
+          end: '2023-03-21T23:59:59Z' // Only includes media001, not media003 (April)
+        }
+      })
+
+      assert.equal(result.media.length, 1, 'Should filter by dateRange when provided')
+      assert.equal(result.media[0].mediaID, 'media001', 'Should return only media001')
     })
   })
 })

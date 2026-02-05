@@ -223,6 +223,7 @@ Study-level metadata (one row per database).
 | `updatedAt` | TEXT | | Last modification |
 | `startDate` | TEXT | | Temporal coverage start |
 | `endDate` | TEXT | | Temporal coverage end |
+| `sequenceGap` | INTEGER | | Media grouping threshold in seconds (null = smart default) |
 
 ```javascript
 export const metadata = sqliteTable('metadata', {
@@ -235,7 +236,8 @@ export const metadata = sqliteTable('metadata', {
   contributors: text('contributors', { mode: 'json' }),
   updatedAt: text('updatedAt'),
   startDate: text('startDate'),
-  endDate: text('endDate')
+  endDate: text('endDate'),
+  sequenceGap: integer('sequenceGap')
 })
 ```
 

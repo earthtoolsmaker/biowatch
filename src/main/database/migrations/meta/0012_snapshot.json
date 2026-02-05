@@ -1,0 +1,731 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "id": "357a43d8-b2d7-4e00-ad56-902ea997a15b",
+  "prevId": "06a6bca5-7a27-498d-8089-c75fee8fe556",
+  "tables": {
+    "deployments": {
+      "name": "deployments",
+      "columns": {
+        "deploymentID": {
+          "name": "deploymentID",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "locationID": {
+          "name": "locationID",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "locationName": {
+          "name": "locationName",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "deploymentStart": {
+          "name": "deploymentStart",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "deploymentEnd": {
+          "name": "deploymentEnd",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "latitude": {
+          "name": "latitude",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "longitude": {
+          "name": "longitude",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "cameraModel": {
+          "name": "cameraModel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "cameraID": {
+          "name": "cameraID",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "coordinateUncertainty": {
+          "name": "coordinateUncertainty",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "idx_deployments_locationID": {
+          "name": "idx_deployments_locationID",
+          "columns": [
+            "locationID"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "media": {
+      "name": "media",
+      "columns": {
+        "mediaID": {
+          "name": "mediaID",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "deploymentID": {
+          "name": "deploymentID",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "timestamp": {
+          "name": "timestamp",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "filePath": {
+          "name": "filePath",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "fileName": {
+          "name": "fileName",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "importFolder": {
+          "name": "importFolder",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "folderName": {
+          "name": "folderName",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "fileMediatype": {
+          "name": "fileMediatype",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": "'image/jpeg'"
+        },
+        "exifData": {
+          "name": "exifData",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "favorite": {
+          "name": "favorite",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": false
+        }
+      },
+      "indexes": {
+        "idx_media_deploymentID": {
+          "name": "idx_media_deploymentID",
+          "columns": [
+            "deploymentID"
+          ],
+          "isUnique": false
+        },
+        "idx_media_timestamp": {
+          "name": "idx_media_timestamp",
+          "columns": [
+            "timestamp"
+          ],
+          "isUnique": false
+        },
+        "idx_media_filePath": {
+          "name": "idx_media_filePath",
+          "columns": [
+            "filePath"
+          ],
+          "isUnique": false
+        },
+        "idx_media_folderName": {
+          "name": "idx_media_folderName",
+          "columns": [
+            "folderName"
+          ],
+          "isUnique": false
+        },
+        "idx_media_deploymentID_timestamp": {
+          "name": "idx_media_deploymentID_timestamp",
+          "columns": [
+            "deploymentID",
+            "timestamp"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "media_deploymentID_deployments_deploymentID_fk": {
+          "name": "media_deploymentID_deployments_deploymentID_fk",
+          "tableFrom": "media",
+          "tableTo": "deployments",
+          "columnsFrom": [
+            "deploymentID"
+          ],
+          "columnsTo": [
+            "deploymentID"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "metadata": {
+      "name": "metadata",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created": {
+          "name": "created",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "importerName": {
+          "name": "importerName",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "contributors": {
+          "name": "contributors",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "startDate": {
+          "name": "startDate",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "endDate": {
+          "name": "endDate",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "model_outputs": {
+      "name": "model_outputs",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "mediaID": {
+          "name": "mediaID",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "runID": {
+          "name": "runID",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "rawOutput": {
+          "name": "rawOutput",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "idx_model_outputs_runID": {
+          "name": "idx_model_outputs_runID",
+          "columns": [
+            "runID"
+          ],
+          "isUnique": false
+        },
+        "model_outputs_mediaID_runID_unique": {
+          "name": "model_outputs_mediaID_runID_unique",
+          "columns": [
+            "mediaID",
+            "runID"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "model_outputs_mediaID_media_mediaID_fk": {
+          "name": "model_outputs_mediaID_media_mediaID_fk",
+          "tableFrom": "model_outputs",
+          "tableTo": "media",
+          "columnsFrom": [
+            "mediaID"
+          ],
+          "columnsTo": [
+            "mediaID"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "model_outputs_runID_model_runs_id_fk": {
+          "name": "model_outputs_runID_model_runs_id_fk",
+          "tableFrom": "model_outputs",
+          "tableTo": "model_runs",
+          "columnsFrom": [
+            "runID"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "model_runs": {
+      "name": "model_runs",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "modelID": {
+          "name": "modelID",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "modelVersion": {
+          "name": "modelVersion",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "startedAt": {
+          "name": "startedAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": "'running'"
+        },
+        "importPath": {
+          "name": "importPath",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "options": {
+          "name": "options",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "idx_model_runs_startedAt": {
+          "name": "idx_model_runs_startedAt",
+          "columns": [
+            "startedAt"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "observations": {
+      "name": "observations",
+      "columns": {
+        "observationID": {
+          "name": "observationID",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "mediaID": {
+          "name": "mediaID",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "deploymentID": {
+          "name": "deploymentID",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "eventID": {
+          "name": "eventID",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "eventStart": {
+          "name": "eventStart",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "eventEnd": {
+          "name": "eventEnd",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "scientificName": {
+          "name": "scientificName",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "observationType": {
+          "name": "observationType",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "commonName": {
+          "name": "commonName",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "classificationProbability": {
+          "name": "classificationProbability",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "count": {
+          "name": "count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "lifeStage": {
+          "name": "lifeStage",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "age": {
+          "name": "age",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "sex": {
+          "name": "sex",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "behavior": {
+          "name": "behavior",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "bboxX": {
+          "name": "bboxX",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "bboxY": {
+          "name": "bboxY",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "bboxWidth": {
+          "name": "bboxWidth",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "bboxHeight": {
+          "name": "bboxHeight",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "detectionConfidence": {
+          "name": "detectionConfidence",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "modelOutputID": {
+          "name": "modelOutputID",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "classificationMethod": {
+          "name": "classificationMethod",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "classifiedBy": {
+          "name": "classifiedBy",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "classificationTimestamp": {
+          "name": "classificationTimestamp",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "idx_observations_mediaID": {
+          "name": "idx_observations_mediaID",
+          "columns": [
+            "mediaID"
+          ],
+          "isUnique": false
+        },
+        "idx_observations_deploymentID": {
+          "name": "idx_observations_deploymentID",
+          "columns": [
+            "deploymentID"
+          ],
+          "isUnique": false
+        },
+        "idx_observations_scientificName": {
+          "name": "idx_observations_scientificName",
+          "columns": [
+            "scientificName"
+          ],
+          "isUnique": false
+        },
+        "idx_observations_eventStart": {
+          "name": "idx_observations_eventStart",
+          "columns": [
+            "eventStart"
+          ],
+          "isUnique": false
+        },
+        "idx_observations_scientificName_eventStart": {
+          "name": "idx_observations_scientificName_eventStart",
+          "columns": [
+            "scientificName",
+            "eventStart"
+          ],
+          "isUnique": false
+        },
+        "idx_observations_mediaID_deploymentID": {
+          "name": "idx_observations_mediaID_deploymentID",
+          "columns": [
+            "mediaID",
+            "deploymentID"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "observations_mediaID_media_mediaID_fk": {
+          "name": "observations_mediaID_media_mediaID_fk",
+          "tableFrom": "observations",
+          "tableTo": "media",
+          "columnsFrom": [
+            "mediaID"
+          ],
+          "columnsTo": [
+            "mediaID"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "observations_deploymentID_deployments_deploymentID_fk": {
+          "name": "observations_deploymentID_deployments_deploymentID_fk",
+          "tableFrom": "observations",
+          "tableTo": "deployments",
+          "columnsFrom": [
+            "deploymentID"
+          ],
+          "columnsTo": [
+            "deploymentID"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "observations_modelOutputID_model_outputs_id_fk": {
+          "name": "observations_modelOutputID_model_outputs_id_fk",
+          "tableFrom": "observations",
+          "tableTo": "model_outputs",
+          "columnsFrom": [
+            "modelOutputID"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    }
+  },
+  "views": {},
+  "enums": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "indexes": {}
+  }
+}

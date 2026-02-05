@@ -210,12 +210,12 @@ export {
   // Species
   getSpeciesDistribution,
   getBlankMediaCount,
-  getSpeciesTimeseries,
-  getSpeciesHeatmapData,
-  getSpeciesDailyActivity,
   getDistinctSpecies,
+  getSpeciesDistributionByMedia,
+  getSpeciesTimeseriesByMedia,
+  getSpeciesHeatmapDataByMedia,
+  getSpeciesDailyActivityByMedia,
   // Media
-  getMedia,
   getFilesData,
   getMediaBboxes,
   getMediaBboxesBatch,
@@ -234,5 +234,8 @@ export {
   getTemporalBucket,
   selectDiverseMedia,
   getBestMedia,
-  getBestImagePerSpecies
+  getBestImagePerSpecies,
+  // Sequences
+  getMediaForSequencePagination,
+  hasTimestampedMedia
 } from './queries/index.js'

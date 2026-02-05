@@ -24,6 +24,7 @@ import { useQueryClient, useQuery, useQueries } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
 import DateTimePicker from './ui/DateTimePicker'
 import { sortSpeciesHumansLast } from './utils/speciesUtils'
+import { useSequenceGap } from './hooks/useSequenceGap'
 
 // Component to handle map layer change events for persistence
 function LayerChangeHandler({ onLayerChange }) {
@@ -368,6 +369,7 @@ export default function Overview({ data, studyId, studyName }) {
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(false)
   const { importStatus } = useImportStatus(studyId)
+  const { sequenceGap } = useSequenceGap(studyId)
 
   // Use useQuery for deployments data - use same query as Deployments tab
   const { data: deploymentsActivityData, error: deploymentsError } = useQuery({
@@ -397,18 +399,18 @@ export default function Overview({ data, studyId, studyName }) {
     return Array.from(seen.values())
   }, [deploymentsActivityData])
 
-  // Use useQuery for species data - automatically handles caching per studyId
+  // Use sequence-aware species distribution
+  // sequenceGap in queryKey ensures refetch when slider changes (backend fetches from metadata)
   const { data: speciesData, error: speciesError } = useQuery({
-    queryKey: ['species', studyId],
+    queryKey: ['sequenceAwareSpeciesDistribution', studyId, sequenceGap],
     queryFn: async () => {
-      const response = await window.api.getSpeciesDistribution(studyId)
-      if (response.error) {
-        throw new Error(response.error)
-      }
+      const response = await window.api.getSequenceAwareSpeciesDistribution(studyId)
+      if (response.error) throw new Error(response.error)
       return response.data
     },
     enabled: !!studyId,
-    refetchInterval: importStatus?.isRunning ? 5000 : false
+    refetchInterval: importStatus?.isRunning ? 5000 : false,
+    placeholderData: (prev) => prev
   })
 
   const error = speciesError?.message || deploymentsError?.message || null

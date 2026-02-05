@@ -571,14 +571,14 @@ function mapObservationType(dbType, scientificName) {
 
 /**
  * Group observations into sequences based on deployment and timestamp gap.
- * When gapThresholdSeconds <= 0, returns null to signal that existing eventIDs should be preserved.
+ * When gapThresholdSeconds is null, returns null to signal that existing eventIDs should be preserved.
  *
  * @param {Array} observations - Observations with eventStart/timestamp and deploymentID
- * @param {number} gapThresholdSeconds - Maximum gap in seconds for grouping (0 = preserve existing)
+ * @param {number | null} gapThresholdSeconds - Maximum gap in seconds for grouping (null = preserve existing)
  * @returns {Map|null} Map of observationID -> {eventID, eventStart, eventEnd}, or null to preserve existing
  */
 function groupObservationsIntoSequences(observations, gapThresholdSeconds) {
-  if (gapThresholdSeconds <= 0) {
+  if (gapThresholdSeconds === null) {
     // No grouping - preserve existing eventID/eventStart/eventEnd from database
     return null
   }
@@ -818,7 +818,7 @@ export async function exportCamtrapDP(studyId, options = {}) {
     includeMedia = false,
     selectedSpecies = null,
     includeBlank = false,
-    sequenceGap = 0
+    sequenceGap = null
   } = options
 
   try {
@@ -1136,14 +1136,14 @@ export async function exportCamtrapDP(studyId, options = {}) {
       log.info(`CamtrapDP media validation: All ${mediaRows.length} media are valid`)
     }
 
-    // Generate sequence grouping if sequenceGap > 0
-    // Returns null when sequenceGap <= 0, signaling to preserve existing eventIDs
+    // Generate sequence grouping if sequenceGap is set (not null)
+    // Returns null when sequenceGap is null, signaling to preserve existing eventIDs
     const eventMapping = groupObservationsIntoSequences(observationsData, sequenceGap)
 
     log.info(
       eventMapping
         ? `Generated ${new Set([...eventMapping.values()].map((v) => v.eventID)).size} sequences with gap ${sequenceGap}s`
-        : `Preserving existing eventIDs (sequenceGap=0)`
+        : `Preserving existing eventIDs (sequenceGap=null)`
     )
 
     // Transform and validate observations data for Camtrap DP

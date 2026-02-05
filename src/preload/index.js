@@ -39,37 +39,17 @@ const api = {
   checkStudyHasEventIDs: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('study:has-event-ids', studyId)
   },
-  getSpeciesTimeseries: async (studyId, species) => {
-    return await electronAPI.ipcRenderer.invoke('activity:get-timeseries', studyId, species)
+  getSequenceGap: async (studyId) => {
+    return await electronAPI.ipcRenderer.invoke('study:get-sequence-gap', studyId)
   },
-  getSpeciesHeatmapData: async (
-    studyId,
-    species,
-    startDate,
-    endDate,
-    startTime,
-    endTime,
-    includeNullTimestamps = false
-  ) => {
-    return await electronAPI.ipcRenderer.invoke(
-      'activity:get-heatmap-data',
-      studyId,
-      species,
-      startDate,
-      endDate,
-      startTime,
-      endTime,
-      includeNullTimestamps
-    )
+  setSequenceGap: async (studyId, sequenceGap) => {
+    return await electronAPI.ipcRenderer.invoke('study:set-sequence-gap', studyId, sequenceGap)
   },
   getLocationsActivity: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('locations:get-activity', studyId)
   },
   getDeploymentsActivity: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('deployments:get-activity', studyId)
-  },
-  getMedia: async (studyId, options = {}) => {
-    return await electronAPI.ipcRenderer.invoke('media:get', studyId, options)
   },
   getMediaBboxes: async (studyId, mediaID, includeWithoutBbox = false) => {
     return await electronAPI.ipcRenderer.invoke(
@@ -91,14 +71,46 @@ const api = {
   getBestImagePerSpecies: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('species:get-best-images', studyId)
   },
-  getSpeciesDailyActivity: async (studyId, species, startDate, endDate) => {
+  // Sequence-aware species distribution APIs (pre-computed in main thread)
+  // gapSeconds is fetched from study metadata in the backend
+  getSequenceAwareSpeciesDistribution: async (studyId) => {
+    return await electronAPI.ipcRenderer.invoke('sequences:get-species-distribution', studyId)
+  },
+  getSequenceAwareTimeseries: async (studyId, speciesNames) => {
+    return await electronAPI.ipcRenderer.invoke('sequences:get-timeseries', studyId, speciesNames)
+  },
+  getSequenceAwareHeatmap: async (
+    studyId,
+    speciesNames,
+    startDate,
+    endDate,
+    startHour,
+    endHour,
+    includeNullTimestamps
+  ) => {
     return await electronAPI.ipcRenderer.invoke(
-      'activity:get-daily',
+      'sequences:get-heatmap',
       studyId,
-      species,
+      speciesNames,
+      startDate,
+      endDate,
+      startHour,
+      endHour,
+      includeNullTimestamps
+    )
+  },
+  getSequenceAwareDailyActivity: async (studyId, speciesNames, startDate, endDate) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'sequences:get-daily-activity',
+      studyId,
+      speciesNames,
       startDate,
       endDate
     )
+  },
+  // Paginated sequences API for media gallery
+  getSequences: async (studyId, options = {}) => {
+    return await electronAPI.ipcRenderer.invoke('sequences:get-paginated', studyId, options)
   },
   // ML Model Management
   downloadMLModel: async ({ id, version }) => {

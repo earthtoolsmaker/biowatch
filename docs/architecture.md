@@ -86,6 +86,7 @@ src/
 │   │   ├── media.js         # Media handlers
 │   │   ├── observations.js  # Observation handlers
 │   │   ├── activity.js      # Activity handlers
+│   │   ├── sequences.js     # Sequence-aware counting handlers
 │   │   ├── study.js         # Study management handlers
 │   │   ├── import.js        # Import handlers
 │   │   ├── files.js         # File operation handlers
@@ -115,6 +116,10 @@ src/
 │   │   │   ├── server.ts    # Server lifecycle (start/stop/health)
 │   │   │   ├── download.ts  # Download and installation management
 │   │   │   └── classification.js  # Video classification logic
+│   │   ├── sequences/       # Sequence grouping and counting
+│   │   │   ├── index.js     # Re-exports
+│   │   │   ├── grouping.js  # Media sequence grouping logic
+│   │   │   └── speciesCounts.js  # Sequence-aware species counting
 │   │   └── cache/           # Caching services
 │   │       ├── video.js     # Video transcoding with FFmpeg
 │   │       ├── image.js     # Image caching utilities
@@ -190,25 +195,25 @@ User selects dataset
 ```
 React Component
         │
-        │ useQuery({ queryFn: () => window.api.getMedia() })
+        │ useQuery({ queryFn: () => window.api.getSequences() })
         ▼
 ┌─────────────────┐
 │   preload/      │
 │   index.js      │
 └────────┬────────┘
-         │ ipcRenderer.invoke('media:get', studyId, options)
+         │ ipcRenderer.invoke('sequences:get-paginated', studyId, options)
          ▼
 ┌─────────────────┐
 │   main/         │
-│   index.js      │  ──▶ ipcMain.handle('media:get', ...)
+│   ipc/sequences │  ──▶ ipcMain.handle('sequences:get-paginated', ...)
 └────────┬────────┘
          │
          ▼
-┌─────────────────┐
-│  database/      │
-│  queries/media  │
-│   getMedia()    │
-└────────┬────────┘
+┌─────────────────────────┐
+│  database/              │
+│  queries/sequences      │
+│  getMediaForSequence... │
+└────────┬────────────────┘
          │
          ▼
 ┌─────────────────┐
@@ -304,6 +309,8 @@ function getStudyPath(userDataPath, studyId) {
 | `src/main/services/import/parsers/wildlifeInsights.js` | Wildlife Insights format importer |
 | `src/main/services/import/parsers/deepfaune.js` | DeepFaune CSV format importer |
 | `src/main/services/export/exporter.js` | CamTrap DP exporter |
+| `src/main/services/sequences/` | Sequence grouping and counting logic |
+| `src/main/ipc/sequences.js` | Sequence-aware counting IPC handlers |
 | `src/main/services/cache/video.js` | Video format conversion for browser playback |
 | `src/main/utils/bbox.js` | Bbox format conversions |
 
@@ -314,21 +321,21 @@ All renderer ↔ main communication follows this pattern:
 ```javascript
 // 1. Preload exposes API (src/preload/index.js)
 const api = {
-  getMedia: async (studyId, options = {}) => {
-    return await electronAPI.ipcRenderer.invoke('media:get', studyId, options)
+  getSequences: async (studyId, options = {}) => {
+    return await electronAPI.ipcRenderer.invoke('sequences:get-paginated', studyId, options)
   }
 }
 contextBridge.exposeInMainWorld('api', api)
 
-// 2. Main handles IPC (src/main/ipc/media.js)
-ipcMain.handle('media:get', async (_, studyId, options = {}) => {
+// 2. Main handles IPC (src/main/ipc/sequences.js)
+ipcMain.handle('sequences:get-paginated', async (_, studyId, options = {}) => {
   const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
-  const media = await getMedia(dbPath, options)
-  return { data: media }
+  const result = await getPaginatedSequences(dbPath, options)
+  return { data: result }
 })
 
 // 3. Renderer calls API (src/renderer/src/*.jsx)
-const { data } = await window.api.getMedia(studyId, { limit: 100 })
+const { data } = await window.api.getSequences(studyId, { limit: 20 })
 ```
 
 ## Technology Stack

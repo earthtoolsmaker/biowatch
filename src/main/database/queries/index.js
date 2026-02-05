@@ -23,15 +23,15 @@ export {
 export {
   getSpeciesDistribution,
   getBlankMediaCount,
-  getSpeciesTimeseries,
-  getSpeciesHeatmapData,
-  getSpeciesDailyActivity,
-  getDistinctSpecies
+  getDistinctSpecies,
+  getSpeciesDistributionByMedia,
+  getSpeciesTimeseriesByMedia,
+  getSpeciesHeatmapDataByMedia,
+  getSpeciesDailyActivityByMedia
 } from './species.js'
 
 // Media
 export {
-  getMedia,
   getFilesData,
   getMediaBboxes,
   getMediaBboxesBatch,
@@ -58,3 +58,6 @@ export {
   getBestMedia,
   getBestImagePerSpecies
 } from './best-media.js'
+
+// Sequences
+export { getMediaForSequencePagination, hasTimestampedMedia } from './sequences.js'
