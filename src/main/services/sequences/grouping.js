@@ -146,7 +146,11 @@ export function groupMediaIntoSequences(mediaFiles, gapThresholdSeconds, isVideo
       const sortedItems = [...seq.items].sort((a, b) => {
         const timeA = new Date(a.timestamp).getTime()
         const timeB = new Date(b.timestamp).getTime()
-        return timeA - timeB
+        if (timeA !== timeB) return timeA - timeB
+        // Secondary sort by filePath for stable ordering when timestamps match
+        const pathA = a.filePath || ''
+        const pathB = b.filePath || ''
+        return pathA.localeCompare(pathB)
       })
 
       // Update startTime/endTime based on sorted items
@@ -223,7 +227,11 @@ export function groupMediaByEventID(mediaFiles) {
     const sortedItems = [...items].sort((a, b) => {
       const timeA = new Date(a.timestamp).getTime()
       const timeB = new Date(b.timestamp).getTime()
-      return timeA - timeB
+      if (timeA !== timeB) return timeA - timeB
+      // Secondary sort by filePath for stable ordering when timestamps match
+      const pathA = a.filePath || ''
+      const pathB = b.filePath || ''
+      return pathA.localeCompare(pathB)
     })
 
     sequences.push({

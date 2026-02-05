@@ -506,6 +506,135 @@ describe('groupMediaIntoSequences', () => {
     })
   })
 
+  describe('same timestamp ordering', () => {
+    test('items with same timestamp are ordered by filePath ascending', () => {
+      const media = [
+        {
+          mediaID: 'c',
+          timestamp: baseTime.toISOString(),
+          filePath: 'KRU_S1/IMAG0445.JPG',
+          deploymentID: 'dep1'
+        },
+        {
+          mediaID: 'a',
+          timestamp: baseTime.toISOString(),
+          filePath: 'KRU_S1/IMAG0443.JPG',
+          deploymentID: 'dep1'
+        },
+        {
+          mediaID: 'b',
+          timestamp: baseTime.toISOString(),
+          filePath: 'KRU_S1/IMAG0444.JPG',
+          deploymentID: 'dep1'
+        }
+      ]
+      const { sequences } = groupMediaIntoSequences(media, 60)
+
+      assert.equal(sequences.length, 1)
+      // Should be ordered: 443, 444, 445 (by filePath)
+      assert.equal(sequences[0].items[0].filePath, 'KRU_S1/IMAG0443.JPG')
+      assert.equal(sequences[0].items[1].filePath, 'KRU_S1/IMAG0444.JPG')
+      assert.equal(sequences[0].items[2].filePath, 'KRU_S1/IMAG0445.JPG')
+    })
+
+    test('sequence id uses first item by filePath when timestamps match', () => {
+      const media = [
+        {
+          mediaID: 'c',
+          timestamp: baseTime.toISOString(),
+          filePath: 'KRU_S1/IMAG0445.JPG',
+          deploymentID: 'dep1'
+        },
+        {
+          mediaID: 'a',
+          timestamp: baseTime.toISOString(),
+          filePath: 'KRU_S1/IMAG0443.JPG',
+          deploymentID: 'dep1'
+        }
+      ]
+      const { sequences } = groupMediaIntoSequences(media, 60)
+
+      // 'a' has the earliest filePath, so it should be the sequence ID
+      assert.equal(sequences[0].id, 'a')
+    })
+
+    test('user example: KRU_S1_7_R1 files ordered correctly', () => {
+      const media = [
+        {
+          mediaID: 'm3',
+          timestamp: baseTime.toISOString(),
+          filePath: 'KRU_S1/7/7_R1/KRU_S1_7_R1_IMAG0445.JPG',
+          deploymentID: 'dep1'
+        },
+        {
+          mediaID: 'm2',
+          timestamp: baseTime.toISOString(),
+          filePath: 'KRU_S1/7/7_R1/KRU_S1_7_R1_IMAG0444.JPG',
+          deploymentID: 'dep1'
+        },
+        {
+          mediaID: 'm1',
+          timestamp: baseTime.toISOString(),
+          filePath: 'KRU_S1/7/7_R1/KRU_S1_7_R1_IMAG0443.JPG',
+          deploymentID: 'dep1'
+        }
+      ]
+      const { sequences } = groupMediaIntoSequences(media, 60)
+
+      assert.equal(sequences[0].items[0].filePath, 'KRU_S1/7/7_R1/KRU_S1_7_R1_IMAG0443.JPG')
+      assert.equal(sequences[0].items[1].filePath, 'KRU_S1/7/7_R1/KRU_S1_7_R1_IMAG0444.JPG')
+      assert.equal(sequences[0].items[2].filePath, 'KRU_S1/7/7_R1/KRU_S1_7_R1_IMAG0445.JPG')
+    })
+
+    test('user example: KRU_S1_44_R1 files ordered correctly', () => {
+      const media = [
+        {
+          mediaID: 'm3',
+          timestamp: baseTime.toISOString(),
+          filePath: 'KRU_S1/44/44_R1/KRU_S1_44_R1_IMAG0058.JPG',
+          deploymentID: 'dep1'
+        },
+        {
+          mediaID: 'm2',
+          timestamp: baseTime.toISOString(),
+          filePath: 'KRU_S1/44/44_R1/KRU_S1_44_R1_IMAG0057.JPG',
+          deploymentID: 'dep1'
+        },
+        {
+          mediaID: 'm1',
+          timestamp: baseTime.toISOString(),
+          filePath: 'KRU_S1/44/44_R1/KRU_S1_44_R1_IMAG0056.JPG',
+          deploymentID: 'dep1'
+        }
+      ]
+      const { sequences } = groupMediaIntoSequences(media, 60)
+
+      // Should be 56, 57, 58
+      assert.equal(sequences[0].items[0].filePath, 'KRU_S1/44/44_R1/KRU_S1_44_R1_IMAG0056.JPG')
+      assert.equal(sequences[0].items[1].filePath, 'KRU_S1/44/44_R1/KRU_S1_44_R1_IMAG0057.JPG')
+      assert.equal(sequences[0].items[2].filePath, 'KRU_S1/44/44_R1/KRU_S1_44_R1_IMAG0058.JPG')
+    })
+
+    test('mixed timestamps still sorted correctly with filePath tiebreaker', () => {
+      const time1 = baseTime.toISOString()
+      const time2 = new Date(baseTime.getTime() + 1000).toISOString()
+      const media = [
+        { mediaID: 'm4', timestamp: time2, filePath: 'D.JPG', deploymentID: 'dep1' },
+        { mediaID: 'm2', timestamp: time1, filePath: 'B.JPG', deploymentID: 'dep1' },
+        { mediaID: 'm3', timestamp: time2, filePath: 'C.JPG', deploymentID: 'dep1' },
+        { mediaID: 'm1', timestamp: time1, filePath: 'A.JPG', deploymentID: 'dep1' }
+      ]
+      const { sequences } = groupMediaIntoSequences(media, 60)
+
+      // All within 60s, so one sequence
+      // Order: A.JPG (time1), B.JPG (time1), C.JPG (time2), D.JPG (time2)
+      assert.equal(sequences[0].items[0].filePath, 'A.JPG')
+      assert.equal(sequences[0].items[1].filePath, 'B.JPG')
+      assert.equal(sequences[0].items[2].filePath, 'C.JPG')
+      assert.equal(sequences[0].items[3].filePath, 'D.JPG')
+    })
+  })
+
   describe('video exclusion', () => {
     // Helper: Create media with video flag
     function createMediaWithVideo(
@@ -824,6 +953,21 @@ describe('groupMediaByEventID', () => {
       assert.equal(sequences[0].id, 'b')
       assert.equal(sequences[1].id, 'c')
       assert.equal(sequences[2].id, 'a')
+    })
+  })
+
+  describe('same timestamp ordering', () => {
+    test('items with same timestamp are ordered by filePath ascending', () => {
+      const media = [
+        { mediaID: 'c', timestamp: baseTime.toISOString(), eventID: 'e1', filePath: 'C.JPG' },
+        { mediaID: 'a', timestamp: baseTime.toISOString(), eventID: 'e1', filePath: 'A.JPG' },
+        { mediaID: 'b', timestamp: baseTime.toISOString(), eventID: 'e1', filePath: 'B.JPG' }
+      ]
+      const { sequences } = groupMediaByEventID(media)
+
+      assert.equal(sequences[0].items[0].filePath, 'A.JPG')
+      assert.equal(sequences[0].items[1].filePath, 'B.JPG')
+      assert.equal(sequences[0].items[2].filePath, 'C.JPG')
     })
   })
 
