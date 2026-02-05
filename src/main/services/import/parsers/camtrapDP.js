@@ -67,15 +67,16 @@ export async function importCamTrapDatasetWithPath(
 
   // Get dataset name from datapackage.json
   let data
+  const datapackagePath = path.join(directoryPath, 'datapackage.json')
+  if (!fs.existsSync(datapackagePath)) {
+    const errorMessage = 'datapackage.json not found in directory'
+    log.error(errorMessage)
+    return { error: errorMessage }
+  }
   try {
-    const datapackagePath = path.join(directoryPath, 'datapackage.json')
-    if (fs.existsSync(datapackagePath)) {
-      const datapackage = JSON.parse(fs.readFileSync(datapackagePath, 'utf8'))
-      data = datapackage
-      log.info(`Found dataset name: ${data.name}`)
-    } else {
-      throw new Error('datapackage.json not found in directory')
-    }
+    const datapackage = JSON.parse(fs.readFileSync(datapackagePath, 'utf8'))
+    data = datapackage
+    log.info(`Found dataset name: ${data.name}`)
   } catch (error) {
     log.error('Error reading datapackage.json:', error)
     throw error
