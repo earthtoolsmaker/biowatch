@@ -108,6 +108,18 @@ function ObservationListPanel({ bboxes, selectedId, onSelect, onEdit, onDelete }
                     {bbox.sex === 'female' ? '♀' : '♂'}
                   </span>
                 )}
+                {bbox.lifeStage && (
+                  <span
+                    className={`rounded-full ${
+                      bbox.lifeStage === 'adult'
+                        ? 'w-2.5 h-2.5 bg-violet-500'
+                        : bbox.lifeStage === 'subadult'
+                          ? 'w-2 h-2 bg-teal-500'
+                          : 'w-1.5 h-1.5 bg-amber-500'
+                    }`}
+                    title={bbox.lifeStage}
+                  />
+                )}
                 {bbox.classificationMethod === 'human' && (
                   <span className="text-xs text-green-600">✓</span>
                 )}
@@ -212,6 +224,33 @@ function UnknownIcon({ size = 20, className = '' }) {
 }
 
 /**
+ * Life stage icon components - filled circles of varying sizes
+ */
+function AdultIcon({ size = 20, className = '' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <circle cx="12" cy="12" r="10" fill="currentColor" />
+    </svg>
+  )
+}
+
+function SubadultIcon({ size = 20, className = '' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <circle cx="12" cy="12" r="7" fill="currentColor" />
+    </svg>
+  )
+}
+
+function JuvenileIcon({ size = 20, className = '' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <circle cx="12" cy="12" r="4" fill="currentColor" />
+    </svg>
+  )
+}
+
+/**
  * Sex selector toggle buttons for observation attributes
  */
 function SexSelector({ value, onChange }) {
@@ -236,6 +275,67 @@ function SexSelector({ value, onChange }) {
       Icon: UnknownIcon,
       selectedClass: 'bg-gray-500 text-white border-gray-500 ring-2 ring-gray-200',
       hoverClass: 'hover:bg-gray-100 hover:border-gray-400 hover:text-gray-600'
+    }
+  ]
+
+  const handleClick = (optionValue) => {
+    // Clicking the selected value clears it (sets to null)
+    if (value === optionValue) {
+      onChange(null)
+    } else {
+      onChange(optionValue)
+    }
+  }
+
+  return (
+    <div className="flex gap-2">
+      {options.map((option) => {
+        const isSelected = value === option.value
+        return (
+          <button
+            key={option.value}
+            onClick={() => handleClick(option.value)}
+            className={`flex-1 flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border transition-all ${
+              isSelected
+                ? option.selectedClass
+                : `bg-white text-gray-500 border-gray-200 ${option.hoverClass}`
+            }`}
+            title={option.label}
+          >
+            <option.Icon size={22} />
+            <span className="text-xs font-medium">{option.label}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+/**
+ * Life stage selector toggle buttons for observation attributes
+ */
+function LifeStageSelector({ value, onChange }) {
+  const options = [
+    {
+      value: 'adult',
+      label: 'Adult',
+      Icon: AdultIcon,
+      selectedClass: 'bg-violet-500 text-white border-violet-500 ring-2 ring-violet-200',
+      hoverClass: 'hover:bg-violet-50 hover:border-violet-300 hover:text-violet-600'
+    },
+    {
+      value: 'subadult',
+      label: 'Subadult',
+      Icon: SubadultIcon,
+      selectedClass: 'bg-teal-500 text-white border-teal-500 ring-2 ring-teal-200',
+      hoverClass: 'hover:bg-teal-50 hover:border-teal-300 hover:text-teal-500'
+    },
+    {
+      value: 'juvenile',
+      label: 'Juvenile',
+      Icon: JuvenileIcon,
+      selectedClass: 'bg-amber-500 text-white border-amber-500 ring-2 ring-amber-200',
+      hoverClass: 'hover:bg-amber-50 hover:border-amber-300 hover:text-amber-500'
     }
   ]
 
@@ -352,6 +452,13 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
     onUpdate({
       observationID: bbox.observationID,
       sex
+    })
+  }
+
+  const handleLifeStageChange = (lifeStage) => {
+    onUpdate({
+      observationID: bbox.observationID,
+      lifeStage
     })
   }
 
@@ -474,9 +581,15 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
 
       {/* Attributes tab content */}
       {activeTab === 'attributes' && (
-        <div className="p-3">
-          <div className="text-xs font-medium text-gray-500 mb-2">Sex</div>
-          <SexSelector value={bbox.sex} onChange={handleSexChange} />
+        <div className="p-3 space-y-4">
+          <div>
+            <div className="text-xs font-medium text-gray-500 mb-2">Sex</div>
+            <SexSelector value={bbox.sex} onChange={handleSexChange} />
+          </div>
+          <div>
+            <div className="text-xs font-medium text-gray-500 mb-2">Life Stage</div>
+            <LifeStageSelector value={bbox.lifeStage} onChange={handleLifeStageChange} />
+          </div>
         </div>
       )}
     </div>
@@ -489,7 +602,7 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
  * - Labels near right edge are right-aligned
  */
 const BboxLabel = forwardRef(function BboxLabel(
-  { bbox, isSelected, onClick, onSexClick, onDelete, isHuman },
+  { bbox, isSelected, onClick, onSexClick, onLifeStageClick, onDelete, isHuman },
   ref
 ) {
   const displayName = bbox.scientificName || 'Blank'
@@ -497,6 +610,20 @@ const BboxLabel = forwardRef(function BboxLabel(
     ? `${Math.round(bbox.classificationProbability * 100)}%`
     : null
   const sexSymbol = bbox.sex === 'female' ? '♀' : bbox.sex === 'male' ? '♂' : null
+
+  // Life stage colors and sizes
+  const lifeStageColor =
+    bbox.lifeStage === 'adult'
+      ? 'bg-violet-500'
+      : bbox.lifeStage === 'subadult'
+        ? 'bg-teal-500'
+        : 'bg-amber-500'
+  const lifeStageDotSize =
+    bbox.lifeStage === 'adult'
+      ? 'w-3 h-3'
+      : bbox.lifeStage === 'subadult'
+        ? 'w-2.5 h-2.5'
+        : 'w-2 h-2'
 
   // Use the extracted positioning function
   const { left: leftPos, top: topPos, transform: transformVal } = computeBboxLabelPosition(bbox)
@@ -543,6 +670,18 @@ const BboxLabel = forwardRef(function BboxLabel(
           title="Edit sex"
         >
           {sexSymbol}
+        </button>
+      )}
+      {bbox.lifeStage && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onLifeStageClick()
+          }}
+          className="ml-0.5 h-5 px-1.5 flex items-center cursor-pointer hover:brightness-110"
+          title={`Edit life stage (${bbox.lifeStage})`}
+        >
+          <span className={`${lifeStageDotSize} ${lifeStageColor} rounded-full`} />
         </button>
       )}
       {isSelected && (
@@ -1130,7 +1269,14 @@ function ImageModal({
 
   // Mutation for updating observation classification
   const updateMutation = useMutation({
-    mutationFn: async ({ observationID, scientificName, commonName, observationType, sex }) => {
+    mutationFn: async ({
+      observationID,
+      scientificName,
+      commonName,
+      observationType,
+      sex,
+      lifeStage
+    }) => {
       // Only include fields that are explicitly provided (not undefined)
       // This prevents overwriting existing values with null
       const updates = {}
@@ -1138,6 +1284,7 @@ function ImageModal({
       if (commonName !== undefined) updates.commonName = commonName
       if (observationType !== undefined) updates.observationType = observationType
       if (sex !== undefined) updates.sex = sex
+      if (lifeStage !== undefined) updates.lifeStage = lifeStage
 
       const response = await window.api.updateObservationClassification(
         studyId,
@@ -1845,6 +1992,12 @@ function ImageModal({
                             }}
                             onSexClick={() => {
                               // Clicking sex badge opens editor on attributes tab
+                              setSelectedBboxId(bbox.observationID)
+                              setEditorInitialTab('attributes')
+                              setShowObservationEditor(true)
+                            }}
+                            onLifeStageClick={() => {
+                              // Clicking life stage badge opens editor on attributes tab
                               setSelectedBboxId(bbox.observationID)
                               setEditorInitialTab('attributes')
                               setShowObservationEditor(true)

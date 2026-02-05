@@ -97,6 +97,7 @@ export async function getMediaBboxes(dbPath, mediaID, includeWithoutBbox = false
         classifiedBy: observations.classifiedBy,
         classificationTimestamp: observations.classificationTimestamp,
         sex: observations.sex,
+        lifeStage: observations.lifeStage,
         modelID: modelRuns.modelID,
         modelVersion: modelRuns.modelVersion
       })
@@ -146,7 +147,8 @@ export async function getMediaBboxesBatch(dbPath, mediaIDs) {
         classificationMethod: observations.classificationMethod,
         classifiedBy: observations.classifiedBy,
         classificationTimestamp: observations.classificationTimestamp,
-        sex: observations.sex
+        sex: observations.sex,
+        lifeStage: observations.lifeStage
       })
       .from(observations)
       .where(and(inArray(observations.mediaID, mediaIDs), isNotNull(observations.bboxX)))
