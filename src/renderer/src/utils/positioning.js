@@ -25,13 +25,13 @@ export function computeBboxLabelPosition(bbox) {
   // VERTICAL: prefer above bbox, fallback to below when near top
   let top, verticalTransform
   if (isNearTop) {
-    // Place below bbox
+    // Place below bbox with gap
     top = `${(bbox.bboxY + bbox.bboxHeight) * 100}%`
     verticalTransform = 'translateY(4px)'
   } else {
-    // Place above bbox (default)
+    // Place above bbox with gap (default)
     top = `${bbox.bboxY * 100}%`
-    verticalTransform = 'translateY(-100%)'
+    verticalTransform = 'translateY(calc(-100% - 2px))'
   }
 
   // HORIZONTAL: prefer left-aligned, fallback to right-aligned when near right edge
