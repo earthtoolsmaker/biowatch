@@ -44,6 +44,7 @@ import { useSequenceGap } from './hooks/useSequenceGap'
 import { SequenceGapSlider } from './ui/SequenceGapSlider'
 import { getSpeciesFromBboxes, getSpeciesFromSequence } from './utils/speciesFromBboxes'
 import { useImportStatus } from './hooks/import'
+import { behaviorCategories } from '../../shared/constants.js'
 
 /**
  * Observation list panel - collapsible list of all detections
@@ -120,6 +121,13 @@ function ObservationListPanel({ bboxes, selectedId, onSelect, onEdit, onDelete }
                     title={bbox.lifeStage}
                   />
                 )}
+                {bbox.behavior &&
+                  bbox.behavior.length > 0 &&
+                  bbox.behavior.map((b) => (
+                    <span key={b} className="text-xs text-emerald-600 bg-emerald-50 px-1 rounded">
+                      {b}
+                    </span>
+                  ))}
                 {bbox.classificationMethod === 'human' && (
                   <span className="text-xs text-green-600">✓</span>
                 )}
@@ -373,6 +381,144 @@ function LifeStageSelector({ value, onChange }) {
 }
 
 /**
+ * Behavior selector with grouped dropdown and checkboxes for multi-select
+ * Uses local state for instant feedback, saves only when dropdown closes
+ */
+function BehaviorSelector({ value = [], onChange }) {
+  const [isOpen, setIsOpen] = useState(false)
+  // Local state for immediate checkbox feedback
+  const [localBehaviors, setLocalBehaviors] = useState(value || [])
+  const dropdownRef = useRef(null)
+  const hasChangesRef = useRef(false)
+  // Track previous isOpen to detect open transition
+  const wasOpenRef = useRef(false)
+
+  // Sync local state when dropdown OPENS (transition from closed to open)
+  // This prevents race conditions where prop updates override local changes mid-edit
+  useEffect(() => {
+    if (isOpen && !wasOpenRef.current) {
+      // Dropdown just opened - sync with current prop value
+      setLocalBehaviors(value || [])
+      hasChangesRef.current = false
+    }
+    wasOpenRef.current = isOpen
+  }, [isOpen, value])
+
+  // Save changes when dropdown closes
+  const handleClose = useCallback(() => {
+    if (hasChangesRef.current) {
+      onChange(localBehaviors.length > 0 ? localBehaviors : null)
+      hasChangesRef.current = false
+    }
+    setIsOpen(false)
+  }, [localBehaviors, onChange])
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        handleClose()
+      }
+    }
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isOpen, handleClose])
+
+  const selectedCount = localBehaviors.length
+
+  const handleToggle = (behavior) => {
+    hasChangesRef.current = true
+    setLocalBehaviors((prev) =>
+      prev.includes(behavior) ? prev.filter((b) => b !== behavior) : [...prev, behavior]
+    )
+  }
+
+  const handleClearAll = (e) => {
+    e.stopPropagation()
+    hasChangesRef.current = true
+    setLocalBehaviors([])
+  }
+
+  const handleButtonClick = () => {
+    if (isOpen) {
+      handleClose()
+    } else {
+      setIsOpen(true)
+    }
+  }
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      {/* Dropdown trigger button */}
+      <button
+        onClick={handleButtonClick}
+        className={`w-full flex items-center justify-between px-3 py-2 rounded-lg border transition-all ${
+          selectedCount > 0
+            ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+            : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
+        }`}
+      >
+        <span className="text-sm">
+          {selectedCount > 0 ? `${selectedCount} behavior${selectedCount > 1 ? 's' : ''}` : 'None'}
+        </span>
+        <div className="flex items-center gap-1">
+          {selectedCount > 0 && (
+            <button
+              onClick={handleClearAll}
+              className="p-0.5 rounded hover:bg-emerald-200 transition-colors"
+              title="Clear all"
+            >
+              <X size={14} />
+            </button>
+          )}
+          {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        </div>
+      </button>
+
+      {/* Dropdown menu - opens above the button */}
+      {isOpen && (
+        <div className="absolute z-30 bottom-full mb-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+          {Object.entries(behaviorCategories).map(([category, behaviors]) => (
+            <div key={category}>
+              {/* Category header */}
+              <div className="px-3 py-1.5 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-100">
+                {category}
+              </div>
+              {/* Behavior options */}
+              {behaviors.map((behavior) => {
+                const isChecked = localBehaviors.includes(behavior)
+                return (
+                  <label
+                    key={behavior}
+                    onClick={(e) => e.stopPropagation()}
+                    className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-emerald-50 transition-colors ${
+                      isChecked ? 'bg-emerald-50' : ''
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={(e) => {
+                        e.stopPropagation()
+                        handleToggle(behavior)
+                      }}
+                      className="w-4 h-4 rounded border-gray-300 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-0"
+                    />
+                    <span className="text-sm text-gray-700 capitalize">{behavior}</span>
+                  </label>
+                )
+              })}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
  * Observation editor with tabs for species selection and attributes
  */
 function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'species' }) {
@@ -462,9 +608,18 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
     })
   }
 
+  const handleBehaviorChange = (behavior) => {
+    onUpdate({
+      observationID: bbox.observationID,
+      behavior
+    })
+  }
+
   return (
     <div
-      className="absolute z-20 bg-white rounded-lg shadow-xl border border-gray-200 w-72 overflow-hidden"
+      className={`absolute z-20 bg-white rounded-lg shadow-xl border border-gray-200 w-72 ${
+        activeTab === 'species' ? 'overflow-hidden' : 'overflow-visible'
+      }`}
       onClick={(e) => e.stopPropagation()}
     >
       {/* Tab bar */}
@@ -590,6 +745,10 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
             <div className="text-xs font-medium text-gray-500 mb-2">Life Stage</div>
             <LifeStageSelector value={bbox.lifeStage} onChange={handleLifeStageChange} />
           </div>
+          <div>
+            <div className="text-xs font-medium text-gray-500 mb-2">Behavior</div>
+            <BehaviorSelector value={bbox.behavior} onChange={handleBehaviorChange} />
+          </div>
         </div>
       )}
     </div>
@@ -602,7 +761,7 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
  * - Labels near right edge are right-aligned
  */
 const BboxLabel = forwardRef(function BboxLabel(
-  { bbox, isSelected, onClick, onSexClick, onLifeStageClick, onDelete, isHuman },
+  { bbox, isSelected, onClick, onSexClick, onLifeStageClick, onBehaviorClick, onDelete, isHuman },
   ref
 ) {
   const displayName = bbox.scientificName || 'Blank'
@@ -625,6 +784,14 @@ const BboxLabel = forwardRef(function BboxLabel(
         ? 'w-2.5 h-2.5'
         : 'w-2 h-2'
 
+  // Behavior display
+  const behaviors = bbox.behavior || []
+  const hasBehaviors = behaviors.length > 0
+  const behaviorDisplay =
+    behaviors.length > 2
+      ? `${behaviors.slice(0, 2).join(', ')} +${behaviors.length - 2}`
+      : behaviors.join(', ')
+
   // Use the extracted positioning function
   const { left: leftPos, top: topPos, transform: transformVal } = computeBboxLabelPosition(bbox)
 
@@ -632,7 +799,7 @@ const BboxLabel = forwardRef(function BboxLabel(
     left: leftPos,
     top: topPos,
     transform: transformVal,
-    maxWidth: '200px',
+    maxWidth: '300px',
     whiteSpace: 'nowrap',
     overflow: 'hidden',
     textOverflow: 'ellipsis'
@@ -682,6 +849,18 @@ const BboxLabel = forwardRef(function BboxLabel(
           title={`Edit life stage (${bbox.lifeStage})`}
         >
           <span className={`${lifeStageDotSize} ${lifeStageColor} rounded-full`} />
+        </button>
+      )}
+      {hasBehaviors && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onBehaviorClick()
+          }}
+          className="ml-0.5 h-5 px-1.5 text-xs text-white bg-emerald-500 cursor-pointer hover:brightness-110 transition-all flex items-center"
+          title={`Behaviors: ${behaviors.join(', ')} - Click to edit`}
+        >
+          {behaviorDisplay}
         </button>
       )}
       {isSelected && (
@@ -1275,7 +1454,8 @@ function ImageModal({
       commonName,
       observationType,
       sex,
-      lifeStage
+      lifeStage,
+      behavior
     }) => {
       // Only include fields that are explicitly provided (not undefined)
       // This prevents overwriting existing values with null
@@ -1285,6 +1465,7 @@ function ImageModal({
       if (observationType !== undefined) updates.observationType = observationType
       if (sex !== undefined) updates.sex = sex
       if (lifeStage !== undefined) updates.lifeStage = lifeStage
+      if (behavior !== undefined) updates.behavior = behavior
 
       const response = await window.api.updateObservationClassification(
         studyId,
@@ -1998,6 +2179,12 @@ function ImageModal({
                             }}
                             onLifeStageClick={() => {
                               // Clicking life stage badge opens editor on attributes tab
+                              setSelectedBboxId(bbox.observationID)
+                              setEditorInitialTab('attributes')
+                              setShowObservationEditor(true)
+                            }}
+                            onBehaviorClick={() => {
+                              // Clicking behavior badge opens editor on attributes tab
                               setSelectedBboxId(bbox.observationID)
                               setEditorInitialTab('attributes')
                               setShowObservationEditor(true)
