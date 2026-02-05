@@ -112,10 +112,10 @@ function ObservationListPanel({ bboxes, selectedId, onSelect, onEdit, onDelete }
                   <span
                     className={`rounded-full ${
                       bbox.lifeStage === 'adult'
-                        ? 'w-2.5 h-2.5 bg-emerald-600'
+                        ? 'w-2.5 h-2.5 bg-violet-500'
                         : bbox.lifeStage === 'subadult'
-                          ? 'w-2 h-2 bg-emerald-500'
-                          : 'w-1.5 h-1.5 bg-lime-500'
+                          ? 'w-2 h-2 bg-teal-500'
+                          : 'w-1.5 h-1.5 bg-amber-500'
                     }`}
                     title={bbox.lifeStage}
                   />
@@ -320,22 +320,22 @@ function LifeStageSelector({ value, onChange }) {
       value: 'adult',
       label: 'Adult',
       Icon: AdultIcon,
-      selectedClass: 'bg-emerald-600 text-white border-emerald-600 ring-2 ring-emerald-200',
-      hoverClass: 'hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-600'
+      selectedClass: 'bg-violet-500 text-white border-violet-500 ring-2 ring-violet-200',
+      hoverClass: 'hover:bg-violet-50 hover:border-violet-300 hover:text-violet-600'
     },
     {
       value: 'subadult',
       label: 'Subadult',
       Icon: SubadultIcon,
-      selectedClass: 'bg-emerald-500 text-white border-emerald-500 ring-2 ring-emerald-200',
-      hoverClass: 'hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-500'
+      selectedClass: 'bg-teal-500 text-white border-teal-500 ring-2 ring-teal-200',
+      hoverClass: 'hover:bg-teal-50 hover:border-teal-300 hover:text-teal-500'
     },
     {
       value: 'juvenile',
       label: 'Juvenile',
       Icon: JuvenileIcon,
-      selectedClass: 'bg-lime-500 text-white border-lime-500 ring-2 ring-lime-200',
-      hoverClass: 'hover:bg-lime-50 hover:border-lime-300 hover:text-lime-500'
+      selectedClass: 'bg-amber-500 text-white border-amber-500 ring-2 ring-amber-200',
+      hoverClass: 'hover:bg-amber-50 hover:border-amber-300 hover:text-amber-500'
     }
   ]
 
@@ -614,10 +614,10 @@ const BboxLabel = forwardRef(function BboxLabel(
   // Life stage colors and sizes
   const lifeStageColor =
     bbox.lifeStage === 'adult'
-      ? 'bg-emerald-600'
+      ? 'bg-violet-500'
       : bbox.lifeStage === 'subadult'
-        ? 'bg-emerald-500'
-        : 'bg-lime-500'
+        ? 'bg-teal-500'
+        : 'bg-amber-500'
   const lifeStageDotSize =
     bbox.lifeStage === 'adult'
       ? 'w-3 h-3'
