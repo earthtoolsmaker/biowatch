@@ -2948,27 +2948,33 @@ export default function Activity({ studyData, studyId }) {
     return timeseriesData && timeseriesData.length > 0
   }, [timeseriesData])
 
-  // Initialize dateRange and fullExtent from timeseries data (side effect, keep as useEffect)
+  // Initialize fullExtent from timeseries data for timeline display
+  // Note: We intentionally do NOT auto-set dateRange here.
+  // Keeping dateRange as [null, null] means "select all" (no date filtering),
+  // which fixes bugs where week-start boundaries exclude same-day media with later timestamps.
+  // dateRange only changes when user explicitly brushes the timeline.
   useEffect(() => {
-    if (hasTemporalData && dateRange[0] === null && dateRange[1] === null) {
+    if (hasTemporalData && fullExtent[0] === null && fullExtent[1] === null) {
       const startIndex = 0
       const endIndex = timeseriesData.length - 1
 
       const startDate = new Date(timeseriesData[startIndex].date)
       const endDate = new Date(timeseriesData[endIndex].date)
 
-      setDateRange([startDate, endDate])
       setFullExtent([startDate, endDate])
     }
-  }, [hasTemporalData, timeseriesData, dateRange])
+  }, [hasTemporalData, timeseriesData, fullExtent])
 
   // Compute if user has selected full temporal range (with 1 day tolerance)
   // Also true when dataset has no temporal data (to include all null-timestamp media)
+  // Also true when dateRange is [null, null] (no explicit selection = include all)
   const isFullRange = useMemo(() => {
+    // If dateRange is null/null, treat as full range (include all including null timestamps)
+    if (!dateRange[0] && !dateRange[1]) return true
+
     if (!hasTemporalData) return true
-    if (!fullExtent[0] || !fullExtent[1] || !dateRange[0] || !dateRange[1]) {
-      return false
-    }
+    if (!fullExtent[0] || !fullExtent[1]) return false
+
     const tolerance = 86400000 // 1 day in milliseconds
     const startMatch = Math.abs(fullExtent[0].getTime() - dateRange[0].getTime()) < tolerance
     const endMatch = Math.abs(fullExtent[1].getTime() - dateRange[1].getTime()) < tolerance

@@ -17,7 +17,8 @@ import {
   insertMedia,
   insertObservations,
   getStudyIdFromPath,
-  getBlankMediaCount
+  getBlankMediaCount,
+  getMediaForSequencePagination
 } from '../../../src/main/database/index.js'
 
 // Test database setup
@@ -711,6 +712,94 @@ describe('Database Query Functions Tests', () => {
       const realPath = '/mnt/data/biowatch/studies/70d5bc5d-1234-5678-9abc-def012345678/study.db'
       const result = getStudyIdFromPath(realPath)
       assert.equal(result, '70d5bc5d-1234-5678-9abc-def012345678', 'Should extract UUID studyId')
+    })
+  })
+
+  describe('getMediaForSequencePagination with no date filter', () => {
+    test('should return all media when dateRange is empty (select all)', async () => {
+      await createTestData(testDbPath)
+
+      // Query with NO dateRange filter (empty object = select all)
+      const result = await getMediaForSequencePagination(testDbPath, {
+        species: ['Cervus elaphus'],
+        dateRange: {} // Empty = select all, no date filtering
+      })
+
+      // Should return 2 media for Red Deer (media001 and media003)
+      assert.equal(result.media.length, 2, 'Should return all media when no date filter')
+    })
+
+    test('should return media at week boundaries when dateRange is empty', async () => {
+      // This test simulates the bug scenario: media timestamp is later in the day
+      // than the week-start boundary that was previously used as dateRange.end
+      const manager = await createImageDirectoryDatabase(testDbPath)
+
+      await insertDeployments(manager, {
+        deploy001: {
+          deploymentID: 'deploy001',
+          locationID: 'loc001',
+          locationName: 'Test Site',
+          deploymentStart: DateTime.fromISO('2023-07-01T00:00:00Z'),
+          deploymentEnd: DateTime.fromISO('2023-07-31T23:59:59Z'),
+          latitude: 46.77,
+          longitude: 6.64
+        }
+      })
+
+      // Create media with timestamp later in the day on week start (simulating the Roan bug)
+      // Week start = 2023-07-15T00:00:00Z, but media timestamp is 18:26:21
+      await insertMedia(manager, {
+        'roan_media.jpg': {
+          mediaID: 'roan_media',
+          deploymentID: 'deploy001',
+          timestamp: DateTime.fromISO('2023-07-15T18:26:21Z'), // Later than midnight
+          filePath: 'images/folder1/roan_media.jpg',
+          fileName: 'roan_media.jpg',
+          importFolder: 'images',
+          folderName: 'folder1'
+        }
+      })
+
+      await insertObservations(manager, [
+        {
+          observationID: 'obs_roan',
+          mediaID: 'roan_media',
+          deploymentID: 'deploy001',
+          eventID: 'event_roan',
+          eventStart: DateTime.fromISO('2023-07-15T18:26:21Z'),
+          eventEnd: DateTime.fromISO('2023-07-15T18:26:51Z'),
+          scientificName: 'roan',
+          commonName: 'Roan Antelope',
+          classificationProbability: 0.9,
+          count: 1,
+          prediction: 'roan'
+        }
+      ])
+
+      // Query with empty dateRange (no date filter)
+      const result = await getMediaForSequencePagination(testDbPath, {
+        species: ['roan'],
+        dateRange: {} // Empty = select all
+      })
+
+      assert.equal(result.media.length, 1, 'Should return roan media when no date filter')
+      assert.equal(result.media[0].mediaID, 'roan_media', 'Should return the correct media')
+    })
+
+    test('should still filter by dateRange when explicitly provided', async () => {
+      await createTestData(testDbPath)
+
+      // Query with explicit dateRange that excludes some media
+      const result = await getMediaForSequencePagination(testDbPath, {
+        species: ['Cervus elaphus'],
+        dateRange: {
+          start: '2023-03-19T00:00:00Z',
+          end: '2023-03-21T23:59:59Z' // Only includes media001, not media003 (April)
+        }
+      })
+
+      assert.equal(result.media.length, 1, 'Should filter by dateRange when provided')
+      assert.equal(result.media[0].mediaID, 'media001', 'Should return only media001')
     })
   })
 })
