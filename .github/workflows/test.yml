@@ -28,8 +28,5 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Rebuild better-sqlite3 for Node.js
-        run: npm run test:rebuild
-
       - name: Run tests
-        run: node --test test/**/*.test.js
+        run: npm test
