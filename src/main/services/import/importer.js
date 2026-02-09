@@ -25,6 +25,12 @@ import { transformBboxToCamtrapDP } from '../../utils/bbox.js'
 import { eq, isNull, count, sql } from 'drizzle-orm'
 import { startMLModelHTTPServer, stopMLModelHTTPServer } from '../ml/server.js'
 import mlmodels from '../../../shared/mlmodels.js'
+import {
+  isMLModelDownloaded,
+  getMLModelDownloadStatus,
+  downloadMLModel,
+  downloadPythonEnvironment
+} from '../ml/download.js'
 import { selectVideoClassificationWinner } from '../ml/classification.js'
 import { DEFAULT_SEQUENCE_GAP } from '../../../shared/constants.js'
 
@@ -827,6 +833,9 @@ export class Importer {
     this.abortController = null
     this.batchSize = batchSize
     this.dbPath = null
+    // Download phase tracking
+    this.downloadPhase = null // null | 'downloading_model' | 'downloading_environment' | 'download_complete' | 'download_error'
+    this.downloadError = null
   }
 
   async cleanup() {
@@ -846,6 +855,51 @@ export class Importer {
       })
     }
     return Promise.resolve() // Return resolved promise if no process to kill
+  }
+
+  /**
+   * Scan media files in the import folder and batch-insert them into the database.
+   * @param {object} manager - The database manager (for transaction support)
+   */
+  async _scanAndInsertMedia(manager) {
+    log.info('scanning images in folder:', this.folder)
+    console.time('Insert media')
+
+    const mediaBatch = []
+    const insertBatchSize = 100000
+
+    for await (const mediaPath of walkMediaFiles(this.folder)) {
+      const folderName =
+        this.folder === path.dirname(mediaPath)
+          ? path.basename(this.folder)
+          : path.relative(this.folder, path.dirname(mediaPath))
+
+      const mediaData = {
+        mediaID: crypto.randomUUID(),
+        deploymentID: null,
+        timestamp: null,
+        filePath: mediaPath,
+        fileName: path.basename(mediaPath),
+        importFolder: this.folder,
+        folderName: folderName,
+        fileMediatype: getFileMediatype(mediaPath),
+        exifData: null // Populated from Python response for videos (fps, duration, etc.)
+      }
+
+      mediaBatch.push(mediaData)
+
+      if (mediaBatch.length >= insertBatchSize) {
+        await insertMediaBatch(this.db, manager, mediaBatch)
+        mediaBatch.length = 0 // Clear the array
+      }
+    }
+
+    // Insert any remaining items
+    if (mediaBatch.length > 0) {
+      await insertMediaBatch(this.db, manager, mediaBatch)
+    }
+
+    console.timeEnd('Insert media')
   }
 
   async start(addingMore = false) {
@@ -870,51 +924,26 @@ export class Importer {
         const manager = await getStudyDatabase(this.id, dbPath)
         this.db = manager.getDb()
 
-        log.info('scanning images in folder:', this.folder)
-        console.time('Insert media')
-
-        const mediaBatch = []
-        const insertBatchSize = 100000
-
-        for await (const mediaPath of walkMediaFiles(this.folder)) {
-          const folderName =
-            this.folder === path.dirname(mediaPath)
-              ? path.basename(this.folder)
-              : path.relative(this.folder, path.dirname(mediaPath))
-
-          const mediaData = {
-            mediaID: crypto.randomUUID(),
-            deploymentID: null,
-            timestamp: null,
-            filePath: mediaPath,
-            fileName: path.basename(mediaPath),
-            importFolder: this.folder,
-            folderName: folderName,
-            fileMediatype: getFileMediatype(mediaPath),
-            exifData: null // Populated from Python response for videos (fps, duration, etc.)
-          }
-
-          mediaBatch.push(mediaData)
-
-          if (mediaBatch.length >= insertBatchSize) {
-            await insertMediaBatch(this.db, manager, mediaBatch)
-            mediaBatch.length = 0 // Clear the array
-          }
-        }
-
-        // Insert any remaining items
-        if (mediaBatch.length > 0) {
-          await insertMediaBatch(this.db, manager, mediaBatch)
-        }
-
-        console.timeEnd('Insert media')
+        await this._scanAndInsertMedia(manager)
       } else {
-        this.db = await getDrizzleDb(this.id, dbPath)
+        const manager = await getStudyDatabase(this.id, dbPath)
+        this.db = manager.getDb()
+
         if (addingMore) {
           log.info('scanning media files in folder:', this.folder)
 
           for await (const mediaPath of walkMediaFiles(this.folder)) {
             await insertMedia(this.db, mediaPath, this.folder)
+          }
+        } else {
+          // Check if media has already been scanned (e.g., DB was created by IPC handler
+          // but start() runs in the background). If no media rows exist, scan now.
+          const mediaResult = await this.db
+            .select({ mediaCount: count(media.mediaID) })
+            .from(media)
+            .get()
+          if (!mediaResult?.mediaCount || mediaResult.mediaCount === 0) {
+            await this._scanAndInsertMedia(manager)
           }
         }
       }
@@ -931,6 +960,36 @@ export class Importer {
             `Python environment not found: ${model.pythonEnvironment.id} ${model.pythonEnvironment.version}`
           )
         }
+
+        // Check if model is downloaded; if not, download it before starting the server
+        const modelDownloaded = isMLModelDownloaded(modelReference)
+        if (!modelDownloaded) {
+          log.info(
+            `Model ${modelReference.id} v${modelReference.version} not downloaded, starting download...`
+          )
+          try {
+            this.downloadPhase = 'downloading_model'
+            await downloadMLModel(modelReference)
+            log.info(`Model ${modelReference.id} downloaded, now downloading Python environment...`)
+
+            this.downloadPhase = 'downloading_environment'
+            await downloadPythonEnvironment({
+              ...pythonEnvironment.reference,
+              requestingModelId: modelReference.id
+            })
+            log.info(`Python environment for ${modelReference.id} downloaded successfully`)
+            this.downloadPhase = 'download_complete'
+          } catch (downloadError) {
+            log.error(`Failed to download model ${modelReference.id}:`, downloadError)
+            this.downloadPhase = 'download_error'
+            this.downloadError = downloadError.message
+            throw downloadError
+          }
+        }
+
+        // Model is ready — clear download phase
+        this.downloadPhase = null
+
         // Start server in background (fire-and-forget)
         // This allows immediate navigation to study while server starts
         startMLModelHTTPServer({
@@ -1235,12 +1294,54 @@ async function status(id) {
 
     await closeStudyDatabase(id, dbPath)
 
+    // Include download phase if the importer is actively downloading
+    const importer = importers[id]
+    let downloadInfo = null
+    if (importer && importer.downloadPhase) {
+      // Fetch live download progress from the manifest
+      try {
+        const model = mlmodels.findModel(importer.modelReference)
+        const pythonEnv = model ? mlmodels.findPythonEnvironment(model.pythonEnvironment) : null
+        if (model && pythonEnv) {
+          const dlStatus = getMLModelDownloadStatus({
+            modelReference: importer.modelReference,
+            pythonEnvironmentReference: pythonEnv.reference
+          })
+          downloadInfo = {
+            phase: importer.downloadPhase,
+            modelStatus: dlStatus.model,
+            envStatus: dlStatus.pythonEnvironment,
+            modelId: importer.modelReference.id,
+            error: importer.downloadError
+          }
+        } else {
+          downloadInfo = {
+            phase: importer.downloadPhase,
+            modelStatus: {},
+            envStatus: {},
+            modelId: importer.modelReference?.id,
+            error: importer.downloadError
+          }
+        }
+      } catch (dlError) {
+        log.warn(`Error getting download status for importer ${id}:`, dlError)
+        downloadInfo = {
+          phase: importer.downloadPhase,
+          modelStatus: {},
+          envStatus: {},
+          modelId: importer.modelReference?.id,
+          error: importer.downloadError
+        }
+      }
+    }
+
     return {
       total: mediaCount,
       done: processedCount,
       isRunning: !!importers[id],
       estimatedMinutesRemaining: estimatedMinutesRemaining,
-      speed: Math.round(speed)
+      speed: Math.round(speed),
+      download: downloadInfo
     }
   } catch (error) {
     log.error(`Error getting status for importer ${id}:`, error)
@@ -1278,13 +1379,17 @@ ipcMain.handle(
       log.info(
         `Creating new importer with ID ${id} for directory: ${directoryPath} with model: ${modelReference.id} and country: ${countryCode}`
       )
-      const importer = new Importer(id, directoryPath, modelReference, countryCode)
-      importers[id] = importer
-      await importer.start()
 
-      // Insert metadata into the database
+      // Create the study database and metadata immediately so the frontend
+      // can navigate to the study page right away
       const dbPath = path.join(app.getPath('userData'), 'biowatch-data', 'studies', id, 'study.db')
-      const db = await getDrizzleDb(id, dbPath)
+      const dbDir = path.dirname(dbPath)
+      if (!fs.existsSync(dbDir)) {
+        fs.mkdirSync(dbDir, { recursive: true })
+      }
+
+      const manager = await getStudyDatabase(id, dbPath)
+      const db = manager.getDb()
       const metadataRecord = {
         id,
         name: path.basename(directoryPath),
@@ -1298,6 +1403,22 @@ ipcMain.handle(
       await insertMetadata(db, metadataRecord)
       log.info('Inserted study metadata into database')
 
+      // Create the importer and start it in the background (fire-and-forget)
+      // This handles model download (if needed), media scanning, and ML processing
+      const importer = new Importer(id, directoryPath, modelReference, countryCode)
+      importers[id] = importer
+      importer.start().catch(async (error) => {
+        log.error(`Background importer ${id} failed:`, error)
+        const [mainWindow] = BrowserWindow.getAllWindows()
+        if (mainWindow) {
+          mainWindow.webContents.send('importer:error', {
+            studyId: id,
+            message: error.message || 'Import failed. Please try again.'
+          })
+        }
+      })
+
+      // Return immediately so the frontend can navigate to the study page
       return metadataRecord
     } catch (error) {
       log.error('Error processing images directory with model:', error)

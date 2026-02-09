@@ -7,7 +7,8 @@ import {
   Download,
   Pause,
   FolderOpen,
-  Settings
+  Settings,
+  LucideLoader
 } from 'lucide-react'
 import { Route, Routes, useParams } from 'react-router'
 import { ErrorBoundary } from 'react-error-boundary'
@@ -71,6 +72,62 @@ function ImportStatus({ studyId, importerName }) {
   const { importStatus, resumeImport, pauseImport } = useImportStatus(studyId)
 
   console.log('ImportStatus', importStatus)
+
+  // Show download progress if model is being downloaded
+  if (importStatus?.download) {
+    const dl = importStatus.download
+    const phase = dl.phase
+
+    if (phase === 'download_error') {
+      return (
+        <div className="flex items-center gap-3 px-4 ml-auto">
+          <span className="text-xs text-red-600 font-medium">Model download failed</span>
+        </div>
+      )
+    }
+
+    // Calculate download progress from model/env status
+    let progressPercent = 0
+    let progressLabel = 'Preparing download'
+
+    if (phase === 'downloading_model') {
+      const modelProgress = dl.modelStatus?.progress || 0
+      const modelState = dl.modelStatus?.state
+      progressPercent = modelProgress * 0.5 // Model is first half
+      progressLabel =
+        modelState === 'extract'
+          ? 'Extracting AI model'
+          : modelState === 'download'
+            ? 'Downloading AI model'
+            : 'Preparing AI model'
+    } else if (phase === 'downloading_environment') {
+      const envProgress = dl.envStatus?.progress || 0
+      const envState = dl.envStatus?.state
+      progressPercent = 50 + envProgress * 0.5 // Env is second half
+      progressLabel =
+        envState === 'extract'
+          ? 'Extracting Python environment'
+          : envState === 'download'
+            ? 'Downloading Python environment'
+            : 'Preparing Python environment'
+    } else if (phase === 'download_complete') {
+      progressPercent = 100
+      progressLabel = 'Download complete, starting import'
+    }
+
+    return (
+      <div className="flex items-center gap-3 px-4 ml-auto">
+        <LucideLoader className="size-4 text-blue-600 animate-spin shrink-0" />
+        <span className="text-xs text-blue-700 font-medium whitespace-nowrap">{progressLabel}</span>
+        <div className="w-24 bg-gray-200 rounded-full h-2">
+          <div
+            className="h-full bg-blue-600 transition-all duration-500 ease-in-out rounded-full"
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+      </div>
+    )
+  }
 
   // Calculate progress for display
   const progress =

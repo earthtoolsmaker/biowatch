@@ -1,7 +1,8 @@
 import 'leaflet/dist/leaflet.css'
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router'
-import { modelZoo } from '../../shared/mlmodels.js'
+import { modelZoo, findPythonEnvironment } from '../../shared/mlmodels.js'
+import { determineInitialDownloadState } from '../../shared/downloadState'
 import { useQueryClient } from '@tanstack/react-query'
 import CountryPickerModal from './CountryPickerModal.jsx'
 import GbifImportProgress from './GbifImportProgress.jsx'
@@ -9,20 +10,91 @@ import DemoImportProgress from './DemoImportProgress.jsx'
 import LilaImportProgress from './LilaImportProgress.jsx'
 import CamtrapDPImportProgress from './CamtrapDPImportProgress.jsx'
 import { toast } from 'sonner'
-import { Database, FolderOpen, Camera, FileSpreadsheet, Globe, Sparkles } from 'lucide-react'
+import {
+  Database,
+  FolderOpen,
+  Camera,
+  FileSpreadsheet,
+  Globe,
+  Sparkles,
+  Download,
+  Check
+} from 'lucide-react'
 import { Button } from './ui/button.jsx'
 import { Card, CardContent } from './ui/card.jsx'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select.jsx'
+
+function ModelSelect({ selectedModel, onSelect, isModelCompletelyInstalled, triggerClassName }) {
+  return (
+    <Select
+      value={selectedModel ? `${selectedModel.id}-${selectedModel.version}` : ''}
+      onValueChange={(value) => {
+        const [id, version] = value.split('-')
+        const model = modelZoo.find((m) => m.reference.id === id && m.reference.version === version)
+        if (model) {
+          onSelect(model.reference)
+        }
+      }}
+    >
+      <SelectTrigger className={triggerClassName}>
+        <SelectValue>
+          {selectedModel
+            ? (() => {
+                const model = modelZoo.find(
+                  (m) =>
+                    m.reference.id === selectedModel.id &&
+                    m.reference.version === selectedModel.version
+                )
+                if (!model) return 'Select a model'
+                const downloaded = isModelCompletelyInstalled(model.reference)
+                return (
+                  <span className="flex items-center gap-2">
+                    {downloaded ? (
+                      <Check className="size-3.5 text-green-600 shrink-0" />
+                    ) : (
+                      <Download className="size-3.5 text-amber-500 shrink-0" />
+                    )}
+                    {model.name} v{model.reference.version}
+                  </span>
+                )
+              })()
+            : 'Select a model'}
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        {modelZoo.map((model) => {
+          const downloaded = isModelCompletelyInstalled(model.reference)
+          return (
+            <SelectItem
+              key={`${model.reference.id}-${model.reference.version}`}
+              value={`${model.reference.id}-${model.reference.version}`}
+            >
+              <span className="flex items-center gap-2">
+                {downloaded ? (
+                  <Check className="size-3.5 text-green-600 shrink-0" />
+                ) : (
+                  <Download className="size-3.5 text-amber-500 shrink-0" />
+                )}
+                {model.name} v{model.reference.version}
+              </span>
+            </SelectItem>
+          )
+        })}
+      </SelectContent>
+    </Select>
+  )
+}
 
 export default function Import({ onNewStudy, studiesCount = 0 }) {
   const navigate = useNavigate()
   const isFirstTimeUser = studiesCount === 0
   const [selectedModel, setSelectedModel] = useState(modelZoo[0]?.reference || null)
-  const [installedModels, setInstalledModels] = useState([])
-  const [installedEnvironments, setInstalledEnvironments] = useState([])
   const [showCountryPicker, setShowCountryPicker] = useState(false)
   const [pendingDirectoryPath, setPendingDirectoryPath] = useState(null)
   const queryClient = useQueryClient()
+
+  // Per-model download status: { [modelId]: { isDownloaded, isDownloading, downloadStatus } }
+  const [modelStatuses, setModelStatuses] = useState({})
 
   // GBIF import progress state
   const [gbifImportProgress, setGbifImportProgress] = useState(null)
@@ -126,95 +198,55 @@ export default function Import({ onNewStudy, studiesCount = 0 }) {
     fetchLilaDatasets()
   }, [])
 
-  const isModelInstalled = useCallback(
-    (modelReference) => {
-      return installedModels.some(
-        (installed) =>
-          installed.id === modelReference.id && installed.version === modelReference.version
-      )
-    },
-    [installedModels]
-  )
+  // Fetch download status for all models on mount
+  useEffect(() => {
+    const fetchAllModelStatuses = async () => {
+      const statuses = {}
+      for (const model of modelZoo) {
+        try {
+          const pythonEnv = findPythonEnvironment(model.pythonEnvironment)
+          if (!pythonEnv) continue
+          const downloadStatus = await window.api.getMLModelDownloadStatus({
+            modelReference: model.reference,
+            pythonEnvironmentReference: pythonEnv.reference
+          })
+          const { isDownloaded, isDownloading } = determineInitialDownloadState({
+            modelStatus: downloadStatus['model'],
+            envStatus: downloadStatus['pythonEnvironment'],
+            currentModelId: model.reference.id
+          })
+          statuses[model.reference.id] = { isDownloaded, isDownloading, downloadStatus }
+        } catch (error) {
+          console.error(`Failed to fetch status for ${model.reference.id}:`, error)
+          statuses[model.reference.id] = {
+            isDownloaded: false,
+            isDownloading: false,
+            downloadStatus: { model: {}, pythonEnvironment: {} }
+          }
+        }
+      }
+      setModelStatuses(statuses)
 
-  const isEnvironmentInstalled = useCallback(
-    (environmentReference) => {
-      return installedEnvironments.some(
-        (installed) =>
-          installed.id === environmentReference.id &&
-          installed.version === environmentReference.version
-      )
-    },
-    [installedEnvironments]
-  )
+      // Pre-select the first downloaded model if available
+      const firstDownloaded = modelZoo.find((m) => statuses[m.reference.id]?.isDownloaded)
+      if (firstDownloaded) {
+        setSelectedModel((current) => {
+          if (!current) return firstDownloaded.reference
+          const currentStatus = statuses[current.id]
+          if (currentStatus?.isDownloaded) return current
+          return firstDownloaded.reference
+        })
+      }
+    }
+    fetchAllModelStatuses()
+  }, [])
 
   const isModelCompletelyInstalled = useCallback(
     (modelReference) => {
-      const model = modelZoo.find(
-        (m) =>
-          m.reference.id === modelReference.id && m.reference.version === modelReference.version
-      )
-      if (!model) return false
-
-      return isModelInstalled(model.reference) && isEnvironmentInstalled(model.pythonEnvironment)
+      return modelStatuses[modelReference.id]?.isDownloaded || false
     },
-    [isModelInstalled, isEnvironmentInstalled]
+    [modelStatuses]
   )
-
-  useEffect(() => {
-    const fetchInstalledData = async () => {
-      try {
-        const [models, environments] = await Promise.all([
-          window.api.listInstalledMLModels(),
-          window.api.listInstalledMLModelEnvironments()
-        ])
-
-        setInstalledModels(models)
-        setInstalledEnvironments(environments)
-
-        // Set the selected model to the first completely installed model
-        const completelyInstalledModels = modelZoo.filter((model) => {
-          const modelInstalled = models.some(
-            (inst) => inst.id === model.reference.id && inst.version === model.reference.version
-          )
-          const envInstalled = environments.some(
-            (env) =>
-              env.id === model.pythonEnvironment.id &&
-              env.version === model.pythonEnvironment.version
-          )
-          return modelInstalled && envInstalled
-        })
-
-        if (completelyInstalledModels.length > 0) {
-          const firstCompleteModel = completelyInstalledModels[0]
-          // Use functional update to avoid depending on selectedModel in deps
-          setSelectedModel((currentSelected) => {
-            if (!currentSelected) {
-              return firstCompleteModel.reference
-            }
-            // Check if current selection is still valid
-            const isCurrentValid = completelyInstalledModels.some(
-              (m) =>
-                m.reference.id === currentSelected.id &&
-                m.reference.version === currentSelected.version
-            )
-            return isCurrentValid ? currentSelected : firstCompleteModel.reference
-          })
-        }
-      } catch (error) {
-        console.error('Failed to fetch installed models and environments:', error)
-        setInstalledModels([])
-        setInstalledEnvironments([])
-      }
-    }
-    fetchInstalledData()
-  }, []) // Run only on mount - callbacks close over current state
-
-  const getCompletelyInstalledModels = () => {
-    return modelZoo.filter(
-      (model) =>
-        isModelInstalled(model.reference) && isEnvironmentInstalled(model.pythonEnvironment)
-    )
-  }
 
   const handleCamTrapDP = async () => {
     try {
@@ -309,7 +341,6 @@ export default function Import({ onNewStudy, studiesCount = 0 }) {
   }
 
   const handleImportImages = async () => {
-    // Check if the selected model is SpeciesNet
     const isSpeciesNet = selectedModel && selectedModel.id === 'speciesnet'
 
     // First select directory
@@ -317,17 +348,16 @@ export default function Import({ onNewStudy, studiesCount = 0 }) {
     if (!result.success || !result.directoryPath) return
 
     if (isSpeciesNet) {
-      // For SpeciesNet, show country picker then import with model + country
+      // For SpeciesNet, show country picker first
       setPendingDirectoryPath(result.directoryPath)
       setShowCountryPicker(true)
     } else {
-      // For DeepFaune and other models, import directly with model (no country needed)
+      // Start import (backend handles model download if needed)
       const { id } = await window.api.selectImagesDirectoryWithModel(
         result.directoryPath,
         selectedModel,
-        null // no country needed
+        null
       )
-      // Errors (e.g., ML server failed to start) are handled via IPC event in base.jsx
       if (!id) return
       queryClient.invalidateQueries(['studies'])
       navigate(`/study/${id}`)
@@ -337,17 +367,16 @@ export default function Import({ onNewStudy, studiesCount = 0 }) {
   const handleCountrySelected = async (countryCode) => {
     if (!pendingDirectoryPath) return
 
-    // Close modal immediately - don't wait for server startup
     const directoryPath = pendingDirectoryPath
     setShowCountryPicker(false)
     setPendingDirectoryPath(null)
 
+    // Start import (backend handles model download if needed)
     const { id } = await window.api.selectImagesDirectoryWithModel(
       directoryPath,
       selectedModel,
       countryCode
     )
-    // Errors (e.g., ML server failed to start) are handled via IPC event in base.jsx
     if (!id) return
 
     queryClient.invalidateQueries(['studies'])
@@ -518,89 +547,23 @@ export default function Import({ onNewStudy, studiesCount = 0 }) {
                   </div>
                   <p className="text-sm text-gray-600">
                     Import images and automatically detect and classify species using AI models.
-                    {getCompletelyInstalledModels().length === 0 &&
-                      ' To import from an images folder, you need to install an AI model first.'}
                   </p>
                 </div>
-                {getCompletelyInstalledModels().length === 0 && (
-                  <Button
-                    onClick={() => navigate('/settings/ml_zoo')}
-                    className="h-11 px-6 shrink-0 self-end"
-                  >
-                    Install AI Models
-                  </Button>
-                )}
               </div>
 
-              {getCompletelyInstalledModels().length === 0 ? null : (
-                /* Some models installed - show dropdown matching GBIF/LILA style */
-                <>
-                  <p className="text-sm text-gray-500 mb-3">
-                    Choose a model to classify your images.
-                  </p>
-                  <div className="flex gap-3 items-center">
-                    <Select
-                      value={selectedModel ? `${selectedModel.id}-${selectedModel.version}` : ''}
-                      onValueChange={(value) => {
-                        const [id, version] = value.split('-')
-                        const model = modelZoo.find(
-                          (m) => m.reference.id === id && m.reference.version === version
-                        )
-                        if (model && isModelCompletelyInstalled(model.reference)) {
-                          setSelectedModel(model.reference)
-                        }
-                      }}
-                    >
-                      <SelectTrigger className="w-full max-w-lg bg-white border-gray-200  h-11">
-                        <SelectValue>
-                          {selectedModel
-                            ? (() => {
-                                const model = modelZoo.find(
-                                  (m) =>
-                                    m.reference.id === selectedModel.id &&
-                                    m.reference.version === selectedModel.version
-                                )
-                                return model ? `${model.name} v${model.reference.version}` : ''
-                              })()
-                            : 'Select a model'}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {modelZoo.map((model) => {
-                          const modelInstalled = isModelInstalled(model.reference)
-                          const envInstalled = isEnvironmentInstalled(model.pythonEnvironment)
-                          const completelyInstalled = modelInstalled && envInstalled
-
-                          let statusText = ''
-                          if (!modelInstalled) {
-                            statusText = ' (not installed)'
-                          } else if (!envInstalled) {
-                            statusText = ' (environment missing)'
-                          }
-
-                          return (
-                            <SelectItem
-                              key={`${model.reference.id}-${model.reference.version}`}
-                              value={`${model.reference.id}-${model.reference.version}`}
-                              disabled={!completelyInstalled}
-                              className={
-                                !completelyInstalled ? 'opacity-50 cursor-not-allowed' : ''
-                              }
-                            >
-                              {model.name} v{model.reference.version}
-                              {statusText}
-                            </SelectItem>
-                          )
-                        })}
-                      </SelectContent>
-                    </Select>
-                    <Button onClick={handleImportImages} className="shrink-0 w-40 ml-auto !h-11">
-                      <FolderOpen className="size-4 mr-2" />
-                      Select Folder
-                    </Button>
-                  </div>
-                </>
-              )}
+              <p className="text-sm text-gray-500 mb-3">Choose a model to classify your images.</p>
+              <div className="flex gap-3 items-center">
+                <ModelSelect
+                  selectedModel={selectedModel}
+                  onSelect={setSelectedModel}
+                  isModelCompletelyInstalled={isModelCompletelyInstalled}
+                  triggerClassName="w-full max-w-lg bg-white border-gray-200 h-11"
+                />
+                <Button onClick={handleImportImages} className="shrink-0 w-40 ml-auto h-11!">
+                  <FolderOpen className="size-4 mr-2" />
+                  Select Folder
+                </Button>
+              </div>
             </CardContent>
           </Card>
         )}
@@ -616,103 +579,31 @@ export default function Import({ onNewStudy, studiesCount = 0 }) {
             /* Images Directory Card - for first-time users */
             <Card className="group hover:border-blue-500/20 transition-all hover:shadow-md">
               <CardContent className="p-5">
-                <div
-                  className={`flex ${getCompletelyInstalledModels().length === 0 ? 'items-center' : 'items-start'} gap-4`}
-                >
+                <div className="flex items-start gap-4">
                   <div className="size-12 rounded-xl bg-gray-100 flex items-center justify-center shrink-0 group-hover:bg-blue-50 transition-colors">
                     <FolderOpen className="size-5 text-gray-500 group-hover:text-blue-600 transition-colors" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <h4 className="mb-1 font-medium">Images Directory</h4>
-                    {getCompletelyInstalledModels().length === 0 ? (
-                      <p className="text-sm text-gray-500">
-                        Import images and classify species using AI
-                      </p>
-                    ) : (
-                      <>
-                        <p className="text-sm text-gray-500 mb-3">
-                          Choose a model to classify your images.
-                        </p>
-                        <div className="flex gap-3">
-                          <Select
-                            value={
-                              selectedModel ? `${selectedModel.id}-${selectedModel.version}` : ''
-                            }
-                            onValueChange={(value) => {
-                              const [id, version] = value.split('-')
-                              const model = modelZoo.find(
-                                (m) => m.reference.id === id && m.reference.version === version
-                              )
-                              if (model && isModelCompletelyInstalled(model.reference)) {
-                                setSelectedModel(model.reference)
-                              }
-                            }}
-                          >
-                            <SelectTrigger className="w-full max-w-lg bg-white border-gray-200">
-                              <SelectValue>
-                                {selectedModel
-                                  ? (() => {
-                                      const model = modelZoo.find(
-                                        (m) =>
-                                          m.reference.id === selectedModel.id &&
-                                          m.reference.version === selectedModel.version
-                                      )
-                                      return model
-                                        ? `${model.name} v${model.reference.version}`
-                                        : ''
-                                    })()
-                                  : 'Select a model'}
-                              </SelectValue>
-                            </SelectTrigger>
-                            <SelectContent>
-                              {modelZoo.map((model) => {
-                                const modelInstalled = isModelInstalled(model.reference)
-                                const envInstalled = isEnvironmentInstalled(model.pythonEnvironment)
-                                const completelyInstalled = modelInstalled && envInstalled
-
-                                let statusText = ''
-                                if (!modelInstalled) {
-                                  statusText = ' (not installed)'
-                                } else if (!envInstalled) {
-                                  statusText = ' (environment missing)'
-                                }
-
-                                return (
-                                  <SelectItem
-                                    key={`${model.reference.id}-${model.reference.version}`}
-                                    value={`${model.reference.id}-${model.reference.version}`}
-                                    disabled={!completelyInstalled}
-                                    className={
-                                      !completelyInstalled ? 'opacity-50 cursor-not-allowed' : ''
-                                    }
-                                  >
-                                    {model.name} v{model.reference.version}
-                                    {statusText}
-                                  </SelectItem>
-                                )
-                              })}
-                            </SelectContent>
-                          </Select>
-                          <Button
-                            variant="outline"
-                            className="shrink-0 w-40 ml-auto"
-                            onClick={handleImportImages}
-                          >
-                            Select Folder
-                          </Button>
-                        </div>
-                      </>
-                    )}
+                    <p className="text-sm text-gray-500 mb-3">
+                      Choose a model to classify your images.
+                    </p>
+                    <div className="flex gap-3">
+                      <ModelSelect
+                        selectedModel={selectedModel}
+                        onSelect={setSelectedModel}
+                        isModelCompletelyInstalled={isModelCompletelyInstalled}
+                        triggerClassName="w-full max-w-lg bg-white border-gray-200"
+                      />
+                      <Button
+                        variant="outline"
+                        className="shrink-0 w-40 ml-auto"
+                        onClick={handleImportImages}
+                      >
+                        Select Folder
+                      </Button>
+                    </div>
                   </div>
-                  {getCompletelyInstalledModels().length === 0 && (
-                    <Button
-                      variant="outline"
-                      className="shrink-0 w-40"
-                      onClick={() => navigate('/settings/ml_zoo')}
-                    >
-                      Install AI Models
-                    </Button>
-                  )}
                 </div>
               </CardContent>
             </Card>

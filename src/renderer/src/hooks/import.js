@@ -32,8 +32,9 @@ export function useImportStatus(id, interval = 1000) {
       }
     },
     refetchInterval: (query) => {
-      // Only poll if import is running
-      return query?.state?.data?.isRunning ? interval : false
+      const data = query?.state?.data
+      // Poll if import is running OR if model is being downloaded
+      return data?.isRunning || data?.download ? interval : false
     },
     refetchIntervalInBackground: false,
     enabled: !!id
