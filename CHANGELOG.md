@@ -5,6 +5,69 @@ All notable changes to Biowatch will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-02-09
+
+### Added
+
+- Behavior annotation UI to media tab
+- Lifestage annotation UI to media tab with color distinction
+- Sex annotation to bbox observations
+- Sequence gap slider to study settings page (persisted in SQLite)
+- Sequence-aware species distribution counting
+- Keyboard shortcuts info button to ImageModal zoom toolbar
+- Zoom and pan functionality to media modal
+- Navigation chevrons to media modal
+- Image prefetching and coordinate bbox rendering with image load
+- Progress modal for CamtrapDP dataset imports
+- CamtrapDP controlled vocabularies for observation fields
+- Hidden Advanced tab with diagnostics export
+- Ability to rename deployment locations
+- Hover tooltips to activity map pie chart markers
+- Tooltip and active state to add study button
+- Explanatory text when no AI models installed for Images Directory import
+- Clear All button shown only when models are installed
+- Tests for study database migrations at startup
+
+### Changed
+
+- Move sequence grouping to main process with paginated IPC
+- Move sequence counting to main process
+- Run Drizzle migrations for all study databases at app startup
+- Simplify Images Directory and Demo Dataset card layouts for first-time users
+- Change Classification Model label to "Choose a model"
+- Increase ML server startup timeout from 2 to 4 minutes
+- Set sequenceGap default at import time instead of in React component
+- Improve map tooltip styling on overview page
+- Improve sequence gap slider UX with tooltips
+- Improve layout and design refinements across UI
+
+### Fixed
+
+- O(n²) filename deduplication causing export freeze
+- Species selection not showing sequences in gallery
+- Ordering of media with identical timestamps in sequences
+- CamtrapDP import error handling for invalid directories
+- Sidebar not updating after demo/LILA study import
+- Prevent image shifting in media modal when navigating between images
+- Infinite useEffect loop in Import component causing slow navigation
+- Enable marker dragging when selecting deployment from table
+- Display all species from multi-detection images in media grid and modal
+- Invalidate thumbnail cache when editing species in modal
+- Show deployment names in overview map tooltip
+- Pencil icon clickable in detection list to select bbox for editing
+- Resolve infinite loop in ModelRow callbacks
+- Cache invalidation completes before navigation after import
+- No-wrap on "Not downloaded" status badge
+- CI test coverage and missing datapackage.json handling
+- Python environment version extraction in CI workflow
+
+### Removed
+
+- Deprecated getMedia function
+- Unnecessary useMemo from geoKey computation
+- Dead code: original species query functions
+- Footer in model zoo
+
 ## [1.6.1] - 2026-01-15
 
 ### Added
@@ -211,6 +274,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Activity heatmaps
 - Overview statistics
 
+[1.7.0]: https://github.com/earthtoolsmaker/biowatch/compare/v1.6.1...v1.7.0
 [1.6.1]: https://github.com/earthtoolsmaker/biowatch/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/earthtoolsmaker/biowatch/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/earthtoolsmaker/biowatch/compare/v1.4.0...v1.5.0
