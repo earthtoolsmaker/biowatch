@@ -343,7 +343,7 @@ function parseScientificName(prediction, modelType) {
   } else {
     // SpeciesNet: Hierarchical "uuid;class;order;family;genus;species;common name"
     const parts = prediction.prediction.split(';')
-    const isblank = ['blank', 'no cv result'].includes(parts.at(-1))
+    const isblank = ['blank', 'no cv result', 'error'].includes(parts.at(-1))
     if (isblank) {
       return null
     }
