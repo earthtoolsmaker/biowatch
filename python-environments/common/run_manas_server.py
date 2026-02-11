@@ -130,7 +130,6 @@ import pickle
 from dataclasses import dataclass
 from pathlib import Path
 
-import cv2
 import litserve as ls
 import numpy as np
 import torch
@@ -141,7 +140,7 @@ from torch import tensor
 from torchvision.transforms import InterpolationMode, transforms
 from ultralytics import YOLO
 
-from video_utils import VideoCapableLitAPI, is_video_file
+from utils import VideoCapableLitAPI, is_video_file, safe_imread
 
 # Configure logging for diagnostic output
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -467,8 +466,10 @@ def predict(
     """
     class_label_mapping = model.classifier.class_label_mapping
 
-    # Run detector
-    ultralytics_results = model.detector(filepath, verbose=False, conf=detection_threshold)
+    # Read image once using ASCII-safe reader, then pass numpy array to detector
+    # (YOLO accepts numpy arrays via LoadPilAndNumpy, bypassing its file I/O)
+    imagecv = safe_imread(filepath)
+    ultralytics_results = model.detector(imagecv, verbose=False, conf=detection_threshold)
     detections = ultralytics_results[0]
     bboxes = detections.boxes
     class_names = detections.names
@@ -522,11 +523,8 @@ def predict(
                 ],
             }
 
-    # Crop and classify
+    # Crop and classify (reuse imagecv from detector read above)
     xyxy = selected_detection_record["xyxy"]
-    # Use IMREAD_COLOR to ensure we always get a 3-channel BGR image
-    # (IMREAD_UNCHANGED can return grayscale for some images, causing shape errors)
-    imagecv = cv2.imdecode(np.fromfile(filepath, dtype=np.uint8), cv2.IMREAD_COLOR)
     croppedimage = crop_square_cv_to_pil(imagecv, xyxy)
     cropped_tensor = model.classifier.preprocess_image(croppedimage)
     scores = model.classifier.predict(cropped_tensor)

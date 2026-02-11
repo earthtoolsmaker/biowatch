@@ -126,7 +126,7 @@ from absl import app, flags
 from fastapi import HTTPException
 from speciesnet import DEFAULT_MODEL, SpeciesNet, file_exists
 
-from video_utils import VideoCapableLitAPI, is_video_file
+from utils import VideoCapableLitAPI, is_video_file
 
 _PORT = flags.DEFINE_integer(
     "port",
