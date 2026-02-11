@@ -1,7 +1,7 @@
 """Shared utilities for Biowatch ML servers.
 
 This module provides:
-- safe_filepath: Context manager for ASCII-safe paths (OpenCV workaround)
+- safe_imread: Read images safely with non-ASCII path support
 - Video handling: frame extraction, metadata retrieval, and a mixin class
   for adding video support to LitServe APIs.
 """
@@ -11,7 +11,6 @@ import os
 import tempfile
 from abc import ABC, abstractmethod
 from collections.abc import Generator
-from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -23,29 +22,6 @@ logger = logging.getLogger(__name__)
 
 # Video file extensions supported by Biowatch
 VIDEO_EXTENSIONS = {".mp4", ".mkv", ".mov", ".webm", ".avi", ".m4v"}
-
-
-@contextmanager
-def safe_filepath(filepath):
-    """Context manager that yields an ASCII-safe path for OpenCV.
-
-    If the path contains non-ASCII characters, creates a temporary
-    symlink with an ASCII-safe name. Otherwise yields the path as-is.
-    """
-    filepath = str(filepath)
-    if filepath.isascii():
-        yield filepath
-        return
-
-    suffix = Path(filepath).suffix
-    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-        tmp_name = tmp.name
-    os.unlink(tmp_name)
-    os.symlink(filepath, tmp_name)
-    try:
-        yield tmp_name
-    finally:
-        os.unlink(tmp_name)
 
 
 def safe_imread(filepath):
@@ -95,15 +71,14 @@ def get_video_metadata(video_path: str) -> dict[str, float]:
     Returns:
         Dictionary with 'fps' and 'duration' keys
     """
-    with safe_filepath(video_path) as safe_path:
-        cap = cv2.VideoCapture(safe_path)
-        if not cap.isOpened():
-            raise ValueError(f"Cannot open video: {video_path}")
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        raise ValueError(f"Cannot open video: {video_path}")
 
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        duration = frame_count / fps if fps > 0 else 0
-        cap.release()
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    duration = frame_count / fps if fps > 0 else 0
+    cap.release()
 
     return {"fps": fps, "duration": duration}
 
@@ -121,34 +96,33 @@ def extract_frames_at_fps(video_path: str, target_fps: int = 1) -> Generator[tup
         index of the extracted frame (0-based) and frame_bgr is the
         frame as a numpy array in BGR format.
     """
-    with safe_filepath(video_path) as safe_path:
-        cap = cv2.VideoCapture(safe_path)
-        if not cap.isOpened():
-            raise ValueError(f"Cannot open video: {video_path}")
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        raise ValueError(f"Cannot open video: {video_path}")
 
-        original_fps = cap.get(cv2.CAP_PROP_FPS)
-        if original_fps <= 0:
-            cap.release()
-            raise ValueError(f"Invalid FPS for video: {video_path}")
-
-        # Calculate frame interval for target FPS
-        frame_interval = max(1, int(original_fps / target_fps))
-
-        frame_idx = 0
-        extracted_count = 0
-
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
-
-            if frame_idx % frame_interval == 0:
-                yield (extracted_count, frame)
-                extracted_count += 1
-
-            frame_idx += 1
-
+    original_fps = cap.get(cv2.CAP_PROP_FPS)
+    if original_fps <= 0:
         cap.release()
+        raise ValueError(f"Invalid FPS for video: {video_path}")
+
+    # Calculate frame interval for target FPS
+    frame_interval = max(1, int(original_fps / target_fps))
+
+    frame_idx = 0
+    extracted_count = 0
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        if frame_idx % frame_interval == 0:
+            yield (extracted_count, frame)
+            extracted_count += 1
+
+        frame_idx += 1
+
+    cap.release()
 
 
 class VideoCapableLitAPI(ABC):
