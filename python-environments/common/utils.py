@@ -1,9 +1,9 @@
-"""
-Video utilities for Biowatch ML servers.
+"""Shared utilities for Biowatch ML servers.
 
-This module provides shared video handling functionality for all ML model servers,
-including frame extraction, metadata retrieval, and a mixin class for adding
-video support to LitServe APIs.
+This module provides:
+- safe_imread: Read images safely with non-ASCII path support
+- Video handling: frame extraction, metadata retrieval, and a mixin class
+  for adding video support to LitServe APIs.
 """
 
 import logging
@@ -15,12 +15,37 @@ from pathlib import Path
 from typing import Any
 
 import cv2
+import numpy as np
 
 # Configure logging for diagnostic output
 logger = logging.getLogger(__name__)
 
 # Video file extensions supported by Biowatch
 VIDEO_EXTENSIONS = {".mp4", ".mkv", ".mov", ".webm", ".avi", ".m4v"}
+
+
+def safe_imread(filepath):
+    """Read an image from a file path that may contain non-ASCII characters.
+
+    Uses np.fromfile + cv2.imdecode to bypass OpenCV's ASCII-only path limitation.
+
+    Args:
+        filepath: Path to the image file.
+
+    Returns:
+        numpy.ndarray: The image in BGR format.
+
+    Raises:
+        ValueError: If the image cannot be decoded.
+    """
+    filepath_str = str(filepath)
+    if not filepath_str.strip():
+        raise ValueError(f"Empty filepath provided: {filepath_str!r}")
+    data = np.fromfile(filepath_str, dtype=np.uint8)
+    image = cv2.imdecode(data, cv2.IMREAD_COLOR)
+    if image is None:
+        raise ValueError(f"Cannot decode image: {filepath_str!r}")
+    return image
 
 
 def is_video_file(filepath: str) -> bool:
@@ -140,6 +165,9 @@ class VideoCapableLitAPI(ABC):
         This method handles both images and videos. For videos, it extracts
         frames at the specified sample_fps and runs inference on each frame.
 
+        If a single file fails (e.g. corrupt image), it logs the error and
+        yields an error result instead of crashing the entire batch.
+
         Call this from your predict() method:
             def predict(self, x, **kwargs):
                 yield from self.predict_with_video_support(x, **kwargs)
@@ -155,11 +183,26 @@ class VideoCapableLitAPI(ABC):
             filepath = instance["filepath"]
             sample_fps = instance.get("sample_fps", 1)
 
-            if is_video_file(filepath):
-                yield from self._predict_video(filepath, sample_fps, **kwargs)
-            else:
-                # For images, just pass through to single image prediction
-                yield self._predict_single_image(filepath, **kwargs)
+            try:
+                if is_video_file(filepath):
+                    yield from self._predict_video(filepath, sample_fps, **kwargs)
+                else:
+                    # For images, just pass through to single image prediction
+                    yield self._predict_single_image(filepath, **kwargs)
+            except Exception as e:
+                logger.error(f"Skipping file due to error: {filepath!r} - {e}")
+                yield {
+                    "predictions": [
+                        {
+                            "filepath": str(filepath),
+                            "prediction": "error",
+                            "prediction_score": 0.0,
+                            "error": str(e),
+                            "classifications": {},
+                            "detections": [],
+                        }
+                    ]
+                }
 
     def _predict_video(self, video_path: str, sample_fps: int = 1, **kwargs):
         """

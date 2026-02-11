@@ -178,7 +178,11 @@ async function* walkMediaFiles(dir) {
     const fullPath = path.join(dir, dirent.name)
     if (dirent.isDirectory()) {
       yield* walkMediaFiles(fullPath)
-    } else if (dirent.isFile() && mediaExtensions.has(path.extname(dirent.name).toLowerCase())) {
+    } else if (
+      dirent.isFile() &&
+      !dirent.name.startsWith('._') &&
+      mediaExtensions.has(path.extname(dirent.name).toLowerCase())
+    ) {
       yield fullPath
     }
   }
@@ -332,14 +336,14 @@ function parseScientificName(prediction, modelType) {
   if (modelType === 'deepfaune' || modelType === 'manas') {
     // DeepFaune/Manas: Simple label like "chamois", "panthera_uncia", "blank", "empty", "vide"
     const label = prediction.prediction
-    if (!label || label === 'blank' || label === 'empty' || label === 'vide') {
+    if (!label || label === 'blank' || label === 'empty' || label === 'vide' || label === 'error') {
       return null
     }
     return label
   } else {
     // SpeciesNet: Hierarchical "uuid;class;order;family;genus;species;common name"
     const parts = prediction.prediction.split(';')
-    const isblank = ['blank', 'no cv result'].includes(parts.at(-1))
+    const isblank = ['blank', 'no cv result', 'error'].includes(parts.at(-1))
     if (isblank) {
       return null
     }
