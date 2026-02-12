@@ -12,12 +12,14 @@ name: Build and Upload Python Environments
 on:
   pull_request:
     paths:
-      - 'python-environments/**'
+      - 'python-environments/**/pyproject.toml'
+      - 'python-environments/**/uv.lock'
   push:
     branches:
       - main
     paths:
-      - 'python-environments/**'
+      - 'python-environments/**/pyproject.toml'
+      - 'python-environments/**/uv.lock'
 
 jobs:
   build_and_upload_common_python_environment:
