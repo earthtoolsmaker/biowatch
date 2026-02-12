@@ -126,6 +126,7 @@ from absl import app, flags
 from fastapi import HTTPException
 from speciesnet import DEFAULT_MODEL, SpeciesNet, file_exists
 
+from detection_utils import propagate_extra_fields
 from utils import VideoCapableLitAPI, is_video_file
 
 _PORT = flags.DEFINE_integer(
@@ -230,19 +231,6 @@ class SpeciesNetLitAPI(ls.LitAPI, VideoCapableLitAPI):
                 raise HTTPException(400, f"Cannot access filepath: `{filepath}`")
         return request
 
-    def _propagate_extra_fields(
-        self,
-        instances_dict: dict,
-        predictions_dict: dict,
-    ) -> dict:
-        predictions = predictions_dict["predictions"]
-        new_predictions = {p["filepath"]: p for p in predictions}
-        for instance in instances_dict["instances"]:
-            for field in self.extra_fields:
-                if field in instance:
-                    new_predictions[instance["filepath"]][field] = instance[field]
-        return {"predictions": list(new_predictions.values())}
-
     def _predict_single_image(self, filepath: str, **kwargs) -> dict:
         """Run SpeciesNet inference on a single image.
 
@@ -264,7 +252,7 @@ class SpeciesNetLitAPI(ls.LitAPI, VideoCapableLitAPI):
 
         single_predictions_dict = self.model.predict(instances_dict=single_instances_dict)
         assert single_predictions_dict is not None
-        return self._propagate_extra_fields(single_instances_dict, single_predictions_dict)
+        return propagate_extra_fields(self.extra_fields, single_instances_dict, single_predictions_dict)
 
     def predict(self, x, **kwargs):
         """Process prediction requests with automatic video support.
