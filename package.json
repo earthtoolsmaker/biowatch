@@ -12,7 +12,7 @@
     "fix": "eslint --cache --fix .",
     "start": "electron-vite preview",
     "dev": "electron-vite dev --watch",
-    "build:python-env-common": "cd python-environments/common && uv sync",
+    "build:python-env-common": "cd python-environments/common && uv sync --extra dev",
     "build": "electron-vite build",
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win --publish always",
