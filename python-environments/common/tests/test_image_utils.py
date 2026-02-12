@@ -2,42 +2,13 @@
 
 These tests verify that image processing functions handle edge cases correctly,
 particularly grayscale images which caused issues in production.
-
-Note: We cannot import the server modules directly due to absl flags conflicts,
-so we define the crop function inline for testing purposes.
 """
 
 import numpy as np
 import pytest
 from PIL import Image
 
-
-def crop_square_cv_to_pil(array_image: np.ndarray, xyxy: list[float]) -> Image.Image:
-    """
-    Crop a square region from an image based on bounding box coordinates.
-
-    This is a copy of the function from run_deepfaune_server.py and run_manas_server.py
-    for testing purposes (to avoid absl flags conflicts when importing both modules).
-
-    Args:
-        array_image: The input image as a NumPy array in BGR format (3 channels).
-        xyxy: The bounding box coordinates [x1, y1, x2, y2].
-
-    Returns:
-        Image: The cropped image as a PIL Image in RGB format.
-    """
-    x1, y1, x2, y2 = xyxy
-    xsize = x2 - x1
-    ysize = y2 - y1
-    if xsize > ysize:
-        y1 = y1 - int((xsize - ysize) / 2)
-        y2 = y2 + int((xsize - ysize) / 2)
-    if ysize > xsize:
-        x1 = x1 - int((ysize - xsize) / 2)
-        x2 = x2 + int((ysize - xsize) / 2)
-    height, width, _ = array_image.shape
-    croppedimagecv = array_image[max(0, int(y1)) : min(int(y2), height), max(0, int(x1)) : min(int(x2), width)]
-    return Image.fromarray(croppedimagecv[:, :, (2, 1, 0)])  # BGR to RGB
+from detection_utils import crop_square_cv_to_pil
 
 
 class TestCropSquareCvToPil:

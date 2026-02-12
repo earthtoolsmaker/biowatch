@@ -130,11 +130,17 @@ import torch
 import torch.nn as nn
 from absl import app, flags
 from fastapi import HTTPException
-from PIL import Image
 from torch import tensor
 from torchvision.transforms import InterpolationMode, transforms
 from ultralytics import YOLO
 
+from detection_utils import (
+    crop_square_cv_to_pil,
+    propagate_extra_fields,
+    select_best_animal_detection,
+    to_classifications_record,
+    to_detection_record,
+)
 from utils import VideoCapableLitAPI, is_video_file, safe_imread
 
 # Configure logging for diagnostic output
@@ -399,106 +405,6 @@ def load_model(
     return DeepFauneModel(detector=detector, classifier=classifier)
 
 
-def to_detection_record(
-    conf: float,
-    class_instance: int,
-    xywhn: list[float],
-    xyxy: list[float],
-    class_label_mapping: dict[int, str],
-) -> dict:
-    """
-    Create a detection record for an object detected in an image.
-
-    Args:
-        conf (float): The confidence score of the detection.
-        class_instance (int): The class index of the detected object.
-        xywhn (list[float]): Normalized bounding box coordinates (center x, center y, width, height).
-        xyxy (list[float]): Bounding box coordinates (x1, y1, x2, y2).
-        class_label_mapping (dict[int, str]): A mapping from class indices to class labels.
-
-    Returns:
-        dict: A dictionary containing the detection details.
-    """
-    return {
-        "class": class_instance,
-        "label": class_label_mapping[class_instance],
-        "conf": conf,
-        "xyxy": xyxy,
-        "xywhn": xywhn,
-    }
-
-
-def select_best_animal_detection(detection_records: list[dict]) -> dict | None:
-    """
-    Select the best animal detection from the provided records based on the confidence score.
-
-    Args:
-        detection_records (list[dict]): A list of detection records, each containing details
-        about a detected object including its confidence score and label.
-
-    Returns:
-        dict | None: The detection record with the highest confidence score for the label "animal",
-        or None if no such record exists.
-    """
-    animal_records = [r for r in detection_records if r["label"] == "animal"]
-    sorted_animal_records = sorted(animal_records, key=lambda r: r["conf"], reverse=True)
-    if not sorted_animal_records:
-        return None
-    else:
-        return sorted_animal_records[0]
-
-
-def crop_square_cv_to_pil(array_image: np.ndarray, xyxy: list[float]):
-    """
-    Crop a square region from a given image based on the provided bounding box coordinates
-    and convert it to a PIL Image.
-
-    Args:
-        array_image (np.ndarray): The input image as a NumPy array in BGR format.
-        xyxy (list[float]): The bounding box coordinates in the format [x1, y1, x2, y2].
-
-    Returns:
-        Image: The cropped image as a PIL Image in RGB format.
-    """
-    x1, y1, x2, y2 = xyxy
-    xsize = x2 - x1
-    ysize = y2 - y1
-    if xsize > ysize:
-        y1 = y1 - int((xsize - ysize) / 2)
-        y2 = y2 + int((xsize - ysize) / 2)
-    if ysize > xsize:
-        x1 = x1 - int((ysize - xsize) / 2)
-        x2 = x2 + int((ysize - xsize) / 2)
-    height, width, _ = array_image.shape
-    croppedimagecv = array_image[max(0, int(y1)) : min(int(y2), height), max(0, int(x1)) : min(int(x2), width)]
-    return Image.fromarray(croppedimagecv[:, :, (2, 1, 0)])  # converted to PIL BGR image
-
-
-def to_classifications_record(
-    scores: list[float],
-    class_label_mapping: dict[int, str],
-    k: int = 5,
-) -> dict:
-    """
-    Create a record of the top-k classifications based on the provided scores.
-
-    Args:
-        scores (list[float]): A list of scores corresponding to each class.
-        class_label_mapping (dict[int, str]): A mapping from class indices to class labels.
-        k (int): The number of top classifications to return. Defaults to 5.
-
-    Returns:
-        dict: A dictionary containing the top-k labels and their corresponding scores.
-    """
-    top_k_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:k]
-    top_k_labels = [class_label_mapping[i] for i in top_k_indices]
-    top_k_scores = [scores[i] for i in top_k_indices]
-    return {
-        "labels": top_k_labels,
-        "scores": top_k_scores,
-    }
-
-
 def predict(
     model: DeepFauneModel,
     filepath: Path,
@@ -688,19 +594,6 @@ class DeepFauneLitAPI(ls.LitAPI, VideoCapableLitAPI):
                 raise HTTPException(400, f"Cannot access filepath: `{filepath}`")
         return request
 
-    def _propagate_extra_fields(
-        self,
-        instances_dict: dict,
-        predictions_dict: dict,
-    ) -> dict:
-        predictions = predictions_dict["predictions"]
-        new_predictions = {p["filepath"]: p for p in predictions}
-        for instance in instances_dict["instances"]:
-            for field in self.extra_fields:
-                if field in instance:
-                    new_predictions[instance["filepath"]][field] = instance[field]
-        return {"predictions": list(new_predictions.values())}
-
     def _predict_single_image(self, filepath: str, **kwargs) -> dict:
         """Run DeepFaune inference on a single image.
 
@@ -719,7 +612,7 @@ class DeepFauneLitAPI(ls.LitAPI, VideoCapableLitAPI):
             filepath=filepath,
         )
         assert single_predictions_dict is not None
-        return self._propagate_extra_fields(single_instances_dict, single_predictions_dict)
+        return propagate_extra_fields(self.extra_fields, single_instances_dict, single_predictions_dict)
 
     def predict(self, x, **kwargs):
         """Process prediction requests with automatic video support.
