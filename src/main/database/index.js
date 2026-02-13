@@ -217,6 +217,7 @@ export {
   getSpeciesDailyActivityByMedia,
   // Media
   getFilesData,
+  getFirstMediaFilePath,
   getMediaBboxes,
   getMediaBboxesBatch,
   checkMediaHaveBboxes,

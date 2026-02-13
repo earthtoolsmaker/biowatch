@@ -64,6 +64,19 @@ export async function getFilesData(dbPath) {
 }
 
 /**
+ * Get the filePath of the first media record for a study
+ * Used to detect whether media is stored remotely (http) or locally
+ * @param {string} dbPath - Path to the SQLite database
+ * @returns {Promise<string|null>} - The filePath string or null if no media exists
+ */
+export async function getFirstMediaFilePath(dbPath) {
+  const studyId = getStudyIdFromPath(dbPath)
+  const db = await getDrizzleDb(studyId, dbPath, { readonly: true })
+  const rows = await db.select({ filePath: media.filePath }).from(media).limit(1)
+  return rows.length > 0 ? rows[0].filePath : null
+}
+
+/**
  * Get all bounding boxes for a specific media file with model provenance
  * @param {string} dbPath - Path to the SQLite database
  * @param {string} mediaID - The media ID to get bboxes for

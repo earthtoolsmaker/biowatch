@@ -14,6 +14,28 @@ import {
 import log from '../../logger.js'
 import { getBiowatchDataPath } from '../../paths.js'
 
+// Map file extensions to IANA media types for CamtrapDP imports
+const extensionToMediatype = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.gif': 'image/gif',
+  '.bmp': 'image/bmp',
+  '.webp': 'image/webp',
+  '.mp4': 'video/mp4',
+  '.mkv': 'video/x-matroska',
+  '.mov': 'video/quicktime',
+  '.webm': 'video/webm',
+  '.avi': 'video/x-msvideo',
+  '.m4v': 'video/x-m4v'
+}
+
+function inferMediatype(filePath) {
+  if (!filePath) return null
+  const ext = path.extname(filePath).toLowerCase()
+  return extensionToMediatype[ext] || null
+}
+
 /**
  * Import CamTrapDP dataset from a directory into a SQLite database
  * @param {string} directoryPath - Path to the CamTrapDP dataset directory
@@ -161,6 +183,14 @@ export async function importCamTrapDatasetWithPath(
     if (expansionResult.created > 0) {
       log.info(
         `Observation expansion: ${expansionResult.expanded} event-based observations expanded into ${expansionResult.created} media-linked observations`
+      )
+    }
+
+    // Create blank observations for any media that still has no linked observation
+    const blankResult = await createBlankObservationsForUnlinkedMedia(db)
+    if (blankResult.created > 0) {
+      log.info(
+        `Created ${blankResult.created} blank observations for media without any observation`
       )
     }
 
@@ -401,15 +431,40 @@ function transformMediaRow(row, directoryPath) {
   const favorite =
     rawFavorite === true || rawFavorite === 'true' || rawFavorite === 1 || rawFavorite === '1'
 
+  const rawFilePath = row.filePath || row.file_path || ''
+  const resolvedFilePath = transformFilePathField(rawFilePath, directoryPath)
+
+  // Derive folderName from the resolved file path, relative to the import directory.
+  // This mirrors how the normal folder import computes folderName in importer.js:
+  //   importFolder === dirname(fullPath) ? basename(importFolder) : relative(importFolder, dirname(fullPath))
+  // For CamtrapDP, the "importFolder" is the directoryPath where the package lives.
+  // If the resolved file is inside directoryPath (e.g. directoryPath/media/img.jpg),
+  // we get the relative subdir (e.g. "media").
+  // If the file is outside (absolute path from original export), we use just the
+  // parent directory name to keep it short and readable.
+  const fileDir = resolvedFilePath ? path.dirname(resolvedFilePath) : ''
+  let folderName
+  if (!fileDir || fileDir === directoryPath) {
+    folderName = path.basename(directoryPath)
+  } else if (fileDir.startsWith(directoryPath)) {
+    folderName = path.relative(directoryPath, fileDir)
+  } else {
+    // File is outside the CamtrapDP directory (e.g. absolute path from original study)
+    // Use the immediate parent folder name for a clean display
+    folderName = path.basename(fileDir)
+  }
+
   return {
     mediaID,
     deploymentID: row.deploymentID || row.deployment_id || null,
     timestamp: transformDateField(row.timestamp),
-    filePath: transformFilePathField(row.filePath || row.file_path, directoryPath),
-    fileName: row.fileName || row.file_name || path.basename(row.filePath || row.file_path || ''),
-    fileMediatype: row.fileMediatype || row.file_mediatype || null,
+    filePath: resolvedFilePath,
+    fileName: row.fileName || row.file_name || path.basename(rawFilePath),
+    fileMediatype: row.fileMediatype || row.file_mediatype || inferMediatype(rawFilePath) || null,
     exifData,
-    favorite
+    favorite,
+    importFolder: directoryPath,
+    folderName
   }
 }
 
@@ -522,6 +577,55 @@ function transformFilePathField(filePath, directoryPath) {
   // Fall back to parent directory (original behavior for backward compatibility)
   const parentDir = path.dirname(directoryPath)
   return path.join(parentDir, normalizedPath)
+}
+
+/**
+ * Create blank observations for media that have no linked observation.
+ * After event-based expansion, some media may still have no observation
+ * (e.g., images captured outside any annotated event window).
+ * This creates a blank observation for each unlinked media so that
+ * the Files tab shows 100% processed.
+ *
+ * @param {Object} db - Drizzle database instance
+ * @returns {Promise<{created: number}>} - Count of blank observations created
+ */
+async function createBlankObservationsForUnlinkedMedia(db) {
+  const BATCH_SIZE = 1000
+
+  // Find all media that have no observation linked
+  const unlinkedMedia = await db
+    .select({
+      mediaID: media.mediaID,
+      deploymentID: media.deploymentID,
+      timestamp: media.timestamp
+    })
+    .from(media)
+    .leftJoin(observations, eq(media.mediaID, observations.mediaID))
+    .where(isNull(observations.observationID))
+
+  if (unlinkedMedia.length === 0) {
+    log.info('All media have linked observations - no blank observations needed')
+    return { created: 0 }
+  }
+
+  log.info(`Creating blank observations for ${unlinkedMedia.length} unlinked media`)
+
+  const blankObservations = unlinkedMedia.map((m) => ({
+    observationID: crypto.randomUUID(),
+    mediaID: m.mediaID,
+    deploymentID: m.deploymentID,
+    eventStart: m.timestamp,
+    eventEnd: m.timestamp,
+    observationType: 'blank'
+  }))
+
+  for (let i = 0; i < blankObservations.length; i += BATCH_SIZE) {
+    const batch = blankObservations.slice(i, i + BATCH_SIZE)
+    await db.insert(observations).values(batch)
+  }
+
+  log.info(`Created ${blankObservations.length} blank observations for unlinked media`)
+  return { created: blankObservations.length }
 }
 
 /**

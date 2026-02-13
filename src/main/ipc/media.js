@@ -14,6 +14,7 @@ import {
   updateMediaTimestamp,
   updateMediaFavorite,
   countMediaWithNullTimestamps,
+  getFirstMediaFilePath,
   closeStudyDatabase
 } from '../database/index.js'
 
@@ -136,6 +137,22 @@ export function registerMediaIPCHandlers() {
       return { data: count }
     } catch (error) {
       log.error('Error counting media with null timestamps:', error)
+      return { error: error.message }
+    }
+  })
+
+  // Check whether the study's media files are stored remotely (http URLs)
+  ipcMain.handle('media:has-remote-paths', async (_, studyId) => {
+    try {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) {
+        return { data: false }
+      }
+      const filePath = await getFirstMediaFilePath(dbPath)
+      console.error('First media file path:', filePath)
+      return { data: filePath != null && filePath.startsWith('http') }
+    } catch (error) {
+      log.error('Error checking remote media paths:', error)
       return { error: error.message }
     }
   })

@@ -1313,45 +1313,58 @@ ipcMain.handle(
   }
 )
 
-ipcMain.handle('importer:select-more-images-directory', async (event, id) => {
-  if (importers[id]) {
-    log.warn(`Importer with ID ${id} is already running`)
-    return { success: false, message: 'Importer already running' }
-  }
-
+ipcMain.handle('importer:get-latest-model-run', async (event, id) => {
   const dbPath = path.join(app.getPath('userData'), 'biowatch-data', 'studies', id, 'study.db')
   if (!fs.existsSync(dbPath)) {
-    log.warn(`Study database not found for ID ${id}`)
-    return { success: false, message: 'Study not found' }
+    return { success: true, data: null }
   }
 
-  // Get latest model run to retrieve model reference and options
   const db = await getDrizzleDb(id, dbPath)
   const latestRun = await getLatestModelRun(db)
   if (!latestRun) {
-    log.warn(`No model run found for study ${id}`)
-    return { success: false, message: 'No model run found for study' }
+    return { success: true, data: null }
   }
 
-  const modelReference = { id: latestRun.modelID, version: latestRun.modelVersion }
   const options = latestRun.options || {}
-  const country = options.country || null
-
-  const result = await dialog.showOpenDialog({
-    properties: ['openDirectory'],
-    title: 'Select Images Directory'
-  })
-
-  if (result.canceled || result.filePaths.length === 0) {
-    return { success: false, message: 'Selection canceled' }
+  return {
+    success: true,
+    data: {
+      modelReference: { id: latestRun.modelID, version: latestRun.modelVersion },
+      country: options.country || null
+    }
   }
-
-  const directoryPath = result.filePaths[0]
-  const importer = new Importer(id, directoryPath, modelReference, country)
-  importers[id] = importer
-  await importer.start(true)
-  return { success: true, message: 'Importer started successfully' }
 })
+
+ipcMain.handle(
+  'importer:select-more-images-directory',
+  async (event, id, modelReference, country = null) => {
+    if (importers[id]) {
+      log.warn(`Importer with ID ${id} is already running`)
+      return { success: false, message: 'Importer already running' }
+    }
+
+    const dbPath = path.join(app.getPath('userData'), 'biowatch-data', 'studies', id, 'study.db')
+    if (!fs.existsSync(dbPath)) {
+      log.warn(`Study database not found for ID ${id}`)
+      return { success: false, message: 'Study not found' }
+    }
+
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory'],
+      title: 'Select Images Directory'
+    })
+
+    if (result.canceled || result.filePaths.length === 0) {
+      return { success: false, message: 'Selection canceled' }
+    }
+
+    const directoryPath = result.filePaths[0]
+    const importer = new Importer(id, directoryPath, modelReference, country)
+    importers[id] = importer
+    await importer.start(true)
+    return { success: true, message: 'Importer started successfully' }
+  }
+)
 
 ipcMain.handle('importer:stop', async (event, id) => {
   if (!importers[id]) {
