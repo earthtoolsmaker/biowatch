@@ -97,9 +97,14 @@ describe('CamTrapDP NULL Foreign Keys Tests', () => {
 
       const dbPath = join(testBiowatchDataPath, 'studies', studyId, 'study.db')
 
-      // Should import all 4 observation records including those with NULL mediaID
+      // Should import all 4 original observations + 2 blank observations for unlinked media
+      // (media002 and media004 have NULL deploymentID so can't be matched via expansion)
       const observationCount = countRecords(dbPath, 'observations')
-      assert.equal(observationCount, 4, 'Should import all observations including standalone ones')
+      assert.equal(
+        observationCount,
+        6,
+        'Should import all observations including standalone and blank ones'
+      )
 
       // Check for standalone observations (NULL mediaID)
       const standaloneObs = queryDatabase(
@@ -132,12 +137,16 @@ describe('CamTrapDP NULL Foreign Keys Tests', () => {
 
       const dbPath = join(testBiowatchDataPath, 'studies', studyId, 'study.db')
 
-      // Check for observations with NULL deploymentID
+      // Check for observations with NULL deploymentID (2 original + 2 blank for orphaned media)
       const noDeploymentObs = queryDatabase(
         dbPath,
         'SELECT * FROM observations WHERE deploymentID IS NULL'
       )
-      assert.equal(noDeploymentObs.length, 2, 'Should have 2 observations without deploymentID')
+      assert.equal(
+        noDeploymentObs.length,
+        4,
+        'Should have 4 observations without deploymentID (2 original + 2 blank)'
+      )
 
       // Verify observation without deploymentID
       const noDeployment = noDeploymentObs.find((o) => o.observationID === 'obs003')
@@ -183,7 +192,7 @@ describe('CamTrapDP NULL Foreign Keys Tests', () => {
       // Media with non-NULL deploymentID should reference existing deployments
       const mediaWithValidDeployment = queryDatabase(
         dbPath,
-        `SELECT m.* FROM media m 
+        `SELECT m.* FROM media m
          INNER JOIN deployments d ON m.deploymentID = d.deploymentID`
       )
       assert.equal(
@@ -193,17 +202,22 @@ describe('CamTrapDP NULL Foreign Keys Tests', () => {
       )
 
       // Observations with non-NULL mediaID should reference existing media
+      // (2 original with mediaID + 2 blank observations for unlinked media)
       const obsWithValidMedia = queryDatabase(
         dbPath,
-        `SELECT o.* FROM observations o 
+        `SELECT o.* FROM observations o
          INNER JOIN media m ON o.mediaID = m.mediaID`
       )
-      assert.equal(obsWithValidMedia.length, 2, 'Should have 2 observations with valid media refs')
+      assert.equal(
+        obsWithValidMedia.length,
+        4,
+        'Should have 4 observations with valid media refs (2 original + 2 blank)'
+      )
 
       // Observations with non-NULL deploymentID should reference existing deployments
       const obsWithValidDeployment = queryDatabase(
         dbPath,
-        `SELECT o.* FROM observations o 
+        `SELECT o.* FROM observations o
          INNER JOIN deployments d ON o.deploymentID = d.deploymentID`
       )
       assert.equal(
