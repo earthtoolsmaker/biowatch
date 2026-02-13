@@ -488,3 +488,57 @@ export async function countMediaWithNullTimestamps(dbPath) {
     throw error
   }
 }
+
+/**
+ * Update the importFolder path for all media rows matching a given importFolder
+ * @param {string} dbPath - Path to the SQLite database
+ * @param {string} oldImportFolder - The current importFolder value to match
+ * @param {string} newImportFolder - The new importFolder value to set
+ * @returns {Promise<number>} - Number of rows updated
+ */
+export async function updateImportFolder(dbPath, oldImportFolder, newImportFolder) {
+  log.info(`Updating importFolder from "${oldImportFolder}" to "${newImportFolder}"`)
+
+  try {
+    const studyId = getStudyIdFromPath(dbPath)
+    const db = await getDrizzleDb(studyId, dbPath)
+
+    // Update importFolder column
+    await db
+      .update(media)
+      .set({ importFolder: newImportFolder })
+      .where(eq(media.importFolder, oldImportFolder))
+
+    // Update filePath column: replace the old folder prefix with the new one
+    // e.g. "/old/path/sub/img.jpg" → "/new/path/sub/img.jpg"
+    const result = await db
+      .update(media)
+      .set({
+        filePath: sql`REPLACE(${media.filePath}, ${oldImportFolder}, ${newImportFolder})`
+      })
+      .where(eq(media.importFolder, newImportFolder))
+
+    const rowsUpdated = result.changes ?? 0
+    log.info(`Updated ${rowsUpdated} media rows (importFolder + filePath)`)
+
+    // Log a few sample rows to verify the new paths
+    const sample = await db
+      .select({
+        mediaID: media.mediaID,
+        filePath: media.filePath,
+        importFolder: media.importFolder
+      })
+      .from(media)
+      .where(eq(media.importFolder, newImportFolder))
+      .limit(5)
+    log.info(`Sample media after update:`)
+    for (const row of sample) {
+      log.info(`  mediaID=${row.mediaID} filePath=${row.filePath} importFolder=${row.importFolder}`)
+    }
+
+    return rowsUpdated
+  } catch (error) {
+    log.error(`Error updating importFolder: ${error.message}`)
+    throw error
+  }
+}

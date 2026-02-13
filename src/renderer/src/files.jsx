@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'react-router'
-import { FolderIcon } from 'lucide-react'
+import { FolderIcon, PencilIcon } from 'lucide-react'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { useImportStatus } from '@renderer/hooks/import'
 import { modelZoo } from '../../shared/mlmodels.js'
@@ -160,6 +160,14 @@ export default function Files({ studyId }) {
 
   console.log('Files data:', filesData, importFolders)
 
+  const handleEditImportFolder = async (importFolder) => {
+    const result = await window.api.updateImportFolder(actualStudyId, importFolder)
+    if (result?.data) {
+      // Invalidate all queries so updated file paths are picked up everywhere
+      queryClient.invalidateQueries()
+    }
+  }
+
   return (
     <div className="px-8 py-3 h-full overflow-y-auto space-y-6">
       <header>
@@ -273,8 +281,17 @@ export default function Files({ studyId }) {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200" key={importFolder}>
             <div className="px-6 py-4 border-b border-gray-200">
               <div className="flex items-center justify-between">
-                <div>{importFolder}</div>
-                <div className="text-sm text-gray-500">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="truncate">{importFolder}</span>
+                  <button
+                    onClick={() => handleEditImportFolder(importFolder)}
+                    className="cursor-pointer flex-shrink-0 p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                    title="Change folder path"
+                  >
+                    <PencilIcon className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="text-sm text-gray-500 flex-shrink-0 ml-4">
                   {directories.length} {directories.length === 1 ? 'directory' : 'directories'}
                 </div>
               </div>
