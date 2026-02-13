@@ -434,24 +434,42 @@ function transformMediaRow(row, directoryPath) {
   const rawFilePath = row.filePath || row.file_path || ''
   const resolvedFilePath = transformFilePathField(rawFilePath, directoryPath)
 
-  // Derive folderName from the resolved file path, relative to the import directory.
-  // This mirrors how the normal folder import computes folderName in importer.js:
-  //   importFolder === dirname(fullPath) ? basename(importFolder) : relative(importFolder, dirname(fullPath))
-  // For CamtrapDP, the "importFolder" is the directoryPath where the package lives.
-  // If the resolved file is inside directoryPath (e.g. directoryPath/media/img.jpg),
-  // we get the relative subdir (e.g. "media").
-  // If the file is outside (absolute path from original export), we use just the
-  // parent directory name to keep it short and readable.
+  // Determine importFolder and folderName.
+  // If the CSV contains an importFolder column (exported by Biowatch without media),
+  // use it directly to preserve the original folder grouping. This correctly handles
+  // studies with multiple import folders.
+  // Otherwise, derive them from the resolved file path relative to the CamtrapDP directory.
+  const csvImportFolder = row.importFolder || row.import_folder || ''
   const fileDir = resolvedFilePath ? path.dirname(resolvedFilePath) : ''
   let folderName
-  if (!fileDir || fileDir === directoryPath) {
-    folderName = path.basename(directoryPath)
-  } else if (fileDir.startsWith(directoryPath)) {
-    folderName = path.relative(directoryPath, fileDir)
+  let importFolder
+
+  if (csvImportFolder) {
+    // Explicit importFolder from export — use it to reconstruct the original
+    // folder relationship, mirroring how the normal folder import works:
+    //   importFolder === dirname(fullPath) ? basename(importFolder) : relative(importFolder, dirname(fullPath))
+    importFolder = csvImportFolder
+    if (!fileDir || fileDir === importFolder) {
+      folderName = path.basename(importFolder)
+    } else if (fileDir.startsWith(importFolder)) {
+      folderName = path.relative(importFolder, fileDir)
+    } else {
+      folderName = path.basename(fileDir)
+    }
   } else {
-    // File is outside the CamtrapDP directory (e.g. absolute path from original study)
-    // Use the immediate parent folder name for a clean display
-    folderName = path.basename(fileDir)
+    // No importFolder in CSV — derive from the resolved file path.
+    // If the file is inside the CamtrapDP directory, use directoryPath as importFolder.
+    // If outside (absolute path from an export without the importFolder column),
+    // fall back to the file's actual parent directory.
+    importFolder = directoryPath
+    if (!fileDir || fileDir === directoryPath) {
+      folderName = path.basename(directoryPath)
+    } else if (fileDir.startsWith(directoryPath)) {
+      folderName = path.relative(directoryPath, fileDir)
+    } else {
+      importFolder = fileDir
+      folderName = path.basename(fileDir)
+    }
   }
 
   return {
@@ -463,7 +481,7 @@ function transformMediaRow(row, directoryPath) {
     fileMediatype: row.fileMediatype || row.file_mediatype || inferMediatype(rawFilePath) || null,
     exifData,
     favorite,
-    importFolder: directoryPath,
+    importFolder,
     folderName
   }
 }

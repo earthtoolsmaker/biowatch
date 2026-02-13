@@ -225,6 +225,7 @@ export {
   insertMedia,
   updateMediaFavorite,
   countMediaWithNullTimestamps,
+  updateImportFolder,
   // Observations
   updateObservationClassification,
   updateObservationBbox,
