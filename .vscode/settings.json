@@ -8,6 +8,7 @@
   "[json]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
+  "prettier.prettierPath": "./node_modules/prettier/index.cjs",
   "python.defaultInterpreterPath": "${workspaceFolder}/python/.venv/bin/python",
   "python.analysis.extraPaths": ["${workspaceFolder}/python/.venv/lib/python3.*/site-packages"]
 }
