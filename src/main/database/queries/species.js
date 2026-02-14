@@ -76,11 +76,17 @@ export async function getBlankMediaCount(dbPath) {
     const studyId = getStudyIdFromPath(dbPath)
     const db = await getDrizzleDb(studyId, dbPath)
 
-    // Count media with no linked observations
+    // Count media with no linked non-blank observations
+    // Media with only observationType='blank' observations are considered blank
     const matchingObservations = db
       .select({ one: sql`1` })
       .from(observations)
-      .where(eq(observations.mediaID, media.mediaID))
+      .where(
+        and(
+          eq(observations.mediaID, media.mediaID),
+          or(isNull(observations.observationType), ne(observations.observationType, 'blank'))
+        )
+      )
 
     const result = await db
       .select({ count: count().as('count') })
