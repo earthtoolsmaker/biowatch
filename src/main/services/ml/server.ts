@@ -93,6 +93,40 @@ export function findFreePort(): Promise<number> {
   })
 }
 
+/**
+ * Checks whether a port is available.
+ *
+ * @param port - Port number to check.
+ * @returns Promise that resolves to true if the port can be bound.
+ */
+export function isPortAvailable(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const server = net.createServer()
+    server.once('error', () => {
+      resolve(false)
+    })
+    server.once('listening', () => {
+      server.close(() => resolve(true))
+    })
+    server.listen(port)
+  })
+}
+
+/**
+ * Resolves the port to use for model server.
+ *
+ * @param preferredPort - Preferred port to use when available.
+ * @returns Port number that is available for binding.
+ */
+export async function resolveServerPort(preferredPort: number | null): Promise<number> {
+  if (preferredPort !== null) {
+    const available = await isPortAvailable(preferredPort)
+    if (available) return preferredPort
+    log.warn(`Preferred port ${preferredPort} is in use; falling back to a free port`)
+  }
+  return await findFreePort()
+}
+
 // ============================================================================
 // Server Health Check and Startup
 // ============================================================================
@@ -605,7 +639,7 @@ export async function startMLModelHTTPServer({
 
   switch (modelReference.id) {
     case 'speciesnet': {
-      const port = is.dev ? 8000 : await findFreePort()
+      const port = await resolveServerPort(is.dev ? 8000 : null)
       const localInstallPath = getMLModelLocalInstallPath({ ...modelReference })
       log.info(`Local ML Model install path ${localInstallPath}`)
       const { process: pythonProcess, shutdownApiKey } = await startSpeciesNetHTTPServer({
@@ -626,7 +660,7 @@ export async function startMLModelHTTPServer({
       return { port: port, process: pythonProcess, shutdownApiKey }
     }
     case 'deepfaune': {
-      const port = is.dev ? 8001 : await findFreePort()
+      const port = await resolveServerPort(is.dev ? 8001 : null)
       const localInstallPath = getMLModelLocalInstallPath({ ...modelReference })
       log.info(`Local ML Model install path ${localInstallPath}`)
       const classifierWeightsFilepath = join(
@@ -651,7 +685,7 @@ export async function startMLModelHTTPServer({
       return { port: port, process: pythonProcess, shutdownApiKey }
     }
     case 'manas': {
-      const port = is.dev ? 8002 : await findFreePort()
+      const port = await resolveServerPort(is.dev ? 8002 : null)
       const localInstallPath = getMLModelLocalInstallPath({ ...modelReference })
       log.info(`Local ML Model install path ${localInstallPath}`)
       const classifierWeightsFilepath = join(
