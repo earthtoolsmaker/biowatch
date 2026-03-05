@@ -8,10 +8,10 @@ dependencies = [
     "speciesnet==5.0.3",
     "fastapi>=0.115.12",
     "litserve>=0.2.16",
-    "torch>=2.6.0",
+    "torch>=2.7.0",
     "numpy>=1.26.4",
     "timm>=1.0.15",
-    "torchvision>=0.21.0",
+    "torchvision>=0.22.0",
     "ultralytics>=8.3.151",
 ]
 
