@@ -1201,9 +1201,11 @@ export class Importer {
         log.error(`Model run ${runID} failed:`, error)
         throw error
       }
+    } finally {
+      await this.cleanup()
+      delete importers[this.id]
+      log.info(`Importer with ID ${this.id} removed from registry`)
     }
-
-    this.cleanup()
   }
 }
 
