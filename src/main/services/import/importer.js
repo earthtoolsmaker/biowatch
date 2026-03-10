@@ -257,6 +257,13 @@ export async function* getPredictions(mediaPaths, port, signal = null, sampleFps
 }
 
 async function insertMedia(db, fullPath, importFolder) {
+  // Check if media with this filePath already exists (dedup on re-import)
+  const existing = await db.select().from(media).where(eq(media.filePath, fullPath)).limit(1)
+  if (existing.length > 0) {
+    log.info(`Media already exists for path: ${fullPath}, skipping`)
+    return existing[0]
+  }
+
   const folderName =
     importFolder === path.dirname(fullPath)
       ? path.basename(importFolder)
@@ -278,7 +285,6 @@ async function insertMedia(db, fullPath, importFolder) {
 }
 
 async function getMedia(db, filepath) {
-  console.log('getMedia', filepath)
   try {
     const result = await db.select().from(media).where(eq(media.filePath, filepath)).limit(1)
     return result[0] || null
@@ -517,12 +523,17 @@ async function insertVideoPredictions(db, predictions, mediaRecord, modelInfo = 
 
   // 2. Store ALL frame predictions in modelOutputs.rawOutput (full provenance)
   const modelOutputID = crypto.randomUUID()
-  await insertModelOutput(db, {
+  const modelOutput = await insertModelOutput(db, {
     id: modelOutputID,
     mediaID: mediaRecord.mediaID,
     runID: modelInfo.runID,
     rawOutput: { frames: predictions } // Complete frame-by-frame data
   })
+
+  if (!modelOutput) {
+    log.info(`Model output already exists for video ${mediaRecord.filePath}, skipping`)
+    return
+  }
 
   // 3. Aggregate species across all frames (skip blanks)
   const modelType = modelInfo.modelID || 'speciesnet'
@@ -1077,12 +1088,17 @@ export class Importer {
 
               // Create model_output record for this media (with validated rawOutput)
               const modelOutputID = crypto.randomUUID()
-              await insertModelOutput(this.db, {
+              const modelOutput = await insertModelOutput(this.db, {
                 id: modelOutputID,
                 mediaID: mediaRecord.mediaID,
                 runID: runID,
                 rawOutput: prediction // Store full prediction as JSON
               })
+
+              if (!modelOutput) {
+                log.info(`Model output already exists for media ${mediaRecord.mediaID}, skipping`)
+                continue
+              }
 
               // Insert prediction with model provenance
               await insertPrediction(this.db, prediction, {
