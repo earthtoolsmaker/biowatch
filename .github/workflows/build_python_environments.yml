@@ -94,6 +94,7 @@ jobs:
           tar -czf dist/common-"${ENVIRONMENT_VERSION}"-${{ runner.os }}.tar.gz -C "${CONDA_BASE}"/envs common
 
       - name: Upload to Cloudflare R2
+        if: github.event_name == 'push'
         uses: shallwefootball/s3-upload-action@master
         with:
           aws_key_id: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
