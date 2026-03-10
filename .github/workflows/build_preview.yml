@@ -8,7 +8,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-      CSC_FOR_PULL_REQUEST: true
+      CSC_FOR_PULL_REQUEST: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
 
     strategy:
       matrix:
@@ -47,11 +47,11 @@ jobs:
 
       - name: Build application
         env:
-          CSC_LINK: ${{ matrix.os == 'macos-latest' && secrets.APPLE_SIGNING_CERTIFICATE_BASE64 || '' }}
-          CSC_KEY_PASSWORD: ${{ matrix.os == 'macos-latest' && secrets.APPLE_SIGNING_CERTIFICATE_PASSWORD || '' }}
-          APPLE_ID: ${{ matrix.os == 'macos-latest' && secrets.APPLE_ID || '' }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.os == 'macos-latest' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
-          APPLE_TEAM_ID: ${{ matrix.os == 'macos-latest' && secrets.APPLE_TEAM_ID || '' }}
+          CSC_LINK: ${{ matrix.os == 'macos-latest' && github.event.pull_request.head.repo.full_name == github.repository && secrets.APPLE_SIGNING_CERTIFICATE_BASE64 || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.os == 'macos-latest' && github.event.pull_request.head.repo.full_name == github.repository && secrets.APPLE_SIGNING_CERTIFICATE_PASSWORD || '' }}
+          APPLE_ID: ${{ matrix.os == 'macos-latest' && github.event.pull_request.head.repo.full_name == github.repository && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.os == 'macos-latest' && github.event.pull_request.head.repo.full_name == github.repository && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ matrix.os == 'macos-latest' && github.event.pull_request.head.repo.full_name == github.repository && secrets.APPLE_TEAM_ID || '' }}
         run: npm run ${{ matrix.build_script }}
 
       - name: Upload build artifacts
