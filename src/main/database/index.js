@@ -178,8 +178,8 @@ export async function insertModelOutput(db, data) {
     }
   }
 
-  const result = await db.insert(modelOutputs).values(data).returning()
-  return result[0]
+  const result = await db.insert(modelOutputs).values(data).onConflictDoNothing().returning()
+  return result[0] || null
 }
 
 /**
