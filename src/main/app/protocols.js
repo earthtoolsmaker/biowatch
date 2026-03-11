@@ -12,6 +12,18 @@ import { existsSync, readFileSync, statSync } from 'fs'
 import { extname } from 'path'
 import { getCachedImage, getMimeType, saveImageToCache } from '../services/cache/image.js'
 
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'local-file',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      stream: true
+    }
+  }
+])
+
 /**
  * Register local-file:// protocol for serving local media files.
  * Supports range requests for video streaming.
