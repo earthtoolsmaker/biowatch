@@ -13,6 +13,10 @@ export {
   setupShutdownHandlers
 } from './lifecycle.js'
 
-export { registerLocalFileProtocol, registerCachedImageProtocol } from './protocols.js'
+export {
+  registerPrivilegedSchemes,
+  registerLocalFileProtocol,
+  registerCachedImageProtocol
+} from './protocols.js'
 
 export { setupRemoteMediaCORS } from './session.js'

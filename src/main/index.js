@@ -14,6 +14,7 @@ import {
   configureLogging,
   createWindow,
   initializeApp,
+  registerPrivilegedSchemes,
   setupShutdownHandlers
 } from './app/index.js'
 import { registerAllIPCHandlers } from './ipc/index.js'
@@ -28,6 +29,9 @@ log.info('Starting Electron app...')
 
 // Setup shutdown handlers
 setupShutdownHandlers()
+
+// Register privileged custom schemes before app ready
+registerPrivilegedSchemes()
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
