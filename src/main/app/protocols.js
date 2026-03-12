@@ -8,9 +8,14 @@
 
 import { net, protocol } from 'electron'
 import log from 'electron-log'
-import { existsSync, readFileSync, statSync } from 'fs'
+import { createReadStream, existsSync, readFileSync, statSync } from 'fs'
 import { extname } from 'path'
+import { Readable } from 'stream'
 import { getCachedImage, getMimeType, saveImageToCache } from '../services/cache/image.js'
+
+function createWebFileStream(filePath, options = undefined) {
+  return Readable.toWeb(createReadStream(filePath, options))
+}
 
 /**
  * Register privileged custom schemes for local-file://
@@ -69,9 +74,6 @@ export function registerLocalFileProtocol() {
       }
       const contentType = mimeTypes[ext] || 'application/octet-stream'
 
-      // Read entire file into buffer (simpler approach for now)
-      const buffer = readFileSync(filePath)
-
       // Handle Range requests for video streaming
       if (rangeHeader) {
         const rangeMatch = rangeHeader.match(/bytes=(\d*)-(\d*)/)
@@ -82,10 +84,7 @@ export function registerLocalFileProtocol() {
 
           log.info(`Range request: bytes=${start}-${end}/${fileSize}`)
 
-          // Slice the buffer to get the requested range
-          const chunk = buffer.slice(start, end + 1)
-
-          return new Response(chunk, {
+          return new Response(createWebFileStream(filePath, { start, end }), {
             status: 206,
             headers: {
               'Content-Type': contentType,
@@ -100,7 +99,7 @@ export function registerLocalFileProtocol() {
       // Non-range request: return full file
       log.info(`Full file request: ${fileSize} bytes`)
 
-      return new Response(buffer, {
+      return new Response(createWebFileStream(filePath), {
         status: 200,
         headers: {
           'Content-Type': contentType,
