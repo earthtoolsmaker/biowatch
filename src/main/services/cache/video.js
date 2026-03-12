@@ -74,6 +74,17 @@ function ensureVideoCacheDir(studyId) {
 // Active transcoding jobs (for progress tracking and cancellation)
 const activeJobs = new Map()
 
+function getFFmpegBinaryPath() {
+  if (!ffmpegPath) {
+    throw new Error('Failed to resolve path from ffmpeg-static')
+  }
+
+  // Packaged Electron apps cannot execute binaries from app.asar.
+  return app.isPackaged && ffmpegPath.includes('app.asar')
+    ? ffmpegPath.replace('app.asar', 'app.asar.unpacked')
+    : ffmpegPath
+}
+
 /**
  * Check if a path is a remote URL.
  * @param {string} filePath - Path or URL to check
@@ -278,7 +289,7 @@ export async function extractThumbnail(studyId, inputPath) {
     // -frames:v 1 extracts only one frame
     // -q:v 2 sets JPEG quality (2-31, lower is better)
     const inputArgs = buildFFmpegInputArgs(localInputPath)
-    const ffmpeg = spawn(ffmpegPath, [
+    const ffmpeg = spawn(getFFmpegBinaryPath(), [
       ...inputArgs,
       '-ss',
       '0.5', // Seek to 0.5s to skip potential black frames
@@ -353,7 +364,7 @@ function parseProgress(data, duration) {
 async function getVideoDuration(filePath) {
   return new Promise((resolve, reject) => {
     const inputArgs = buildFFmpegInputArgs(filePath)
-    const ffprobe = spawn(ffmpegPath, [
+    const ffprobe = spawn(getFFmpegBinaryPath(), [
       ...inputArgs,
       '-hide_banner',
       '-show_entries',
@@ -433,7 +444,7 @@ export async function transcodeVideo(studyId, inputPath, onProgress = () => {}, 
 
   return new Promise((resolve, reject) => {
     const inputArgs = buildFFmpegInputArgs(localInputPath)
-    const ffmpeg = spawn(ffmpegPath, [
+    const ffmpeg = spawn(getFFmpegBinaryPath(), [
       ...inputArgs,
       '-c:v',
       'libx264', // H.264 video codec (browser compatible)
