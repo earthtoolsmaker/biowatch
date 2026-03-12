@@ -13,44 +13,6 @@ import { extname } from 'path'
 import { Readable } from 'stream'
 import { getCachedImage, getMimeType, saveImageToCache } from '../services/cache/image.js'
 
-function parseSingleRange(rangeHeader, fileSize) {
-  if (!rangeHeader) return null
-
-  const match = rangeHeader.match(/^bytes=(.+)$/i)
-  if (!match) return { error: 'malformed' }
-
-  const parts = match[1].split(',').map((part) => part.trim())
-  if (parts.length !== 1) return { error: 'multi-range' }
-
-  const [startStr, endStr] = parts[0].split('-')
-  if (startStr === undefined || endStr === undefined) return { error: 'malformed' }
-
-  let start
-  let end
-
-  if (startStr === '') {
-    const suffixLength = Number.parseInt(endStr, 10)
-    if (!Number.isFinite(suffixLength) || suffixLength <= 0) return { error: 'invalid' }
-    start = suffixLength >= fileSize ? 0 : fileSize - suffixLength
-    end = fileSize - 1
-  } else {
-    start = Number.parseInt(startStr, 10)
-    if (!Number.isFinite(start) || start < 0) return { error: 'invalid' }
-
-    if (endStr === '') {
-      end = fileSize - 1
-    } else {
-      end = Number.parseInt(endStr, 10)
-      if (!Number.isFinite(end) || end < start) return { error: 'invalid' }
-    }
-  }
-
-  if (start >= fileSize) return { error: 'out-of-bounds' }
-  end = Math.min(end, fileSize - 1)
-
-  return { start, end }
-}
-
 function createWebFileStream(filePath, options = undefined) {
   return Readable.toWeb(createReadStream(filePath, options))
 }
@@ -96,33 +58,24 @@ export function registerLocalFileProtocol() {
 
       // Handle Range requests for video streaming
       if (rangeHeader) {
-        const parsedRange = parseSingleRange(rangeHeader, fileSize)
+        const rangeMatch = rangeHeader.match(/bytes=(\d*)-(\d*)/)
+        if (rangeMatch) {
+          const start = rangeMatch[1] ? parseInt(rangeMatch[1], 10) : 0
+          const end = rangeMatch[2] ? parseInt(rangeMatch[2], 10) : fileSize - 1
+          const chunkSize = end - start + 1
 
-        if (parsedRange?.error) {
-          log.warn(`[local-file] rejecting range=${rangeHeader} reason=${parsedRange.error}`)
-          return new Response(null, {
-            status: 416,
+          log.info(`Range request: bytes=${start}-${end}/${fileSize}`)
+
+          return new Response(createWebFileStream(filePath, { start, end }), {
+            status: 206,
             headers: {
-              'Content-Range': `bytes */${fileSize}`,
+              'Content-Type': contentType,
+              'Content-Length': String(chunkSize),
+              'Content-Range': `bytes ${start}-${end}/${fileSize}`,
               'Accept-Ranges': 'bytes'
             }
           })
         }
-
-        const { start, end } = parsedRange
-        const chunkSize = end - start + 1
-
-        log.info(`Range request: bytes=${start}-${end}/${fileSize}`)
-
-        return new Response(createWebFileStream(filePath, { start, end }), {
-          status: 206,
-          headers: {
-            'Content-Type': contentType,
-            'Content-Length': String(chunkSize),
-            'Content-Range': `bytes ${start}-${end}/${fileSize}`,
-            'Accept-Ranges': 'bytes'
-          }
-        })
       }
 
       // Non-range request: return full file
