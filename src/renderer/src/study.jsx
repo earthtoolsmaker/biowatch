@@ -67,7 +67,7 @@ function ErrorFallback({ error, resetErrorBoundary }) {
 }
 
 // Import status component to prevent unnecessary re-renders
-function ImportStatus({ studyId, importerName }) {
+function ImportStatus({ studyId }) {
   const { importStatus, resumeImport, pauseImport } = useImportStatus(studyId)
 
   console.log('ImportStatus', importStatus)
@@ -76,10 +76,7 @@ function ImportStatus({ studyId, importerName }) {
   const progress =
     importStatus && importStatus.total > 0 ? (importStatus.done / importStatus.total) * 100 : 0
   const showImportStatus =
-    importerName?.startsWith('local/') &&
-    importStatus &&
-    importStatus.total > 0 &&
-    importStatus.total > importStatus.done
+    importStatus && importStatus.total > 0 && importStatus.total > importStatus.done
 
   if (!showImportStatus) {
     return null
@@ -149,6 +146,15 @@ export default function Study() {
     enabled: !!id
   })
 
+  const { data: hasRemoteMedia } = useQuery({
+    queryKey: ['study', id, 'hasRemoteMedia'],
+    queryFn: async () => {
+      const result = await window.api.hasRemoteMediaPaths(id)
+      return result?.data ?? false
+    },
+    enabled: !!id
+  })
+
   if (error) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -178,7 +184,7 @@ export default function Study() {
             <Tab to={`/study/${id}/deployments`} icon={Cctv}>
               Deployments
             </Tab>
-            {study?.importerName?.startsWith('local/') && (
+            {!hasRemoteMedia && (
               <Tab to={`/study/${id}/files`} icon={FolderOpen}>
                 Files
               </Tab>
@@ -224,16 +230,14 @@ export default function Study() {
               </ErrorBoundary>
             }
           />
-          {study?.importerName?.startsWith('local/') && (
-            <Route
-              path="files"
-              element={
-                <ErrorBoundary FallbackComponent={ErrorFallback} key={'files'}>
-                  <Files studyId={id} />
-                </ErrorBoundary>
-              }
-            />
-          )}
+          <Route
+            path="files"
+            element={
+              <ErrorBoundary FallbackComponent={ErrorFallback} key={'files'}>
+                <Files studyId={id} />
+              </ErrorBoundary>
+            }
+          />
           <Route
             path="settings"
             element={

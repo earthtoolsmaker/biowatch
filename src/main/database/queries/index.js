@@ -33,13 +33,15 @@ export {
 // Media
 export {
   getFilesData,
+  getFirstMediaFilePath,
   getMediaBboxes,
   getMediaBboxesBatch,
   checkMediaHaveBboxes,
   updateMediaTimestamp,
   insertMedia,
   updateMediaFavorite,
-  countMediaWithNullTimestamps
+  countMediaWithNullTimestamps,
+  updateImportFolder
 } from './media.js'
 
 // Observations

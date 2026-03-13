@@ -217,6 +217,7 @@ export {
   getSpeciesDailyActivityByMedia,
   // Media
   getFilesData,
+  getFirstMediaFilePath,
   getMediaBboxes,
   getMediaBboxesBatch,
   checkMediaHaveBboxes,
@@ -224,6 +225,7 @@ export {
   insertMedia,
   updateMediaFavorite,
   countMediaWithNullTimestamps,
+  updateImportFolder,
   // Observations
   updateObservationClassification,
   updateObservationBbox,

@@ -64,6 +64,19 @@ export async function getFilesData(dbPath) {
 }
 
 /**
+ * Get the filePath of the first media record for a study
+ * Used to detect whether media is stored remotely (http) or locally
+ * @param {string} dbPath - Path to the SQLite database
+ * @returns {Promise<string|null>} - The filePath string or null if no media exists
+ */
+export async function getFirstMediaFilePath(dbPath) {
+  const studyId = getStudyIdFromPath(dbPath)
+  const db = await getDrizzleDb(studyId, dbPath, { readonly: true })
+  const rows = await db.select({ filePath: media.filePath }).from(media).limit(1)
+  return rows.length > 0 ? rows[0].filePath : null
+}
+
+/**
  * Get all bounding boxes for a specific media file with model provenance
  * @param {string} dbPath - Path to the SQLite database
  * @param {string} mediaID - The media ID to get bboxes for
@@ -485,6 +498,60 @@ export async function countMediaWithNullTimestamps(dbPath) {
     return nullCount
   } catch (error) {
     log.error(`Error counting media with null timestamps: ${error.message}`)
+    throw error
+  }
+}
+
+/**
+ * Update the importFolder path for all media rows matching a given importFolder
+ * @param {string} dbPath - Path to the SQLite database
+ * @param {string} oldImportFolder - The current importFolder value to match
+ * @param {string} newImportFolder - The new importFolder value to set
+ * @returns {Promise<number>} - Number of rows updated
+ */
+export async function updateImportFolder(dbPath, oldImportFolder, newImportFolder) {
+  log.info(`Updating importFolder from "${oldImportFolder}" to "${newImportFolder}"`)
+
+  try {
+    const studyId = getStudyIdFromPath(dbPath)
+    const db = await getDrizzleDb(studyId, dbPath)
+
+    // Update importFolder column
+    await db
+      .update(media)
+      .set({ importFolder: newImportFolder })
+      .where(eq(media.importFolder, oldImportFolder))
+
+    // Update filePath column: replace the old folder prefix with the new one
+    // e.g. "/old/path/sub/img.jpg" → "/new/path/sub/img.jpg"
+    const result = await db
+      .update(media)
+      .set({
+        filePath: sql`REPLACE(${media.filePath}, ${oldImportFolder}, ${newImportFolder})`
+      })
+      .where(eq(media.importFolder, newImportFolder))
+
+    const rowsUpdated = result.changes ?? 0
+    log.info(`Updated ${rowsUpdated} media rows (importFolder + filePath)`)
+
+    // Log a few sample rows to verify the new paths
+    const sample = await db
+      .select({
+        mediaID: media.mediaID,
+        filePath: media.filePath,
+        importFolder: media.importFolder
+      })
+      .from(media)
+      .where(eq(media.importFolder, newImportFolder))
+      .limit(5)
+    log.info(`Sample media after update:`)
+    for (const row of sample) {
+      log.info(`  mediaID=${row.mediaID} filePath=${row.filePath} importFolder=${row.importFolder}`)
+    }
+
+    return rowsUpdated
+  } catch (error) {
+    log.error(`Error updating importFolder: ${error.message}`)
     throw error
   }
 }

@@ -64,7 +64,8 @@ async function queryMediaInBatches(db, mediaIDs) {
         filePath: media.filePath,
         fileName: media.fileName,
         exifData: media.exifData,
-        favorite: media.favorite
+        favorite: media.favorite,
+        importFolder: media.importFolder
       })
       .from(media)
       .where(inArray(media.mediaID, batch))
@@ -1105,6 +1106,12 @@ export async function exportCamtrapDP(studyId, options = {}) {
       // Sanitize values to comply with CamtrapDP spec
       const sanitizedRow = sanitizeMedia(rawRow)
 
+      // Re-add importFolder after sanitization (not part of CamtrapDP spec,
+      // but needed for round-trip fidelity when exporting without media)
+      if (!includeMedia && m.importFolder) {
+        sanitizedRow.importFolder = m.importFolder
+      }
+
       // Validate against schema (non-blocking - collect errors)
       const result = mediaSchema.safeParse(sanitizedRow)
       if (!result.success) {
@@ -1227,7 +1234,7 @@ export async function exportCamtrapDP(studyId, options = {}) {
       'coordinateUncertainty'
     ])
 
-    const mediaCSV = toCSV(mediaRows, [
+    const mediaColumns = [
       'mediaID',
       'deploymentID',
       'timestamp',
@@ -1236,8 +1243,13 @@ export async function exportCamtrapDP(studyId, options = {}) {
       'fileMediatype',
       'fileName',
       'exifData',
-      'favorite'
-    ])
+      'favorite',
+      // Include importFolder when not bundling media so re-import can
+      // reconstruct the correct folder grouping in the Files tab
+      ...(includeMedia ? [] : ['importFolder'])
+    ]
+
+    const mediaCSV = toCSV(mediaRows, mediaColumns)
 
     const observationsCSV = toCSV(observationsRows, [
       'observationID',
