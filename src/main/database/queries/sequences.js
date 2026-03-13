@@ -93,10 +93,16 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
     }
 
     // Correlated subquery for blank detection
+    // Excludes observationType='blank' so media with only blank observations are still considered blank
     const matchingObservations = db
       .select({ one: sql`1` })
       .from(observations)
-      .where(eq(observations.mediaID, media.mediaID))
+      .where(
+        and(
+          eq(observations.mediaID, media.mediaID),
+          or(isNull(observations.observationType), ne(observations.observationType, 'blank'))
+        )
+      )
 
     // Phase 1: Timestamped media
     if (phase === 'timestamped') {
@@ -406,10 +412,16 @@ export async function hasTimestampedMedia(dbPath, options = {}) {
     }
 
     // Correlated subquery for blank detection
+    // Excludes observationType='blank' so media with only blank observations are still considered blank
     const matchingObservations = db
       .select({ one: sql`1` })
       .from(observations)
-      .where(eq(observations.mediaID, media.mediaID))
+      .where(
+        and(
+          eq(observations.mediaID, media.mediaID),
+          or(isNull(observations.observationType), ne(observations.observationType, 'blank'))
+        )
+      )
 
     let result
 
