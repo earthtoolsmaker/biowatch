@@ -184,6 +184,7 @@ function LilaImportProgress({ isOpen, progress, onCancel }) {
 
   const isError = stage === 'error'
   const isComplete = stage === 'complete'
+  const isCancelled = stage === 'cancelled'
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -196,9 +197,11 @@ function LilaImportProgress({ isOpen, progress, onCancel }) {
                 ? 'Import Failed'
                 : isComplete
                   ? 'Import Complete'
-                  : 'Importing LILA Dataset'}
+                  : isCancelled
+                    ? 'Import Cancelled'
+                    : 'Importing LILA Dataset'}
             </h2>
-            {!isComplete && !isError && (
+            {!isComplete && !isError && !isCancelled && (
               <button
                 onClick={onCancel}
                 className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -217,7 +220,16 @@ function LilaImportProgress({ isOpen, progress, onCancel }) {
 
         {/* Content */}
         <div className="px-6 py-4">
-          {isError ? (
+          {isCancelled ? (
+            /* Cancelled state */
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 text-amber-600">
+                <X size={20} />
+                <span className="font-medium">Import cancelled</span>
+              </div>
+              <p className="text-sm text-gray-500 mt-2">Partial data has been cleaned up.</p>
+            </div>
+          ) : isError ? (
             /* Error state */
             <div className="bg-red-50 border border-red-200 rounded-lg p-4">
               <div className="flex items-center gap-2 text-red-600 mb-2">
@@ -259,7 +271,14 @@ function LilaImportProgress({ isOpen, progress, onCancel }) {
 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-gray-200">
-          {isError ? (
+          {isCancelled ? (
+            <button
+              onClick={onCancel}
+              className="w-full px-4 py-2 text-sm font-medium text-white bg-gray-600 hover:bg-gray-700 rounded-md transition-colors"
+            >
+              Close
+            </button>
+          ) : isError ? (
             <button
               onClick={onCancel}
               className="w-full px-4 py-2 text-sm font-medium text-white bg-gray-600 hover:bg-gray-700 rounded-md transition-colors"

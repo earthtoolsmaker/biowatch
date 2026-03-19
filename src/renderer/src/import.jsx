@@ -369,14 +369,15 @@ export default function Import({ onNewStudy, studiesCount = 0 }) {
         stageName: 'Starting import...'
       })
 
-      const { data, id, path } = await window.api.importGbifDataset(key)
+      const result = await window.api.importGbifDataset(key)
 
-      if (!id) {
+      if (!result || !result.id) {
         setIsGbifImporting(false)
         setGbifImportProgress(null)
         return
       }
 
+      const { data, id, path } = result
       console.log('GBIF dataset imported:', data, id)
 
       // Brief delay to show completion state, then navigate
@@ -394,7 +395,12 @@ export default function Import({ onNewStudy, studiesCount = 0 }) {
     }
   }
 
-  const handleCancelGbifImport = () => {
+  const handleCancelGbifImport = async () => {
+    try {
+      await window.api.cancelGbifImport(selectedGbifDataset?.key)
+    } catch (e) {
+      console.error('Error cancelling GBIF import:', e)
+    }
     setIsGbifImporting(false)
     setGbifImportProgress(null)
   }
@@ -409,14 +415,15 @@ export default function Import({ onNewStudy, studiesCount = 0 }) {
         datasetTitle: 'LILA Dataset'
       })
 
-      const { data, id, path } = await window.api.importLilaDataset(datasetId)
+      const result = await window.api.importLilaDataset(datasetId)
 
-      if (!id) {
+      if (!result || !result.id) {
         setIsLilaImporting(false)
         setLilaImportProgress(null)
         return
       }
 
+      const { data, id, path } = result
       console.log('LILA dataset imported:', data, id)
 
       // Brief delay to show completion state, then navigate
@@ -433,7 +440,12 @@ export default function Import({ onNewStudy, studiesCount = 0 }) {
     }
   }
 
-  const handleCancelLilaImport = () => {
+  const handleCancelLilaImport = async () => {
+    try {
+      await window.api.cancelLilaImport(selectedLilaDataset?.id)
+    } catch (e) {
+      console.error('Error cancelling LILA import:', e)
+    }
     setIsLilaImporting(false)
     setLilaImportProgress(null)
   }
