@@ -1,0 +1,32 @@
+{
+  "name": "test-event-expansion",
+  "title": "Test Event-Based Expansion",
+  "description": "Test dataset for event-based observation expansion to media",
+  "version": "1.0.0",
+  "created": "2024-01-01T00:00:00Z",
+  "contributors": [
+    {
+      "title": "Test Contributor",
+      "email": "test@example.com",
+      "role": "contributor"
+    }
+  ],
+  "profile": "tabular-data-package",
+  "resources": [
+    {
+      "name": "deployments",
+      "path": "deployments.csv",
+      "profile": "tabular-data-resource"
+    },
+    {
+      "name": "media",
+      "path": "media.csv",
+      "profile": "tabular-data-resource"
+    },
+    {
+      "name": "observations",
+      "path": "observations.csv",
+      "profile": "tabular-data-resource"
+    }
+  ]
+}
