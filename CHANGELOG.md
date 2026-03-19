@@ -5,6 +5,31 @@ All notable changes to Biowatch will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.1] - 2026-03-19
+
+### Added
+
+- Unit tests for detection_utils functions
+
+### Changed
+
+- Register local-file as a privileged scheme with startup helper
+- Bump python common environment to 0.1.4
+- Bump torch from 2.6.0 to 2.7.0
+- Bump speciesnet from 5.0.0 to 5.0.3
+- Extract shared detection functions into detection_utils module
+- Rename video_utils.py to utils.py and use safe_imread in all servers
+- Remove importer after completion
+
+### Fixed
+
+- Unpack ffmpeg-static in electron app package
+- Skip duplicate media on re-import to prevent UNIQUE constraint errors
+- Stream local-file responses and support suffix byte ranges
+- Fallback to a free port when preferred port is occupied
+- Handle error predictions in speciesnet parseScientificName
+- Skip macOS resource fork files and handle corrupt images gracefully
+
 ## [1.7.0] - 2026-02-09
 
 ### Added
