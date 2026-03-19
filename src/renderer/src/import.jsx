@@ -235,12 +235,11 @@ export default function Import({ studiesCount = 0 }) {
       }
 
       // Brief delay to show completion state, then navigate
-      setTimeout(async () => {
-        setIsCamtrapDPImporting(false)
-        setCamtrapDPImportProgress(null)
-        await queryClient.invalidateQueries({ queryKey: ['studies'] })
-        navigate(`/study/${result.id}`)
-      }, 800)
+      await new Promise((resolve) => setTimeout(resolve, 800))
+      setIsCamtrapDPImporting(false)
+      setCamtrapDPImportProgress(null)
+      await queryClient.invalidateQueries({ queryKey: ['studies'] })
+      navigate(`/study/${result.id}`)
     } catch (error) {
       console.error('Failed to import CamTrap DP dataset:', error)
       // Error state is already set via IPC progress event
@@ -289,12 +288,11 @@ export default function Import({ studiesCount = 0 }) {
       console.log('Demo dataset downloaded:', data, id)
 
       // Brief delay to show completion state, then navigate
-      setTimeout(async () => {
-        setIsDemoImporting(false)
-        setDemoImportProgress(null)
-        await queryClient.invalidateQueries({ queryKey: ['studies'] })
-        navigate(`/study/${id}`)
-      }, 800)
+      await new Promise((resolve) => setTimeout(resolve, 800))
+      setIsDemoImporting(false)
+      setDemoImportProgress(null)
+      await queryClient.invalidateQueries({ queryKey: ['studies'] })
+      navigate(`/study/${id}`)
     } catch (error) {
       console.error('Failed to import demo dataset:', error)
       // Error state is already set via IPC progress event
@@ -380,12 +378,11 @@ export default function Import({ studiesCount = 0 }) {
       console.log('GBIF dataset imported:', data, id)
 
       // Brief delay to show completion state, then navigate
-      setTimeout(async () => {
-        setIsGbifImporting(false)
-        setGbifImportProgress(null)
-        await queryClient.invalidateQueries({ queryKey: ['studies'] })
-        navigate(`/study/${id}`)
-      }, 800)
+      await new Promise((resolve) => setTimeout(resolve, 800))
+      setIsGbifImporting(false)
+      setGbifImportProgress(null)
+      await queryClient.invalidateQueries({ queryKey: ['studies'] })
+      navigate(`/study/${id}`)
     } catch (error) {
       console.error('Failed to import GBIF dataset:', error)
       // Error state is already set via IPC progress event
@@ -425,12 +422,11 @@ export default function Import({ studiesCount = 0 }) {
       console.log('LILA dataset imported:', data, id)
 
       // Brief delay to show completion state, then navigate
-      setTimeout(async () => {
-        setIsLilaImporting(false)
-        setLilaImportProgress(null)
-        await queryClient.invalidateQueries({ queryKey: ['studies'] })
-        navigate(`/study/${id}`)
-      }, 800)
+      await new Promise((resolve) => setTimeout(resolve, 800))
+      setIsLilaImporting(false)
+      setLilaImportProgress(null)
+      await queryClient.invalidateQueries({ queryKey: ['studies'] })
+      navigate(`/study/${id}`)
     } catch (error) {
       console.error('Failed to import LILA dataset:', error)
       // Error state is already set via IPC progress event
