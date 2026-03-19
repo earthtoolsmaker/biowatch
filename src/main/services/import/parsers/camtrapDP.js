@@ -138,6 +138,7 @@ export async function importCamTrapDatasetWithPath(
       // Insert data using Drizzle with progress callback
       await insertCSVData(
         db,
+        manager,
         filePath,
         table,
         name,
@@ -239,18 +240,57 @@ async function getCSVColumns(filePath) {
 }
 
 /**
- * Insert CSV data into a Drizzle schema table
+ * Convert a JavaScript value to a SQLite-compatible value.
+ * SQLite only accepts: numbers, strings, bigints, buffers, and null.
+ * @param {any} value - JavaScript value to convert
+ * @returns {number|string|bigint|Buffer|null} SQLite-compatible value
+ */
+function toSqliteValue(value) {
+  if (value === undefined) return null
+  if (value === null) return null
+  if (typeof value === 'boolean') return value ? 1 : 0
+  if (typeof value === 'object') return JSON.stringify(value)
+  return value
+}
+
+/**
+ * Create a transaction-wrapped bulk inserter for high-performance batch inserts.
+ * Uses raw prepared statements instead of Drizzle ORM for maximum speed.
+ * @param {import('better-sqlite3').Database} sqlite - Raw better-sqlite3 connection
+ * @param {string} tableName - Name of the table to insert into
+ * @param {string[]} columns - Array of column names
+ * @returns {Function} Transaction-wrapped inserter function
+ */
+function createBulkInserter(sqlite, tableName, columns) {
+  const placeholders = columns.map(() => '?').join(', ')
+  const insertSql = `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders})`
+  const stmt = sqlite.prepare(insertSql)
+
+  return sqlite.transaction((rows) => {
+    for (const row of rows) {
+      stmt.run(...columns.map((col) => toSqliteValue(row[col])))
+    }
+  })
+}
+
+/**
+ * Insert CSV data into a Drizzle schema table.
+ * Streams rows and inserts batches as they fill (O(batchSize) memory).
+ * Uses raw prepared statements with transaction wrapping for maximum speed.
  * @param {Object} db - Drizzle database instance
+ * @param {Object} manager - StudyDatabaseManager instance (for raw SQLite access)
  * @param {string} filePath - Path to the CSV file
  * @param {Object} table - Drizzle table schema
  * @param {string} tableName - Name of the table
  * @param {string[]} columns - Array of column names from CSV
  * @param {string} directoryPath - Path to the CamTrapDP directory
  * @param {function} onProgress - Optional callback for progress updates
+ * @param {AbortSignal} signal - Optional abort signal for cancellation
  * @returns {Promise<void>}
  */
 async function insertCSVData(
   db,
+  manager,
   filePath,
   table,
   tableName,
@@ -260,73 +300,68 @@ async function insertCSVData(
   signal = null
 ) {
   log.debug(`Beginning data insertion from ${filePath} to table ${tableName}`)
+  log.debug(`directoryPath: ${directoryPath}`)
 
-  return new Promise((resolve, reject) => {
-    const stream = fs.createReadStream(filePath).pipe(csv())
-    const rows = []
-    let rowCount = 0
+  const sqlite = manager.getSqlite()
+  const stream = fs.createReadStream(filePath).pipe(csv())
+  const pathCache = {} // caches file path resolution strategy (probed on first media row)
+  const batchSize = 2000
+  let batch = []
+  let inserter = null
+  let insertedRows = 0
+  let totalRows = 0
+  let batchNumber = 0
 
-    log.debug(`directoryPath: ${directoryPath}`)
+  try {
+    for await (const row of stream) {
+      if (signal?.aborted) {
+        throw new DOMException('Import cancelled', 'AbortError')
+      }
 
-    stream.on('data', (row) => {
-      // Transform CSV row data to match schema fields
-      const transformedRow = transformRowToSchema(row, tableName, columns, directoryPath)
+      const transformedRow = transformRowToSchema(row, tableName, columns, directoryPath, pathCache)
       if (transformedRow) {
-        rows.push(transformedRow)
-        rowCount++
-      }
-    })
-
-    stream.on('end', async () => {
-      try {
-        if (rows.length > 0) {
-          // Use Drizzle batch inserts (transactions temporarily disabled for compatibility)
-          log.debug(`Starting bulk insert of ${rows.length} rows`)
-
-          // Insert in batches for better performance
-          const batchSize = 1000
-          const totalBatches = Math.ceil(rows.length / batchSize)
-
-          for (let i = 0; i < rows.length; i += batchSize) {
-            if (signal?.aborted) {
-              throw new DOMException('Import cancelled', 'AbortError')
-            }
-
-            const batch = rows.slice(i, i + batchSize)
-            await db.insert(table).values(batch)
-
-            const insertedRows = Math.min(i + batchSize, rows.length)
-            const batchNumber = Math.floor(i / batchSize) + 1
-
-            log.debug(`Inserted batch ${batchNumber}/${totalBatches} into ${tableName}`)
-
-            // Report progress after each batch
-            if (onProgress) {
-              onProgress({
-                insertedRows,
-                totalRows: rows.length,
-                batchNumber,
-                totalBatches
-              })
-            }
-          }
-
-          log.info(`Completed insertion of ${rowCount} rows into ${tableName}`)
-        } else {
-          log.warn(`No valid rows found in ${filePath} for table ${tableName}`)
+        // Create bulk inserter on first row (need column names from transformed data)
+        if (!inserter) {
+          inserter = createBulkInserter(sqlite, tableName, Object.keys(transformedRow))
         }
-        resolve()
-      } catch (error) {
-        log.error(`Error during bulk insert for ${tableName}:`, error)
-        reject(error)
+        batch.push(transformedRow)
+        totalRows++
       }
-    })
 
-    stream.on('error', (error) => {
-      log.error(`Error reading CSV file ${filePath}:`, error)
-      reject(error)
-    })
-  })
+      if (batch.length >= batchSize) {
+        inserter(batch)
+        insertedRows += batch.length
+        batchNumber++
+        batch = []
+
+        log.debug(`Inserted batch ${batchNumber} into ${tableName} (${insertedRows} rows so far)`)
+
+        if (onProgress) {
+          onProgress({ insertedRows, totalRows, batchNumber })
+        }
+      }
+    }
+
+    // Insert remaining rows
+    if (batch.length > 0) {
+      inserter(batch)
+      insertedRows += batch.length
+      batchNumber++
+
+      if (onProgress) {
+        onProgress({ insertedRows, totalRows, batchNumber })
+      }
+    }
+
+    if (totalRows > 0) {
+      log.info(`Completed insertion of ${totalRows} rows into ${tableName}`)
+    } else {
+      log.warn(`No valid rows found in ${filePath} for table ${tableName}`)
+    }
+  } catch (error) {
+    log.error(`Error during insert for ${tableName}:`, error)
+    throw error
+  }
 }
 
 /**
@@ -337,13 +372,13 @@ async function insertCSVData(
  * @param {string} directoryPath - Path to the CamTrapDP directory
  * @returns {Object|null} - Transformed row data or null if invalid
  */
-function transformRowToSchema(row, tableName, columns, directoryPath) {
+function transformRowToSchema(row, tableName, columns, directoryPath, pathCache) {
   try {
     switch (tableName) {
       case 'deployments':
         return transformDeploymentRow(row)
       case 'media':
-        return transformMediaRow(row, directoryPath)
+        return transformMediaRow(row, directoryPath, pathCache)
       case 'observations':
         return transformObservationRow(row)
       default:
@@ -399,7 +434,7 @@ function transformDeploymentRow(row) {
 /**
  * Transform media CSV row to media schema
  */
-function transformMediaRow(row, directoryPath) {
+function transformMediaRow(row, directoryPath, pathCache) {
   const mediaID = row.mediaID || row.media_id
 
   // Skip rows without required primary key
@@ -428,7 +463,7 @@ function transformMediaRow(row, directoryPath) {
     mediaID,
     deploymentID: row.deploymentID || row.deployment_id || null,
     timestamp: transformDateField(row.timestamp),
-    filePath: transformFilePathField(row.filePath || row.file_path, directoryPath),
+    filePath: transformFilePathField(row.filePath || row.file_path, directoryPath, pathCache),
     fileName: row.fileName || row.file_name || path.basename(row.filePath || row.file_path || ''),
     fileMediatype: row.fileMediatype || row.file_mediatype || null,
     exifData,
@@ -460,7 +495,6 @@ function transformObservationRow(row) {
     commonName: row.commonName || row.common_name || null,
     classificationProbability: parseFloat(row.classificationProbability) || null,
     count: parseInt(row.count) || null,
-    prediction: row.prediction || null,
     lifeStage: row.lifeStage || row.life_stage || null,
     age: row.age || null,
     sex: row.sex || null,
@@ -521,7 +555,7 @@ function parseFloatOrNull(value) {
  * Transform file path field to absolute path
  * Handles cross-platform path separators and smart detection for file location
  */
-function transformFilePathField(filePath, directoryPath) {
+function transformFilePathField(filePath, directoryPath, pathCache) {
   if (!filePath) return null
 
   // If it's already an absolute path or URL, return as is
@@ -533,16 +567,26 @@ function transformFilePathField(filePath, directoryPath) {
   // Handle both forward and backward slashes from different OS exports
   const normalizedPath = filePath.split(/[\\/]/).join(path.sep)
 
-  // Smart detection: try camtrap directory first, then fall back to parent
+  // Use cached strategy if available (probed on first media row)
+  if (pathCache && pathCache.strategy !== undefined) {
+    if (pathCache.strategy === 'direct') {
+      return path.join(directoryPath, normalizedPath)
+    }
+    return path.join(path.dirname(directoryPath), normalizedPath)
+  }
+
+  // Probe: try camtrap directory first, then fall back to parent
   // This handles both:
   // 1. Re-imported exports where media is in media/ subfolder (new behavior)
   // 2. External datasets where media is in sibling directory (backward compat)
   const directPath = path.join(directoryPath, normalizedPath)
   if (fs.existsSync(directPath)) {
+    if (pathCache) pathCache.strategy = 'direct'
     return directPath
   }
 
   // Fall back to parent directory (original behavior for backward compatibility)
+  if (pathCache) pathCache.strategy = 'parent'
   const parentDir = path.dirname(directoryPath)
   return path.join(parentDir, normalizedPath)
 }
