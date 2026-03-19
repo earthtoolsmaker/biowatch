@@ -253,6 +253,12 @@ const api = {
   importLilaDataset: async (datasetId) => {
     return await electronAPI.ipcRenderer.invoke('import:lila-dataset', datasetId)
   },
+  cancelGbifImport: async (datasetKey) => {
+    return await electronAPI.ipcRenderer.invoke('import:cancel-gbif', datasetKey)
+  },
+  cancelLilaImport: async (datasetId) => {
+    return await electronAPI.ipcRenderer.invoke('import:cancel-lila', datasetId)
+  },
   // LILA import progress events
   onLilaImportProgress: (callback) => {
     const handler = (_event, data) => callback(data)

@@ -548,6 +548,8 @@ Remote images from GBIF, Agouti, and LILA imports are cached to disk for offline
 
 ## Cancellation
 
+### Export Cancellation
+
 Exports support cancellation:
 
 ```javascript
@@ -559,6 +561,29 @@ if (activeExport.isCancelled) {
   break
 }
 ```
+
+### Import Cancellation (GBIF & LILA)
+
+GBIF and LILA imports support cancellation via `AbortController`. When cancelled, the partially created study database is deleted.
+
+```javascript
+// Cancel active GBIF import (datasetKey must match the active import)
+await window.api.cancelGbifImport(datasetKey)
+
+// Cancel active LILA import (datasetId must match the active import)
+await window.api.cancelLilaImport(datasetId)
+```
+
+The cancellation signal (`AbortSignal`) is threaded through the entire pipeline:
+- **Downloads**: Aborts the fetch reader loop in `downloadFileWithRetry`
+- **Extraction**: Destroys the unzipper read stream in `extractZip`
+- **Database imports**: Checked between batch inserts (every 1000-2000 rows)
+
+On cancellation:
+1. The active operation throws an `AbortError`
+2. The study database is closed and its directory is deleted
+3. Temporary download/extraction files are cleaned up
+4. A `stage: 'cancelled'` progress event is sent to the renderer
 
 ---
 

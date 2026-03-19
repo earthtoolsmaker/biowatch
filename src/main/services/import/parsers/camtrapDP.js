@@ -105,6 +105,8 @@ export async function importCamTrapDatasetWithPath(
 
     log.info(`Found ${existingFiles.length} CamTrapDP CSV files to import`)
 
+    const signal = options.signal || null
+
     // Process each CSV file in dependency order
     for (let fileIndex = 0; fileIndex < existingFiles.length; fileIndex++) {
       const { file, table, name } = existingFiles[fileIndex]
@@ -128,18 +130,31 @@ export async function importCamTrapDatasetWithPath(
       const columns = await getCSVColumns(filePath)
       log.debug(`Found ${columns.length} columns in ${file}`)
 
+      if (signal?.aborted) {
+        throw new DOMException('Import cancelled', 'AbortError')
+      }
+
       // Insert data using Drizzle with progress callback
-      await insertCSVData(db, filePath, table, name, columns, directoryPath, (batchProgress) => {
-        if (onProgress) {
-          onProgress({
-            currentFile: file,
-            fileIndex,
-            totalFiles: existingFiles.length,
-            phase: 'inserting',
-            ...batchProgress
-          })
-        }
-      })
+      await insertCSVData(
+        db,
+        filePath,
+        table,
+        name,
+        columns,
+        directoryPath,
+        (batchProgress) => {
+          if (onProgress) {
+            onProgress({
+              currentFile: file,
+              fileIndex,
+              totalFiles: existingFiles.length,
+              phase: 'inserting',
+              ...batchProgress
+            })
+          }
+        },
+        signal
+      )
 
       log.info(`Successfully imported ${file} into ${name} table`)
     }
@@ -238,7 +253,8 @@ async function insertCSVData(
   tableName,
   columns,
   directoryPath,
-  onProgress = null
+  onProgress = null,
+  signal = null
 ) {
   log.debug(`Beginning data insertion from ${filePath} to table ${tableName}`)
 
@@ -269,6 +285,10 @@ async function insertCSVData(
           const totalBatches = Math.ceil(rows.length / batchSize)
 
           for (let i = 0; i < rows.length; i += batchSize) {
+            if (signal?.aborted) {
+              throw new DOMException('Import cancelled', 'AbortError')
+            }
+
             const batch = rows.slice(i, i + batchSize)
             await db.insert(table).values(batch)
 

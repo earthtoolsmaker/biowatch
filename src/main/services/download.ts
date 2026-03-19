@@ -216,8 +216,12 @@ export async function extractTarGz(tarPath, extractPath, onProgress, useCache = 
  *     console.error('Extraction failed:', error);
  *   });
  */
-export async function extractZip(zipPath, extractPath) {
+export async function extractZip(zipPath, extractPath, signal = null) {
   log.info(`Extracting ${zipPath} to ${extractPath}`)
+
+  if (signal?.aborted) {
+    throw new DOMException('Import cancelled', 'AbortError')
+  }
 
   // Create the extraction directory if it doesn't exist
   if (!existsSync(extractPath)) {
@@ -225,8 +229,19 @@ export async function extractZip(zipPath, extractPath) {
   }
 
   return new Promise((resolve, reject) => {
-    createReadStream(zipPath)
-      .pipe(unzipper.Extract({ path: extractPath }))
+    const readStream = createReadStream(zipPath)
+    const extractStream = readStream.pipe(unzipper.Extract({ path: extractPath }))
+
+    if (signal) {
+      const abortHandler = () => {
+        readStream.destroy()
+        reject(new DOMException('Import cancelled', 'AbortError'))
+      }
+      signal.addEventListener('abort', abortHandler, { once: true })
+      extractStream.on('close', () => signal.removeEventListener('abort', abortHandler))
+    }
+
+    extractStream
       .on('finish', () => {}) //finish can be emitted before extraction is complete
       .on('close', () => {
         log.info(`Extraction complete to ${extractPath}`)
@@ -313,8 +328,18 @@ function getPartialFileSize(filePath) {
  * @param {number} attemptNumber - Current attempt number (for internal use)
  * @returns {Promise<string>} The destination path on success
  */
-export async function downloadFileWithRetry(url, destination, onProgress, attemptNumber = 0) {
+export async function downloadFileWithRetry(
+  url,
+  destination,
+  onProgress,
+  attemptNumber = 0,
+  signal = null
+) {
   const isRetry = attemptNumber > 0
+
+  if (signal?.aborted) {
+    throw new DOMException('Import cancelled', 'AbortError')
+  }
 
   try {
     if (isRetry) {
@@ -355,6 +380,12 @@ export async function downloadFileWithRetry(url, destination, onProgress, attemp
       let downloadedBytes = isResuming ? partialSize : 0
 
       const readStream = async () => {
+        if (signal?.aborted) {
+          await reader.cancel()
+          writer.end()
+          throw new DOMException('Import cancelled', 'AbortError')
+        }
+
         const { done, value } = await reader.read()
 
         if (done) {
@@ -387,6 +418,11 @@ export async function downloadFileWithRetry(url, destination, onProgress, attemp
   } catch (error) {
     log.error(`Download attempt ${attemptNumber + 1} failed: ${error.message}`)
 
+    // Don't retry if cancelled by user
+    if (signal?.aborted || error.name === 'AbortError') {
+      throw error
+    }
+
     // Check if we should retry
     if (attemptNumber < RETRY_CONFIG.maxRetries && isRetryableError(error)) {
       const delay = calculateRetryDelay(attemptNumber)
@@ -395,7 +431,7 @@ export async function downloadFileWithRetry(url, destination, onProgress, attemp
       )
 
       await new Promise((resolve) => setTimeout(resolve, delay))
-      return downloadFileWithRetry(url, destination, onProgress, attemptNumber + 1)
+      return downloadFileWithRetry(url, destination, onProgress, attemptNumber + 1, signal)
     }
 
     // No more retries or non-retryable error
@@ -409,9 +445,9 @@ export async function downloadFileWithRetry(url, destination, onProgress, attemp
   }
 }
 
-export async function downloadFile(url, destination, onProgress) {
+export async function downloadFile(url, destination, onProgress, signal = null) {
   // Use the robust retry version by default
-  return downloadFileWithRetry(url, destination, onProgress)
+  return downloadFileWithRetry(url, destination, onProgress, 0, signal)
 }
 
 /**

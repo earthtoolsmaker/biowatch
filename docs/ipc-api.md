@@ -49,7 +49,9 @@ const { data, error } = await window.api.getSequences(studyId, { limit: 20 })
 | `selectWildlifeDataset()` | `import:select-wildlife` | - | `{ path, data, id }` |
 | `selectDeepfauneDataset()` | `import:select-deepfaune` | - | `{ path, data, id }` |
 | `downloadDemoDataset()` | `import:download-demo` | - | `{ path, data, id }` |
-| `importGbifDataset(datasetKey)` | `import:gbif-dataset` | GBIF dataset key | `{ path, data, id }` |
+| `importGbifDataset(datasetKey)` | `import:gbif-dataset` | GBIF dataset key | `{ path, data, id }` or `null` if cancelled |
+| `cancelGbifImport(datasetKey)` | `import:cancel-gbif` | GBIF dataset key | `boolean` (true if cancelled) |
+| `cancelLilaImport(datasetId)` | `import:cancel-lila` | LILA dataset ID | `boolean` (true if cancelled) |
 | `onCamtrapDPImportProgress(callback)` | `camtrap-dp-import:progress` | callback function | unsubscribe function |
 
 ### Species & Distribution

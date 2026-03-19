@@ -6,8 +6,10 @@ import { spawn } from 'child_process'
 import crypto from 'crypto'
 import { app, dialog, ipcMain } from 'electron'
 import log from 'electron-log'
-import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'fs'
+import { existsSync, mkdirSync, readdirSync, rmSync, statSync, unlinkSync } from 'fs'
 import { join } from 'path'
+import { closeStudyDatabase } from '../database/index.js'
+import { getStudyPath } from '../services/paths.js'
 import { processDataset } from '../services/extractor.js'
 import {
   sendGbifImportProgress,
@@ -23,6 +25,30 @@ import {
   LILA_DATASETS
 } from '../services/import/index.js'
 import { extractZip, downloadFile } from '../services/download.ts'
+
+// Module-level state for tracking active imports (for cancellation)
+let activeGbifImport = null // { abortController, studyId, datasetKey, downloadDir }
+let activeLilaImport = null // { abortController, studyId, datasetId }
+
+/**
+ * Cleanup a partially imported study directory
+ */
+async function cleanupStudy(studyId) {
+  try {
+    await closeStudyDatabase(studyId)
+  } catch (e) {
+    log.warn('Error closing study database during cancel cleanup:', e.message)
+  }
+  try {
+    const studyPath = getStudyPath(app.getPath('userData'), studyId)
+    if (studyPath && existsSync(studyPath)) {
+      rmSync(studyPath, { recursive: true, force: true })
+      log.info(`Cleaned up cancelled study directory: ${studyPath}`)
+    }
+  } catch (e) {
+    log.warn('Error deleting study directory during cancel cleanup:', e.message)
+  }
+}
 
 /**
  * Register all import-related IPC handlers
@@ -464,6 +490,12 @@ export function registerImportIPCHandlers() {
 
   ipcMain.handle('import:gbif-dataset', async (_, datasetKey) => {
     let datasetTitle = null
+    const abortController = new AbortController()
+    const signal = abortController.signal
+    const id = crypto.randomUUID()
+    const downloadDir = join(app.getPath('temp'), `gbif-${datasetKey}`)
+
+    activeGbifImport = { abortController, studyId: id, datasetKey, downloadDir }
 
     try {
       log.info(`Downloading and importing GBIF dataset: ${datasetKey}`)
@@ -483,6 +515,8 @@ export function registerImportIPCHandlers() {
         throw new Error(`Failed to fetch dataset metadata: ${datasetResponse.statusText}`)
       }
 
+      if (signal.aborted) throw new DOMException('Import cancelled', 'AbortError')
+
       const datasetMetadata = await datasetResponse.json()
       datasetTitle = datasetMetadata.title
       log.info(`Dataset title: ${datasetTitle}`)
@@ -499,7 +533,6 @@ export function registerImportIPCHandlers() {
       log.info(`Found download URL: ${downloadUrl}`)
 
       // Create a temp directory for the downloaded file
-      const downloadDir = join(app.getPath('temp'), `gbif-${datasetKey}`)
       if (!existsSync(downloadDir)) {
         mkdirSync(downloadDir, { recursive: true })
       }
@@ -519,21 +552,26 @@ export function registerImportIPCHandlers() {
       })
 
       log.info(`Downloading GBIF dataset from ${downloadUrl} to ${zipPath}`)
-      await downloadFile(downloadUrl, zipPath, (progress) => {
-        sendGbifImportProgress({
-          stage: 'downloading',
-          stageIndex: 1,
-          totalStages: 4,
-          stageName: 'Downloading dataset archive...',
-          datasetKey,
-          datasetTitle,
-          downloadProgress: {
-            percent: progress.percent || 0,
-            downloadedBytes: progress.downloadedBytes || 0,
-            totalBytes: progress.totalBytes || 0
-          }
-        })
-      })
+      await downloadFile(
+        downloadUrl,
+        zipPath,
+        (progress) => {
+          sendGbifImportProgress({
+            stage: 'downloading',
+            stageIndex: 1,
+            totalStages: 4,
+            stageName: 'Downloading dataset archive...',
+            datasetKey,
+            datasetTitle,
+            downloadProgress: {
+              percent: progress.percent || 0,
+              downloadedBytes: progress.downloadedBytes || 0,
+              totalBytes: progress.totalBytes || 0
+            }
+          })
+        },
+        signal
+      )
       log.info('Download complete')
 
       // Stage 2: Extracting
@@ -569,7 +607,7 @@ export function registerImportIPCHandlers() {
       }
 
       // Extract the zip file
-      await extractZip(zipPath, extractPath)
+      await extractZip(zipPath, extractPath, signal)
 
       // Find the directory containing a datapackage.json file
       let camtrapDpDirPath = null
@@ -614,25 +652,29 @@ export function registerImportIPCHandlers() {
         datasetTitle
       })
 
-      const id = crypto.randomUUID()
-      const { data } = await importCamTrapDataset(camtrapDpDirPath, id, (csvProgress) => {
-        sendGbifImportProgress({
-          stage: 'importing_csvs',
-          stageIndex: 3,
-          totalStages: 4,
-          stageName: `Importing ${csvProgress.currentFile}...`,
-          datasetKey,
-          datasetTitle,
-          csvProgress: {
-            currentFile: csvProgress.currentFile,
-            fileIndex: csvProgress.fileIndex,
-            totalFiles: csvProgress.totalFiles,
-            insertedRows: csvProgress.insertedRows || 0,
-            totalRows: csvProgress.totalRows || 0,
-            phase: csvProgress.phase
-          }
-        })
-      })
+      const { data } = await importCamTrapDataset(
+        camtrapDpDirPath,
+        id,
+        (csvProgress) => {
+          sendGbifImportProgress({
+            stage: 'importing_csvs',
+            stageIndex: 3,
+            totalStages: 4,
+            stageName: `Importing ${csvProgress.currentFile}...`,
+            datasetKey,
+            datasetTitle,
+            csvProgress: {
+              currentFile: csvProgress.currentFile,
+              fileIndex: csvProgress.fileIndex,
+              totalFiles: csvProgress.totalFiles,
+              insertedRows: csvProgress.insertedRows || 0,
+              totalRows: csvProgress.totalRows || 0,
+              phase: csvProgress.phase
+            }
+          })
+        },
+        { signal }
+      )
 
       const result = {
         path: camtrapDpDirPath,
@@ -687,6 +729,26 @@ export function registerImportIPCHandlers() {
 
       return result
     } catch (error) {
+      if (error.name === 'AbortError') {
+        log.info(`GBIF import cancelled by user: ${datasetKey}`)
+        await cleanupStudy(id)
+        try {
+          if (existsSync(downloadDir)) {
+            rmSync(downloadDir, { recursive: true, force: true })
+          }
+        } catch (e) {
+          log.warn('Error cleaning up download directory:', e.message)
+        }
+        sendGbifImportProgress({
+          stage: 'cancelled',
+          stageIndex: -1,
+          totalStages: 4,
+          datasetKey,
+          datasetTitle
+        })
+        return null
+      }
+
       log.error('Error downloading or importing GBIF dataset:', error)
 
       sendGbifImportProgress({
@@ -703,6 +765,8 @@ export function registerImportIPCHandlers() {
       })
 
       throw error
+    } finally {
+      activeGbifImport = null
     }
   })
 
@@ -713,6 +777,11 @@ export function registerImportIPCHandlers() {
 
   ipcMain.handle('import:lila-dataset', async (_, datasetId) => {
     let datasetTitle = null
+    const abortController = new AbortController()
+    const signal = abortController.signal
+    const id = crypto.randomUUID()
+
+    activeLilaImport = { abortController, studyId: id, datasetId }
 
     try {
       log.info(`Importing LILA dataset: ${datasetId}`)
@@ -724,16 +793,18 @@ export function registerImportIPCHandlers() {
       }
       datasetTitle = dataset.name
 
-      // Generate a unique ID for the study
-      const id = crypto.randomUUID()
-
       // Import the dataset with progress callback
-      const result = await importLilaDataset(datasetId, id, (progress) => {
-        sendLilaImportProgress({
-          ...progress,
-          datasetId
-        })
-      })
+      const result = await importLilaDataset(
+        datasetId,
+        id,
+        (progress) => {
+          sendLilaImportProgress({
+            ...progress,
+            datasetId
+          })
+        },
+        signal
+      )
 
       // Send completion progress
       sendLilaImportProgress({
@@ -749,6 +820,19 @@ export function registerImportIPCHandlers() {
         data: result.data
       }
     } catch (error) {
+      if (error.name === 'AbortError') {
+        log.info(`LILA import cancelled by user: ${datasetId}`)
+        await cleanupStudy(id)
+        sendLilaImportProgress({
+          stage: 'cancelled',
+          stageIndex: -1,
+          totalStages: 3,
+          datasetTitle,
+          datasetId
+        })
+        return null
+      }
+
       log.error('Error importing LILA dataset:', error)
 
       sendLilaImportProgress({
@@ -764,6 +848,23 @@ export function registerImportIPCHandlers() {
       })
 
       throw error
+    } finally {
+      activeLilaImport = null
     }
+  })
+
+  // Cancel handlers
+  ipcMain.handle('import:cancel-gbif', async (_, datasetKey) => {
+    if (!activeGbifImport || activeGbifImport.datasetKey !== datasetKey) return false
+    log.info(`Cancelling GBIF import for dataset: ${datasetKey}`)
+    activeGbifImport.abortController.abort()
+    return true
+  })
+
+  ipcMain.handle('import:cancel-lila', async (_, datasetId) => {
+    if (!activeLilaImport || activeLilaImport.datasetId !== datasetId) return false
+    log.info(`Cancelling LILA import for dataset: ${datasetId}`)
+    activeLilaImport.abortController.abort()
+    return true
   })
 }
