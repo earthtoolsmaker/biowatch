@@ -4,7 +4,7 @@ import csv from 'csv-parser'
 import { DateTime } from 'luxon'
 import { and, eq, gte, lte, sql, isNull } from 'drizzle-orm'
 import {
-  getDrizzleDb,
+  getStudyDatabase,
   deployments,
   media,
   observations,
@@ -61,8 +61,10 @@ export async function importCamTrapDatasetWithPath(
     fs.mkdirSync(dbDir, { recursive: true })
   }
 
-  // Get Drizzle database connection
-  const db = await getDrizzleDb(id, dbPath)
+  // Get database manager and enable import mode PRAGMAs
+  const manager = await getStudyDatabase(id, dbPath)
+  const db = manager.getDb()
+  manager.setImportMode()
 
   // Get dataset name from datapackage.json
   let data
@@ -205,6 +207,8 @@ export async function importCamTrapDatasetWithPath(
     log.error('Error importing dataset:', error)
     console.error('Error importing dataset:', error)
     throw error
+  } finally {
+    manager.resetImportMode()
   }
 }
 
