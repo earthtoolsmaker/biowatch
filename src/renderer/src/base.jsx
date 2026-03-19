@@ -348,8 +348,11 @@ function AppContent() {
         </div>
 
         {/* Studies List */}
-        <div className="flex-1 overflow-y-auto">
-          {filteredStudies.length === 0 && !searchQuery && (
+        <div
+          className="flex-1 overflow-y-auto scrollbar-hide"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        >
+          {filteredStudies.length === 0 && !searchQuery && location.pathname !== '/import' && (
             <div className="flex items-center h-full pb-20">
               <div className="p-4 text-center flex items-center flex-col">
                 <div className="p-3 bg-blue-50 rounded-full w-fit mx-auto mb-3">
