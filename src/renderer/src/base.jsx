@@ -97,7 +97,8 @@ function AppContent() {
   const [searchQuery, setSearchQuery] = useState('')
   const renameInputRef = useRef(null)
 
-  const [showSkeleton, setShowSkeleton] = useState(false)
+  const [showSkeleton, setShowSkeleton] = useState(true)
+  const skeletonShownAt = useRef(Date.now())
 
   const { data: studies = [], isLoading } = useQuery({
     queryKey: ['studies'],
@@ -118,12 +119,19 @@ function AppContent() {
   })
 
   useEffect(() => {
-    if (!isLoading) {
+    if (isLoading) return
+    const elapsed = Date.now() - skeletonShownAt.current
+    // Fast load (< 300ms): hide skeleton immediately, user never saw it
+    if (elapsed < 300) {
       setShowSkeleton(false)
       return
     }
-    const timer = setTimeout(() => setShowSkeleton(true), 300)
-    return () => clearTimeout(timer)
+    // Slow load: keep skeleton visible for at least 1s total
+    const remaining = Math.max(0, 1000 - elapsed)
+    const hideTimer = setTimeout(() => {
+      setShowSkeleton(false)
+    }, remaining)
+    return () => clearTimeout(hideTimer)
   }, [isLoading])
 
   useEffect(() => {
