@@ -97,6 +97,8 @@ function AppContent() {
   const [searchQuery, setSearchQuery] = useState('')
   const renameInputRef = useRef(null)
 
+  const [showSkeleton, setShowSkeleton] = useState(false)
+
   const { data: studies = [], isLoading } = useQuery({
     queryKey: ['studies'],
     queryFn: async () => {
@@ -114,6 +116,15 @@ function AppContent() {
       alert('Failed to load studies: ' + error.message)
     }
   })
+
+  useEffect(() => {
+    if (!isLoading) {
+      setShowSkeleton(false)
+      return
+    }
+    const timer = setTimeout(() => setShowSkeleton(true), 300)
+    return () => clearTimeout(timer)
+  }, [isLoading])
 
   useEffect(() => {
     if (isLoading) {
@@ -323,7 +334,7 @@ function AppContent() {
           </div>
 
           {/* Search - only show when there are studies */}
-          {studies.length > 0 && (
+          {!isLoading && studies.length > 0 && (
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
               <input
@@ -343,26 +354,41 @@ function AppContent() {
           className="flex-1 overflow-y-auto scrollbar-hide"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
-          {filteredStudies.length === 0 && !searchQuery && location.pathname !== '/import' && (
-            <div className="flex items-center h-full pb-20">
-              <div className="p-4 text-center flex items-center flex-col">
-                <div className="p-3 bg-blue-50 rounded-full w-fit mx-auto mb-3">
-                  <FolderPlus className="h-6 w-6 text-blue-500" />
+          {showSkeleton && (
+            <div className="p-2 space-y-1">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="flex items-center gap-2 px-3 py-2.5 rounded-lg">
+                  <div
+                    className="h-4 bg-gray-200 rounded animate-pulse flex-1"
+                    style={{ maxWidth: `${70 - i * 10}%` }}
+                  />
                 </div>
-                <p className="text-sm font-medium text-gray-700 mb-1">No studies yet</p>
-                <p className="text-xs text-gray-500 mb-4">
-                  Create your first study to start analyzing wildlife data
-                </p>
-                <NavLink
-                  to="/import"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Create Study
-                </NavLink>
-              </div>
+              ))}
             </div>
           )}
+          {!isLoading &&
+            filteredStudies.length === 0 &&
+            !searchQuery &&
+            location.pathname !== '/import' && (
+              <div className="flex items-center h-full pb-20">
+                <div className="p-4 text-center flex items-center flex-col">
+                  <div className="p-3 bg-blue-50 rounded-full w-fit mx-auto mb-3">
+                    <FolderPlus className="h-6 w-6 text-blue-500" />
+                  </div>
+                  <p className="text-sm font-medium text-gray-700 mb-1">No studies yet</p>
+                  <p className="text-xs text-gray-500 mb-4">
+                    Create your first study to start analyzing wildlife data
+                  </p>
+                  <NavLink
+                    to="/import"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Create Study
+                  </NavLink>
+                </div>
+              </div>
+            )}
           <div data-testid="studies-list" className="p-2">
             {filteredStudies.map((study) => (
               <div
