@@ -3057,6 +3057,10 @@ function SequenceCard({
   )
 }
 
+// Module-scoped cache of mediaIDs with known image load errors.
+// Persists across Gallery mount/unmount cycles within the same session.
+const failedMediaIds = new Set()
+
 // Check if media item is a video based on fileMediatype or file extension
 // Defined at module level so it can be used in useMemo before component initialization
 function isVideoMedia(mediaItem) {
@@ -3071,7 +3075,22 @@ function isVideoMedia(mediaItem) {
 }
 
 function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false }) {
-  const [imageErrors, setImageErrors] = useState({})
+  const [imageErrors, setImageErrors] = useState(() => {
+    const initial = {}
+    for (const mediaID of failedMediaIds) {
+      initial[mediaID] = true
+    }
+    return initial
+  })
+  const setImageErrorsWithCache = useCallback((updater) => {
+    setImageErrors((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      for (const [mediaID, hasError] of Object.entries(next)) {
+        if (hasError) failedMediaIds.add(mediaID)
+      }
+      return next
+    })
+  }, [])
   const [selectedMedia, setSelectedMedia] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const loaderRef = useRef(null)
@@ -3239,7 +3258,10 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
 
   const constructImageUrl = (fullFilePath) => {
     if (fullFilePath.startsWith('http')) {
-      // Use HTTPS URL directly - browser cache will handle caching
+      // Use cached-image protocol for remote URLs to enable disk caching
+      if (id) {
+        return `cached-image://cache?studyId=${encodeURIComponent(id)}&url=${encodeURIComponent(fullFilePath)}`
+      }
       return fullFilePath
     }
 
@@ -3439,7 +3461,7 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
                   constructImageUrl={constructImageUrl}
                   onSequenceClick={handleImageClick}
                   imageErrors={imageErrors}
-                  setImageErrors={setImageErrors}
+                  setImageErrors={setImageErrorsWithCache}
                   showBboxes={showThumbnailBboxes}
                   bboxesByMedia={bboxesByMedia}
                   itemWidth={itemWidth}
@@ -3458,7 +3480,7 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
                 constructImageUrl={constructImageUrl}
                 onImageClick={(m) => handleImageClick(m, null)}
                 imageErrors={imageErrors}
-                setImageErrors={setImageErrors}
+                setImageErrors={setImageErrorsWithCache}
                 showBboxes={showThumbnailBboxes}
                 bboxes={bboxesByMedia[media.mediaID] || []}
                 itemWidth={itemWidth}

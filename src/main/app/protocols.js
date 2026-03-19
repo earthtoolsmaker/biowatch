@@ -17,6 +17,10 @@ function createWebFileStream(filePath, options = undefined) {
   return Readable.toWeb(createReadStream(filePath, options))
 }
 
+// In-memory cache of file paths known to be missing (404).
+// Avoids repeated synchronous existsSync() calls for the same missing paths.
+const missingPathCache = new Set()
+
 /**
  * Register privileged custom schemes for local-file://
  * to make it a standard, secure, stream-capable media source.
@@ -44,12 +48,22 @@ export function registerLocalFileProtocol() {
     const url = new URL(request.url)
     const filePath = url.searchParams.get('path')
 
-    log.info('=== local-file protocol request ===')
-    log.info('File path:', filePath)
+    log.debug('=== local-file protocol request ===')
+    log.debug('File path:', filePath)
+
+    if (!filePath) {
+      return new Response('File not found', { status: 404 })
+    }
+
+    // Fast path: skip filesystem check for known-missing files
+    if (missingPathCache.has(filePath)) {
+      return new Response('File not found', { status: 404 })
+    }
 
     // Check if file exists
-    if (!filePath || !existsSync(filePath)) {
-      log.error('File not found:', filePath)
+    if (!existsSync(filePath)) {
+      log.warn('File not found (caching 404):', filePath)
+      missingPathCache.add(filePath)
       return new Response('File not found', { status: 404 })
     }
 
@@ -82,7 +96,7 @@ export function registerLocalFileProtocol() {
           const end = rangeMatch[2] ? parseInt(rangeMatch[2], 10) : fileSize - 1
           const chunkSize = end - start + 1
 
-          log.info(`Range request: bytes=${start}-${end}/${fileSize}`)
+          log.debug(`Range request: bytes=${start}-${end}/${fileSize}`)
 
           return new Response(createWebFileStream(filePath, { start, end }), {
             status: 206,
@@ -97,7 +111,7 @@ export function registerLocalFileProtocol() {
       }
 
       // Non-range request: return full file
-      log.info(`Full file request: ${fileSize} bytes`)
+      log.debug(`Full file request: ${fileSize} bytes`)
 
       return new Response(createWebFileStream(filePath), {
         status: 200,
