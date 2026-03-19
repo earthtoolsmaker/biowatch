@@ -1,9 +1,8 @@
 import fs from 'fs'
 import path from 'path'
-import crypto from 'crypto'
 import csv from 'csv-parser'
 import { DateTime } from 'luxon'
-import { and, eq, gte, lte, sql, isNull, inArray } from 'drizzle-orm'
+import { and, eq, gte, lte, sql, isNull } from 'drizzle-orm'
 import {
   getDrizzleDb,
   deployments,
@@ -561,42 +560,10 @@ function transformFilePathField(filePath, directoryPath) {
  * @returns {Promise<{expanded: number, created: number}>} - Count of observations expanded and created
  */
 export async function expandObservationsToMedia(db, onProgress = null) {
-  const BATCH_SIZE = 1000
-  const DELETE_BATCH_SIZE = 500 // SQLite has 999 parameter limit
-
-  // 1. Single JOIN query to get ALL observation-media pairs at once
-  // This replaces N individual SELECT queries with 1 query
-  log.info('Finding observation-media pairs with single JOIN query...')
-
-  const pairs = await db
-    .select({
-      // Observation fields
-      observationID: observations.observationID,
-      deploymentID: observations.deploymentID,
-      eventID: observations.eventID,
-      eventStart: observations.eventStart,
-      eventEnd: observations.eventEnd,
-      scientificName: observations.scientificName,
-      observationType: observations.observationType,
-      commonName: observations.commonName,
-      classificationProbability: observations.classificationProbability,
-      count: observations.count,
-      lifeStage: observations.lifeStage,
-      age: observations.age,
-      sex: observations.sex,
-      behavior: observations.behavior,
-      bboxX: observations.bboxX,
-      bboxY: observations.bboxY,
-      bboxWidth: observations.bboxWidth,
-      bboxHeight: observations.bboxHeight,
-      detectionConfidence: observations.detectionConfidence,
-      modelOutputID: observations.modelOutputID,
-      classificationMethod: observations.classificationMethod,
-      classifiedBy: observations.classifiedBy,
-      classificationTimestamp: observations.classificationTimestamp,
-      // New mediaID from JOIN
-      newMediaID: media.mediaID
-    })
+  // 1. Count how many pairs will be created (for logging/progress)
+  log.info('Counting observation-media pairs...')
+  const countResult = await db
+    .select({ count: sql`COUNT(*)` })
     .from(observations)
     .innerJoin(
       media,
@@ -608,79 +575,118 @@ export async function expandObservationsToMedia(db, onProgress = null) {
     )
     .where(isNull(observations.mediaID))
 
-  if (pairs.length === 0) {
+  const pairCount = countResult[0].count
+  if (pairCount === 0) {
     log.info('No observation-media pairs found - skipping expansion step')
     return { expanded: 0, created: 0 }
   }
 
-  // Get unique original observation IDs for deletion
-  const originalObsIDs = [...new Set(pairs.map((p) => p.observationID))]
+  // Count original observations that will be expanded
+  const origCountResult = await db
+    .select({ count: sql`COUNT(DISTINCT ${observations.observationID})` })
+    .from(observations)
+    .innerJoin(
+      media,
+      and(
+        eq(observations.deploymentID, media.deploymentID),
+        gte(media.timestamp, observations.eventStart),
+        lte(media.timestamp, sql`COALESCE(${observations.eventEnd}, ${observations.eventStart})`)
+      )
+    )
+    .where(isNull(observations.mediaID))
 
-  log.info(
-    `Found ${pairs.length} observation-media pairs from ${originalObsIDs.length} original observations`
-  )
+  const originalCount = origCountResult[0].count
 
-  // 2. Build new observations array in memory
-  const newObservations = pairs.map((pair) => ({
-    observationID: crypto.randomUUID(),
-    mediaID: pair.newMediaID,
-    deploymentID: pair.deploymentID,
-    eventID: pair.eventID,
-    eventStart: pair.eventStart,
-    eventEnd: pair.eventEnd,
-    scientificName: pair.scientificName,
-    observationType: pair.observationType,
-    commonName: pair.commonName,
-    classificationProbability: pair.classificationProbability,
-    count: pair.count,
-    lifeStage: pair.lifeStage,
-    age: pair.age,
-    sex: pair.sex,
-    behavior: pair.behavior,
-    bboxX: pair.bboxX,
-    bboxY: pair.bboxY,
-    bboxWidth: pair.bboxWidth,
-    bboxHeight: pair.bboxHeight,
-    detectionConfidence: pair.detectionConfidence,
-    modelOutputID: pair.modelOutputID,
-    classificationMethod: pair.classificationMethod,
-    classifiedBy: pair.classifiedBy,
-    classificationTimestamp: pair.classificationTimestamp
-  }))
+  log.info(`Found ${pairCount} observation-media pairs from ${originalCount} original observations`)
 
-  // 3. Batch insert new observations
-  log.info(`Inserting ${newObservations.length} new observations in batches of ${BATCH_SIZE}...`)
-
-  for (let i = 0; i < newObservations.length; i += BATCH_SIZE) {
-    const batch = newObservations.slice(i, i + BATCH_SIZE)
-    await db.insert(observations).values(batch)
-
-    // Report progress after each batch
-    if (onProgress) {
-      onProgress({
-        currentFile: 'Linking observations to media...',
-        fileIndex: 0,
-        totalFiles: 1,
-        totalRows: newObservations.length,
-        insertedRows: Math.min(i + BATCH_SIZE, newObservations.length),
-        phase: 'expanding'
-      })
-    }
+  if (onProgress) {
+    onProgress({
+      currentFile: 'Linking observations to media...',
+      fileIndex: 0,
+      totalFiles: 1,
+      totalRows: pairCount,
+      insertedRows: 0,
+      phase: 'expanding'
+    })
   }
 
-  // 4. Batch delete original observations (SQLite has 999 parameter limit)
-  log.info(
-    `Deleting ${originalObsIDs.length} original observations in batches of ${DELETE_BATCH_SIZE}...`
-  )
+  // 2. INSERT INTO ... SELECT — expand observations to media entirely in SQL
+  // This avoids materializing millions of rows in JS memory
+  log.info(`Inserting ${pairCount} new observations via INSERT INTO...SELECT...`)
 
-  for (let i = 0; i < originalObsIDs.length; i += DELETE_BATCH_SIZE) {
-    const batch = originalObsIDs.slice(i, i + DELETE_BATCH_SIZE)
-    await db.delete(observations).where(inArray(observations.observationID, batch))
+  await db.run(sql`
+    INSERT INTO observations (
+      observationID, mediaID, deploymentID, eventID, eventStart, eventEnd,
+      scientificName, observationType, commonName, classificationProbability,
+      count, lifeStage, age, sex, behavior,
+      bboxX, bboxY, bboxWidth, bboxHeight,
+      detectionConfidence, modelOutputID,
+      classificationMethod, classifiedBy, classificationTimestamp
+    )
+    SELECT
+      lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-4' ||
+        substr(hex(randomblob(2)),2) || '-' ||
+        substr('89ab', abs(random()) % 4 + 1, 1) ||
+        substr(hex(randomblob(2)),2) || '-' || hex(randomblob(6))),
+      m.mediaID,
+      o.deploymentID,
+      o.eventID,
+      o.eventStart,
+      o.eventEnd,
+      o.scientificName,
+      o.observationType,
+      o.commonName,
+      o.classificationProbability,
+      o.count,
+      o.lifeStage,
+      o.age,
+      o.sex,
+      o.behavior,
+      o.bboxX,
+      o.bboxY,
+      o.bboxWidth,
+      o.bboxHeight,
+      o.detectionConfidence,
+      o.modelOutputID,
+      o.classificationMethod,
+      o.classifiedBy,
+      o.classificationTimestamp
+    FROM observations o
+    INNER JOIN media m
+      ON o.deploymentID = m.deploymentID
+      AND m.timestamp >= o.eventStart
+      AND m.timestamp <= COALESCE(o.eventEnd, o.eventStart)
+    WHERE o.mediaID IS NULL
+  `)
+
+  // 3. Delete only the original observations that were actually expanded (had matching media)
+  log.info(`Deleting ${originalCount} original event-based observations...`)
+
+  await db.run(sql`
+    DELETE FROM observations
+    WHERE mediaID IS NULL
+      AND EXISTS (
+        SELECT 1 FROM media m
+        WHERE m.deploymentID = observations.deploymentID
+          AND m.timestamp >= observations.eventStart
+          AND m.timestamp <= COALESCE(observations.eventEnd, observations.eventStart)
+      )
+  `)
+
+  if (onProgress) {
+    onProgress({
+      currentFile: 'Linking observations to media...',
+      fileIndex: 0,
+      totalFiles: 1,
+      totalRows: pairCount,
+      insertedRows: pairCount,
+      phase: 'expanding'
+    })
   }
 
   log.info(
-    `Expanded ${originalObsIDs.length} event-based observations into ${newObservations.length} media-linked observations`
+    `Expanded ${originalCount} event-based observations into ${pairCount} media-linked observations`
   )
 
-  return { expanded: originalObsIDs.length, created: newObservations.length }
+  return { expanded: originalCount, created: pairCount }
 }

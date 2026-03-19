@@ -1,0 +1,5 @@
+observationID,mediaID,deploymentID,eventID,eventStart,eventEnd,scientificName,commonName,classificationProbability,count
+obs-event1,,deploy001,event001,2023-03-20T14:30:15Z,2023-03-20T14:30:45Z,Cervus elaphus,Red Deer,0.95,2
+obs-event2,,deploy002,event002,2023-04-05T11:15:30Z,2023-04-05T11:16:00Z,Vulpes vulpes,Red Fox,0.89,1
+obs-direct1,media006,deploy001,event003,2023-05-01T10:00:00Z,2023-05-01T10:00:30Z,Sus scrofa,Wild Boar,0.87,1
+obs-orphan1,,,event004,2023-06-01T12:00:00Z,2023-06-01T12:00:30Z,,Empty,1.0,0
