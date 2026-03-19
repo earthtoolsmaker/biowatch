@@ -197,15 +197,6 @@ function AppContent() {
     }
   }, [])
 
-  const onNewStudy = (study) => {
-    const isValid = study && study.id && study.name && study.data && study.path
-    if (!isValid) {
-      console.warn('Invalid study data', study)
-    }
-    // Invalidate the query to refetch studies
-    queryClient.invalidateQueries(['studies'])
-  }
-
   // Context menu handlers
   const handleContextMenu = (e, study) => {
     e.preventDefault()
@@ -428,10 +419,7 @@ function AppContent() {
       <main className="ml-64 relative flex w-[calc(100%-16rem)] flex-1 bg-transparent pt-3 pr-3">
         <div className="flex-col bg-white shadow w-full rounded-xl overflow-hidden">
           <Routes>
-            <Route
-              path="/import"
-              element={<Import onNewStudy={onNewStudy} studiesCount={studies.length} />}
-            />
+            <Route path="/import" element={<Import studiesCount={studies.length} />} />
             <Route path="/study/:id/*" element={<Study />} />
             <Route path="/settings/*" element={<SettingsPage />} />
             <Route path="*" element={null} />
