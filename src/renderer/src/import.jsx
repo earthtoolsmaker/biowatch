@@ -14,7 +14,7 @@ import { Button } from './ui/button.jsx'
 import { Card, CardContent } from './ui/card.jsx'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select.jsx'
 
-export default function Import({ onNewStudy, studiesCount = 0 }) {
+export default function Import({ studiesCount = 0 }) {
   const navigate = useNavigate()
   const isFirstTimeUser = studiesCount === 0
   const [selectedModel, setSelectedModel] = useState(modelZoo[0]?.reference || null)
@@ -253,18 +253,18 @@ export default function Import({ onNewStudy, studiesCount = 0 }) {
   }
 
   const handleWildlifeInsights = async () => {
-    const { data, id, path } = await window.api.selectWildlifeDataset()
+    const { id, path } = await window.api.selectWildlifeDataset()
     console.log('Wildlife Insights select', path)
     if (!id) return
-    onNewStudy({ id, name: data.name, data, path })
+    await queryClient.invalidateQueries({ queryKey: ['studies'] })
     navigate(`/study/${id}`)
   }
 
   const handleDeepfauneCSV = async () => {
-    const { data, id, path } = await window.api.selectDeepfauneDataset()
+    const { id, path } = await window.api.selectDeepfauneDataset()
     console.log('Deepfaune CSV select', path)
     if (!id) return
-    onNewStudy({ id, name: data.name, data, path })
+    await queryClient.invalidateQueries({ queryKey: ['studies'] })
     navigate(`/study/${id}`)
   }
 
@@ -278,7 +278,7 @@ export default function Import({ onNewStudy, studiesCount = 0 }) {
         datasetTitle: 'Demo Dataset'
       })
 
-      const { data, id, path } = await window.api.downloadDemoDataset()
+      const { data, id } = await window.api.downloadDemoDataset()
 
       if (!id) {
         setIsDemoImporting(false)
@@ -293,7 +293,6 @@ export default function Import({ onNewStudy, studiesCount = 0 }) {
         setIsDemoImporting(false)
         setDemoImportProgress(null)
         await queryClient.invalidateQueries({ queryKey: ['studies'] })
-        onNewStudy({ id, name: data.name, data, path })
         navigate(`/study/${id}`)
       }, 800)
     } catch (error) {
@@ -329,7 +328,7 @@ export default function Import({ onNewStudy, studiesCount = 0 }) {
       )
       // Errors (e.g., ML server failed to start) are handled via IPC event in base.jsx
       if (!id) return
-      queryClient.invalidateQueries(['studies'])
+      await queryClient.invalidateQueries({ queryKey: ['studies'] })
       navigate(`/study/${id}`)
     }
   }
@@ -350,7 +349,7 @@ export default function Import({ onNewStudy, studiesCount = 0 }) {
     // Errors (e.g., ML server failed to start) are handled via IPC event in base.jsx
     if (!id) return
 
-    queryClient.invalidateQueries(['studies'])
+    await queryClient.invalidateQueries({ queryKey: ['studies'] })
     navigate(`/study/${id}`)
   }
 
@@ -377,7 +376,7 @@ export default function Import({ onNewStudy, studiesCount = 0 }) {
         return
       }
 
-      const { data, id, path } = result
+      const { data, id } = result
       console.log('GBIF dataset imported:', data, id)
 
       // Brief delay to show completion state, then navigate
@@ -385,7 +384,6 @@ export default function Import({ onNewStudy, studiesCount = 0 }) {
         setIsGbifImporting(false)
         setGbifImportProgress(null)
         await queryClient.invalidateQueries({ queryKey: ['studies'] })
-        onNewStudy({ id, name: data.name, data, path })
         navigate(`/study/${id}`)
       }, 800)
     } catch (error) {
@@ -423,7 +421,7 @@ export default function Import({ onNewStudy, studiesCount = 0 }) {
         return
       }
 
-      const { data, id, path } = result
+      const { data, id } = result
       console.log('LILA dataset imported:', data, id)
 
       // Brief delay to show completion state, then navigate
@@ -431,7 +429,6 @@ export default function Import({ onNewStudy, studiesCount = 0 }) {
         setIsLilaImporting(false)
         setLilaImportProgress(null)
         await queryClient.invalidateQueries({ queryKey: ['studies'] })
-        onNewStudy({ id, name: data.name, data, path })
         navigate(`/study/${id}`)
       }, 800)
     } catch (error) {
