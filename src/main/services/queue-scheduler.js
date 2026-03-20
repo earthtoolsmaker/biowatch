@@ -131,8 +131,9 @@ class QueueScheduler {
     try {
       const manager = await getStudyDatabase(studyId, dbPath, { readonly: true })
       const status = getStatus(manager, { kind: 'ml-inference' })
-      const total = status.pending + status.processing + status.completed + status.failed
-      const done = status.completed
+      const total =
+        status.pending + status.processing + status.completed + status.failed + status.cancelled
+      const done = status.completed + status.cancelled
       const isRunning = this._activeStudyId === studyId && this.isRunning
 
       return {
