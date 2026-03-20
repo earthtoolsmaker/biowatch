@@ -310,6 +310,50 @@ export const modelOutputs = sqliteTable(
 
 ---
 
+### jobs
+
+Persistent job queue for async work (ML inference, OCR, etc.). Jobs are self-contained — payload carries references (mediaIDs, file paths) as data, no foreign keys to other tables.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | TEXT | PRIMARY KEY | UUID |
+| `kind` | TEXT | NOT NULL | Job category (`ml-inference`, `ocr`, etc.) |
+| `topic` | TEXT | | Sub-grouping (`speciesnet:4.0.1a`, `deepfaune:1.2`, etc.) |
+| `status` | TEXT | NOT NULL, DEFAULT 'pending' | `pending`, `processing`, `completed`, `failed`, `cancelled` |
+| `payload` | TEXT | NOT NULL, JSON | Job-specific data (mediaId, filePath, etc.) |
+| `error` | TEXT | | Error message on failure |
+| `attempts` | INTEGER | NOT NULL, DEFAULT 0 | Number of processing attempts |
+| `maxAttempts` | INTEGER | NOT NULL, DEFAULT 3 | Maximum retry attempts |
+| `createdAt` | TEXT | NOT NULL | Job creation time (ISO 8601) |
+| `startedAt` | TEXT | | Last processing start time (ISO 8601) |
+| `completedAt` | TEXT | | Completion or final failure time (ISO 8601) |
+
+```javascript
+export const jobs = sqliteTable('jobs', {
+  id: text('id').primaryKey(),
+  kind: text('kind').notNull(),
+  topic: text('topic'),
+  status: text('status').notNull().default('pending'),
+  payload: text('payload', { mode: 'json' }).notNull(),
+  error: text('error'),
+  attempts: integer('attempts').notNull().default(0),
+  maxAttempts: integer('maxAttempts').notNull().default(3),
+  createdAt: text('createdAt').notNull(),
+  startedAt: text('startedAt'),
+  completedAt: text('completedAt')
+})
+```
+
+**Indexes:** `(kind, status)` for consumer queries, `(status, createdAt)` for FIFO ordering.
+
+**Failure handling:** Jobs that exhaust `maxAttempts` stay as `status='failed'`. Use `retryFailed()` to reset them.
+
+**Crash recovery:** On app startup, `recoverStale()` resets `processing` → `pending` (idempotent operations).
+
+**Queue service:** `src/main/services/queue.js` — `enqueue`, `enqueueBatch`, `claimBatch`, `complete`, `fail`, `cancel`, `retryFailed`, `recoverStale`, `getStatus`, `getJobs`.
+
+---
+
 ## JSON Field Formats
 
 ### contributors (metadata.contributors)
@@ -381,6 +425,7 @@ export const modelOutputs = sqliteTable(
 | `src/main/database/queries/best-media.js` | Best media selection |
 | `src/main/database/queries/utils.js` | Query utilities |
 | `src/main/database/migrations/` | SQL migration files |
+| `src/main/services/queue.js` | Job queue service (enqueue, claim, complete, fail, etc.) |
 
 ---
 
