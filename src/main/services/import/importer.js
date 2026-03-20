@@ -27,6 +27,7 @@ import { startMLModelHTTPServer, stopMLModelHTTPServer } from '../ml/server.js'
 import mlmodels from '../../../shared/mlmodels.js'
 import { selectVideoClassificationWinner } from '../ml/classification.js'
 import { DEFAULT_SEQUENCE_GAP } from '../../../shared/constants.js'
+import { enqueueBatch } from '../queue.js'
 
 // Map file extensions to IANA media types (Camtrap DP compliant)
 const extensionToMediatype = {
@@ -132,7 +133,7 @@ function calculateMode(arr) {
  * @param {Object} db - Drizzle database instance
  * @param {string} deploymentID - Deployment ID to aggregate metadata for
  */
-async function aggregateDeploymentMetadata(db, deploymentID) {
+export async function aggregateDeploymentMetadata(db, deploymentID) {
   try {
     // Query all media with exifData for this deployment
     const mediaRecords = await db
@@ -284,7 +285,7 @@ async function insertMedia(db, fullPath, importFolder) {
   return mediaData
 }
 
-async function getMedia(db, filepath) {
+export async function getMedia(db, filepath) {
   try {
     const result = await db.select().from(media).where(eq(media.filePath, filepath)).limit(1)
     return result[0] || null
@@ -366,7 +367,7 @@ function parseScientificName(prediction, modelType) {
  * @param {Object} prediction - Model prediction output
  * @param {Object} modelInfo - Model information { modelOutputID, modelID, modelVersion, detectionConfidenceThreshold }
  */
-async function insertPrediction(db, prediction, modelInfo = {}) {
+export async function insertPrediction(db, prediction, modelInfo = {}) {
   const mediaRecord = await getMedia(db, prediction.filepath)
   if (!mediaRecord) {
     log.warn(`No media found for prediction: ${prediction.filepath}`)
@@ -486,7 +487,7 @@ function calculateTimestamp(baseTimestamp, frameNumber, fps) {
  * @param {Object} mediaRecord - Media record from database
  * @param {Object} modelInfo - Model information { runID, modelID, modelVersion, detectionConfidenceThreshold }
  */
-async function insertVideoPredictions(db, predictions, mediaRecord, modelInfo = {}) {
+export async function insertVideoPredictions(db, predictions, mediaRecord, modelInfo = {}) {
   if (!predictions || predictions.length === 0) {
     log.warn(`No predictions for video: ${mediaRecord.filePath}`)
     return
@@ -685,7 +686,7 @@ async function getDeployment(db, locationID) {
  * @param {Object} mediaRecord - Media record (must have filePath, importFolder, mediaID)
  * @returns {Promise<{timestamp: string, deploymentID: string}|null>} - Updated values or null on error
  */
-async function processMediaDeployment(db, mediaRecord) {
+export async function processMediaDeployment(db, mediaRecord) {
   // 1. Extract metadata using exifr (works for images and videos)
   let exifData = {}
   try {
@@ -863,6 +864,23 @@ export class Importer {
     return Promise.resolve() // Return resolved promise if no process to kill
   }
 
+  _enqueueMediaJobs(manager, mediaBatch) {
+    if (!this.modelReference) return
+    const topic = `${this.modelReference.id}:${this.modelReference.version}`
+    enqueueBatch(
+      manager,
+      mediaBatch.map((m) => ({
+        kind: 'ml-inference',
+        topic,
+        payload: {
+          mediaId: m.mediaID,
+          filePath: m.filePath,
+          fileMediatype: m.fileMediatype
+        }
+      }))
+    )
+  }
+
   async start(addingMore = false) {
     try {
       this.dbPath = path.join(
@@ -913,6 +931,7 @@ export class Importer {
 
           if (mediaBatch.length >= insertBatchSize) {
             await insertMediaBatch(this.db, manager, mediaBatch)
+            this._enqueueMediaJobs(manager, mediaBatch)
             mediaBatch.length = 0 // Clear the array
           }
         }
@@ -920,16 +939,25 @@ export class Importer {
         // Insert any remaining items
         if (mediaBatch.length > 0) {
           await insertMediaBatch(this.db, manager, mediaBatch)
+          this._enqueueMediaJobs(manager, mediaBatch)
         }
 
         console.timeEnd('Insert media')
       } else {
-        this.db = await getDrizzleDb(this.id, dbPath)
+        const manager = await getStudyDatabase(this.id, dbPath)
+        this.db = manager.getDb()
         if (addingMore) {
           log.info('scanning media files in folder:', this.folder)
 
+          const newMedia = []
           for await (const mediaPath of walkMediaFiles(this.folder)) {
-            await insertMedia(this.db, mediaPath, this.folder)
+            const result = await insertMedia(this.db, mediaPath, this.folder)
+            if (result && result.mediaID) {
+              newMedia.push(result)
+            }
+          }
+          if (newMedia.length > 0) {
+            this._enqueueMediaJobs(manager, newMedia)
           }
         }
       }
