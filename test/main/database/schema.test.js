@@ -209,6 +209,7 @@ describe('Database Schema and Integrity Tests', () => {
       const expectedTables = [
         '__drizzle_migrations',
         'deployments',
+        'jobs',
         'media',
         'metadata',
         'model_outputs',
