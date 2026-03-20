@@ -42,17 +42,20 @@ System architecture and design patterns for Biowatch.
 ## Process Model
 
 ### Renderer Process
+
 - **Technology**: React 18 + React Router 7 + TailwindCSS 4
 - **State**: TanStack Query for server state
 - **Entry**: `src/renderer/src/base.jsx`
 - **Communication**: Calls `window.api.*` methods exposed by preload
 
 ### Preload Script
+
 - **Purpose**: Secure bridge between renderer and main process
 - **Entry**: `src/preload/index.js`
 - **Pattern**: Wraps `ipcRenderer.invoke()` calls into a clean API
 
 ### Main Process
+
 - **Technology**: Node.js + Electron
 - **Entry**: `src/main/index.js`
 - **Responsibilities**:
@@ -63,6 +66,7 @@ System architecture and design patterns for Biowatch.
   - Auto-updates
 
 ### Python ML Servers
+
 - **Technology**: FastAPI with conda environment
 - **Pattern**: Spawned as child processes, communicate via HTTP
 - **Endpoint**: `POST /predict` for inference
@@ -89,6 +93,7 @@ src/
 │   │   ├── sequences.js     # Sequence-aware counting handlers
 │   │   ├── study.js         # Study management handlers
 │   │   ├── import.js        # Import handlers
+│   │   ├── queue.js         # Queue status/pause/resume handlers
 │   │   ├── files.js         # File operation handlers
 │   │   ├── dialog.js        # Dialog handlers
 │   │   └── shell.js         # Shell operation handlers
@@ -98,9 +103,14 @@ src/
 │   │   ├── extractor.js     # Metadata extraction
 │   │   ├── study.js         # Study metadata management
 │   │   ├── download.ts      # File download utilities
+│   │   ├── queue.js          # Persistent job queue service
+│   │   ├── queue-consumer.js # Base consumer (poll/claim/process loop)
+│   │   ├── queue-scheduler.js# Singleton: ties consumers to active study
+│   │   ├── server-manager.js # ML server lifecycle (one at a time)
+│   │   ├── inference-consumer.js # ML inference consumer
 │   │   ├── import/          # Data importers
 │   │   │   ├── index.js     # Importer exports
-│   │   │   ├── importer.js  # Image folder importer with ML
+│   │   │   ├── importer.js  # Media scanning + job enqueueing
 │   │   │   └── parsers/     # Format-specific parsers
 │   │   │       ├── camtrapDP.js      # CamTrap DP importer
 │   │   │       ├── wildlifeInsights.js # Wildlife Insights importer
@@ -167,6 +177,7 @@ src/
 ## Data Flow
 
 ### Import Flow
+
 ```
 User selects dataset
         │
@@ -192,6 +203,7 @@ User selects dataset
 ```
 
 ### Query Flow
+
 ```
 React Component
         │
@@ -222,37 +234,54 @@ React Component
 └─────────────────┘
 ```
 
-### ML Inference Flow
+### ML Inference Flow (Queue-Based)
+
 ```
-User starts model import
+User selects folder + model
         │
         ▼
 ┌─────────────────────┐
-│  model:start-http-  │
-│  server             │
+│   importer.js       │  Scan folder, insert media, enqueue jobs
+│   Importer.start()  │  into study.db `jobs` table
 └──────────┬──────────┘
            │
            ▼
 ┌─────────────────────┐
-│  Spawn Python       │
-│  FastAPI server     │
+│  QueueScheduler     │  Singleton: manages active study consumer
+│  (queue-scheduler)  │  Calls recoverStale() on start
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│  InferenceConsumer  │  Polls jobs table: claimBatch → process → complete/fail
+│  (inference-consumer)│  Creates modelRuns record, handles abort
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│  ServerManager      │  One ML server at a time, reuses across batches
+│  (server-manager)   │  Wraps startMLModelHTTPServer/stop
 └──────────┬──────────┘
            │ HTTP localhost:{port}
            ▼
 ┌─────────────────────┐      ┌─────────────────┐
-│   importer.js       │─────▶│  POST /predict  │
-│   stream images     │      │  { image_path } │
+│   getPredictions()  │─────▶│  POST /predict  │
+│   async generator   │      │  { filepaths }  │
 └──────────┬──────────┘      └────────┬────────┘
            │                          │
            │◀─────────────────────────┘
-           │  { predictions, bboxes }
+           │  Stream: { predictions, bboxes }
            ▼
 ┌─────────────────────┐
-│  Store in           │
-│  observations +     │
+│  insertPrediction() │  Per-image or insertVideoPredictions() per-video
+│  → observations +   │  Jobs marked complete/failed in `jobs` table
 │  modelOutputs       │
 └─────────────────────┘
 ```
+
+**Pause**: Instant — sets boolean flag, server stays running.
+**Resume**: Instant — clears flag (or cold-starts from modelRuns if app restarted).
+**Crash recovery**: `recoverStale()` resets `processing` → `pending` on next start.
 
 ## Study Isolation
 
@@ -270,12 +299,14 @@ biowatch-data/
 ```
 
 **Benefits**:
+
 - Complete data isolation between studies
 - Easy backup/restore (copy folder)
 - Independent migrations per study
 - No cross-study query complexity
 
 **Database path resolution**:
+
 ```javascript
 // src/main/services/paths.js
 function getStudyDatabasePath(userDataPath, studyId) {
@@ -289,30 +320,36 @@ function getStudyPath(userDataPath, studyId) {
 
 ## Key Files Reference
 
-| File | Purpose |
-|------|---------|
-| `src/main/index.js` | Minimal app entry point |
-| `src/main/app/lifecycle.js` | Window creation, app initialization |
-| `src/main/ipc/index.js` | Registers all IPC handlers |
-| `src/preload/index.js` | IPC bridge, exposes `window.api` |
-| `src/renderer/src/base.jsx` | React app root, routing |
-| `src/main/database/models.js` | Drizzle table definitions |
-| `src/main/database/validators.js` | Zod validation schemas |
-| `src/main/database/manager.js` | Database connection pooling |
-| `src/main/database/queries/` | Data query functions (split by domain) |
-| `src/shared/mlmodels.js` | Model zoo configuration |
-| `src/main/services/ml/server.ts` | ML server lifecycle (start/stop/health) |
-| `src/main/services/ml/download.ts` | ML model download and installation |
-| `src/main/ipc/ml.js` | ML model IPC handlers |
-| `src/main/services/import/importer.js` | Image import with ML inference |
-| `src/main/services/import/parsers/camtrapDP.js` | CamTrap DP format importer |
-| `src/main/services/import/parsers/wildlifeInsights.js` | Wildlife Insights format importer |
-| `src/main/services/import/parsers/deepfaune.js` | DeepFaune CSV format importer |
-| `src/main/services/export/exporter.js` | CamTrap DP exporter |
-| `src/main/services/sequences/` | Sequence grouping and counting logic |
-| `src/main/ipc/sequences.js` | Sequence-aware counting IPC handlers |
-| `src/main/services/cache/video.js` | Video format conversion for browser playback |
-| `src/main/utils/bbox.js` | Bbox format conversions |
+| File                                                   | Purpose                                               |
+| ------------------------------------------------------ | ----------------------------------------------------- |
+| `src/main/index.js`                                    | Minimal app entry point                               |
+| `src/main/app/lifecycle.js`                            | Window creation, app initialization                   |
+| `src/main/ipc/index.js`                                | Registers all IPC handlers                            |
+| `src/preload/index.js`                                 | IPC bridge, exposes `window.api`                      |
+| `src/renderer/src/base.jsx`                            | React app root, routing                               |
+| `src/main/database/models.js`                          | Drizzle table definitions                             |
+| `src/main/database/validators.js`                      | Zod validation schemas                                |
+| `src/main/database/manager.js`                         | Database connection pooling                           |
+| `src/main/database/queries/`                           | Data query functions (split by domain)                |
+| `src/shared/mlmodels.js`                               | Model zoo configuration                               |
+| `src/main/services/ml/server.ts`                       | ML server lifecycle (start/stop/health)               |
+| `src/main/services/ml/download.ts`                     | ML model download and installation                    |
+| `src/main/ipc/ml.js`                                   | ML model IPC handlers                                 |
+| `src/main/services/queue.js`                           | Persistent job queue (enqueue, claim, complete, fail) |
+| `src/main/services/queue-consumer.js`                  | Base consumer class (poll loop, pause/resume)         |
+| `src/main/services/queue-scheduler.js`                 | Singleton scheduler (active study, status)            |
+| `src/main/services/server-manager.js`                  | ML server lifecycle (one server at a time)            |
+| `src/main/services/inference-consumer.js`              | ML inference consumer (streams predictions)           |
+| `src/main/ipc/queue.js`                                | Queue IPC handlers (status, pause, resume)            |
+| `src/main/services/import/importer.js`                 | Media scanning + job enqueueing                       |
+| `src/main/services/import/parsers/camtrapDP.js`        | CamTrap DP format importer                            |
+| `src/main/services/import/parsers/wildlifeInsights.js` | Wildlife Insights format importer                     |
+| `src/main/services/import/parsers/deepfaune.js`        | DeepFaune CSV format importer                         |
+| `src/main/services/export/exporter.js`                 | CamTrap DP exporter                                   |
+| `src/main/services/sequences/`                         | Sequence grouping and counting logic                  |
+| `src/main/ipc/sequences.js`                            | Sequence-aware counting IPC handlers                  |
+| `src/main/services/cache/video.js`                     | Video format conversion for browser playback          |
+| `src/main/utils/bbox.js`                               | Bbox format conversions                               |
 
 ## IPC Pattern
 
@@ -340,18 +377,18 @@ const { data } = await window.api.getSequences(studyId, { limit: 20 })
 
 ## Technology Stack
 
-| Layer | Technology |
-|-------|------------|
-| Desktop Runtime | Electron 34 |
-| Build Tool | electron-vite |
-| Frontend Framework | React 18 |
-| Routing | React Router 7 |
-| Styling | TailwindCSS 4 |
-| State Management | TanStack Query 5 |
-| Database | SQLite (better-sqlite3) |
-| ORM | Drizzle ORM |
-| ML Runtime | Python 3.11 + FastAPI |
-| ML Environment | Conda (packed) |
-| Icons | Lucide React |
-| Maps | Leaflet + react-leaflet |
-| Charts | Recharts |
+| Layer              | Technology              |
+| ------------------ | ----------------------- |
+| Desktop Runtime    | Electron 34             |
+| Build Tool         | electron-vite           |
+| Frontend Framework | React 18                |
+| Routing            | React Router 7          |
+| Styling            | TailwindCSS 4           |
+| State Management   | TanStack Query 5        |
+| Database           | SQLite (better-sqlite3) |
+| ORM                | Drizzle ORM             |
+| ML Runtime         | Python 3.11 + FastAPI   |
+| ML Environment     | Conda (packed)          |
+| Icons              | Lucide React            |
+| Maps               | Leaflet + react-leaflet |
+| Charts             | Recharts                |
