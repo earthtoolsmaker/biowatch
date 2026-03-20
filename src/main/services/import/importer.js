@@ -22,6 +22,7 @@ import { eq } from 'drizzle-orm'
 import { selectVideoClassificationWinner } from '../ml/classification.js'
 import { DEFAULT_SEQUENCE_GAP } from '../../../shared/constants.js'
 import { enqueueBatch } from '../queue.js'
+import { queueScheduler } from '../queue-scheduler.js'
 
 // Map file extensions to IANA media types (Camtrap DP compliant)
 const extensionToMediatype = {
@@ -918,8 +919,6 @@ export class Importer {
     }
   }
 }
-
-import { queueScheduler } from '../queue-scheduler.js'
 
 ipcMain.handle('importer:select-images-directory-only', async () => {
   const result = await dialog.showOpenDialog({
