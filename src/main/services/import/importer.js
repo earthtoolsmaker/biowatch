@@ -8,23 +8,17 @@ import path from 'path'
 import crypto from 'crypto'
 import {
   getDrizzleDb,
-  getReadonlyDrizzleDb,
   getStudyDatabase,
   deployments,
   media,
   observations,
-  modelRuns,
   closeStudyDatabase,
   insertMetadata,
   insertModelOutput,
-  getLatestModelRun,
-  updateMetadata,
-  getMetadata
+  getLatestModelRun
 } from '../../database/index.js'
 import { transformBboxToCamtrapDP } from '../../utils/bbox.js'
-import { eq, isNull, count, sql } from 'drizzle-orm'
-import { startMLModelHTTPServer, stopMLModelHTTPServer } from '../ml/server.js'
-import mlmodels from '../../../shared/mlmodels.js'
+import { eq } from 'drizzle-orm'
 import { selectVideoClassificationWinner } from '../ml/classification.js'
 import { DEFAULT_SEQUENCE_GAP } from '../../../shared/constants.js'
 import { enqueueBatch } from '../queue.js'
@@ -50,10 +44,6 @@ const mediaExtensions = new Set(Object.keys(extensionToMediatype))
 function getFileMediatype(filePath) {
   const ext = path.extname(filePath).toLowerCase()
   return extensionToMediatype[ext] || 'application/octet-stream'
-}
-
-function isVideoMediatype(mediatype) {
-  return mediatype.startsWith('video/')
 }
 
 /**
@@ -633,38 +623,6 @@ export async function insertVideoPredictions(db, predictions, mediaRecord, model
   )
 }
 
-async function nextMediaToPredict(db, batchSize = 100) {
-  try {
-    const results = await db
-      .select({
-        mediaID: media.mediaID,
-        filePath: media.filePath,
-        fileName: media.fileName,
-        timestamp: media.timestamp,
-        deploymentID: media.deploymentID,
-        fileMediatype: media.fileMediatype,
-        exifData: media.exifData
-      })
-      .from(media)
-      .leftJoin(observations, eq(media.mediaID, observations.mediaID))
-      .where(isNull(observations.observationID))
-      .limit(batchSize)
-
-    return results.map((row) => ({
-      mediaID: row.mediaID,
-      deploymentID: row.deploymentID,
-      timestamp: row.timestamp,
-      filePath: row.filePath,
-      fileName: row.fileName,
-      fileMediatype: row.fileMediatype,
-      exifData: row.exifData
-    }))
-  } catch (error) {
-    log.error('Error getting next media to predict:', error)
-    return []
-  }
-}
-
 async function getDeployment(db, locationID) {
   try {
     const result = await db
@@ -786,9 +744,6 @@ export async function processMediaDeployment(db, mediaRecord) {
   }
 }
 
-let lastBatchDuration = null
-const batchSize = 5
-
 /**
  * Insert media records in batch using Drizzle ORM with transaction for performance
  * @param {Object} db - Drizzle database instance
@@ -837,31 +792,7 @@ export class Importer {
     this.folder = folder
     this.modelReference = modelReference
     this.country = country
-    this.pythonProcess = null
-    this.pythonProcessPort = null
-    this.pythonProcessShutdownApiKey = null
-    this.abortController = null
-    this.batchSize = batchSize
     this.dbPath = null
-  }
-
-  async cleanup() {
-    log.info(`Cleaning up importer with ID ${this.id}`)
-
-    // Abort any in-flight fetch requests first
-    if (this.abortController) {
-      this.abortController.abort()
-      this.abortController = null
-    }
-
-    if (this.pythonProcess) {
-      return await stopMLModelHTTPServer({
-        pid: this.pythonProcess.pid,
-        port: this.pythonProcessPort,
-        shutdownApiKey: this.pythonProcessShutdownApiKey
-      })
-    }
-    return Promise.resolve() // Return resolved promise if no process to kill
   }
 
   _enqueueMediaJobs(manager, mediaBatch) {
@@ -962,345 +893,33 @@ export class Importer {
         }
       }
 
-      try {
-        const modelReference = this.modelReference
-        const model = mlmodels.findModel(modelReference)
-        if (!model) {
-          throw new Error(`Model not found: ${modelReference.id} ${modelReference.version}`)
-        }
-        const pythonEnvironment = mlmodels.findPythonEnvironment(model.pythonEnvironment)
-        if (!pythonEnvironment) {
-          throw new Error(
-            `Python environment not found: ${model.pythonEnvironment.id} ${model.pythonEnvironment.version}`
-          )
-        }
-        // Start server in background (fire-and-forget)
-        // This allows immediate navigation to study while server starts
-        startMLModelHTTPServer({
-          pythonEnvironment: pythonEnvironment,
-          modelReference: modelReference,
-          country: this.country
-        })
-          .then(async ({ port, process, shutdownApiKey }) => {
-            log.info('New python process', port, process.pid)
-            this.pythonProcess = process
-            this.pythonProcessPort = port
-            this.pythonProcessShutdownApiKey = shutdownApiKey
+      // Start queue-based processing in background (fire-and-forget)
+      const topic = `${this.modelReference.id}:${this.modelReference.version}`
+      queueScheduler.startStudy(this.id, { topic, country: this.country }).catch(async (error) => {
+        log.error('Error starting queue processing:', error)
 
-            // Start background processing
-            await this._processMediaInBackground(port, modelReference, model)
+        // Emit error event to frontend for toast notification
+        const [mainWindow] = BrowserWindow.getAllWindows()
+        if (mainWindow) {
+          mainWindow.webContents.send('importer:error', {
+            studyId: this.id,
+            message: 'The AI model could not start. Please try again or restart the app.'
           })
-          .catch(async (error) => {
-            if (error.name === 'AbortError') {
-              log.info('Background processing was aborted')
-              return
-            }
-            log.error('Error starting ML server or processing:', error)
+        }
+      })
 
-            // Emit error event to frontend for toast notification
-            const [mainWindow] = BrowserWindow.getAllWindows()
-            if (mainWindow) {
-              mainWindow.webContents.send('importer:error', {
-                studyId: this.id,
-                message: 'The AI model could not start. Please try again or restart the app.'
-              })
-            }
-
-            await closeStudyDatabase(this.id, this.dbPath)
-            this.cleanup()
-            delete importers[this.id]
-          })
-
-        // Return study ID immediately - don't wait for server
-        return this.id
-      } catch (error) {
-        log.error('Error setting up ML model server:', error)
-        await closeStudyDatabase(this.id, this.dbPath)
-        this.cleanup()
-        throw error
-      }
+      return this.id
     } catch (error) {
       console.error('Error starting importer:', error)
       if (this.db) {
         await closeStudyDatabase(this.id, this.dbPath)
       }
-      this.cleanup()
       throw error
     }
   }
-
-  /**
-   * Process media files in the background after server startup.
-   * This method runs asynchronously and handles all image/video prediction processing.
-   */
-  async _processMediaInBackground(port, modelReference, model) {
-    // Create AbortController for cancelling in-flight requests
-    this.abortController = new AbortController()
-
-    // Create a model run record for this processing session
-    const runID = crypto.randomUUID()
-    await this.db.insert(modelRuns).values({
-      id: runID,
-      modelID: modelReference.id,
-      modelVersion: modelReference.version,
-      startedAt: new Date().toISOString(),
-      status: 'running',
-      importPath: this.folder,
-      options: this.country ? { country: this.country } : null
-    })
-    log.info(`Created model run ${runID} for ${modelReference.id} v${modelReference.version}`)
-
-    try {
-      while (true) {
-        // Check if we've been aborted before starting a new batch
-        if (!this.abortController || this.abortController.signal.aborted) {
-          log.info('Processing aborted, stopping batch loop')
-          break
-        }
-
-        const batchStart = DateTime.now()
-        const mediaBatch = await nextMediaToPredict(this.db, this.batchSize)
-        if (mediaBatch.length === 0) {
-          log.info('No more media to process')
-          break
-        }
-
-        // Separate images and videos for different processing
-        const images = mediaBatch.filter((m) => !isVideoMediatype(m.fileMediatype))
-        const videos = mediaBatch.filter((m) => isVideoMediatype(m.fileMediatype))
-        const mediaQueue = mediaBatch.map((m) => m.filePath)
-
-        log.info(
-          `Processing batch of ${mediaQueue.length} media files (${images.length} images, ${videos.length} videos)`
-        )
-
-        // Create a fresh AbortController for each batch to prevent listener accumulation
-        const batchAbortController = new AbortController()
-
-        // Link main abort to batch abort so external cancellation still works
-        const abortHandler = () => batchAbortController.abort()
-
-        // Check if cleanup was called while we were processing
-        if (!this.abortController) {
-          log.info('AbortController was cleared during processing, stopping batch loop')
-          break
-        }
-
-        this.abortController.signal.addEventListener('abort', abortHandler)
-
-        try {
-          // For videos, we need to collect all frame predictions before processing
-          const videoPredictionsMap = new Map() // filepath -> predictions[]
-
-          for await (const prediction of getPredictions(
-            mediaQueue,
-            port,
-            batchAbortController.signal
-          )) {
-            // Check if this is a video frame prediction
-            const isVideoFrame = prediction.frame_number !== undefined
-
-            if (isVideoFrame) {
-              // Collect video frame predictions
-              if (!videoPredictionsMap.has(prediction.filepath)) {
-                videoPredictionsMap.set(prediction.filepath, [])
-              }
-              videoPredictionsMap.get(prediction.filepath).push(prediction)
-            } else {
-              // Process image prediction immediately (existing logic)
-              const mediaRecord = await getMedia(this.db, prediction.filepath)
-              if (!mediaRecord) {
-                log.warn(`No media found for prediction: ${prediction.filepath}`)
-                continue
-              }
-
-              // Create model_output record for this media (with validated rawOutput)
-              const modelOutputID = crypto.randomUUID()
-              const modelOutput = await insertModelOutput(this.db, {
-                id: modelOutputID,
-                mediaID: mediaRecord.mediaID,
-                runID: runID,
-                rawOutput: prediction // Store full prediction as JSON
-              })
-
-              if (!modelOutput) {
-                log.info(`Model output already exists for media ${mediaRecord.mediaID}, skipping`)
-                continue
-              }
-
-              // Insert prediction with model provenance
-              await insertPrediction(this.db, prediction, {
-                modelOutputID,
-                modelID: modelReference.id,
-                modelVersion: modelReference.version,
-                detectionConfidenceThreshold: model.detectionConfidenceThreshold
-              })
-            }
-          }
-
-          // Process collected video predictions (aggregate per video)
-          for (const [filepath, predictions] of videoPredictionsMap) {
-            const mediaRecord = await getMedia(this.db, filepath)
-            if (!mediaRecord) {
-              log.warn(`No media found for video: ${filepath}`)
-              continue
-            }
-
-            await insertVideoPredictions(this.db, predictions, mediaRecord, {
-              runID: runID,
-              modelID: modelReference.id,
-              modelVersion: modelReference.version,
-              detectionConfidenceThreshold: model.detectionConfidenceThreshold
-            })
-          }
-        } finally {
-          // Clean up listener to prevent memory leaks on the main abort controller
-          if (this.abortController) {
-            this.abortController.signal.removeEventListener('abort', abortHandler)
-          }
-        }
-
-        log.info(`Processed batch of ${mediaQueue.length} media files`)
-        const batchEnd = DateTime.now()
-        lastBatchDuration = batchEnd.diff(batchStart, 'seconds').seconds
-      }
-
-      // Auto-populate temporal dates from media timestamps (if not already set)
-      // This must happen BEFORE setting status to 'completed' so the renderer
-      // sees the updated dates when it invalidates the query
-      try {
-        log.info(`Attempting to auto-populate temporal dates for study ${this.id}`)
-
-        // Calculate cutoff date (24 hours ago) to exclude media without EXIF data
-        // (which default to DateTime.now())
-        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-
-        const dateRange = await this.db
-          .select({
-            minDate:
-              sql`MIN(CASE WHEN ${media.timestamp} < ${oneDayAgo} THEN ${media.timestamp} ELSE NULL END)`.as(
-                'minDate'
-              ),
-            maxDate:
-              sql`MAX(CASE WHEN ${media.timestamp} < ${oneDayAgo} THEN ${media.timestamp} ELSE NULL END)`.as(
-                'maxDate'
-              )
-          })
-          .from(media)
-          .get()
-
-        log.info(`Date range query result: ${JSON.stringify(dateRange)}`)
-
-        if (dateRange && dateRange.minDate && dateRange.maxDate) {
-          // Get current metadata to check if dates are already set
-          const currentMetadata = await getMetadata(this.db)
-
-          // Only update if values are not already set (don't overwrite user edits)
-          const updates = {}
-          if (!currentMetadata?.startDate) {
-            updates.startDate = dateRange.minDate.split('T')[0]
-          }
-          if (!currentMetadata?.endDate) {
-            updates.endDate = dateRange.maxDate.split('T')[0]
-          }
-
-          if (Object.keys(updates).length > 0) {
-            await updateMetadata(this.db, this.id, updates)
-            log.info(
-              `Updated temporal dates for study ${this.id}: ${updates.startDate || 'unchanged'} to ${updates.endDate || 'unchanged'}`
-            )
-          }
-        }
-      } catch (temporalError) {
-        log.warn(`Could not auto-populate temporal dates: ${temporalError.message}`)
-      }
-
-      // Aggregate deployment metadata from EXIF data (using mode/most common value)
-      try {
-        log.info(`Aggregating deployment EXIF metadata for study ${this.id}`)
-        const allDeployments = await this.db
-          .select({ deploymentID: deployments.deploymentID })
-          .from(deployments)
-
-        for (const { deploymentID } of allDeployments) {
-          await aggregateDeploymentMetadata(this.db, deploymentID)
-        }
-        log.info(`Completed EXIF metadata aggregation for ${allDeployments.length} deployments`)
-      } catch (exifError) {
-        log.warn(`Could not aggregate deployment EXIF metadata: ${exifError.message}`)
-      }
-
-      // Update model run status to completed
-      await this.db.update(modelRuns).set({ status: 'completed' }).where(eq(modelRuns.id, runID))
-      log.info(`Model run ${runID} completed`)
-    } catch (error) {
-      // Handle AbortError gracefully - not a real error when stopping
-      if (error.name === 'AbortError') {
-        log.info('Background processing was aborted')
-        // Update model run status to aborted
-        await this.db.update(modelRuns).set({ status: 'aborted' }).where(eq(modelRuns.id, runID))
-      } else {
-        // Update model run status to failed
-        await this.db.update(modelRuns).set({ status: 'failed' }).where(eq(modelRuns.id, runID))
-        log.error(`Model run ${runID} failed:`, error)
-        throw error
-      }
-    } finally {
-      await this.cleanup()
-      delete importers[this.id]
-      log.info(`Importer with ID ${this.id} removed from registry`)
-    }
-  }
 }
 
-let importers = {}
-
-async function status(id) {
-  const dbPath = path.join(app.getPath('userData'), 'biowatch-data', 'studies', id, 'study.db')
-
-  try {
-    const db = await getReadonlyDrizzleDb(id, dbPath)
-
-    // Get total count of media
-    const mediaResult = await db
-      .select({ mediaCount: count(media.mediaID) })
-      .from(media)
-      .get()
-
-    // Get count of distinct media files that have observations (processed)
-    const processedResult = await db
-      .select({ processedCount: sql`COUNT(DISTINCT ${media.mediaID})` })
-      .from(media)
-      .innerJoin(observations, eq(media.mediaID, observations.mediaID))
-      .get()
-
-    const mediaCount = mediaResult?.mediaCount || 0
-    const processedCount = processedResult?.processedCount || 0
-    const remain = mediaCount - processedCount
-    const estimatedMinutesRemaining = lastBatchDuration
-      ? (remain * lastBatchDuration) / batchSize / 60
-      : null
-
-    const speed = lastBatchDuration ? (batchSize / lastBatchDuration) * 60 : null
-
-    await closeStudyDatabase(id, dbPath)
-
-    return {
-      total: mediaCount,
-      done: processedCount,
-      isRunning: !!importers[id],
-      estimatedMinutesRemaining: estimatedMinutesRemaining,
-      speed: Math.round(speed)
-    }
-  } catch (error) {
-    log.error(`Error getting status for importer ${id}:`, error)
-    throw error
-  }
-}
-
-ipcMain.handle('importer:get-status', async (event, id) => {
-  return await status(id)
-})
+import { queueScheduler } from '../queue-scheduler.js'
 
 ipcMain.handle('importer:select-images-directory-only', async () => {
   const result = await dialog.showOpenDialog({
@@ -1321,15 +940,10 @@ ipcMain.handle(
   async (event, directoryPath, modelReference, countryCode = null) => {
     try {
       const id = crypto.randomUUID()
-      if (importers[id]) {
-        log.warn(`Importer with ID ${id} already exists, skipping creation`)
-        return { success: false, message: 'Importer already exists' }
-      }
       log.info(
         `Creating new importer with ID ${id} for directory: ${directoryPath} with model: ${modelReference.id} and country: ${countryCode}`
       )
       const importer = new Importer(id, directoryPath, modelReference, countryCode)
-      importers[id] = importer
       await importer.start()
 
       // Insert metadata into the database
@@ -1360,9 +974,9 @@ ipcMain.handle(
 )
 
 ipcMain.handle('importer:select-more-images-directory', async (event, id) => {
-  if (importers[id]) {
-    log.warn(`Importer with ID ${id} is already running`)
-    return { success: false, message: 'Importer already running' }
+  if (queueScheduler.activeStudyId === id && queueScheduler.isRunning) {
+    log.warn(`Processing is already running for study ${id}`)
+    return { success: false, message: 'Processing already running' }
   }
 
   const dbPath = path.join(app.getPath('userData'), 'biowatch-data', 'studies', id, 'study.db')
@@ -1394,81 +1008,6 @@ ipcMain.handle('importer:select-more-images-directory', async (event, id) => {
 
   const directoryPath = result.filePaths[0]
   const importer = new Importer(id, directoryPath, modelReference, country)
-  importers[id] = importer
   await importer.start(true)
   return { success: true, message: 'Importer started successfully' }
-})
-
-ipcMain.handle('importer:stop', async (event, id) => {
-  if (!importers[id]) {
-    log.warn(`No importer found with ID ${id}`)
-    return { success: false, message: 'Importer not found' }
-  }
-
-  try {
-    await importers[id].cleanup()
-    delete importers[id]
-    log.info('Importers', importers)
-    log.info(`Importer with ID ${id} stopped successfully`)
-    return { success: true, message: 'Importer stopped successfully' }
-  } catch (error) {
-    log.error(`Error stopping importer with ID ${id}:`, error)
-    return { success: false, error: error.message }
-  }
-})
-
-ipcMain.handle('importer:resume', async (event, id) => {
-  const dbPath = path.join(app.getPath('userData'), 'biowatch-data', 'studies', id, 'study.db')
-
-  // Check if the database exists
-  if (!fs.existsSync(dbPath)) {
-    log.warn(`No database found for importer with ID ${id}`)
-    return { success: false, message: 'Importer not found' }
-  }
-
-  // Get latest model run to retrieve model reference, importPath and options
-  const db = await getDrizzleDb(id, dbPath)
-  const latestRun = await getLatestModelRun(db)
-  if (!latestRun) {
-    log.warn(`No model run found for study ${id}`)
-    return { success: false, message: 'No model run found for study' }
-  }
-
-  const modelReference = { id: latestRun.modelID, version: latestRun.modelVersion }
-  const importPath = latestRun.importPath
-  if (!importPath) {
-    log.warn(`No import path found for study ${id}`)
-    return { success: false, message: 'No import path found for study' }
-  }
-
-  const options = latestRun.options || {}
-  const country = options.country || null
-
-  importers[id] = new Importer(id, importPath, modelReference, country)
-  importers[id].start()
-  return { success: true, message: 'Importer resumed successfully' }
-})
-
-app.on('will-quit', async () => {
-  // Note: ML server cleanup is handled by the 'before-quit' handler via shutdownAllServers()
-  // This handler only needs to abort in-flight requests and clear importer references
-
-  if (Object.keys(importers).length === 0) {
-    log.info('[Importer] No importers to clean up')
-    return
-  }
-
-  for (const id in importers) {
-    if (importers[id]) {
-      // Only abort in-flight fetch requests; servers are cleaned up centrally
-      if (importers[id].abortController) {
-        log.info(`[Importer] Aborting in-flight requests for importer ${id}`)
-        importers[id].abortController.abort()
-        importers[id].abortController = null
-      }
-      delete importers[id]
-    }
-  }
-
-  log.info('[Importer] All importers cleaned up')
 })
