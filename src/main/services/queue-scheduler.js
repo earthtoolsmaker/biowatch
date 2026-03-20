@@ -16,6 +16,7 @@ import log from './logger.js'
 class QueueScheduler {
   constructor() {
     this._consumer = null
+    this._consumerPromise = null
     this._activeStudyId = null
   }
 
@@ -57,8 +58,8 @@ class QueueScheduler {
 
     log.info(`[QueueScheduler] Starting processing for study ${studyId} topic=${topic}`)
 
-    // Start in background (fire-and-forget)
-    this._consumer.start().catch((err) => {
+    // Start in background — store promise so stopStudy() can await teardown
+    this._consumerPromise = this._consumer.start().catch((err) => {
       log.error(`[QueueScheduler] Consumer error for study ${studyId}:`, err)
     })
   }
@@ -69,8 +70,9 @@ class QueueScheduler {
   async stopStudy() {
     if (this._consumer) {
       this._consumer.stop()
-      // Wait briefly for in-flight batch to finish
+      await this._consumerPromise
       this._consumer = null
+      this._consumerPromise = null
     }
     await serverManager.stop()
     this._activeStudyId = null
