@@ -16,7 +16,7 @@ import {
   insertPrediction,
   insertVideoPredictions,
   aggregateDeploymentMetadata
-} from './import/importer.js'
+} from './prediction.js'
 import { insertModelOutput, updateMetadata, getMetadata } from '../database/index.js'
 import { modelRuns, media, deployments } from '../database/models.js'
 import log from './logger.js'

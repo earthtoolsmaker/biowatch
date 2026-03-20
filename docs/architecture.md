@@ -108,6 +108,7 @@ src/
 │   │   ├── queue-scheduler.js# Singleton: ties consumers to active study
 │   │   ├── server-manager.js # ML server lifecycle (one at a time)
 │   │   ├── inference-consumer.js # ML inference consumer
+│   │   ├── prediction.js    # Prediction utilities (insert, stream, EXIF)
 │   │   ├── import/          # Data importers
 │   │   │   ├── index.js     # Importer exports
 │   │   │   ├── importer.js  # Media scanning + job enqueueing
