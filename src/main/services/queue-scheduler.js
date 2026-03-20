@@ -137,12 +137,24 @@ class QueueScheduler {
       const done = status.completed + status.cancelled
       const isRunning = this._activeStudyId === studyId && this.isRunning
 
+      let estimatedMinutesRemaining = null
+      let speed = null
+
+      if (isRunning && this._consumer) {
+        const { lastBatchDuration, lastBatchSize } = this._consumer.batchMetrics
+        if (lastBatchDuration > 0 && lastBatchSize > 0) {
+          const remaining = status.pending + status.processing
+          speed = Math.round((lastBatchSize / lastBatchDuration) * 60)
+          estimatedMinutesRemaining = (remaining * lastBatchDuration) / lastBatchSize / 60
+        }
+      }
+
       return {
         total,
         done,
         isRunning,
-        estimatedMinutesRemaining: null, // TODO: compute from batch timing
-        speed: null // TODO: compute from batch timing
+        estimatedMinutesRemaining,
+        speed
       }
     } catch (error) {
       log.error(`[QueueScheduler] Error getting status for study ${studyId}:`, error)

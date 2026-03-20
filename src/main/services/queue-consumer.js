@@ -26,6 +26,8 @@ export class QueueConsumer {
     this._paused = false
     this._running = false
     this._stopped = false
+    this._lastBatchDuration = null // seconds
+    this._lastBatchSize = null
   }
 
   /**
@@ -80,7 +82,10 @@ export class QueueConsumer {
           break
         }
 
+        const batchStart = Date.now()
         await this.processBatch(jobs)
+        this._lastBatchDuration = (Date.now() - batchStart) / 1000
+        this._lastBatchSize = jobs.length
       }
     } finally {
       await this.teardown()
@@ -110,6 +115,13 @@ export class QueueConsumer {
 
   get isPaused() {
     return this._paused
+  }
+
+  get batchMetrics() {
+    return {
+      lastBatchDuration: this._lastBatchDuration,
+      lastBatchSize: this._lastBatchSize
+    }
   }
 
   _sleep(ms) {
