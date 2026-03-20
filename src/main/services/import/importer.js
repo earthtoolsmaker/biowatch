@@ -272,18 +272,20 @@ export class Importer {
 
       // Start queue-based processing in background (fire-and-forget)
       const topic = `${this.modelReference.id}:${this.modelReference.version}`
-      queueScheduler.startStudy(this.id, { topic, country: this.country }).catch(async (error) => {
-        log.error('Error starting queue processing:', error)
+      queueScheduler
+        .startStudy(this.id, { topic, country: this.country, importPath: this.folder })
+        .catch(async (error) => {
+          log.error('Error starting queue processing:', error)
 
-        // Emit error event to frontend for toast notification
-        const [mainWindow] = BrowserWindow.getAllWindows()
-        if (mainWindow) {
-          mainWindow.webContents.send('importer:error', {
-            studyId: this.id,
-            message: 'The AI model could not start. Please try again or restart the app.'
-          })
-        }
-      })
+          // Emit error event to frontend for toast notification
+          const [mainWindow] = BrowserWindow.getAllWindows()
+          if (mainWindow) {
+            mainWindow.webContents.send('importer:error', {
+              studyId: this.id,
+              message: 'The AI model could not start. Please try again or restart the app.'
+            })
+          }
+        })
 
       return this.id
     } catch (error) {

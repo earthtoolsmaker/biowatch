@@ -30,10 +30,11 @@ export class InferenceConsumer extends QueueConsumer {
    * @param {string} opts.studyId
    * @param {number} [opts.batchSize=5]
    */
-  constructor(manager, { topic, country = null, studyId, batchSize = 5 }) {
+  constructor(manager, { topic, country = null, studyId, importPath = null, batchSize = 5 }) {
     super(manager, { kind: 'ml-inference', topic, batchSize })
     this.country = country
     this.studyId = studyId
+    this.importPath = importPath
     this.runID = null
     this.port = null
     this.model = null
@@ -59,6 +60,7 @@ export class InferenceConsumer extends QueueConsumer {
         modelVersion: modelVersion,
         startedAt: new Date().toISOString(),
         status: 'running',
+        importPath: this.importPath,
         options: this.country ? { country: this.country } : null
       })
       .run()

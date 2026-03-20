@@ -28,7 +28,7 @@ class QueueScheduler {
    * @param {string} opts.topic - e.g. 'speciesnet:4.0.1a'
    * @param {string|null} [opts.country]
    */
-  async startStudy(studyId, { topic, country = null }) {
+  async startStudy(studyId, { topic, country = null, importPath = null }) {
     if (this._activeStudyId && this._activeStudyId !== studyId) {
       await this.stopStudy()
     }
@@ -52,6 +52,7 @@ class QueueScheduler {
       topic,
       country,
       studyId,
+      importPath,
       batchSize: 5
     })
     this._activeStudyId = studyId

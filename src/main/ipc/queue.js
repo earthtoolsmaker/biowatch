@@ -65,7 +65,11 @@ export function registerQueueIPCHandlers() {
       const topic = `${latestRun.modelID}:${latestRun.modelVersion}`
       const country = latestRun.options?.country || null
 
-      await queueScheduler.startStudy(studyId, { topic, country })
+      await queueScheduler.startStudy(studyId, {
+        topic,
+        country,
+        importPath: latestRun.importPath
+      })
       log.info(`[Queue IPC] Cold-resumed processing for study ${studyId}`)
       return { success: true, message: 'Import resumed' }
     } catch (error) {
