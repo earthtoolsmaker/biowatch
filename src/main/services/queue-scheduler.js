@@ -59,9 +59,20 @@ class QueueScheduler {
     log.info(`[QueueScheduler] Starting processing for study ${studyId} topic=${topic}`)
 
     // Start in background — store promise so stopStudy() can await teardown
-    this._consumerPromise = this._consumer.start().catch((err) => {
-      log.error(`[QueueScheduler] Consumer error for study ${studyId}:`, err)
-    })
+    const consumer = this._consumer
+    this._consumerPromise = consumer
+      .start()
+      .catch((err) => {
+        log.error(`[QueueScheduler] Consumer error for study ${studyId}:`, err)
+      })
+      .finally(() => {
+        // Only clear state if no new consumer replaced this one
+        if (this._consumer === consumer) {
+          this._consumer = null
+          this._consumerPromise = null
+          this._activeStudyId = null
+        }
+      })
   }
 
   /**
