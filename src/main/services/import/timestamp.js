@@ -75,10 +75,27 @@ export async function extractTimestampFromFFmpeg(filePath) {
 
   return new Promise((resolve) => {
     let stderr = ''
+    let settled = false
 
-    const proc = spawn(ffmpegBinary, ['-i', filePath, '-f', 'null', '-'], {
+    const settle = (result) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      resolve(result)
+    }
+
+    // Only read the container header — no output means FFmpeg prints metadata
+    // to stderr and exits immediately instead of decoding the entire stream.
+    const proc = spawn(ffmpegBinary, ['-i', filePath], {
       stdio: ['ignore', 'ignore', 'pipe']
     })
+
+    // Kill FFmpeg if it hangs (e.g. corrupt file, stalled network mount)
+    const timer = setTimeout(() => {
+      proc.kill('SIGKILL')
+      log.warn(`[Timestamp] FFmpeg timed out for ${filePath}`)
+      settle({ timestamp: null, source: 'ffmpeg' })
+    }, 10_000)
 
     proc.stderr.on('data', (data) => {
       stderr += data.toString()
@@ -87,15 +104,15 @@ export async function extractTimestampFromFFmpeg(filePath) {
     proc.on('close', () => {
       const date = parseFFmpegCreationTime(stderr)
       if (date && isValidTimestamp(date)) {
-        resolve({ timestamp: date, source: 'ffmpeg' })
+        settle({ timestamp: date, source: 'ffmpeg' })
       } else {
-        resolve({ timestamp: null, source: 'ffmpeg' })
+        settle({ timestamp: null, source: 'ffmpeg' })
       }
     })
 
     proc.on('error', (err) => {
       log.warn(`[Timestamp] FFmpeg failed for ${filePath}: ${err.message}`)
-      resolve({ timestamp: null, source: 'ffmpeg' })
+      settle({ timestamp: null, source: 'ffmpeg' })
     })
   })
 }
