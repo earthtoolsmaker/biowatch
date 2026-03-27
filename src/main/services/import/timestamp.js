@@ -48,11 +48,15 @@ export function isValidTimestamp(date) {
  * @returns {Date|null}
  */
 export function parseFFmpegCreationTime(stderr) {
-  // Match creation_time in ffmpeg banner output
-  const match = stderr.match(/creation_time\s*:\s*(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2})/)
+  // Match creation_time in ffmpeg banner output, preserving any trailing Z
+  const match = stderr.match(/creation_time\s*:\s*(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2})\S*/)
   if (!match) return null
 
-  const date = new Date(match[1])
+  // Ensure the timestamp is parsed as UTC — FFmpeg creation_time is always UTC
+  let isoString = match[1]
+  if (!isoString.endsWith('Z')) isoString += 'Z'
+
+  const date = new Date(isoString)
   return isNaN(date.getTime()) ? null : date
 }
 

@@ -61,16 +61,28 @@ Input #0, mov,mp4,m4a,3gp,3g2,mj2, from 'video.mp4':
 `
     const date = parseFFmpegCreationTime(stderr)
     assert.ok(date)
-    assert.equal(date.getFullYear(), 2024)
-    assert.equal(date.getMonth(), 2) // March = 2
-    assert.equal(date.getDate(), 15)
+    assert.equal(date.getUTCFullYear(), 2024)
+    assert.equal(date.getUTCMonth(), 2) // March = 2
+    assert.equal(date.getUTCDate(), 15)
+    assert.equal(date.getUTCHours(), 14)
+    assert.equal(date.getUTCMinutes(), 30)
+    assert.equal(date.getUTCSeconds(), 22)
   })
 
   test('parses creation_time without fractional seconds', () => {
     const stderr = '    creation_time   : 2023-07-20T08:15:30Z\n'
     const date = parseFFmpegCreationTime(stderr)
     assert.ok(date)
-    assert.equal(date.getFullYear(), 2023)
+    assert.equal(date.getUTCFullYear(), 2023)
+  })
+
+  test('parses creation_time without trailing Z as UTC', () => {
+    const stderr = '    creation_time   : 2024-01-01T00:30:00\n'
+    const date = parseFFmpegCreationTime(stderr)
+    assert.ok(date)
+    assert.equal(date.getUTCFullYear(), 2024)
+    assert.equal(date.getUTCHours(), 0)
+    assert.equal(date.getUTCMinutes(), 30)
   })
 
   test('returns null when no creation_time present', () => {
