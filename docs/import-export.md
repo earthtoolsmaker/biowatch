@@ -281,7 +281,7 @@ For images, timestamps are extracted from EXIF metadata (`DateTimeOriginal`, `Cr
 
 1. **FFmpeg container metadata** — Reads `creation_time` from the video container using the bundled FFmpeg binary
 2. **Filename pattern parsing** — Recognizes common camera trap naming conventions (e.g., `RCNX0001_20240315_143022.MP4`, `VID_20240315_143022.mp4`)
-3. **File modification time** — Last resort fallback using filesystem mtime
+3. **File modification time** — Last resort fallback using filesystem mtime. Note: mtime may be unreliable when files are copied from SD cards. FAT32/exFAT (common on camera trap SD cards) stores timestamps at 2-second resolution in local time without timezone info, so copying across timezones can shift the time. Some copy tools or SD card readers may also reset timestamps entirely. This is why mtime is used only as a last resort.
 
 Each extracted timestamp is validated to reject known-bad values: QuickTime epoch (1904-01-01), Unix epoch (1970-01-01), pre-2000 dates, and future dates. The source of the extracted timestamp is stored in `exifData.timestampSource` for auditability.
 
