@@ -61,13 +61,11 @@ export function parseFFmpegCreationTime(stderr) {
 }
 
 /**
- * Extract timestamp from video container metadata using FFmpeg.
- * Spawns ffmpeg to read file header and parses creation_time from stderr.
- * @param {string} filePath - Absolute path to video file
- * @returns {Promise<{timestamp: Date|null, source: string}>}
+ * Lazily resolve the FFmpeg binary path once.
+ * Avoids top-level Electron imports (which break tests) and repeated
+ * resolution during batch imports. The promise is cached after first call.
+ * @returns {() => Promise<string>}
  */
-// Lazily resolve the FFmpeg binary path once, avoiding both top-level Electron
-// imports (which break tests) and repeated resolution during batch imports.
 const resolveFFmpegPath = (() => {
   let cached
   return () => {
@@ -76,6 +74,14 @@ const resolveFFmpegPath = (() => {
   }
 })()
 
+/**
+ * Extract timestamp from video container metadata using FFmpeg.
+ * Spawns `ffmpeg -i <file>` to read the container header (no decoding) and
+ * parses `creation_time` from stderr. Includes a 10 s timeout to handle
+ * corrupt files or stalled mounts.
+ * @param {string} filePath - Absolute path to video file
+ * @returns {Promise<{timestamp: Date|null, source: string}>}
+ */
 export async function extractTimestampFromFFmpeg(filePath) {
   let ffmpegBinary
   try {

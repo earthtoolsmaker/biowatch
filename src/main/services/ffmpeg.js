@@ -1,3 +1,13 @@
+/**
+ * Shared FFmpeg binary path resolution.
+ *
+ * Provides a single helper to locate the bundled FFmpeg binary from
+ * ffmpeg-static, handling the app.asar → app.asar.unpacked rewrite
+ * required in packaged Electron apps.
+ *
+ * @module ffmpeg
+ */
+
 import { app } from 'electron'
 import ffmpegPath from 'ffmpeg-static'
 
