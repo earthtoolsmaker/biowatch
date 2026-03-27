@@ -27,6 +27,7 @@ import { startMLModelHTTPServer, stopMLModelHTTPServer } from '../ml/server.js'
 import mlmodels from '../../../shared/mlmodels.js'
 import { selectVideoClassificationWinner } from '../ml/classification.js'
 import { DEFAULT_SEQUENCE_GAP } from '../../../shared/constants.js'
+import { resolveVideoTimestamp } from './timestamp.js'
 
 // Map file extensions to IANA media types (Camtrap DP compliant)
 const extensionToMediatype = {
@@ -710,7 +711,16 @@ async function processMediaDeployment(db, mediaRecord) {
   // 3. Determine timestamp (support both image and video metadata fields)
   const zones = latitude && longitude ? geoTz.find(latitude, longitude) : null
   const captureDate = exifData.DateTimeOriginal || exifData.CreateDate || exifData.MediaCreateDate
-  const date = captureDate ? luxon.DateTime.fromJSDate(captureDate, { zone: zones?.[0] }) : null
+  let date = captureDate ? luxon.DateTime.fromJSDate(captureDate, { zone: zones?.[0] }) : null
+
+  // 3b. For video files, fall back to video-specific timestamp extraction
+  if (!date && isVideoMediatype(mediaRecord.fileMediatype)) {
+    const videoResult = await resolveVideoTimestamp(mediaRecord.filePath, mediaRecord.fileName)
+    if (videoResult.timestamp) {
+      date = luxon.DateTime.fromJSDate(videoResult.timestamp, { zone: zones?.[0] || 'utc' })
+      exifData.timestampSource = videoResult.source
+    }
+  }
 
   // 4. Calculate parentFolder for deployment lookup
   const parentFolder =

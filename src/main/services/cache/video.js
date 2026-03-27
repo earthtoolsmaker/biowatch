@@ -12,10 +12,10 @@ import { app, ipcMain } from 'electron'
 import log from 'electron-log'
 import { existsSync, mkdirSync, statSync, readdirSync, unlinkSync, rmSync } from 'fs'
 import { join, basename, extname } from 'path'
-import ffmpegPath from 'ffmpeg-static'
 
 import { cleanExpiredTranscodeCacheImpl } from './cleanup.js'
 import { downloadFileWithRetry } from '../download.ts'
+import { getFFmpegBinaryPath } from '../ffmpeg.js'
 
 // Browser-compatible video formats (don't need transcoding)
 const BROWSER_COMPATIBLE_FORMATS = new Set(['.mp4', '.webm', '.ogg', '.ogv'])
@@ -74,16 +74,6 @@ function ensureVideoCacheDir(studyId) {
 // Active transcoding jobs (for progress tracking and cancellation)
 const activeJobs = new Map()
 
-function getFFmpegBinaryPath() {
-  if (!ffmpegPath) {
-    throw new Error('Failed to resolve path from ffmpeg-static')
-  }
-
-  // Packaged Electron apps cannot execute binaries from app.asar.
-  return app.isPackaged && ffmpegPath.includes('app.asar')
-    ? ffmpegPath.replace('app.asar', 'app.asar.unpacked')
-    : ffmpegPath
-}
 
 /**
  * Check if a path is a remote URL.

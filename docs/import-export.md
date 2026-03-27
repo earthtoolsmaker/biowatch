@@ -275,6 +275,18 @@ Most complex import pipeline with streaming ML inference.
 
 **Key file:** `src/main/services/import/importer.js`
 
+### Video Timestamp Extraction
+
+For images, timestamps are extracted from EXIF metadata (`DateTimeOriginal`, `CreateDate`, `MediaCreateDate`) using the `exifr` library. However, `exifr` does not support video container formats (MP4, MOV, AVI), so a dedicated fallback chain is used for video files:
+
+1. **FFmpeg container metadata** — Reads `creation_time` from the video container using the bundled FFmpeg binary
+2. **Filename pattern parsing** — Recognizes common camera trap naming conventions (e.g., `RCNX0001_20240315_143022.MP4`, `VID_20240315_143022.mp4`)
+3. **File modification time** — Last resort fallback using filesystem mtime
+
+Each extracted timestamp is validated to reject known-bad values: QuickTime epoch (1904-01-01), Unix epoch (1970-01-01), pre-2000 dates, and future dates. The source of the extracted timestamp is stored in `exifData.timestampSource` for auditability.
+
+**Key file:** `src/main/services/import/timestamp.js`
+
 ### Prediction Flow
 
 ```javascript
@@ -596,6 +608,7 @@ On cancellation:
 | `src/main/services/import/parsers/deepfaune.js` | DeepFaune CSV import |
 | `src/main/services/import/parsers/lila.js` | LILA dataset import (COCO Camera Traps) |
 | `src/main/services/import/importer.js` | Image folder import with ML |
+| `src/main/services/import/timestamp.js` | Video timestamp extraction with fallback chain |
 | `src/main/services/import/index.js` | Re-exports all import functions |
 | `src/main/services/export/exporter.js` | All export functionality |
 | `src/main/services/download.ts` | File download with retry |
