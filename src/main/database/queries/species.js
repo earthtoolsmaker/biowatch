@@ -34,7 +34,7 @@ export async function getSpeciesDistribution(dbPath) {
   try {
     const studyId = getStudyIdFromPath(dbPath)
 
-    const db = await getDrizzleDb(studyId, dbPath)
+    const db = await getDrizzleDb(studyId, dbPath, { readonly: true })
 
     const result = await db
       .select({
@@ -74,7 +74,7 @@ export async function getBlankMediaCount(dbPath) {
 
   try {
     const studyId = getStudyIdFromPath(dbPath)
-    const db = await getDrizzleDb(studyId, dbPath)
+    const db = await getDrizzleDb(studyId, dbPath, { readonly: true })
 
     // Count media with no linked observations
     const matchingObservations = db
@@ -117,7 +117,7 @@ export async function getSpeciesDistributionByMedia(dbPath) {
   try {
     const studyId = getStudyIdFromPath(dbPath)
 
-    const db = await getDrizzleDb(studyId, dbPath)
+    const db = await getDrizzleDb(studyId, dbPath, { readonly: true })
 
     const result = await db
       .select({
@@ -169,7 +169,7 @@ export async function getSpeciesTimeseriesByMedia(dbPath, speciesNames = []) {
 
   try {
     const studyId = getStudyIdFromPath(dbPath)
-    const db = await getDrizzleDb(studyId, dbPath)
+    const db = await getDrizzleDb(studyId, dbPath, { readonly: true })
 
     const shouldRunSpeciesQuery = regularSpecies.length > 0 || !requestingBlanks
 
@@ -276,7 +276,7 @@ export async function getSpeciesHeatmapDataByMedia(
 
   try {
     const studyId = getStudyIdFromPath(dbPath)
-    const db = await getDrizzleDb(studyId, dbPath)
+    const db = await getDrizzleDb(studyId, dbPath, { readonly: true })
 
     // Build base conditions
     const baseConditions = [
@@ -367,7 +367,7 @@ export async function getSpeciesDailyActivityByMedia(dbPath, species, startDate,
 
   try {
     const studyId = getStudyIdFromPath(dbPath)
-    const db = await getDrizzleDb(studyId, dbPath)
+    const db = await getDrizzleDb(studyId, dbPath, { readonly: true })
 
     let results = []
 
@@ -457,7 +457,7 @@ export async function getDistinctSpecies(dbPath) {
   try {
     const studyId = getStudyIdFromPath(dbPath)
 
-    const db = await getDrizzleDb(studyId, dbPath)
+    const db = await getDrizzleDb(studyId, dbPath, { readonly: true })
 
     const rows = await db
       .select({

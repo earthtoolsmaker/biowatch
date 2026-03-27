@@ -19,7 +19,7 @@ export async function getDeployments(dbPath) {
   try {
     const studyId = getStudyIdFromPath(dbPath)
 
-    const db = await getDrizzleDb(studyId, dbPath)
+    const db = await getDrizzleDb(studyId, dbPath, { readonly: true })
 
     // Create subquery with ORDER BY to get deployments sorted by locationID and deploymentStart DESC
     const subquery = db
@@ -75,7 +75,7 @@ export async function getLocationsActivity(dbPath) {
   try {
     const studyId = getStudyIdFromPath(dbPath)
 
-    const db = await getDrizzleDb(studyId, dbPath)
+    const db = await getDrizzleDb(studyId, dbPath, { readonly: true })
 
     // First get the total date range to calculate period size
     const dateRange = await db
@@ -251,7 +251,7 @@ export async function getDeploymentsActivity(dbPath) {
   try {
     const studyId = getStudyIdFromPath(dbPath)
 
-    const db = await getDrizzleDb(studyId, dbPath)
+    const db = await getDrizzleDb(studyId, dbPath, { readonly: true })
 
     // First get the total date range to calculate period size
     const dateRange = await db
