@@ -74,7 +74,6 @@ function ensureVideoCacheDir(studyId) {
 // Active transcoding jobs (for progress tracking and cancellation)
 const activeJobs = new Map()
 
-
 /**
  * Check if a path is a remote URL.
  * @param {string} filePath - Path or URL to check

@@ -109,7 +109,10 @@ export async function extractTimestampFromFFmpeg(filePath) {
  */
 const FILENAME_PATTERNS = [
   // YYYYMMDD_HHMMSS or YYYYMMDD-HHMMSS (Reconyx, Bushnell, Browning, Stealth Cam, most camera traps)
-  { regex: /(?<y>\d{4})(?<M>\d{2})(?<d>\d{2})[_-](?<h>\d{2})(?<m>\d{2})(?<s>\d{2})/, hasTime: true },
+  {
+    regex: /(?<y>\d{4})(?<M>\d{2})(?<d>\d{2})[_-](?<h>\d{2})(?<m>\d{2})(?<s>\d{2})/,
+    hasTime: true
+  },
   // YYYY-MM-DD_HH-MM-SS or YYYY-MM-DD-HH-MM-SS (dashed variant)
   {
     regex: /(?<y>\d{4})-(?<M>\d{2})-(?<d>\d{2})[_-](?<h>\d{2})-(?<m>\d{2})-(?<s>\d{2})/,
