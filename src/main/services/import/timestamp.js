@@ -139,18 +139,22 @@ export async function extractTimestampFromFFmpeg(filePath) {
 const FILENAME_PATTERNS = [
   // YYYYMMDD_HHMMSS or YYYYMMDD-HHMMSS (Reconyx, Bushnell, Browning, Stealth Cam, most camera traps)
   {
-    regex: /(?<y>\d{4})(?<M>\d{2})(?<d>\d{2})[_-](?<h>\d{2})(?<m>\d{2})(?<s>\d{2})/,
+    regex: /(?<!\d)(?<y>\d{4})(?<M>\d{2})(?<d>\d{2})[_-](?<h>\d{2})(?<m>\d{2})(?<s>\d{2})(?!\d)/,
     hasTime: true
   },
   // YYYY-MM-DD_HH-MM-SS or YYYY-MM-DD-HH-MM-SS (dashed variant)
   {
-    regex: /(?<y>\d{4})-(?<M>\d{2})-(?<d>\d{2})[_-](?<h>\d{2})-(?<m>\d{2})-(?<s>\d{2})/,
+    regex:
+      /(?<!\d)(?<y>\d{4})-(?<M>\d{2})-(?<d>\d{2})[_-](?<h>\d{2})-(?<m>\d{2})-(?<s>\d{2})(?!\d)/,
     hasTime: true
   },
   // YYYYMMDDHHmmss (fully packed, no separator — 14 consecutive digits)
-  { regex: /(?<y>\d{4})(?<M>\d{2})(?<d>\d{2})(?<h>\d{2})(?<m>\d{2})(?<s>\d{2})/, hasTime: true },
+  {
+    regex: /(?<!\d)(?<y>\d{4})(?<M>\d{2})(?<d>\d{2})(?<h>\d{2})(?<m>\d{2})(?<s>\d{2})(?!\d)/,
+    hasTime: true
+  },
   // YYYYMMDD (date only, time defaults to 00:00:00)
-  { regex: /(?<y>\d{4})(?<M>\d{2})(?<d>\d{2})/, hasTime: false }
+  { regex: /(?<!\d)(?<y>\d{4})(?<M>\d{2})(?<d>\d{2})(?!\d)/, hasTime: false }
 ]
 
 /**

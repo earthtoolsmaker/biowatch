@@ -175,4 +175,34 @@ describe('extractTimestampFromFilename', () => {
     assert.ok(result.timestamp)
     assert.equal(result.timestamp.getFullYear(), 2024)
   })
+
+  test('parses fully packed 14-digit timestamp (no separator)', () => {
+    const result = extractTimestampFromFilename('20220614230232.mkv')
+    assert.ok(result.timestamp)
+    assert.equal(result.source, 'filename')
+    assert.equal(result.timestamp.getFullYear(), 2022)
+    assert.equal(result.timestamp.getMonth(), 5) // June
+    assert.equal(result.timestamp.getDate(), 14)
+    assert.equal(result.timestamp.getHours(), 23)
+    assert.equal(result.timestamp.getMinutes(), 2)
+    assert.equal(result.timestamp.getSeconds(), 32)
+  })
+
+  test('does not false-match on long serial numbers', () => {
+    // Serial "00012024031514" contains a valid-looking date at the wrong offset
+    const result = extractTimestampFromFilename('CAM00012024031514.MP4')
+    // Should either not match or match the correct 20240315 date, not 00012024
+    if (result.timestamp) {
+      assert.equal(result.timestamp.getFullYear(), 2024)
+      assert.equal(result.timestamp.getMonth(), 2) // March
+    }
+  })
+
+  test('parses NSCF style with embedded timestamp', () => {
+    const result = extractTimestampFromFilename('NSCF0002_250630121803_0025.MP4')
+    // 250630121803 = 14 digits starting with 25 — year 2506 is invalid,
+    // but date-only fallback on 250630 is also invalid (month 06, day 30, year 2506)
+    // so this should fall through to null
+    assert.equal(result.timestamp, null)
+  })
 })
