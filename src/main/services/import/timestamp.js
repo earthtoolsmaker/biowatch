@@ -66,12 +66,20 @@ export function parseFFmpegCreationTime(stderr) {
  * @param {string} filePath - Absolute path to video file
  * @returns {Promise<{timestamp: Date|null, source: string}>}
  */
+// Lazily resolve the FFmpeg binary path once, avoiding both top-level Electron
+// imports (which break tests) and repeated resolution during batch imports.
+const resolveFFmpegPath = (() => {
+  let cached
+  return () => {
+    if (!cached) cached = import('../ffmpeg.js').then((m) => m.getFFmpegBinaryPath())
+    return cached
+  }
+})()
+
 export async function extractTimestampFromFFmpeg(filePath) {
   let ffmpegBinary
   try {
-    // Dynamic import to avoid pulling in Electron at module load time (breaks tests)
-    const { getFFmpegBinaryPath } = await import('../ffmpeg.js')
-    ffmpegBinary = getFFmpegBinaryPath()
+    ffmpegBinary = await resolveFFmpegPath()
   } catch {
     log.warn('[Timestamp] FFmpeg binary not available, skipping container metadata extraction')
     return { timestamp: null, source: 'ffmpeg' }
