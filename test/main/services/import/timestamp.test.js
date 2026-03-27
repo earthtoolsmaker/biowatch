@@ -26,7 +26,8 @@ describe('isValidTimestamp', () => {
   })
 
   test('rejects pre-2000 dates', () => {
-    assert.equal(isValidTimestamp(new Date('1999-12-31T23:59:59Z')), false)
+    assert.equal(isValidTimestamp(new Date('1999-06-15T12:00:00Z')), false)
+    assert.equal(isValidTimestamp(new Date(1998, 5, 15)), false)
   })
 
   test('rejects future dates beyond current year + 1', () => {

@@ -25,8 +25,8 @@ import log from '../logger.js'
 export function isValidTimestamp(date) {
   if (!(date instanceof Date) || isNaN(date.getTime())) return false
 
-  const year = date.getUTCFullYear()
-  const currentYear = new Date().getUTCFullYear()
+  const year = date.getFullYear()
+  const currentYear = new Date().getFullYear()
 
   // QuickTime epoch (1904-01-01) and Unix epoch (1970-01-01)
   if (year <= 1970) return false
