@@ -14,6 +14,7 @@ import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 
+import { getFFmpegBinaryPath } from '../ffmpeg.js'
 import log from '../logger.js'
 
 /**
@@ -62,14 +63,13 @@ export function parseFFmpegCreationTime(stderr) {
 
 /**
  * Lazily resolve the FFmpeg binary path once.
- * Avoids top-level Electron imports (which break tests) and repeated
- * resolution during batch imports. The promise is cached after first call.
- * @returns {() => Promise<string>}
+ * Caches the result to avoid repeated resolution during batch imports.
+ * @returns {string}
  */
 const resolveFFmpegPath = (() => {
   let cached
   return () => {
-    if (!cached) cached = import('../ffmpeg.js').then((m) => m.getFFmpegBinaryPath())
+    if (!cached) cached = getFFmpegBinaryPath()
     return cached
   }
 })()
@@ -85,7 +85,7 @@ const resolveFFmpegPath = (() => {
 export async function extractTimestampFromFFmpeg(filePath) {
   let ffmpegBinary
   try {
-    ffmpegBinary = await resolveFFmpegPath()
+    ffmpegBinary = resolveFFmpegPath()
   } catch {
     log.warn('[Timestamp] FFmpeg binary not available, skipping container metadata extraction')
     return { timestamp: null, source: 'ffmpeg' }

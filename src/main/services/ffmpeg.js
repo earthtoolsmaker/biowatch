@@ -5,10 +5,12 @@
  * ffmpeg-static, handling the app.asar → app.asar.unpacked rewrite
  * required in packaged Electron apps.
  *
+ * Intentionally free of Electron imports so the module can be loaded
+ * in plain Node.js (e.g. tests) without crashing.
+ *
  * @module ffmpeg
  */
 
-import { app } from 'electron'
 import ffmpegPath from 'ffmpeg-static'
 
 /**
@@ -22,7 +24,10 @@ export function getFFmpegBinaryPath() {
   }
 
   // Packaged Electron apps cannot execute binaries from app.asar.
-  return app.isPackaged && ffmpegPath.includes('app.asar')
+  // ffmpeg-static uses __dirname to resolve the binary path; inside an asar
+  // archive this yields a path containing "app.asar" which must be rewritten
+  // to "app.asar.unpacked" where electron-builder places the real binary.
+  return ffmpegPath.includes('app.asar')
     ? ffmpegPath.replace('app.asar', 'app.asar.unpacked')
     : ffmpegPath
 }
