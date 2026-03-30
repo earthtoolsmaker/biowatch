@@ -15,7 +15,17 @@ import { transformBboxToCamtrapDP } from '../utils/bbox.js'
 import { selectVideoClassificationWinner } from './ml/classification.js'
 import { insertModelOutput } from '../database/index.js'
 import { media, observations, deployments } from '../database/models.js'
+import { resolveVideoTimestamp } from './import/timestamp.js'
 import log from './logger.js'
+
+/**
+ * Check whether a MIME type represents a video format
+ * @param {string} mediatype - IANA media type (e.g. 'video/mp4')
+ * @returns {boolean}
+ */
+function isVideoMediatype(mediatype) {
+  return mediatype.startsWith('video/')
+}
 
 /**
  * Serialize EXIF data for JSON storage, converting Date objects to ISO strings
@@ -556,7 +566,16 @@ export async function processMediaDeployment(db, mediaRecord) {
   // 3. Determine timestamp (support both image and video metadata fields)
   const zones = latitude && longitude ? geoTz.find(latitude, longitude) : null
   const captureDate = exifData.DateTimeOriginal || exifData.CreateDate || exifData.MediaCreateDate
-  const date = captureDate ? luxon.DateTime.fromJSDate(captureDate, { zone: zones?.[0] }) : null
+  let date = captureDate ? luxon.DateTime.fromJSDate(captureDate, { zone: zones?.[0] }) : null
+
+  // 3b. For video files, fall back to video-specific timestamp extraction
+  if (!date && isVideoMediatype(mediaRecord.fileMediatype)) {
+    const videoResult = await resolveVideoTimestamp(mediaRecord.filePath, mediaRecord.fileName)
+    if (videoResult.timestamp) {
+      date = luxon.DateTime.fromJSDate(videoResult.timestamp, { zone: zones?.[0] || 'utc' })
+      exifData.timestampSource = videoResult.source
+    }
+  }
 
   // 4. Calculate parentFolder for deployment lookup
   const parentFolder =
