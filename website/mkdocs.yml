@@ -1,0 +1,51 @@
+site_name: Biowatch
+site_url: https://biowatch.earthtoolsmaker.org
+site_description: Analyse and visualise camera trap datasets — privately, on your machine.
+repo_url: https://github.com/earthtoolsmaker/biowatch
+repo_name: earthtoolsmaker/biowatch
+
+theme:
+  name: material
+  logo: assets/images/biowatch-logo.png
+  palette:
+    - scheme: default
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - attr_list
+  - md_in_html
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Guides:
+      - Importing Data: guides/importing-data.md
+  - Reference:
+      - Supported Formats: reference/supported-formats.md
