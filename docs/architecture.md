@@ -98,9 +98,11 @@ src/
 │   │   ├── extractor.js     # Metadata extraction
 │   │   ├── study.js         # Study metadata management
 │   │   ├── download.ts      # File download utilities
+│   │   ├── ffmpeg.js        # Shared FFmpeg binary path resolution
 │   │   ├── import/          # Data importers
 │   │   │   ├── index.js     # Importer exports
 │   │   │   ├── importer.js  # Image folder importer with ML
+│   │   │   ├── timestamp.js # Video timestamp extraction (FFmpeg → filename → mtime)
 │   │   │   └── parsers/     # Format-specific parsers
 │   │   │       ├── camtrapDP.js      # CamTrap DP importer
 │   │   │       ├── wildlifeInsights.js # Wildlife Insights importer
@@ -305,6 +307,7 @@ function getStudyPath(userDataPath, studyId) {
 | `src/main/services/ml/download.ts` | ML model download and installation |
 | `src/main/ipc/ml.js` | ML model IPC handlers |
 | `src/main/services/import/importer.js` | Image import with ML inference |
+| `src/main/services/import/timestamp.js` | Video timestamp extraction (FFmpeg → filename → mtime fallback) |
 | `src/main/services/import/parsers/camtrapDP.js` | CamTrap DP format importer |
 | `src/main/services/import/parsers/wildlifeInsights.js` | Wildlife Insights format importer |
 | `src/main/services/import/parsers/deepfaune.js` | DeepFaune CSV format importer |
