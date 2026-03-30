@@ -1,0 +1,6 @@
+[build]
+  command = "curl -LsSf https://astral.sh/uv/install.sh | sh && uv sync && uv run mkdocs build"
+  publish = "site"
+
+[build.environment]
+  PYTHON_VERSION = "3.12"

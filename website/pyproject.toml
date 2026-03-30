@@ -1,0 +1,7 @@
+[project]
+name = "biowatch-docs"
+version = "0.0.1"
+requires-python = ">=3.12"
+dependencies = [
+    "mkdocs-material>=9.6",
+]

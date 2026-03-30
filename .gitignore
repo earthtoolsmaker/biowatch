@@ -15,3 +15,7 @@ __pycache__/
 /blob-report/
 /playwright/.cache/
 /.e2e-test-data/
+
+# MkDocs (docs website)
+website/site/
+website/.venv/
