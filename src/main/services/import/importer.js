@@ -121,6 +121,7 @@ async function insertMedia(db, fullPath, importFolder) {
 //   model_version: '4.0.1a'
 // }
 
+
 /**
  * Insert media records in batch using Drizzle ORM with transaction for performance
  * @param {Object} db - Drizzle database instance

@@ -103,6 +103,7 @@ src/
 │   │   ├── extractor.js     # Metadata extraction
 │   │   ├── study.js         # Study metadata management
 │   │   ├── download.ts      # File download utilities
+│   │   ├── ffmpeg.js        # Shared FFmpeg binary path resolution
 │   │   ├── queue.js          # Persistent job queue service
 │   │   ├── queue-consumer.js # Base consumer (poll/claim/process loop)
 │   │   ├── queue-scheduler.js# Singleton: ties consumers to active study
@@ -112,6 +113,7 @@ src/
 │   │   ├── import/          # Data importers
 │   │   │   ├── index.js     # Importer exports
 │   │   │   ├── importer.js  # Media scanning + job enqueueing
+│   │   │   ├── timestamp.js # Video timestamp extraction (FFmpeg → filename → mtime)
 │   │   │   └── parsers/     # Format-specific parsers
 │   │   │       ├── camtrapDP.js      # CamTrap DP importer
 │   │   │       ├── wildlifeInsights.js # Wildlife Insights importer
@@ -343,6 +345,7 @@ function getStudyPath(userDataPath, studyId) {
 | `src/main/services/inference-consumer.js`              | ML inference consumer (streams predictions)           |
 | `src/main/ipc/queue.js`                                | Queue IPC handlers (status, pause, resume)            |
 | `src/main/services/import/importer.js`                 | Media scanning + job enqueueing                       |
+| `src/main/services/import/timestamp.js`                | Video timestamp extraction (FFmpeg -> filename -> mtime) |
 | `src/main/services/import/parsers/camtrapDP.js`        | CamTrap DP format importer                            |
 | `src/main/services/import/parsers/wildlifeInsights.js` | Wildlife Insights format importer                     |
 | `src/main/services/import/parsers/deepfaune.js`        | DeepFaune CSV format importer                         |

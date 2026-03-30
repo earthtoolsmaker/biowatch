@@ -1,40 +1,49 @@
 /**
  * Sequence-related IPC handlers
  *
- * These handlers compute sequence-aware species counts in the main thread,
- * avoiding the need to transfer raw media-level data to the renderer.
+ * Heavy computations (DB query + sequence grouping) run in worker threads
+ * so the main thread stays responsive for UI events and tile rendering.
+ * The paginated sequences handler remains on the main thread since it
+ * handles interactive pagination with smaller payloads.
  */
 
 import { app, ipcMain } from 'electron'
 import log from 'electron-log'
 import { existsSync } from 'fs'
+import { join } from 'path'
+import { Worker } from 'worker_threads'
 import { getStudyDatabasePath } from '../services/paths.js'
-import {
-  getDrizzleDb,
-  getMetadata,
-  getSpeciesDistributionByMedia,
-  getSpeciesTimeseriesByMedia,
-  getSpeciesHeatmapDataByMedia,
-  getSpeciesDailyActivityByMedia
-} from '../database/index.js'
-import {
-  calculateSequenceAwareSpeciesCounts,
-  calculateSequenceAwareTimeseries,
-  calculateSequenceAwareHeatmap,
-  calculateSequenceAwareDailyActivity,
-  getPaginatedSequences
-} from '../services/sequences/index.js'
+import { getPaginatedSequences } from '../services/sequences/index.js'
 
 /**
- * Helper to fetch sequenceGap from study metadata
- * @param {string} studyId - Study identifier
- * @param {string} dbPath - Path to database file
- * @returns {Promise<number|null>} sequenceGap value or null for eventID-based grouping
+ * Run a sequence computation in a worker thread.
+ * Each worker opens its own readonly DB connection, runs the query + grouping,
+ * returns the result, then exits.
+ *
+ * @param {Object} workerData - Task parameters passed to the worker
+ * @returns {Promise<*>} Computed result
  */
-async function getSequenceGapFromMetadata(studyId, dbPath) {
-  const db = await getDrizzleDb(studyId, dbPath, { readonly: true })
-  const meta = await getMetadata(db)
-  return meta?.sequenceGap ?? null
+function runInWorker(workerData) {
+  return new Promise((resolve, reject) => {
+    const workerPath = join(__dirname, 'sequences-worker.js')
+    const worker = new Worker(workerPath, { workerData })
+
+    worker.on('message', (result) => {
+      if (result.error) {
+        reject(new Error(result.error))
+      } else {
+        resolve(result.data)
+      }
+    })
+
+    worker.on('error', reject)
+
+    worker.on('exit', (code) => {
+      if (code !== 0) {
+        reject(new Error(`Sequence worker exited with code ${code}`))
+      }
+    })
+  })
 }
 
 /**
@@ -43,7 +52,6 @@ async function getSequenceGapFromMetadata(studyId, dbPath) {
 export function registerSequencesIPCHandlers() {
   /**
    * Get sequence-aware species distribution
-   * Fetches raw media data and computes sequence-aware counts in main thread
    * @param {string} studyId - Study identifier
    * @param {number|null} [gapSeconds] - Optional gap threshold; fetched from metadata if not provided
    */
@@ -55,12 +63,12 @@ export function registerSequencesIPCHandlers() {
         return { error: 'Database not found for this study' }
       }
 
-      // If gapSeconds not provided, fetch from metadata
-      const effectiveGapSeconds =
-        gapSeconds !== undefined ? gapSeconds : await getSequenceGapFromMetadata(studyId, dbPath)
-
-      const rawData = await getSpeciesDistributionByMedia(dbPath)
-      const data = calculateSequenceAwareSpeciesCounts(rawData, effectiveGapSeconds)
+      const data = await runInWorker({
+        type: 'species-distribution',
+        dbPath,
+        studyId,
+        gapSeconds
+      })
       return { data }
     } catch (error) {
       log.error('Error getting sequence-aware species distribution:', error)
@@ -70,7 +78,6 @@ export function registerSequencesIPCHandlers() {
 
   /**
    * Get sequence-aware species timeseries
-   * Fetches raw media data and computes sequence-aware timeseries in main thread
    * @param {string} studyId - Study identifier
    * @param {Array<string>} speciesNames - Species to include in timeseries
    * @param {number|null} [gapSeconds] - Optional gap threshold; fetched from metadata if not provided
@@ -83,12 +90,13 @@ export function registerSequencesIPCHandlers() {
         return { error: 'Database not found for this study' }
       }
 
-      // If gapSeconds not provided, fetch from metadata
-      const effectiveGapSeconds =
-        gapSeconds !== undefined ? gapSeconds : await getSequenceGapFromMetadata(studyId, dbPath)
-
-      const rawData = await getSpeciesTimeseriesByMedia(dbPath, speciesNames)
-      const data = calculateSequenceAwareTimeseries(rawData, effectiveGapSeconds)
+      const data = await runInWorker({
+        type: 'timeseries',
+        dbPath,
+        studyId,
+        gapSeconds,
+        speciesNames
+      })
       return { data }
     } catch (error) {
       log.error('Error getting sequence-aware timeseries:', error)
@@ -98,7 +106,6 @@ export function registerSequencesIPCHandlers() {
 
   /**
    * Get sequence-aware species heatmap
-   * Fetches raw media data and computes sequence-aware heatmap in main thread
    * @param {string} studyId - Study identifier
    * @param {Array<string>} speciesNames - Species to include in heatmap
    * @param {string|null} startDate - Start date filter (ISO string)
@@ -128,20 +135,18 @@ export function registerSequencesIPCHandlers() {
           return { error: 'Database not found for this study' }
         }
 
-        // If gapSeconds not provided, fetch from metadata
-        const effectiveGapSeconds =
-          gapSeconds !== undefined ? gapSeconds : await getSequenceGapFromMetadata(studyId, dbPath)
-
-        const rawData = await getSpeciesHeatmapDataByMedia(
+        const data = await runInWorker({
+          type: 'heatmap',
           dbPath,
+          studyId,
+          gapSeconds,
           speciesNames,
           startDate,
           endDate,
           startHour,
           endHour,
           includeNullTimestamps
-        )
-        const data = calculateSequenceAwareHeatmap(rawData, effectiveGapSeconds)
+        })
         return { data }
       } catch (error) {
         log.error('Error getting sequence-aware heatmap:', error)
@@ -152,7 +157,6 @@ export function registerSequencesIPCHandlers() {
 
   /**
    * Get sequence-aware daily activity
-   * Fetches raw media data and computes sequence-aware daily activity in main thread
    * @param {string} studyId - Study identifier
    * @param {Array<string>} speciesNames - Species to include in daily activity
    * @param {string|null} startDate - Start date filter (ISO string)
@@ -169,17 +173,15 @@ export function registerSequencesIPCHandlers() {
           return { error: 'Database not found for this study' }
         }
 
-        // If gapSeconds not provided, fetch from metadata
-        const effectiveGapSeconds =
-          gapSeconds !== undefined ? gapSeconds : await getSequenceGapFromMetadata(studyId, dbPath)
-
-        const rawData = await getSpeciesDailyActivityByMedia(
+        const data = await runInWorker({
+          type: 'daily-activity',
           dbPath,
+          studyId,
+          gapSeconds,
           speciesNames,
           startDate,
           endDate
-        )
-        const data = calculateSequenceAwareDailyActivity(rawData, effectiveGapSeconds, speciesNames)
+        })
         return { data }
       } catch (error) {
         log.error('Error getting sequence-aware daily activity:', error)
@@ -189,19 +191,7 @@ export function registerSequencesIPCHandlers() {
   )
 
   /**
-   * Get paginated sequences
-   * Returns pre-grouped sequences with cursor-based pagination
-   *
-   * @param {string} studyId - Study identifier
-   * @param {Object} options - Pagination options
-   * @param {number|null} options.gapSeconds - Gap threshold for grouping (null = eventID grouping)
-   * @param {number} options.limit - Maximum sequences per page (default: 20)
-   * @param {string|null} options.cursor - Opaque cursor from previous response
-   * @param {Object} options.filters - Filter options
-   * @param {Array<string>} options.filters.species - Species filter
-   * @param {Object} options.filters.dateRange - Date range { start, end }
-   * @param {Object} options.filters.timeRange - Time range { start, end } (hours)
-   * @returns {{ data: { sequences, nextCursor, hasMore } } | { error: string }}
+   * Get paginated sequences (stays on main thread - interactive pagination with small payloads)
    */
   ipcMain.handle('sequences:get-paginated', async (_, studyId, options = {}) => {
     try {

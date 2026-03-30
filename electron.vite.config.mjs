@@ -11,6 +11,10 @@ export default defineConfig({
     build: {
       externalizeDeps: true,
       rollupOptions: {
+        input: {
+          index: resolve('src/main/index.js'),
+          'sequences-worker': resolve('src/main/services/sequences/worker.js')
+        },
         external: [
           'drizzle-orm',
           'drizzle-orm/better-sqlite3',
