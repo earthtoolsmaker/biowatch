@@ -93,6 +93,7 @@ describe('Wildlife Import Tests', () => {
       const expectedTables = [
         '__drizzle_migrations',
         'deployments',
+        'jobs',
         'media',
         'metadata',
         'model_outputs',

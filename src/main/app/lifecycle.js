@@ -16,6 +16,7 @@ import { join } from 'path'
 import icon from '../../../resources/icon.png?asset'
 import migrations from '../migrations/index.js'
 import { shutdownAllServers, garbageCollect } from '../services/ml/index.js'
+import { queueScheduler } from '../services/queue-scheduler.js'
 import { cleanExpiredTranscodeCache, cleanExpiredImageCache } from '../services/cache/index.js'
 import { registerLocalFileProtocol, registerCachedImageProtocol } from './protocols.js'
 import { setupRemoteMediaCORS } from './session.js'
@@ -201,6 +202,8 @@ export function setupShutdownHandlers() {
     log.info('[Shutdown] Graceful shutdown initiated')
 
     try {
+      await queueScheduler.stopStudy()
+      log.info('[Shutdown] Queue scheduler stopped')
       await shutdownAllServers()
       log.info('[Shutdown] All ML servers stopped successfully')
     } catch (error) {

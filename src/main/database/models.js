@@ -1,5 +1,27 @@
 import { sqliteTable, text, real, integer, unique, index } from 'drizzle-orm/sqlite-core'
 
+// Persistent job queue for async work (ML inference, OCR, etc.)
+export const jobs = sqliteTable(
+  'jobs',
+  {
+    id: text('id').primaryKey(),
+    kind: text('kind').notNull(), // 'ml-inference', 'ocr', etc.
+    topic: text('topic'), // Sub-grouping: 'speciesnet:4.0.1a', 'deepfaune:1.2', etc.
+    status: text('status').notNull().default('pending'), // pending, processing, completed, failed, cancelled
+    payload: text('payload', { mode: 'json' }).notNull(), // Job-specific data (mediaId, filePath, etc.)
+    error: text('error'), // Error message on failure
+    attempts: integer('attempts').notNull().default(0),
+    maxAttempts: integer('maxAttempts').notNull().default(3),
+    createdAt: text('createdAt').notNull(),
+    startedAt: text('startedAt'),
+    completedAt: text('completedAt')
+  },
+  (table) => [
+    index('idx_jobs_kind_status').on(table.kind, table.status),
+    index('idx_jobs_status_createdAt').on(table.status, table.createdAt)
+  ]
+)
+
 export const deployments = sqliteTable(
   'deployments',
   {
