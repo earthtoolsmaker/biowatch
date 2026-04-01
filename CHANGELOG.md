@@ -5,6 +5,37 @@ All notable changes to Biowatch will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.2] - 2026-04-01
+
+### Added
+
+- Video timestamp extraction with layered fallback chain (FFmpeg metadata, filename parsing, mtime)
+- SQLite-backed persistent job queue for async ML inference work
+- Queue consumer, server manager, and inference consumer for ML pipeline
+- Queue scheduler wired to app, replacing old importer IPC handlers
+- Documentation website with MkDocs Material
+- CI docs build check for website changes
+
+### Changed
+
+- Move sequence computations to worker threads to unblock main thread
+- Cache FFmpeg binary path resolution across batch imports
+- Read only container header in FFmpeg timestamp extraction
+- Extract prediction utilities to break circular dependency
+- Bump pygments, requests, picomatch, pyasn1, brace-expansion dependencies
+
+### Fixed
+
+- Replace dynamic import of ffmpeg.js with static import
+- Add non-digit anchors to filename timestamp regexes
+- Use local-time getFullYear() in isValidTimestamp for consistency
+- Parse FFmpeg creation_time as UTC instead of local time
+- Restore speed and ETA in queue-based import status
+- Store importPath in modelRuns for provenance tracking
+- Include cancelled jobs in queue status totals
+- Reset scheduler state when consumer exits
+- Await consumer teardown in QueueScheduler.stopStudy
+
 ## [1.7.1] - 2026-03-19
 
 ### Added
@@ -299,6 +330,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Activity heatmaps
 - Overview statistics
 
+[1.7.2]: https://github.com/earthtoolsmaker/biowatch/compare/v1.7.1...v1.7.2
+[1.7.1]: https://github.com/earthtoolsmaker/biowatch/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/earthtoolsmaker/biowatch/compare/v1.6.1...v1.7.0
 [1.6.1]: https://github.com/earthtoolsmaker/biowatch/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/earthtoolsmaker/biowatch/compare/v1.5.0...v1.6.0
