@@ -19,3 +19,4 @@ __pycache__/
 # MkDocs (docs website)
 website/site/
 website/.venv/
+scripts/output/

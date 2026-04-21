@@ -1,0 +1,504 @@
+{
+  "scientificName": "Panthera tigris",
+  "matchData": {
+    "usageKey": 5219416,
+    "scientificName": "Panthera tigris (Linnaeus, 1758)",
+    "canonicalName": "Panthera tigris",
+    "rank": "SPECIES",
+    "status": "ACCEPTED",
+    "confidence": 99,
+    "matchType": "EXACT",
+    "kingdom": "Animalia",
+    "phylum": "Chordata",
+    "order": "Carnivora",
+    "family": "Felidae",
+    "genus": "Panthera",
+    "species": "Panthera tigris",
+    "kingdomKey": 1,
+    "phylumKey": 44,
+    "classKey": 359,
+    "orderKey": 732,
+    "familyKey": 9703,
+    "genusKey": 2435194,
+    "speciesKey": 5219416,
+    "class": "Mammalia"
+  },
+  "vernacularData": {
+    "offset": 0,
+    "limit": 100,
+    "endOfRecords": true,
+    "results": [
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Baagh",
+        "language": "hin",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299463082
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Bagh",
+        "language": "eng",
+        "source": "Catálogo Taxonômico da Fauna do Brasil",
+        "sourceTaxonKey": 302883660
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Bagh",
+        "language": "eng",
+        "source": "Felidae",
+        "sourceTaxonKey": 196367001
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Bagh",
+        "language": "eng",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299463082
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Bāgha",
+        "language": "nep",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299463082
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Harimau",
+        "language": "eng",
+        "source": "Felidae",
+        "sourceTaxonKey": 196367001
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Harimau",
+        "language": "ind",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299463082
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Hu",
+        "language": "",
+        "source": "Phthiraptera.myspecies.info",
+        "sourceTaxonKey": 116907247
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Huli",
+        "language": "kan",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299463082
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Kyarr gyi",
+        "language": "mya",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299463082
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Lao hu",
+        "language": "",
+        "source": "Phthiraptera.myspecies.info",
+        "sourceTaxonKey": 116907247
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Lǎohǔ",
+        "language": "zho",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299463082
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Macan",
+        "language": "jav",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299463082
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Maung",
+        "language": "sun",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299463082
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Puli",
+        "language": "tam",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299463082
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Rimueng",
+        "language": "",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299463082
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Sher",
+        "language": "eng",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299463082
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Sher",
+        "language": "eng",
+        "source": "Felidae",
+        "sourceTaxonKey": 196367001
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "S̄eụ̄x krong",
+        "language": "",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299463082
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Taag",
+        "language": "dzo",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299463082
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Tiger",
+        "language": "eng",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 273260517
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Tiger",
+        "language": "eng",
+        "source": "Order Carnivora",
+        "sourceTaxonKey": 231548231
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Tiger",
+        "language": "eng",
+        "source": "Felidae",
+        "sourceTaxonKey": 196367001
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Tiger",
+        "language": "eng",
+        "source": "Mammal Species of the World",
+        "sourceTaxonKey": 100690905
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Tiger",
+        "language": "eng",
+        "source": "Phthiraptera.myspecies.info",
+        "sourceTaxonKey": 116907247
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Tiger",
+        "language": "eng",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299463082
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Tiger",
+        "language": "deu",
+        "country": "DE",
+        "source": "Taxon list of animals with German names (worldwide) compiled at the SMNS",
+        "sourceTaxonKey": 116808494
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Tiger",
+        "language": "eng",
+        "source": "Integrated Taxonomic Information System (ITIS)",
+        "sourceTaxonKey": 102116268
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Tigr",
+        "language": "rus",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299463082
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Tigre",
+        "language": "fra",
+        "source": "Felidae",
+        "sourceTaxonKey": 196367001
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Tigre",
+        "language": "fra",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299463082
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Tigre",
+        "language": "fra",
+        "source": "Integrated Taxonomic Information System (ITIS)",
+        "sourceTaxonKey": 102116268
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Tigre",
+        "language": "spa",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299463082
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Tigre",
+        "language": "fra",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 273260517
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Tigre",
+        "language": "spa",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 273260517
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Tigre",
+        "language": "spa",
+        "source": "Integrated Taxonomic Information System (ITIS)",
+        "sourceTaxonKey": 102116268
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Vāgha",
+        "language": "guj",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299463082
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "con hổ",
+        "language": "vie",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299463082
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "kaṭuva",
+        "language": "",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299463082
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "seu yai",
+        "language": "lao",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299463082
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "tiger",
+        "language": "eng",
+        "source": "The Paleobiology Database",
+        "sourceTaxonKey": 137373087
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "tiger",
+        "language": "eng",
+        "source": "Yanayacu Natural History Research Group",
+        "sourceTaxonKey": 119232120
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Tiger",
+        "language": "eng",
+        "source": "The IUCN Red List of Threatened Species",
+        "sourceTaxonKey": 176685216,
+        "preferred": true
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Baagh",
+        "language": "ben",
+        "source": "The IUCN Red List of Threatened Species",
+        "sourceTaxonKey": 176685216,
+        "preferred": false
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Baagh",
+        "language": "hin",
+        "source": "The IUCN Red List of Threatened Species",
+        "sourceTaxonKey": 176685216,
+        "preferred": false
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Bāgha",
+        "language": "nep",
+        "source": "The IUCN Red List of Threatened Species",
+        "sourceTaxonKey": 176685216,
+        "preferred": false
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Harimau",
+        "language": "ind",
+        "source": "The IUCN Red List of Threatened Species",
+        "sourceTaxonKey": 176685216,
+        "preferred": false
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Huli",
+        "language": "kan",
+        "source": "The IUCN Red List of Threatened Species",
+        "sourceTaxonKey": 176685216,
+        "preferred": false
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Kyarr gyi",
+        "language": "mya",
+        "source": "The IUCN Red List of Threatened Species",
+        "sourceTaxonKey": 176685216,
+        "preferred": false
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Lǎohǔ",
+        "language": "zho",
+        "source": "The IUCN Red List of Threatened Species",
+        "sourceTaxonKey": 176685216,
+        "preferred": false
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Macan",
+        "language": "jav",
+        "source": "The IUCN Red List of Threatened Species",
+        "sourceTaxonKey": 176685216,
+        "preferred": false
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Maung",
+        "language": "sun",
+        "source": "The IUCN Red List of Threatened Species",
+        "sourceTaxonKey": 176685216,
+        "preferred": false
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Puli",
+        "language": "tam",
+        "source": "The IUCN Red List of Threatened Species",
+        "sourceTaxonKey": 176685216,
+        "preferred": false
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Rimueng",
+        "language": "",
+        "source": "The IUCN Red List of Threatened Species",
+        "sourceTaxonKey": 176685216,
+        "preferred": false
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "S̄eụ̄x krong",
+        "language": "tha",
+        "source": "The IUCN Red List of Threatened Species",
+        "sourceTaxonKey": 176685216,
+        "preferred": false
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Taag",
+        "language": "dzo",
+        "source": "The IUCN Red List of Threatened Species",
+        "sourceTaxonKey": 176685216,
+        "preferred": false
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Tiger",
+        "language": "deu",
+        "source": "The IUCN Red List of Threatened Species",
+        "sourceTaxonKey": 176685216,
+        "preferred": false
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Tigr",
+        "language": "rus",
+        "source": "The IUCN Red List of Threatened Species",
+        "sourceTaxonKey": 176685216,
+        "preferred": false
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Tigre",
+        "language": "fra",
+        "source": "The IUCN Red List of Threatened Species",
+        "sourceTaxonKey": 176685216,
+        "preferred": false
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Tigre",
+        "language": "spa",
+        "source": "The IUCN Red List of Threatened Species",
+        "sourceTaxonKey": 176685216,
+        "preferred": false
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "Vāgha",
+        "language": "guj",
+        "source": "The IUCN Red List of Threatened Species",
+        "sourceTaxonKey": 176685216,
+        "preferred": false
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "con hổ",
+        "language": "vie",
+        "source": "The IUCN Red List of Threatened Species",
+        "sourceTaxonKey": 176685216,
+        "preferred": false
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "kaṭuva",
+        "language": "mal",
+        "source": "The IUCN Red List of Threatened Species",
+        "sourceTaxonKey": 176685216,
+        "preferred": false
+      },
+      {
+        "taxonKey": 5219416,
+        "vernacularName": "seu yai",
+        "language": "lao",
+        "source": "The IUCN Red List of Threatened Species",
+        "sourceTaxonKey": 176685216,
+        "preferred": false
+      }
+    ]
+  }
+}

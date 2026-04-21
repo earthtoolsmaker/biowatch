@@ -1,0 +1,235 @@
+accipiter melanoleucus
+accipiter nisus
+Acinonyx jubatus
+Alces alces
+alectoris rufa
+alectrurus tricolor
+ammoperdix heyi
+anas platyrhynchos
+anser albifrons
+anthropoides paradiseus
+aotus vociferans
+aptenodytes forsteri
+aquila nipalensis
+arctonyx collaris
+ardea herodias
+artamus cinereus
+ateles hybridus
+aves
+aythya collaris
+badger
+barnardius zonarius
+bear
+beaver
+bird
+bison
+bleda notatus
+Bos taurus
+burhinus grallarius
+burhinus oedicnemus
+buteo brachypterus
+cacatua sanguinea
+callosciurus caniceps
+callosciurus finlaysonii
+campephilus haematogaster
+canidae
+Canis lupus
+canis rufus
+capra aegagrus
+Capreolus capreolus
+caprinae
+Castor fiber
+cat
+cathartes burrovianus
+catharus guttatus
+catharus minimus
+cavia aperea
+cebus kaapori
+Ceratotherium simum
+Cervus elaphus
+chamaetylas poliocephala
+chamois
+columba palumbus
+columbina squammata
+connochaetes taurinus
+cow
+crocodylus niloticus
+crypturellus bartletti
+curaeus curaeus
+cyanocorax colliei
+cyanopica cyanus
+Dama dama
+dasykaluta rosamondae
+dasyornis brachypterus
+dasyprocta variegata
+dasypus novemcinctus
+dasyurus maculatus
+desmodus rotundus
+dicaeum trigonostigma
+dicerorhinus sumatrensis
+Diceros bicornis
+dicrurus ludwigii
+dog
+Elephas maximus
+eliurus penicillatus
+eliurus tanala
+entomyzon cyanotis
+epthianura tricolor
+equid
+equus ferus
+erinaceus concolor
+erithacus rubecula
+eupleres goudotii
+eutamias sibiricus
+falco berigora
+fallow deer
+Felis silvestris
+ficedula platenae
+fox
+funisciurus congicus
+furnarius leucopus
+gallinula chloropus
+genet
+Genetta genetta
+geranoaetus albicaudatus
+Giraffa camelopardalis
+goat
+Gorilla gorilla
+grallaria quitensis
+gulo gulo
+hedgehog
+helarctos malayanus
+herpestes naso
+himantornis haematopus
+Hippopotamus amphibius
+hirundo rustica
+holcosus festivus
+ibex
+icterus bullockiorum
+ictonyx striatus
+lagomorph
+lagothrix lagotricha
+lama guanicoe
+larvivora sibilans
+leporidae
+lepus alleni
+Lepus europaeus
+lepus oiostolus
+lepus saxatilis
+lophura erythrophthalma
+Loxodonta africana
+lynx
+Lynx lynx
+macaca arctoides
+marmot
+marmota
+Martes foina
+Martes martes
+mazama nana
+megaceryle torquata
+meles meles
+Meles meles
+merops apiaster
+micromammal
+moose
+moschus berezovskii
+mouflon
+muntiacus montanus
+muridae
+mustela erminea
+Mustela erminea
+Mustela nivalis
+mustelid
+mustelidae
+myophonus caeruleus
+myrmelastes hyperythrus
+myrmoderus ferrugineus
+neotamias senex
+neotoma cinerea
+neotoma fuscipes
+ninox boobook
+nothura maculosa
+nutria
+nyctanassa violacea
+ochotona princeps
+ochotonidae
+orycteropus afer
+Oryctolagus cuniculus
+otter
+otus kennicottii
+ovis aries
+Ovis aries
+Panthera leo
+Panthera onca
+Panthera pardus
+Panthera tigris
+panthera_uncia
+Pan troglodytes
+passerella iliaca
+pavo muticus
+pelecanus erythrorhynchos
+perdix perdix
+piranga ludoviciana
+platycercus eximius
+ploceus alienus
+polyplectron bicalcaratum
+potamochoerus larvatus
+presbytis femoralis
+priodontes maximus
+pseudotriccus ruficeps
+psophia dextralis
+psophodes olivaceus
+ptilotula keartlandi
+raccoon
+ramphocelus carbo
+Rangifer tarandus
+Rattus norvegicus
+Rattus rattus
+red deer
+redunca redunca
+reindeer
+rhipidura albiscapa
+rhizomys sinensis
+roe deer
+Rupicapra rupicapra
+saguinus melanoleucus
+sciurus anomalus
+Sciurus carolinensis
+Sciurus vulgaris
+scolopax rusticola
+setophaga coronata
+setophaga pinus
+sheep
+sialia sialis
+sitta canadensis
+spilogale gracilis
+spilopelia chinensis
+squirrel
+stigmochelys pardalis
+streptopelia decaocto
+streptopelia lugens
+suncus murinus
+sundasciurus hippurus
+Sus scrofa
+sylvilagus brasiliensis
+syrigma sibilatrix
+tamiasciurus douglasii
+tiliqua scincoides
+trachypithecus phayrei
+trichastoma malaccense
+trichosurus vulpecula
+troglodytes aedon
+turdinus brevicaudatus
+turtur brehmeri
+tyrannus forficatus
+urocissa erythroryncha
+ursidae
+Ursus arctos
+vide
+viverricula indica
+volatinia jacarina
+vulpes chama
+Vulpes vulpes
+wild boar
+wolf
+wolverine

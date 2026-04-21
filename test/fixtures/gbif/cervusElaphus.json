@@ -1,0 +1,744 @@
+{
+  "scientificName": "Cervus elaphus",
+  "matchData": {
+    "usageKey": 2440958,
+    "scientificName": "Cervus elaphus Linnaeus, 1758",
+    "canonicalName": "Cervus elaphus",
+    "rank": "SPECIES",
+    "status": "ACCEPTED",
+    "confidence": 99,
+    "matchType": "EXACT",
+    "kingdom": "Animalia",
+    "phylum": "Chordata",
+    "order": "Artiodactyla",
+    "family": "Cervidae",
+    "genus": "Cervus",
+    "species": "Cervus elaphus",
+    "kingdomKey": 1,
+    "phylumKey": 44,
+    "classKey": 359,
+    "orderKey": 731,
+    "familyKey": 5298,
+    "genusKey": 2440948,
+    "speciesKey": 2440958,
+    "class": "Mammalia"
+  },
+  "vernacularData": {
+    "offset": 0,
+    "limit": 100,
+    "endOfRecords": false,
+    "results": [
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Barbary Red Deer (barbarus)",
+        "language": "eng",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299459442
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Barbary Red Deer (barbarus)",
+        "language": "eng",
+        "source": "Cervidae",
+        "sourceTaxonKey": 195657962
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Bukhara Red Deer (bactrianus)",
+        "language": "eng",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299459442
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Bukhara Red Deer (bactrianus)",
+        "language": "eng",
+        "source": "Cervidae",
+        "sourceTaxonKey": 195657962
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Carw Coch",
+        "language": "cym",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299459442
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Caspian Red Deer / Maral (maral)",
+        "language": "eng",
+        "source": "Cervidae",
+        "sourceTaxonKey": 195657962
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Caspian Red Deer / Maral (maral)",
+        "language": "eng",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299459442
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Ceirw Coch",
+        "language": "cym",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299459442
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Cerb-nobil",
+        "language": "ron",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 100998305
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Cerf élaphe",
+        "language": "fra",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 100998305
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Cerf élaphe",
+        "language": "fra",
+        "country": "FR",
+        "area": "fra",
+        "source": "TAXREF",
+        "sourceTaxonKey": 222470618
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Cerf élaphe",
+        "language": "fra",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299459442
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Cerf élaphe",
+        "language": "fra",
+        "source": "Cervidae",
+        "sourceTaxonKey": 195657962
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Cervo nobile",
+        "language": "ita",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 100998305
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Ciervo",
+        "language": "",
+        "source": "Cervidae",
+        "sourceTaxonKey": 195657962
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Ciervo Ibérico",
+        "language": "eng",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299459442
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Ciervo Ibérico",
+        "language": "eng",
+        "source": "Adenda al EsIA de la planta solar fotovoltaica PINOT SOLAR en respuesta al IMENA",
+        "sourceTaxonKey": 304186646
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Ciervo Rojo",
+        "language": "spa",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299459442
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Ciervo colorado",
+        "language": "",
+        "source": "Global Invasive Species Database",
+        "sourceTaxonKey": 100220612
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Ciervo común",
+        "language": "spa",
+        "source": "Integrated Taxonomic Information System (ITIS)",
+        "sourceTaxonKey": 102114662
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Ciervo común",
+        "language": "spa",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 273269320
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Ciervo común",
+        "language": "spa",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299459442
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Ciervo rojo",
+        "language": "spa",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 100998305
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Dreri",
+        "language": "sqi",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 100998305
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Edelhert",
+        "language": "nld",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 100998305
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Edelhert",
+        "language": "nld",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299459442
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Edelhirsch",
+        "language": "deu",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299459442
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Edelhirsch",
+        "language": "",
+        "source": "Global Invasive Species Database",
+        "sourceTaxonKey": 100220612
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Elk",
+        "language": "",
+        "source": "Phthiraptera.myspecies.info",
+        "sourceTaxonKey": 116905687
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "European red deer",
+        "language": "",
+        "source": "Global Invasive Species Database",
+        "sourceTaxonKey": 100220612
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Gímszarvas",
+        "language": "hun",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 100998305
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Hangul",
+        "language": "",
+        "source": "Phthiraptera.myspecies.info",
+        "sourceTaxonKey": 116905687
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Hirsch",
+        "language": "ltz",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 100998305
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Hjort",
+        "language": "nor",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 100998305
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Jelen",
+        "language": "hrv",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 100998305
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Jelen lesní",
+        "language": "ces",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 100998305
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Krondyr",
+        "language": "dan",
+        "country": "DK",
+        "source": "National Checklist of all species occurring in Denmark",
+        "sourceTaxonKey": 307207686
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Krondyr",
+        "language": "dan",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 100998305
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Krondyr",
+        "language": "dan",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299459442
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Kronhjort",
+        "language": "dan",
+        "country": "DK",
+        "source": "National Checklist of all species occurring in Denmark",
+        "sourceTaxonKey": 307207686
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Kronhjort",
+        "language": "swe",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 100998305
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Kronhjort",
+        "language": "dan",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299459442
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Krónhjörtur",
+        "language": "isl",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 100998305
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Maral",
+        "language": "",
+        "source": "Phthiraptera.myspecies.info",
+        "sourceTaxonKey": 116905687
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Navadni jelen",
+        "language": "slv",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 100998305
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Punahirv",
+        "language": "est",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 100998305
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Red Deer",
+        "language": "eng",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299459442
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Red Deer",
+        "language": "",
+        "source": "Phthiraptera.myspecies.info",
+        "sourceTaxonKey": 116905687
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Red Deer",
+        "language": "eng",
+        "source": "Order Artiodactyla",
+        "sourceTaxonKey": 231540814
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Red Deer",
+        "language": "eng",
+        "country": "GB",
+        "area": "eng",
+        "source": "TAXREF",
+        "sourceTaxonKey": 222470618
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Red Deer (see comments)",
+        "language": "eng",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299459442
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Red Deer (see comments)",
+        "language": "eng",
+        "source": "Mammal Species of the World",
+        "sourceTaxonKey": 100687457
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Red deer",
+        "language": "eng",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 100998305
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Rothirsch",
+        "language": "",
+        "source": "Global Invasive Species Database",
+        "sourceTaxonKey": 100220612
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Rothirsch",
+        "language": "deu",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 100998305
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Rothirsch",
+        "language": "",
+        "source": "Global Invasive Species Database",
+        "sourceTaxonKey": 100220612
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Rothirsch",
+        "language": "deu",
+        "country": "BE",
+        "source": "Belgian Species List",
+        "sourceTaxonKey": 100484630
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Rothirsch",
+        "language": "deu",
+        "source": "Cervidae",
+        "sourceTaxonKey": 195657962
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Rothirsch",
+        "language": "deu",
+        "country": "DE",
+        "source": "Taxon list of animals with German names (worldwide) compiled at the SMNS",
+        "sourceTaxonKey": 116808595
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Rothirsch",
+        "language": "deu",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299459442
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Rotwild",
+        "language": "",
+        "source": "Global Invasive Species Database",
+        "sourceTaxonKey": 100220612
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Saksanhirvi",
+        "language": "fin",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 100998305
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Shou",
+        "language": "",
+        "source": "Phthiraptera.myspecies.info",
+        "sourceTaxonKey": 116905687
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Staltbriedis",
+        "language": "lav",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 100998305
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Tarim Red Deer (yarkandensis)",
+        "language": "eng",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299459442
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Tarim Red Deer (yarkandensis)",
+        "language": "eng",
+        "source": "Cervidae",
+        "sourceTaxonKey": 195657962
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Taurusis elnias",
+        "language": "lit",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 100998305
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Thyrrenian Red Deer",
+        "language": "eng",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299459442
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Thyrrenian Red Deer",
+        "language": "eng",
+        "source": "Cervidae",
+        "sourceTaxonKey": 195657962
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Thyrrenian Red Deer (corsicanus)",
+        "language": "eng",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299459442
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Thyrrenian Red Deer (corsicanus)",
+        "language": "eng",
+        "source": "Cervidae",
+        "sourceTaxonKey": 195657962
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Ulugeyik",
+        "language": "tur",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 100998305
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Veado",
+        "language": "por",
+        "source": "Catálogo Taxonômico da Fauna do Brasil",
+        "sourceTaxonKey": 283383132
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Veado",
+        "language": "por",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 100998305
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Wapiti",
+        "language": "",
+        "source": "Phthiraptera.myspecies.info",
+        "sourceTaxonKey": 116905687
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Western Red Deer",
+        "language": "eng",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 273269320
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Western Red Deer",
+        "language": "eng",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299459442
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Western Red Deer",
+        "language": "eng",
+        "source": "Cervidae",
+        "sourceTaxonKey": 195657962
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "Western Red Deer",
+        "language": "eng",
+        "source": "Integrated Taxonomic Information System (ITIS)",
+        "sourceTaxonKey": 102114662
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "agh-fèidh",
+        "language": "gla",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299459442
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "aighean-fèidh",
+        "language": "gla",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299459442
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "cerf elaphe",
+        "language": "",
+        "source": "Global Invasive Species Database",
+        "sourceTaxonKey": 100220612
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "cerf rouge, cerf élaphe",
+        "language": "fra",
+        "country": "BE",
+        "source": "Belgian Species List",
+        "sourceTaxonKey": 100484630
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "corsicanus",
+        "language": "eng",
+        "source": "Cervidae",
+        "sourceTaxonKey": 195657962
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "corsicanus",
+        "language": "eng",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299459442
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "daimh",
+        "language": "gla",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299459442
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "damh",
+        "language": "gla",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299459442
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "deer",
+        "language": "",
+        "source": "Global Invasive Species Database",
+        "sourceTaxonKey": 100220612
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "edelhert",
+        "language": "nld",
+        "country": "BE",
+        "source": "Belgian Species List",
+        "sourceTaxonKey": 100484630
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "elk",
+        "language": "eng",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299459442
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "elk",
+        "language": "eng",
+        "source": "Integrated Taxonomic Information System (ITIS)",
+        "sourceTaxonKey": 102114662
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "elk",
+        "language": "",
+        "source": "Global Invasive Species Database",
+        "sourceTaxonKey": 100220612
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "elk",
+        "language": "eng",
+        "source": "Phthiraptera.myspecies.info",
+        "sourceTaxonKey": 116892741
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "elk",
+        "language": "eng",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 273269320
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "fiadh ruadh",
+        "language": "gla",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299459442
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "fèidh ruadha",
+        "language": "gla",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299459442
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "hjort",
+        "language": "nob",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299459442
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "isokauris",
+        "language": "fin",
+        "country": "FI",
+        "source": "The FinBIF checklist of Finnish species",
+        "sourceTaxonKey": 257958857
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "isokauris",
+        "language": "fin",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299459442
+      },
+      {
+        "taxonKey": 2440958,
+        "vernacularName": "jurot",
+        "language": "sme",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 299459442
+      }
+    ]
+  }
+}

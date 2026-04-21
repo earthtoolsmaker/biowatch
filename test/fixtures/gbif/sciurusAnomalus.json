@@ -1,0 +1,214 @@
+{
+  "scientificName": "sciurus anomalus",
+  "matchData": {
+    "usageKey": 8243249,
+    "scientificName": "Sciurus anomalus Gmelin, 1778",
+    "canonicalName": "Sciurus anomalus",
+    "rank": "SPECIES",
+    "status": "ACCEPTED",
+    "confidence": 98,
+    "matchType": "EXACT",
+    "kingdom": "Animalia",
+    "phylum": "Chordata",
+    "order": "Rodentia",
+    "family": "Sciuridae",
+    "genus": "Sciurus",
+    "species": "Sciurus anomalus",
+    "kingdomKey": 1,
+    "phylumKey": 44,
+    "classKey": 359,
+    "orderKey": 1459,
+    "familyKey": 9456,
+    "genusKey": 2437489,
+    "speciesKey": 8243249,
+    "class": "Mammalia"
+  },
+  "vernacularData": {
+    "offset": 0,
+    "limit": 100,
+    "endOfRecords": true,
+    "results": [
+      {
+        "taxonKey": 8243249,
+        "vernacularName": "Ardilla del C 4 ucaso",
+        "language": "eng",
+        "source": "Sciuridae",
+        "sourceTaxonKey": 197542385
+      },
+      {
+        "taxonKey": 8243249,
+        "vernacularName": "Ardilla del C 4 ucaso",
+        "language": "eng",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 302163729
+      },
+      {
+        "taxonKey": 8243249,
+        "vernacularName": "Caucasian Squirrel",
+        "language": "eng",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 300789264
+      },
+      {
+        "taxonKey": 8243249,
+        "vernacularName": "Caucasian Squirrel",
+        "language": "eng",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 302163729
+      },
+      {
+        "taxonKey": 8243249,
+        "vernacularName": "Caucasian Squirrel",
+        "language": "eng",
+        "source": "Mammal Species of the World",
+        "sourceTaxonKey": 100779132
+      },
+      {
+        "taxonKey": 8243249,
+        "vernacularName": "Caucasian Squirrel",
+        "language": "eng",
+        "source": "Integrated Taxonomic Information System (ITIS)",
+        "sourceTaxonKey": 102122612
+      },
+      {
+        "taxonKey": 8243249,
+        "vernacularName": "Caucasian Squirrel",
+        "language": "eng",
+        "source": "Order Rodentia - Family Sciuridae",
+        "sourceTaxonKey": 231538320
+      },
+      {
+        "taxonKey": 8243249,
+        "vernacularName": "Caucasian Squirrel",
+        "language": "eng",
+        "source": "Sciuridae",
+        "sourceTaxonKey": 197542385
+      },
+      {
+        "taxonKey": 8243249,
+        "vernacularName": "Ecureuil du Caucase",
+        "language": "eng",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 302163729
+      },
+      {
+        "taxonKey": 8243249,
+        "vernacularName": "Ecureuil du Caucase",
+        "language": "eng",
+        "source": "Sciuridae",
+        "sourceTaxonKey": 197542385
+      },
+      {
+        "taxonKey": 8243249,
+        "vernacularName": "Golden Squirrel",
+        "language": "eng",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 302163729
+      },
+      {
+        "taxonKey": 8243249,
+        "vernacularName": "Golden Squirrel",
+        "language": "eng",
+        "source": "Sciuridae",
+        "sourceTaxonKey": 197542385
+      },
+      {
+        "taxonKey": 8243249,
+        "vernacularName": "Kaukasisches Eichhörnchen",
+        "language": "deu",
+        "country": "DE",
+        "source": "Taxon list of animals with German names (worldwide) compiled at the SMNS",
+        "sourceTaxonKey": 116807576
+      },
+      {
+        "taxonKey": 8243249,
+        "vernacularName": "Kaukasisches Eichhörnchen",
+        "language": "deu",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 302163729
+      },
+      {
+        "taxonKey": 8243249,
+        "vernacularName": "Kaukasus-Eichhdérnchen",
+        "language": "eng",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 302163729
+      },
+      {
+        "taxonKey": 8243249,
+        "vernacularName": "Kaukasus-Eichhdérnchen",
+        "language": "eng",
+        "source": "Sciuridae",
+        "sourceTaxonKey": 197542385
+      },
+      {
+        "taxonKey": 8243249,
+        "vernacularName": "Persian Squirrel",
+        "language": "eng",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 302163729
+      },
+      {
+        "taxonKey": 8243249,
+        "vernacularName": "Persian Squirrel",
+        "language": "eng",
+        "source": "Sciuridae",
+        "sourceTaxonKey": 197542385
+      },
+      {
+        "taxonKey": 8243249,
+        "vernacularName": "Ασιατικός σκίουρος",
+        "language": "ell",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 302163729
+      },
+      {
+        "taxonKey": 8243249,
+        "vernacularName": "γαλιά",
+        "language": "ell",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 302163729
+      },
+      {
+        "taxonKey": 8243249,
+        "vernacularName": "Вивірка кавказька",
+        "language": "ukr",
+        "country": "UA",
+        "source": "List of representatives of fauna and flora species protected according to the Annex IV of the Council Directive 92/43/EEC on the Conservation of natural habitats and of wild fauna and flora (Habitats Directive)",
+        "sourceTaxonKey": 231573175
+      },
+      {
+        "taxonKey": 8243249,
+        "vernacularName": "Caucasian Squirrel",
+        "language": "eng",
+        "source": "The IUCN Red List of Threatened Species",
+        "sourceTaxonKey": 176671504,
+        "preferred": true
+      },
+      {
+        "taxonKey": 8243249,
+        "vernacularName": "Persian Squirrel",
+        "language": "eng",
+        "source": "The IUCN Red List of Threatened Species",
+        "sourceTaxonKey": 176671504,
+        "preferred": false
+      },
+      {
+        "taxonKey": 8243249,
+        "vernacularName": "Ασιατικός σκίουρος",
+        "language": "ell",
+        "source": "The IUCN Red List of Threatened Species",
+        "sourceTaxonKey": 176671504,
+        "preferred": false
+      },
+      {
+        "taxonKey": 8243249,
+        "vernacularName": "γαλιά",
+        "language": "ell",
+        "source": "The IUCN Red List of Threatened Species",
+        "sourceTaxonKey": 176671504,
+        "preferred": false
+      }
+    ]
+  }
+}
