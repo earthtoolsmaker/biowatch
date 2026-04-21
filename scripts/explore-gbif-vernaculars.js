@@ -16,7 +16,10 @@ const AUDIT_SET = path.join(ROOT, 'scripts/audit-set.txt')
 const OUT_DIR = path.join(ROOT, 'scripts/output/gbif-dumps')
 
 function slug(name) {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
 }
 
 async function fetchFor(scientificName) {

@@ -1,12 +1,42 @@
 import { useQuery } from '@tanstack/react-query'
 import { resolveCommonName, pickEnglishCommonName } from '../../../shared/commonNames/index.js'
 
-// Module-level in-memory cache (survives component unmounts, dies on reload).
-const gbifCache = new Map()
+// In-memory cache + fetcher live inside a closure — the cache isn't reachable
+// from outside the IIFE, only the exported functions are. Avoids module-level
+// mutable state bleeding through the import surface.
+const { fetchGbifCommonName, _clearGbifCache } = (() => {
+  const cache = new Map()
+
+  async function fetchGbifCommonName(scientificName) {
+    if (cache.has(scientificName)) return cache.get(scientificName)
+
+    const matchRes = await fetch(
+      `https://api.gbif.org/v1/species/match?name=${encodeURIComponent(scientificName)}`
+    )
+    const matchData = await matchRes.json()
+    if (!matchData.usageKey) {
+      cache.set(scientificName, null)
+      return null
+    }
+
+    const vernRes = await fetch(
+      `https://api.gbif.org/v1/species/${matchData.usageKey}/vernacularNames`
+    )
+    const vernData = await vernRes.json()
+    const picked = pickEnglishCommonName(vernData?.results ?? null)
+    cache.set(scientificName, picked)
+    return picked
+  }
+
+  return {
+    fetchGbifCommonName,
+    _clearGbifCache: () => cache.clear()
+  }
+})()
 
 /**
  * Fetch a scored English common name for `scientificName` from GBIF.
- * Results (including null) are memoized in a module-level Map to prevent
+ * Results (including null) are memoized in a closure-scoped Map to prevent
  * duplicate network calls within a session.
  *
  * Pure enough to unit-test: mock `global.fetch` and call it directly.
@@ -14,31 +44,10 @@ const gbifCache = new Map()
  * @param {string} scientificName
  * @returns {Promise<string | null>}
  */
-export async function fetchGbifCommonName(scientificName) {
-  if (gbifCache.has(scientificName)) return gbifCache.get(scientificName)
-
-  const matchRes = await fetch(
-    `https://api.gbif.org/v1/species/match?name=${encodeURIComponent(scientificName)}`
-  )
-  const matchData = await matchRes.json()
-  if (!matchData.usageKey) {
-    gbifCache.set(scientificName, null)
-    return null
-  }
-
-  const vernRes = await fetch(
-    `https://api.gbif.org/v1/species/${matchData.usageKey}/vernacularNames`
-  )
-  const vernData = await vernRes.json()
-  const picked = pickEnglishCommonName(vernData?.results ?? null)
-  gbifCache.set(scientificName, picked)
-  return picked
-}
+export { fetchGbifCommonName }
 
 /** Test-only: reset the in-memory cache between test cases. */
-export function _clearGbifCache() {
-  gbifCache.clear()
-}
+export { _clearGbifCache }
 
 /**
  * Resolve a display common name via the four-tier cascade:
@@ -57,9 +66,7 @@ export function _clearGbifCache() {
  */
 export function useCommonName(scientificName, { storedCommonName } = {}) {
   const stored =
-    typeof storedCommonName === 'string' && storedCommonName.trim() !== ''
-      ? storedCommonName
-      : null
+    typeof storedCommonName === 'string' && storedCommonName.trim() !== '' ? storedCommonName : null
 
   const dictHit = stored ? null : resolveCommonName(scientificName)
 

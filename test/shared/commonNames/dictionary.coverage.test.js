@@ -6,14 +6,8 @@ import { fileURLToPath } from 'node:url'
 import { normalizeScientificName } from '../../../src/shared/commonNames/normalize.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const SOURCES_DIR = path.resolve(
-  __dirname,
-  '../../../src/shared/commonNames/sources'
-)
-const DICT_PATH = path.resolve(
-  __dirname,
-  '../../../src/shared/commonNames/dictionary.json'
-)
+const SOURCES_DIR = path.resolve(__dirname, '../../../src/shared/commonNames/sources')
+const DICT_PATH = path.resolve(__dirname, '../../../src/shared/commonNames/dictionary.json')
 
 function keysFor(entry) {
   const keys = new Set()
@@ -30,15 +24,11 @@ function keysFor(entry) {
 
 describe('dictionary.json coverage', () => {
   const dictionary = JSON.parse(fs.readFileSync(DICT_PATH, 'utf8'))
-  const snapshots = fs
-    .readdirSync(SOURCES_DIR)
-    .filter((f) => f.endsWith('.json'))
+  const snapshots = fs.readdirSync(SOURCES_DIR).filter((f) => f.endsWith('.json'))
 
   for (const filename of snapshots) {
     test(`all entries from ${filename} appear in dictionary.json`, () => {
-      const snapshot = JSON.parse(
-        fs.readFileSync(path.join(SOURCES_DIR, filename), 'utf8')
-      )
+      const snapshot = JSON.parse(fs.readFileSync(path.join(SOURCES_DIR, filename), 'utf8'))
       const missing = []
       for (const entry of snapshot.entries) {
         for (const key of keysFor(entry)) {

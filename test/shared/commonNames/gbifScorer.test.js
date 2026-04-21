@@ -22,9 +22,7 @@ describe('pickEnglishCommonName', () => {
   })
 
   test('returns null when no candidates have language="eng"', () => {
-    const results = [
-      { vernacularName: 'Ardilla roja', language: 'spa', source: 'EUNIS' }
-    ]
+    const results = [{ vernacularName: 'Ardilla roja', language: 'spa', source: 'EUNIS' }]
     assert.equal(pickEnglishCommonName(results), null)
   })
 
@@ -41,9 +39,7 @@ describe('pickEnglishCommonName', () => {
   })
 
   test('falls back to first eng-tagged entry when no trusted source present', () => {
-    const results = [
-      { vernacularName: 'Some Name', language: 'eng', source: 'Random' }
-    ]
+    const results = [{ vernacularName: 'Some Name', language: 'eng', source: 'Random' }]
     assert.equal(pickEnglishCommonName(results), 'Some Name')
   })
 

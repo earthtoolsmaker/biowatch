@@ -6,10 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { normalizeScientificName } from '../../../src/shared/commonNames/normalize.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const DICT_PATH = path.resolve(
-  __dirname,
-  '../../../src/shared/commonNames/dictionary.json'
-)
+const DICT_PATH = path.resolve(__dirname, '../../../src/shared/commonNames/dictionary.json')
 
 describe('dictionary.json integrity', () => {
   const raw = fs.readFileSync(DICT_PATH, 'utf8')
@@ -43,7 +40,9 @@ describe('dictionary.json integrity', () => {
     for (const match of raw.matchAll(keyRe)) {
       counts[match[1]] = (counts[match[1]] || 0) + 1
     }
-    const dupes = Object.entries(counts).filter(([, n]) => n > 1).map(([k]) => k)
+    const dupes = Object.entries(counts)
+      .filter(([, n]) => n > 1)
+      .map(([k]) => k)
     assert.deepEqual(dupes, [], `found duplicate keys: ${dupes.join(', ')}`)
   })
 })

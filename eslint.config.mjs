@@ -7,6 +7,15 @@ import eslintPluginReactRefresh from 'eslint-plugin-react-refresh'
 export default [
   { ignores: ['**/node_modules', '**/dist', '**/out', '**/python-environments'] },
   eslint,
+  {
+    // Bump language level to ES2025 so the parser accepts import attributes
+    // (e.g. `import foo from './x.json' with { type: 'json' }`) used by
+    // src/shared/commonNames/resolver.js to inline the dictionary for Vite.
+    languageOptions: {
+      ecmaVersion: 2025,
+      parserOptions: { ecmaVersion: 2025 }
+    }
+  },
   eslintPluginReact.configs.flat.recommended,
   eslintPluginReact.configs.flat['jsx-runtime'],
   {
