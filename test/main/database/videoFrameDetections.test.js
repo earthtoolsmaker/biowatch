@@ -44,7 +44,12 @@ afterEach(() => {
   }
 })
 
-async function insertVideoModelOutput(mediaID, frames, modelID = 'speciesnet', modelVersion = '4.0.1a') {
+async function insertVideoModelOutput(
+  mediaID,
+  frames,
+  modelID = 'speciesnet',
+  modelVersion = '4.0.1a'
+) {
   const studyId = getStudyIdFromPath(testDbPath)
   const db = await getDrizzleDb(studyId, testDbPath)
 
@@ -146,7 +151,10 @@ describe('getVideoFrameDetections', () => {
       speciesnetFrame(2, [{ bbox: [0, 0, 0.1, 0.1], conf: 0.9 }])
     ])
     const result = await getVideoFrameDetections(testDbPath, 'm1')
-    assert.deepEqual(result.map((d) => d.frameNumber), [0, 2, 5])
+    assert.deepEqual(
+      result.map((d) => d.frameNumber),
+      [0, 2, 5]
+    )
   })
 
   test('normalizes SpeciesNet bbox (already top-left) correctly', async () => {

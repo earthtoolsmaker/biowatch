@@ -530,7 +530,11 @@ export async function getVideoFrameDetections(dbPath, mediaID) {
     for (const frame of frames) {
       const frameNumber = frame?.frame_number
       const detections = frame?.detections
-      if (typeof frameNumber !== 'number' || !Array.isArray(detections) || detections.length === 0) {
+      if (
+        typeof frameNumber !== 'number' ||
+        !Array.isArray(detections) ||
+        detections.length === 0
+      ) {
         continue
       }
 
