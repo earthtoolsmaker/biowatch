@@ -228,6 +228,7 @@ export {
   getMediaBboxes,
   getMediaBboxesBatch,
   checkMediaHaveBboxes,
+  getVideoFrameDetections,
   updateMediaTimestamp,
   insertMedia,
   updateMediaFavorite,
