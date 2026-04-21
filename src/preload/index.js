@@ -62,6 +62,13 @@ const api = {
   getMediaBboxesBatch: async (studyId, mediaIDs) => {
     return await electronAPI.ipcRenderer.invoke('media:get-bboxes-batch', studyId, mediaIDs)
   },
+  getVideoFrameDetections: async (studyId, mediaID) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'media:get-video-frame-detections',
+      studyId,
+      mediaID
+    )
+  },
   checkMediaHaveBboxes: async (studyId, mediaIDs) => {
     return await electronAPI.ipcRenderer.invoke('media:have-bboxes', studyId, mediaIDs)
   },

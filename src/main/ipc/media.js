@@ -10,6 +10,7 @@ import {
   getMediaBboxes,
   getMediaBboxesBatch,
   checkMediaHaveBboxes,
+  getVideoFrameDetections,
   getBestMedia,
   updateMediaTimestamp,
   updateMediaFavorite,
@@ -69,6 +70,23 @@ export function registerMediaIPCHandlers() {
       return { data: hasBboxes }
     } catch (error) {
       log.error('Error checking media bboxes existence:', error)
+      return { error: error.message }
+    }
+  })
+
+  // Get per-frame detector bboxes for a video (from modelOutputs.rawOutput.frames)
+  ipcMain.handle('media:get-video-frame-detections', async (_, studyId, mediaID) => {
+    try {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) {
+        log.warn(`Database not found for study ID: ${studyId}`)
+        return { error: 'Database not found for this study' }
+      }
+
+      const detections = await getVideoFrameDetections(dbPath, mediaID)
+      return { data: detections }
+    } catch (error) {
+      log.error('Error getting video frame detections:', error)
       return { error: error.message }
     }
   })
