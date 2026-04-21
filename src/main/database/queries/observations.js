@@ -47,12 +47,27 @@ export async function updateObservationClassification(dbPath, observationID, upd
       classificationProbability: null
     }
 
-    // Add optional fields if provided (only update if explicitly passed)
+    // Three-case discrimination for scientificName + commonName:
+    //   1. Species cleared: scientificName null/empty -> clear both.
+    //   2. Picker-list selection: scientificName + non-null commonName -> save both.
+    //   3. Custom entry: scientificName + null/absent commonName -> save sci, clear common.
+    // See docs/specs/2026-04-21-common-names-robustness-design.md for rationale.
     if (updates.scientificName !== undefined) {
-      updateValues.scientificName = updates.scientificName || null
-    }
-
-    if (updates.commonName !== undefined) {
+      const sci = updates.scientificName
+      const sciIsCleared = sci === null || sci === ''
+      if (sciIsCleared) {
+        updateValues.scientificName = null
+        updateValues.commonName = null
+      } else {
+        updateValues.scientificName = sci
+        if (typeof updates.commonName === 'string' && updates.commonName.length > 0) {
+          updateValues.commonName = updates.commonName
+        } else {
+          updateValues.commonName = null
+        }
+      }
+    } else if (updates.commonName !== undefined) {
+      // scientificName not being updated; permit commonName-only tweaks.
       updateValues.commonName = updates.commonName
     }
 
