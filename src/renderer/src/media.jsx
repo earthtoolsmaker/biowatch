@@ -30,6 +30,7 @@ import SpeciesDistribution from './ui/speciesDistribution'
 import TimelineChart from './ui/timeseries'
 import DateTimePicker from './ui/DateTimePicker'
 import EditableBbox from './ui/EditableBbox'
+import VideoBboxOverlay from './ui/VideoBboxOverlay.jsx'
 import { computeBboxLabelPosition, computeSelectorPosition } from './utils/positioning'
 import {
   getImageBounds,
@@ -1097,6 +1098,12 @@ function ImageModal({
   const videoSpeciesLabelRef = useRef(null) // For video footer species label
   const imageSpeciesLabelRef = useRef(null) // For images without bboxes (footer species label)
 
+  // Refs + state for the video bbox overlay
+  const videoRef = useRef(null)
+  const videoContainerRef = useRef(null)
+  const lastVideoTimeUpdateRef = useRef(0)
+  const [videoCurrentTime, setVideoCurrentTime] = useState(0)
+
   // Initialize inline timestamp when media changes
   useEffect(() => {
     if (media?.timestamp) {
@@ -1115,6 +1122,9 @@ function ImageModal({
     setTranscodeProgress(0)
     setTranscodedUrl(null)
     setTranscodeError(null)
+    // Reset video playback tracking
+    setVideoCurrentTime(0)
+    lastVideoTimeUpdateRef.current = 0
   }, [media?.mediaID, media?.timestamp, media?.favorite])
 
   // Video transcoding effect - check if video needs transcoding and handle it
@@ -1342,6 +1352,24 @@ function ImageModal({
     },
     enabled: isOpen && !!media?.mediaID && !!studyId
   })
+
+  // Fetch per-frame video detections (empty for images or videos without classification)
+  const { data: videoFrameDetections = [] } = useQuery({
+    queryKey: ['videoFrameDetections', studyId, media?.mediaID],
+    queryFn: async () => {
+      const response = await window.api.getVideoFrameDetections(studyId, media.mediaID)
+      return response.data || []
+    },
+    enabled: isOpen && isVideo && !!media?.mediaID && !!studyId,
+    staleTime: Infinity
+  })
+
+  const videoFps = media?.exifData?.fps || 1
+  const currentFrameNumber = Math.floor(videoCurrentTime * videoFps)
+  const currentFrameBboxes = useMemo(
+    () => videoFrameDetections.filter((d) => d.frameNumber === currentFrameNumber),
+    [videoFrameDetections, currentFrameNumber]
+  )
 
   // Handle timestamp save
   const handleTimestampSave = async (newTimestamp) => {
@@ -2054,39 +2082,59 @@ function ImageModal({
                   <span className="mt-1 text-xs text-gray-400">{media.fileName}</span>
                 </div>
               ) : (
-                <video
-                  key={transcodedUrl || media.filePath} // Force new element when source changes
-                  src={(() => {
-                    const videoSrc = transcodedUrl || constructImageUrl(media.filePath)
-                    console.log('=== VIDEO ELEMENT ===')
-                    console.log('transcodeState:', transcodeState)
-                    console.log('transcodedUrl:', transcodedUrl)
-                    console.log('media.filePath:', media.filePath)
-                    console.log('Final video src:', videoSrc)
-                    return videoSrc
-                  })()}
-                  className="max-w-full max-h-[calc(90vh-152px)] w-auto h-auto object-contain"
-                  controls
-                  autoPlay
-                  onLoadStart={(e) => {
-                    console.log('Video onLoadStart:', e.target.src)
-                  }}
-                  onLoadedData={(e) => {
-                    console.log('Video onLoadedData:', e.target.src, 'duration:', e.target.duration)
-                  }}
-                  onCanPlay={(e) => {
-                    console.log('Video onCanPlay:', e.target.src)
-                  }}
-                  onError={(e) => {
-                    console.error('Video onError:', e.target.src)
-                    console.error('Video error details:', e.target.error)
-                    // Only set videoError if we're not in a transcoding state
-                    // (to avoid showing error during transcoding)
-                    if (transcodeState === 'idle' || transcodeState === 'ready') {
-                      setVideoError(true)
-                    }
-                  }}
-                />
+                <div ref={videoContainerRef} className="relative">
+                  <video
+                    ref={videoRef}
+                    key={transcodedUrl || media.filePath} // Force new element when source changes
+                    src={(() => {
+                      const videoSrc = transcodedUrl || constructImageUrl(media.filePath)
+                      console.log('=== VIDEO ELEMENT ===')
+                      console.log('transcodeState:', transcodeState)
+                      console.log('transcodedUrl:', transcodedUrl)
+                      console.log('media.filePath:', media.filePath)
+                      console.log('Final video src:', videoSrc)
+                      return videoSrc
+                    })()}
+                    className="max-w-full max-h-[calc(90vh-152px)] w-auto h-auto object-contain"
+                    controls
+                    autoPlay
+                    onLoadStart={(e) => {
+                      console.log('Video onLoadStart:', e.target.src)
+                    }}
+                    onLoadedData={(e) => {
+                      console.log('Video onLoadedData:', e.target.src, 'duration:', e.target.duration)
+                    }}
+                    onCanPlay={(e) => {
+                      console.log('Video onCanPlay:', e.target.src)
+                    }}
+                    onTimeUpdate={(e) => {
+                      const now = performance.now()
+                      if (now - lastVideoTimeUpdateRef.current < 250) return
+                      lastVideoTimeUpdateRef.current = now
+                      setVideoCurrentTime(e.target.currentTime)
+                    }}
+                    onSeeked={(e) => {
+                      // Force an immediate update after seeking so boxes jump with the scrubber.
+                      lastVideoTimeUpdateRef.current = 0
+                      setVideoCurrentTime(e.target.currentTime)
+                    }}
+                    onError={(e) => {
+                      console.error('Video onError:', e.target.src)
+                      console.error('Video error details:', e.target.error)
+                      // Only set videoError if we're not in a transcoding state
+                      // (to avoid showing error during transcoding)
+                      if (transcodeState === 'idle' || transcodeState === 'ready') {
+                        setVideoError(true)
+                      }
+                    }}
+                  />
+                  <VideoBboxOverlay
+                    videoRef={videoRef}
+                    containerRef={videoContainerRef}
+                    currentFrameBboxes={currentFrameBboxes}
+                    visible={showBboxes}
+                  />
+                </div>
               )
             ) : imageError ? (
               <div className="flex flex-col items-center justify-center bg-gray-800 text-gray-400 aspect-[4/3] min-w-[70vw] max-h-[calc(90vh-152px)]">
