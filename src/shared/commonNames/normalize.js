@@ -7,11 +7,7 @@ export function normalizeScientificName(input) {
   if (input == null) return null
   if (typeof input !== 'string') return null
 
-  const s = input
-    .normalize('NFC')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
+  const s = input.normalize('NFC').trim().toLowerCase().replace(/\s+/g, ' ')
 
   return s || null
 }

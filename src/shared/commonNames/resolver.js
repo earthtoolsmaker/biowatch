@@ -1,14 +1,5 @@
-import fs from 'node:fs'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import dictionary from './dictionary.json' with { type: 'json' }
 import { normalizeScientificName } from './normalize.js'
-
-// Read dictionary.json at module load time. Use fs instead of JSON import
-// assertions so the resolver works across Node versions and bundlers.
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const dictionary = JSON.parse(
-  fs.readFileSync(path.join(__dirname, 'dictionary.json'), 'utf8')
-)
 
 /**
  * Resolve a scientific name (or raw model label) to an English common name
