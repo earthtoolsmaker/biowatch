@@ -1,0 +1,10 @@
+{
+  "_comment": "Hand-curated overrides for common-name resolution. Keys are normalized scientific names or raw model labels. Later entries in the build pipeline win, so these override model-snapshot values.",
+  "entries": [
+    {
+      "scientificName": "sciurus vulgaris",
+      "commonName": "Eurasian Red Squirrel",
+      "reason": "GBIF returns multiple Spanish names mis-tagged as language='eng'"
+    }
+  ]
+}
