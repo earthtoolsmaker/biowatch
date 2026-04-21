@@ -47,13 +47,32 @@ export async function updateObservationClassification(dbPath, observationID, upd
       classificationProbability: null
     }
 
-    // Add optional fields if provided (only update if explicitly passed)
+    // Three-case discrimination for scientificName + commonName:
+    //   1. Species cleared: scientificName null/empty -> clear both.
+    //   2. Picker-list selection: scientificName + non-null commonName -> save both.
+    //   3. Custom entry: scientificName + null/absent commonName -> save sci, clear common.
+    // See docs/specs/2026-04-21-common-names-robustness-design.md for rationale.
     if (updates.scientificName !== undefined) {
-      updateValues.scientificName = updates.scientificName || null
-    }
-
-    if (updates.commonName !== undefined) {
-      updateValues.commonName = updates.commonName
+      const sci = updates.scientificName
+      const sciIsCleared = sci === null || sci === ''
+      if (sciIsCleared) {
+        updateValues.scientificName = null
+        updateValues.commonName = null
+      } else {
+        updateValues.scientificName = sci
+        if (typeof updates.commonName === 'string' && updates.commonName.length > 0) {
+          updateValues.commonName = updates.commonName
+        } else {
+          updateValues.commonName = null
+        }
+      }
+    } else if (updates.commonName !== undefined) {
+      // scientificName not being updated; permit commonName-only tweaks.
+      // Normalize empty string to null for consistency with the sci-provided branch.
+      updateValues.commonName =
+        typeof updates.commonName === 'string' && updates.commonName.length > 0
+          ? updates.commonName
+          : null
     }
 
     if (updates.observationType !== undefined) {
@@ -90,8 +109,16 @@ export async function updateObservationClassification(dbPath, observationID, upd
       .get()
 
     const elapsedTime = Date.now() - startTime
+    // Describe what actually changed. scientificName=undefined means "field not
+    // in payload" (e.g. a sex-only update), distinct from scientificName=null
+    // which means "species cleared".
+    let sciDescription
+    if (!('scientificName' in updates)) sciDescription = 'unchanged'
+    else if (updates.scientificName === null || updates.scientificName === '')
+      sciDescription = 'cleared'
+    else sciDescription = `"${updates.scientificName}"`
     log.info(
-      `Updated observation ${observationID} to "${updates.scientificName || 'blank'}" in ${elapsedTime}ms`
+      `Updated observation ${observationID} (scientificName: ${sciDescription}) in ${elapsedTime}ms`
     )
     return updatedObservation
   } catch (error) {

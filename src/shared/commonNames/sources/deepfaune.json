@@ -1,0 +1,177 @@
+{
+  "modelId": "deepfaune",
+  "modelVersion": "1.3",
+  "source": "python-environments/common/run_deepfaune_server.py",
+  "entries": [
+    {
+      "scientificName": null,
+      "label": "bison",
+      "commonName": "Bison"
+    },
+    {
+      "scientificName": null,
+      "label": "badger",
+      "commonName": "Badger"
+    },
+    {
+      "scientificName": null,
+      "label": "ibex",
+      "commonName": "Ibex"
+    },
+    {
+      "scientificName": null,
+      "label": "beaver",
+      "commonName": "Beaver"
+    },
+    {
+      "scientificName": null,
+      "label": "red deer",
+      "commonName": "Red Deer"
+    },
+    {
+      "scientificName": null,
+      "label": "chamois",
+      "commonName": "Chamois"
+    },
+    {
+      "scientificName": null,
+      "label": "cat",
+      "commonName": "Cat"
+    },
+    {
+      "scientificName": null,
+      "label": "goat",
+      "commonName": "Goat"
+    },
+    {
+      "scientificName": null,
+      "label": "roe deer",
+      "commonName": "Roe Deer"
+    },
+    {
+      "scientificName": null,
+      "label": "dog",
+      "commonName": "Dog"
+    },
+    {
+      "scientificName": null,
+      "label": "fallow deer",
+      "commonName": "Fallow Deer"
+    },
+    {
+      "scientificName": null,
+      "label": "squirrel",
+      "commonName": "Squirrel"
+    },
+    {
+      "scientificName": null,
+      "label": "moose",
+      "commonName": "Moose"
+    },
+    {
+      "scientificName": null,
+      "label": "equid",
+      "commonName": "Equid"
+    },
+    {
+      "scientificName": null,
+      "label": "genet",
+      "commonName": "Genet"
+    },
+    {
+      "scientificName": null,
+      "label": "wolverine",
+      "commonName": "Wolverine"
+    },
+    {
+      "scientificName": null,
+      "label": "hedgehog",
+      "commonName": "Hedgehog"
+    },
+    {
+      "scientificName": null,
+      "label": "lagomorph",
+      "commonName": "Lagomorph"
+    },
+    {
+      "scientificName": null,
+      "label": "wolf",
+      "commonName": "Wolf"
+    },
+    {
+      "scientificName": null,
+      "label": "otter",
+      "commonName": "Otter"
+    },
+    {
+      "scientificName": null,
+      "label": "lynx",
+      "commonName": "Lynx"
+    },
+    {
+      "scientificName": null,
+      "label": "marmot",
+      "commonName": "Marmot"
+    },
+    {
+      "scientificName": null,
+      "label": "micromammal",
+      "commonName": "Micromammal"
+    },
+    {
+      "scientificName": null,
+      "label": "mouflon",
+      "commonName": "Mouflon"
+    },
+    {
+      "scientificName": null,
+      "label": "sheep",
+      "commonName": "Sheep"
+    },
+    {
+      "scientificName": null,
+      "label": "mustelid",
+      "commonName": "Mustelid"
+    },
+    {
+      "scientificName": null,
+      "label": "bird",
+      "commonName": "Bird"
+    },
+    {
+      "scientificName": null,
+      "label": "bear",
+      "commonName": "Bear"
+    },
+    {
+      "scientificName": null,
+      "label": "nutria",
+      "commonName": "Nutria"
+    },
+    {
+      "scientificName": null,
+      "label": "raccoon",
+      "commonName": "Raccoon"
+    },
+    {
+      "scientificName": null,
+      "label": "fox",
+      "commonName": "Fox"
+    },
+    {
+      "scientificName": null,
+      "label": "reindeer",
+      "commonName": "Reindeer"
+    },
+    {
+      "scientificName": null,
+      "label": "wild boar",
+      "commonName": "Wild Boar"
+    },
+    {
+      "scientificName": null,
+      "label": "cow",
+      "commonName": "Cow"
+    }
+  ]
+}

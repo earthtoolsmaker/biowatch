@@ -1,0 +1,737 @@
+{
+  "scientificName": "Sciurus vulgaris",
+  "matchData": {
+    "usageKey": 8211070,
+    "scientificName": "Sciurus vulgaris Linnaeus, 1758",
+    "canonicalName": "Sciurus vulgaris",
+    "rank": "SPECIES",
+    "status": "ACCEPTED",
+    "confidence": 99,
+    "matchType": "EXACT",
+    "kingdom": "Animalia",
+    "phylum": "Chordata",
+    "order": "Rodentia",
+    "family": "Sciuridae",
+    "genus": "Sciurus",
+    "species": "Sciurus vulgaris",
+    "kingdomKey": 1,
+    "phylumKey": 44,
+    "classKey": 359,
+    "orderKey": 1459,
+    "familyKey": 9456,
+    "genusKey": 2437489,
+    "speciesKey": 8211070,
+    "class": "Mammalia"
+  },
+  "vernacularData": {
+    "offset": 0,
+    "limit": 100,
+    "endOfRecords": true,
+    "results": [
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Ardilla Roja de Eurasia",
+        "language": "spa",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 302163558
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Ardilla roja",
+        "language": "eng",
+        "source": "Adenda al EsIA de la planta solar fotovoltaica PINOT SOLAR en respuesta al IMENA",
+        "sourceTaxonKey": 304186639
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Ardilla roja",
+        "language": "spa",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 101219941
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Ardilla roja",
+        "language": "eng",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 302163558
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Ardilla roja de Eurasia",
+        "language": "eng",
+        "source": "Sciuridae",
+        "sourceTaxonKey": 197542384
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Ecureuil d’Eurasie",
+        "language": "eng",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 302163558
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Ecureuil d’Eurasie",
+        "language": "eng",
+        "source": "Sciuridae",
+        "sourceTaxonKey": 197542384
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Eekhoorn",
+        "language": "nld",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 302163558
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Eekhoorn",
+        "language": "nld",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 101219941
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Egern",
+        "language": "dan",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 302163558
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Egern",
+        "language": "dan",
+        "country": "DK",
+        "source": "National Checklist of all species occurring in Denmark",
+        "sourceTaxonKey": 307207851
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Egern",
+        "language": "dan",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 101219941
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Eichhoernchen",
+        "language": "deu",
+        "country": "BE",
+        "source": "Belgian Species List",
+        "sourceTaxonKey": 100485632
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Eichhörnchen",
+        "language": "deu",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 101219941
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Eichhörnchen",
+        "language": "deu",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 302163558
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Eichhörnchen",
+        "language": "deu",
+        "country": "DE",
+        "source": "Taxon list of animals with German names (worldwide) compiled at the SMNS",
+        "sourceTaxonKey": 116807574
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Ekorn",
+        "language": "nor",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 101219941
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Ekorre",
+        "language": "swe",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 101219941
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Esquilo-vermelho",
+        "language": "por",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 101219941
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Eurasian Red Squirrel",
+        "language": "eng",
+        "source": "Integrated Taxonomic Information System (ITIS)",
+        "sourceTaxonKey": 102122639
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Eurasian Red Squirrel",
+        "language": "eng",
+        "source": "Mammal Species of the World",
+        "sourceTaxonKey": 100777720
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Eurasian Red Squirrel",
+        "language": "eng",
+        "source": "Order Rodentia - Family Sciuridae",
+        "sourceTaxonKey": 231538282
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Eurasian Red Squirrel",
+        "language": "eng",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 302163558
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Eurasian Red Squirrel",
+        "language": "eng",
+        "source": "Sciuridae",
+        "sourceTaxonKey": 197542384
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Eurasian Red Squirrel",
+        "language": "eng",
+        "country": "GB",
+        "area": "eng",
+        "source": "TAXREF",
+        "sourceTaxonKey": 222473561
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Eurasian Red Squirrel",
+        "language": "eng",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 300789304
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Eurasian red squirrel",
+        "language": "eng",
+        "source": "The Paleobiology Database",
+        "sourceTaxonKey": 121536829
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Eurasian red squirrel",
+        "language": "",
+        "source": "Phthiraptera.myspecies.info",
+        "sourceTaxonKey": 116902809
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Eurasisches Eichhérnchen",
+        "language": "eng",
+        "source": "Sciuridae",
+        "sourceTaxonKey": 197542384
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Eurasisches Eichhérnchen",
+        "language": "eng",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 302163558
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Europska vjeverica",
+        "language": "hrv",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 101219941
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Gewone eekhoorn",
+        "language": "nld",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 302163558
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Gwiwer Goch",
+        "language": "cym",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 302163558
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Gwiwerod Coch",
+        "language": "cym",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 302163558
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Kaweechelchen",
+        "language": "ltz",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 101219941
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Ketri",
+        "language": "sqi",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 101219941
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Közönséges mókus",
+        "language": "hun",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 101219941
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Navadna veverica",
+        "language": "slv",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 101219941
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Orav",
+        "language": "est",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 101219941
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Orava",
+        "language": "fin",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 101219941
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Paprastoji vovere",
+        "language": "lit",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 101219941
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Rauðíkorni",
+        "language": "isl",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 101219941
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Red Squirrel",
+        "language": "eng",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 302163558
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Red squirrel",
+        "language": "eng",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 101219941
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Rode eekhoorn",
+        "language": "nld",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 302163558
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Scoiattolo comune",
+        "language": "ita",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 101219941
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Scoiattolo rosso",
+        "language": "ita",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 302163558
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Tava-orav",
+        "language": "est",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 101219941
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Veverica stromová",
+        "language": "slk",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 101219941
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Veverka obecná",
+        "language": "ces",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 101219941
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Wiewiórka pospolita",
+        "language": "pol",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 101219941
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "ekorn",
+        "language": "nob",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 302163558
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "ekorre",
+        "language": "swe",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 302163558
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "eurasian red squirrel, red squirrel",
+        "language": "eng",
+        "country": "BE",
+        "source": "Belgian Species List",
+        "sourceTaxonKey": 100485632
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "euraziatische rode eekhoorn, eekhoorn",
+        "language": "nld",
+        "country": "BE",
+        "source": "Belgian Species List",
+        "sourceTaxonKey": 100485632
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "europeisk ekorn",
+        "language": "nob",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 302163558
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "feòrag ruadh",
+        "language": "gla",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 302163558
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "feòragan ruadha",
+        "language": "gla",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 302163558
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "oarri",
+        "language": "sme",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 302163558
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "orava",
+        "language": "fin",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 302163558
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "orava",
+        "language": "fin",
+        "country": "FI",
+        "source": "The FinBIF checklist of Finnish species",
+        "sourceTaxonKey": 257958917
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "rödekorre",
+        "language": "swe",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 302163558
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "rødekorn",
+        "language": "nob",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 302163558
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Écureuil roux",
+        "language": "fra",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 302163558
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Écureuil roux",
+        "language": "fra",
+        "country": "FR",
+        "area": "fra",
+        "source": "TAXREF",
+        "sourceTaxonKey": 222473561
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Écureuil roux",
+        "language": "fra",
+        "source": "EUNIS Biodiversity Database",
+        "sourceTaxonKey": 101219941
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "écureuil, écureuil rouge",
+        "language": "fra",
+        "country": "BE",
+        "source": "Belgian Species List",
+        "sourceTaxonKey": 100485632
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Σκίουρος",
+        "language": "ell",
+        "source": "Catalogue of Life",
+        "sourceTaxonKey": 302163558
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Білка звичайна",
+        "language": "ukr",
+        "country": "UA",
+        "source": "Checklist of vertebrates of Falz-Fein Biosphere Reserve \"Askania Nova\" (Kherson region, Ukraine)",
+        "sourceTaxonKey": 250627849
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Вивірка звичайна",
+        "language": "ukr",
+        "country": "UA",
+        "source": "Red list of flora and fauna of Chernivtsi region of Ukraine",
+        "sourceTaxonKey": 221661330
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Вивірка звичайна",
+        "language": "ukr",
+        "source": "Checklist of mammals of the Slobozhanskyi National Nature Park",
+        "sourceTaxonKey": 162653786
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Вивірка звичайна",
+        "language": "ukr",
+        "country": "UA",
+        "source": "List of representatives of fauna of Ukraine protected according to the Appendix III of the Bern Convention on the Conservation of European Wildlife and Natural Habitats (Bern Convention)",
+        "sourceTaxonKey": 221248483
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Eekhoorn",
+        "language": "nld",
+        "source": "Checklist Dutch Species Register - Nederlands Soortenregister",
+        "sourceTaxonKey": 152436589,
+        "preferred": true
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Eurasian Red Squirrel",
+        "language": "eng",
+        "source": "United Kingdom Species Inventory (UKSI)",
+        "sourceTaxonKey": 180179645,
+        "preferred": true
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Eurasian Red Squirrel",
+        "language": "eng",
+        "source": "The IUCN Red List of Threatened Species",
+        "sourceTaxonKey": 258096953,
+        "preferred": true
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "ekorn",
+        "language": "nob",
+        "country": "NO",
+        "sourceTaxonKey": 168002084,
+        "preferred": true
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "ekorn",
+        "language": "nno",
+        "country": "NO",
+        "sourceTaxonKey": 168002084,
+        "preferred": true
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "ekorre",
+        "language": "swe",
+        "country": "SE",
+        "source": "Dyntaxa. Svensk taxonomisk databas",
+        "sourceTaxonKey": 159940464,
+        "preferred": true
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "oarri",
+        "language": "sme",
+        "country": "NO",
+        "sourceTaxonKey": 168002084,
+        "preferred": true
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Ardilla Roja de Eurasia",
+        "language": "spa",
+        "source": "The IUCN Red List of Threatened Species",
+        "sourceTaxonKey": 258096953,
+        "preferred": false
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Eichhörnchen",
+        "language": "deu",
+        "source": "The IUCN Red List of Threatened Species",
+        "sourceTaxonKey": 258096953,
+        "preferred": false
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Gewone eekhoorn",
+        "language": "nld",
+        "source": "Checklist Dutch Species Register - Nederlands Soortenregister",
+        "sourceTaxonKey": 152436589,
+        "preferred": false
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Gwiwer Goch",
+        "language": "cym",
+        "source": "United Kingdom Species Inventory (UKSI)",
+        "sourceTaxonKey": 180179645,
+        "preferred": false
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Gwiwerod Coch",
+        "language": "cym",
+        "source": "United Kingdom Species Inventory (UKSI)",
+        "sourceTaxonKey": 180179645,
+        "preferred": false
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Red Squirrel",
+        "language": "eng",
+        "source": "The IUCN Red List of Threatened Species",
+        "sourceTaxonKey": 258096953,
+        "preferred": false
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Red Squirrel",
+        "language": "eng",
+        "source": "United Kingdom Species Inventory (UKSI)",
+        "sourceTaxonKey": 180179645,
+        "preferred": false
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Rode eekhoorn",
+        "language": "nld",
+        "source": "Checklist Dutch Species Register - Nederlands Soortenregister",
+        "sourceTaxonKey": 152436589,
+        "preferred": false
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Scoiattolo rosso",
+        "language": "ita",
+        "source": "The IUCN Red List of Threatened Species",
+        "sourceTaxonKey": 258096953,
+        "preferred": false
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "europeisk ekorn",
+        "language": "nob",
+        "country": "NO",
+        "sourceTaxonKey": 168002084,
+        "preferred": false
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "feòrag ruadh",
+        "language": "gla",
+        "source": "United Kingdom Species Inventory (UKSI)",
+        "sourceTaxonKey": 180179645,
+        "preferred": false
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "feòragan ruadha",
+        "language": "gla",
+        "source": "United Kingdom Species Inventory (UKSI)",
+        "sourceTaxonKey": 180179645,
+        "preferred": false
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "rödekorre",
+        "language": "swe",
+        "country": "SE",
+        "source": "Dyntaxa. Svensk taxonomisk databas",
+        "sourceTaxonKey": 159940464,
+        "preferred": false
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "rødekorn",
+        "language": "nob",
+        "country": "NO",
+        "sourceTaxonKey": 168002084,
+        "preferred": false
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Écureuil roux",
+        "language": "fra",
+        "source": "The IUCN Red List of Threatened Species",
+        "sourceTaxonKey": 258096953,
+        "preferred": false
+      },
+      {
+        "taxonKey": 8211070,
+        "vernacularName": "Σκίουρος",
+        "language": "ell",
+        "source": "The IUCN Red List of Threatened Species",
+        "sourceTaxonKey": 258096953,
+        "preferred": false
+      }
+    ]
+  }
+}

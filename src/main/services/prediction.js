@@ -8,7 +8,7 @@
 import crypto from 'crypto'
 import exifr from 'exifr'
 import geoTz from 'geo-tz'
-import luxon, { DateTime } from 'luxon'
+import { DateTime } from 'luxon'
 import path from 'path'
 import { eq } from 'drizzle-orm'
 import { transformBboxToCamtrapDP } from '../utils/bbox.js'
@@ -16,6 +16,7 @@ import { selectVideoClassificationWinner } from './ml/classification.js'
 import { insertModelOutput } from '../database/index.js'
 import { media, observations, deployments } from '../database/models.js'
 import { resolveVideoTimestamp } from './import/timestamp.js'
+import { resolveCommonName } from '../../shared/commonNames/index.js'
 import log from './logger.js'
 
 /**
@@ -301,6 +302,7 @@ export async function insertPrediction(db, prediction, modelInfo = {}) {
     eventStart: mediaRecord.timestamp,
     eventEnd: mediaRecord.timestamp,
     scientificName: resolvedScientificName,
+    commonName: resolveCommonName(resolvedScientificName),
     classificationProbability: prediction.prediction_score,
     count: 1,
     modelOutputID: modelInfo.modelOutputID || null,
@@ -476,6 +478,7 @@ export async function insertVideoPredictions(db, predictions, mediaRecord, model
       eventStart: eventStart,
       eventEnd: eventEnd,
       scientificName: winner,
+      commonName: resolveCommonName(winner),
       confidence: winnerData.avgConfidence, // Use average confidence
       count: 1,
       // No bbox for video (movement can't be represented by single bbox)
@@ -566,13 +569,13 @@ export async function processMediaDeployment(db, mediaRecord) {
   // 3. Determine timestamp (support both image and video metadata fields)
   const zones = latitude && longitude ? geoTz.find(latitude, longitude) : null
   const captureDate = exifData.DateTimeOriginal || exifData.CreateDate || exifData.MediaCreateDate
-  let date = captureDate ? luxon.DateTime.fromJSDate(captureDate, { zone: zones?.[0] }) : null
+  let date = captureDate ? DateTime.fromJSDate(captureDate, { zone: zones?.[0] }) : null
 
   // 3b. For video files, fall back to video-specific timestamp extraction
   if (!date && isVideoMediatype(mediaRecord.fileMediatype)) {
     const videoResult = await resolveVideoTimestamp(mediaRecord.filePath, mediaRecord.fileName)
     if (videoResult.timestamp) {
-      date = luxon.DateTime.fromJSDate(videoResult.timestamp, { zone: zones?.[0] || 'utc' })
+      date = DateTime.fromJSDate(videoResult.timestamp, { zone: zones?.[0] || 'utc' })
       exifData.timestampSource = videoResult.source
     }
   }
