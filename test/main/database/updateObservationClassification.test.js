@@ -129,6 +129,25 @@ describe('updateObservationClassification: three-case write logic', () => {
     assert.equal(result.commonName, null)
   })
 
+  test('commonName-only update with empty string normalizes to null', async () => {
+    await seedObservation()
+    const result = await updateObservationClassification(testDbPath, 'obs1', {
+      commonName: ''
+    })
+    // scientificName untouched (no key in payload); commonName normalized to null.
+    assert.equal(result.scientificName, 'capreolus capreolus')
+    assert.equal(result.commonName, null)
+  })
+
+  test('commonName-only update with non-empty string saves it', async () => {
+    await seedObservation()
+    const result = await updateObservationClassification(testDbPath, 'obs1', {
+      commonName: 'Red Deer'
+    })
+    assert.equal(result.scientificName, 'capreolus capreolus')
+    assert.equal(result.commonName, 'Red Deer')
+  })
+
   test('unrelated field update (sex) does not touch scientificName or commonName', async () => {
     await seedObservation()
     const result = await updateObservationClassification(testDbPath, 'obs1', {

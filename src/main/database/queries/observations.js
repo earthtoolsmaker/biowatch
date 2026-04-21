@@ -68,7 +68,11 @@ export async function updateObservationClassification(dbPath, observationID, upd
       }
     } else if (updates.commonName !== undefined) {
       // scientificName not being updated; permit commonName-only tweaks.
-      updateValues.commonName = updates.commonName
+      // Normalize empty string to null for consistency with the sci-provided branch.
+      updateValues.commonName =
+        typeof updates.commonName === 'string' && updates.commonName.length > 0
+          ? updates.commonName
+          : null
     }
 
     if (updates.observationType !== undefined) {

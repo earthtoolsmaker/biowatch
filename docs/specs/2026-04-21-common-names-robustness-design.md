@@ -57,7 +57,7 @@ Tiers 1 and 2 run in the main process at write time (insert and update) and pers
 
 - Generated at build time by `scripts/build-common-names-dict.js`, committed to the repo.
 - Seeded from four sources merged in priority order: SpeciesNet < DeepFaune < Manas < `extras.json`. Later sources override earlier ones on conflict.
-- Keys are normalized: trimmed, lowercased, NFC-normalized, author citations stripped.
+- Keys are normalized: trimmed, lowercased, NFC-normalized, internal whitespace collapsed.
 - Contains both binomial scientific names (e.g. `"sciurus vulgaris"`) AND raw non-binomial model labels (e.g. `"chamois"`, `"bird"`) so that write-path lookups succeed for DeepFaune/Manas.
 - Expected size: ~3,000–5,000 entries, a few hundred KB.
 
@@ -70,7 +70,7 @@ Tiers 1 and 2 run in the main process at write time (insert and update) and pers
 **`resolver.js`** — exports `resolveCommonName(scientificName) → string | null`.
 
 - Pure, synchronous, no network.
-- Normalizes input (trim, lowercase, NFC, author-citation strip) and looks up in the dictionary.
+- Normalizes input (trim, lowercase, NFC, whitespace collapse) and looks up in the dictionary.
 - Returns null on miss.
 
 **`gbifScorer.js`** — exports `pickEnglishCommonName(vernacularResults) → string | null`.
@@ -198,7 +198,7 @@ Query row { scientificName, commonName }
 ### Error handling & edge cases
 
 - `scientificName` null/empty → resolver returns null immediately.
-- Author citations ("Sciurus vulgaris Linnaeus, 1758") → regex strip to the first two Latinate words before lookup.
+- Author citations ("Sciurus vulgaris Linnaeus, 1758") are NOT stripped — kept as a known limitation; the dictionary will miss and the GBIF fallback runs. Revisit if we actually see importer output with author citations.
 - Genus-only names → dictionary may or may not cover them; GBIF fallback catches the gap.
 - Non-binomial model labels ("chamois", "bird") → dictionary must include them as keys; enforced by the coverage test.
 - GBIF network error / timeout / non-200 → fall back to scientific name, log once per species per session.
@@ -210,7 +210,7 @@ Query row { scientificName, commonName }
 
 **Unit tests (CI):**
 
-1. `resolver.test.js` — `resolveCommonName` with known keys, model labels, normalization cases (whitespace, case, author citations), null input, misses.
+1. `resolver.test.js` — `resolveCommonName` with known keys, model labels, normalization cases (whitespace, case), null input, misses.
 2. `gbifScorer.test.js` — `pickEnglishCommonName` with captured GBIF fixtures. Must return "Eurasian Red Squirrel" for the Sciurus vulgaris fixture, not "Ardilla Roja". Additional fixtures captured during the design-time audit.
 3. `useCommonName.test.js` — hook tests: stored name shortcut, dictionary hit, GBIF fallback, GBIF failure.
 4. `dictionary.integrity.test.js` — no duplicate keys, no empty/whitespace values, all keys follow canonical normalization.
