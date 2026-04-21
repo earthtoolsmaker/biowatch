@@ -1,0 +1,63 @@
+{
+  "modelId": "manas",
+  "modelVersion": "1.0",
+  "source": "classes_Fri_Sep__1_18_50_55_2023.pickle (from Manas 1.0 HuggingFace tarball)",
+  "note": "Manas emits family/genus-level labels, not binomials. Common names are curated from the taxonomic rank.",
+  "entries": [
+    {
+      "scientificName": null,
+      "label": "aves",
+      "commonName": "Bird"
+    },
+    {
+      "scientificName": null,
+      "label": "canidae",
+      "commonName": "Canid"
+    },
+    {
+      "scientificName": null,
+      "label": "caprinae",
+      "commonName": "Goat or Sheep"
+    },
+    {
+      "scientificName": null,
+      "label": "leporidae",
+      "commonName": "Hare or Rabbit"
+    },
+    {
+      "scientificName": null,
+      "label": "marmota",
+      "commonName": "Marmot"
+    },
+    {
+      "scientificName": null,
+      "label": "muridae",
+      "commonName": "Rodent"
+    },
+    {
+      "scientificName": null,
+      "label": "mustelidae",
+      "commonName": "Mustelid"
+    },
+    {
+      "scientificName": null,
+      "label": "ochotonidae",
+      "commonName": "Pika"
+    },
+    {
+      "scientificName": "panthera uncia",
+      "label": "panthera_uncia",
+      "commonName": "Snow Leopard"
+    },
+    {
+      "scientificName": null,
+      "label": "ursidae",
+      "commonName": "Bear"
+    },
+    {
+      "scientificName": null,
+      "label": "vide",
+      "commonName": "Empty"
+    }
+  ]
+}
