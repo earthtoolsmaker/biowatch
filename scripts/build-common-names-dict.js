@@ -47,6 +47,20 @@ function mergeEntries(target, entries) {
   for (const entry of entries) {
     if (!entry.commonName || !entry.commonName.trim()) continue
     const value = entry.commonName.trim()
+
+    // Skip placeholder entries where SpeciesNet ships the scientific name as
+    // the common name (e.g. "coendou quichua" -> "coendou quichua"). Letting
+    // these through would render "coendou quichua (coendou quichua)" in the
+    // UI; dropping them lets the render-time cascade fall back to GBIF.
+    if (entry.scientificName && value.toLowerCase() === entry.scientificName.trim().toLowerCase()) {
+      continue
+    }
+
+    // Skip the "blank" -> "blank" placeholder — parseScientificName returns
+    // null for blank predictions so it's never looked up, but keeping it in
+    // the dictionary is dead data.
+    if (value.toLowerCase() === 'blank') continue
+
     for (const key of keysFor(entry)) {
       target[key] = value
     }

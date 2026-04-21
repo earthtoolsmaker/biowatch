@@ -109,8 +109,16 @@ export async function updateObservationClassification(dbPath, observationID, upd
       .get()
 
     const elapsedTime = Date.now() - startTime
+    // Describe what actually changed. scientificName=undefined means "field not
+    // in payload" (e.g. a sex-only update), distinct from scientificName=null
+    // which means "species cleared".
+    let sciDescription
+    if (!('scientificName' in updates)) sciDescription = 'unchanged'
+    else if (updates.scientificName === null || updates.scientificName === '')
+      sciDescription = 'cleared'
+    else sciDescription = `"${updates.scientificName}"`
     log.info(
-      `Updated observation ${observationID} to "${updates.scientificName || 'blank'}" in ${elapsedTime}ms`
+      `Updated observation ${observationID} (scientificName: ${sciDescription}) in ${elapsedTime}ms`
     )
     return updatedObservation
   } catch (error) {
