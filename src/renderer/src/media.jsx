@@ -43,7 +43,8 @@ import { useImagePrefetch } from './hooks/useImagePrefetch'
 import { getTopNonHumanSpecies } from './utils/speciesUtils'
 import { useSequenceGap } from './hooks/useSequenceGap'
 import { SequenceGapSlider } from './ui/SequenceGapSlider'
-import { getSpeciesFromBboxes, getSpeciesFromSequence } from './utils/speciesFromBboxes'
+import { getSpeciesListFromBboxes, getSpeciesListFromSequence } from './utils/speciesFromBboxes'
+import SpeciesLabel from './ui/SpeciesLabel'
 import { useImportStatus } from './hooks/import'
 import { behaviorCategories } from '../../shared/constants.js'
 
@@ -2377,7 +2378,9 @@ function ImageModal({
                   className="text-lg font-semibold text-left hover:text-lime-600 cursor-pointer flex items-center gap-2 group"
                   title="Click to edit species"
                 >
-                  <span>{media.scientificName || 'No species'}</span>
+                  <span>
+                    <SpeciesLabel names={media.scientificName ? [media.scientificName] : []} />
+                  </span>
                   <Pencil
                     size={16}
                     className="text-gray-400 group-hover:text-lime-600 transition-colors"
@@ -2394,7 +2397,9 @@ function ImageModal({
                   className="text-lg font-semibold text-left hover:text-lime-600 cursor-pointer flex items-center gap-2 group"
                   title="Click to edit species"
                 >
-                  <span>{media.scientificName || 'No species'}</span>
+                  <span>
+                    <SpeciesLabel names={media.scientificName ? [media.scientificName] : []} />
+                  </span>
                   <Pencil
                     size={16}
                     className="text-gray-400 group-hover:text-lime-600 transition-colors"
@@ -2405,7 +2410,7 @@ function ImageModal({
                 </button>
               ) : (
                 <h3 className="text-lg font-semibold">
-                  {getSpeciesFromBboxes(bboxes, media.scientificName)}
+                  <SpeciesLabel names={getSpeciesListFromBboxes(bboxes, media.scientificName)} />
                 </h3>
               )}
             </div>
@@ -2839,7 +2844,7 @@ function ThumbnailCard({
 
       <div className="p-2">
         <h3 className="text-sm font-semibold truncate">
-          {getSpeciesFromBboxes(bboxes, media.scientificName)}
+          <SpeciesLabel names={getSpeciesListFromBboxes(bboxes, media.scientificName)} />
         </h3>
         <p className="text-xs text-gray-500">
           {media.timestamp ? new Date(media.timestamp).toLocaleString() : 'No timestamp'}
@@ -3098,7 +3103,7 @@ function SequenceCard({
       {/* Info section */}
       <div className="p-2">
         <h3 className="text-sm font-semibold truncate">
-          {getSpeciesFromSequence(sequence.items, bboxesByMedia)}
+          <SpeciesLabel names={getSpeciesListFromSequence(sequence.items, bboxesByMedia)} />
         </h3>
         <p className="text-xs text-gray-500">
           {currentMedia.timestamp
