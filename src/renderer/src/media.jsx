@@ -2102,7 +2102,12 @@ function ImageModal({
                       console.log('Video onLoadStart:', e.target.src)
                     }}
                     onLoadedData={(e) => {
-                      console.log('Video onLoadedData:', e.target.src, 'duration:', e.target.duration)
+                      console.log(
+                        'Video onLoadedData:',
+                        e.target.src,
+                        'duration:',
+                        e.target.duration
+                      )
                     }}
                     onCanPlay={(e) => {
                       console.log('Video onCanPlay:', e.target.src)
