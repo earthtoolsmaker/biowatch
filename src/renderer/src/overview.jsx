@@ -20,10 +20,11 @@ import BestMediaCarousel from './ui/BestMediaCarousel'
 import SpeciesTooltipContent from './ui/SpeciesTooltipContent'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import { useImportStatus } from '@renderer/hooks/import'
-import { useQueryClient, useQuery, useQueries } from '@tanstack/react-query'
+import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
 import DateTimePicker from './ui/DateTimePicker'
 import { sortSpeciesHumansLast } from './utils/speciesUtils'
+import { useCommonName } from './utils/commonNames'
 import { useSequenceGap } from './hooks/useSequenceGap'
 
 // Component to handle map layer change events for persistence
@@ -178,46 +179,64 @@ function DeploymentMap({ deployments, studyId }) {
   )
 }
 
-// Helper function to fetch common name from GBIF API
-async function fetchGbifCommonName(scientificName) {
-  try {
-    // Step 1: Match the scientific name to get usageKey
-    const matchResponse = await fetch(
-      `https://api.gbif.org/v1/species/match?name=${encodeURIComponent(scientificName)}`
-    )
-    const matchData = await matchResponse.json()
+function SpeciesRow({
+  species,
+  storedCommonName,
+  speciesImageMap,
+  studyId,
+  totalCount,
+  onRowClick
+}) {
+  const displayName =
+    useCommonName(species.scientificName, { storedCommonName }) || species.scientificName
+  const hasImage = !!speciesImageMap[species.scientificName]
+  const showScientific = species.scientificName && displayName !== species.scientificName
 
-    // Check if we got a valid usageKey
-    if (!matchData.usageKey) {
-      return null
-    }
-
-    // Step 2: Use the usageKey to fetch vernacular names
-    const vernacularResponse = await fetch(
-      `https://api.gbif.org/v1/species/${matchData.usageKey}/vernacularNames`
-    )
-    const vernacularData = await vernacularResponse.json()
-
-    // Find English vernacular name if available
-    if (vernacularData && vernacularData.results && vernacularData.results.length > 0) {
-      // Prefer English names
-      const englishName = vernacularData.results.find(
-        (name) => name.language === 'eng' || name.language === 'en'
-      )
-
-      if (englishName) {
-        return englishName.vernacularName
-      }
-
-      // If no English name, return the first available name
-      return vernacularData.results[0].vernacularName
-    }
-
-    return null
-  } catch (error) {
-    console.error(`Error fetching common name for ${scientificName}:`, error)
-    return null
-  }
+  return (
+    <Tooltip.Root key={species.scientificName}>
+      <Tooltip.Trigger asChild>
+        <div
+          className="cursor-pointer hover:bg-gray-50 transition-colors rounded py-1"
+          onClick={() => onRowClick(species)}
+        >
+          <div className="flex justify-between mb-1 items-center">
+            <div>
+              <span className="capitalize text-sm">{displayName}</span>
+              {showScientific && (
+                <span className="text-gray-500 text-sm italic ml-2">
+                  ({species.scientificName})
+                </span>
+              )}
+            </div>
+            <span className="text-xs text-gray-500">{species.count}</span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div
+              className="bg-blue-600 h-2 rounded-full"
+              style={{ width: `${(species.count / totalCount) * 100}%` }}
+            ></div>
+          </div>
+        </div>
+      </Tooltip.Trigger>
+      {hasImage && (
+        <Tooltip.Portal>
+          <Tooltip.Content
+            side="right"
+            sideOffset={12}
+            align="start"
+            avoidCollisions={true}
+            collisionPadding={16}
+            className="z-[10000]"
+          >
+            <SpeciesTooltipContent
+              imageData={speciesImageMap[species.scientificName]}
+              studyId={studyId}
+            />
+          </Tooltip.Content>
+        </Tooltip.Portal>
+      )}
+    </Tooltip.Root>
+  )
 }
 
 // Export SpeciesDistribution so it can be imported in activity.jsx
@@ -261,36 +280,6 @@ function SpeciesDistribution({ data, taxonomicData, studyId }) {
     return map
   }, [taxonomicData])
 
-  // Find species that need GBIF lookup (not in taxonomic data)
-  const speciesNeedingLookup = useMemo(() => {
-    if (!data) return []
-    return data
-      .filter((species) => species.scientificName && !scientificToCommonMap[species.scientificName])
-      .map((species) => species.scientificName)
-  }, [data, scientificToCommonMap])
-
-  // Use useQueries to fetch common names for all species that need lookup
-  const gbifQueries = useQueries({
-    queries: speciesNeedingLookup.map((scientificName) => ({
-      queryKey: ['gbifCommonName', scientificName],
-      queryFn: () => fetchGbifCommonName(scientificName),
-      staleTime: 1000 * 60 * 60 * 24, // 24 hours - common names rarely change
-      retry: 1
-    }))
-  })
-
-  // Build a map of GBIF common names from query results
-  const gbifCommonNames = useMemo(() => {
-    const map = {}
-    speciesNeedingLookup.forEach((name, index) => {
-      const query = gbifQueries[index]
-      if (query.data) {
-        map[name] = query.data
-      }
-    })
-    return map
-  }, [speciesNeedingLookup, gbifQueries])
-
   if (!data || data.length === 0) {
     return <div className="text-gray-500">No species data available</div>
   }
@@ -304,57 +293,17 @@ function SpeciesDistribution({ data, taxonomicData, studyId }) {
     <div className="w-1/2 bg-white rounded border border-gray-200 p-3 overflow-y-auto relative">
       <div className="space-y-2">
         {sortSpeciesHumansLast(data).map((species) => {
-          // Try to get the common name from the taxonomic data first, then from GBIF query results
-          const commonName =
-            scientificToCommonMap[species.scientificName] || gbifCommonNames[species.scientificName]
-          const hasImage = !!speciesImageMap[species.scientificName]
-
+          const storedCommonName = scientificToCommonMap[species.scientificName] || null
           return (
-            <Tooltip.Root key={species.scientificName}>
-              <Tooltip.Trigger asChild>
-                <div
-                  className="cursor-pointer hover:bg-gray-50 transition-colors rounded py-1"
-                  onClick={() => handleRowClick(species)}
-                >
-                  <div className="flex justify-between mb-1 items-center">
-                    <div>
-                      <span className="capitalize text-sm">
-                        {commonName || species.scientificName}
-                      </span>
-                      {species.scientificName && commonName !== undefined && (
-                        <span className="text-gray-500 text-sm italic ml-2">
-                          ({species.scientificName})
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-xs text-gray-500">{species.count}</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-blue-600 h-2 rounded-full"
-                      style={{ width: `${(species.count / totalCount) * 100}%` }}
-                    ></div>
-                  </div>
-                </div>
-              </Tooltip.Trigger>
-              {hasImage && (
-                <Tooltip.Portal>
-                  <Tooltip.Content
-                    side="right"
-                    sideOffset={12}
-                    align="start"
-                    avoidCollisions={true}
-                    collisionPadding={16}
-                    className="z-[10000]"
-                  >
-                    <SpeciesTooltipContent
-                      imageData={speciesImageMap[species.scientificName]}
-                      studyId={studyId}
-                    />
-                  </Tooltip.Content>
-                </Tooltip.Portal>
-              )}
-            </Tooltip.Root>
+            <SpeciesRow
+              key={species.scientificName}
+              species={species}
+              storedCommonName={storedCommonName}
+              speciesImageMap={speciesImageMap}
+              studyId={studyId}
+              totalCount={totalCount}
+              onRowClick={handleRowClick}
+            />
           )
         })}
       </div>
