@@ -1869,7 +1869,7 @@ function ImageModal({
 
   // Check if there are actual bboxes with coordinates (not just observations without bbox)
   const bboxesWithCoords = bboxes.filter((b) => b.bboxX !== null && b.bboxX !== undefined)
-  const hasBboxes = bboxesWithCoords.length > 0
+  const hasBboxes = bboxesWithCoords.length > 0 || videoFrameDetections.length > 0
 
   // Get the observation for images without bboxes (for class editing)
   const observationWithoutBbox = !hasBboxes
