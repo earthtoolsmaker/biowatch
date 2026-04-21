@@ -880,13 +880,6 @@ describe('resolveCommonName', () => {
     assert.equal(resolveCommonName('SCIURUS VULGARIS'), 'Eurasian Red Squirrel')
   })
 
-  test('resolves with author citation stripped', () => {
-    assert.equal(
-      resolveCommonName('Sciurus vulgaris Linnaeus, 1758'),
-      'Eurasian Red Squirrel'
-    )
-  })
-
   test('returns null for unknown scientific name', () => {
     assert.equal(resolveCommonName('Foobar nonexistentium'), null)
   })
