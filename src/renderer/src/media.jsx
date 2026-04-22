@@ -762,13 +762,22 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
                   species.scientificName === bbox.scientificName ? 'bg-lime-100' : ''
                 }`}
               >
-                <div>
-                  <span className="text-sm font-medium">{species.scientificName}</span>
+                <div className="min-w-0 truncate">
+                  <span className="text-sm font-medium">
+                    {species.commonName || species.scientificName}
+                  </span>
                   {species.commonName && (
-                    <span className="text-xs text-gray-500 ml-2">({species.commonName})</span>
+                    <span className="text-xs text-gray-500 ml-2 italic">
+                      ({species.scientificName})
+                    </span>
                   )}
                 </div>
-                <span className="text-xs text-gray-400">{species.observationCount}</span>
+                {species.inStudy !== false && typeof species.observationCount === 'number' && (
+                  <span className="flex items-center gap-1 text-xs text-gray-400 shrink-0 ml-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-lime-500" aria-hidden="true" />
+                    {species.observationCount}
+                  </span>
+                )}
               </button>
             ))}
 
