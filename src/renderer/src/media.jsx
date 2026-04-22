@@ -528,10 +528,12 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
   const [activeTab, setActiveTab] = useState(initialTab)
   const [searchTerm, setSearchTerm] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [highlightedIndex, setHighlightedIndex] = useState(-1)
   const [customSpecies, setCustomSpecies] = useState('')
   const [showCustomInput, setShowCustomInput] = useState(false)
   const inputRef = useRef(null)
   const customInputRef = useRef(null)
+  const rowRefs = useRef([])
 
   // Sync activeTab with initialTab when it changes (e.g., clicking sex badge vs species label)
   useEffect(() => {
@@ -585,6 +587,20 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
     () => searchSpecies(debouncedSearch, speciesList),
     [debouncedSearch, speciesList]
   )
+
+  // Reset the keyboard cursor when the results list changes (new query or
+  // new data). Also trim the ref array so stale row refs don't linger.
+  useEffect(() => {
+    setHighlightedIndex(results.length > 0 ? 0 : -1)
+    rowRefs.current.length = results.length
+  }, [results])
+
+  // Scroll the highlighted row into view when it changes via arrow keys.
+  useEffect(() => {
+    if (highlightedIndex < 0) return
+    const node = rowRefs.current[highlightedIndex]
+    if (node) node.scrollIntoView({ block: 'nearest' })
+  }, [highlightedIndex])
 
   const handleSelectSpecies = (scientificName, commonName = null) => {
     onUpdate({
@@ -717,9 +733,27 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
                   onKeyDown={(e) => {
                     // Stop Backspace/Delete from reaching the ImageModal
                     // window shortcut that deletes the selected observation.
-                    // Let other keys (Escape, arrows) bubble as before.
                     if (e.key === 'Backspace' || e.key === 'Delete') {
                       e.stopPropagation()
+                      return
+                    }
+                    if (e.key === 'ArrowDown') {
+                      e.preventDefault()
+                      if (results.length === 0) return
+                      setHighlightedIndex((i) => (i + 1) % results.length)
+                      return
+                    }
+                    if (e.key === 'ArrowUp') {
+                      e.preventDefault()
+                      if (results.length === 0) return
+                      setHighlightedIndex((i) => (i <= 0 ? results.length - 1 : i - 1))
+                      return
+                    }
+                    if (e.key === 'Enter') {
+                      if (highlightedIndex < 0 || highlightedIndex >= results.length) return
+                      e.preventDefault()
+                      const picked = results[highlightedIndex]
+                      handleSelectSpecies(picked.scientificName, picked.commonName)
                     }
                   }}
                   placeholder="Search species..."
@@ -754,13 +788,17 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
               )}
 
             {/* Ranked species list */}
-            {results.map((species) => (
+            {results.map((species, index) => (
               <button
                 key={species.scientificName}
+                ref={(node) => {
+                  rowRefs.current[index] = node
+                }}
+                onMouseEnter={() => setHighlightedIndex(index)}
                 onClick={() => handleSelectSpecies(species.scientificName, species.commonName)}
-                className={`w-full px-3 py-2 text-left hover:bg-lime-50 flex items-center justify-between ${
-                  species.scientificName === bbox.scientificName ? 'bg-lime-100' : ''
-                }`}
+                className={`w-full px-3 py-2 text-left flex items-center justify-between ${
+                  index === highlightedIndex ? 'bg-lime-50' : ''
+                } ${species.scientificName === bbox.scientificName ? 'bg-lime-100' : ''}`}
               >
                 <div className="min-w-0 truncate">
                   <span className="text-sm font-medium">
