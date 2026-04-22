@@ -48,3 +48,56 @@ describe('searchSpecies — below threshold', () => {
     assert.deepEqual(searchSpecies(undefined, studyList), studyList)
   })
 })
+
+describe('searchSpecies — fuzzy + ranking', () => {
+  test('matches on common name with a small typo', () => {
+    const results = searchSpecies('wattle', [])
+    const sciNames = results.map((r) => r.scientificName)
+    assert.ok(
+      sciNames.includes('aburria aburri'),
+      `expected 'aburria aburri' (wattled guan) in results, got: ${sciNames.slice(0, 10).join(', ')}`
+    )
+  })
+
+  test('matches on scientific name', () => {
+    const results = searchSpecies('acinonyx', [])
+    const sciNames = results.map((r) => r.scientificName)
+    assert.ok(
+      sciNames.includes('acinonyx jubatus'),
+      `expected 'acinonyx jubatus' (cheetah) in results, got: ${sciNames.slice(0, 10).join(', ')}`
+    )
+  })
+
+  test('dictionary-only result has inStudy: false', () => {
+    const results = searchSpecies('cheetah', [])
+    const cheetah = results.find((r) => r.scientificName === 'acinonyx jubatus')
+    assert.ok(cheetah, 'expected cheetah in results')
+    assert.equal(cheetah.inStudy, false)
+  })
+
+  test('deduplicates when species exists in both study and dictionary', () => {
+    const studyList = [
+      { scientificName: 'acinonyx jubatus', commonName: 'cheetah', observationCount: 5 }
+    ]
+    const results = searchSpecies('cheetah', studyList)
+    const cheetahMatches = results.filter((r) => r.scientificName === 'acinonyx jubatus')
+    assert.equal(cheetahMatches.length, 1, 'expected exactly one cheetah row')
+    assert.equal(cheetahMatches[0].inStudy, true)
+    assert.equal(cheetahMatches[0].observationCount, 5)
+  })
+
+  test('caps results at 50', () => {
+    // Broad common-name substring that matches many rows.
+    const results = searchSpecies('bird', [])
+    assert.ok(results.length <= 50, `expected <= 50 results, got ${results.length}`)
+  })
+
+  test('study match ranks first when it shares a scientific name with a dictionary entry', () => {
+    const studyList = [
+      { scientificName: 'acinonyx jubatus', commonName: 'cheetah', observationCount: 5 }
+    ]
+    const results = searchSpecies('cheetah', studyList)
+    assert.equal(results[0].scientificName, 'acinonyx jubatus')
+    assert.equal(results[0].inStudy, true)
+  })
+})
