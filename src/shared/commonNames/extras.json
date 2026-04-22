@@ -5,6 +5,36 @@
       "scientificName": "sciurus vulgaris",
       "commonName": "Eurasian Red Squirrel",
       "reason": "GBIF returns multiple Spanish names mis-tagged as language='eng'"
+    },
+    {
+      "scientificName": "accipitriformes",
+      "commonName": "birds of prey",
+      "reason": "Order-level label used by Kruger demo dataset; dictionary only had the 'accipitriformes order' placeholder"
+    },
+    {
+      "scientificName": "madoqua",
+      "commonName": "dik-dik",
+      "reason": "Genus-level label used by Kruger demo dataset"
+    },
+    {
+      "scientificName": "pronolagus rupestris",
+      "commonName": "red rock rabbit",
+      "reason": "Used by Kruger demo dataset; not present in any source snapshot"
+    },
+    {
+      "scientificName": "redunca arundinum",
+      "commonName": "southern reedbuck",
+      "reason": "Used by Kruger demo dataset; not present in any source snapshot"
+    },
+    {
+      "scientificName": "lepus species",
+      "commonName": "hare",
+      "reason": "Dictionary snapshot echoed the key ('lepus species'); demo needs a clean display name"
+    },
+    {
+      "scientificName": "cephalophus natalensis",
+      "commonName": "red duiker",
+      "reason": "Shortening dictionary's 'natal red duiker' per demo dataset preference"
     }
   ]
 }
