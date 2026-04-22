@@ -9,7 +9,7 @@
  *   - normalized scientific names (lowercase, single-space, NFC-normalized); or
  *   - raw model labels (also normalized), for entries whose scientificName is null.
  *
- * Values are common names as provided by the source (display-casing preserved).
+ * Values are common names lowercased for consistent display and filtering.
  */
 
 import fs from 'node:fs'
@@ -46,7 +46,11 @@ function keysFor(entry) {
 function mergeEntries(target, entries) {
   for (const entry of entries) {
     if (!entry.commonName || !entry.commonName.trim()) continue
-    const value = entry.commonName.trim()
+    // Lowercase common-name values so casing matches scientific-name keys.
+    // Sources ship inconsistent capitalization (e.g. "Badger" vs "common myna");
+    // normalizing here lets the picker filter out placeholder entries where
+    // scientific name equals common name, and keeps UI rendering consistent.
+    const value = entry.commonName.trim().toLowerCase()
 
     // Skip placeholder entries where SpeciesNet ships the scientific name as
     // the common name (e.g. "coendou quichua" -> "coendou quichua"). Letting

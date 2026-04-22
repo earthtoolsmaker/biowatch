@@ -32,6 +32,12 @@ describe('dictionary.json integrity', () => {
     }
   })
 
+  test('all values are lowercase', () => {
+    for (const [key, value] of Object.entries(dictionary)) {
+      assert.equal(value, value.toLowerCase(), `value for "${key}" is not lowercase: "${value}"`)
+    }
+  })
+
   test('has no duplicate keys in the raw JSON', () => {
     // JSON.parse silently drops duplicates; detect by counting occurrences of
     // quoted keys at the top level of the flat object.

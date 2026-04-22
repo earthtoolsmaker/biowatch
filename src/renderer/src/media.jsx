@@ -44,6 +44,7 @@ import { getTopNonHumanSpecies } from './utils/speciesUtils'
 import { useSequenceGap } from './hooks/useSequenceGap'
 import { SequenceGapSlider } from './ui/SequenceGapSlider'
 import { getSpeciesListFromBboxes, getSpeciesListFromSequence } from './utils/speciesFromBboxes'
+import { searchSpecies } from './utils/dictionarySearch'
 import SpeciesLabel from './ui/SpeciesLabel'
 import { useImportStatus } from './hooks/import'
 import { behaviorCategories } from '../../shared/constants.js'
@@ -102,7 +103,7 @@ function ObservationListPanel({ bboxes, selectedId, onSelect, onEdit, onDelete }
                   }`}
                 />
                 <span className="text-sm font-medium truncate max-w-[200px]">
-                  {bbox.scientificName || 'Blank'}
+                  {bbox.commonName || bbox.scientificName || 'Blank'}
                 </span>
                 {bbox.sex && bbox.sex !== 'unknown' && (
                   <span
@@ -526,10 +527,13 @@ function BehaviorSelector({ value = [], onChange }) {
 function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'species' }) {
   const [activeTab, setActiveTab] = useState(initialTab)
   const [searchTerm, setSearchTerm] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [highlightedIndex, setHighlightedIndex] = useState(-1)
   const [customSpecies, setCustomSpecies] = useState('')
   const [showCustomInput, setShowCustomInput] = useState(false)
   const inputRef = useRef(null)
   const customInputRef = useRef(null)
+  const rowRefs = useRef([])
 
   // Sync activeTab with initialTab when it changes (e.g., clicking sex badge vs species label)
   useEffect(() => {
@@ -569,15 +573,34 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [onClose])
 
-  // Filter species by search term
-  const filteredSpecies = useMemo(() => {
-    if (!searchTerm) return speciesList
-    const term = searchTerm.toLowerCase()
-    return speciesList.filter(
-      (s) =>
-        s.scientificName?.toLowerCase().includes(term) || s.commonName?.toLowerCase().includes(term)
-    )
-  }, [speciesList, searchTerm])
+  // Debounce the search term so fuse runs at most once per ~150ms burst.
+  useEffect(() => {
+    const handle = setTimeout(() => setDebouncedSearch(searchTerm), 150)
+    return () => clearTimeout(handle)
+  }, [searchTerm])
+
+  // Ranked species results: merges study-present species with a filtered
+  // view of the bundled dictionary, fuzzy-matched by common and scientific
+  // names. Below 3 chars the dictionary is skipped and study species are
+  // returned unranked, preserving today's UX for short queries.
+  const results = useMemo(
+    () => searchSpecies(debouncedSearch, speciesList),
+    [debouncedSearch, speciesList]
+  )
+
+  // Reset the keyboard cursor when the results list changes (new query or
+  // new data). Also trim the ref array so stale row refs don't linger.
+  useEffect(() => {
+    setHighlightedIndex(results.length > 0 ? 0 : -1)
+    rowRefs.current.length = results.length
+  }, [results])
+
+  // Scroll the highlighted row into view when it changes via arrow keys.
+  useEffect(() => {
+    if (highlightedIndex < 0) return
+    const node = rowRefs.current[highlightedIndex]
+    if (node) node.scrollIntoView({ block: 'nearest' })
+  }, [highlightedIndex])
 
   const handleSelectSpecies = (scientificName, commonName = null) => {
     onUpdate({
@@ -710,9 +733,27 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
                   onKeyDown={(e) => {
                     // Stop Backspace/Delete from reaching the ImageModal
                     // window shortcut that deletes the selected observation.
-                    // Let other keys (Escape, arrows) bubble as before.
                     if (e.key === 'Backspace' || e.key === 'Delete') {
                       e.stopPropagation()
+                      return
+                    }
+                    if (e.key === 'ArrowDown') {
+                      e.preventDefault()
+                      if (results.length === 0) return
+                      setHighlightedIndex((i) => (i + 1) % results.length)
+                      return
+                    }
+                    if (e.key === 'ArrowUp') {
+                      e.preventDefault()
+                      if (results.length === 0) return
+                      setHighlightedIndex((i) => (i <= 0 ? results.length - 1 : i - 1))
+                      return
+                    }
+                    if (e.key === 'Enter') {
+                      if (highlightedIndex < 0 || highlightedIndex >= results.length) return
+                      e.preventDefault()
+                      const picked = results[highlightedIndex]
+                      handleSelectSpecies(picked.scientificName, picked.commonName)
                     }
                   }}
                   placeholder="Search species..."
@@ -746,26 +787,44 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
                 </button>
               )}
 
-            {/* Filtered species list */}
-            {filteredSpecies.map((species) => (
+            {/* Ranked species list */}
+            {results.map((species, index) => (
               <button
                 key={species.scientificName}
+                ref={(node) => {
+                  rowRefs.current[index] = node
+                }}
+                onMouseEnter={() => setHighlightedIndex(index)}
                 onClick={() => handleSelectSpecies(species.scientificName, species.commonName)}
-                className={`w-full px-3 py-2 text-left hover:bg-lime-50 flex items-center justify-between ${
-                  species.scientificName === bbox.scientificName ? 'bg-lime-100' : ''
-                }`}
+                className={`w-full px-3 py-2 text-left flex items-center justify-between ${
+                  index === highlightedIndex ? 'bg-lime-50' : ''
+                } ${species.scientificName === bbox.scientificName ? 'bg-lime-100' : ''}`}
               >
-                <div>
-                  <span className="text-sm font-medium">{species.scientificName}</span>
+                <div className="min-w-0 truncate">
+                  <span className="text-sm font-medium">
+                    {species.commonName || species.scientificName}
+                  </span>
                   {species.commonName && (
-                    <span className="text-xs text-gray-500 ml-2">({species.commonName})</span>
+                    <span className="text-xs text-gray-500 ml-2 italic">
+                      ({species.scientificName})
+                    </span>
                   )}
                 </div>
-                <span className="text-xs text-gray-400">{species.observationCount}</span>
+                {species.inStudy !== false && typeof species.observationCount === 'number' && (
+                  <span className="flex items-center gap-1 text-xs text-gray-400 shrink-0 ml-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-lime-500" aria-hidden="true" />
+                    {species.observationCount}
+                  </span>
+                )}
               </button>
             ))}
 
-            {filteredSpecies.length === 0 && searchTerm && (
+            {results.length === 0 && searchTerm.length > 0 && searchTerm.length < 3 && (
+              <div className="px-3 py-4 text-sm text-gray-500 text-center">
+                Type at least 3 characters to search the species dictionary.
+              </div>
+            )}
+            {results.length === 0 && searchTerm.length >= 3 && (
               <div className="px-3 py-4 text-sm text-gray-500 text-center">
                 No species found. Click &quot;Add custom species&quot; to add a new one.
               </div>
@@ -804,7 +863,7 @@ const BboxLabel = forwardRef(function BboxLabel(
   { bbox, isSelected, onClick, onSexClick, onLifeStageClick, onBehaviorClick, onDelete, isHuman },
   ref
 ) {
-  const displayName = bbox.scientificName || 'Blank'
+  const displayName = bbox.commonName || bbox.scientificName || 'Blank'
   const confidence = bbox.classificationProbability
     ? `${Math.round(bbox.classificationProbability * 100)}%`
     : null

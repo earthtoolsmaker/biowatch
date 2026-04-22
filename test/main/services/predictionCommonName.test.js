@@ -67,9 +67,9 @@ describe('insertPrediction populates commonName via dictionary', () => {
 
     assert.equal(insertedRows.length, 1)
     assert.equal(insertedRows[0].scientificName, 'sciurus vulgaris')
-    // Extras override the SpeciesNet-provided "eurasian red squirrel" with
-    // capitalized display form.
-    assert.equal(insertedRows[0].commonName, 'Eurasian Red Squirrel')
+    // Dictionary values are lowercased at build time for consistent display
+    // and filtering.
+    assert.equal(insertedRows[0].commonName, 'eurasian red squirrel')
   })
 
   test('DeepFaune non-binomial label gets commonName from dictionary', async () => {
@@ -85,7 +85,7 @@ describe('insertPrediction populates commonName via dictionary', () => {
 
     assert.equal(insertedRows.length, 1)
     assert.equal(insertedRows[0].scientificName, 'chamois')
-    assert.equal(insertedRows[0].commonName, 'Chamois')
+    assert.equal(insertedRows[0].commonName, 'chamois')
   })
 
   test('unknown species leaves commonName null', async () => {
