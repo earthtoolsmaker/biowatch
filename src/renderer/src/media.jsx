@@ -44,6 +44,7 @@ import { getTopNonHumanSpecies } from './utils/speciesUtils'
 import { useSequenceGap } from './hooks/useSequenceGap'
 import { SequenceGapSlider } from './ui/SequenceGapSlider'
 import { getSpeciesListFromBboxes, getSpeciesListFromSequence } from './utils/speciesFromBboxes'
+import { searchSpecies } from './utils/dictionarySearch'
 import SpeciesLabel from './ui/SpeciesLabel'
 import { useImportStatus } from './hooks/import'
 import { behaviorCategories } from '../../shared/constants.js'
@@ -526,6 +527,7 @@ function BehaviorSelector({ value = [], onChange }) {
 function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'species' }) {
   const [activeTab, setActiveTab] = useState(initialTab)
   const [searchTerm, setSearchTerm] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [customSpecies, setCustomSpecies] = useState('')
   const [showCustomInput, setShowCustomInput] = useState(false)
   const inputRef = useRef(null)
@@ -569,15 +571,20 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [onClose])
 
-  // Filter species by search term
-  const filteredSpecies = useMemo(() => {
-    if (!searchTerm) return speciesList
-    const term = searchTerm.toLowerCase()
-    return speciesList.filter(
-      (s) =>
-        s.scientificName?.toLowerCase().includes(term) || s.commonName?.toLowerCase().includes(term)
-    )
-  }, [speciesList, searchTerm])
+  // Debounce the search term so fuse runs at most once per ~150ms burst.
+  useEffect(() => {
+    const handle = setTimeout(() => setDebouncedSearch(searchTerm), 150)
+    return () => clearTimeout(handle)
+  }, [searchTerm])
+
+  // Ranked species results: merges study-present species with a filtered
+  // view of the bundled dictionary, fuzzy-matched by common and scientific
+  // names. Below 3 chars the dictionary is skipped and study species are
+  // returned unranked, preserving today's UX for short queries.
+  const results = useMemo(
+    () => searchSpecies(debouncedSearch, speciesList),
+    [debouncedSearch, speciesList]
+  )
 
   const handleSelectSpecies = (scientificName, commonName = null) => {
     onUpdate({
@@ -746,8 +753,8 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
                 </button>
               )}
 
-            {/* Filtered species list */}
-            {filteredSpecies.map((species) => (
+            {/* Ranked species list */}
+            {results.map((species) => (
               <button
                 key={species.scientificName}
                 onClick={() => handleSelectSpecies(species.scientificName, species.commonName)}
@@ -765,7 +772,12 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
               </button>
             ))}
 
-            {filteredSpecies.length === 0 && searchTerm && (
+            {results.length === 0 && searchTerm.length > 0 && searchTerm.length < 3 && (
+              <div className="px-3 py-4 text-sm text-gray-500 text-center">
+                Type at least 3 characters to search the species dictionary.
+              </div>
+            )}
+            {results.length === 0 && searchTerm.length >= 3 && (
               <div className="px-3 py-4 text-sm text-gray-500 text-center">
                 No species found. Click &quot;Add custom species&quot; to add a new one.
               </div>
