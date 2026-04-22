@@ -1,5 +1,15 @@
 import { useState, useEffect } from 'react'
 import { CameraOff, Loader2 } from 'lucide-react'
+import { useCommonName } from '../utils/commonNames'
+
+function toTitleCase(str) {
+  return str.replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+function capitalizeGenus(str) {
+  if (!str) return str
+  return str.charAt(0).toUpperCase() + str.slice(1)
+}
 
 /**
  * Construct image URL for local files (same pattern as BestMediaCarousel.jsx)
@@ -29,6 +39,7 @@ function isRemoteUrl(filePath) {
 export default function SpeciesTooltipContent({ imageData, studyId }) {
   const [imageError, setImageError] = useState(false)
   const [imageLoaded, setImageLoaded] = useState(false)
+  const common = useCommonName(imageData?.scientificName)
 
   // Reset state when imageData changes
   useEffect(() => {
@@ -39,6 +50,9 @@ export default function SpeciesTooltipContent({ imageData, studyId }) {
   if (!imageData?.filePath) {
     return null
   }
+
+  const sciName = imageData.scientificName
+  const hasCommon = common && common !== sciName
 
   return (
     <div className="w-[280px] bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden">
@@ -72,7 +86,16 @@ export default function SpeciesTooltipContent({ imageData, studyId }) {
 
       {/* Species name footer */}
       <div className="px-2 py-1.5 bg-gray-50 border-t border-gray-100">
-        <p className="text-xs text-gray-600 truncate italic">{imageData.scientificName}</p>
+        <p className="text-xs text-gray-600 truncate">
+          {hasCommon ? (
+            <>
+              {toTitleCase(common)}{' '}
+              <span className="italic text-gray-500">({capitalizeGenus(sciName)})</span>
+            </>
+          ) : (
+            <span className="italic">{capitalizeGenus(sciName)}</span>
+          )}
+        </p>
       </div>
     </div>
   )
