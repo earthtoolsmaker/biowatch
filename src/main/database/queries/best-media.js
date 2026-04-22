@@ -570,6 +570,28 @@ export async function getBestImagePerSpecies(dbPath) {
   try {
     const studyId = getStudyIdFromPath(dbPath)
 
+    // Short-circuit: the scoring formula requires bbox area/visibility/padding,
+    // which only make sense when bboxWidth/bboxHeight are populated. Many
+    // datasets (e.g. CamTrap DP exports with point-only annotations) have
+    // bboxX/bboxY but no bbox size. On such datasets the big CTE below
+    // evaluates to zero rows but still scans the whole observations table
+    // (~2s on 2.7M rows). A quick EXISTS probe is cheap when bboxes are
+    // present (stops at the first match) and bounded when they are not
+    // (full scan ~200ms on gmu8_leuven, vs the query's ~2.3s).
+    const hasUsableBbox = await executeRawQuery(
+      studyId,
+      dbPath,
+      `SELECT 1 FROM observations
+         WHERE bboxX IS NOT NULL AND bboxWidth > 0 AND bboxHeight > 0
+         LIMIT 1`,
+      []
+    )
+    if (hasUsableBbox.length === 0) {
+      const elapsedTime = Date.now() - startTime
+      log.info(`Retrieved best images for 0 species in ${elapsedTime}ms (no usable bbox data)`)
+      return []
+    }
+
     // Use the same scoring formula as getBestMedia but return only one per species
     const query = `
       WITH
