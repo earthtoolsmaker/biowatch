@@ -33,20 +33,24 @@ function SpeciesRow({
 
   const rowContent = (
     <div className="cursor-pointer group" onClick={() => onToggle(species)}>
-      <div className="flex justify-between mb-1 items-center cursor-pointer">
-        <div className="flex items-center cursor-pointer">
+      <div className="flex justify-between mb-1 items-center cursor-pointer gap-2">
+        <div className="flex items-center cursor-pointer min-w-0 flex-1">
           <div
-            className={`w-2 h-2 rounded-full mr-2 border cursor-pointer ${isSelected ? `border-transparent bg-[${color}]` : 'border-gray-300'} group-hover:bg-gray-800 `}
+            className={`w-2 h-2 rounded-full mr-2 flex-shrink-0 border cursor-pointer ${isSelected ? `border-transparent bg-[${color}]` : 'border-gray-300'} group-hover:bg-gray-800 `}
             style={{ backgroundColor: isSelected ? color : null }}
           ></div>
-          <span className={`text-sm ${isBlankEntry ? 'text-gray-500 italic' : 'capitalize'}`}>
+          <span
+            className={`text-sm truncate ${isBlankEntry ? 'text-gray-500 italic' : 'capitalize'}`}
+          >
             {displayName}
+            {showScientificInItalic && (
+              <span className="text-gray-500 italic ml-2 normal-case">
+                {species.scientificName}
+              </span>
+            )}
           </span>
-          {showScientificInItalic && (
-            <span className="text-gray-500 text-sm italic ml-2">{species.scientificName}</span>
-          )}
         </div>
-        <span className="text-xs text-gray-500">{species.count}</span>
+        <span className="text-xs text-gray-500 flex-shrink-0">{species.count}</span>
       </div>
       <div className="w-full bg-gray-200 rounded-full h-2">
         <div
