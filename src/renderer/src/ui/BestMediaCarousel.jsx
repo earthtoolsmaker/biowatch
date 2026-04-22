@@ -1,6 +1,46 @@
 import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight, CameraOff, X, Heart, Play, Loader2 } from 'lucide-react'
+import { useCommonName } from '../utils/commonNames'
+
+function toTitleCase(str) {
+  return str.replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+// Binomial nomenclature: only the genus (first letter) is capitalized.
+function capitalizeGenus(str) {
+  if (!str) return str
+  return str.charAt(0).toUpperCase() + str.slice(1)
+}
+
+/**
+ * Renders the common name (title-cased) for a carousel thumbnail label.
+ * Falls back to the scientific name when no common name resolves.
+ */
+function SpeciesThumbnailLabel({ scientificName }) {
+  const common = useCommonName(scientificName)
+  if (!scientificName) return <>Unknown species</>
+  if (common && common !== scientificName) return <>{toTitleCase(common)}</>
+  return <>{capitalizeGenus(scientificName)}</>
+}
+
+/**
+ * Renders "Common name (Scientific name)" when a common name resolves,
+ * otherwise just the scientific name. Empty input renders "No species".
+ */
+function SpeciesHeading({ scientificName }) {
+  const common = useCommonName(scientificName)
+  if (!scientificName) return <>No species</>
+  if (common && common !== scientificName) {
+    return (
+      <>
+        {toTitleCase(common)}{' '}
+        <span className="italic text-white/80">({capitalizeGenus(scientificName)})</span>
+      </>
+    )
+  }
+  return <>{capitalizeGenus(scientificName)}</>
+}
 
 /**
  * Constructs a file URL for the local file or cached-image protocol
@@ -185,7 +225,9 @@ function ImageViewerModal({
 
         {/* Species info overlay */}
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4 rounded-b-lg">
-          <p className="text-white text-lg font-medium">{media.scientificName || 'No species'}</p>
+          <p className="text-white text-lg font-medium">
+            <SpeciesHeading scientificName={media.scientificName} />
+          </p>
           {media.timestamp && (
             <p className="text-white/70 text-sm">{new Date(media.timestamp).toLocaleString()}</p>
           )}
@@ -469,7 +511,9 @@ function VideoViewerModal({
 
         {/* Species info overlay */}
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4 rounded-b-lg">
-          <p className="text-white text-lg font-medium">{media.scientificName || 'No species'}</p>
+          <p className="text-white text-lg font-medium">
+            <SpeciesHeading scientificName={media.scientificName} />
+          </p>
           {media.timestamp && (
             <p className="text-white/70 text-sm">{new Date(media.timestamp).toLocaleString()}</p>
           )}
@@ -599,7 +643,7 @@ function MediaCard({ media, onClick, studyId }) {
       {/* Species label */}
       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2 z-20">
         <p className="text-white text-xs font-medium truncate">
-          {media.scientificName || 'Unknown species'}
+          <SpeciesThumbnailLabel scientificName={media.scientificName} />
         </p>
       </div>
     </div>
