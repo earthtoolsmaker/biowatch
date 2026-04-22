@@ -103,7 +103,7 @@ function ObservationListPanel({ bboxes, selectedId, onSelect, onEdit, onDelete }
                   }`}
                 />
                 <span className="text-sm font-medium truncate max-w-[200px]">
-                  {bbox.scientificName || 'Blank'}
+                  {bbox.commonName || bbox.scientificName || 'Blank'}
                 </span>
                 {bbox.sex && bbox.sex !== 'unknown' && (
                   <span
@@ -863,7 +863,7 @@ const BboxLabel = forwardRef(function BboxLabel(
   { bbox, isSelected, onClick, onSexClick, onLifeStageClick, onBehaviorClick, onDelete, isHuman },
   ref
 ) {
-  const displayName = bbox.scientificName || 'Blank'
+  const displayName = bbox.commonName || bbox.scientificName || 'Blank'
   const confidence = bbox.classificationProbability
     ? `${Math.round(bbox.classificationProbability * 100)}%`
     : null
