@@ -677,7 +677,13 @@ export default function BestMediaCarousel({ studyId, isRunning }) {
       return response.data
     },
     enabled: !!studyId,
-    staleTime: 60000, // Cache for 1 minute
+    // Study data is immutable outside of explicit user actions, so keep the
+    // cache indefinitely. Invalidation is covered by:
+    //   - favorite toggle (lines 788, 801 below)
+    //   - species re-classification (media.jsx:1608)
+    //   - import status transitions (hooks/import.js:24)
+    // so navigating away and back never triggers a refetch in the steady state.
+    staleTime: Infinity,
     refetchInterval: isRunning ? 5000 : false // Poll every 5s during ML run
   })
 
