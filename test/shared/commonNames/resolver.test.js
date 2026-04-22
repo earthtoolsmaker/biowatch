@@ -12,21 +12,21 @@ describe('resolveCommonName', () => {
   })
 
   test('resolves a binomial scientific name', () => {
-    assert.equal(resolveCommonName('Sciurus vulgaris'), 'Eurasian Red Squirrel')
+    assert.equal(resolveCommonName('Sciurus vulgaris'), 'eurasian red squirrel')
   })
 
   test('extras override wins over SpeciesNet entry', () => {
-    // SpeciesNet ships "eurasian red squirrel" (lowercase); extras override with
-    // the capitalized display form.
-    assert.equal(resolveCommonName('sciurus vulgaris'), 'Eurasian Red Squirrel')
+    // Dictionary values are lowercased at build time for consistent display
+    // and filtering; the extras override still wins on content.
+    assert.equal(resolveCommonName('sciurus vulgaris'), 'eurasian red squirrel')
   })
 
   test('resolves a DeepFaune non-binomial label', () => {
-    assert.equal(resolveCommonName('chamois'), 'Chamois')
+    assert.equal(resolveCommonName('chamois'), 'chamois')
   })
 
   test('resolves case-insensitively', () => {
-    assert.equal(resolveCommonName('SCIURUS VULGARIS'), 'Eurasian Red Squirrel')
+    assert.equal(resolveCommonName('SCIURUS VULGARIS'), 'eurasian red squirrel')
   })
 
   test('returns null for unknown scientific name', () => {
