@@ -1553,6 +1553,7 @@ function ImageModal({
       queryClient.invalidateQueries({ queryKey: ['sequenceAwareSpeciesDistribution', studyId] })
       queryClient.invalidateQueries({ queryKey: ['sequenceAwareTimeseries', studyId] })
       queryClient.invalidateQueries({ queryKey: ['sequenceAwareDailyActivity', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['sequenceAwareHeatmap', studyId] })
       queryClient.invalidateQueries({ queryKey: ['blankMediaCount', studyId] })
     }
   })
@@ -1730,6 +1731,7 @@ function ImageModal({
       queryClient.invalidateQueries({ queryKey: ['sequenceAwareSpeciesDistribution', studyId] })
       queryClient.invalidateQueries({ queryKey: ['sequenceAwareTimeseries', studyId] })
       queryClient.invalidateQueries({ queryKey: ['sequenceAwareDailyActivity', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['sequenceAwareHeatmap', studyId] })
       queryClient.invalidateQueries({ queryKey: ['blankMediaCount', studyId] })
       // Exit draw mode and select the new observation
       setIsDrawMode(false)
