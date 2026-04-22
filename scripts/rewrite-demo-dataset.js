@@ -7,52 +7,59 @@ import fs from 'node:fs'
 import process from 'node:process'
 
 const MAPPING = {
-  impala: { scientificName: 'Aepyceros melampus' },
-  elephant: { scientificName: 'Loxodonta africana' },
-  buffalo: { scientificName: 'Syncerus caffer' },
-  human: { scientificName: 'Homo sapiens' },
-  zebraburchells: { scientificName: 'Equus quagga' },
-  giraffe: { scientificName: 'Giraffa camelopardalis' },
-  kudu: { scientificName: 'Tragelaphus strepsiceros' },
-  warthog: { scientificName: 'Phacochoerus africanus' },
-  waterbuck: { scientificName: 'Kobus ellipsiprymnus' },
-  baboon: { scientificName: 'Papio ursinus' },
-  birdother: { scientificName: 'Aves' },
-  hyenaspotted: { scientificName: 'Crocuta crocuta' },
-  steenbok: { scientificName: 'Raphicerus campestris' },
-  wildebeestblue: { scientificName: 'Connochaetes taurinus' },
-  hare: { scientificName: 'Lepus species' },
-  hippopotamus: { scientificName: 'Hippopotamus amphibius' },
-  nyala: { scientificName: 'Tragelaphus angasii' },
-  dikdik: { scientificName: 'Madoqua' },
-  duikercommongrey: { scientificName: 'Sylvicapra grimmia' },
-  civet: { scientificName: 'Civettictis civetta' },
-  porcupine: { scientificName: 'Hystrix africaeaustralis' },
-  lionfemale: { scientificName: 'Panthera leo', sex: 'female' },
-  leopard: { scientificName: 'Panthera pardus' },
-  wilddog: { scientificName: 'Lycaon pictus' },
-  harespring: { scientificName: 'Pedetes capensis' },
-  jackalsidestriped: { scientificName: 'Canis adustus' },
-  rabbitredrock: { scientificName: 'Pronolagus rupestris' },
-  jackalblackbacked: { scientificName: 'Canis mesomelas' },
-  birdsofprey: { scientificName: 'Accipitriformes' },
-  caracal: { scientificName: 'Caracal caracal' },
-  genetcommonsmallspotted: { scientificName: 'Genetta genetta' },
-  monkeyvervet: { scientificName: 'Chlorocebus pygerythrus' },
-  reedbuck: { scientificName: 'Redunca arundinum' },
-  serval: { scientificName: 'Leptailurus serval' },
-  aardvarkantbear: { scientificName: 'Orycteropus afer' },
-  duikerrednatal: { scientificName: 'Cephalophus natalensis' },
-  aardwolf: { scientificName: 'Proteles cristata' },
-  cheetah: { scientificName: 'Acinonyx jubatus' },
-  crocodile: { scientificName: 'Crocodylus niloticus' },
-  foxbateared: { scientificName: 'Otocyon megalotis' },
-  klipspringer: { scientificName: 'Oreotragus oreotragus' },
-  oribi: { scientificName: 'Ourebia ourebi' },
-  rhinoceros: { scientificName: 'Ceratotherium simum' },
-  roan: { scientificName: 'Hippotragus equinus' },
-  wildcat: { scientificName: 'Felis silvestris lybica' }
+  impala: { scientificName: 'aepyceros melampus', commonName: 'impala' },
+  elephant: { scientificName: 'loxodonta africana', commonName: 'african bush elephant' },
+  buffalo: { scientificName: 'syncerus caffer', commonName: 'african buffalo' },
+  human: { scientificName: 'homo sapiens', commonName: 'human' },
+  zebraburchells: { scientificName: 'equus quagga', commonName: "burchell's zebra" },
+  giraffe: { scientificName: 'giraffa camelopardalis', commonName: 'giraffe' },
+  kudu: { scientificName: 'tragelaphus strepsiceros', commonName: 'greater kudu' },
+  warthog: { scientificName: 'phacochoerus africanus', commonName: 'common warthog' },
+  waterbuck: { scientificName: 'kobus ellipsiprymnus', commonName: 'waterbuck' },
+  baboon: { scientificName: 'papio ursinus', commonName: 'chacma baboon' },
+  birdother: { scientificName: 'aves', commonName: 'bird' },
+  hyenaspotted: { scientificName: 'crocuta crocuta', commonName: 'spotted hyena' },
+  steenbok: { scientificName: 'raphicerus campestris', commonName: 'steenbok' },
+  wildebeestblue: { scientificName: 'connochaetes taurinus', commonName: 'blue wildebeest' },
+  hare: { scientificName: 'lepus species', commonName: 'hare' },
+  hippopotamus: { scientificName: 'hippopotamus amphibius', commonName: 'hippopotamus' },
+  nyala: { scientificName: 'tragelaphus angasii', commonName: 'nyala' },
+  dikdik: { scientificName: 'madoqua', commonName: 'dik-dik' },
+  duikercommongrey: { scientificName: 'sylvicapra grimmia', commonName: 'common duiker' },
+  civet: { scientificName: 'civettictis civetta', commonName: 'african civet' },
+  porcupine: { scientificName: 'hystrix africaeaustralis', commonName: 'cape porcupine' },
+  lionfemale: { scientificName: 'panthera leo', sex: 'female', commonName: 'lion' },
+  leopard: { scientificName: 'panthera pardus', commonName: 'leopard' },
+  wilddog: { scientificName: 'lycaon pictus', commonName: 'african wild dog' },
+  harespring: { scientificName: 'pedetes capensis', commonName: 'springhare' },
+  jackalsidestriped: { scientificName: 'canis adustus', commonName: 'side-striped jackal' },
+  rabbitredrock: { scientificName: 'pronolagus rupestris', commonName: 'smith’s red rock rabbit' },
+  jackalblackbacked: { scientificName: 'canis mesomelas', commonName: 'black-backed jackal' },
+  birdsofprey: { scientificName: 'accipitriformes', commonName: 'bird of prey' },
+  caracal: { scientificName: 'caracal caracal', commonName: 'caracal' },
+  genetcommonsmallspotted: { scientificName: 'genetta genetta', commonName: 'common genet' },
+  monkeyvervet: { scientificName: 'chlorocebus pygerythrus', commonName: 'vervet monkey' },
+  reedbuck: { scientificName: 'redunca arundinum', commonName: 'southern reedbuck' },
+  serval: { scientificName: 'leptailurus serval', commonName: 'serval' },
+  aardvarkantbear: { scientificName: 'orycteropus afer', commonName: 'aardvark' },
+  duikerrednatal: { scientificName: 'cephalophus natalensis', commonName: 'red duiker' },
+  aardwolf: { scientificName: 'proteles cristata', commonName: 'aardwolf' },
+  cheetah: { scientificName: 'acinonyx jubatus', commonName: 'cheetah' },
+  crocodile: { scientificName: 'crocodylus niloticus', commonName: 'nile crocodile' },
+  foxbateared: { scientificName: 'otocyon megalotis', commonName: 'bat-eared fox' },
+  klipspringer: { scientificName: 'oreotragus oreotragus', commonName: 'klipspringer' },
+  oribi: { scientificName: 'ourebia ourebi', commonName: 'oribi' },
+  rhinoceros: { scientificName: 'ceratotherium simum', commonName: 'white rhinoceros' },
+  roan: { scientificName: 'hippotragus equinus', commonName: 'roan antelope' },
+  wildcat: { scientificName: 'felis silvestris lybica', commonName: 'african wildcat' }
 }
+
+// Lookup common name by scientific name so the script is idempotent
+// (can be re-run on already-rewritten CSVs that no longer carry raw labels).
+// Keyed on the lowercased scientific name so it matches regardless of case.
+const COMMON_NAME_BY_SCIENTIFIC = Object.fromEntries(
+  Object.values(MAPPING).map((m) => [m.scientificName.toLowerCase(), m.commonName])
+)
 
 function parseCsvLine(line) {
   // Minimal CSV parse: handles quoted fields and embedded commas. The demo's
@@ -122,7 +129,15 @@ function main() {
     process.exit(1)
   }
 
-  const outLines = [lines[0]]
+  // Ensure a commonName column exists, inserted right after scientificName.
+  let commonIdx = header.indexOf('commonName')
+  const addCommonColumn = commonIdx === -1
+  if (addCommonColumn) {
+    commonIdx = sciIdx + 1
+    header.splice(commonIdx, 0, 'commonName')
+  }
+
+  const outLines = [header.map(formatCsvField).join(',')]
   const counts = { rewritten: 0, passthrough: 0, unmapped: new Map() }
 
   for (let i = 1; i < lines.length; i++) {
@@ -132,15 +147,29 @@ function main() {
       continue
     }
     const fields = parseCsvLine(line)
+    if (addCommonColumn) {
+      fields.splice(commonIdx, 0, '')
+    }
     const label = fields[sciIdx]
     const m = MAPPING[label]
     if (m) {
       fields[sciIdx] = m.scientificName
       if (m.sex != null) fields[sexIdx] = m.sex
+      fields[commonIdx] = m.commonName
       counts.rewritten++
     } else if (label) {
-      counts.passthrough++
-      counts.unmapped.set(label, (counts.unmapped.get(label) || 0) + 1)
+      // Already-rewritten rows (input has full scientific names) — lowercase scientificName
+      // and fill commonName by case-insensitive lookup.
+      const key = label.toLowerCase()
+      const common = COMMON_NAME_BY_SCIENTIFIC[key]
+      if (common) {
+        fields[sciIdx] = key
+        if (!fields[commonIdx]) fields[commonIdx] = common
+        counts.rewritten++
+      } else {
+        counts.passthrough++
+        counts.unmapped.set(label, (counts.unmapped.get(label) || 0) + 1)
+      }
     } else {
       counts.passthrough++
     }
