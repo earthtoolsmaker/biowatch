@@ -670,7 +670,14 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
                   type="text"
                   value={customSpecies}
                   onChange={(e) => setCustomSpecies(e.target.value)}
-                  onKeyDown={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => {
+                    // Stop Backspace/Delete from reaching the ImageModal
+                    // window shortcut that deletes the selected observation.
+                    // Let other keys (Escape, arrows) bubble as before.
+                    if (e.key === 'Backspace' || e.key === 'Delete') {
+                      e.stopPropagation()
+                    }
+                  }}
                   placeholder="Enter species name..."
                   className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent"
                 />
@@ -700,7 +707,14 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  onKeyDown={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => {
+                    // Stop Backspace/Delete from reaching the ImageModal
+                    // window shortcut that deletes the selected observation.
+                    // Let other keys (Escape, arrows) bubble as before.
+                    if (e.key === 'Backspace' || e.key === 'Delete') {
+                      e.stopPropagation()
+                    }
+                  }}
                   placeholder="Search species..."
                   className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent"
                 />
