@@ -109,3 +109,67 @@ export function computeSelectorPosition(
 
   return { x, y, transform }
 }
+
+/**
+ * Compute dropdown position for a footer-triggered species selector.
+ *
+ * The dropdown's bottom edge is pinned just above the footer (at the media
+ * area's bottom edge) and it grows upward. The caller applies the returned
+ * `maxHeight` to the dropdown so it never extends past the top of the
+ * viewport; content inside the dropdown scrolls when it exceeds that height.
+ *
+ * @param {Object} mediaAreaRect - Rect of the media-only container (excludes the footer)
+ * @param {number} mediaAreaRect.top
+ * @param {number} mediaAreaRect.bottom
+ * @param {number} mediaAreaRect.left
+ * @param {number} mediaAreaRect.right
+ * @param {number} mediaAreaRect.height
+ * @param {number} mediaAreaRect.width
+ * @param {Object} [selectorSize]
+ * @param {number} [selectorSize.width=288]
+ * @param {Object} [viewport] - Viewport size (defaults to window)
+ * @param {number} [viewport.width]
+ * @param {number} [viewport.height]
+ * @returns {Object} Position values { x, y, transform, maxHeight }
+ */
+export function computeFooterTriggeredSelectorPosition(
+  mediaAreaRect,
+  selectorSize = { width: 288 },
+  viewport = {
+    width: typeof window !== 'undefined' ? window.innerWidth : 1920,
+    height: typeof window !== 'undefined' ? window.innerHeight : 1080
+  }
+) {
+  const PADDING = 16
+  const MARGIN = 8
+
+  // Bottom edge: pinned just above the footer. Also keep it inside the viewport
+  // bottom so a partially-off-screen media area can't push the anchor offscreen.
+  const bottomY = Math.min(mediaAreaRect.bottom - MARGIN, viewport.height - PADDING)
+
+  // Available height: from the bottom anchor upward to the viewport top
+  // (minus padding). Kept non-negative to stay safe for style consumers.
+  const maxHeight = Math.max(0, bottomY - PADDING)
+
+  // Horizontal: left-align inside the media area, clamped to viewport.
+  let x = mediaAreaRect.left + PADDING
+  if (x + selectorSize.width > mediaAreaRect.right - PADDING) {
+    x = mediaAreaRect.right - PADDING - selectorSize.width
+  }
+  if (x < mediaAreaRect.left + PADDING) {
+    x = mediaAreaRect.left + PADDING
+  }
+  if (x + selectorSize.width > viewport.width - PADDING) {
+    x = viewport.width - PADDING - selectorSize.width
+  }
+  if (x < PADDING) {
+    x = PADDING
+  }
+
+  return {
+    x,
+    y: bottomY,
+    transform: 'translateY(-100%)',
+    maxHeight
+  }
+}

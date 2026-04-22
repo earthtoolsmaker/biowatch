@@ -31,7 +31,11 @@ import TimelineChart from './ui/timeseries'
 import DateTimePicker from './ui/DateTimePicker'
 import EditableBbox from './ui/EditableBbox'
 import VideoBboxOverlay from './ui/VideoBboxOverlay.jsx'
-import { computeBboxLabelPosition, computeSelectorPosition } from './utils/positioning'
+import {
+  computeBboxLabelPosition,
+  computeSelectorPosition,
+  computeFooterTriggeredSelectorPosition
+} from './utils/positioning'
 import {
   getImageBounds,
   screenToNormalized,
@@ -524,7 +528,14 @@ function BehaviorSelector({ value = [], onChange }) {
 /**
  * Observation editor with tabs for species selection and attributes
  */
-function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'species' }) {
+function ObservationEditor({
+  bbox,
+  studyId,
+  onClose,
+  onUpdate,
+  initialTab = 'species',
+  maxHeight
+}) {
   const [activeTab, setActiveTab] = useState(initialTab)
   const [searchTerm, setSearchTerm] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -644,15 +655,32 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
     })
   }
 
+  // Cap the dropdown at a comfortable size so it doesn't stretch to fill
+  // every pixel of available height; the list scrolls inside this cap.
+  const MAX_DROPDOWN_HEIGHT = 400
+  const effectiveMaxHeight =
+    maxHeight != null ? Math.min(maxHeight, MAX_DROPDOWN_HEIGHT) : undefined
+
+  // Once the user has started searching, lock the editor height at the cap so
+  // switching between Species and Attributes tabs doesn't reshuffle the dropdown.
+  const isSearchActive = debouncedSearch.trim().length > 0
+  const rootStyle =
+    effectiveMaxHeight != null
+      ? isSearchActive
+        ? { maxHeight: `${effectiveMaxHeight}px`, height: `${effectiveMaxHeight}px` }
+        : { maxHeight: `${effectiveMaxHeight}px` }
+      : undefined
+
   return (
     <div
-      className={`absolute z-20 bg-white rounded-lg shadow-xl border border-gray-200 w-72 ${
+      className={`bg-white rounded-lg shadow-xl border border-gray-200 w-72 flex flex-col ${
         activeTab === 'species' ? 'overflow-hidden' : 'overflow-visible'
       }`}
+      style={rootStyle}
       onClick={(e) => e.stopPropagation()}
     >
       {/* Tab bar */}
-      <div className="flex border-b border-gray-200">
+      <div className="flex border-b border-gray-200 shrink-0">
         <button
           className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
             activeTab === 'species'
@@ -680,7 +708,7 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
         <>
           {/* Current classification chip */}
           {bbox.scientificName && (
-            <div className="p-2 border-b border-gray-100 flex items-center gap-2">
+            <div className="p-2 border-b border-gray-100 flex items-center gap-2 shrink-0">
               <div
                 className="flex-1 min-w-0 inline-flex items-center gap-1 px-2 py-1 rounded bg-lime-50 text-lime-700 text-sm"
                 title={
@@ -709,7 +737,7 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
           )}
 
           {/* Search input */}
-          <div className="p-2 border-b border-gray-100">
+          <div className="p-2 border-b border-gray-100 shrink-0">
             <div className="relative">
               <Search
                 size={16}
@@ -759,7 +787,7 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
           </div>
 
           {/* Species list */}
-          <div className="max-h-52 overflow-y-auto">
+          <div className={`overflow-y-auto ${maxHeight != null ? 'flex-1 min-h-0' : 'max-h-52'}`}>
             {/* Ranked species list */}
             {results.map((species, index) => (
               <button
@@ -1309,37 +1337,16 @@ function ImageModal({
       return
     }
 
-    // For videos, use the footer species label ref
-    if (isVideoMedia(media) && videoSpeciesLabelRef.current) {
-      const labelRect = videoSpeciesLabelRef.current.getBoundingClientRect()
-      const containerRect = imageContainerRef.current?.getBoundingClientRect() || {
-        top: 0,
-        bottom: window.innerHeight,
-        left: 0,
-        right: window.innerWidth,
-        height: window.innerHeight,
-        width: window.innerWidth
-      }
-      const position = computeSelectorPosition(labelRect, containerRect)
-      setSelectorPosition(position)
-      return
-    }
-
-    // For images without bboxes (using footer species label), use imageSpeciesLabelRef
-    if (
-      (selectedBboxId === 'new-observation' || !bboxLabelRefs.current[selectedBboxId]) &&
-      imageSpeciesLabelRef.current
-    ) {
-      const labelRect = imageSpeciesLabelRef.current.getBoundingClientRect()
-      const containerRect = imageContainerRef.current?.getBoundingClientRect() || {
-        top: 0,
-        bottom: window.innerHeight,
-        left: 0,
-        right: window.innerWidth,
-        height: window.innerHeight,
-        width: window.innerWidth
-      }
-      const position = computeSelectorPosition(labelRect, containerRect)
+    // Footer-triggered: anchor dropdown over the media area (above the footer)
+    // so it stays fully visible regardless of screen height. Applies to videos
+    // and to images without bboxes.
+    const footerTriggered =
+      (isVideoMedia(media) && videoSpeciesLabelRef.current) ||
+      ((selectedBboxId === 'new-observation' || !bboxLabelRefs.current[selectedBboxId]) &&
+        imageSpeciesLabelRef.current)
+    if (footerTriggered && imageContainerRef.current) {
+      const mediaAreaRect = imageContainerRef.current.getBoundingClientRect()
+      const position = computeFooterTriggeredSelectorPosition(mediaAreaRect)
       setSelectorPosition(position)
       return
     }
@@ -1363,37 +1370,14 @@ function ImageModal({
     if (!selectedBboxId || !showObservationEditor) return
 
     const handleResize = () => {
-      // For videos, use footer label ref
-      if (isVideoMedia(media) && videoSpeciesLabelRef.current) {
-        const labelRect = videoSpeciesLabelRef.current.getBoundingClientRect()
-        const containerRect = imageContainerRef.current?.getBoundingClientRect() || {
-          top: 0,
-          bottom: window.innerHeight,
-          left: 0,
-          right: window.innerWidth,
-          height: window.innerHeight,
-          width: window.innerWidth
-        }
-        const position = computeSelectorPosition(labelRect, containerRect)
-        setSelectorPosition(position)
-        return
-      }
-
-      // For images without bboxes, use footer label ref
-      if (
-        (selectedBboxId === 'new-observation' || !bboxLabelRefs.current[selectedBboxId]) &&
-        imageSpeciesLabelRef.current
-      ) {
-        const labelRect = imageSpeciesLabelRef.current.getBoundingClientRect()
-        const containerRect = imageContainerRef.current?.getBoundingClientRect() || {
-          top: 0,
-          bottom: window.innerHeight,
-          left: 0,
-          right: window.innerWidth,
-          height: window.innerHeight,
-          width: window.innerWidth
-        }
-        const position = computeSelectorPosition(labelRect, containerRect)
+      // Footer-triggered: recompute using the media area (excludes footer).
+      const footerTriggered =
+        (isVideoMedia(media) && videoSpeciesLabelRef.current) ||
+        ((selectedBboxId === 'new-observation' || !bboxLabelRefs.current[selectedBboxId]) &&
+          imageSpeciesLabelRef.current)
+      if (footerTriggered && imageContainerRef.current) {
+        const mediaAreaRect = imageContainerRef.current.getBoundingClientRect()
+        const position = computeFooterTriggeredSelectorPosition(mediaAreaRect)
         setSelectorPosition(position)
         return
       }
@@ -2624,6 +2608,7 @@ function ImageModal({
                 bbox={selectedBbox}
                 studyId={studyId}
                 initialTab={editorInitialTab}
+                maxHeight={selectorPosition.maxHeight}
                 onClose={() => {
                   setShowObservationEditor(false)
                   setSelectedBboxId(null)
