@@ -740,10 +740,16 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
                     return
                   }
                   if (e.key === 'Enter') {
-                    if (highlightedIndex < 0 || highlightedIndex >= results.length) return
-                    e.preventDefault()
-                    const picked = results[highlightedIndex]
-                    handleSelectSpecies(picked.scientificName, picked.commonName)
+                    if (highlightedIndex >= 0 && highlightedIndex < results.length) {
+                      e.preventDefault()
+                      const picked = results[highlightedIndex]
+                      handleSelectSpecies(picked.scientificName, picked.commonName)
+                      return
+                    }
+                    if (results.length === 0 && customSpeciesQuery.length >= 3) {
+                      e.preventDefault()
+                      handleSelectSpecies(customSpeciesQuery)
+                    }
                   }
                 }}
                 placeholder="Search species..."
