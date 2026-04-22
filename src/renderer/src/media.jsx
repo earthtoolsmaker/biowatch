@@ -2718,13 +2718,16 @@ function ThumbnailBboxOverlay({ bboxes, imageRef, containerRef }) {
     }
   }, [imageRef, containerRef])
 
-  if (!bboxes?.length || !imageBounds) return null
+  // Drop class-only observations (no bbox coordinates); getMediaBboxesBatch
+  // returns them for species-label lookup but they have no geometry to draw.
+  const drawableBboxes = bboxes?.filter((b) => b.bboxX != null) ?? []
+  if (!drawableBboxes.length || !imageBounds) return null
 
   const { offsetX, offsetY, renderedWidth, renderedHeight } = imageBounds
 
   return (
     <svg className="absolute inset-0 w-full h-full pointer-events-none z-10">
-      {bboxes.map((bbox, index) => (
+      {drawableBboxes.map((bbox, index) => (
         <rect
           key={bbox.observationID || index}
           x={offsetX + bbox.bboxX * renderedWidth}
