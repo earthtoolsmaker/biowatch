@@ -581,6 +581,14 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
     [debouncedSearch, speciesList]
   )
 
+  // Trimmed and single-space-collapsed query used for the custom-species
+  // footer button. Kept in sync with `debouncedSearch` so the button label
+  // matches what the results were computed from.
+  const customSpeciesQuery = useMemo(
+    () => debouncedSearch.trim().replace(/\s+/g, ' '),
+    [debouncedSearch]
+  )
+
   // Reset the keyboard cursor when the results list changes (new query or
   // new data). Also trim the ref array so stale row refs don't linger.
   useEffect(() => {
@@ -778,14 +786,26 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
               </button>
             ))}
 
-            {results.length === 0 && searchTerm.length > 0 && searchTerm.length < 3 && (
-              <div className="px-3 py-4 text-sm text-gray-500 text-center">
-                Type at least 3 characters to search the species dictionary.
-              </div>
-            )}
-            {results.length === 0 && searchTerm.length >= 3 && (
-              <div className="px-3 py-4 text-sm text-gray-500 text-center">
-                No species found. Click &quot;Add custom species&quot; to add a new one.
+            {results.length === 0 &&
+              debouncedSearch.trim().length > 0 &&
+              debouncedSearch.trim().length < 3 && (
+                <div className="px-3 py-4 text-sm text-gray-500 text-center">
+                  Type at least 3 characters to search the species dictionary.
+                </div>
+              )}
+            {results.length === 0 && customSpeciesQuery.length >= 3 && (
+              <div className="px-3 py-4 text-center space-y-2">
+                <p className="text-sm text-gray-500">No species found.</p>
+                <button
+                  type="button"
+                  onClick={() => handleSelectSpecies(customSpeciesQuery)}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded bg-lime-500 text-white hover:bg-lime-600 max-w-full"
+                >
+                  <Plus size={14} className="shrink-0" />
+                  <span className="truncate">
+                    Add &ldquo;{customSpeciesQuery}&rdquo; as custom species
+                  </span>
+                </button>
               </div>
             )}
           </div>
