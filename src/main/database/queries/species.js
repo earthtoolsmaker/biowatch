@@ -2,7 +2,7 @@
  * Species-related database queries
  */
 
-import { getDrizzleDb, deployments, media, observations } from '../index.js'
+import { getDrizzleDb, getStudyDatabase, deployments, media, observations } from '../index.js'
 import {
   eq,
   and,
@@ -149,6 +149,132 @@ export async function getSpeciesDistributionByMedia(dbPath) {
     return result
   } catch (error) {
     log.error(`Error querying species distribution by media: ${error.message}`)
+    throw error
+  }
+}
+
+/**
+ * Compute the sequence-aware species distribution entirely in SQL for speed,
+ * producing the same aggregated result as:
+ *   getSpeciesDistributionByMedia(dbPath) + calculateSequenceAwareSpeciesCounts(rows, gapSeconds)
+ * on the happy-path gap values (null / 0). For positive gapSeconds the
+ * timestamp-gap grouping logic is non-trivial to replicate in SQL (deployment-
+ * scoped, video-aware, dual-direction gap check); this function returns null
+ * so callers fall back to the JS implementation.
+ *
+ * Semantics mirror the current JS implementation:
+ *  - gapSeconds === 0        → group by eventID per deployment-agnostic event;
+ *                              per (species, event) take MAX count, SUM by species
+ *                              (media without eventID become their own event).
+ *  - null/undefined/<= 0
+ *    (not a positive number) → "each media is its own sequence": count of
+ *                              observations per species (matches the
+ *                              null-gap short-circuit at grouping.js:59).
+ *  - gapSeconds > 0          → returns null (caller must fall back to JS).
+ *
+ * INNER JOIN on media is preserved to mirror the current behavior: observations
+ * whose mediaID has no matching media row are dropped from counts.
+ *
+ * @param {string} dbPath - Path to the SQLite database
+ * @param {number|null|undefined} gapSeconds - Sequence gap threshold
+ * @returns {Promise<Array<{scientificName: string, count: number}>|null>}
+ *   Sorted by count desc, or null if the caller must use the JS fallback.
+ */
+export async function getSequenceAwareSpeciesCountsSQL(dbPath, gapSeconds) {
+  const isPositiveGap = typeof gapSeconds === 'number' && gapSeconds > 0
+  if (isPositiveGap) return null
+
+  const startTime = Date.now()
+  const studyId = getStudyIdFromPath(dbPath)
+  const manager = await getStudyDatabase(studyId, dbPath, { readonly: true })
+  const sqlite = manager.getSqlite()
+
+  const useEventIDPath = gapSeconds === 0
+
+  try {
+    let rows
+    if (useEventIDPath) {
+      // eventID path: per (species, eventID) take MAX(per-media count), SUM by species.
+      // Media without eventID contribute as their own single-media "event" via COALESCE.
+      // Null-timestamp media are separated out and contribute as individual single-media
+      // "sequences" (mirrors the nullTimestampMedia branch in speciesCounts.js:112-130),
+      // which differs from valid-ts-with-eventID grouping in the edge case where a null-ts
+      // media shares its eventID with valid-ts media.
+      rows = sqlite
+        .prepare(
+          `
+          WITH per_media AS (
+            SELECT o.scientificName AS scientificName,
+                   o.eventID AS eventID,
+                   m.mediaID AS mediaID,
+                   m.timestamp AS timestamp,
+                   COUNT(o.observationID) AS cnt
+              FROM observations o
+              INNER JOIN media m ON o.mediaID = m.mediaID
+              WHERE o.scientificName IS NOT NULL AND o.scientificName != ''
+                AND (o.observationType IS NULL OR o.observationType != 'blank')
+              GROUP BY o.scientificName, m.mediaID
+          ),
+          classified AS (
+            SELECT scientificName, eventID, mediaID, cnt,
+                   CASE
+                     WHEN timestamp IS NULL OR timestamp = '' OR julianday(timestamp) IS NULL
+                     THEN 1 ELSE 0
+                   END AS is_null_ts
+              FROM per_media
+          ),
+          valid_per_event AS (
+            SELECT scientificName,
+                   COALESCE(NULLIF(eventID, ''), 'solo:' || mediaID) AS event_key,
+                   MAX(cnt) AS max_cnt
+              FROM classified
+              WHERE is_null_ts = 0
+              GROUP BY scientificName, event_key
+          ),
+          valid_totals AS (
+            SELECT scientificName, SUM(max_cnt) AS count
+              FROM valid_per_event GROUP BY scientificName
+          ),
+          null_ts_totals AS (
+            SELECT scientificName, SUM(cnt) AS count
+              FROM classified WHERE is_null_ts = 1
+              GROUP BY scientificName
+          )
+          SELECT scientificName, SUM(count) AS count FROM (
+            SELECT scientificName, count FROM valid_totals
+            UNION ALL
+            SELECT scientificName, count FROM null_ts_totals
+          )
+          GROUP BY scientificName ORDER BY count DESC
+        `
+        )
+        .all()
+    } else {
+      // Per-media path: each media is its own sequence, so MAX == count per media,
+      // SUM over media reduces to COUNT(observationID) per species.
+      rows = sqlite
+        .prepare(
+          `
+          SELECT o.scientificName AS scientificName,
+                 COUNT(o.observationID) AS count
+            FROM observations o
+            INNER JOIN media m ON o.mediaID = m.mediaID
+            WHERE o.scientificName IS NOT NULL AND o.scientificName != ''
+              AND (o.observationType IS NULL OR o.observationType != 'blank')
+            GROUP BY o.scientificName
+            ORDER BY count DESC
+        `
+        )
+        .all()
+    }
+
+    const elapsed = Date.now() - startTime
+    log.info(
+      `[SQL-agg] sequence-aware species counts (gap=${gapSeconds}, path=${useEventIDPath ? 'eventID' : 'per-media'}): ${rows.length} species in ${elapsed}ms`
+    )
+    return rows
+  } catch (error) {
+    log.error(`Error in getSequenceAwareSpeciesCountsSQL: ${error.message}`)
     throw error
   }
 }

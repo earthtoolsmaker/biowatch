@@ -223,6 +223,7 @@ export {
   getSpeciesTimeseriesByMedia,
   getSpeciesHeatmapDataByMedia,
   getSpeciesDailyActivityByMedia,
+  getSequenceAwareSpeciesCountsSQL,
   // Media
   getFilesData,
   getMediaBboxes,
