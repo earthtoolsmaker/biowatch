@@ -596,6 +596,16 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
     }
   }
 
+  const handleMarkAsBlank = () => {
+    onUpdate({
+      observationID: bbox.observationID,
+      scientificName: null,
+      commonName: null,
+      observationType: 'blank'
+    })
+    onClose()
+  }
+
   const handleSexChange = (sex) => {
     onUpdate({
       observationID: bbox.observationID,
@@ -660,6 +670,14 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
                   type="text"
                   value={customSpecies}
                   onChange={(e) => setCustomSpecies(e.target.value)}
+                  onKeyDown={(e) => {
+                    // Stop Backspace/Delete from reaching the ImageModal
+                    // window shortcut that deletes the selected observation.
+                    // Let other keys (Escape, arrows) bubble as before.
+                    if (e.key === 'Backspace' || e.key === 'Delete') {
+                      e.stopPropagation()
+                    }
+                  }}
                   placeholder="Enter species name..."
                   className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent"
                 />
@@ -689,6 +707,14 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
+                  onKeyDown={(e) => {
+                    // Stop Backspace/Delete from reaching the ImageModal
+                    // window shortcut that deletes the selected observation.
+                    // Let other keys (Escape, arrows) bubble as before.
+                    if (e.key === 'Backspace' || e.key === 'Delete') {
+                      e.stopPropagation()
+                    }
+                  }}
                   placeholder="Search species..."
                   className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent"
                 />
@@ -707,6 +733,18 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
                 <span className="text-sm">+ Add custom species</span>
               </button>
             )}
+
+            {/* Mark-as-blank option (only when there is a species to clear) */}
+            {!showCustomInput &&
+              bbox.observationID !== 'new-observation' &&
+              bbox.scientificName && (
+                <button
+                  onClick={handleMarkAsBlank}
+                  className="w-full px-3 py-2 text-left hover:bg-red-50 flex items-center gap-2 text-red-600 border-b border-gray-100"
+                >
+                  <span className="text-sm">✕ Mark as blank (no species)</span>
+                </button>
+              )}
 
             {/* Filtered species list */}
             {filteredSpecies.map((species) => (
@@ -1509,9 +1547,14 @@ function ImageModal({
     onSuccess: () => {
       // Invalidate related queries to refresh data
       queryClient.invalidateQueries({ queryKey: ['mediaBboxes', studyId, media?.mediaID] })
-      queryClient.invalidateQueries({ queryKey: ['speciesDistribution'] })
       queryClient.invalidateQueries({ queryKey: ['distinctSpecies', studyId] })
       queryClient.invalidateQueries({ queryKey: ['thumbnailBboxesBatch'] })
+      queryClient.invalidateQueries({ queryKey: ['sequences', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['sequenceAwareSpeciesDistribution', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['sequenceAwareTimeseries', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['sequenceAwareDailyActivity', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['sequenceAwareHeatmap', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['blankMediaCount', studyId] })
     }
   })
 
@@ -1683,9 +1726,13 @@ function ImageModal({
       // Invalidate related queries to refresh data
       queryClient.invalidateQueries({ queryKey: ['mediaBboxes', studyId, media?.mediaID] })
       queryClient.invalidateQueries({ queryKey: ['distinctSpecies', studyId] })
-      queryClient.invalidateQueries({ queryKey: ['speciesDistribution'] })
-      // Also update thumbnail grid
       queryClient.invalidateQueries({ queryKey: ['thumbnailBboxesBatch'] })
+      queryClient.invalidateQueries({ queryKey: ['sequences', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['sequenceAwareSpeciesDistribution', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['sequenceAwareTimeseries', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['sequenceAwareDailyActivity', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['sequenceAwareHeatmap', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['blankMediaCount', studyId] })
       // Exit draw mode and select the new observation
       setIsDrawMode(false)
       setSelectedBboxId(data.observationID)
@@ -2366,20 +2413,27 @@ function ImageModal({
           {/* Footer with metadata */}
           <div className="px-4 py-3 bg-white flex-shrink-0 border-t border-gray-100">
             <div className="flex items-center justify-between">
-              {/* For videos with observations, show editable species */}
-              {isVideoMedia(media) && bboxes.length > 0 ? (
+              {/* Videos are always editable. If a video-level observation
+                  exists, edit it; otherwise fall into the create-on-pick
+                  path used for images without bboxes. */}
+              {isVideoMedia(media) ? (
                 <button
                   ref={videoSpeciesLabelRef}
                   onClick={() => {
-                    // Select the video's observation (first/only one)
-                    setSelectedBboxId(bboxes[0].observationID)
-                    setShowObservationEditor(true)
+                    if (bboxes.length > 0) {
+                      setSelectedBboxId(bboxes[0].observationID)
+                      setShowObservationEditor(true)
+                    } else {
+                      handleImageWithoutBboxClick()
+                    }
                   }}
                   className="text-lg font-semibold text-left hover:text-lime-600 cursor-pointer flex items-center gap-2 group"
                   title="Click to edit species"
                 >
                   <span>
-                    <SpeciesLabel names={media.scientificName ? [media.scientificName] : []} />
+                    <SpeciesLabel
+                      names={bboxes[0]?.scientificName ? [bboxes[0].scientificName] : []}
+                    />
                   </span>
                   <Pencil
                     size={16}
@@ -2666,13 +2720,16 @@ function ThumbnailBboxOverlay({ bboxes, imageRef, containerRef }) {
     }
   }, [imageRef, containerRef])
 
-  if (!bboxes?.length || !imageBounds) return null
+  // Drop class-only observations (no bbox coordinates); getMediaBboxesBatch
+  // returns them for species-label lookup but they have no geometry to draw.
+  const drawableBboxes = bboxes?.filter((b) => b.bboxX != null) ?? []
+  if (!drawableBboxes.length || !imageBounds) return null
 
   const { offsetX, offsetY, renderedWidth, renderedHeight } = imageBounds
 
   return (
     <svg className="absolute inset-0 w-full h-full pointer-events-none z-10">
-      {bboxes.map((bbox, index) => (
+      {drawableBboxes.map((bbox, index) => (
         <rect
           key={bbox.observationID || index}
           x={offsetX + bbox.bboxX * renderedWidth}
@@ -3636,6 +3693,17 @@ export default function Activity({ studyData, studyId }) {
       setSelectedSpecies(getTopNonHumanSpecies(speciesDistributionData, 2))
     }
   }, [speciesDistributionData, searchParams, setSearchParams, selectedSpecies.length])
+
+  // Drop filter entries whose species no longer exists (e.g. after a rename
+  // or mark-as-blank). Preserve identity when nothing changes.
+  useEffect(() => {
+    if (!speciesDistributionData) return
+    const validNames = new Set(speciesDistributionData.map((s) => s.scientificName))
+    setSelectedSpecies((prev) => {
+      const filtered = prev.filter((s) => validNames.has(s.scientificName))
+      return filtered.length === prev.length ? prev : filtered
+    })
+  }, [speciesDistributionData])
 
   // Memoize speciesNames to avoid unnecessary re-renders
   const speciesNames = useMemo(

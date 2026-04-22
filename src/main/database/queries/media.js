@@ -154,7 +154,7 @@ export async function getMediaBboxesBatch(dbPath, mediaIDs) {
         behavior: observations.behavior
       })
       .from(observations)
-      .where(and(inArray(observations.mediaID, mediaIDs), isNotNull(observations.bboxX)))
+      .where(inArray(observations.mediaID, mediaIDs))
       .orderBy(observations.mediaID, desc(observations.detectionConfidence))
 
     // Group results by mediaID
