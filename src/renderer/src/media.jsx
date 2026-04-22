@@ -529,10 +529,7 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
   const [searchTerm, setSearchTerm] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
-  const [customSpecies, setCustomSpecies] = useState('')
-  const [showCustomInput, setShowCustomInput] = useState(false)
   const inputRef = useRef(null)
-  const customInputRef = useRef(null)
   const rowRefs = useRef([])
 
   // Sync activeTab with initialTab when it changes (e.g., clicking sex badge vs species label)
@@ -552,14 +549,10 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
 
   // Focus input on mount and tab change
   useEffect(() => {
-    if (activeTab === 'species') {
-      if (showCustomInput && customInputRef.current) {
-        customInputRef.current.focus()
-      } else if (inputRef.current) {
-        inputRef.current.focus()
-      }
+    if (activeTab === 'species' && inputRef.current) {
+      inputRef.current.focus()
     }
-  }, [showCustomInput, activeTab])
+  }, [activeTab])
 
   // Handle keyboard navigation
   useEffect(() => {
@@ -588,6 +581,14 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
     [debouncedSearch, speciesList]
   )
 
+  // Trimmed and single-space-collapsed query used for the custom-species
+  // footer button. Kept in sync with `debouncedSearch` so the button label
+  // matches what the results were computed from.
+  const customSpeciesQuery = useMemo(
+    () => debouncedSearch.trim().replace(/\s+/g, ' '),
+    [debouncedSearch]
+  )
+
   // Reset the keyboard cursor when the results list changes (new query or
   // new data). Also trim the ref array so stale row refs don't linger.
   useEffect(() => {
@@ -610,13 +611,6 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
       observationType: 'animal'
     })
     onClose()
-  }
-
-  const handleCustomSubmit = (e) => {
-    e.preventDefault()
-    if (customSpecies.trim()) {
-      handleSelectSpecies(customSpecies.trim())
-    }
   }
 
   const handleMarkAsBlank = () => {
@@ -684,109 +678,88 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
       {/* Species tab content */}
       {activeTab === 'species' && (
         <>
-          {/* Search/Custom input header */}
+          {/* Current classification chip */}
+          {bbox.scientificName && (
+            <div className="p-2 border-b border-gray-100 flex items-center gap-2">
+              <div
+                className="flex-1 min-w-0 inline-flex items-center gap-1 px-2 py-1 rounded bg-lime-50 text-lime-700 text-sm"
+                title={
+                  bbox.commonName
+                    ? `${bbox.commonName} (${bbox.scientificName})`
+                    : bbox.scientificName
+                }
+              >
+                <span className="truncate">
+                  <span className="font-medium">{bbox.commonName || bbox.scientificName}</span>
+                  {bbox.commonName && (
+                    <span className="ml-1 italic text-lime-600/80">({bbox.scientificName})</span>
+                  )}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleMarkAsBlank}
+                aria-label="Mark as blank (no species)"
+                title="Mark as blank (no species)"
+                className="shrink-0 p-1 rounded text-lime-700 hover:bg-lime-100"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
+
+          {/* Search input */}
           <div className="p-2 border-b border-gray-100">
-            {showCustomInput ? (
-              <form onSubmit={handleCustomSubmit} className="flex gap-2">
-                <input
-                  ref={customInputRef}
-                  type="text"
-                  value={customSpecies}
-                  onChange={(e) => setCustomSpecies(e.target.value)}
-                  onKeyDown={(e) => {
-                    // Stop Backspace/Delete from reaching the ImageModal
-                    // window shortcut that deletes the selected observation.
-                    // Let other keys (Escape, arrows) bubble as before.
-                    if (e.key === 'Backspace' || e.key === 'Delete') {
-                      e.stopPropagation()
-                    }
-                  }}
-                  placeholder="Enter species name..."
-                  className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent"
-                />
-                <button
-                  type="submit"
-                  disabled={!customSpecies.trim()}
-                  className="px-2 py-1.5 bg-lime-500 text-white rounded hover:bg-lime-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Check size={16} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowCustomInput(false)}
-                  className="px-2 py-1.5 bg-gray-200 text-gray-600 rounded hover:bg-gray-300"
-                >
-                  <X size={16} />
-                </button>
-              </form>
-            ) : (
-              <div className="relative">
-                <Search
-                  size={16}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"
-                />
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  onKeyDown={(e) => {
-                    // Stop Backspace/Delete from reaching the ImageModal
-                    // window shortcut that deletes the selected observation.
-                    if (e.key === 'Backspace' || e.key === 'Delete') {
-                      e.stopPropagation()
-                      return
-                    }
-                    if (e.key === 'ArrowDown') {
-                      e.preventDefault()
-                      if (results.length === 0) return
-                      setHighlightedIndex((i) => (i + 1) % results.length)
-                      return
-                    }
-                    if (e.key === 'ArrowUp') {
-                      e.preventDefault()
-                      if (results.length === 0) return
-                      setHighlightedIndex((i) => (i <= 0 ? results.length - 1 : i - 1))
-                      return
-                    }
-                    if (e.key === 'Enter') {
-                      if (highlightedIndex < 0 || highlightedIndex >= results.length) return
+            <div className="relative">
+              <Search
+                size={16}
+                className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"
+              />
+              <input
+                ref={inputRef}
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(e) => {
+                  // Stop Backspace/Delete from reaching the ImageModal
+                  // window shortcut that deletes the selected observation.
+                  if (e.key === 'Backspace' || e.key === 'Delete') {
+                    e.stopPropagation()
+                    return
+                  }
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault()
+                    if (results.length === 0) return
+                    setHighlightedIndex((i) => (i + 1) % results.length)
+                    return
+                  }
+                  if (e.key === 'ArrowUp') {
+                    e.preventDefault()
+                    if (results.length === 0) return
+                    setHighlightedIndex((i) => (i <= 0 ? results.length - 1 : i - 1))
+                    return
+                  }
+                  if (e.key === 'Enter') {
+                    if (highlightedIndex >= 0 && highlightedIndex < results.length) {
                       e.preventDefault()
                       const picked = results[highlightedIndex]
                       handleSelectSpecies(picked.scientificName, picked.commonName)
+                      return
                     }
-                  }}
-                  placeholder="Search species..."
-                  className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent"
-                />
-              </div>
-            )}
+                    if (results.length === 0 && customSpeciesQuery.length >= 3) {
+                      e.preventDefault()
+                      handleSelectSpecies(customSpeciesQuery)
+                    }
+                  }
+                }}
+                placeholder="Search species..."
+                className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent"
+              />
+            </div>
           </div>
 
           {/* Species list */}
           <div className="max-h-52 overflow-y-auto">
-            {/* Add Custom option */}
-            {!showCustomInput && (
-              <button
-                onClick={() => setShowCustomInput(true)}
-                className="w-full px-3 py-2 text-left hover:bg-blue-50 flex items-center gap-2 text-blue-600 border-b border-gray-100"
-              >
-                <span className="text-sm">+ Add custom species</span>
-              </button>
-            )}
-
-            {/* Mark-as-blank option (only when there is a species to clear) */}
-            {!showCustomInput &&
-              bbox.observationID !== 'new-observation' &&
-              bbox.scientificName && (
-                <button
-                  onClick={handleMarkAsBlank}
-                  className="w-full px-3 py-2 text-left hover:bg-red-50 flex items-center gap-2 text-red-600 border-b border-gray-100"
-                >
-                  <span className="text-sm">✕ Mark as blank (no species)</span>
-                </button>
-              )}
-
             {/* Ranked species list */}
             {results.map((species, index) => (
               <button
@@ -819,14 +792,26 @@ function ObservationEditor({ bbox, studyId, onClose, onUpdate, initialTab = 'spe
               </button>
             ))}
 
-            {results.length === 0 && searchTerm.length > 0 && searchTerm.length < 3 && (
-              <div className="px-3 py-4 text-sm text-gray-500 text-center">
-                Type at least 3 characters to search the species dictionary.
-              </div>
-            )}
-            {results.length === 0 && searchTerm.length >= 3 && (
-              <div className="px-3 py-4 text-sm text-gray-500 text-center">
-                No species found. Click &quot;Add custom species&quot; to add a new one.
+            {results.length === 0 &&
+              debouncedSearch.trim().length > 0 &&
+              debouncedSearch.trim().length < 3 && (
+                <div className="px-3 py-4 text-sm text-gray-500 text-center">
+                  Type at least 3 characters to search the species dictionary.
+                </div>
+              )}
+            {results.length === 0 && customSpeciesQuery.length >= 3 && (
+              <div className="px-3 py-4 text-center space-y-2">
+                <p className="text-sm text-gray-500">No species found.</p>
+                <button
+                  type="button"
+                  onClick={() => handleSelectSpecies(customSpeciesQuery)}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded bg-lime-500 text-white hover:bg-lime-600 max-w-full"
+                >
+                  <Plus size={14} className="shrink-0" />
+                  <span className="truncate">
+                    Add &ldquo;{customSpeciesQuery}&rdquo; as custom species
+                  </span>
+                </button>
               </div>
             )}
           </div>
