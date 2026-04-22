@@ -281,7 +281,7 @@ export function registerImportIPCHandlers() {
   })
 
   ipcMain.handle('import:download-demo', async () => {
-    const datasetTitle = 'Demo Dataset'
+    const datasetTitle = 'Demo - Kruger National Park'
 
     try {
       log.info('Downloading and importing demo dataset')
@@ -302,7 +302,7 @@ export function registerImportIPCHandlers() {
       }
 
       const demoDatasetUrl =
-        'https://github.com/earthtoolsmaker/biowatch/releases/download/v1.5.0/camtrapdp-demo-dataset.zip'
+        'https://github.com/earthtoolsmaker/biowatch/releases/download/v1.7.2/camtrapdp-demo-dataset.zip'
       const zipPath = join(downloadDir, 'demo-dataset.zip')
       const extractPath = join(downloadDir, 'extracted')
 
