@@ -2,7 +2,8 @@ import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   computeBboxLabelPosition,
-  computeSelectorPosition
+  computeSelectorPosition,
+  computeFooterTriggeredSelectorPosition
 } from '../../src/renderer/src/utils/positioning.js'
 
 // Helper to extract numeric percentage value from string like "30%"
@@ -188,5 +189,133 @@ describe('computeSelectorPosition', () => {
     // Should use the custom size for calculations
     assert.equal(result.y, 332) // bottom + MARGIN
     assert.equal(result.transform, 'none')
+  })
+})
+
+describe('computeFooterTriggeredSelectorPosition', () => {
+  const viewport = { width: 1920, height: 1080 }
+  const selectorSize = { width: 288 }
+
+  test('tall media area - bottom pinned above footer, grows upward', () => {
+    const mediaAreaRect = {
+      top: 80,
+      bottom: 880,
+      left: 400,
+      right: 1500,
+      height: 800,
+      width: 1100
+    }
+    const result = computeFooterTriggeredSelectorPosition(mediaAreaRect, selectorSize, viewport)
+
+    // x: media-area left + PADDING
+    assert.equal(result.x, 416)
+    // y: media-area bottom - MARGIN
+    assert.equal(result.y, 872)
+    assert.equal(result.transform, 'translateY(-100%)')
+    // maxHeight: bottomY - PADDING
+    assert.equal(result.maxHeight, 856)
+  })
+
+  test('short media area - dropdown still bottom-pinned, maxHeight bounded', () => {
+    const mediaAreaRect = {
+      top: 100,
+      bottom: 400,
+      left: 200,
+      right: 1200,
+      height: 300,
+      width: 1000
+    }
+    const result = computeFooterTriggeredSelectorPosition(mediaAreaRect, selectorSize, viewport)
+
+    // bottomY = 392, maxHeight = 392 - 16 = 376
+    assert.equal(result.y, 392)
+    assert.equal(result.transform, 'translateY(-100%)')
+    assert.equal(result.maxHeight, 376)
+    assert.equal(result.x, 216)
+  })
+
+  test('narrow media area - x clamp leaves room for width', () => {
+    const mediaAreaRect = {
+      top: 80,
+      bottom: 880,
+      left: 900,
+      right: 1100,
+      height: 800,
+      width: 200
+    }
+    const result = computeFooterTriggeredSelectorPosition(mediaAreaRect, selectorSize, viewport)
+
+    // x = left + PADDING = 916; right-clamp: 796; left-clamp reinstates 916.
+    assert.equal(result.x, 916)
+  })
+
+  test('media area extends past viewport bottom - bottomY clamped to viewport', () => {
+    const mediaAreaRect = {
+      top: 400,
+      bottom: 1200, // past viewport.height = 1080
+      left: 300,
+      right: 1400,
+      height: 800,
+      width: 1100
+    }
+    const result = computeFooterTriggeredSelectorPosition(mediaAreaRect, selectorSize, viewport)
+
+    // bottomY = min(1192, 1064) = 1064; maxHeight = 1064 - 16 = 1048
+    assert.equal(result.y, 1064)
+    assert.equal(result.transform, 'translateY(-100%)')
+    assert.equal(result.maxHeight, 1048)
+  })
+
+  test('media area above viewport - maxHeight still positive and rendered area bounded', () => {
+    const mediaAreaRect = {
+      top: -200,
+      bottom: 100,
+      left: 300,
+      right: 1400,
+      height: 300,
+      width: 1100
+    }
+    const result = computeFooterTriggeredSelectorPosition(mediaAreaRect, selectorSize, viewport)
+
+    // bottomY = min(92, 1064) = 92; maxHeight = 92 - 16 = 76
+    assert.equal(result.y, 92)
+    assert.equal(result.transform, 'translateY(-100%)')
+    assert.equal(result.maxHeight, 76)
+  })
+
+  test('narrow viewport - horizontal viewport clamp wins', () => {
+    const narrowViewport = { width: 300, height: 1080 }
+    const mediaAreaRect = {
+      top: 80,
+      bottom: 880,
+      left: 10,
+      right: 290,
+      height: 800,
+      width: 280
+    }
+    const result = computeFooterTriggeredSelectorPosition(
+      mediaAreaRect,
+      selectorSize,
+      narrowViewport
+    )
+
+    // viewport-x clamp: 300 - 16 - 288 = -4, then min-x clamp: 16.
+    assert.equal(result.x, 16)
+  })
+
+  test('maxHeight never negative when bottomY is at/above top of viewport', () => {
+    const tallViewport = { width: 1920, height: 1080 }
+    const mediaAreaRect = {
+      top: -500,
+      bottom: -100, // fully above the viewport
+      left: 300,
+      right: 1400,
+      height: 400,
+      width: 1100
+    }
+    const result = computeFooterTriggeredSelectorPosition(mediaAreaRect, selectorSize, tallViewport)
+
+    // bottomY = min(-108, 1064) = -108; maxHeight = max(0, -108 - 16) = 0
+    assert.equal(result.maxHeight, 0)
   })
 })
