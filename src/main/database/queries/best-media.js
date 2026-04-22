@@ -582,7 +582,10 @@ export async function getBestImagePerSpecies(dbPath) {
       studyId,
       dbPath,
       `SELECT 1 FROM observations
-         WHERE bboxX IS NOT NULL AND bboxWidth > 0 AND bboxHeight > 0
+         WHERE bboxX IS NOT NULL
+           AND bboxWidth IS NOT NULL
+           AND bboxWidth > 0
+           AND bboxHeight > 0
          LIMIT 1`,
       []
     )
