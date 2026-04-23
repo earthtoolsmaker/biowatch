@@ -12,7 +12,8 @@ import {
   getSpeciesDistributionByMedia,
   getSpeciesTimeseriesByMedia,
   getSpeciesHeatmapDataByMedia,
-  getSpeciesDailyActivityByMedia
+  getSpeciesDailyActivityByMedia,
+  getSequenceAwareSpeciesCountsSQL
 } from '../../database/index.js'
 import {
   calculateSequenceAwareSpeciesCounts,
@@ -45,6 +46,12 @@ async function run() {
 
   switch (type) {
     case 'species-distribution': {
+      // Fast path: SQL aggregate handles gapSeconds === null and === 0, returns
+      // the final [{scientificName, count}] directly (83 rows, not 1.65M).
+      // Returns null for positive gapSeconds, in which case we fall back to the
+      // row-dump + JS sequence grouping below.
+      const fast = await getSequenceAwareSpeciesCountsSQL(dbPath, effectiveGapSeconds)
+      if (fast !== null) return fast
       const rawData = await getSpeciesDistributionByMedia(dbPath)
       return calculateSequenceAwareSpeciesCounts(rawData, effectiveGapSeconds)
     }

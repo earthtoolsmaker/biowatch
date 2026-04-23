@@ -14,7 +14,6 @@ import { join } from 'path'
 import { Worker } from 'worker_threads'
 import { getStudyDatabasePath } from '../services/paths.js'
 import { getPaginatedSequences } from '../services/sequences/index.js'
-import { getDrizzleDb, getMetadata, getSequenceAwareSpeciesCountsSQL } from '../database/index.js'
 
 /**
  * Run a sequence computation in a worker thread.
@@ -64,27 +63,16 @@ export function registerSequencesIPCHandlers() {
         return { error: 'Database not found for this study' }
       }
 
-      // Resolve gap from metadata if the caller didn't pass one.
-      let effectiveGap = gapSeconds
-      if (effectiveGap === undefined) {
-        const db = await getDrizzleDb(studyId, dbPath, { readonly: true })
-        const meta = await getMetadata(db)
-        effectiveGap = meta?.sequenceGap ?? null
-      }
-
-      // Fast path: SQL aggregate runs on main (no Worker spawn). ~2s of SQLite
-      // blocks the main-process event loop — acceptable since other single-SQL
-      // handlers (e.g. getDeploymentsActivity) already run on main.
-      const fast = await getSequenceAwareSpeciesCountsSQL(dbPath, effectiveGap)
-      if (fast !== null) return { data: fast }
-
-      // Slow path (positive gap): fall back to the Worker so ~3s of JS
-      // sequence grouping doesn't block the main thread.
+      // Always dispatch through the Worker. The Worker tries the SQL aggregate
+      // first (null/0 gap) and falls back to row-dump + JS grouping on null
+      // return (positive gap). Running off-thread is required because the SQL
+      // scan itself can take ~8s on cold FS cache on large studies, which
+      // would freeze the renderer's UI if it ran on main.
       const data = await runInWorker({
         type: 'species-distribution',
         dbPath,
         studyId,
-        gapSeconds: effectiveGap
+        gapSeconds
       })
       return { data }
     } catch (error) {
