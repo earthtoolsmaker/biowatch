@@ -7,13 +7,8 @@ import log from 'electron-log'
 import { existsSync } from 'fs'
 import { eq } from 'drizzle-orm'
 import { getStudyDatabasePath } from '../services/paths.js'
-import {
-  getDrizzleDb,
-  deployments,
-  closeStudyDatabase,
-  getDeployments,
-  getDeploymentsActivity
-} from '../database/index.js'
+import { getDrizzleDb, deployments, closeStudyDatabase, getDeployments } from '../database/index.js'
+import { runInWorker } from '../services/sequences/runInWorker.js'
 
 /**
  * Register all deployments-related IPC handlers
@@ -35,6 +30,9 @@ export function registerDeploymentsIPCHandlers() {
     }
   })
 
+  // Per-deployment period-bucket aggregation for the Deployments tab. Runs in
+  // the sequences worker so the SUM(CASE) × 20 scan over observations doesn't
+  // block the renderer UI on large studies.
   ipcMain.handle('deployments:get-activity', async (_, studyId) => {
     try {
       const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
@@ -43,7 +41,7 @@ export function registerDeploymentsIPCHandlers() {
         return { error: 'Database not found for this study' }
       }
 
-      const activity = await getDeploymentsActivity(dbPath)
+      const activity = await runInWorker({ type: 'deployments-activity', dbPath })
       return { data: activity }
     } catch (error) {
       log.error('Error getting deployments activity:', error)

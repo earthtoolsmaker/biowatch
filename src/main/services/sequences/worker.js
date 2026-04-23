@@ -18,7 +18,8 @@ import {
   getSequenceAwareSpeciesCountsSQL,
   getSequenceAwareTimeseriesSQL,
   getSequenceAwareDailyActivitySQL,
-  getBestMedia
+  getBestMedia,
+  getDeploymentsActivity
 } from '../../database/index.js'
 import { getPaginatedSequences } from './pagination.js'
 import {
@@ -110,6 +111,12 @@ async function run() {
       // can require scanning hundreds of media to form one page of 15 — running
       // on main was causing multi-second input freezes on large studies.
       return getPaginatedSequences(dbPath, workerData.options || {})
+    }
+    case 'deployments-activity': {
+      // Deployments tab's per-deployment period-bucket aggregation. The
+      // SUM(CASE) × 20 scan over observations was locking the renderer for
+      // multiple seconds on first open of large studies.
+      return getDeploymentsActivity(dbPath)
     }
     default:
       throw new Error(`Unknown worker task type: ${type}`)

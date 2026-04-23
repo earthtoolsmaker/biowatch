@@ -1027,7 +1027,24 @@ export default function Deployments({ studyId }) {
   const queryClient = useQueryClient()
   const { importStatus } = useImportStatus(studyId)
 
-  const { data: activity, isLoading } = useQuery({
+  // Lightweight query for the map — server-side deduped by (lat, lng), ~3ms
+  // on a 2.7M-observation study. Shares its cache with the Overview map so
+  // cross-tab navigation hits warm cache. Map renders as soon as this resolves.
+  const { data: deploymentsList, isLoading: isDeploymentsListLoading } = useQuery({
+    queryKey: ['deployments', studyId],
+    queryFn: async () => {
+      const response = await window.api.getDeployments(studyId)
+      if (response.error) throw new Error(response.error)
+      return response.data
+    },
+    refetchInterval: () => (importStatus?.isRunning ? 5000 : false),
+    enabled: !!studyId
+  })
+
+  // Heavy per-deployment period-bucket query for the list timeline. Runs in
+  // the sequences worker so the 20-CASE aggregate over observations doesn't
+  // block the UI. Resolves ~1.2s after mount on gmu8_leuven.
+  const { data: activity, isLoading: isActivityLoading } = useQuery({
     queryKey: ['deploymentsActivity', studyId],
     queryFn: async () => {
       const response = await window.api.getDeploymentsActivity(studyId)
@@ -1056,6 +1073,14 @@ export default function Deployments({ studyId }) {
             return deployment
           })
           return { ...prevActivity, deployments: updatedDeployments }
+        })
+
+        // Also patch the lightweight deployments cache powering the map, so
+        // the dragged marker doesn't snap back during the post-invalidation
+        // refetch. Shared with the Overview tab.
+        queryClient.setQueryData(['deployments', studyId], (prev) => {
+          if (!prev) return prev
+          return prev.map((d) => (d.deploymentID === deploymentID ? { ...d, latitude: lat } : d))
         })
 
         if (result.error) {
@@ -1089,6 +1114,11 @@ export default function Deployments({ studyId }) {
             return deployment
           })
           return { ...prevActivity, deployments: updatedDeployments }
+        })
+
+        queryClient.setQueryData(['deployments', studyId], (prev) => {
+          if (!prev) return prev
+          return prev.map((d) => (d.deploymentID === deploymentID ? { ...d, longitude: lng } : d))
         })
 
         if (result.error) {
@@ -1166,6 +1196,13 @@ export default function Deployments({ studyId }) {
           return { ...prevActivity, deployments: updatedDeployments }
         })
 
+        queryClient.setQueryData(['deployments', studyId], (prev) => {
+          if (!prev) return prev
+          return prev.map((d) =>
+            d.locationID === locationID ? { ...d, locationName: newName } : d
+          )
+        })
+
         // Invalidate related caches so other views update
         queryClient.invalidateQueries({ queryKey: ['deployments', studyId] })
         queryClient.invalidateQueries({ queryKey: ['heatmapData', studyId] })
@@ -1182,11 +1219,11 @@ export default function Deployments({ studyId }) {
       className={`flex flex-col px-4 h-full gap-4 overflow-hidden ${isPlaceMode ? 'place-mode-active' : ''}`}
     >
       <div className="h-96">
-        {isLoading ? (
+        {isDeploymentsListLoading ? (
           <SkeletonMap title="Loading Deployments" message="Loading deployment locations..." />
         ) : (
           <LocationMap
-            locations={activity?.deployments || []}
+            locations={deploymentsList || []}
             selectedLocation={selectedLocation}
             setSelectedLocation={setSelectedLocation}
             onNewLatitude={onNewLatitude}
@@ -1200,7 +1237,7 @@ export default function Deployments({ studyId }) {
         )}
       </div>
       <div className="flex-1 min-h-0 flex flex-col">
-        {isLoading ? (
+        {isActivityLoading ? (
           <SkeletonDeploymentsList itemCount={6} />
         ) : activity ? (
           <LocationsList
