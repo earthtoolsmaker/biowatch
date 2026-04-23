@@ -1468,9 +1468,18 @@ function ImageModal({
         onTimestampUpdate(media.mediaID, savedTimestamp)
       }
 
-      // Invalidate relevant queries
+      // Invalidate relevant queries. Timestamp edits shift which week / hour
+      // a media falls into and can reshape sequence grouping, so every
+      // sequence-aware cache needs to refresh alongside the raw media data.
       queryClient.invalidateQueries({ queryKey: ['media'] })
       queryClient.invalidateQueries({ queryKey: ['mediaBboxes', studyId, media.mediaID] })
+      queryClient.invalidateQueries({ queryKey: ['sequences', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['sequenceAwareSpeciesDistribution', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['sequenceAwareTimeseries', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['sequenceAwareDailyActivity', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['sequenceAwareHeatmap', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['blankMediaCount', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['bestMedia', studyId] })
 
       setShowDatePicker(false)
       setIsEditingTimestamp(false)
@@ -3937,7 +3946,7 @@ export default function Activity({ studyData, studyId }) {
                 <TimelineChart
                   timeseriesData={timeseriesData}
                   selectedSpecies={selectedSpecies}
-                  dateRange={dateRange}
+                  dateRange={[dateRange[0] ?? fullExtent[0], dateRange[1] ?? fullExtent[1]]}
                   setDateRange={setDateRange}
                   palette={palette}
                 />

@@ -197,6 +197,10 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
         // scientificName / eventID used to come from the joined observation.
         // Here we pick one matching observation per media via correlated
         // subqueries, so the shape of the returned row is unchanged.
+        // Deterministic ORDER BY ensures scientificName and eventID come
+        // from the same observation row on a media with multiple matching
+        // observations. Without this, two independent LIMIT-1 subqueries
+        // can silently return fields from different rows.
         const speciesPicker = (column) =>
           db
             .select({ value: column })
@@ -207,6 +211,7 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
                 inArray(observations.scientificName, regularSpecies)
               )
             )
+            .orderBy(observations.observationID)
             .limit(1)
 
         timestampedMedia = await db
@@ -365,6 +370,10 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
       } else {
         // Regular species query — semi-join rewrite (see timestamped phase
         // for rationale and expected speedup).
+        // Deterministic ORDER BY ensures scientificName and eventID come
+        // from the same observation row on a media with multiple matching
+        // observations. Without this, two independent LIMIT-1 subqueries
+        // can silently return fields from different rows.
         const speciesPicker = (column) =>
           db
             .select({ value: column })
@@ -375,6 +384,7 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
                 inArray(observations.scientificName, regularSpecies)
               )
             )
+            .orderBy(observations.observationID)
             .limit(1)
 
         nullMedia = await db

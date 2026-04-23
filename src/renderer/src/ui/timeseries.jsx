@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   CartesianGrid,
   Customized,
@@ -10,13 +10,33 @@ import {
   YAxis
 } from 'recharts'
 
-// TimelineChart component using Recharts
+// TimelineChart component using Recharts.
+//
+// dragDateRange is local state for the visual brush position during a drag;
+// setDateRange (the parent prop) is only called on pointer release, so the
+// downstream sequence-aware queries don't refetch once per mousemove.
 const TimelineChart = ({ timeseriesData, selectedSpecies, dateRange, setDateRange, palette }) => {
   const draggingRef = useRef(false)
   const resizingRef = useRef(null) // null, 'left', or 'right'
   const dragStartXRef = useRef(null)
   const initialRangeRef = useRef(null)
   const chartRef = useRef(null)
+
+  const [dragDateRange, setDragDateRange] = useState(dateRange)
+  // Mirror dragDateRange into a ref so handleMouseUp (a long-lived
+  // document event listener) can read the latest without the useCallback
+  // being recreated mid-drag and leaking a stale listener reference.
+  const dragDateRangeRef = useRef(dateRange)
+  useEffect(() => {
+    dragDateRangeRef.current = dragDateRange
+  }, [dragDateRange])
+  useEffect(() => {
+    // Sync from prop only when not actively dragging, so external updates
+    // don't clobber in-flight drag state.
+    if (!draggingRef.current && resizingRef.current === null) {
+      setDragDateRange(dateRange)
+    }
+  }, [dateRange])
 
   // Format data for Recharts
   const formatData = useCallback(() => {
@@ -47,8 +67,7 @@ const TimelineChart = ({ timeseriesData, selectedSpecies, dateRange, setDateRang
   const SelectionRangeRectangle = (props) => {
     const { height, margin, xAxisMap } = props
 
-    if (!dateRange[0] || !dateRange[1] || !data || data.length === 0 || !xAxisMap) {
-      console.log('No date range or data available')
+    if (!dragDateRange[0] || !dragDateRange[1] || !data || data.length === 0 || !xAxisMap) {
       return null
     }
 
@@ -56,13 +75,12 @@ const TimelineChart = ({ timeseriesData, selectedSpecies, dateRange, setDateRang
     const scale = xAxisMap ? xAxisMap[0].scale : null
 
     if (!scale) {
-      console.log('No scale function available')
       return null
     }
 
     // Get the x positions using the scale function from xAxisMap with actual Date objects
-    const x1 = scale(dateRange[0])
-    const x2 = scale(dateRange[1])
+    const x1 = scale(dragDateRange[0])
+    const x2 = scale(dragDateRange[1])
 
     // Handle edge cases
     if (isNaN(x1) || isNaN(x2)) {
@@ -85,7 +103,7 @@ const TimelineChart = ({ timeseriesData, selectedSpecies, dateRange, setDateRang
       }
 
       dragStartXRef.current = e.clientX
-      initialRangeRef.current = [...dateRange]
+      initialRangeRef.current = [...dragDateRange]
 
       // Add global event listeners
       document.addEventListener('mousemove', handleMouseMove)
@@ -211,14 +229,16 @@ const TimelineChart = ({ timeseriesData, selectedSpecies, dateRange, setDateRang
         )
       }
 
-      console.log('NEW DATES', newStartDate, newEndDate)
-
-      setDateRange([newStartDate, newEndDate])
+      // Update only the local brush state during drag — parent's
+      // setDateRange is deferred to mouseup so queries don't refetch
+      // once per mousemove.
+      setDragDateRange([newStartDate, newEndDate])
     },
-    [data, setDateRange]
+    [data]
   )
 
   const handleMouseUp = useCallback(() => {
+    const wasDragging = draggingRef.current || resizingRef.current !== null
     draggingRef.current = false
     resizingRef.current = null
     dragStartXRef.current = null
@@ -227,7 +247,13 @@ const TimelineChart = ({ timeseriesData, selectedSpecies, dateRange, setDateRang
     // Remove global event listeners
     document.removeEventListener('mousemove', handleMouseMove)
     document.removeEventListener('mouseup', handleMouseUp)
-  }, [handleMouseMove])
+
+    // Commit-on-release: fire setDateRange once with the final range,
+    // unless the drag was effectively a no-op.
+    if (wasDragging) {
+      setDateRange(dragDateRangeRef.current)
+    }
+  }, [handleMouseMove, setDateRange])
 
   return (
     <div className="w-full h-full">
