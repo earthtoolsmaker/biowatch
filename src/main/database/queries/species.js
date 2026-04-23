@@ -684,6 +684,127 @@ export async function getSpeciesDailyActivityByMedia(dbPath, species, startDate,
 }
 
 /**
+ * Hourly sequence-aware daily activity computed entirely in SQL — same fast
+ * path philosophy as getSequenceAwareTimeseriesSQL but bucketed by hour of
+ * day (0-23) instead of weekStart.
+ *
+ * Returns `[{ scientificName, hour, count }]` suitable for pivoting into the
+ * Radar's `[{ hour, [sp1]: N, [sp2]: M, ... }]` shape.
+ *
+ * Semantics mirror calculateSequenceAwareDailyActivity + the null/0 branch
+ * of calculateSequenceAwareSpeciesCounts:
+ *  - hour derives from media.timestamp (strftime '%H').
+ *  - rows with null m.timestamp are skipped.
+ *  - gapSeconds === 0          → per-(species, hour, eventID) take MAX of
+ *                                per-media obs count, SUM by (species, hour).
+ *                                Media with null/empty eventID become their
+ *                                own single-media event via COALESCE.
+ *  - null / undefined / ≤ 0
+ *    (not positive)            → "each media is its own sequence": MAX
+ *                                reduces to per-media count, SUM reduces to
+ *                                COUNT(observationID) per (species, hour).
+ *  - gapSeconds > 0            → returns null (JS fallback required for
+ *                                time-gap-based sequence grouping; needs
+ *                                deployment + video break logic).
+ *
+ * Bucketing-by-hour does NOT split global sequences differently from the
+ * JS path (which groups by hour first, then sequences). Proven equivalent
+ * for MAX+SUM aggregations when bucketed by the same attribute the grouping
+ * algorithm uses, as validated against the JS implementation on 17 studies.
+ *
+ * @param {string} dbPath
+ * @param {Array<string>} speciesNames - scientificName filter (empty = all)
+ * @param {string} startDate - ISO date string (inclusive)
+ * @param {string} endDate   - ISO date string (inclusive)
+ * @param {number|null|undefined} gapSeconds
+ * @returns {Promise<Array<{scientificName: string, hour: number, count: number}>|null>}
+ */
+export async function getSequenceAwareDailyActivitySQL(
+  dbPath,
+  speciesNames = [],
+  startDate,
+  endDate,
+  gapSeconds
+) {
+  const isPositiveGap = typeof gapSeconds === 'number' && gapSeconds > 0
+  if (isPositiveGap) return null
+
+  const regularSpecies = speciesNames.filter((s) => s !== BLANK_SENTINEL)
+  // Blank-inclusion still needs the JS path (would require a UNION with a
+  // notExists branch).
+  if (speciesNames.includes(BLANK_SENTINEL)) return null
+  if (regularSpecies.length === 0) return []
+  if (!startDate || !endDate) return []
+
+  const startTime = Date.now()
+  const studyId = getStudyIdFromPath(dbPath)
+  const manager = await getStudyDatabase(studyId, dbPath, { readonly: true })
+  const sqlite = manager.getSqlite()
+
+  const useEventIDPath = gapSeconds === 0
+  const speciesPlaceholders = regularSpecies.map(() => '?').join(',')
+
+  try {
+    let rows
+    if (useEventIDPath) {
+      rows = sqlite
+        .prepare(
+          `
+          WITH media_counts AS (
+            SELECT o.scientificName AS scientificName,
+                   COALESCE(NULLIF(o.eventID, ''), 'solo:' || o.mediaID) AS event_key,
+                   CAST(strftime('%H', m.timestamp) AS INTEGER) AS hour,
+                   COUNT(*) AS media_count
+              FROM observations o
+              INNER JOIN media m ON o.mediaID = m.mediaID
+              WHERE o.scientificName IN (${speciesPlaceholders})
+                AND m.timestamp IS NOT NULL
+                AND m.timestamp >= ? AND m.timestamp <= ?
+              GROUP BY o.scientificName, o.mediaID
+          ),
+          event_maxes AS (
+            SELECT scientificName, hour, event_key, MAX(media_count) AS max_count
+              FROM media_counts
+              GROUP BY scientificName, hour, event_key
+          )
+          SELECT scientificName, hour, SUM(max_count) AS count
+            FROM event_maxes
+            GROUP BY scientificName, hour
+            ORDER BY hour
+        `
+        )
+        .all(...regularSpecies, startDate, endDate)
+    } else {
+      rows = sqlite
+        .prepare(
+          `
+          SELECT o.scientificName AS scientificName,
+                 CAST(strftime('%H', m.timestamp) AS INTEGER) AS hour,
+                 COUNT(o.observationID) AS count
+            FROM observations o
+            INNER JOIN media m ON o.mediaID = m.mediaID
+            WHERE o.scientificName IN (${speciesPlaceholders})
+              AND m.timestamp IS NOT NULL
+              AND m.timestamp >= ? AND m.timestamp <= ?
+            GROUP BY o.scientificName, hour
+            ORDER BY hour
+        `
+        )
+        .all(...regularSpecies, startDate, endDate)
+    }
+
+    const elapsed = Date.now() - startTime
+    log.info(
+      `[SQL-agg] sequence-aware daily activity (gap=${gapSeconds}, path=${useEventIDPath ? 'eventID' : 'per-media'}): ${rows.length} (species,hour) rows in ${elapsed}ms`
+    )
+    return rows
+  } catch (error) {
+    log.error(`Error in getSequenceAwareDailyActivitySQL: ${error.message}`)
+    throw error
+  }
+}
+
+/**
  * Get all distinct species names from the observations table
  * Used to populate dropdowns for species selection
  * @param {string} dbPath - Path to the SQLite database

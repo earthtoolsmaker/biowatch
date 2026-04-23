@@ -225,6 +225,7 @@ export {
   getSpeciesDailyActivityByMedia,
   getSequenceAwareSpeciesCountsSQL,
   getSequenceAwareTimeseriesSQL,
+  getSequenceAwareDailyActivitySQL,
   // Media
   getFilesData,
   getMediaBboxes,

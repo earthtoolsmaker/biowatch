@@ -247,6 +247,32 @@ export function pivotPreAggregatedTimeseries(rows) {
 }
 
 /**
+ * Pivot pre-aggregated `[{ scientificName, hour, count }]` rows (as returned
+ * by getSequenceAwareDailyActivitySQL) into the `[{ hour, [sp]: N, ... }]`
+ * shape the radar expects. Zero-fills hours that the SQL didn't emit a row
+ * for, so the chart has 24 entries regardless of sparse data.
+ *
+ * @param {Array<{scientificName: string, hour: number, count: number}>} rows
+ * @param {Array<string>} selectedSpecies
+ * @returns {Array<{hour: number, [species: string]: number}>}
+ */
+export function pivotPreAggregatedDailyActivity(rows, selectedSpecies) {
+  const hourly = Array(24)
+    .fill()
+    .map((_, i) => ({
+      hour: i,
+      ...Object.fromEntries(selectedSpecies.map((s) => [s, 0]))
+    }))
+  if (!rows || rows.length === 0) return hourly
+  for (const { scientificName, hour, count } of rows) {
+    if (hour == null || hour < 0 || hour > 23) continue
+    if (!selectedSpecies.includes(scientificName)) continue
+    hourly[hour][scientificName] = count
+  }
+  return hourly
+}
+
+/**
  * Calculates sequence-aware species counts grouped by location for heatmap pie charts.
  *
  * @param {Array} observationsByMedia - Array of { scientificName, mediaID, timestamp, deploymentID, eventID, fileMediatype, latitude, longitude, locationName, count }
