@@ -215,6 +215,38 @@ export function calculateSequenceAwareTimeseries(observationsByMedia, gapSeconds
 }
 
 /**
+ * Pivot pre-aggregated `[{ scientificName, weekStart, count }]` rows (as
+ * returned by getSequenceAwareTimeseriesSQL) into the `{ timeseries,
+ * allSpecies }` shape the UI expects. Lets the SQL fast path bypass the
+ * full calculateSequenceAwareTimeseries pipeline entirely.
+ *
+ * @param {Array<{scientificName: string, weekStart: string, count: number}>} rows
+ * @returns {{ timeseries: Array, allSpecies: Array }}
+ */
+export function pivotPreAggregatedTimeseries(rows) {
+  if (!rows || rows.length === 0) return { timeseries: [], allSpecies: [] }
+
+  const byWeek = new Map()
+  const totalBySpecies = new Map()
+  for (const { scientificName, weekStart, count } of rows) {
+    if (!weekStart) continue
+    if (!byWeek.has(weekStart)) byWeek.set(weekStart, {})
+    byWeek.get(weekStart)[scientificName] = count
+    totalBySpecies.set(scientificName, (totalBySpecies.get(scientificName) || 0) + count)
+  }
+
+  const timeseries = Array.from(byWeek.keys())
+    .sort()
+    .map((week) => ({ date: week, ...byWeek.get(week) }))
+
+  const allSpecies = Array.from(totalBySpecies.entries())
+    .map(([scientificName, count]) => ({ scientificName, count }))
+    .sort((a, b) => b.count - a.count)
+
+  return { timeseries, allSpecies }
+}
+
+/**
  * Calculates sequence-aware species counts grouped by location for heatmap pie charts.
  *
  * @param {Array} observationsByMedia - Array of { scientificName, mediaID, timestamp, deploymentID, eventID, fileMediatype, latitude, longitude, locationName, count }

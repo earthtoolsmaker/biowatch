@@ -17,6 +17,7 @@ import {
   getSpeciesHeatmapDataByMedia,
   getSpeciesDailyActivityByMedia,
   getSequenceAwareSpeciesCountsSQL,
+  getSequenceAwareTimeseriesSQL,
   getBestMedia
 } from '../../database/index.js'
 import { getPaginatedSequences } from './pagination.js'
@@ -24,7 +25,8 @@ import {
   calculateSequenceAwareSpeciesCounts,
   calculateSequenceAwareTimeseries,
   calculateSequenceAwareHeatmap,
-  calculateSequenceAwareDailyActivity
+  calculateSequenceAwareDailyActivity,
+  pivotPreAggregatedTimeseries
 } from './speciesCounts.js'
 
 async function run() {
@@ -61,6 +63,17 @@ async function run() {
       return calculateSequenceAwareSpeciesCounts(rawData, effectiveGapSeconds)
     }
     case 'timeseries': {
+      // Fast path: SQL aggregate handles gapSeconds === null and === 0,
+      // returns pre-grouped (species, week, count) rows — orders of magnitude
+      // smaller than the raw observation-per-media dump the JS path needs.
+      // Returns null for positive gapSeconds → fall back to the JS path for
+      // time-gap-based sequence grouping.
+      const fastRows = await getSequenceAwareTimeseriesSQL(
+        dbPath,
+        speciesNames,
+        effectiveGapSeconds
+      )
+      if (fastRows !== null) return pivotPreAggregatedTimeseries(fastRows)
       const rawData = await getSpeciesTimeseriesByMedia(dbPath, speciesNames)
       return calculateSequenceAwareTimeseries(rawData, effectiveGapSeconds)
     }

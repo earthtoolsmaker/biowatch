@@ -280,6 +280,119 @@ export async function getSequenceAwareSpeciesCountsSQL(dbPath, gapSeconds) {
 }
 
 /**
+ * Weekly sequence-aware timeseries computed entirely in SQL — fast path
+ * that avoids shipping millions of raw observation rows to the worker for
+ * JS-side aggregation (and the worker heap pressure that comes with it).
+ *
+ * Returns an array of `{ scientificName, weekStart, count }` suitable for
+ * pivoting into the Timeline chart's `{ timeseries, allSpecies }` shape.
+ *
+ * Semantics mirror calculateSequenceAwareTimeseries + the null/0 branch of
+ * calculateSequenceAwareSpeciesCounts:
+ *  - weekStart derives from `media.timestamp` (NOT observations.eventStart —
+ *    those can differ on some datasets; see validation run).
+ *  - rows with null m.timestamp are skipped (JS treats them as "no week"
+ *    and continues).
+ *  - gapSeconds === 0          → per-(species, week, eventID) take MAX of
+ *                                per-media obs count, SUM by (species, week).
+ *                                Media with null/empty eventID become their
+ *                                own single-media event via COALESCE.
+ *  - null / undefined / ≤ 0
+ *    (not positive)            → "each media is its own sequence": MAX
+ *                                reduces to obs count per media, SUM
+ *                                reduces to COUNT(observationID).
+ *  - gapSeconds > 0            → returns null (JS fallback required for
+ *                                time-gap-based sequence grouping).
+ *
+ * @param {string} dbPath
+ * @param {Array<string>} speciesNames - scientificName filter (empty = all)
+ * @param {number|null|undefined} gapSeconds
+ * @returns {Promise<Array<{scientificName: string, weekStart: string, count: number}>|null>}
+ */
+export async function getSequenceAwareTimeseriesSQL(dbPath, speciesNames = [], gapSeconds) {
+  const isPositiveGap = typeof gapSeconds === 'number' && gapSeconds > 0
+  if (isPositiveGap) return null
+
+  const regularSpecies = speciesNames.filter((s) => s !== BLANK_SENTINEL)
+  // Fast path only handles regular-species filtering. Blank-inclusion requests
+  // still need the JS path (would require a UNION with a notExists branch).
+  if (speciesNames.includes(BLANK_SENTINEL)) return null
+
+  const startTime = Date.now()
+  const studyId = getStudyIdFromPath(dbPath)
+  const manager = await getStudyDatabase(studyId, dbPath, { readonly: true })
+  const sqlite = manager.getSqlite()
+
+  const useEventIDPath = gapSeconds === 0
+  const speciesPlaceholders = regularSpecies.map(() => '?').join(',')
+  const speciesFilter =
+    regularSpecies.length > 0
+      ? `AND o.scientificName IN (${speciesPlaceholders})`
+      : ''
+
+  try {
+    let rows
+    if (useEventIDPath) {
+      rows = sqlite
+        .prepare(
+          `
+          WITH media_counts AS (
+            SELECT o.scientificName AS scientificName,
+                   COALESCE(NULLIF(o.eventID, ''), 'solo:' || o.mediaID) AS event_key,
+                   date(substr(m.timestamp, 1, 10), 'weekday 0', '-7 days') AS weekStart,
+                   COUNT(*) AS media_count
+              FROM observations o
+              INNER JOIN media m ON o.mediaID = m.mediaID
+              WHERE o.scientificName IS NOT NULL AND o.scientificName != ''
+                AND (o.observationType IS NULL OR o.observationType != 'blank')
+                AND m.timestamp IS NOT NULL
+                ${speciesFilter}
+              GROUP BY o.scientificName, o.mediaID
+          ),
+          event_maxes AS (
+            SELECT scientificName, weekStart, event_key, MAX(media_count) AS max_count
+              FROM media_counts
+              GROUP BY scientificName, weekStart, event_key
+          )
+          SELECT scientificName, weekStart, SUM(max_count) AS count
+            FROM event_maxes
+            GROUP BY scientificName, weekStart
+            ORDER BY weekStart
+        `
+        )
+        .all(...regularSpecies)
+    } else {
+      rows = sqlite
+        .prepare(
+          `
+          SELECT o.scientificName AS scientificName,
+                 date(substr(m.timestamp, 1, 10), 'weekday 0', '-7 days') AS weekStart,
+                 COUNT(o.observationID) AS count
+            FROM observations o
+            INNER JOIN media m ON o.mediaID = m.mediaID
+            WHERE o.scientificName IS NOT NULL AND o.scientificName != ''
+              AND (o.observationType IS NULL OR o.observationType != 'blank')
+              AND m.timestamp IS NOT NULL
+              ${speciesFilter}
+            GROUP BY o.scientificName, weekStart
+            ORDER BY weekStart
+        `
+        )
+        .all(...regularSpecies)
+    }
+
+    const elapsed = Date.now() - startTime
+    log.info(
+      `[SQL-agg] sequence-aware timeseries (gap=${gapSeconds}, path=${useEventIDPath ? 'eventID' : 'per-media'}): ${rows.length} (species,week) rows in ${elapsed}ms`
+    )
+    return rows
+  } catch (error) {
+    log.error(`Error in getSequenceAwareTimeseriesSQL: ${error.message}`)
+    throw error
+  }
+}
+
+/**
  * Get species timeseries data by media for sequence-aware counting.
  * Returns observations with media-level detail for frontend sequence grouping.
  * @param {string} dbPath - Path to the SQLite database
