@@ -1732,9 +1732,16 @@ function ImageModal({
     onSettled: () => {
       // Refetch to ensure sync
       queryClient.invalidateQueries({ queryKey: ['mediaBboxes', studyId, media?.mediaID] })
-      // Also update thumbnail grid
+      queryClient.invalidateQueries({ queryKey: ['distinctSpecies', studyId] })
       queryClient.invalidateQueries({ queryKey: ['thumbnailBboxesBatch'] })
-      // Deleting an observation can remove a media from the best-media candidate set
+      queryClient.invalidateQueries({ queryKey: ['sequences', studyId] })
+      // Deleting an observation changes species counts, timeseries, and can make
+      // the underlying media become "blank" (no remaining observations).
+      queryClient.invalidateQueries({ queryKey: ['sequenceAwareSpeciesDistribution', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['sequenceAwareTimeseries', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['sequenceAwareDailyActivity', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['sequenceAwareHeatmap', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['blankMediaCount', studyId] })
       queryClient.invalidateQueries({ queryKey: ['bestMedia', studyId] })
     }
   })

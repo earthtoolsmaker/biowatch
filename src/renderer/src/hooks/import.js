@@ -18,10 +18,19 @@ export function useImportStatus(id, interval = 1000) {
           status.done > 0 &&
           status.done === status.total
         ) {
-          console.log('Import completed, invalidating study, deployments, and bestMedia queries')
+          console.log('Import completed, invalidating study, deployments, and count/distribution queries')
           queryClient.invalidateQueries({ queryKey: ['study'] })
           queryClient.invalidateQueries({ queryKey: ['deployments', id] })
           queryClient.invalidateQueries({ queryKey: ['bestMedia', id] })
+          // Counts and distributions are now cached with staleTime: Infinity,
+          // so we must explicitly invalidate them when import adds new data.
+          queryClient.invalidateQueries({ queryKey: ['sequenceAwareSpeciesDistribution', id] })
+          queryClient.invalidateQueries({ queryKey: ['sequenceAwareTimeseries', id] })
+          queryClient.invalidateQueries({ queryKey: ['sequenceAwareDailyActivity', id] })
+          queryClient.invalidateQueries({ queryKey: ['sequenceAwareHeatmap', id] })
+          queryClient.invalidateQueries({ queryKey: ['blankMediaCount', id] })
+          queryClient.invalidateQueries({ queryKey: ['distinctSpecies', id] })
+          queryClient.invalidateQueries({ queryKey: ['sequences', id] })
         }
         wasRunningRef.current = status.isRunning
 
