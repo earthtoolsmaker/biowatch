@@ -320,11 +320,14 @@ export default function Overview({ data, studyId, studyName }) {
   const { importStatus } = useImportStatus(studyId)
   const { sequenceGap } = useSequenceGap(studyId)
 
-  // Use useQuery for deployments data - use same query as Deployments tab
-  const { data: deploymentsActivityData, error: deploymentsError } = useQuery({
-    queryKey: ['deploymentsActivity', studyId],
+  // Lightweight deployments query for the Overview map — server-side deduped
+  // by (latitude, longitude), no activity period aggregation. The Deployments
+  // tab keeps its own heavier ['deploymentsActivity', studyId] query for the
+  // observation-count-per-period visualization.
+  const { data: deploymentsData, error: deploymentsError } = useQuery({
+    queryKey: ['deployments', studyId],
     queryFn: async () => {
-      const response = await window.api.getDeploymentsActivity(studyId)
+      const response = await window.api.getDeployments(studyId)
       if (response.error) {
         throw new Error(response.error)
       }
@@ -333,20 +336,6 @@ export default function Overview({ data, studyId, studyName }) {
     enabled: !!studyId,
     refetchInterval: importStatus?.isRunning ? 5000 : false
   })
-
-  // De-duplicate deployments by coordinates for map (one marker per location)
-  const deploymentsData = useMemo(() => {
-    if (!deploymentsActivityData?.deployments) return []
-    const seen = new Map()
-    for (const d of deploymentsActivityData.deployments) {
-      const key = `${d.latitude},${d.longitude}`
-      // Keep the first deployment (or could pick by most recent date)
-      if (!seen.has(key)) {
-        seen.set(key, d)
-      }
-    }
-    return Array.from(seen.values())
-  }, [deploymentsActivityData])
 
   // Use sequence-aware species distribution
   // sequenceGap in queryKey ensures refetch when slider changes (backend fetches from metadata)

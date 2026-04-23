@@ -1583,6 +1583,7 @@ function ImageModal({
       queryClient.invalidateQueries({ queryKey: ['sequenceAwareDailyActivity', studyId] })
       queryClient.invalidateQueries({ queryKey: ['sequenceAwareHeatmap', studyId] })
       queryClient.invalidateQueries({ queryKey: ['blankMediaCount', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['bestMedia', studyId] })
     }
   })
 
@@ -1681,6 +1682,8 @@ function ImageModal({
       queryClient.invalidateQueries({ queryKey: ['mediaBboxes', studyId, media?.mediaID] })
       // Also update thumbnail grid
       queryClient.invalidateQueries({ queryKey: ['thumbnailBboxesBatch'] })
+      // Bbox geometry feeds the best-media composite score (area / visibility / padding)
+      queryClient.invalidateQueries({ queryKey: ['bestMedia', studyId] })
     }
   })
 
@@ -1731,6 +1734,8 @@ function ImageModal({
       queryClient.invalidateQueries({ queryKey: ['mediaBboxes', studyId, media?.mediaID] })
       // Also update thumbnail grid
       queryClient.invalidateQueries({ queryKey: ['thumbnailBboxesBatch'] })
+      // Deleting an observation can remove a media from the best-media candidate set
+      queryClient.invalidateQueries({ queryKey: ['bestMedia', studyId] })
     }
   })
 
@@ -1761,6 +1766,7 @@ function ImageModal({
       queryClient.invalidateQueries({ queryKey: ['sequenceAwareDailyActivity', studyId] })
       queryClient.invalidateQueries({ queryKey: ['sequenceAwareHeatmap', studyId] })
       queryClient.invalidateQueries({ queryKey: ['blankMediaCount', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['bestMedia', studyId] })
       // Exit draw mode and select the new observation
       setIsDrawMode(false)
       setSelectedBboxId(data.observationID)

@@ -27,7 +27,8 @@ export {
   getSpeciesDistributionByMedia,
   getSpeciesTimeseriesByMedia,
   getSpeciesHeatmapDataByMedia,
-  getSpeciesDailyActivityByMedia
+  getSpeciesDailyActivityByMedia,
+  getSequenceAwareSpeciesCountsSQL
 } from './species.js'
 
 // Media

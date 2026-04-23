@@ -266,30 +266,23 @@ export async function getBestMedia(dbPath, options = {}) {
   try {
     const studyId = getStudyIdFromPath(dbPath)
 
-    // Step 1: Get user-marked favorites first
-    // Note: We need to join observations via both mediaID AND timestamp (for CamTrap DP datasets
-    // where observations.mediaID is NULL and link is via eventStart = media.timestamp)
+    // Step 1: Get user-marked favorites first.
+    // Observations link to media via mediaID for most importers, or via
+    // eventStart = media.timestamp for CamTrap DP datasets (where
+    // observations.mediaID is NULL).
+    //
+    // The favorites CTE is materialized first so the ROW_NUMBER() subqueries
+    // only partition observations belonging to the ~12 favorite media, not
+    // the entire observations table (which can be millions of rows).
     const favoritesQuery = `
-      SELECT
-        m.mediaID,
-        m.filePath,
-        m.fileName,
-        m.timestamp,
-        m.deploymentID,
-        m.fileMediatype,
-        m.favorite,
-        COALESCE(o1.observationID, o2.observationID) as observationID,
-        COALESCE(o1.scientificName, o2.scientificName) as scientificName,
-        COALESCE(o1.bboxX, o2.bboxX) as bboxX,
-        COALESCE(o1.bboxY, o2.bboxY) as bboxY,
-        COALESCE(o1.bboxWidth, o2.bboxWidth) as bboxWidth,
-        COALESCE(o1.bboxHeight, o2.bboxHeight) as bboxHeight,
-        COALESCE(o1.detectionConfidence, o2.detectionConfidence) as detectionConfidence,
-        COALESCE(o1.classificationProbability, o2.classificationProbability) as classificationProbability,
-        999.0 as compositeScore
-      FROM media m
-      -- Strategy 1: Join via mediaID (for ML runs, Wildlife Insights, Deepfaune)
-      LEFT JOIN (
+      WITH favs AS (
+        SELECT
+          mediaID, filePath, fileName, timestamp, deploymentID, fileMediatype, favorite
+        FROM media
+        WHERE favorite = 1
+      ),
+      -- Strategy 1: Join via mediaID (ML runs, Wildlife Insights, Deepfaune)
+      obs_by_mediaID AS (
         SELECT
           mediaID,
           observationID,
@@ -299,11 +292,12 @@ export async function getBestMedia(dbPath, options = {}) {
           classificationProbability,
           ROW_NUMBER() OVER (PARTITION BY mediaID ORDER BY detectionConfidence DESC) as rn
         FROM observations
-        WHERE scientificName IS NOT NULL AND scientificName != ''
+        WHERE mediaID IN (SELECT mediaID FROM favs)
           AND mediaID IS NOT NULL
-      ) o1 ON m.mediaID = o1.mediaID AND o1.rn = 1
-      -- Strategy 2: Join via timestamp (for CamTrap DP datasets where mediaID is NULL)
-      LEFT JOIN (
+          AND scientificName IS NOT NULL AND scientificName != ''
+      ),
+      -- Strategy 2: Join via timestamp (CamTrap DP datasets)
+      obs_by_ts AS (
         SELECT
           eventStart,
           observationID,
@@ -313,12 +307,32 @@ export async function getBestMedia(dbPath, options = {}) {
           classificationProbability,
           ROW_NUMBER() OVER (PARTITION BY eventStart ORDER BY detectionConfidence DESC) as rn
         FROM observations
-        WHERE scientificName IS NOT NULL AND scientificName != ''
-          AND mediaID IS NULL
-      ) o2 ON m.timestamp = o2.eventStart AND o2.rn = 1
-      WHERE m.favorite = 1
-        AND COALESCE(o1.scientificName, o2.scientificName) IS NOT NULL
-      ORDER BY m.timestamp DESC
+        WHERE mediaID IS NULL
+          AND eventStart IN (SELECT timestamp FROM favs)
+          AND scientificName IS NOT NULL AND scientificName != ''
+      )
+      SELECT
+        f.mediaID,
+        f.filePath,
+        f.fileName,
+        f.timestamp,
+        f.deploymentID,
+        f.fileMediatype,
+        f.favorite,
+        COALESCE(o1.observationID, o2.observationID) as observationID,
+        COALESCE(o1.scientificName, o2.scientificName) as scientificName,
+        COALESCE(o1.bboxX, o2.bboxX) as bboxX,
+        COALESCE(o1.bboxY, o2.bboxY) as bboxY,
+        COALESCE(o1.bboxWidth, o2.bboxWidth) as bboxWidth,
+        COALESCE(o1.bboxHeight, o2.bboxHeight) as bboxHeight,
+        COALESCE(o1.detectionConfidence, o2.detectionConfidence) as detectionConfidence,
+        COALESCE(o1.classificationProbability, o2.classificationProbability) as classificationProbability,
+        999.0 as compositeScore
+      FROM favs f
+      LEFT JOIN obs_by_mediaID o1 ON o1.mediaID = f.mediaID AND o1.rn = 1
+      LEFT JOIN obs_by_ts o2 ON o2.eventStart = f.timestamp AND o2.rn = 1
+      WHERE COALESCE(o1.scientificName, o2.scientificName) IS NOT NULL
+      ORDER BY f.timestamp DESC
       LIMIT ?
     `
 
@@ -329,6 +343,32 @@ export async function getBestMedia(dbPath, options = {}) {
     if (favorites.length >= limit) {
       const elapsedTime = Date.now() - startTime
       log.info(`Retrieved ${favorites.length} best media (all favorites) in ${elapsedTime}ms`)
+      return favorites
+    }
+
+    // Short-circuit: the auto-scored CTE below requires observations with
+    // bbox geometry populated (area / visibility / padding feed the composite
+    // score). Datasets without usable bboxes (e.g. CamTrap DP exports with
+    // point-only annotations, or LILA/COCO sources) would otherwise scan
+    // millions of observation rows through four CTEs to return zero rows -
+    // ~28s of main-thread block on a 1.16M-row study with no bboxes. Mirror
+    // the probe pattern used in getBestImagePerSpecies.
+    const hasUsableBbox = await executeRawQuery(
+      studyId,
+      dbPath,
+      `SELECT 1 FROM observations
+         WHERE bboxX IS NOT NULL
+           AND bboxWidth IS NOT NULL
+           AND bboxWidth > 0
+           AND bboxHeight > 0
+         LIMIT 1`,
+      []
+    )
+    if (hasUsableBbox.length === 0) {
+      const elapsedTime = Date.now() - startTime
+      log.info(
+        `Retrieved ${favorites.length} best media (${favorites.length} favorites, no usable bbox data) in ${elapsedTime}ms`
+      )
       return favorites
     }
 
@@ -555,6 +595,31 @@ export async function getBestImagePerSpecies(dbPath) {
 
   try {
     const studyId = getStudyIdFromPath(dbPath)
+
+    // Short-circuit: the scoring formula requires bbox area/visibility/padding,
+    // which only make sense when bboxWidth/bboxHeight are populated. Many
+    // datasets (e.g. CamTrap DP exports with point-only annotations) have
+    // bboxX/bboxY but no bbox size. On such datasets the big CTE below
+    // evaluates to zero rows but still scans the whole observations table
+    // (~2s on 2.7M rows). A quick EXISTS probe is cheap when bboxes are
+    // present (stops at the first match) and bounded when they are not
+    // (full scan ~200ms on gmu8_leuven, vs the query's ~2.3s).
+    const hasUsableBbox = await executeRawQuery(
+      studyId,
+      dbPath,
+      `SELECT 1 FROM observations
+         WHERE bboxX IS NOT NULL
+           AND bboxWidth IS NOT NULL
+           AND bboxWidth > 0
+           AND bboxHeight > 0
+         LIMIT 1`,
+      []
+    )
+    if (hasUsableBbox.length === 0) {
+      const elapsedTime = Date.now() - startTime
+      log.info(`Retrieved best images for 0 species in ${elapsedTime}ms (no usable bbox data)`)
+      return []
+    }
 
     // Use the same scoring formula as getBestMedia but return only one per species
     const query = `

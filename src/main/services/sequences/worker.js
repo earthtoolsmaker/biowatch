@@ -1,8 +1,11 @@
 /**
- * Worker thread for sequence-aware computations.
+ * Worker thread for heavy DB computations.
  *
- * Runs DB queries and sequence grouping off the main thread so the UI stays
- * responsive. Each worker instance handles a single task then exits.
+ * Dispatches on `workerData.type`: sequence-aware species-distribution,
+ * timeseries, heatmap, daily-activity, and the best-media scoring pipeline.
+ * Runs off the main thread so the renderer UI stays responsive during
+ * multi-second SQLite scans. Each worker instance handles a single task
+ * then exits.
  */
 
 import { parentPort, workerData } from 'worker_threads'
@@ -12,7 +15,9 @@ import {
   getSpeciesDistributionByMedia,
   getSpeciesTimeseriesByMedia,
   getSpeciesHeatmapDataByMedia,
-  getSpeciesDailyActivityByMedia
+  getSpeciesDailyActivityByMedia,
+  getSequenceAwareSpeciesCountsSQL,
+  getBestMedia
 } from '../../database/index.js'
 import {
   calculateSequenceAwareSpeciesCounts,
@@ -45,6 +50,12 @@ async function run() {
 
   switch (type) {
     case 'species-distribution': {
+      // Fast path: SQL aggregate handles gapSeconds === null and === 0, returns
+      // the final [{scientificName, count}] directly (83 rows, not 1.65M).
+      // Returns null for positive gapSeconds, in which case we fall back to the
+      // row-dump + JS sequence grouping below.
+      const fast = await getSequenceAwareSpeciesCountsSQL(dbPath, effectiveGapSeconds)
+      if (fast !== null) return fast
       const rawData = await getSpeciesDistributionByMedia(dbPath)
       return calculateSequenceAwareSpeciesCounts(rawData, effectiveGapSeconds)
     }
@@ -67,6 +78,12 @@ async function run() {
     case 'daily-activity': {
       const rawData = await getSpeciesDailyActivityByMedia(dbPath, speciesNames, startDate, endDate)
       return calculateSequenceAwareDailyActivity(rawData, effectiveGapSeconds, speciesNames)
+    }
+    case 'best-media': {
+      // Off-main-thread path for the best-captures carousel. Covers both the
+      // favorites CTE and the (potentially heavy) auto-scored CTE. See
+      // src/main/database/queries/best-media.js for the query pipeline.
+      return getBestMedia(dbPath, workerData.options || {})
     }
     default:
       throw new Error(`Unknown worker task type: ${type}`)
