@@ -10,9 +10,11 @@ import { join } from 'path'
 import { Worker } from 'worker_threads'
 
 /**
- * @param {Object} workerData - Task parameters passed to the worker (must
- *   include at least { type, dbPath, studyId }; other fields are forwarded
- *   verbatim to the switch in worker.js).
+ * @param {Object} workerData - Task parameters passed to the worker. Must
+ *   include at minimum `{ type, dbPath }`. `studyId` is only read by tasks
+ *   that resolve sequenceGap from metadata (species-distribution, timeseries,
+ *   heatmap, daily-activity); best-media ignores it. Any other fields are
+ *   forwarded verbatim to the switch in worker.js.
  * @returns {Promise<*>} The worker's posted result, or rejects with the
  *   worker's error.
  */

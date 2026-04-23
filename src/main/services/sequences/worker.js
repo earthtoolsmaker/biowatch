@@ -1,8 +1,11 @@
 /**
- * Worker thread for sequence-aware computations.
+ * Worker thread for heavy DB computations.
  *
- * Runs DB queries and sequence grouping off the main thread so the UI stays
- * responsive. Each worker instance handles a single task then exits.
+ * Dispatches on `workerData.type`: sequence-aware species-distribution,
+ * timeseries, heatmap, daily-activity, and the best-media scoring pipeline.
+ * Runs off the main thread so the renderer UI stays responsive during
+ * multi-second SQLite scans. Each worker instance handles a single task
+ * then exits.
  */
 
 import { parentPort, workerData } from 'worker_threads'
