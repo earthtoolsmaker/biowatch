@@ -273,6 +273,32 @@ export function pivotPreAggregatedDailyActivity(rows, selectedSpecies) {
 }
 
 /**
+ * Pivot pre-aggregated `[{ scientificName, latitude, longitude, locationName,
+ * count }]` rows (as returned by getSequenceAwareHeatmapSQL) into the
+ * `{ [scientificName]: [{ lat, lng, count, locationName }] }` shape the
+ * heatmap consumer expects. Lets the SQL fast path skip the
+ * calculateSequenceAwareHeatmap pipeline entirely.
+ *
+ * @param {Array<{scientificName: string, latitude: number, longitude: number, locationName: string, count: number}>} rows
+ * @returns {Object<string, Array<{lat: number, lng: number, count: number, locationName: string}>>}
+ */
+export function pivotPreAggregatedHeatmap(rows) {
+  if (!rows || rows.length === 0) return {}
+  const out = {}
+  for (const { scientificName, latitude, longitude, locationName, count } of rows) {
+    if (latitude == null || longitude == null) continue
+    if (!out[scientificName]) out[scientificName] = []
+    out[scientificName].push({
+      lat: parseFloat(latitude),
+      lng: parseFloat(longitude),
+      count,
+      locationName
+    })
+  }
+  return out
+}
+
+/**
  * Calculates sequence-aware species counts grouped by location for heatmap pie charts.
  *
  * @param {Array} observationsByMedia - Array of { scientificName, mediaID, timestamp, deploymentID, eventID, fileMediatype, latitude, longitude, locationName, count }

@@ -17,6 +17,7 @@ import {
   getSpeciesHeatmapDataByMedia,
   getSequenceAwareSpeciesCountsSQL,
   getSequenceAwareTimeseriesSQL,
+  getSequenceAwareHeatmapSQL,
   getSequenceAwareDailyActivitySQL,
   getBestMedia,
   getDeploymentsActivity
@@ -27,7 +28,8 @@ import {
   calculateSequenceAwareTimeseries,
   calculateSequenceAwareHeatmap,
   pivotPreAggregatedTimeseries,
-  pivotPreAggregatedDailyActivity
+  pivotPreAggregatedDailyActivity,
+  pivotPreAggregatedHeatmap
 } from './speciesCounts.js'
 
 async function run() {
@@ -79,6 +81,24 @@ async function run() {
       return calculateSequenceAwareTimeseries(rawData, effectiveGapSeconds)
     }
     case 'heatmap': {
+      // Fast path: SQL aggregate handles all three gap cases (per-media,
+      // eventID, time-gap) and returns pre-grouped (species, lat, lng, count)
+      // rows — on gmu8_leuven the IPC payload goes from ~400MB of raw
+      // observation rows to <100KB, with no JS-side aggregation.
+      // Returns null only when BLANK_SENTINEL is in speciesNames, in which
+      // case we fall back to the JS path (which doesn't handle blanks either
+      // — the fallback is future-proofing).
+      const fastRows = await getSequenceAwareHeatmapSQL(
+        dbPath,
+        speciesNames,
+        startDate,
+        endDate,
+        startHour,
+        endHour,
+        includeNullTimestamps,
+        effectiveGapSeconds
+      )
+      if (fastRows !== null) return pivotPreAggregatedHeatmap(fastRows)
       const rawData = await getSpeciesHeatmapDataByMedia(
         dbPath,
         speciesNames,
