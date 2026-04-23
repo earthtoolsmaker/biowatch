@@ -346,7 +346,8 @@ export default function Overview({ data, studyId, studyName }) {
     },
     enabled: !!studyId,
     refetchInterval: importStatus?.isRunning ? 5000 : false,
-    placeholderData: (prev) => prev
+    placeholderData: (prev) => prev,
+    staleTime: Infinity
   })
 
   const error = speciesError?.message || deploymentsError?.message || null

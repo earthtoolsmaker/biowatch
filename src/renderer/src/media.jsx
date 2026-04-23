@@ -3688,7 +3688,8 @@ export default function Activity({ studyData, studyId }) {
     },
     enabled: !!actualStudyId,
     placeholderData: (prev) => prev,
-    refetchInterval: importStatus?.isRunning ? 5000 : false
+    refetchInterval: importStatus?.isRunning ? 5000 : false,
+    staleTime: Infinity
   })
 
   // Fetch blank media count (media without observations)
