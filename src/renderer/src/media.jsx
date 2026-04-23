@@ -3231,7 +3231,13 @@ function isVideoMedia(mediaItem) {
   return ext ? videoExtensions.includes(ext) : false
 }
 
-function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false }) {
+function Gallery({
+  species,
+  dateRange,
+  timeRange,
+  includeNullTimestamps = false,
+  speciesReady = false
+}) {
   const [imageErrors, setImageErrors] = useState(() => {
     const initial = {}
     for (const mediaID of failedMediaIds) {
@@ -3315,7 +3321,11 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
 
   // Sequence gap - uses React Query cache for cross-component sync
   // Default value is set during study import based on whether the dataset has eventIDs
-  const { sequenceGap, setSequenceGap } = useSequenceGap(id)
+  const {
+    sequenceGap,
+    setSequenceGap,
+    isLoading: isSequenceGapLoading
+  } = useSequenceGap(id)
 
   // Fetch pre-grouped sequences from main process with cursor-based pagination
   // This moves the grouping logic to the main process, keeping the client "dumb"
@@ -3349,7 +3359,11 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
       // Use cursor-based pagination - server returns nextCursor
       return lastPage.hasMore ? lastPage.nextCursor : undefined
     },
-    enabled: !!id && (includeNullTimestamps || (!!dateRange[0] && !!dateRange[1]))
+    enabled:
+      !!id &&
+      (includeNullTimestamps || (!!dateRange[0] && !!dateRange[1])) &&
+      !isSequenceGapLoading &&
+      speciesReady
   })
 
   // Flatten all pages of sequences into a single array
@@ -3674,6 +3688,11 @@ export default function Activity({ studyData, studyId }) {
   const [searchParams, setSearchParams] = useSearchParams()
 
   const [selectedSpecies, setSelectedSpecies] = useState([])
+  // Flips true after selectedSpecies has been initialised from the
+  // speciesDistributionData effect, so downstream components (Gallery,
+  // Timeline, Radar) only mount once their queryKey inputs are stable
+  // rather than fetching on every cascading state update.
+  const [speciesInitialized, setSpeciesInitialized] = useState(false)
   const [dateRange, setDateRange] = useState([null, null])
   const [fullExtent, setFullExtent] = useState([null, null])
   const [timeRange, setTimeRange] = useState({ start: 0, end: 24 })
@@ -3728,6 +3747,7 @@ export default function Activity({ studyData, studyId }) {
         setSelectedSpecies([speciesData])
         // Clear the URL param after applying
         setSearchParams({}, { replace: true })
+        setSpeciesInitialized(true)
         return
       }
     }
@@ -3736,6 +3756,9 @@ export default function Activity({ studyData, studyId }) {
     if (selectedSpecies.length === 0) {
       setSelectedSpecies(getTopNonHumanSpecies(speciesDistributionData, 2))
     }
+    // Signal to downstream components (Gallery, Timeline, Radar) that species
+    // inputs have settled so their queryKey stabilises and they fetch once.
+    setSpeciesInitialized(true)
   }, [speciesDistributionData, searchParams, setSearchParams, selectedSpecies.length])
 
   // Drop filter entries whose species no longer exists (e.g. after a rename
@@ -3865,12 +3888,15 @@ export default function Activity({ studyData, studyId }) {
 
             {/* Map - right side */}
             <div className="h-full flex-1">
-              <Gallery
-                species={selectedSpecies.map((s) => s.scientificName)}
-                dateRange={dateRange}
-                timeRange={timeRange}
-                includeNullTimestamps={isFullRange}
-              />
+              {speciesInitialized && sequenceGap !== undefined && (
+                <Gallery
+                  species={selectedSpecies.map((s) => s.scientificName)}
+                  dateRange={dateRange}
+                  timeRange={timeRange}
+                  includeNullTimestamps={isFullRange}
+                  speciesReady={speciesInitialized}
+                />
+              )}
             </div>
             <div className="h-full overflow-auto w-xs">
               {speciesDistributionData && (
@@ -3887,32 +3913,36 @@ export default function Activity({ studyData, studyId }) {
             </div>
           </div>
 
-          {/* Second row - fixed height with timeline and clock */}
-          <div className="w-full flex h-[130px] flex-shrink-0 gap-3">
-            <div className="w-[140px] h-full rounded border border-gray-200 flex items-center justify-center relative">
-              <DailyActivityRadar
-                activityData={dailyActivityData}
-                selectedSpecies={selectedSpecies}
-                palette={palette}
-              />
-              <div className="absolute w-full h-full flex items-center justify-center">
-                <CircularTimeFilter
-                  onChange={handleTimeRangeChange}
-                  startTime={timeRange.start}
-                  endTime={timeRange.end}
+          {/* Second row - fixed height with timeline and clock.
+              Hidden entirely until species + sequenceGap are settled so the
+              bordered containers don't appear empty during the initial load. */}
+          {speciesInitialized && sequenceGap !== undefined && (
+            <div className="w-full flex h-[130px] flex-shrink-0 gap-3">
+              <div className="w-[140px] h-full rounded border border-gray-200 flex items-center justify-center relative">
+                <DailyActivityRadar
+                  activityData={dailyActivityData}
+                  selectedSpecies={selectedSpecies}
+                  palette={palette}
+                />
+                <div className="absolute w-full h-full flex items-center justify-center">
+                  <CircularTimeFilter
+                    onChange={handleTimeRangeChange}
+                    startTime={timeRange.start}
+                    endTime={timeRange.end}
+                  />
+                </div>
+              </div>
+              <div className="flex-grow rounded px-2 border border-gray-200">
+                <TimelineChart
+                  timeseriesData={timeseriesData}
+                  selectedSpecies={selectedSpecies}
+                  dateRange={dateRange}
+                  setDateRange={setDateRange}
+                  palette={palette}
                 />
               </div>
             </div>
-            <div className="flex-grow rounded px-2 border border-gray-200">
-              <TimelineChart
-                timeseriesData={timeseriesData}
-                selectedSpecies={selectedSpecies}
-                dateRange={dateRange}
-                setDateRange={setDateRange}
-                palette={palette}
-              />
-            </div>
-          </div>
+          )}
         </div>
       )}
     </div>
