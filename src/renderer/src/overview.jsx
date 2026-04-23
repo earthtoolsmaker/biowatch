@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useMemo } from 'react'
 import ReactDOMServer from 'react-dom/server'
 import L from 'leaflet'
 import { LayersControl, MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
+import MarkerClusterGroup from 'react-leaflet-cluster'
 import {
   Camera,
   ChevronDown,
@@ -40,6 +41,47 @@ function LayerChangeHandler({ onLayerChange }) {
   return null
 }
 
+// Re-fit bounds when the map container resizes (e.g., when sibling panels
+// finish loading and change the map's width), until the user interacts.
+function FitBoundsOnResize({ bounds }) {
+  const map = useMap()
+  const boundsRef = useRef(bounds)
+
+  useEffect(() => {
+    boundsRef.current = bounds
+  }, [bounds])
+
+  useEffect(() => {
+    const container = map.getContainer()
+    const userInteracted = { current: false }
+    const markInteracted = () => {
+      userInteracted.current = true
+    }
+    container.addEventListener('mousedown', markInteracted)
+    container.addEventListener('wheel', markInteracted, { passive: true })
+    container.addEventListener('touchstart', markInteracted, { passive: true })
+    container.addEventListener('keydown', markInteracted)
+
+    const observer = new ResizeObserver(() => {
+      map.invalidateSize()
+      if (!userInteracted.current && boundsRef.current) {
+        map.fitBounds(boundsRef.current, { padding: [150, 150] })
+      }
+    })
+    observer.observe(container)
+
+    return () => {
+      observer.disconnect()
+      container.removeEventListener('mousedown', markInteracted)
+      container.removeEventListener('wheel', markInteracted)
+      container.removeEventListener('touchstart', markInteracted)
+      container.removeEventListener('keydown', markInteracted)
+    }
+  }, [map])
+
+  return null
+}
+
 // CamtrapDP spec-compliant contributor roles
 // Note: 'author' is NOT in the spec, use 'contributor' instead
 const CONTRIBUTOR_ROLES = [
@@ -49,6 +91,32 @@ const CONTRIBUTOR_ROLES = [
   { value: 'publisher', label: 'Publisher' },
   { value: 'contributor', label: 'Contributor' }
 ]
+
+// Custom cluster icon creator
+const createClusterCustomIcon = (cluster) => {
+  const count = cluster.getChildCount()
+  let size = 'small'
+  if (count >= 10) size = 'medium'
+  if (count >= 50) size = 'large'
+
+  const sizeClasses = {
+    small: 'w-8 h-8 text-xs',
+    medium: 'w-10 h-10 text-sm',
+    large: 'w-12 h-12 text-base'
+  }
+
+  const icon = L.divIcon({
+    html: `<div class="flex items-center justify-center ${sizeClasses[size]} bg-blue-500 text-white rounded-full border-2 border-white shadow-lg font-semibold">${count}</div>`,
+    className: 'custom-cluster-icon',
+    iconSize: L.point(40, 40, true)
+  })
+
+  cluster.options.title = ''
+  cluster.unbindTooltip()
+  cluster.bindTooltip(`${count} deployments`, { direction: 'top', offset: [0, -15] })
+
+  return icon
+}
 
 function DeploymentMap({ deployments, studyId }) {
   // Persist map layer selection per study
@@ -156,24 +224,37 @@ function DeploymentMap({ deployments, studyId }) {
           </LayersControl.BaseLayer>
         </LayersControl>
         <LayerChangeHandler onLayerChange={setSelectedLayer} />
-        {validDeployments.map((deployment) => (
-          <Marker
-            key={deployment.deploymentID}
-            position={[parseFloat(deployment.latitude), parseFloat(deployment.longitude)]}
-            icon={cameraIcon}
-          >
-            <Popup>
-              <div>
-                <h3 className="text-base font-semibold">
-                  {deployment.locationName || deployment.locationID || 'Unnamed Location'}
-                </h3>
-                <p className="text-sm">
-                  {formatDate(deployment.deploymentStart)} - {formatDate(deployment.deploymentEnd)}
-                </p>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
+        <FitBoundsOnResize bounds={bounds} />
+        <MarkerClusterGroup
+          chunkedLoading
+          iconCreateFunction={createClusterCustomIcon}
+          maxClusterRadius={50}
+          spiderfyOnMaxZoom
+          showCoverageOnHover={false}
+          zoomToBoundsOnClick
+          polygonOptions={{ opacity: 0 }}
+          singleMarkerMode={false}
+        >
+          {validDeployments.map((deployment) => (
+            <Marker
+              key={deployment.deploymentID}
+              position={[parseFloat(deployment.latitude), parseFloat(deployment.longitude)]}
+              icon={cameraIcon}
+            >
+              <Popup>
+                <div>
+                  <h3 className="text-base font-semibold">
+                    {deployment.locationName || deployment.locationID || 'Unnamed Location'}
+                  </h3>
+                  <p className="text-sm">
+                    {formatDate(deployment.deploymentStart)} -{' '}
+                    {formatDate(deployment.deploymentEnd)}
+                  </p>
+                </div>
+              </Popup>
+            </Marker>
+          ))}
+        </MarkerClusterGroup>
       </MapContainer>
     </div>
   )
