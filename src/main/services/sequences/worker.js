@@ -2,10 +2,10 @@
  * Worker thread for heavy DB computations.
  *
  * Dispatches on `workerData.type`: sequence-aware species-distribution,
- * timeseries, heatmap, daily-activity, and the best-media scoring pipeline.
- * Runs off the main thread so the renderer UI stays responsive during
- * multi-second SQLite scans. Each worker instance handles a single task
- * then exits.
+ * timeseries, heatmap, daily-activity, pagination, and the best-media
+ * scoring pipeline. Runs off the main thread so the renderer UI stays
+ * responsive during multi-second SQLite scans. Each worker instance handles
+ * a single task then exits.
  */
 
 import { parentPort, workerData } from 'worker_threads'
@@ -15,15 +15,18 @@ import {
   getSpeciesDistributionByMedia,
   getSpeciesTimeseriesByMedia,
   getSpeciesHeatmapDataByMedia,
-  getSpeciesDailyActivityByMedia,
   getSequenceAwareSpeciesCountsSQL,
+  getSequenceAwareTimeseriesSQL,
+  getSequenceAwareDailyActivitySQL,
   getBestMedia
 } from '../../database/index.js'
+import { getPaginatedSequences } from './pagination.js'
 import {
   calculateSequenceAwareSpeciesCounts,
   calculateSequenceAwareTimeseries,
   calculateSequenceAwareHeatmap,
-  calculateSequenceAwareDailyActivity
+  pivotPreAggregatedTimeseries,
+  pivotPreAggregatedDailyActivity
 } from './speciesCounts.js'
 
 async function run() {
@@ -60,6 +63,17 @@ async function run() {
       return calculateSequenceAwareSpeciesCounts(rawData, effectiveGapSeconds)
     }
     case 'timeseries': {
+      // Fast path: SQL aggregate handles gapSeconds === null and === 0,
+      // returns pre-grouped (species, week, count) rows — orders of magnitude
+      // smaller than the raw observation-per-media dump the JS path needs.
+      // Returns null for positive gapSeconds → fall back to the JS path for
+      // time-gap-based sequence grouping.
+      const fastRows = await getSequenceAwareTimeseriesSQL(
+        dbPath,
+        speciesNames,
+        effectiveGapSeconds
+      )
+      if (fastRows !== null) return pivotPreAggregatedTimeseries(fastRows)
       const rawData = await getSpeciesTimeseriesByMedia(dbPath, speciesNames)
       return calculateSequenceAwareTimeseries(rawData, effectiveGapSeconds)
     }
@@ -76,14 +90,26 @@ async function run() {
       return calculateSequenceAwareHeatmap(rawData, effectiveGapSeconds)
     }
     case 'daily-activity': {
-      const rawData = await getSpeciesDailyActivityByMedia(dbPath, speciesNames, startDate, endDate)
-      return calculateSequenceAwareDailyActivity(rawData, effectiveGapSeconds, speciesNames)
+      const rows = await getSequenceAwareDailyActivitySQL(
+        dbPath,
+        speciesNames,
+        startDate,
+        endDate,
+        effectiveGapSeconds
+      )
+      return pivotPreAggregatedDailyActivity(rows || [], speciesNames)
     }
     case 'best-media': {
       // Off-main-thread path for the best-captures carousel. Covers both the
       // favorites CTE and the (potentially heavy) auto-scored CTE. See
       // src/main/database/queries/best-media.js for the query pipeline.
       return getBestMedia(dbPath, workerData.options || {})
+    }
+    case 'pagination': {
+      // Gallery paginated sequences. Studies with long event-grouped sequences
+      // can require scanning hundreds of media to form one page of 15 — running
+      // on main was causing multi-second input freezes on large studies.
+      return getPaginatedSequences(dbPath, workerData.options || {})
     }
     default:
       throw new Error(`Unknown worker task type: ${type}`)

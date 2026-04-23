@@ -222,8 +222,9 @@ export {
   getSpeciesDistributionByMedia,
   getSpeciesTimeseriesByMedia,
   getSpeciesHeatmapDataByMedia,
-  getSpeciesDailyActivityByMedia,
   getSequenceAwareSpeciesCountsSQL,
+  getSequenceAwareTimeseriesSQL,
+  getSequenceAwareDailyActivitySQL,
   // Media
   getFilesData,
   getMediaBboxes,

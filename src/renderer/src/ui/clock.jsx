@@ -14,9 +14,13 @@ const CircularTimeFilter = ({ onChange, startTime = 6, endTime = 18 }) => {
   const svgSize = radius * 2 + padding * 2 // Increase SVG size to accommodate padding
   const center = { x: radius + padding, y: radius + padding } // Adjust center coordinates
 
+  // Sync local state when parent updates the bounds externally (e.g. tab
+  // switch). Does NOT fire onChange continuously — that happens only on
+  // pointer release so downstream queries don't refetch per-mousemove.
   useEffect(() => {
-    onChange({ start, end })
-  }, [start, end, onChange])
+    setStart(startTime)
+    setEnd(endTime)
+  }, [startTime, endTime])
 
   const isFullDayRange = () => {
     return Math.abs(end - start) >= 23.9 || start === end
@@ -96,10 +100,14 @@ const CircularTimeFilter = ({ onChange, startTime = 6, endTime = 18 }) => {
   }
 
   const handleMouseUp = () => {
+    const wasDragging = isDraggingStart || isDraggingEnd || isDraggingArc
     setIsDraggingStart(false)
     setIsDraggingEnd(false)
     setIsDraggingArc(false)
     setLastDragPosition(null)
+    // Commit-on-release: fire onChange once with the final value, rather
+    // than per-mousemove during the drag.
+    if (wasDragging) onChange({ start, end })
   }
 
   useEffect(() => {

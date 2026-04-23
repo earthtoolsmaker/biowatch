@@ -1468,9 +1468,18 @@ function ImageModal({
         onTimestampUpdate(media.mediaID, savedTimestamp)
       }
 
-      // Invalidate relevant queries
+      // Invalidate relevant queries. Timestamp edits shift which week / hour
+      // a media falls into and can reshape sequence grouping, so every
+      // sequence-aware cache needs to refresh alongside the raw media data.
       queryClient.invalidateQueries({ queryKey: ['media'] })
       queryClient.invalidateQueries({ queryKey: ['mediaBboxes', studyId, media.mediaID] })
+      queryClient.invalidateQueries({ queryKey: ['sequences', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['sequenceAwareSpeciesDistribution', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['sequenceAwareTimeseries', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['sequenceAwareDailyActivity', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['sequenceAwareHeatmap', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['blankMediaCount', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['bestMedia', studyId] })
 
       setShowDatePicker(false)
       setIsEditingTimestamp(false)
@@ -1732,9 +1741,16 @@ function ImageModal({
     onSettled: () => {
       // Refetch to ensure sync
       queryClient.invalidateQueries({ queryKey: ['mediaBboxes', studyId, media?.mediaID] })
-      // Also update thumbnail grid
+      queryClient.invalidateQueries({ queryKey: ['distinctSpecies', studyId] })
       queryClient.invalidateQueries({ queryKey: ['thumbnailBboxesBatch'] })
-      // Deleting an observation can remove a media from the best-media candidate set
+      queryClient.invalidateQueries({ queryKey: ['sequences', studyId] })
+      // Deleting an observation changes species counts, timeseries, and can make
+      // the underlying media become "blank" (no remaining observations).
+      queryClient.invalidateQueries({ queryKey: ['sequenceAwareSpeciesDistribution', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['sequenceAwareTimeseries', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['sequenceAwareDailyActivity', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['sequenceAwareHeatmap', studyId] })
+      queryClient.invalidateQueries({ queryKey: ['blankMediaCount', studyId] })
       queryClient.invalidateQueries({ queryKey: ['bestMedia', studyId] })
     }
   })
@@ -3224,7 +3240,13 @@ function isVideoMedia(mediaItem) {
   return ext ? videoExtensions.includes(ext) : false
 }
 
-function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false }) {
+function Gallery({
+  species,
+  dateRange,
+  timeRange,
+  includeNullTimestamps = false,
+  speciesReady = false
+}) {
   const [imageErrors, setImageErrors] = useState(() => {
     const initial = {}
     for (const mediaID of failedMediaIds) {
@@ -3308,7 +3330,7 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
 
   // Sequence gap - uses React Query cache for cross-component sync
   // Default value is set during study import based on whether the dataset has eventIDs
-  const { sequenceGap, setSequenceGap } = useSequenceGap(id)
+  const { sequenceGap, setSequenceGap, isLoading: isSequenceGapLoading } = useSequenceGap(id)
 
   // Fetch pre-grouped sequences from main process with cursor-based pagination
   // This moves the grouping logic to the main process, keeping the client "dumb"
@@ -3342,7 +3364,11 @@ function Gallery({ species, dateRange, timeRange, includeNullTimestamps = false 
       // Use cursor-based pagination - server returns nextCursor
       return lastPage.hasMore ? lastPage.nextCursor : undefined
     },
-    enabled: !!id && (includeNullTimestamps || (!!dateRange[0] && !!dateRange[1]))
+    enabled:
+      !!id &&
+      (includeNullTimestamps || (!!dateRange[0] && !!dateRange[1])) &&
+      !isSequenceGapLoading &&
+      speciesReady
   })
 
   // Flatten all pages of sequences into a single array
@@ -3667,6 +3693,11 @@ export default function Activity({ studyData, studyId }) {
   const [searchParams, setSearchParams] = useSearchParams()
 
   const [selectedSpecies, setSelectedSpecies] = useState([])
+  // Flips true after selectedSpecies has been initialised from the
+  // speciesDistributionData effect, so downstream components (Gallery,
+  // Timeline, Radar) only mount once their queryKey inputs are stable
+  // rather than fetching on every cascading state update.
+  const [speciesInitialized, setSpeciesInitialized] = useState(false)
   const [dateRange, setDateRange] = useState([null, null])
   const [fullExtent, setFullExtent] = useState([null, null])
   const [timeRange, setTimeRange] = useState({ start: 0, end: 24 })
@@ -3686,9 +3717,10 @@ export default function Activity({ studyData, studyId }) {
       if (response.error) throw new Error(response.error)
       return response.data
     },
-    enabled: !!actualStudyId,
+    enabled: !!actualStudyId && sequenceGap !== undefined,
     placeholderData: (prev) => prev,
-    refetchInterval: importStatus?.isRunning ? 5000 : false
+    refetchInterval: importStatus?.isRunning ? 5000 : false,
+    staleTime: Infinity
   })
 
   // Fetch blank media count (media without observations)
@@ -3700,7 +3732,8 @@ export default function Activity({ studyData, studyId }) {
       return response.data
     },
     enabled: !!actualStudyId,
-    refetchInterval: importStatus?.isRunning ? 5000 : false
+    refetchInterval: importStatus?.isRunning ? 5000 : false,
+    staleTime: Infinity
   })
 
   // Initialize selectedSpecies when speciesDistributionData loads
@@ -3719,6 +3752,7 @@ export default function Activity({ studyData, studyId }) {
         setSelectedSpecies([speciesData])
         // Clear the URL param after applying
         setSearchParams({}, { replace: true })
+        setSpeciesInitialized(true)
         return
       }
     }
@@ -3727,6 +3761,9 @@ export default function Activity({ studyData, studyId }) {
     if (selectedSpecies.length === 0) {
       setSelectedSpecies(getTopNonHumanSpecies(speciesDistributionData, 2))
     }
+    // Signal to downstream components (Gallery, Timeline, Radar) that species
+    // inputs have settled so their queryKey stabilises and they fetch once.
+    setSpeciesInitialized(true)
   }, [speciesDistributionData, searchParams, setSearchParams, selectedSpecies.length])
 
   // Drop filter entries whose species no longer exists (e.g. after a rename
@@ -3755,7 +3792,7 @@ export default function Activity({ studyData, studyId }) {
       if (response.error) throw new Error(response.error)
       return response.data
     },
-    enabled: !!actualStudyId && speciesNames.length > 0,
+    enabled: !!actualStudyId && speciesNames.length > 0 && sequenceGap !== undefined,
     placeholderData: (prev) => prev,
     refetchInterval: importStatus?.isRunning ? 5000 : false
   })
@@ -3799,28 +3836,38 @@ export default function Activity({ studyData, studyId }) {
     return startMatch && endMatch
   }, [hasTemporalData, fullExtent, dateRange])
 
-  // Fetch sequence-aware daily activity data
-  // sequenceGap in queryKey ensures refetch when slider changes (backend fetches from metadata)
+  // Fetch sequence-aware daily activity data.
+  // Effective dateRange falls back to fullExtent so the radar can render
+  // before the user has brushed a custom range. Gallery keeps its
+  // dateRange-null = "select all" semantic untouched; this fallback is
+  // local to the daily-activity query.
+  const dailyActivityStart = dateRange[0] ?? fullExtent[0]
+  const dailyActivityEnd = dateRange[1] ?? fullExtent[1]
   const { data: dailyActivityData } = useQuery({
     queryKey: [
       'sequenceAwareDailyActivity',
       actualStudyId,
       [...speciesNames].sort(),
-      dateRange[0]?.toISOString(),
-      dateRange[1]?.toISOString(),
+      dailyActivityStart?.toISOString(),
+      dailyActivityEnd?.toISOString(),
       sequenceGap
     ],
     queryFn: async () => {
       const response = await window.api.getSequenceAwareDailyActivity(
         actualStudyId,
         speciesNames,
-        dateRange[0]?.toISOString(),
-        dateRange[1]?.toISOString()
+        dailyActivityStart?.toISOString(),
+        dailyActivityEnd?.toISOString()
       )
       if (response.error) throw new Error(response.error)
       return response.data
     },
-    enabled: !!actualStudyId && speciesNames.length > 0 && !!dateRange[0] && !!dateRange[1],
+    enabled:
+      !!actualStudyId &&
+      speciesNames.length > 0 &&
+      !!dailyActivityStart &&
+      !!dailyActivityEnd &&
+      sequenceGap !== undefined,
     placeholderData: (prev) => prev,
     refetchInterval: importStatus?.isRunning ? 5000 : false
   })
@@ -3851,12 +3898,15 @@ export default function Activity({ studyData, studyId }) {
 
             {/* Map - right side */}
             <div className="h-full flex-1">
-              <Gallery
-                species={selectedSpecies.map((s) => s.scientificName)}
-                dateRange={dateRange}
-                timeRange={timeRange}
-                includeNullTimestamps={isFullRange}
-              />
+              {speciesInitialized && sequenceGap !== undefined && (
+                <Gallery
+                  species={selectedSpecies.map((s) => s.scientificName)}
+                  dateRange={dateRange}
+                  timeRange={timeRange}
+                  includeNullTimestamps={isFullRange}
+                  speciesReady={speciesInitialized}
+                />
+              )}
             </div>
             <div className="h-full overflow-auto w-xs">
               {speciesDistributionData && (
@@ -3873,32 +3923,36 @@ export default function Activity({ studyData, studyId }) {
             </div>
           </div>
 
-          {/* Second row - fixed height with timeline and clock */}
-          <div className="w-full flex h-[130px] flex-shrink-0 gap-3">
-            <div className="w-[140px] h-full rounded border border-gray-200 flex items-center justify-center relative">
-              <DailyActivityRadar
-                activityData={dailyActivityData}
-                selectedSpecies={selectedSpecies}
-                palette={palette}
-              />
-              <div className="absolute w-full h-full flex items-center justify-center">
-                <CircularTimeFilter
-                  onChange={handleTimeRangeChange}
-                  startTime={timeRange.start}
-                  endTime={timeRange.end}
+          {/* Second row - fixed height with timeline and clock.
+              Hidden entirely until species + sequenceGap are settled so the
+              bordered containers don't appear empty during the initial load. */}
+          {speciesInitialized && sequenceGap !== undefined && (
+            <div className="w-full flex h-[130px] flex-shrink-0 gap-3">
+              <div className="w-[140px] h-full rounded border border-gray-200 flex items-center justify-center relative">
+                <DailyActivityRadar
+                  activityData={dailyActivityData}
+                  selectedSpecies={selectedSpecies}
+                  palette={palette}
+                />
+                <div className="absolute w-full h-full flex items-center justify-center">
+                  <CircularTimeFilter
+                    onChange={handleTimeRangeChange}
+                    startTime={timeRange.start}
+                    endTime={timeRange.end}
+                  />
+                </div>
+              </div>
+              <div className="flex-grow rounded px-2 border border-gray-200">
+                <TimelineChart
+                  timeseriesData={timeseriesData}
+                  selectedSpecies={selectedSpecies}
+                  dateRange={[dateRange[0] ?? fullExtent[0], dateRange[1] ?? fullExtent[1]]}
+                  setDateRange={setDateRange}
+                  palette={palette}
                 />
               </div>
             </div>
-            <div className="flex-grow rounded px-2 border border-gray-200">
-              <TimelineChart
-                timeseriesData={timeseriesData}
-                selectedSpecies={selectedSpecies}
-                dateRange={dateRange}
-                setDateRange={setDateRange}
-                palette={palette}
-              />
-            </div>
-          </div>
+          )}
         </div>
       )}
     </div>

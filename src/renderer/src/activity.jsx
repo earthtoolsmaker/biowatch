@@ -361,9 +361,10 @@ export default function Activity({ studyData, studyId }) {
       if (response.error) throw new Error(response.error)
       return response.data
     },
-    enabled: !!actualStudyId,
+    enabled: !!actualStudyId && sequenceGap !== undefined,
     refetchInterval: importStatus?.isRunning ? 5000 : false,
-    placeholderData: (prev) => prev
+    placeholderData: (prev) => prev,
+    staleTime: Infinity
   })
 
   // Initialize selectedSpecies when speciesDistributionData loads
@@ -396,8 +397,9 @@ export default function Activity({ studyData, studyId }) {
       if (response.error) throw new Error(response.error)
       return response.data
     },
-    enabled: !!actualStudyId && speciesNames.length > 0,
-    placeholderData: (prev) => prev
+    enabled: !!actualStudyId && speciesNames.length > 0 && sequenceGap !== undefined,
+    placeholderData: (prev) => prev,
+    staleTime: Infinity
   })
   const timeseriesData = timeseriesQueryData?.timeseries ?? []
 
@@ -464,8 +466,10 @@ export default function Activity({ studyData, studyId }) {
     enabled:
       !!actualStudyId &&
       speciesNames.length > 0 &&
-      (isFullRange || (!!dateRange[0] && !!dateRange[1])),
-    placeholderData: (prev) => prev
+      (isFullRange || (!!dateRange[0] && !!dateRange[1])) &&
+      sequenceGap !== undefined,
+    placeholderData: (prev) => prev,
+    staleTime: Infinity
   })
 
   // Derive heatmap status from query state and data
@@ -496,8 +500,14 @@ export default function Activity({ studyData, studyId }) {
       if (response.error) throw new Error(response.error)
       return response.data
     },
-    enabled: !!actualStudyId && speciesNames.length > 0 && !!dateRange[0] && !!dateRange[1],
-    placeholderData: (prev) => prev
+    enabled:
+      !!actualStudyId &&
+      speciesNames.length > 0 &&
+      !!dateRange[0] &&
+      !!dateRange[1] &&
+      sequenceGap !== undefined,
+    placeholderData: (prev) => prev,
+    staleTime: Infinity
   })
 
   // Handle time range changes

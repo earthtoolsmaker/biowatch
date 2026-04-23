@@ -18,7 +18,12 @@ export function useSequenceGap(studyId) {
   const queryClient = useQueryClient()
   const queryKey = useMemo(() => ['sequenceGap', studyId], [studyId])
 
-  // useQuery fetches from database via IPC
+  // useQuery fetches from database via IPC.
+  // Downstream consumers gate on `sequenceGap !== undefined` to defer work
+  // until the metadata read resolves, so on error we return null (the same
+  // sentinel as "no value saved") instead of leaving it undefined forever —
+  // otherwise a transient IPC failure would permanently block Gallery /
+  // TimelineChart / DailyActivityRadar from ever rendering.
   const { data: rawSequenceGap, isLoading } = useQuery({
     queryKey,
     queryFn: async () => {
@@ -27,7 +32,10 @@ export function useSequenceGap(studyId) {
       return response.data
     },
     staleTime: Infinity, // Don't refetch automatically
-    enabled: !!studyId
+    enabled: !!studyId,
+    retry: 1,
+    throwOnError: false,
+    placeholderData: null
   })
 
   // Mutation to persist to database

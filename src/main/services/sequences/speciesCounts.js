@@ -215,6 +215,64 @@ export function calculateSequenceAwareTimeseries(observationsByMedia, gapSeconds
 }
 
 /**
+ * Pivot pre-aggregated `[{ scientificName, weekStart, count }]` rows (as
+ * returned by getSequenceAwareTimeseriesSQL) into the `{ timeseries,
+ * allSpecies }` shape the UI expects. Lets the SQL fast path bypass the
+ * full calculateSequenceAwareTimeseries pipeline entirely.
+ *
+ * @param {Array<{scientificName: string, weekStart: string, count: number}>} rows
+ * @returns {{ timeseries: Array, allSpecies: Array }}
+ */
+export function pivotPreAggregatedTimeseries(rows) {
+  if (!rows || rows.length === 0) return { timeseries: [], allSpecies: [] }
+
+  const byWeek = new Map()
+  const totalBySpecies = new Map()
+  for (const { scientificName, weekStart, count } of rows) {
+    if (!weekStart) continue
+    if (!byWeek.has(weekStart)) byWeek.set(weekStart, {})
+    byWeek.get(weekStart)[scientificName] = count
+    totalBySpecies.set(scientificName, (totalBySpecies.get(scientificName) || 0) + count)
+  }
+
+  const timeseries = Array.from(byWeek.keys())
+    .sort()
+    .map((week) => ({ date: week, ...byWeek.get(week) }))
+
+  const allSpecies = Array.from(totalBySpecies.entries())
+    .map(([scientificName, count]) => ({ scientificName, count }))
+    .sort((a, b) => b.count - a.count)
+
+  return { timeseries, allSpecies }
+}
+
+/**
+ * Pivot pre-aggregated `[{ scientificName, hour, count }]` rows (as returned
+ * by getSequenceAwareDailyActivitySQL) into the `[{ hour, [sp]: N, ... }]`
+ * shape the radar expects. Zero-fills hours that the SQL didn't emit a row
+ * for, so the chart has 24 entries regardless of sparse data.
+ *
+ * @param {Array<{scientificName: string, hour: number, count: number}>} rows
+ * @param {Array<string>} selectedSpecies
+ * @returns {Array<{hour: number, [species: string]: number}>}
+ */
+export function pivotPreAggregatedDailyActivity(rows, selectedSpecies) {
+  const hourly = Array(24)
+    .fill()
+    .map((_, i) => ({
+      hour: i,
+      ...Object.fromEntries(selectedSpecies.map((s) => [s, 0]))
+    }))
+  if (!rows || rows.length === 0) return hourly
+  for (const { scientificName, hour, count } of rows) {
+    if (hour == null || hour < 0 || hour > 23) continue
+    if (!selectedSpecies.includes(scientificName)) continue
+    hourly[hour][scientificName] = count
+  }
+  return hourly
+}
+
+/**
  * Calculates sequence-aware species counts grouped by location for heatmap pie charts.
  *
  * @param {Array} observationsByMedia - Array of { scientificName, mediaID, timestamp, deploymentID, eventID, fileMediatype, latitude, longitude, locationName, count }
@@ -265,54 +323,4 @@ export function calculateSequenceAwareHeatmap(observationsByMedia, gapSeconds) {
   }
 
   return speciesData
-}
-
-/**
- * Calculates sequence-aware species counts grouped by hour for daily activity radar.
- *
- * @param {Array} observationsByMedia - Array of { scientificName, mediaID, timestamp, deploymentID, eventID, fileMediatype, hour, count }
- * @param {number} gapSeconds - Gap threshold in seconds (0 = use eventID grouping)
- * @param {Array<string>} selectedSpecies - List of species to include
- * @returns {Array} - Array of 24 objects { hour, [species1]: count, [species2]: count, ... }
- */
-export function calculateSequenceAwareDailyActivity(
-  observationsByMedia,
-  gapSeconds,
-  selectedSpecies
-) {
-  // Initialize hourly data with zeros for all selected species
-  const hourlyData = Array(24)
-    .fill()
-    .map((_, i) => ({
-      hour: i,
-      ...Object.fromEntries(selectedSpecies.map((s) => [s, 0]))
-    }))
-
-  if (!observationsByMedia || observationsByMedia.length === 0) {
-    return hourlyData
-  }
-
-  // Group observations by hour
-  const observationsByHour = new Map()
-  for (const obs of observationsByMedia) {
-    const hour = obs.hour
-    if (hour == null || hour < 0 || hour > 23) continue
-    if (!observationsByHour.has(hour)) {
-      observationsByHour.set(hour, [])
-    }
-    observationsByHour.get(hour).push(obs)
-  }
-
-  // Calculate sequence-aware counts for each hour
-  for (const [hour, hourObs] of observationsByHour) {
-    const hourlyCounts = calculateSequenceAwareSpeciesCounts(hourObs, gapSeconds)
-
-    for (const { scientificName, count } of hourlyCounts) {
-      if (hourlyData[hour] && selectedSpecies.includes(scientificName)) {
-        hourlyData[hour][scientificName] = count
-      }
-    }
-  }
-
-  return hourlyData
 }
