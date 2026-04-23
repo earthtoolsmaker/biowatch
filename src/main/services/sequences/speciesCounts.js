@@ -324,4 +324,3 @@ export function calculateSequenceAwareHeatmap(observationsByMedia, gapSeconds) {
 
   return speciesData
 }
-

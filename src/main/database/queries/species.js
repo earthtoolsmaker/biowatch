@@ -326,9 +326,7 @@ export async function getSequenceAwareTimeseriesSQL(dbPath, speciesNames = [], g
   const useEventIDPath = gapSeconds === 0
   const speciesPlaceholders = regularSpecies.map(() => '?').join(',')
   const speciesFilter =
-    regularSpecies.length > 0
-      ? `AND o.scientificName IN (${speciesPlaceholders})`
-      : ''
+    regularSpecies.length > 0 ? `AND o.scientificName IN (${speciesPlaceholders})` : ''
 
   try {
     let rows

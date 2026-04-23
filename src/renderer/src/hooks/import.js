@@ -18,7 +18,9 @@ export function useImportStatus(id, interval = 1000) {
           status.done > 0 &&
           status.done === status.total
         ) {
-          console.log('Import completed, invalidating study, deployments, and count/distribution queries')
+          console.log(
+            'Import completed, invalidating study, deployments, and count/distribution queries'
+          )
           queryClient.invalidateQueries({ queryKey: ['study'] })
           queryClient.invalidateQueries({ queryKey: ['deployments', id] })
           queryClient.invalidateQueries({ queryKey: ['bestMedia', id] })

@@ -3321,11 +3321,7 @@ function Gallery({
 
   // Sequence gap - uses React Query cache for cross-component sync
   // Default value is set during study import based on whether the dataset has eventIDs
-  const {
-    sequenceGap,
-    setSequenceGap,
-    isLoading: isSequenceGapLoading
-  } = useSequenceGap(id)
+  const { sequenceGap, setSequenceGap, isLoading: isSequenceGapLoading } = useSequenceGap(id)
 
   // Fetch pre-grouped sequences from main process with cursor-based pagination
   // This moves the grouping logic to the main process, keeping the client "dumb"
