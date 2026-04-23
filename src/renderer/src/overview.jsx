@@ -344,7 +344,7 @@ export default function Overview({ data, studyId, studyName }) {
       if (response.error) throw new Error(response.error)
       return response.data
     },
-    enabled: !!studyId,
+    enabled: !!studyId && sequenceGap !== undefined,
     refetchInterval: importStatus?.isRunning ? 5000 : false,
     placeholderData: (prev) => prev,
     staleTime: Infinity

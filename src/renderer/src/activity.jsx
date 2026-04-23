@@ -361,7 +361,7 @@ export default function Activity({ studyData, studyId }) {
       if (response.error) throw new Error(response.error)
       return response.data
     },
-    enabled: !!actualStudyId,
+    enabled: !!actualStudyId && sequenceGap !== undefined,
     refetchInterval: importStatus?.isRunning ? 5000 : false,
     placeholderData: (prev) => prev,
     staleTime: Infinity
@@ -397,7 +397,7 @@ export default function Activity({ studyData, studyId }) {
       if (response.error) throw new Error(response.error)
       return response.data
     },
-    enabled: !!actualStudyId && speciesNames.length > 0,
+    enabled: !!actualStudyId && speciesNames.length > 0 && sequenceGap !== undefined,
     placeholderData: (prev) => prev,
     staleTime: Infinity
   })
@@ -466,7 +466,8 @@ export default function Activity({ studyData, studyId }) {
     enabled:
       !!actualStudyId &&
       speciesNames.length > 0 &&
-      (isFullRange || (!!dateRange[0] && !!dateRange[1])),
+      (isFullRange || (!!dateRange[0] && !!dateRange[1])) &&
+      sequenceGap !== undefined,
     placeholderData: (prev) => prev,
     staleTime: Infinity
   })
@@ -499,7 +500,12 @@ export default function Activity({ studyData, studyId }) {
       if (response.error) throw new Error(response.error)
       return response.data
     },
-    enabled: !!actualStudyId && speciesNames.length > 0 && !!dateRange[0] && !!dateRange[1],
+    enabled:
+      !!actualStudyId &&
+      speciesNames.length > 0 &&
+      !!dateRange[0] &&
+      !!dateRange[1] &&
+      sequenceGap !== undefined,
     placeholderData: (prev) => prev,
     staleTime: Infinity
   })
