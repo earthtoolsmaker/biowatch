@@ -3701,7 +3701,8 @@ export default function Activity({ studyData, studyId }) {
       return response.data
     },
     enabled: !!actualStudyId,
-    refetchInterval: importStatus?.isRunning ? 5000 : false
+    refetchInterval: importStatus?.isRunning ? 5000 : false,
+    staleTime: Infinity
   })
 
   // Initialize selectedSpecies when speciesDistributionData loads
