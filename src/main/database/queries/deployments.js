@@ -8,11 +8,18 @@ import log from 'electron-log'
 import { getStudyIdFromPath } from './utils.js'
 
 /**
- * Get deployment information from the database using Drizzle ORM
+ * Get one deployment row per unique (latitude, longitude) — intended for
+ * read-only overview maps where "one marker per physical camera-trap
+ * location" is the right semantic. Within each coord group, SQLite returns
+ * the most-recent-by-deploymentStart row thanks to the subquery's ORDER BY.
+ *
+ * Contrast with getAllDeployments(), which returns every deployment row and
+ * is what editable/draggable maps need so MarkerClusterGroup can correctly
+ * count co-located deployments.
  * @param {string} dbPath - Path to the SQLite database
- * @returns {Promise<Array>} - Deployment data with one row per location
+ * @returns {Promise<Array>} - One row per unique deployment location
  */
-export async function getDeployments(dbPath) {
+export async function getDeploymentLocations(dbPath) {
   const startTime = Date.now()
   log.info(`Querying deployments from: ${dbPath}`)
 
@@ -59,6 +66,46 @@ export async function getDeployments(dbPath) {
     return result
   } catch (error) {
     log.error(`Error querying deployments: ${error.message}`)
+    throw error
+  }
+}
+
+/**
+ * Get every deployment with its coordinates and identifying fields, no dedup,
+ * no observations join. Intended for the Deployments tab map so each
+ * deployment has its own marker and MarkerClusterGroup can correctly count
+ * co-located deployments.
+ *
+ * Contrast with getDeploymentLocations(), which dedupes by (latitude, longitude)
+ * and returns one row per unique coord — right for read-only overview maps,
+ * wrong here because dragging the single "representative" marker silently
+ * splits a co-located group.
+ * @param {string} dbPath - Path to the SQLite database
+ * @returns {Promise<Array>} - Every deployment with minimal fields
+ */
+export async function getAllDeployments(dbPath) {
+  const startTime = Date.now()
+  log.info(`Querying all deployments from: ${dbPath}`)
+
+  try {
+    const studyId = getStudyIdFromPath(dbPath)
+    const db = await getDrizzleDb(studyId, dbPath, { readonly: true })
+
+    const result = await db
+      .select({
+        deploymentID: deployments.deploymentID,
+        locationID: deployments.locationID,
+        locationName: deployments.locationName,
+        latitude: deployments.latitude,
+        longitude: deployments.longitude
+      })
+      .from(deployments)
+
+    const elapsedTime = Date.now() - startTime
+    log.info(`Retrieved ${result.length} deployments in ${elapsedTime}ms`)
+    return result
+  } catch (error) {
+    log.error(`Error querying all deployments: ${error.message}`)
     throw error
   }
 }

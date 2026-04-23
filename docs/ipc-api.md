@@ -65,11 +65,14 @@ const { data, error } = await window.api.getSequences(studyId, { limit: 20 })
 
 | Method                                                         | Channel                         | Parameters                        | Returns                  |
 | -------------------------------------------------------------- | ------------------------------- | --------------------------------- | ------------------------ |
-| `getDeployments(studyId)`                                      | `deployments:get`               | studyId                           | `{ data: Deployment[] }` |
+| `getDeploymentLocations(studyId)`                              | `deployments:get-locations`     | studyId                           | `{ data: Deployment[] }` |
+| `getAllDeployments(studyId)`                                   | `deployments:get-all`           | studyId                           | `{ data: Deployment[] }` |
 | `getDeploymentsActivity(studyId)`                              | `deployments:get-activity`      | studyId                           | `{ data: Activity[] }`   |
 | `setDeploymentLatitude(studyId, deploymentID, latitude)`       | `deployments:set-latitude`      | studyId, deploymentID, latitude   | `{ success: boolean }`   |
 | `setDeploymentLongitude(studyId, deploymentID, longitude)`     | `deployments:set-longitude`     | studyId, deploymentID, longitude  | `{ success: boolean }`   |
 | `setDeploymentLocationName(studyId, locationID, locationName)` | `deployments:set-location-name` | studyId, locationID, locationName | `{ success: boolean }`   |
+
+**Note on `getDeploymentLocations` vs `getAllDeployments`:** `getDeploymentLocations` dedupes by `(latitude, longitude)` and returns one row per physical camera-trap location — intended for read-only overview maps. `getAllDeployments` returns every deployment row (no dedup) — used by the Deployments tab's editable map so `MarkerClusterGroup` can correctly count co-located deployments and dragging doesn't silently split a group. `getDeploymentsActivity` runs in the sequences worker thread to keep the UI responsive on large studies.
 
 **Note on `setDeploymentLocationName`:** This updates the `locationName` for ALL deployments with the given `locationID`. When deployments share a `locationID` (grouped deployments), renaming any one updates the entire group.
 

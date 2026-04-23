@@ -9,7 +9,7 @@ import { DateTime } from 'luxon'
 import {
   getSpeciesDistribution,
   getLocationsActivity,
-  getDeployments,
+  getDeploymentLocations,
   getDeploymentsActivity,
   getFilesData,
   createImageDirectoryDatabase,
@@ -271,11 +271,11 @@ describe('Database Query Functions Tests', () => {
     })
   })
 
-  describe('getDeployments', () => {
+  describe('getDeploymentLocations', () => {
     test('should return distinct deployment locations', async () => {
       await createTestData(testDbPath)
 
-      const result = await getDeployments(testDbPath)
+      const result = await getDeploymentLocations(testDbPath)
 
       assert.equal(result.length, 3, 'Should return 3 deployment locations')
 
