@@ -199,16 +199,14 @@ function SpeciesRow({
           className="cursor-pointer hover:bg-gray-50 transition-colors rounded py-1"
           onClick={() => onRowClick(species)}
         >
-          <div className="flex justify-between mb-1 items-center">
-            <div>
+          <div className="flex justify-between mb-1 items-center gap-2">
+            <div className="min-w-0 truncate">
               <span className="capitalize text-sm">{displayName}</span>
               {showScientific && (
-                <span className="text-gray-500 text-sm italic ml-2">
-                  ({species.scientificName})
-                </span>
+                <span className="text-gray-500 text-sm italic ml-2">{species.scientificName}</span>
               )}
             </div>
-            <span className="text-xs text-gray-500">{species.count}</span>
+            <span className="text-xs text-gray-500 shrink-0">{species.count}</span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-2">
             <div
