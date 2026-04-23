@@ -701,11 +701,15 @@ export async function getSequenceAwareHeatmapSQL(
       // media are excluded from the window (LAG can't order them) and
       // contribute via null_totals when includeNullTimestamps.
       const mediaFilter = buildDateHourFilter('m.timestamp')
-      // Force m.timestamp IS NOT NULL on the window branch regardless of
-      // includeNullTimestamps — those rows go through null_totals instead.
-      const windowTsGuard = 'AND m.timestamp IS NOT NULL'
+      // Force timestamps that aren't parseable out of the window branch
+      // regardless of includeNullTimestamps — `julianday(ts) IS NULL` catches
+      // unparseable strings (e.g. "not-a-date") that would otherwise sit in
+      // the window with a NULL gap-comparison result and silently extend
+      // whichever sequence precedes them. Matches JS `hasValidTimestamp`
+      // (grouping.js:13), which also treats invalid timestamps as null-ts.
+      const windowTsGuard = 'AND m.timestamp IS NOT NULL AND julianday(m.timestamp) IS NOT NULL'
       const nullBranchFilter = includeNullTimestamps
-        ? "AND (m.timestamp IS NULL OR m.timestamp = '')"
+        ? "AND (m.timestamp IS NULL OR m.timestamp = '' OR julianday(m.timestamp) IS NULL)"
         : null
 
       const sql = `
