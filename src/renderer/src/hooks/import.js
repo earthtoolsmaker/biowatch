@@ -22,7 +22,8 @@ export function useImportStatus(id, interval = 1000) {
             'Import completed, invalidating study, deployments, and count/distribution queries'
           )
           queryClient.invalidateQueries({ queryKey: ['study'] })
-          queryClient.invalidateQueries({ queryKey: ['deployments', id] })
+          queryClient.invalidateQueries({ queryKey: ['deploymentLocations', id] })
+          queryClient.invalidateQueries({ queryKey: ['deploymentsAll', id] })
           queryClient.invalidateQueries({ queryKey: ['bestMedia', id] })
           // Counts and distributions are now cached with staleTime: Infinity,
           // so we must explicitly invalidate them when import adds new data.

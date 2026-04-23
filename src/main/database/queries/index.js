@@ -13,7 +13,8 @@ export {
 
 // Deployments
 export {
-  getDeployments,
+  getDeploymentLocations,
+  getAllDeployments,
   getLocationsActivity,
   insertDeployments,
   getDeploymentsActivity

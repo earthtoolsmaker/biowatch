@@ -7,14 +7,24 @@ import log from 'electron-log'
 import { existsSync } from 'fs'
 import { eq } from 'drizzle-orm'
 import { getStudyDatabasePath } from '../services/paths.js'
-import { getDrizzleDb, deployments, closeStudyDatabase, getDeployments } from '../database/index.js'
+import {
+  getDrizzleDb,
+  deployments,
+  closeStudyDatabase,
+  getDeploymentLocations,
+  getAllDeployments
+} from '../database/index.js'
 import { runInWorker } from '../services/sequences/runInWorker.js'
 
 /**
  * Register all deployments-related IPC handlers
  */
 export function registerDeploymentsIPCHandlers() {
-  ipcMain.handle('deployments:get', async (_, studyId) => {
+  // One row per unique (lat, lng) — for read-only overview maps that want
+  // "one marker per physical camera-trap location." Drag-editable maps should
+  // use deployments:get-all instead so co-located deployments get their own
+  // markers.
+  ipcMain.handle('deployments:get-locations', async (_, studyId) => {
     try {
       const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
       if (!dbPath || !existsSync(dbPath)) {
@@ -22,10 +32,29 @@ export function registerDeploymentsIPCHandlers() {
         return { error: 'Database not found for this study' }
       }
 
-      const result = await getDeployments(dbPath)
+      const result = await getDeploymentLocations(dbPath)
       return { data: result }
     } catch (error) {
-      log.error('Error getting deployments:', error)
+      log.error('Error getting deployment locations:', error)
+      return { error: error.message }
+    }
+  })
+
+  // All deployments with coords and identifying fields, no dedup. Used by the
+  // Deployments tab map so co-located deployments each get their own marker
+  // and MarkerClusterGroup can correctly count them.
+  ipcMain.handle('deployments:get-all', async (_, studyId) => {
+    try {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) {
+        log.warn(`Database not found for study ID: ${studyId}`)
+        return { error: 'Database not found for this study' }
+      }
+
+      const result = await getAllDeployments(dbPath)
+      return { data: result }
+    } catch (error) {
+      log.error('Error getting all deployments:', error)
       return { error: error.message }
     }
   })

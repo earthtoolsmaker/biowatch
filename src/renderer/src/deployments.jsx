@@ -8,7 +8,6 @@ import MarkerClusterGroup from 'react-leaflet-cluster'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useImportStatus } from '@renderer/hooks/import'
-import SkeletonMap from './ui/SkeletonMap'
 import SkeletonDeploymentsList from './ui/SkeletonDeploymentsList'
 
 // Fix the default marker icon issue in react-leaflet
@@ -1027,13 +1026,14 @@ export default function Deployments({ studyId }) {
   const queryClient = useQueryClient()
   const { importStatus } = useImportStatus(studyId)
 
-  // Lightweight query for the map — server-side deduped by (lat, lng), ~3ms
-  // on a 2.7M-observation study. Shares its cache with the Overview map so
-  // cross-tab navigation hits warm cache. Map renders as soon as this resolves.
-  const { data: deploymentsList, isLoading: isDeploymentsListLoading } = useQuery({
-    queryKey: ['deployments', studyId],
+  // Lightweight un-deduped query for the map — one marker per deployment so
+  // MarkerClusterGroup correctly counts co-located deployments (Overview uses
+  // the deduped getDeploymentLocations instead, which is wrong here because
+  // dragging the single "representative" would silently split a group).
+  const { data: deploymentsList } = useQuery({
+    queryKey: ['deploymentsAll', studyId],
     queryFn: async () => {
-      const response = await window.api.getDeployments(studyId)
+      const response = await window.api.getAllDeployments(studyId)
       if (response.error) throw new Error(response.error)
       return response.data
     },
@@ -1075,10 +1075,9 @@ export default function Deployments({ studyId }) {
           return { ...prevActivity, deployments: updatedDeployments }
         })
 
-        // Also patch the lightweight deployments cache powering the map, so
-        // the dragged marker doesn't snap back during the post-invalidation
-        // refetch. Shared with the Overview tab.
-        queryClient.setQueryData(['deployments', studyId], (prev) => {
+        // Also patch the un-deduped map cache so the dragged marker doesn't
+        // snap back during the post-invalidation refetch.
+        queryClient.setQueryData(['deploymentsAll', studyId], (prev) => {
           if (!prev) return prev
           return prev.map((d) => (d.deploymentID === deploymentID ? { ...d, latitude: lat } : d))
         })
@@ -1086,8 +1085,10 @@ export default function Deployments({ studyId }) {
         if (result.error) {
           console.error('Error updating latitude:', result.error)
         } else {
-          // Invalidate the Overview tab's deployments cache so map updates
-          queryClient.invalidateQueries({ queryKey: ['deployments', studyId] })
+          // Invalidate the Overview tab's (deduped) deployments cache so its map updates
+          queryClient.invalidateQueries({ queryKey: ['deploymentLocations', studyId] })
+          // Invalidate this tab's un-deduped cache
+          queryClient.invalidateQueries({ queryKey: ['deploymentsAll', studyId] })
           // Invalidate the Activity tab's heatmap cache so map updates
           queryClient.invalidateQueries({ queryKey: ['heatmapData', studyId] })
         }
@@ -1116,7 +1117,7 @@ export default function Deployments({ studyId }) {
           return { ...prevActivity, deployments: updatedDeployments }
         })
 
-        queryClient.setQueryData(['deployments', studyId], (prev) => {
+        queryClient.setQueryData(['deploymentsAll', studyId], (prev) => {
           if (!prev) return prev
           return prev.map((d) => (d.deploymentID === deploymentID ? { ...d, longitude: lng } : d))
         })
@@ -1124,9 +1125,8 @@ export default function Deployments({ studyId }) {
         if (result.error) {
           console.error('Error updating longitude:', result.error)
         } else {
-          // Invalidate the Overview tab's deployments cache so map updates
-          queryClient.invalidateQueries({ queryKey: ['deployments', studyId] })
-          // Invalidate the Activity tab's heatmap cache so map updates
+          queryClient.invalidateQueries({ queryKey: ['deploymentLocations', studyId] })
+          queryClient.invalidateQueries({ queryKey: ['deploymentsAll', studyId] })
           queryClient.invalidateQueries({ queryKey: ['heatmapData', studyId] })
         }
       } catch (error) {
@@ -1196,7 +1196,7 @@ export default function Deployments({ studyId }) {
           return { ...prevActivity, deployments: updatedDeployments }
         })
 
-        queryClient.setQueryData(['deployments', studyId], (prev) => {
+        queryClient.setQueryData(['deploymentsAll', studyId], (prev) => {
           if (!prev) return prev
           return prev.map((d) =>
             d.locationID === locationID ? { ...d, locationName: newName } : d
@@ -1204,7 +1204,8 @@ export default function Deployments({ studyId }) {
         })
 
         // Invalidate related caches so other views update
-        queryClient.invalidateQueries({ queryKey: ['deployments', studyId] })
+        queryClient.invalidateQueries({ queryKey: ['deploymentLocations', studyId] })
+        queryClient.invalidateQueries({ queryKey: ['deploymentsAll', studyId] })
         queryClient.invalidateQueries({ queryKey: ['heatmapData', studyId] })
       } catch (error) {
         console.error('Error renaming location:', error)
@@ -1219,11 +1220,9 @@ export default function Deployments({ studyId }) {
       className={`flex flex-col px-4 h-full gap-4 overflow-hidden ${isPlaceMode ? 'place-mode-active' : ''}`}
     >
       <div className="h-96">
-        {isDeploymentsListLoading ? (
-          <SkeletonMap title="Loading Deployments" message="Loading deployment locations..." />
-        ) : (
+        {deploymentsList && (
           <LocationMap
-            locations={deploymentsList || []}
+            locations={deploymentsList}
             selectedLocation={selectedLocation}
             setSelectedLocation={setSelectedLocation}
             onNewLatitude={onNewLatitude}

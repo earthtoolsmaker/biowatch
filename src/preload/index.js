@@ -30,8 +30,11 @@ const api = {
   getBlankMediaCount: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('species:get-blank-count', studyId)
   },
-  getDeployments: async (studyId) => {
-    return await electronAPI.ipcRenderer.invoke('deployments:get', studyId)
+  getDeploymentLocations: async (studyId) => {
+    return await electronAPI.ipcRenderer.invoke('deployments:get-locations', studyId)
+  },
+  getAllDeployments: async (studyId) => {
+    return await electronAPI.ipcRenderer.invoke('deployments:get-all', studyId)
   },
   deleteStudyDatabase: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('study:delete-database', studyId)

@@ -399,14 +399,14 @@ export default function Overview({ data, studyId, studyName }) {
   const { importStatus } = useImportStatus(studyId)
   const { sequenceGap } = useSequenceGap(studyId)
 
-  // Lightweight deployments query for the Overview map — server-side deduped
-  // by (latitude, longitude), no activity period aggregation. The Deployments
-  // tab keeps its own heavier ['deploymentsActivity', studyId] query for the
-  // observation-count-per-period visualization.
+  // Lightweight deployment-locations query for the Overview map — server-side
+  // deduped by (latitude, longitude), no activity period aggregation. The
+  // Deployments tab uses getAllDeployments (un-deduped) so co-located
+  // deployments each get their own draggable marker.
   const { data: deploymentsData, error: deploymentsError } = useQuery({
-    queryKey: ['deployments', studyId],
+    queryKey: ['deploymentLocations', studyId],
     queryFn: async () => {
-      const response = await window.api.getDeployments(studyId)
+      const response = await window.api.getDeploymentLocations(studyId)
       if (response.error) {
         throw new Error(response.error)
       }

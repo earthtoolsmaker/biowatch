@@ -211,7 +211,8 @@ export {
   checkStudyHasEventIDs,
   createImageDirectoryDatabase,
   // Deployments
-  getDeployments,
+  getDeploymentLocations,
+  getAllDeployments,
   getLocationsActivity,
   insertDeployments,
   getDeploymentsActivity,
