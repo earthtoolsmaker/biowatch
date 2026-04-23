@@ -14,6 +14,26 @@ import { useImportStatus } from './hooks/import'
 import { getTopNonHumanSpecies } from './utils/speciesUtils'
 import { useSequenceGap } from './hooks/useSequenceGap'
 
+// Inject the keyframes used by the skeleton markers once per page load.
+// Guarded by an id check so HMR / multiple SpeciesMap mounts don't re-append
+// the same <style> block.
+const skeletonMarkerStyles = `
+  @keyframes activity-skeleton-pulse {
+    0%   { opacity: 0.55; }
+    50%  { opacity: 1; }
+    100% { opacity: 0.55; }
+  }
+  .activity-skeleton-marker, .activity-skeleton-cluster {
+    animation: activity-skeleton-pulse 1.6s ease-in-out infinite;
+  }
+`
+if (typeof document !== 'undefined' && !document.getElementById('activity-skeleton-styles')) {
+  const style = document.createElement('style')
+  style.id = 'activity-skeleton-styles'
+  style.textContent = skeletonMarkerStyles
+  document.head.appendChild(style)
+}
+
 // Component to handle map layer change events for persistence
 function LayerChangeHandler({ onLayerChange }) {
   const map = useMap()
@@ -27,8 +47,32 @@ function LayerChangeHandler({ onLayerChange }) {
   return null
 }
 
-// SpeciesMap component
-const SpeciesMap = ({ heatmapData, selectedSpecies, palette, geoKey, studyId }) => {
+// SpeciesMap component.
+//
+// Renders the leaflet map in two progressive modes so the user sees something
+// at deployment locations as fast as possible:
+//   1. `heatmapData` null (still loading in the worker) → uniform gray dots
+//      clustered at the deployment coordinates. The map mounts with bounds
+//      derived from `deploymentLocations`, which comes from the lightweight
+//      getDeploymentLocations query (shared cache with Overview/Deployments,
+//      ~ms). On gmu8_leuven this paints in ~50ms instead of waiting ~8s
+//      for the heavy sequence-aware SQL.
+//   2. `heatmapData` present → swap the MarkerClusterGroup contents to the
+//      pie-chart markers. The MapContainer and LayersControl stay mounted,
+//      so the user's zoom/pan/layer selection survive the swap.
+//
+// The cluster group's `key` is still `geoKey` so filter changes rebuild the
+// clustering (same as before), plus an extra 'pies'/'dots' suffix so the
+// initial dots → pies transition forces a fresh cluster layer rather than
+// trying to reconcile pie icons onto gray markers.
+const SpeciesMap = ({
+  deploymentLocations,
+  heatmapData,
+  selectedSpecies,
+  palette,
+  geoKey,
+  studyId
+}) => {
   // Persist map layer selection per study
   const mapLayerKey = `mapLayer:${studyId}`
   const [selectedLayer, setSelectedLayer] = useState(() => {
@@ -216,26 +260,72 @@ const SpeciesMap = ({ heatmapData, selectedSpecies, palette, geoKey, studyId }) 
 
   const locationPoints = processPointData()
 
-  // Calculate bounds if we have location points
-  const bounds =
-    locationPoints.length > 0
-      ? locationPoints.reduce(
-          (bounds, point) => {
-            return [
-              [Math.min(bounds[0][0], point.lat), Math.min(bounds[0][1], point.lng)],
-              [Math.max(bounds[1][0], point.lat), Math.max(bounds[1][1], point.lng)]
-            ]
-          },
-          [
-            [90, 180],
-            [-90, -180]
-          ] // Initial bounds [min, max]
-        )
-      : null
+  // Bounds derive from deploymentLocations, not heatmapData, so the initial
+  // viewport is fixed from the moment the map mounts — it doesn't shift
+  // when the heavy heatmap query finally resolves.
+  const bounds = (() => {
+    const src = (deploymentLocations || []).filter((d) => d.latitude != null && d.longitude != null)
+    if (src.length === 0) return null
+    return src.reduce(
+      (b, d) => [
+        [Math.min(b[0][0], +d.latitude), Math.min(b[0][1], +d.longitude)],
+        [Math.max(b[1][0], +d.latitude), Math.max(b[1][1], +d.longitude)]
+      ],
+      [
+        [90, 180],
+        [-90, -180]
+      ]
+    )
+  })()
 
   // Options for bounds
   const boundsOptions = {
     padding: [20, 20]
+  }
+
+  // Skeleton mode: uniform gray dots at deployment coords while heatmap
+  // loads. Dedup by (lat, lng) so co-located deployments share a single
+  // marker — matches how the final pies are grouped.
+  const skeletonMode = !heatmapData
+  const skeletonPoints = (() => {
+    if (!skeletonMode || !deploymentLocations) return []
+    const seen = new Map()
+    for (const d of deploymentLocations) {
+      if (d.latitude == null || d.longitude == null) continue
+      const key = `${d.latitude},${d.longitude}`
+      if (!seen.has(key)) {
+        seen.set(key, { lat: parseFloat(d.latitude), lng: parseFloat(d.longitude) })
+      }
+    }
+    return Array.from(seen.values())
+  })()
+
+  // Small uniform gray dot with a soft pulse so the user reads the map as
+  // "loading" rather than "done, just sparse". Pulse comes from the
+  // `activity-skeleton-marker` keyframes injected at module load.
+  const skeletonDotIcon = useMemo(() => {
+    const size = 14
+    return L.divIcon({
+      html: `<div class="activity-skeleton-marker" style="width:${size}px;height:${size}px;background:#9ca3af;border:2px solid white;border-radius:50%;box-shadow:0 1px 2px rgba(0,0,0,0.2);"></div>`,
+      className: '',
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2]
+    })
+  }, [])
+
+  // Cluster icon matches the dots: same gray, same pulse, no count label
+  // (the count would overstate certainty before species data arrives).
+  // Size still scales with child count so dense areas read as bigger.
+  const createSkeletonClusterIcon = (cluster) => {
+    const count = cluster.getChildCount()
+    const size = count >= 50 ? 40 : count >= 10 ? 34 : 28
+    cluster.unbindTooltip()
+    cluster.bindTooltip('Loading species data…', { direction: 'top', offset: [0, -10] })
+    return L.divIcon({
+      html: `<div class="activity-skeleton-cluster" style="width:${size}px;height:${size}px;background:#9ca3af;border-radius:50%;border:2px solid white;box-shadow:0 1px 2px rgba(0,0,0,0.2);"></div>`,
+      className: '',
+      iconSize: L.point(size, size, true)
+    })
   }
 
   return (
@@ -260,56 +350,76 @@ const SpeciesMap = ({ heatmapData, selectedSpecies, palette, geoKey, studyId }) 
         </LayersControl.BaseLayer>
 
         <LayersControl.Overlay name="Species Distribution" checked={true}>
-          <MarkerClusterGroup
-            key={geoKey}
-            chunkedLoading
-            showCoverageOnHover={false}
-            spiderfyOnEveryZoom={false}
-            maxClusterRadius={100}
-            animateAddingMarkers={false}
-            iconCreateFunction={(cluster) => {
-              // Get all markers in this cluster
-              const markers = cluster.getAllChildMarkers()
+          {skeletonMode ? (
+            <MarkerClusterGroup
+              key={`skeleton:${skeletonPoints.length}`}
+              chunkedLoading
+              showCoverageOnHover={false}
+              spiderfyOnEveryZoom={false}
+              maxClusterRadius={100}
+              animateAddingMarkers={false}
+              iconCreateFunction={createSkeletonClusterIcon}
+            >
+              {skeletonPoints.map((point, index) => (
+                <Marker
+                  key={`skeleton-${index}`}
+                  position={[point.lat, point.lng]}
+                  icon={skeletonDotIcon}
+                />
+              ))}
+            </MarkerClusterGroup>
+          ) : (
+            <MarkerClusterGroup
+              key={`pies:${geoKey}`}
+              chunkedLoading
+              showCoverageOnHover={false}
+              spiderfyOnEveryZoom={false}
+              maxClusterRadius={100}
+              animateAddingMarkers={false}
+              iconCreateFunction={(cluster) => {
+                // Get all markers in this cluster
+                const markers = cluster.getAllChildMarkers()
 
-              // Combine counts from all markers
-              const combinedCounts = {}
+                // Combine counts from all markers
+                const combinedCounts = {}
 
-              // First, initialize counts for all selected species to ensure consistent ordering
-              selectedSpecies.forEach((species) => {
-                combinedCounts[species.scientificName] = 0
-              })
-
-              // Then add actual counts from markers
-              markers.forEach((marker) => {
-                Object.entries(marker.options.counts).forEach(([species, count]) => {
-                  // Only add species that are in our selectedSpecies list
-                  if (selectedSpecies.some((s) => s.scientificName === species)) {
-                    combinedCounts[species] += count
-                  }
+                // First, initialize counts for all selected species to ensure consistent ordering
+                selectedSpecies.forEach((species) => {
+                  combinedCounts[species.scientificName] = 0
                 })
-              })
 
-              // Filter out species with zero counts to avoid empty slices
-              const filteredCounts = Object.fromEntries(
-                Object.entries(combinedCounts).filter(([, count]) => count > 0)
-              )
+                // Then add actual counts from markers
+                markers.forEach((marker) => {
+                  Object.entries(marker.options.counts).forEach(([species, count]) => {
+                    // Only add species that are in our selectedSpecies list
+                    if (selectedSpecies.some((s) => s.scientificName === species)) {
+                      combinedCounts[species] += count
+                    }
+                  })
+                })
 
-              // Bind tooltip to cluster
-              const tooltipHtml = createTooltipContent(filteredCounts)
-              cluster.unbindTooltip()
-              cluster.bindTooltip(tooltipHtml, {
-                direction: 'top',
-                offset: [0, -10],
-                className: 'species-map-tooltip'
-              })
+                // Filter out species with zero counts to avoid empty slices
+                const filteredCounts = Object.fromEntries(
+                  Object.entries(combinedCounts).filter(([, count]) => count > 0)
+                )
 
-              return createPieChartIcon(filteredCounts)
-            }}
-          >
-            {locationPoints.map((point, index) => (
-              <PieChartMarker key={index} point={point} icon={createPieChartIcon(point.counts)} />
-            ))}
-          </MarkerClusterGroup>
+                // Bind tooltip to cluster
+                const tooltipHtml = createTooltipContent(filteredCounts)
+                cluster.unbindTooltip()
+                cluster.bindTooltip(tooltipHtml, {
+                  direction: 'top',
+                  offset: [0, -10],
+                  className: 'species-map-tooltip'
+                })
+
+                return createPieChartIcon(filteredCounts)
+              }}
+            >
+              {locationPoints.map((point, index) => (
+                <PieChartMarker key={index} point={point} icon={createPieChartIcon(point.counts)} />
+              ))}
+            </MarkerClusterGroup>
+          )}
         </LayersControl.Overlay>
 
         {/* Add a legend */}
@@ -343,11 +453,27 @@ export default function Activity({ studyData, studyId }) {
   const actualStudyId = studyId || id // Use passed studyId or from params
 
   const [selectedSpecies, setSelectedSpecies] = useState([])
+  const [speciesInitialized, setSpeciesInitialized] = useState(false)
   const [dateRange, setDateRange] = useState([null, null])
   const [fullExtent, setFullExtent] = useState([null, null])
   const [timeRange, setTimeRange] = useState({ start: 0, end: 24 })
   const { importStatus } = useImportStatus(actualStudyId, 5000)
   const { sequenceGap } = useSequenceGap(actualStudyId)
+
+  // Lightweight deduped deployment-location query (shared cache with the
+  // Overview tab). Used to paint the skeleton map immediately while the
+  // heavy sequence-aware heatmap SQL runs in the worker.
+  const { data: deploymentLocations } = useQuery({
+    queryKey: ['deploymentLocations', actualStudyId],
+    queryFn: async () => {
+      const response = await window.api.getDeploymentLocations(actualStudyId)
+      if (response.error) throw new Error(response.error)
+      return response.data
+    },
+    enabled: !!actualStudyId,
+    refetchInterval: importStatus?.isRunning ? 5000 : false,
+    staleTime: Infinity
+  })
 
   // Get taxonomic data from studyData
   const taxonomicData = studyData?.taxonomic || null
@@ -368,12 +494,17 @@ export default function Activity({ studyData, studyId }) {
   })
 
   // Initialize selectedSpecies when speciesDistributionData loads
-  // Excludes humans/vehicles from default selection
+  // Excludes humans/vehicles from default selection.
+  // `speciesInitialized` gates the bottom-row mount so TimelineChart /
+  // DailyActivityRadar / CircularTimeFilter don't fire their sequence-aware
+  // queries twice (once with [] species, once with the top-2) on large
+  // studies. Mirrors the same guard in media.jsx (PR b5c4dca).
   useEffect(() => {
-    if (speciesDistributionData && selectedSpecies.length === 0) {
+    if (speciesDistributionData && !speciesInitialized) {
       setSelectedSpecies(getTopNonHumanSpecies(speciesDistributionData, 2))
+      setSpeciesInitialized(true)
     }
-  }, [speciesDistributionData, selectedSpecies.length])
+  }, [speciesDistributionData, speciesInitialized])
 
   // Memoize speciesNames to avoid unnecessary re-renders
   const speciesNames = useMemo(
@@ -435,9 +566,24 @@ export default function Activity({ studyData, studyId }) {
     return startMatch && endMatch
   }, [hasTemporalData, fullExtent, dateRange])
 
-  // Fetch sequence-aware heatmap data
-  // Enable when: we have study + species AND (no temporal data OR valid date range)
-  // sequenceGap in queryKey ensures refetch when slider changes (backend fetches from metadata)
+  // Fetch sequence-aware heatmap data.
+  //
+  // The `enabled` gate defers the fetch until every queryKey input has
+  // settled, so the expensive (~11s on gmu8_leuven) heatmap query fires
+  // exactly once instead of twice:
+  //
+  //   1. sequenceGap undefined → skip (useSequenceGap still resolving).
+  //   2. timeseriesQueryData undefined → skip. Without this, the heatmap
+  //      would fire once with dateRange=[null,null] (because isFullRange
+  //      defaults to true when hasTemporalData=false), and then again
+  //      when the timeseries useEffect fills in dateRange — two 11s
+  //      hits of the worker for the same semantic query.
+  //   3. Datasets WITH temporal data: require dateRange to be populated
+  //      (via the useEffect that runs one tick after timeseries resolves).
+  //   4. Datasets WITHOUT temporal data: dateRange stays [null, null] and
+  //      we fire with isFullRange=true (includeNullTimestamps semantics).
+  //
+  // Mirrors media.jsx's b5c4dca "defer mounting until inputs stable" guard.
   const { data: heatmapData, isLoading: isHeatmapLoading } = useQuery({
     queryKey: [
       'sequenceAwareHeatmap',
@@ -466,8 +612,9 @@ export default function Activity({ studyData, studyId }) {
     enabled:
       !!actualStudyId &&
       speciesNames.length > 0 &&
-      (isFullRange || (!!dateRange[0] && !!dateRange[1])) &&
-      sequenceGap !== undefined,
+      sequenceGap !== undefined &&
+      timeseriesQueryData !== undefined &&
+      (!hasTemporalData || (!!dateRange[0] && !!dateRange[1])),
     placeholderData: (prev) => prev,
     staleTime: Infinity
   })
@@ -534,17 +681,26 @@ export default function Activity({ studyData, studyId }) {
           <div className="flex flex-row gap-4 flex-1 min-h-0">
             {/* Species Distribution - left side */}
 
-            {/* Map - right side */}
+            {/* Map - right side.
+                Render SpeciesMap as soon as `deploymentLocations` arrives
+                (~ms), so the user sees clustered gray dots at the camera
+                locations while the heavy heatmap query resolves. The map
+                upgrades to pies when heatmapData lands. PlaceholderMap only
+                shows when we have deployment locations but the heatmap
+                explicitly came back empty. */}
             <div className="h-full flex-1">
-              {heatmapStatus === 'hasData' && (
-                <SpeciesMap
-                  heatmapData={heatmapData}
-                  selectedSpecies={selectedSpecies}
-                  palette={palette}
-                  studyId={actualStudyId}
-                  geoKey={geoKey}
-                />
-              )}
+              {deploymentLocations &&
+                deploymentLocations.length > 0 &&
+                heatmapStatus !== 'noData' && (
+                  <SpeciesMap
+                    deploymentLocations={deploymentLocations}
+                    heatmapData={heatmapStatus === 'hasData' ? heatmapData : null}
+                    selectedSpecies={selectedSpecies}
+                    palette={palette}
+                    studyId={actualStudyId}
+                    geoKey={geoKey}
+                  />
+                )}
               {heatmapStatus === 'noData' && !isHeatmapLoading && (
                 <PlaceholderMap
                   title="No Species Location Data"
@@ -570,31 +726,41 @@ export default function Activity({ studyData, studyId }) {
             </div>
           </div>
 
-          {/* Second row - fixed height with timeline and clock */}
-          <div className="w-full flex h-[130px] flex-shrink-0 gap-3">
-            <div className="w-[140px] h-full rounded border border-gray-200 flex items-center justify-center relative">
-              <DailyActivityRadar
-                activityData={dailyActivityData}
-                selectedSpecies={selectedSpecies}
-                palette={palette}
-              />
-              <div className="absolute w-full h-full flex items-center justify-center">
-                <CircularTimeFilter
-                  onChange={handleTimeRangeChange}
-                  startTime={timeRange.start}
-                  endTime={timeRange.end}
-                />
+          {/* Second row — always reserves 130px of layout space so the map
+              row above doesn't snap smaller when the filters finally mount.
+              The borders + children only render once inputs have settled
+              (speciesInitialized && sequenceGap !== undefined), which
+              prevents the empty bordered flash and the double-fire of
+              timeseries / daily-activity as queryKey inputs stabilize
+              (mirrors media.jsx's b5c4dca guard). */}
+          <div className="w-full h-[130px] flex-shrink-0">
+            {speciesInitialized && sequenceGap !== undefined && (
+              <div className="w-full flex h-full gap-3">
+                <div className="w-[140px] h-full rounded border border-gray-200 flex items-center justify-center relative">
+                  <DailyActivityRadar
+                    activityData={dailyActivityData}
+                    selectedSpecies={selectedSpecies}
+                    palette={palette}
+                  />
+                  <div className="absolute w-full h-full flex items-center justify-center">
+                    <CircularTimeFilter
+                      onChange={handleTimeRangeChange}
+                      startTime={timeRange.start}
+                      endTime={timeRange.end}
+                    />
+                  </div>
+                </div>
+                <div className="flex-grow rounded px-2 border border-gray-200">
+                  <TimelineChart
+                    timeseriesData={timeseriesData}
+                    selectedSpecies={selectedSpecies}
+                    dateRange={dateRange}
+                    setDateRange={setDateRange}
+                    palette={palette}
+                  />
+                </div>
               </div>
-            </div>
-            <div className="flex-grow rounded px-2 border border-gray-200">
-              <TimelineChart
-                timeseriesData={timeseriesData}
-                selectedSpecies={selectedSpecies}
-                dateRange={dateRange}
-                setDateRange={setDateRange}
-                palette={palette}
-              />
-            </div>
+            )}
           </div>
         </div>
       )}

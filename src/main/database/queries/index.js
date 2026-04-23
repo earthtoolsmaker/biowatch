@@ -30,6 +30,7 @@ export {
   getSpeciesHeatmapDataByMedia,
   getSequenceAwareSpeciesCountsSQL,
   getSequenceAwareTimeseriesSQL,
+  getSequenceAwareHeatmapSQL,
   getSequenceAwareDailyActivitySQL
 } from './species.js'
 

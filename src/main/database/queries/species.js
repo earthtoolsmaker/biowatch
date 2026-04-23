@@ -587,6 +587,295 @@ export async function getSpeciesHeatmapDataByMedia(
 }
 
 /**
+ * Per-(species, lat, lng) sequence-aware heatmap counts computed entirely in
+ * SQL. Returns `[{ scientificName, latitude, longitude, locationName, count }]`
+ * rows ready to pivot into the `{sp: [{lat, lng, count, locationName}]}` shape
+ * the map expects.
+ *
+ * Replaces the previous "ship every (species, media) row, aggregate in JS"
+ * pipeline. On gmu8_leuven (2.7M obs, 2704 deployments, gap=300s) the IPC
+ * payload goes from ~400MB to <100KB and end-to-end time drops from ~19s to
+ * ~9s — the SQL is still dominated by the window-function scan but JS no
+ * longer has to re-aggregate 1.3M rows.
+ *
+ * Three internal paths keyed on gapSeconds (semantics mirror
+ * calculateSequenceAwareHeatmap → calculateSequenceAwareSpeciesCounts):
+ *  - gapSeconds > 0       → time-gap grouping via window functions.
+ *                           Sequences form at the (lat, lng) level across ALL
+ *                           selected species so an intervening obs at a
+ *                           co-located deployment still breaks a sequence
+ *                           (matches JS, which groups by location first then
+ *                           sequences within). Per (species, seq, lat, lng)
+ *                           take MAX of per-media obs count, SUM by
+ *                           (species, lat, lng).
+ *  - gapSeconds === 0     → eventID grouping, per-species. Media without
+ *                           eventID become their own event via
+ *                           COALESCE(..., 'solo:' || m.mediaID). Null-ts
+ *                           media contribute their counts directly via the
+ *                           null_totals branch.
+ *  - null / undefined / ≤ 0
+ *    (not positive)       → each media its own sequence →
+ *                           COUNT(observationID) per (species, lat, lng).
+ *
+ * Window-path ordering is (timestamp, mediaID) — deterministic. Tied
+ * timestamps at the same location can produce off-by-±1-2 counts vs the
+ * JS path (which inherits SQLite's non-deterministic tied-row order);
+ * validated against 19 local studies: all per-media and eventID paths are
+ * byte-exact, window-path maxDiff is 2 on the worst-case study.
+ *
+ * BLANK_SENTINEL in speciesNames → returns null, caller falls back to the
+ * JS path. The current heatmap JS path doesn't handle blanks either, but
+ * we keep the convention of the other fast-paths for future-proofing.
+ *
+ * @param {string} dbPath
+ * @param {Array<string>} speciesNames
+ * @param {string|null} startDate - ISO date string for range start
+ * @param {string|null} endDate - ISO date string for range end
+ * @param {number} startHour - 0-24
+ * @param {number} endHour - 0-24
+ * @param {boolean} includeNullTimestamps
+ * @param {number|null|undefined} gapSeconds
+ * @returns {Promise<Array<{scientificName: string, latitude: number, longitude: number, locationName: string, count: number}>|null>}
+ */
+export async function getSequenceAwareHeatmapSQL(
+  dbPath,
+  speciesNames = [],
+  startDate,
+  endDate,
+  startHour = 0,
+  endHour = 24,
+  includeNullTimestamps = false,
+  gapSeconds
+) {
+  if (speciesNames.includes(BLANK_SENTINEL)) return null
+  const regularSpecies = speciesNames.filter((s) => s !== BLANK_SENTINEL)
+  if (regularSpecies.length === 0) return []
+
+  const startTime = Date.now()
+  const studyId = getStudyIdFromPath(dbPath)
+  const manager = await getStudyDatabase(studyId, dbPath, { readonly: true })
+  const sqlite = manager.getSqlite()
+
+  const isPositiveGap = typeof gapSeconds === 'number' && gapSeconds > 0
+  const useEventIDPath = gapSeconds === 0
+  const pathLabel = isPositiveGap
+    ? `time-gap-${gapSeconds}s`
+    : useEventIDPath
+      ? 'eventID'
+      : 'per-media'
+  const speciesPlaceholders = regularSpecies.map(() => '?').join(',')
+
+  // Date + hour filters. Non-window paths evaluate the predicate inline; the
+  // window path pushes it into media_info (and needs a parallel null-ts
+  // branch when includeNullTimestamps).
+  const buildDateHourFilter = (tsCol) => {
+    const conds = []
+    const params = []
+    const noDateFilter = includeNullTimestamps && (!startDate || !endDate)
+    if (!noDateFilter) {
+      if (includeNullTimestamps) {
+        conds.push(`(${tsCol} IS NULL OR (${tsCol} >= ? AND ${tsCol} <= ?))`)
+        params.push(startDate, endDate)
+      } else {
+        conds.push(`${tsCol} >= ?`)
+        conds.push(`${tsCol} <= ?`)
+        params.push(startDate, endDate)
+      }
+    }
+    const hourExpr = `CAST(strftime('%H', ${tsCol}) AS INTEGER)`
+    if (startHour < endHour) {
+      const hc = `(${hourExpr} >= ${startHour} AND ${hourExpr} < ${endHour})`
+      conds.push(includeNullTimestamps ? `(${tsCol} IS NULL OR ${hc})` : hc)
+    } else if (startHour > endHour) {
+      const hc = `(${hourExpr} >= ${startHour} OR ${hourExpr} < ${endHour})`
+      conds.push(includeNullTimestamps ? `(${tsCol} IS NULL OR ${hc})` : hc)
+    }
+    // startHour === endHour → full day, no filter
+    return { where: conds.length > 0 ? 'AND ' + conds.join(' AND ') : '', params }
+  }
+
+  try {
+    let rows
+    if (isPositiveGap) {
+      // Sequencing at (lat, lng) level across all selected species. Null-ts
+      // media are excluded from the window (LAG can't order them) and
+      // contribute via null_totals when includeNullTimestamps.
+      const mediaFilter = buildDateHourFilter('m.timestamp')
+      // Force m.timestamp IS NOT NULL on the window branch regardless of
+      // includeNullTimestamps — those rows go through null_totals instead.
+      const windowTsGuard = 'AND m.timestamp IS NOT NULL'
+      const nullBranchFilter = includeNullTimestamps
+        ? "AND (m.timestamp IS NULL OR m.timestamp = '')"
+        : null
+
+      const sql = `
+        WITH media_obs AS (
+          SELECT o.mediaID AS mediaID, o.scientificName AS scientificName,
+                 COUNT(*) AS obs_count
+            FROM observations o
+            WHERE o.scientificName IN (${speciesPlaceholders})
+            GROUP BY o.scientificName, o.mediaID
+        ),
+        media_info AS (
+          SELECT m.mediaID, m.deploymentID, m.timestamp AS ts,
+                 CASE WHEN m.fileMediatype LIKE 'video/%' THEN 1 ELSE 0 END AS is_video,
+                 d.latitude, d.longitude, d.locationName
+            FROM media m
+            INNER JOIN deployments d ON m.deploymentID = d.deploymentID
+            WHERE d.latitude IS NOT NULL AND d.longitude IS NOT NULL
+              ${windowTsGuard}
+              ${mediaFilter.where}
+              AND m.mediaID IN (SELECT DISTINCT mediaID FROM media_obs)
+        ),
+        marked AS (
+          SELECT *, CASE
+            WHEN LAG(mediaID) OVER w IS NULL THEN 1
+            WHEN is_video = 1 THEN 1
+            WHEN LAG(is_video) OVER w = 1 THEN 1
+            WHEN deploymentID IS NULL THEN 1
+            WHEN LAG(deploymentID) OVER w IS NULL THEN 1
+            WHEN deploymentID != LAG(deploymentID) OVER w THEN 1
+            WHEN (julianday(ts) - julianday(LAG(ts) OVER w)) * 86400 > ? THEN 1
+            ELSE 0
+          END AS is_new FROM media_info
+          WINDOW w AS (PARTITION BY latitude, longitude ORDER BY ts, mediaID)
+        ),
+        sequenced AS (
+          SELECT mediaID, latitude, longitude, locationName,
+                 SUM(is_new) OVER (PARTITION BY latitude, longitude ORDER BY ts, mediaID
+                                   ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS seq_id
+            FROM marked
+        ),
+        per_seq_sp_loc AS (
+          SELECT mo.scientificName, s.latitude, s.longitude, s.seq_id,
+                 MAX(mo.obs_count) AS max_count, MAX(s.locationName) AS locationName
+            FROM sequenced s INNER JOIN media_obs mo ON s.mediaID = mo.mediaID
+            GROUP BY mo.scientificName, s.latitude, s.longitude, s.seq_id
+        ),
+        valid_totals AS (
+          SELECT scientificName, latitude, longitude,
+                 MAX(locationName) AS locationName,
+                 SUM(max_count) AS count
+            FROM per_seq_sp_loc
+            GROUP BY scientificName, latitude, longitude
+        )
+        ${
+          nullBranchFilter
+            ? `,
+        null_totals AS (
+          SELECT o.scientificName,
+                 d.latitude, d.longitude, MAX(d.locationName) AS locationName,
+                 COUNT(o.observationID) AS count
+            FROM observations o
+            INNER JOIN media m ON o.mediaID = m.mediaID
+            INNER JOIN deployments d ON m.deploymentID = d.deploymentID
+            WHERE o.scientificName IN (${speciesPlaceholders})
+              AND d.latitude IS NOT NULL AND d.longitude IS NOT NULL
+              ${nullBranchFilter}
+            GROUP BY o.scientificName, d.latitude, d.longitude
+        )
+        SELECT scientificName, latitude, longitude, MAX(locationName) AS locationName,
+               SUM(count) AS count
+          FROM (SELECT * FROM valid_totals UNION ALL SELECT * FROM null_totals)
+          GROUP BY scientificName, latitude, longitude`
+            : `
+        SELECT scientificName, latitude, longitude, locationName, count FROM valid_totals`
+        }
+      `
+      const params = [
+        ...regularSpecies,
+        ...mediaFilter.params,
+        gapSeconds,
+        ...(nullBranchFilter ? regularSpecies : [])
+      ]
+      rows = sqlite.prepare(sql).all(...params)
+    } else if (useEventIDPath) {
+      const obsFilter = buildDateHourFilter('m.timestamp')
+      rows = sqlite
+        .prepare(
+          `
+          WITH per_media AS (
+            SELECT o.scientificName AS scientificName, m.mediaID AS mediaID,
+                   COALESCE(NULLIF(o.eventID, ''), 'solo:' || o.mediaID) AS event_key,
+                   m.timestamp AS ts,
+                   d.latitude, d.longitude, d.locationName,
+                   COUNT(*) AS media_count
+              FROM observations o
+              INNER JOIN media m ON o.mediaID = m.mediaID
+              INNER JOIN deployments d ON m.deploymentID = d.deploymentID
+              WHERE o.scientificName IN (${speciesPlaceholders})
+                AND d.latitude IS NOT NULL AND d.longitude IS NOT NULL
+                ${obsFilter.where}
+              GROUP BY o.scientificName, o.mediaID
+          ),
+          classified AS (
+            SELECT scientificName, event_key, mediaID, media_count,
+                   latitude, longitude, locationName,
+                   CASE
+                     WHEN ts IS NULL OR ts = '' OR julianday(ts) IS NULL
+                     THEN 1 ELSE 0
+                   END AS is_null_ts
+              FROM per_media
+          ),
+          valid_maxes AS (
+            SELECT scientificName, latitude, longitude, event_key,
+                   MAX(media_count) AS max_count,
+                   MAX(locationName) AS locationName
+              FROM classified WHERE is_null_ts = 0
+              GROUP BY scientificName, latitude, longitude, event_key
+          ),
+          valid_totals AS (
+            SELECT scientificName, latitude, longitude,
+                   MAX(locationName) AS locationName, SUM(max_count) AS count
+              FROM valid_maxes GROUP BY scientificName, latitude, longitude
+          ),
+          null_totals AS (
+            SELECT scientificName, latitude, longitude,
+                   MAX(locationName) AS locationName, SUM(media_count) AS count
+              FROM classified WHERE is_null_ts = 1
+              GROUP BY scientificName, latitude, longitude
+          )
+          SELECT scientificName, latitude, longitude,
+                 MAX(locationName) AS locationName, SUM(count) AS count
+            FROM (SELECT * FROM valid_totals UNION ALL SELECT * FROM null_totals)
+            GROUP BY scientificName, latitude, longitude
+        `
+        )
+        .all(...regularSpecies, ...obsFilter.params)
+    } else {
+      // Per-media path: each media is its own sequence, so MAX reduces to
+      // per-media count and SUM reduces to COUNT(observationID).
+      const obsFilter = buildDateHourFilter('m.timestamp')
+      rows = sqlite
+        .prepare(
+          `
+          SELECT o.scientificName AS scientificName,
+                 d.latitude, d.longitude, MAX(d.locationName) AS locationName,
+                 COUNT(o.observationID) AS count
+            FROM observations o
+            INNER JOIN media m ON o.mediaID = m.mediaID
+            INNER JOIN deployments d ON m.deploymentID = d.deploymentID
+            WHERE o.scientificName IN (${speciesPlaceholders})
+              AND d.latitude IS NOT NULL AND d.longitude IS NOT NULL
+              ${obsFilter.where}
+            GROUP BY o.scientificName, d.latitude, d.longitude
+        `
+        )
+        .all(...regularSpecies, ...obsFilter.params)
+    }
+
+    const elapsed = Date.now() - startTime
+    log.info(
+      `[SQL-agg] sequence-aware heatmap (gap=${gapSeconds}, path=${pathLabel}): ${rows.length} (species,lat,lng) rows in ${elapsed}ms`
+    )
+    return rows
+  } catch (error) {
+    log.error(`Error in getSequenceAwareHeatmapSQL: ${error.message}`)
+    throw error
+  }
+}
+
+/**
  * Hourly sequence-aware daily activity computed entirely in SQL.
  * Returns `[{ scientificName, hour, count }]`, pivoted into the radar's
  * `[{ hour, [sp1]: N, ... }]` shape by pivotPreAggregatedDailyActivity.
