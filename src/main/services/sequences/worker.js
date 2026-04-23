@@ -2,10 +2,10 @@
  * Worker thread for heavy DB computations.
  *
  * Dispatches on `workerData.type`: sequence-aware species-distribution,
- * timeseries, heatmap, daily-activity, and the best-media scoring pipeline.
- * Runs off the main thread so the renderer UI stays responsive during
- * multi-second SQLite scans. Each worker instance handles a single task
- * then exits.
+ * timeseries, heatmap, daily-activity, pagination, and the best-media
+ * scoring pipeline. Runs off the main thread so the renderer UI stays
+ * responsive during multi-second SQLite scans. Each worker instance handles
+ * a single task then exits.
  */
 
 import { parentPort, workerData } from 'worker_threads'
@@ -19,6 +19,7 @@ import {
   getSequenceAwareSpeciesCountsSQL,
   getBestMedia
 } from '../../database/index.js'
+import { getPaginatedSequences } from './pagination.js'
 import {
   calculateSequenceAwareSpeciesCounts,
   calculateSequenceAwareTimeseries,
@@ -84,6 +85,12 @@ async function run() {
       // favorites CTE and the (potentially heavy) auto-scored CTE. See
       // src/main/database/queries/best-media.js for the query pipeline.
       return getBestMedia(dbPath, workerData.options || {})
+    }
+    case 'pagination': {
+      // Gallery paginated sequences. Studies with long event-grouped sequences
+      // can require scanning hundreds of media to form one page of 15 — running
+      // on main was causing multi-second input freezes on large studies.
+      return getPaginatedSequences(dbPath, workerData.options || {})
     }
     default:
       throw new Error(`Unknown worker task type: ${type}`)

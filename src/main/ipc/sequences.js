@@ -11,7 +11,6 @@ import { app, ipcMain } from 'electron'
 import log from 'electron-log'
 import { existsSync } from 'fs'
 import { getStudyDatabasePath } from '../services/paths.js'
-import { getPaginatedSequences } from '../services/sequences/index.js'
 import { runInWorker } from '../services/sequences/runInWorker.js'
 
 /**
@@ -164,7 +163,10 @@ export function registerSequencesIPCHandlers() {
   )
 
   /**
-   * Get paginated sequences (stays on main thread - interactive pagination with small payloads)
+   * Get paginated sequences. Dispatched to the sequences worker because
+   * studies with long event-grouped sequences can require scanning hundreds
+   * of underlying media to form a single page, which previously blocked
+   * renderer input for multiple seconds on main.
    */
   ipcMain.handle('sequences:get-paginated', async (_, studyId, options = {}) => {
     try {
@@ -176,11 +178,10 @@ export function registerSequencesIPCHandlers() {
 
       const { gapSeconds = 60, limit = 20, cursor = null, filters = {} } = options
 
-      const result = await getPaginatedSequences(dbPath, {
-        gapSeconds,
-        limit,
-        cursor,
-        filters
+      const result = await runInWorker({
+        type: 'pagination',
+        dbPath,
+        options: { gapSeconds, limit, cursor, filters }
       })
 
       return { data: result }
