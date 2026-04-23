@@ -13,7 +13,8 @@ import {
   getSpeciesTimeseriesByMedia,
   getSpeciesHeatmapDataByMedia,
   getSpeciesDailyActivityByMedia,
-  getSequenceAwareSpeciesCountsSQL
+  getSequenceAwareSpeciesCountsSQL,
+  getBestMedia
 } from '../../database/index.js'
 import {
   calculateSequenceAwareSpeciesCounts,
@@ -74,6 +75,12 @@ async function run() {
     case 'daily-activity': {
       const rawData = await getSpeciesDailyActivityByMedia(dbPath, speciesNames, startDate, endDate)
       return calculateSequenceAwareDailyActivity(rawData, effectiveGapSeconds, speciesNames)
+    }
+    case 'best-media': {
+      // Off-main-thread path for the best-captures carousel. Covers both the
+      // favorites CTE and the (potentially heavy) auto-scored CTE. See
+      // src/main/database/queries/best-media.js for the query pipeline.
+      return getBestMedia(dbPath, workerData.options || {})
     }
     default:
       throw new Error(`Unknown worker task type: ${type}`)

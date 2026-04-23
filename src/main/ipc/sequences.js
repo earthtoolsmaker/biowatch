@@ -10,41 +10,9 @@
 import { app, ipcMain } from 'electron'
 import log from 'electron-log'
 import { existsSync } from 'fs'
-import { join } from 'path'
-import { Worker } from 'worker_threads'
 import { getStudyDatabasePath } from '../services/paths.js'
 import { getPaginatedSequences } from '../services/sequences/index.js'
-
-/**
- * Run a sequence computation in a worker thread.
- * Each worker opens its own readonly DB connection, runs the query + grouping,
- * returns the result, then exits.
- *
- * @param {Object} workerData - Task parameters passed to the worker
- * @returns {Promise<*>} Computed result
- */
-function runInWorker(workerData) {
-  return new Promise((resolve, reject) => {
-    const workerPath = join(__dirname, 'sequences-worker.js')
-    const worker = new Worker(workerPath, { workerData })
-
-    worker.on('message', (result) => {
-      if (result.error) {
-        reject(new Error(result.error))
-      } else {
-        resolve(result.data)
-      }
-    })
-
-    worker.on('error', reject)
-
-    worker.on('exit', (code) => {
-      if (code !== 0) {
-        reject(new Error(`Sequence worker exited with code ${code}`))
-      }
-    })
-  })
-}
+import { runInWorker } from '../services/sequences/runInWorker.js'
 
 /**
  * Register all sequence-related IPC handlers
