@@ -15,7 +15,6 @@ import {
   getSpeciesDistributionByMedia,
   getSpeciesTimeseriesByMedia,
   getSpeciesHeatmapDataByMedia,
-  getSpeciesDailyActivityByMedia,
   getSequenceAwareSpeciesCountsSQL,
   getSequenceAwareTimeseriesSQL,
   getSequenceAwareDailyActivitySQL,
@@ -26,7 +25,6 @@ import {
   calculateSequenceAwareSpeciesCounts,
   calculateSequenceAwareTimeseries,
   calculateSequenceAwareHeatmap,
-  calculateSequenceAwareDailyActivity,
   pivotPreAggregatedTimeseries,
   pivotPreAggregatedDailyActivity
 } from './speciesCounts.js'
@@ -92,22 +90,14 @@ async function run() {
       return calculateSequenceAwareHeatmap(rawData, effectiveGapSeconds)
     }
     case 'daily-activity': {
-      // Fast path: SQL aggregate handles gapSeconds === null and === 0,
-      // returns pre-grouped (species, hour, count) rows — orders of magnitude
-      // smaller than the raw observation-per-media dump the JS path needs.
-      // Returns null for positive gapSeconds → fall back to the JS path for
-      // time-gap-based sequence grouping.
-      const fastRows = await getSequenceAwareDailyActivitySQL(
+      const rows = await getSequenceAwareDailyActivitySQL(
         dbPath,
         speciesNames,
         startDate,
         endDate,
         effectiveGapSeconds
       )
-      if (fastRows !== null)
-        return pivotPreAggregatedDailyActivity(fastRows, speciesNames)
-      const rawData = await getSpeciesDailyActivityByMedia(dbPath, speciesNames, startDate, endDate)
-      return calculateSequenceAwareDailyActivity(rawData, effectiveGapSeconds, speciesNames)
+      return pivotPreAggregatedDailyActivity(rows || [], speciesNames)
     }
     case 'best-media': {
       // Off-main-thread path for the best-captures carousel. Covers both the

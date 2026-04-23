@@ -27,7 +27,6 @@ export {
   getSpeciesDistributionByMedia,
   getSpeciesTimeseriesByMedia,
   getSpeciesHeatmapDataByMedia,
-  getSpeciesDailyActivityByMedia,
   getSequenceAwareSpeciesCountsSQL,
   getSequenceAwareTimeseriesSQL,
   getSequenceAwareDailyActivitySQL

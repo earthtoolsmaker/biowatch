@@ -3,8 +3,7 @@ import assert from 'node:assert/strict'
 import {
   calculateSequenceAwareSpeciesCounts,
   calculateSequenceAwareTimeseries,
-  calculateSequenceAwareHeatmap,
-  calculateSequenceAwareDailyActivity
+  calculateSequenceAwareHeatmap
 } from '../../../../src/main/services/sequences/speciesCounts.js'
 
 // Helper: Create an observation record
@@ -299,54 +298,3 @@ describe('calculateSequenceAwareHeatmap', () => {
   })
 })
 
-describe('calculateSequenceAwareDailyActivity', () => {
-  const baseTime = new Date('2024-01-15T10:00:00Z')
-
-  describe('edge cases', () => {
-    test('empty array returns hourly structure with zeros', () => {
-      const result = calculateSequenceAwareDailyActivity([], 60, ['Deer'])
-      assert.equal(result.length, 24)
-      assert.equal(result[0].hour, 0)
-      assert.equal(result[0].Deer, 0)
-    })
-
-    test('null input returns hourly structure with zeros', () => {
-      const result = calculateSequenceAwareDailyActivity(null, 60, ['Deer'])
-      assert.equal(result.length, 24)
-    })
-  })
-
-  describe('hourly aggregation', () => {
-    test('groups observations by hour and applies sequence-aware counting', () => {
-      const observations = [
-        { ...createObservationAtOffset('Deer', 'media1', baseTime, 0, 3), hour: 10 },
-        { ...createObservationAtOffset('Deer', 'media2', baseTime, 10, 5), hour: 10 }
-      ]
-      const result = calculateSequenceAwareDailyActivity(observations, 60, ['Deer'])
-
-      assert.equal(result[10].Deer, 5) // max within sequence at hour 10
-    })
-
-    test('only includes selected species', () => {
-      const observations = [
-        { ...createObservationAtOffset('Deer', 'media1', baseTime, 0, 3), hour: 10 },
-        { ...createObservationAtOffset('Fox', 'media2', baseTime, 100, 5), hour: 11 }
-      ]
-      const result = calculateSequenceAwareDailyActivity(observations, 60, ['Deer'])
-
-      assert.equal(result[10].Deer, 3)
-      assert.equal(result[11].Fox, undefined) // Fox not in selected species
-    })
-
-    test('skips invalid hours', () => {
-      const observations = [
-        { ...createObservationAtOffset('Deer', 'media1', baseTime, 0, 3), hour: 25 }, // invalid
-        { ...createObservationAtOffset('Deer', 'media2', baseTime, 100, 5), hour: -1 } // invalid
-      ]
-      const result = calculateSequenceAwareDailyActivity(observations, 60, ['Deer'])
-
-      // All hours should be 0 since observations had invalid hours
-      assert.ok(result.every((h) => h.Deer === 0))
-    })
-  })
-})

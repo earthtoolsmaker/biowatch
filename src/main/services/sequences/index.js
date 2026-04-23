@@ -7,8 +7,7 @@ export { groupMediaIntoSequences, groupMediaByEventID } from './grouping.js'
 export {
   calculateSequenceAwareSpeciesCounts,
   calculateSequenceAwareTimeseries,
-  calculateSequenceAwareHeatmap,
-  calculateSequenceAwareDailyActivity
+  calculateSequenceAwareHeatmap
 } from './speciesCounts.js'
 
 export { getPaginatedSequences } from './pagination.js'
