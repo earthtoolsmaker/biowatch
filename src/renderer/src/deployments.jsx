@@ -206,7 +206,6 @@ function DraggableMarker({
   return (
     <Marker
       ref={markerRef}
-      key={location.locationID}
       position={[parseFloat(location.latitude), parseFloat(location.longitude)]}
       icon={isSelected ? activeCameraIcon : cameraIcon}
       draggable={true}
@@ -338,9 +337,9 @@ function LocationMap({
         >
           {validLocations.map((location) => (
             <DraggableMarker
-              key={location.locationID}
+              key={location.deploymentID}
               location={location}
-              isSelected={selectedLocation?.locationID === location.locationID}
+              isSelected={selectedLocation?.deploymentID === location.deploymentID}
               onSelect={setSelectedLocation}
               onDragEnd={(lat, lng) => {
                 if (selectedLocation) {
@@ -1027,9 +1026,9 @@ export default function Deployments({ studyId }) {
   const { importStatus } = useImportStatus(studyId)
 
   // Lightweight un-deduped query for the map — one marker per deployment so
-  // MarkerClusterGroup correctly counts co-located deployments (Overview uses
-  // the deduped getDeploymentLocations instead, which is wrong here because
-  // dragging the single "representative" would silently split a group).
+  // MarkerClusterGroup correctly counts co-located deployments. The deduped
+  // getDeploymentLocations would be wrong here because dragging the single
+  // "representative" marker silently splits a co-located group.
   const { data: deploymentsList } = useQuery({
     queryKey: ['deploymentsAll', studyId],
     queryFn: async () => {
