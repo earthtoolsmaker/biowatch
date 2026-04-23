@@ -3831,23 +3831,28 @@ export default function Activity({ studyData, studyId }) {
     return startMatch && endMatch
   }, [hasTemporalData, fullExtent, dateRange])
 
-  // Fetch sequence-aware daily activity data
-  // sequenceGap in queryKey ensures refetch when slider changes (backend fetches from metadata)
+  // Fetch sequence-aware daily activity data.
+  // Effective dateRange falls back to fullExtent so the radar can render
+  // before the user has brushed a custom range. Gallery keeps its
+  // dateRange-null = "select all" semantic untouched; this fallback is
+  // local to the daily-activity query.
+  const dailyActivityStart = dateRange[0] ?? fullExtent[0]
+  const dailyActivityEnd = dateRange[1] ?? fullExtent[1]
   const { data: dailyActivityData } = useQuery({
     queryKey: [
       'sequenceAwareDailyActivity',
       actualStudyId,
       [...speciesNames].sort(),
-      dateRange[0]?.toISOString(),
-      dateRange[1]?.toISOString(),
+      dailyActivityStart?.toISOString(),
+      dailyActivityEnd?.toISOString(),
       sequenceGap
     ],
     queryFn: async () => {
       const response = await window.api.getSequenceAwareDailyActivity(
         actualStudyId,
         speciesNames,
-        dateRange[0]?.toISOString(),
-        dateRange[1]?.toISOString()
+        dailyActivityStart?.toISOString(),
+        dailyActivityEnd?.toISOString()
       )
       if (response.error) throw new Error(response.error)
       return response.data
@@ -3855,8 +3860,8 @@ export default function Activity({ studyData, studyId }) {
     enabled:
       !!actualStudyId &&
       speciesNames.length > 0 &&
-      !!dateRange[0] &&
-      !!dateRange[1] &&
+      !!dailyActivityStart &&
+      !!dailyActivityEnd &&
       sequenceGap !== undefined,
     placeholderData: (prev) => prev,
     refetchInterval: importStatus?.isRunning ? 5000 : false
