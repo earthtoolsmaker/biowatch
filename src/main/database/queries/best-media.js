@@ -346,6 +346,32 @@ export async function getBestMedia(dbPath, options = {}) {
       return favorites
     }
 
+    // Short-circuit: the auto-scored CTE below requires observations with
+    // bbox geometry populated (area / visibility / padding feed the composite
+    // score). Datasets without usable bboxes (e.g. CamTrap DP exports with
+    // point-only annotations, or LILA/COCO sources) would otherwise scan
+    // millions of observation rows through four CTEs to return zero rows -
+    // ~28s of main-thread block on a 1.16M-row study with no bboxes. Mirror
+    // the probe pattern used in getBestImagePerSpecies.
+    const hasUsableBbox = await executeRawQuery(
+      studyId,
+      dbPath,
+      `SELECT 1 FROM observations
+         WHERE bboxX IS NOT NULL
+           AND bboxWidth IS NOT NULL
+           AND bboxWidth > 0
+           AND bboxHeight > 0
+         LIMIT 1`,
+      []
+    )
+    if (hasUsableBbox.length === 0) {
+      const elapsedTime = Date.now() - startTime
+      log.info(
+        `Retrieved ${favorites.length} best media (${favorites.length} favorites, no usable bbox data) in ${elapsedTime}ms`
+      )
+      return favorites
+    }
+
     // Step 2: Get auto-scored non-favorites to fill remaining slots
     const remainingSlots = limit - favorites.length
     const favoriteMediaIDs = favorites.map((f) => f.mediaID)
