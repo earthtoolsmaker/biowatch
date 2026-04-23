@@ -25,6 +25,7 @@ import {
   LILA_DATASETS
 } from '../services/import/index.js'
 import { extractZip, downloadFile } from '../services/download.ts'
+import { getGbifTitle } from '../../shared/gbifTitles.js'
 
 // Module-level state for tracking active imports (for cancellation)
 let activeGbifImport = null // { abortController, studyId, datasetKey, downloadDir }
@@ -518,7 +519,7 @@ export function registerImportIPCHandlers() {
       if (signal.aborted) throw new DOMException('Import cancelled', 'AbortError')
 
       const datasetMetadata = await datasetResponse.json()
-      datasetTitle = datasetMetadata.title
+      datasetTitle = getGbifTitle(datasetKey, datasetMetadata.title)
       log.info(`Dataset title: ${datasetTitle}`)
 
       // Find the CAMTRAP_DP endpoint
@@ -673,7 +674,7 @@ export function registerImportIPCHandlers() {
             }
           })
         },
-        { signal }
+        { signal, nameOverride: datasetTitle }
       )
 
       const result = {

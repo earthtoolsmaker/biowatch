@@ -2,6 +2,7 @@ import 'leaflet/dist/leaflet.css'
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router'
 import { modelZoo } from '../../shared/mlmodels.js'
+import { getGbifTitle, isGbifAvailable } from '../../shared/gbifTitles.js'
 import { useQueryClient } from '@tanstack/react-query'
 import CountryPickerModal from './CountryPickerModal.jsx'
 import GbifImportProgress from './GbifImportProgress.jsx'
@@ -94,9 +95,10 @@ export default function Import({ studiesCount = 0 }) {
       try {
         const response = await fetch('https://api.gbif.org/v1/dataset/search?q=CAMTRAP_DP')
         const data = await response.json()
-        setGbifDatasets(data.results || [])
-        if (data.results && data.results.length > 0) {
-          setSelectedGbifDataset(data.results[0])
+        const available = (data.results || []).filter((d) => isGbifAvailable(d.key))
+        setGbifDatasets(available)
+        if (available.length > 0) {
+          setSelectedGbifDataset(available[0])
         }
       } catch (error) {
         console.error('Failed to fetch GBIF datasets:', error)
@@ -832,13 +834,15 @@ export default function Import({ studiesCount = 0 }) {
                         }}
                         disabled={loadingGbifDatasets}
                       >
-                        <SelectTrigger className="w-full max-w-60 bg-white border-gray-200">
+                        <SelectTrigger className="w-full max-w-lg bg-white border-gray-200">
                           <SelectValue className="truncate">
                             {loadingGbifDatasets
                               ? 'Loading datasets...'
                               : gbifDatasets.length === 0
                                 ? 'No datasets available'
-                                : selectedGbifDataset?.title || 'Select a dataset'}
+                                : selectedGbifDataset
+                                  ? getGbifTitle(selectedGbifDataset.key, selectedGbifDataset.title)
+                                  : 'Select a dataset'}
                           </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
@@ -846,7 +850,7 @@ export default function Import({ studiesCount = 0 }) {
                             gbifDatasets.length > 0 &&
                             gbifDatasets.map((dataset) => (
                               <SelectItem key={dataset.key} value={dataset.key}>
-                                {dataset.title}
+                                {getGbifTitle(dataset.key, dataset.title)}
                               </SelectItem>
                             ))}
                         </SelectContent>
@@ -888,7 +892,7 @@ export default function Import({ studiesCount = 0 }) {
                         }}
                         disabled={loadingLilaDatasets}
                       >
-                        <SelectTrigger className="w-full max-w-60 bg-white border-gray-200">
+                        <SelectTrigger className="w-full max-w-lg bg-white border-gray-200">
                           <SelectValue className="truncate">
                             {loadingLilaDatasets
                               ? 'Loading datasets...'
