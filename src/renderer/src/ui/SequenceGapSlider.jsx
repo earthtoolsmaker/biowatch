@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useState } from 'react'
 import { Layers } from 'lucide-react'
 import * as Tooltip from '@radix-ui/react-tooltip'
 
@@ -32,17 +33,31 @@ export function SequenceGapSlider({
   disabled = false,
   max = 300
 }) {
-  // Convert null to 0 for slider display, and 0 back to null on change
-  const sliderValue = value ?? 0
-  const handleChange = (e) => {
-    const newValue = Number(e.target.value)
-    onChange(newValue === 0 ? null : newValue)
+  // Local dragging state so the track/handle move smoothly without firing the
+  // parent's onChange on every intermediate value. Every commit currently
+  // invalidates every sequence-aware query (and spawns worker tasks), so we
+  // only want to pay that cost when the user lets go.
+  const [dragValue, setDragValue] = useState(value)
+  useEffect(() => {
+    setDragValue(value)
+  }, [value])
+
+  // Convert null to 0 for slider display, and 0 back to null.
+  const sliderValue = dragValue ?? 0
+
+  const handleInput = (e) => {
+    const n = Number(e.target.value)
+    setDragValue(n === 0 ? null : n)
   }
+
+  const commit = useCallback(() => {
+    if (dragValue !== value) onChange(dragValue)
+  }, [dragValue, value, onChange])
 
   if (variant === 'compact') {
     return (
       <div className="flex items-center gap-2">
-        <Layers size={16} className={value !== null ? 'text-blue-500' : 'text-gray-400'} />
+        <Layers size={16} className={dragValue !== null ? 'text-blue-500' : 'text-gray-400'} />
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <input
@@ -51,10 +66,14 @@ export function SequenceGapSlider({
               max={max}
               step="10"
               value={sliderValue}
-              onChange={handleChange}
+              onChange={handleInput}
+              onMouseUp={commit}
+              onKeyUp={commit}
+              onTouchEnd={commit}
+              onBlur={commit}
               disabled={disabled}
               className="w-24 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              aria-label={`Sequence grouping: ${formatGapValue(value)}`}
+              aria-label={`Sequence grouping: ${formatGapValue(dragValue)}`}
             />
           </Tooltip.Trigger>
           <Tooltip.Portal>
@@ -82,7 +101,7 @@ export function SequenceGapSlider({
             </Tooltip.Content>
           </Tooltip.Portal>
         </Tooltip.Root>
-        <span className="text-xs text-gray-600 w-12">{formatGapValue(value)}</span>
+        <span className="text-xs text-gray-600 w-12">{formatGapValue(dragValue)}</span>
       </div>
     )
   }
@@ -92,10 +111,10 @@ export function SequenceGapSlider({
     <div>
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <Layers size={16} className={value !== null ? 'text-blue-500' : 'text-gray-400'} />
+          <Layers size={16} className={dragValue !== null ? 'text-blue-500' : 'text-gray-400'} />
           <span className="text-sm font-medium text-gray-900">Sequence grouping</span>
         </div>
-        <span className="text-sm font-medium text-blue-600">{formatGapValue(value)}</span>
+        <span className="text-sm font-medium text-blue-600">{formatGapValue(dragValue)}</span>
       </div>
       <input
         type="range"
@@ -103,16 +122,20 @@ export function SequenceGapSlider({
         max={max}
         step="10"
         value={sliderValue}
-        onChange={handleChange}
+        onChange={handleInput}
+        onMouseUp={commit}
+        onKeyUp={commit}
+        onTouchEnd={commit}
+        onBlur={commit}
         disabled={disabled}
         className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-        aria-label={`Sequence grouping: ${formatGapValue(value)}`}
+        aria-label={`Sequence grouping: ${formatGapValue(dragValue)}`}
       />
       {showDescription && (
         <p className="text-xs text-gray-500 mt-2">
-          {value === null
+          {dragValue === null
             ? 'Preserves imported event groupings (eventID from original data)'
-            : `Groups observations within ${formatGapValue(value)} into sequences (generates new eventIDs)`}
+            : `Groups observations within ${formatGapValue(dragValue)} into sequences (generates new eventIDs)`}
         </p>
       )}
     </div>
