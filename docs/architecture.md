@@ -174,7 +174,9 @@ src/
 │   └── index.js             # IPC bridge API
 └── shared/
     ├── mlmodels.js          # Model zoo configuration
-    └── countries.js         # Country codes for geofencing
+    ├── countries.js         # Country codes for geofencing
+    ├── commonNames/         # Scientific → common name dictionary
+    └── speciesInfo/         # Per-species reference data (IUCN, blurb, image)
 ```
 
 ## Data Flow
@@ -335,6 +337,8 @@ function getStudyPath(userDataPath, studyId) {
 | `src/main/database/manager.js`                         | Database connection pooling                           |
 | `src/main/database/queries/`                           | Data query functions (split by domain)                |
 | `src/shared/mlmodels.js`                               | Model zoo configuration                               |
+| `src/shared/commonNames/`                              | Scientific → common name dictionary + resolver        |
+| `src/shared/speciesInfo/`                              | IUCN status, Wikipedia blurb, fallback image (script-built) |
 | `src/main/services/ml/server.ts`                       | ML server lifecycle (start/stop/health)               |
 | `src/main/services/ml/download.ts`                     | ML model download and installation                    |
 | `src/main/ipc/ml.js`                                   | ML model IPC handlers                                 |
