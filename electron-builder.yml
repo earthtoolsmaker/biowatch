@@ -73,5 +73,6 @@ publish:
   provider: github
   owner: earthtoolsmaker
   repo: biowatch
+  releaseType: release
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
