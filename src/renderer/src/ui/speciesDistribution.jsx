@@ -37,9 +37,9 @@ function SpeciesRow({
   const rowContent = (
     <div className="cursor-pointer group" onClick={() => onToggle(species)}>
       <div className="flex justify-between mb-1 items-center cursor-pointer gap-2">
-        <div className="flex items-center cursor-pointer min-w-0 flex-1 gap-1.5">
+        <div className="flex items-center cursor-pointer min-w-0 flex-1">
           <div
-            className={`w-2 h-2 rounded-full flex-shrink-0 border cursor-pointer ${isSelected ? `border-transparent bg-[${color}]` : 'border-gray-300'} group-hover:bg-gray-800 `}
+            className={`w-2 h-2 rounded-full mr-2 flex-shrink-0 border cursor-pointer ${isSelected ? `border-transparent bg-[${color}]` : 'border-gray-300'} group-hover:bg-gray-800 `}
             style={{ backgroundColor: isSelected ? color : null }}
           ></div>
           <span
@@ -52,9 +52,11 @@ function SpeciesRow({
               </span>
             )}
           </span>
-          <IucnBadge category={iucn} />
         </div>
-        <span className="text-xs text-gray-500 flex-shrink-0">{species.count}</span>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <IucnBadge category={iucn} />
+          <span className="text-xs text-gray-500">{species.count}</span>
+        </div>
       </div>
       <div className="w-full bg-gray-200 rounded-full h-2">
         <div
