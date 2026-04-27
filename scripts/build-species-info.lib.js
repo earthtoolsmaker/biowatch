@@ -37,13 +37,31 @@ export function parseGbifMatch(response) {
   return { usageKey: response.usageKey, accept: true, reason: null }
 }
 
+// GBIF returns IUCN status as the verbose form (e.g. "VULNERABLE"). The UI
+// palette and IUCN convention use 2-letter codes.
+const IUCN_VERBOSE_TO_CODE = {
+  LEAST_CONCERN: 'LC',
+  NEAR_THREATENED: 'NT',
+  VULNERABLE: 'VU',
+  ENDANGERED: 'EN',
+  CRITICALLY_ENDANGERED: 'CR',
+  EXTINCT_IN_THE_WILD: 'EW',
+  EXTINCT: 'EX',
+  DATA_DEFICIENT: 'DD',
+  NOT_EVALUATED: 'NE',
+  NOT_APPLICABLE: 'NE'
+}
+
 /**
- * Pull IUCN category from the GBIF iucnRedListCategory response.
- * @returns {string|null} IUCN code (LC/NT/VU/EN/CR/EX/DD/NE) or null.
+ * Pull IUCN category from the GBIF iucnRedListCategory response and normalize
+ * it to a 2-letter code.
+ * @returns {string|null} IUCN code (LC/NT/VU/EN/CR/EW/EX/DD/NE) or null.
  */
 export function parseGbifIucn(response) {
   if (!response || typeof response.category !== 'string') return null
-  return response.category
+  const raw = response.category
+  if (raw.length <= 3) return raw
+  return IUCN_VERBOSE_TO_CODE[raw] ?? null
 }
 
 /**

@@ -76,6 +76,22 @@ describe('parseGbifIucn', () => {
     assert.equal(parseGbifIucn({ category: 'LC' }), 'LC')
   })
 
+  test('maps GBIF verbose categories to 2-letter codes', () => {
+    assert.equal(parseGbifIucn({ category: 'LEAST_CONCERN' }), 'LC')
+    assert.equal(parseGbifIucn({ category: 'NEAR_THREATENED' }), 'NT')
+    assert.equal(parseGbifIucn({ category: 'VULNERABLE' }), 'VU')
+    assert.equal(parseGbifIucn({ category: 'ENDANGERED' }), 'EN')
+    assert.equal(parseGbifIucn({ category: 'CRITICALLY_ENDANGERED' }), 'CR')
+    assert.equal(parseGbifIucn({ category: 'EXTINCT_IN_THE_WILD' }), 'EW')
+    assert.equal(parseGbifIucn({ category: 'EXTINCT' }), 'EX')
+    assert.equal(parseGbifIucn({ category: 'DATA_DEFICIENT' }), 'DD')
+    assert.equal(parseGbifIucn({ category: 'NOT_EVALUATED' }), 'NE')
+  })
+
+  test('returns null for unknown verbose values', () => {
+    assert.equal(parseGbifIucn({ category: 'FOOBAR_LEVEL' }), null)
+  })
+
   test('returns null when missing', () => {
     assert.equal(parseGbifIucn({}), null)
     assert.equal(parseGbifIucn(null), null)
