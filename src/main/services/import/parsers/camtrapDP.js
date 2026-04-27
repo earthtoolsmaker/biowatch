@@ -274,6 +274,34 @@ function createBulkInserter(sqlite, tableName, columns) {
 }
 
 /**
+ * Count rows in a CSV file via a fast newline-only scan (no parsing).
+ * Subtracts 1 for the header line.
+ * @param {string} filePath - Path to the CSV file
+ * @param {AbortSignal} signal - Optional abort signal for cancellation
+ * @returns {Promise<number>}
+ */
+async function countCsvRows(filePath, signal = null) {
+  return new Promise((resolve, reject) => {
+    const stream = fs.createReadStream(filePath)
+    let count = 0
+    if (signal) {
+      signal.addEventListener(
+        'abort',
+        () => stream.destroy(new DOMException('Import cancelled', 'AbortError')),
+        { once: true }
+      )
+    }
+    stream.on('data', (chunk) => {
+      for (let i = 0; i < chunk.length; i++) {
+        if (chunk[i] === 0x0a) count++
+      }
+    })
+    stream.on('end', () => resolve(Math.max(0, count - 1)))
+    stream.on('error', reject)
+  })
+}
+
+/**
  * Insert CSV data into a Drizzle schema table.
  * Streams rows and inserts batches as they fill (O(batchSize) memory).
  * Uses raw prepared statements with transaction wrapping for maximum speed.
@@ -303,13 +331,19 @@ async function insertCSVData(
   log.debug(`directoryPath: ${directoryPath}`)
 
   const sqlite = manager.getSqlite()
+  const totalRows = await countCsvRows(filePath, signal)
+  log.debug(`Pre-scanned ${totalRows} rows in ${filePath}`)
+
+  if (onProgress) {
+    onProgress({ insertedRows: 0, totalRows, batchNumber: 0 })
+  }
+
   const stream = fs.createReadStream(filePath).pipe(csv())
   const pathCache = {} // caches file path resolution strategy (probed on first media row)
   const batchSize = 2000
   let batch = []
   let inserter = null
   let insertedRows = 0
-  let totalRows = 0
   let batchNumber = 0
 
   try {
@@ -325,7 +359,6 @@ async function insertCSVData(
           inserter = createBulkInserter(sqlite, tableName, Object.keys(transformedRow))
         }
         batch.push(transformedRow)
-        totalRows++
       }
 
       if (batch.length >= batchSize) {
@@ -347,14 +380,17 @@ async function insertCSVData(
       inserter(batch)
       insertedRows += batch.length
       batchNumber++
-
-      if (onProgress) {
-        onProgress({ insertedRows, totalRows, batchNumber })
-      }
     }
 
-    if (totalRows > 0) {
-      log.info(`Completed insertion of ${totalRows} rows into ${tableName}`)
+    // Final emission: snap totalRows to insertedRows so the bar reaches 100%
+    // even if some CSV rows were filtered by transformRowToSchema or the
+    // newline pre-count was slightly off.
+    if (onProgress) {
+      onProgress({ insertedRows, totalRows: insertedRows, batchNumber })
+    }
+
+    if (insertedRows > 0) {
+      log.info(`Completed insertion of ${insertedRows} rows into ${tableName}`)
     } else {
       log.warn(`No valid rows found in ${filePath} for table ${tableName}`)
     }
