@@ -32,6 +32,7 @@ const OUTPUT_PATH = path.join(ROOT, 'src/shared/speciesInfo/data.json')
 const POLITE_DELAY_MS = 500
 const RETRIES = 3
 const RETRY_BASE_MS = 1000
+const FLUSH_EVERY_N = 25
 
 function parseArgs(argv) {
   const out = { resume: false, force: false, dryRun: false, limit: Infinity }
@@ -172,6 +173,14 @@ async function main() {
     } catch (err) {
       console.warn(`[err]  ${name} — ${err.message}`)
     }
+
+    // Periodic flush so a crash doesn't lose in-flight work. The pretty-print
+    // is cheap (~600KB once full); for partial runs it's tiny.
+    if (!args.dryRun && processed % FLUSH_EVERY_N === 0) {
+      writeOutput(out)
+      console.log(`[flush] wrote ${Object.keys(out).length} entries`)
+    }
+
     await sleep(POLITE_DELAY_MS)
   }
 
