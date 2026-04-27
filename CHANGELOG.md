@@ -5,6 +5,47 @@ All notable changes to Biowatch will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] - 2026-04-27
+
+### Added
+
+- Common-name dictionary built from SpeciesNet, DeepFaune, and Manas label snapshots, with GBIF English-detection scorer and `extras.json` overrides
+- `useCommonName` hook + `resolveCommonName` helper, used across Overview, Species Distribution, and Media tabs
+- Common-name-first species row with in-study dot badge in the Media species picker
+- Fuzzy species search via Fuse.js with debounced `dictionarySearch`, arrow-key navigation, and Enter-to-select
+- Custom-species chip and delete mode in ObservationEditor; Enter commits custom species in zero-results state
+- Per-frame bbox overlay for videos in the media modal, with `getVideoFrameDetections` IPC and bbox toggle for videos with detections
+- Deployment marker clustering on the Overview map
+- GBIF import progress with pre-counted CSV rows so `current/total` reflects real progress
+
+### Changed
+
+- Kruger demo dataset rewritten with real scientific names and `commonName` column
+- GBIF dataset titles improved; unavailable datasets hidden in importer
+- Species hover tooltip and best-captures carousel show common names
+- Species list rows truncate long names with ellipsis
+- Common-name dictionary values lowercased at build time
+- Worker thread takes over sequence pagination, best-media selection, deployments activity, and SQL-aggregated species counts on Overview
+- SQL fast-paths for sequence-aware weekly/daily/hourly aggregations and heatmap
+- Indefinite caching for blank-media count, species distribution, best-media carousel/tooltip, and sequence-aware activity queries
+- Sequence-gap slider commits on release instead of every drag tick; sequence-aware queries gated on resolved gap
+- Overview map switched to lightweight deployments query
+- FFmpeg ffmpeg-static now unpacked in the packaged app
+
+### Fixed
+
+- Cache invalidation for species/count queries on delete and import complete; sequence-aware heatmap invalidates on class edit; best-media cache gaps closed
+- Heatmap routes unparseable timestamps through the null-timestamp branch
+- Deployments map keyed by `deploymentID` instead of `locationID`; un-deduped and renamed `getDeployments` → `getDeploymentLocations`
+- Daily activity falls back to `fullExtent` when `dateRange` is null
+- Species dropdown anchored over media to prevent clipping
+- Backspace/Delete no longer bubble out of the species editor
+- Video class is editable and grid/filter stay in sync
+- `ThumbnailBboxOverlay` skips bbox-less observations
+- bbox queries select `commonName` so labels prefer it
+- GBIF cache scoping tightened; lint unblocked in CI
+- Create Release workflow has write permissions
+
 ## [1.7.2] - 2026-04-01
 
 ### Added
@@ -330,6 +371,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Activity heatmaps
 - Overview statistics
 
+[1.8.0]: https://github.com/earthtoolsmaker/biowatch/compare/v1.7.2...v1.8.0
 [1.7.2]: https://github.com/earthtoolsmaker/biowatch/compare/v1.7.1...v1.7.2
 [1.7.1]: https://github.com/earthtoolsmaker/biowatch/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/earthtoolsmaker/biowatch/compare/v1.6.1...v1.7.0
