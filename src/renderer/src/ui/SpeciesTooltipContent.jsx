@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { CameraOff, Loader2 } from 'lucide-react'
 import { useCommonName } from '../utils/commonNames'
 import { resolveSpeciesInfo } from '../../../shared/speciesInfo/index.js'
+import IucnBadge from './IucnBadge'
 
 function toTitleCase(str) {
   return str.replace(/\b\w/g, (c) => c.toUpperCase())
@@ -31,31 +32,6 @@ function constructImageUrl(fullFilePath, studyId) {
  */
 function isRemoteUrl(filePath) {
   return filePath?.startsWith('http')
-}
-
-const IUCN_COLORS = {
-  LC: 'bg-green-100 text-green-800',
-  NT: 'bg-yellow-100 text-yellow-800',
-  VU: 'bg-orange-100 text-orange-800',
-  EN: 'bg-red-100 text-red-800',
-  CR: 'bg-red-200 text-red-900',
-  EX: 'bg-gray-800 text-white',
-  EW: 'bg-gray-700 text-white',
-  DD: 'bg-gray-100 text-gray-700',
-  NE: 'bg-gray-100 text-gray-700'
-}
-
-function IucnBadge({ category }) {
-  if (!category) return null
-  const cls = IUCN_COLORS[category] ?? 'bg-gray-100 text-gray-700'
-  return (
-    <span
-      className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide ${cls}`}
-      title={`IUCN Red List: ${category}`}
-    >
-      {category}
-    </span>
-  )
 }
 
 /**
