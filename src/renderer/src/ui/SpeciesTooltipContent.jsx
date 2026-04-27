@@ -58,6 +58,11 @@ export default function SpeciesTooltipContent({ imageData, studyId }) {
   }, [imageData?.mediaID, sciName])
 
   // Image source priority: study photo > Wikipedia thumbnail > placeholder.
+  // Study photos are usually camera-trap-shaped (~16:9), so we crop to fill
+  // (object-cover). Wikipedia thumbnails come in wildly varying aspect
+  // ratios, so we fit-with-letterbox (object-contain) on a black background
+  // to avoid awkward crops.
+  const usingFallbackImage = !imageData?.filePath && !!info?.imageUrl
   const imageSource = imageData?.filePath
     ? constructImageUrl(imageData.filePath, studyId)
     : info?.imageUrl
@@ -73,7 +78,9 @@ export default function SpeciesTooltipContent({ imageData, studyId }) {
   return (
     <div className="w-[320px] bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden">
       {/* Image */}
-      <div className="relative w-full h-[180px] bg-gray-100">
+      <div
+        className={`relative w-full h-[180px] ${usingFallbackImage ? 'bg-black' : 'bg-gray-100'}`}
+      >
         {!imageSource || imageError ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <CameraOff size={32} className="text-gray-300" />
@@ -92,7 +99,7 @@ export default function SpeciesTooltipContent({ imageData, studyId }) {
             <img
               src={imageSource}
               alt={sciName ?? ''}
-              className={`w-full h-full object-cover transition-opacity duration-150 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+              className={`w-full h-full ${usingFallbackImage ? 'object-contain' : 'object-cover'} transition-opacity duration-150 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
               onLoad={() => setImageLoaded(true)}
               onError={() => setImageError(true)}
             />
