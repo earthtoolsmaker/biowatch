@@ -62,9 +62,14 @@ function IucnBadge({ category }) {
  * Species tooltip content showing best image for a species
  * Used with Radix UI Tooltip
  */
+// Approx chars before the 5-line clamp visibly truncates at our font/width.
+// Used to decide whether the "Show more" toggle is worth rendering.
+const BLURB_CLAMP_THRESHOLD = 250
+
 export default function SpeciesTooltipContent({ imageData, studyId }) {
   const [imageError, setImageError] = useState(false)
   const [imageLoaded, setImageLoaded] = useState(false)
+  const [blurbExpanded, setBlurbExpanded] = useState(false)
   const sciName = imageData?.scientificName
   const common = useCommonName(sciName)
   const info = resolveSpeciesInfo(sciName)
@@ -73,6 +78,7 @@ export default function SpeciesTooltipContent({ imageData, studyId }) {
   useEffect(() => {
     setImageError(false)
     setImageLoaded(false)
+    setBlurbExpanded(false)
   }, [imageData?.mediaID, sciName])
 
   // Image source priority: study photo > Wikipedia thumbnail > placeholder.
@@ -135,7 +141,24 @@ export default function SpeciesTooltipContent({ imageData, studyId }) {
         </div>
 
         {info?.blurb && (
-          <p className="text-[11px] text-gray-700 leading-snug line-clamp-3">{info.blurb}</p>
+          <>
+            <p
+              className={`text-[11px] text-gray-700 leading-snug ${
+                blurbExpanded ? 'max-h-48 overflow-y-auto pr-1' : 'line-clamp-5'
+              }`}
+            >
+              {info.blurb}
+            </p>
+            {info.blurb.length > BLURB_CLAMP_THRESHOLD && (
+              <button
+                type="button"
+                onClick={() => setBlurbExpanded((v) => !v)}
+                className="text-[10px] text-blue-600 hover:underline"
+              >
+                {blurbExpanded ? 'Show less' : 'Show more'}
+              </button>
+            )}
+          </>
         )}
 
         {info?.wikipediaUrl && (
@@ -143,9 +166,9 @@ export default function SpeciesTooltipContent({ imageData, studyId }) {
             href={info.wikipediaUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[10px] text-blue-600 hover:underline"
+            className="block text-[10px] text-blue-600 hover:underline"
           >
-            Read more on Wikipedia
+            Read on Wikipedia
           </a>
         )}
       </div>
