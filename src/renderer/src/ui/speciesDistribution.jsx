@@ -27,12 +27,14 @@ function SpeciesRow({
   const colorIndex = selectedSpecies.findIndex((s) => s.scientificName === species.scientificName)
   const color = colorIndex >= 0 ? palette[colorIndex % palette.length] : '#ccc'
 
-  const hasImage = !isBlankEntry && !!speciesImageMap[species.scientificName]
-  const enableTooltip = studyId && hasImage
-
   const showScientificInItalic =
     !isBlankEntry && species.scientificName && displayName !== species.scientificName
-  const iucn = isBlankEntry ? null : resolveSpeciesInfo(species.scientificName)?.iucn
+  const info = isBlankEntry ? null : resolveSpeciesInfo(species.scientificName)
+  const iucn = info?.iucn
+  const studyImage = isBlankEntry ? null : speciesImageMap[species.scientificName]
+  const tooltipImageData =
+    studyImage || (info?.imageUrl ? { scientificName: species.scientificName } : null)
+  const enableTooltip = studyId && !!tooltipImageData
 
   const rowContent = (
     <div className="cursor-pointer group" onClick={() => onToggle(species)}>
@@ -83,10 +85,7 @@ function SpeciesRow({
             collisionPadding={16}
             className="z-[10000]"
           >
-            <SpeciesTooltipContent
-              imageData={speciesImageMap[species.scientificName]}
-              studyId={studyId}
-            />
+            <SpeciesTooltipContent imageData={tooltipImageData} studyId={studyId} />
           </Tooltip.Content>
         </Tooltip.Portal>
       </Tooltip.Root>

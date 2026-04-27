@@ -272,9 +272,12 @@ function SpeciesRow({
 }) {
   const displayName =
     useCommonName(species.scientificName, { storedCommonName }) || species.scientificName
-  const hasImage = !!speciesImageMap[species.scientificName]
   const showScientific = species.scientificName && displayName !== species.scientificName
-  const iucn = resolveSpeciesInfo(species.scientificName)?.iucn
+  const info = resolveSpeciesInfo(species.scientificName)
+  const iucn = info?.iucn
+  const studyImage = speciesImageMap[species.scientificName]
+  const tooltipImageData =
+    studyImage || (info?.imageUrl ? { scientificName: species.scientificName } : null)
 
   return (
     <Tooltip.Root key={species.scientificName}>
@@ -303,7 +306,7 @@ function SpeciesRow({
           </div>
         </div>
       </Tooltip.Trigger>
-      {hasImage && (
+      {tooltipImageData && (
         <Tooltip.Portal>
           <Tooltip.Content
             side="right"
@@ -313,10 +316,7 @@ function SpeciesRow({
             collisionPadding={16}
             className="z-[10000]"
           >
-            <SpeciesTooltipContent
-              imageData={speciesImageMap[species.scientificName]}
-              studyId={studyId}
-            />
+            <SpeciesTooltipContent imageData={tooltipImageData} studyId={studyId} />
           </Tooltip.Content>
         </Tooltip.Portal>
       )}
