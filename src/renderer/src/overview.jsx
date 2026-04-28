@@ -296,7 +296,7 @@ function SpeciesRow({
     >
       <HoverCard.Trigger asChild>
         <div
-          className="cursor-pointer hover:bg-gray-50 transition-colors rounded py-1"
+          className="cursor-pointer hover:bg-blue-50 transition-colors py-2 -mx-3 px-3 first:pt-3 last:pb-3"
           onClick={() => onRowClick(species)}
         >
           <div className="flex justify-between mb-1 items-center gap-2">
@@ -396,10 +396,10 @@ function SpeciesDistribution({ data, taxonomicData, studyId }) {
 
   return (
     <div
-      className="w-1/2 bg-white rounded border border-gray-200 p-3 overflow-y-auto relative"
+      className="w-1/2 bg-white rounded border border-gray-200 px-3 overflow-y-auto relative"
       onScroll={handleScroll}
     >
-      <div className="space-y-2">
+      <div>
         {sortSpeciesHumansLast(data).map((species) => {
           const storedCommonName = scientificToCommonMap[species.scientificName] || null
           return (
