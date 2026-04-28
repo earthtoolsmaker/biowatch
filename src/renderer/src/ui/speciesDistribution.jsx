@@ -46,7 +46,10 @@ function SpeciesRow({
   const enableTooltip = studyId && !!tooltipImageData
 
   const rowContent = (
-    <div className="cursor-pointer group" onClick={() => onToggle(species)}>
+    <div
+      className="cursor-pointer group hover:bg-blue-50 transition-colors py-2 -mx-3 px-3 first:pt-3 last:pb-3"
+      onClick={() => onToggle(species)}
+    >
       <div className="flex justify-between mb-1 items-center cursor-pointer gap-2">
         <div className="flex items-center cursor-pointer min-w-0 flex-1">
           <div
@@ -104,7 +107,7 @@ function SpeciesRow({
     )
   }
 
-  return <div key={species.scientificName || index}>{rowContent}</div>
+  return rowContent
 }
 
 function SpeciesDistribution({
@@ -200,8 +203,8 @@ function SpeciesDistribution({
         <span className="text-xs text-gray-400">({speciesCount})</span>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-3 myscroll" onScroll={handleScroll}>
-        <div className="space-y-4">
+      <div className="flex-1 overflow-y-auto px-3 myscroll" onScroll={handleScroll}>
+        <div>
           {sortSpeciesHumansLast(displayData).map((species, index) => {
             const isBlankEntry = isBlank(species.scientificName)
             const storedCommonName = isBlankEntry
