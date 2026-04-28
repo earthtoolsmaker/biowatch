@@ -5,6 +5,22 @@ All notable changes to Biowatch will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.2] - 2026-04-28
+
+### Added
+
+- Resizable map/list split on the Deployments tab with persisted layout
+
+### Changed
+
+- Study settings page redesigned with a minimalistic rule-divided layout
+- Edge-to-edge light blue hover style on species list rows
+- Dropped sequence-grouping slider description in study settings
+
+### Fixed
+
+- Deployment rows cap height and truncate long names to keep the table tidy
+
 ## [1.8.1] - 2026-04-28
 
 ### Added
@@ -395,6 +411,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Activity heatmaps
 - Overview statistics
 
+[1.8.2]: https://github.com/earthtoolsmaker/biowatch/compare/v1.8.1...v1.8.2
 [1.8.1]: https://github.com/earthtoolsmaker/biowatch/compare/v1.8.0...v1.8.1
 [1.8.0]: https://github.com/earthtoolsmaker/biowatch/compare/v1.7.2...v1.8.0
 [1.7.2]: https://github.com/earthtoolsmaker/biowatch/compare/v1.7.1...v1.7.2
