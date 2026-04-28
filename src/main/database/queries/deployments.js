@@ -296,8 +296,12 @@ export async function getDeploymentsActivity(dbPath, periodCount) {
   const startTime = Date.now()
   // Robust against null/0/NaN from the IPC boundary — JS default params only
   // fire on undefined, but the renderer can legitimately send null before the
-  // timeline width is measured.
-  const buckets = typeof periodCount === 'number' && periodCount > 0 ? periodCount : 20
+  // timeline width is measured. Also clamped to a sane upper bound: each extra
+  // bucket adds a SUM(CASE) expression to a single GROUP BY scan, so an
+  // ultra-wide / multi-monitor renderer asking for hundreds of buckets would
+  // make the worker query proportionally slower on large studies.
+  const requested = typeof periodCount === 'number' && periodCount > 0 ? periodCount : 20
+  const buckets = Math.min(requested, 100)
   log.info(`Querying deployment activity from: ${dbPath}`)
 
   try {

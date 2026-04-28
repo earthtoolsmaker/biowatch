@@ -1089,8 +1089,9 @@ export default function Deployments({ studyId }) {
   // the sequences worker so the SUM(CASE) × N aggregate over observations
   // doesn't block the UI. periodCount is set by LocationsList from the
   // measured timeline width (bucketed to multiples of 10) so wider screens
-  // get more circles per row; keepPreviousData smooths the bucket-crossing
-  // refetch.
+  // get more circles per row; placeholderData holds the previous bucket's
+  // rows during the bucket-crossing refetch (v5 idiom — keepPreviousData was
+  // removed in @tanstack/react-query v5).
   const { data: activity, isLoading: isActivityLoading } = useQuery({
     queryKey: ['deploymentsActivity', studyId, periodCount],
     queryFn: async () => {
@@ -1100,7 +1101,7 @@ export default function Deployments({ studyId }) {
       }
       return response.data
     },
-    keepPreviousData: true,
+    placeholderData: (prev) => prev,
     refetchInterval: () => (importStatus?.isRunning ? 5000 : false),
     enabled: !!studyId
   })

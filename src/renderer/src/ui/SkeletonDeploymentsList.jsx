@@ -29,8 +29,9 @@ function SkeletonDeploymentsList({ itemCount = 5 }) {
                 </div>
               </div>
               {/* Activity periods skeleton — matches DeploymentRow's h-[25px]
-                  flex-1 wrapper + max-w-[25px] circle so the row height stays
-                  bounded regardless of container width. */}
+                  flex-1 wrapper so the row height stays bounded regardless
+                  of container width. Pixel widths give consistent variety
+                  across wide and narrow screens. */}
               <div className="flex gap-2 flex-1">
                 {Array.from({ length: 10 }).map((_, periodIndex) => (
                   <div
@@ -38,8 +39,8 @@ function SkeletonDeploymentsList({ itemCount = 5 }) {
                     className="flex items-center justify-center h-[25px] flex-1 min-w-0"
                   >
                     <div
-                      className="rounded-full bg-gray-200 aspect-square max-w-[25px] animate-pulse"
-                      style={{ width: `${20 + ((periodIndex * 7) % 60)}%` }}
+                      className="rounded-full bg-gray-200 aspect-square animate-pulse"
+                      style={{ width: `${10 + ((periodIndex * 5) % 16)}px` }}
                     />
                   </div>
                 ))}
