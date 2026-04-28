@@ -384,30 +384,43 @@ Biowatch uses an automated CI/CD pipeline that builds and publishes releases for
 
 ### Step-by-Step Release
 
-1. **Update version** in `package.json`:
+Releases go through a pull request rather than a direct push to `main`, so the version bump gets the same review and CI checks as any other change.
+
+1. **Create a release branch** off `main`:
+   ```bash
+   git checkout main
+   git pull
+   git checkout -b <yourname>/release-new-version-1.5.0
+   ```
+
+2. **Update version** in `package.json`:
    ```json
    "version": "1.5.0"
    ```
 
-2. **Update `CHANGELOG.md`** with the new version's changes:
+3. **Update `CHANGELOG.md`** with the new version's changes:
    - Add a new section for the version with the release date
    - Document all notable changes under: Added, Changed, Fixed, Removed
    - Update the comparison links at the bottom of the file
 
-3. **Commit the version bump**:
+4. **Commit and push the release branch**:
    ```bash
    git add package.json CHANGELOG.md
    git commit -m "chore: bump version to 1.5.0"
-   git push origin main
+   git push -u origin HEAD
    ```
 
-4. **Create and push a version tag**:
+5. **Open a pull request** targeting `main` and get it reviewed/merged. Do **not** push the bump commit straight to `main` — the tag in step 6 must point at the merge commit on `main`.
+
+6. **Create and push a version tag** from `main` after the PR merges:
    ```bash
+   git checkout main
+   git pull
    git tag v1.5.0
    git push origin v1.5.0
    ```
 
-5. **Verify CI triggered**: Check [GitHub Actions](https://github.com/earthtoolsmaker/biowatch/actions) to ensure both workflows started.
+7. **Verify CI triggered**: Check [GitHub Actions](https://github.com/earthtoolsmaker/biowatch/actions) to ensure both workflows started.
 
 ### CI/CD Workflows
 
