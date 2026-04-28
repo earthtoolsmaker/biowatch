@@ -114,7 +114,11 @@ function loadExisting() {
 
 function writeOutput(map) {
   const sorted = Object.fromEntries(Object.entries(map).sort(([a], [b]) => a.localeCompare(b)))
-  fs.writeFileSync(OUTPUT_PATH, JSON.stringify(sorted, null, 2) + '\n', 'utf8')
+  // Write to a temp file in the same directory, then rename — atomic on POSIX,
+  // so a SIGKILL or power loss mid-write can't truncate the canonical file.
+  const tmpPath = `${OUTPUT_PATH}.tmp`
+  fs.writeFileSync(tmpPath, JSON.stringify(sorted, null, 2) + '\n', 'utf8')
+  fs.renameSync(tmpPath, OUTPUT_PATH)
 }
 
 function diffSummary(prev, next) {
