@@ -644,7 +644,7 @@ export default function Import({ studiesCount = 0 }) {
                     </Button>
                   ) : (
                     <div className="flex flex-1 sm:flex-none sm:basis-auto basis-full min-w-[240px] gap-2 sm:ml-auto">
-                      <div className="flex-1">{modelSelect}</div>
+                      <div className="flex-1 min-w-0">{modelSelect}</div>
                       <Button
                         variant="outline"
                         size="sm"
@@ -711,7 +711,7 @@ export default function Import({ studiesCount = 0 }) {
                     }}
                     disabled={loadingGbifDatasets}
                   >
-                    <SelectTrigger className="flex-1 bg-white border-gray-200">
+                    <SelectTrigger className="flex-1 min-w-0 bg-white border-gray-200">
                       <SelectValue className="truncate">
                         {loadingGbifDatasets
                           ? 'Loading datasets...'
@@ -762,7 +762,7 @@ export default function Import({ studiesCount = 0 }) {
                     }}
                     disabled={loadingLilaDatasets}
                   >
-                    <SelectTrigger className="flex-1 bg-white border-gray-200">
+                    <SelectTrigger className="flex-1 min-w-0 bg-white border-gray-200">
                       <SelectValue className="truncate">
                         {loadingLilaDatasets
                           ? 'Loading datasets...'
