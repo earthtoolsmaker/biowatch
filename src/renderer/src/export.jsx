@@ -4,7 +4,7 @@ import CamtrapDPExportModal from './CamtrapDPExportModal'
 import ImageDirectoriesExportModal from './ImageDirectoriesExportModal'
 import ExportProgressModal from './ExportProgressModal'
 
-function ExportButton({ onClick, children, className = '', disabled = false }) {
+function ExportRow({ icon: Icon, title, description, onClick, isFirst, isLast }) {
   const [isExporting, setIsExporting] = useState(false)
 
   const handleClick = async () => {
@@ -17,15 +17,28 @@ function ExportButton({ onClick, children, className = '', disabled = false }) {
   }
 
   return (
-    <button
-      onClick={handleClick}
-      disabled={isExporting || disabled}
-      className={`cursor-pointer transition-colors flex justify-center flex-row gap-2 items-center border border-gray-200 px-4 h-10 text-sm shadow-sm rounded-md hover:bg-gray-50 ${
-        isExporting || disabled ? 'opacity-70' : ''
-      } ${className}`}
+    <div
+      className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 py-3 ${
+        isFirst ? 'pt-0' : ''
+      } ${isLast ? 'pb-0' : ''}`}
     >
-      {isExporting ? <span className="animate-pulse">Exporting...</span> : children}
-    </button>
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <Icon size={16} className="text-gray-500 shrink-0" />
+          <span className="text-sm font-medium text-gray-900">{title}</span>
+        </div>
+        <p className="text-sm text-gray-500 mt-1">{description}</p>
+      </div>
+      <button
+        onClick={handleClick}
+        disabled={isExporting}
+        className={`cursor-pointer transition-colors flex justify-center items-center gap-2 border border-gray-200 px-4 h-9 text-sm shadow-sm rounded-md hover:bg-gray-50 w-full sm:w-auto ${
+          isExporting ? 'opacity-70' : ''
+        }`}
+      >
+        {isExporting ? <span className="animate-pulse">Exporting...</span> : 'Export'}
+      </button>
+    </div>
   )
 }
 
@@ -36,7 +49,6 @@ export default function Export({ studyId }) {
   const [showProgressModal, setShowProgressModal] = useState(false)
   const [exportProgress, setExportProgress] = useState(null)
 
-  // Listen for export progress events
   useEffect(() => {
     const unsubscribe = window.api.onExportProgress((progress) => {
       setExportProgress(progress)
@@ -101,7 +113,6 @@ export default function Export({ studyId }) {
     setShowCamtrapDPModal(false)
     setExportStatus(null)
 
-    // Show progress modal only when including media (which triggers downloads)
     if (options.includeMedia) {
       setShowProgressModal(true)
       setExportProgress(null)
@@ -150,67 +161,44 @@ export default function Export({ studyId }) {
   }
 
   return (
-    <div className="flex h-full py-6 overflow-auto">
-      <div className="max-w-4xl w-full">
-        {/* Status Messages */}
-        {exportStatus && (
-          <div
-            className={`mb-6 p-4 rounded-lg ${
-              exportStatus.type === 'success'
-                ? 'bg-green-50 text-green-800 border border-green-200'
-                : 'bg-red-50 text-red-800 border border-red-200'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <p className="text-sm">{exportStatus.message}</p>
-              {exportStatus.type === 'success' && exportStatus.exportPath && (
-                <button
-                  onClick={handleOpenExportFolder}
-                  className="cursor-pointer border border-green-400 ml-4 px-3 py-1 bg-green-100 hover:bg-green-200 text-green-800 rounded text-sm font-medium transition-colors"
-                >
-                  Open Folder
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Export Methods Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Image Directories Export Card */}
-          <div className="border border-gray-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-center gap-2 mb-2">
-              <FolderTree size={20} className="text-gray-700" />
-              <h3 className="text-lg font-semibold">Media Directories</h3>
-            </div>
-            <p className="text-sm text-gray-600 mb-4">
-              Export media organized into directories by species. Each species will have its own
-              folder containing all identified media.
-            </p>
-            <div className="flex justify-start">
-              <ExportButton onClick={handleImageDirectoriesExport} className="">
-                Export Media Directories
-              </ExportButton>
-            </div>
-          </div>
-
-          {/* Camtrap DP Export Card */}
-          <div className="border border-gray-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-center gap-2 mb-2">
-              <Package size={20} className="text-gray-700" />
-              <h3 className="text-lg font-semibold">Camtrap DP</h3>
-            </div>
-            <p className="text-sm text-gray-600 mb-4">
-              Export as a Camera Trap Data Package, a standardized format compatible with GBIF and
-              other biodiversity platforms.
-            </p>
-            <div className="flex justify-start">
-              <ExportButton onClick={handleCamtrapDPExport} className="">
-                Export Camtrap DP
-              </ExportButton>
-            </div>
+    <>
+      {exportStatus && (
+        <div
+          className={`mb-4 p-3 rounded-md text-sm ${
+            exportStatus.type === 'success'
+              ? 'bg-green-50 text-green-800 border border-green-200'
+              : 'bg-red-50 text-red-800 border border-red-200'
+          }`}
+        >
+          <div className="flex items-center justify-between gap-3">
+            <p>{exportStatus.message}</p>
+            {exportStatus.type === 'success' && exportStatus.exportPath && (
+              <button
+                onClick={handleOpenExportFolder}
+                className="cursor-pointer border border-green-400 px-3 py-1 bg-green-100 hover:bg-green-200 text-green-800 rounded text-xs font-medium transition-colors whitespace-nowrap"
+              >
+                Open Folder
+              </button>
+            )}
           </div>
         </div>
+      )}
+
+      <div className="divide-y divide-gray-100">
+        <ExportRow
+          icon={FolderTree}
+          title="Media Directories"
+          description="Media organized into folders by species."
+          onClick={handleImageDirectoriesExport}
+          isFirst
+        />
+        <ExportRow
+          icon={Package}
+          title="Camtrap DP"
+          description="Camera Trap Data Package — GBIF compatible."
+          onClick={handleCamtrapDPExport}
+          isLast
+        />
       </div>
 
       <CamtrapDPExportModal
@@ -232,6 +220,6 @@ export default function Export({ studyId }) {
         onCancel={handleCancelExport}
         progress={exportProgress}
       />
-    </div>
+    </>
   )
 }
