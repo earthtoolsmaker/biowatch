@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query'
 import * as HoverCard from '@radix-ui/react-hover-card'
 import { sortSpeciesHumansLast, isBlank, BLANK_SENTINEL } from '../utils/speciesUtils'
 import SpeciesTooltipContent from './SpeciesTooltipContent'
-import IucnBadge from './IucnBadge'
 import { useCommonName } from '../utils/commonNames'
 import { resolveSpeciesInfo } from '../../../shared/speciesInfo/index.js'
 
@@ -29,8 +28,10 @@ function SpeciesRow({
 
   const showScientificInItalic =
     !isBlankEntry && species.scientificName && displayName !== species.scientificName
+  // resolveSpeciesInfo is still used to surface a Wikipedia thumbnail when the
+  // study has no best-media image. The inline IUCN badge is intentionally NOT
+  // rendered on the media/activity sidebars — only inside the hover card.
   const info = isBlankEntry ? null : resolveSpeciesInfo(species.scientificName)
-  const iucn = info?.iucn
   const studyImage = isBlankEntry ? null : speciesImageMap[species.scientificName]
   const tooltipImageData =
     studyImage || (info?.imageUrl ? { scientificName: species.scientificName } : null)
@@ -55,10 +56,7 @@ function SpeciesRow({
             )}
           </span>
         </div>
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          <IucnBadge category={iucn} />
-          <span className="text-xs text-gray-500">{species.count}</span>
-        </div>
+        <span className="text-xs text-gray-500 flex-shrink-0">{species.count}</span>
       </div>
       <div className="w-full bg-gray-200 rounded-full h-2">
         <div
