@@ -6,11 +6,12 @@ function classNames(...classes) {
 }
 
 // Tab component
-export function Tab({ to, icon: Icon, children, end = false, indicator = null }) {
+export function Tab({ to, icon: Icon, children, end = false, indicator = null, compact = false }) {
   return (
     <NavLink
       to={to}
       end={end}
+      title={typeof children === 'string' ? children : undefined}
       className={({ isActive }) =>
         classNames(
           isActive
@@ -23,7 +24,9 @@ export function Tab({ to, icon: Icon, children, end = false, indicator = null })
       {({ isActive }) => (
         <>
           <Icon size={20} className={classNames(isActive ? 'text-blue-600' : 'text-gray-500')} />
-          {children}
+          <span className={compact ? 'sr-only xl:not-sr-only' : 'sr-only lg:not-sr-only'}>
+            {children}
+          </span>
           {indicator}
         </>
       )}
