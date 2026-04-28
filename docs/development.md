@@ -83,7 +83,7 @@ These regenerate static JSON files bundled into the renderer. Run periodically (
 | Script | Description |
 |--------|-------------|
 | `npm run dict:build` | Rebuild `src/shared/commonNames/dictionary.json` from source files (SpeciesNet / DeepFaune / Manas / `extras.json`). |
-| `npm run species-info:build` | Rebuild `src/shared/speciesInfo/data.json` (IUCN status + Wikipedia blurb + image URL per species). Hits GBIF + Wikipedia; takes ~10–30 minutes for the full dictionary. |
+| `npm run species-info:build` | Rebuild `src/shared/speciesInfo/data.json` (IUCN status + Wikipedia blurb + image URL per species). Hits GBIF + Wikipedia; takes ~45–60 minutes for the full dictionary at the current ~25 species/min throughput. |
 
 `species-info:build` flags:
 
