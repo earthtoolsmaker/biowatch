@@ -134,9 +134,9 @@ async function run() {
     }
     case 'deployments-activity': {
       // Deployments tab's per-deployment period-bucket aggregation. The
-      // SUM(CASE) × 20 scan over observations was locking the renderer for
+      // SUM(CASE) × N scan over observations was locking the renderer for
       // multiple seconds on first open of large studies.
-      return getDeploymentsActivity(dbPath)
+      return getDeploymentsActivity(dbPath, workerData.periodCount)
     }
     default:
       throw new Error(`Unknown worker task type: ${type}`)

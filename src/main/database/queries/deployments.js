@@ -289,10 +289,15 @@ export async function insertDeployments(manager, deploymentsData) {
  * Get activity data (observation counts) per deployment over time periods
  * Uses SQL-level aggregation for performance with large datasets
  * @param {string} dbPath - Path to the SQLite database
+ * @param {number} [periodCount=20] - Number of time-period buckets to aggregate into
  * @returns {Promise<Object>} - Activity data with periods and counts per deployment
  */
-export async function getDeploymentsActivity(dbPath) {
+export async function getDeploymentsActivity(dbPath, periodCount) {
   const startTime = Date.now()
+  // Robust against null/0/NaN from the IPC boundary — JS default params only
+  // fire on undefined, but the renderer can legitimately send null before the
+  // timeline width is measured.
+  const buckets = typeof periodCount === 'number' && periodCount > 0 ? periodCount : 20
   log.info(`Querying deployment activity from: ${dbPath}`)
 
   try {
@@ -323,7 +328,7 @@ export async function getDeploymentsActivity(dbPath) {
     const minDate = new Date(dateRange.minDate)
     const maxDate = new Date(dateRange.maxDate)
     const totalDays = (maxDate - minDate) / (1000 * 60 * 60 * 24)
-    const periodDays = Math.max(1, Math.ceil(totalDays / 20))
+    const periodDays = Math.max(1, Math.ceil(totalDays / buckets))
 
     // Generate periods
     const periods = []
