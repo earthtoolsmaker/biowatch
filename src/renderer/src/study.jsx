@@ -149,6 +149,13 @@ export default function Study() {
     enabled: !!id
   })
 
+  const { importStatus } = useImportStatus(id)
+  const isImportActive =
+    study?.importerName?.startsWith('local/') &&
+    importStatus &&
+    importStatus.total > 0 &&
+    importStatus.total > importStatus.done
+
   if (error) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -166,24 +173,24 @@ export default function Study() {
       <header className="w-full border-b border-gray-200 sticky top-0 bg-white z-10">
         <div className="flex items-center">
           <nav aria-label="Tabs" className="-mb-px flex space-x-8 px-4">
-            <Tab to={`/study/${id}`} icon={NotebookText} end>
+            <Tab to={`/study/${id}`} icon={NotebookText} end compact={isImportActive}>
               Overview
             </Tab>
-            <Tab to={`/study/${id}/activity`} icon={ChartBar}>
+            <Tab to={`/study/${id}/activity`} icon={ChartBar} compact={isImportActive}>
               Activity
             </Tab>
-            <Tab to={`/study/${id}/media`} icon={Image}>
+            <Tab to={`/study/${id}/media`} icon={Image} compact={isImportActive}>
               Media
             </Tab>
-            <Tab to={`/study/${id}/deployments`} icon={Cctv}>
+            <Tab to={`/study/${id}/deployments`} icon={Cctv} compact={isImportActive}>
               Deployments
             </Tab>
             {study?.importerName?.startsWith('local/') && (
-              <Tab to={`/study/${id}/files`} icon={FolderOpen}>
+              <Tab to={`/study/${id}/files`} icon={FolderOpen} compact={isImportActive}>
                 Files
               </Tab>
             )}
-            <Tab to={`/study/${id}/settings`} icon={Settings}>
+            <Tab to={`/study/${id}/settings`} icon={Settings} compact={isImportActive}>
               Settings
             </Tab>
           </nav>
