@@ -63,12 +63,7 @@ export default function StudySettings({ studyId, studyName }) {
               <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-500 border-t-transparent" />
             </div>
           ) : (
-            <SequenceGapSlider
-              value={sequenceGap}
-              onChange={setSequenceGap}
-              variant="full"
-              showDescription={true}
-            />
+            <SequenceGapSlider value={sequenceGap} onChange={setSequenceGap} variant="full" />
           )}
         </section>
 
