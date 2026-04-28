@@ -63,10 +63,12 @@ export default function SpeciesTooltipContent({ imageData, studyId }) {
   // ratios, so we fit-with-letterbox (object-contain) on a black background
   // to avoid awkward crops.
   const usingFallbackImage = !imageData?.filePath && !!info?.imageUrl
+  // Wikipedia thumbnails are global (same URL across all studies), so we omit
+  // studyId to share one cache entry app-wide instead of duplicating per study.
   const imageSource = imageData?.filePath
     ? constructImageUrl(imageData.filePath, studyId)
     : info?.imageUrl
-      ? constructImageUrl(info.imageUrl, studyId)
+      ? constructImageUrl(info.imageUrl, null)
       : null
 
   if (!imageSource && !info?.blurb && !info?.iucn && !sciName) {
