@@ -21,6 +21,7 @@ import { registerMLIPCHandlers } from './ml.js'
 import { registerSequencesIPCHandlers } from './sequences.js'
 import { registerDiagnosticsIPCHandlers } from './diagnostics.js'
 import { registerQueueIPCHandlers } from './queue.js'
+import { registerInfoIPCHandlers } from './info.js'
 
 /**
  * Register all IPC handlers
@@ -44,6 +45,7 @@ export function registerAllIPCHandlers() {
   registerSequencesIPCHandlers()
   registerDiagnosticsIPCHandlers()
   registerQueueIPCHandlers()
+  registerInfoIPCHandlers()
 
   log.info('All IPC handlers registered')
 }
@@ -63,5 +65,6 @@ export {
   registerMLIPCHandlers,
   registerSequencesIPCHandlers,
   registerDiagnosticsIPCHandlers,
-  registerQueueIPCHandlers
+  registerQueueIPCHandlers,
+  registerInfoIPCHandlers
 }
