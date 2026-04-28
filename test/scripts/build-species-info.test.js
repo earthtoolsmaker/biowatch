@@ -92,6 +92,11 @@ describe('parseGbifIucn', () => {
     assert.equal(parseGbifIucn({ category: 'FOOBAR_LEVEL' }), null)
   })
 
+  test('returns null for unknown 2-3 letter codes', () => {
+    assert.equal(parseGbifIucn({ category: 'XYZ' }), null)
+    assert.equal(parseGbifIucn({ category: 'AB' }), null)
+  })
+
   test('returns null when missing', () => {
     assert.equal(parseGbifIucn({}), null)
     assert.equal(parseGbifIucn(null), null)

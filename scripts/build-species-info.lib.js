@@ -52,6 +52,8 @@ const IUCN_VERBOSE_TO_CODE = {
   NOT_APPLICABLE: 'NE'
 }
 
+const VALID_IUCN_CODES = new Set(Object.values(IUCN_VERBOSE_TO_CODE))
+
 /**
  * Pull IUCN category from the GBIF iucnRedListCategory response and normalize
  * it to a 2-letter code.
@@ -60,7 +62,8 @@ const IUCN_VERBOSE_TO_CODE = {
 export function parseGbifIucn(response) {
   if (!response || typeof response.category !== 'string') return null
   const raw = response.category
-  if (raw.length <= 3) return raw
+  // Already a code: only accept it if it's a known IUCN category.
+  if (raw.length <= 3) return VALID_IUCN_CODES.has(raw) ? raw : null
   return IUCN_VERBOSE_TO_CODE[raw] ?? null
 }
 
