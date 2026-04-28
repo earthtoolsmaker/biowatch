@@ -5,6 +5,22 @@ All notable changes to Biowatch will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.3] - 2026-04-28
+
+### Added
+
+- Settings → Info tab redesigned with about blurb, last 3 release notes parsed from `CHANGELOG.md`, disk-usage breakdown (AI Models, Studies, Logs) with reveal-in-folder, support/links section, and a license summary with bundled-text modal
+- `CHANGELOG.md` bundled with the packaged app so release notes are available offline
+
+### Changed
+
+- Create-study page restructured into tiered sources: slim recommended hero, primary slim rows, "Online datasets" section, and a collapsed "More import formats" disclosure
+- AI Models table width capped on wide screens
+
+### Fixed
+
+- Long dataset names truncate correctly in the import slim row selects (`min-w-0` lets `flex-1` shrink below content width)
+
 ## [1.8.2] - 2026-04-28
 
 ### Added
@@ -411,6 +427,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Activity heatmaps
 - Overview statistics
 
+[1.8.3]: https://github.com/earthtoolsmaker/biowatch/compare/v1.8.2...v1.8.3
 [1.8.2]: https://github.com/earthtoolsmaker/biowatch/compare/v1.8.1...v1.8.2
 [1.8.1]: https://github.com/earthtoolsmaker/biowatch/compare/v1.8.0...v1.8.1
 [1.8.0]: https://github.com/earthtoolsmaker/biowatch/compare/v1.7.2...v1.8.0
