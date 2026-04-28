@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import * as Tooltip from '@radix-ui/react-tooltip'
+import * as HoverCard from '@radix-ui/react-hover-card'
 import { sortSpeciesHumansLast, isBlank, BLANK_SENTINEL } from '../utils/speciesUtils'
 import SpeciesTooltipContent from './SpeciesTooltipContent'
 import IucnBadge from './IucnBadge'
@@ -74,10 +74,10 @@ function SpeciesRow({
 
   if (enableTooltip) {
     return (
-      <Tooltip.Root key={species.scientificName || index}>
-        <Tooltip.Trigger asChild>{rowContent}</Tooltip.Trigger>
-        <Tooltip.Portal>
-          <Tooltip.Content
+      <HoverCard.Root key={species.scientificName || index} openDelay={200} closeDelay={120}>
+        <HoverCard.Trigger asChild>{rowContent}</HoverCard.Trigger>
+        <HoverCard.Portal>
+          <HoverCard.Content
             side="right"
             sideOffset={12}
             align="start"
@@ -86,9 +86,9 @@ function SpeciesRow({
             className="z-[10000]"
           >
             <SpeciesTooltipContent imageData={tooltipImageData} studyId={studyId} />
-          </Tooltip.Content>
-        </Tooltip.Portal>
-      </Tooltip.Root>
+          </HoverCard.Content>
+        </HoverCard.Portal>
+      </HoverCard.Root>
     )
   }
 

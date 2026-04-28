@@ -21,7 +21,7 @@ import BestMediaCarousel from './ui/BestMediaCarousel'
 import SpeciesTooltipContent from './ui/SpeciesTooltipContent'
 import IucnBadge from './ui/IucnBadge'
 import { resolveSpeciesInfo } from '../../shared/speciesInfo/index.js'
-import * as Tooltip from '@radix-ui/react-tooltip'
+import * as HoverCard from '@radix-ui/react-hover-card'
 import { useImportStatus } from '@renderer/hooks/import'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
@@ -280,8 +280,8 @@ function SpeciesRow({
     studyImage || (info?.imageUrl ? { scientificName: species.scientificName } : null)
 
   return (
-    <Tooltip.Root key={species.scientificName}>
-      <Tooltip.Trigger asChild>
+    <HoverCard.Root key={species.scientificName} openDelay={200} closeDelay={120}>
+      <HoverCard.Trigger asChild>
         <div
           className="cursor-pointer hover:bg-gray-50 transition-colors rounded py-1"
           onClick={() => onRowClick(species)}
@@ -305,10 +305,10 @@ function SpeciesRow({
             ></div>
           </div>
         </div>
-      </Tooltip.Trigger>
+      </HoverCard.Trigger>
       {tooltipImageData && (
-        <Tooltip.Portal>
-          <Tooltip.Content
+        <HoverCard.Portal>
+          <HoverCard.Content
             side="right"
             sideOffset={12}
             align="start"
@@ -317,10 +317,10 @@ function SpeciesRow({
             className="z-[10000]"
           >
             <SpeciesTooltipContent imageData={tooltipImageData} studyId={studyId} />
-          </Tooltip.Content>
-        </Tooltip.Portal>
+          </HoverCard.Content>
+        </HoverCard.Portal>
       )}
-    </Tooltip.Root>
+    </HoverCard.Root>
   )
 }
 
