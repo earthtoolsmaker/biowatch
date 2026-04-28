@@ -420,25 +420,22 @@ Releases go through a pull request rather than a direct push to `main`, so the v
    git push origin v1.5.0
    ```
 
-7. **Verify CI triggered**: Check [GitHub Actions](https://github.com/earthtoolsmaker/biowatch/actions) to ensure both workflows started.
+7. **Verify CI triggered**: Check [GitHub Actions](https://github.com/earthtoolsmaker/biowatch/actions) to ensure the Build/Release workflow started.
+
+8. **Edit the GitHub Release notes** once `electron-builder` has created the release. The release is published with an empty body — fill it in with a "What's New" section linking to `CHANGELOG.md` and a "Highlights" bullet list. See [v1.8.0](https://github.com/earthtoolsmaker/biowatch/releases/tag/v1.8.0) for the format.
 
 ### CI/CD Workflows
 
-Two GitHub Actions workflows handle releases:
+A single GitHub Actions workflow handles releases:
 
 | Workflow | File | Trigger | Purpose |
 |----------|------|---------|---------|
-| Build/Release | `.github/workflows/build.yml` | Push to `main` or `v*.*.*` tags | Builds and publishes binaries |
-| Create Release | `.github/workflows/release.yml` | Push to `v*.*.*` tags | Creates GitHub Release with notes |
+| Build/Release | `.github/workflows/build.yml` | Push to `main` or `v*.*.*` tags | Builds binaries and publishes the GitHub Release |
 
 **Build/Release workflow:**
 - Runs on 3 parallel runners: `windows-latest`, `macos-latest`, `ubuntu-22.04`
 - Executes platform-specific build scripts (`build:win`, `build:mac`, `build:linux`)
-- Publishes artifacts directly to GitHub Releases via `electron-builder --publish always`
-
-**Create Release workflow:**
-- Creates the GitHub Release entry
-- Auto-generates release notes from commits since last tag
+- Publishes artifacts and creates the GitHub Release via `electron-builder --publish always` (the release body starts empty and must be filled in manually — see step 8 above)
 
 ### Build Artifacts
 
@@ -495,7 +492,7 @@ publish:
 **Release not appearing:**
 - Ensure the tag matches the pattern `v*.*.*` (e.g., `v1.5.0`)
 - Check that `GH_TOKEN` has `write` permissions for releases
-- Verify both workflows completed successfully
+- Verify the Build/Release workflow completed successfully
 
 **Users not seeing updates:**
 - The version in `package.json` must be higher than the installed version
