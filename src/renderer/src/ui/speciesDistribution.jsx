@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import * as HoverCard from '@radix-ui/react-hover-card'
 import { sortSpeciesHumansLast, isBlank, BLANK_SENTINEL } from '../utils/speciesUtils'
@@ -16,8 +16,16 @@ function SpeciesRow({
   totalCount,
   speciesImageMap,
   studyId,
-  onToggle
+  onToggle,
+  scrollSignal
 }) {
+  const [hoverOpen, setHoverOpen] = useState(false)
+  // Close any open card when the parent list scrolls — Radix HoverCard tracks
+  // its trigger, so without this the card "rides along" with the row, which
+  // feels jarring.
+  useEffect(() => {
+    if (scrollSignal > 0) setHoverOpen(false)
+  }, [scrollSignal])
   // Hook must be called unconditionally — pass null for blank entries so it short-circuits.
   const resolved = useCommonName(isBlankEntry ? null : species.scientificName, { storedCommonName })
   const displayName = isBlankEntry ? 'Blank' : resolved || species.scientificName
@@ -72,7 +80,13 @@ function SpeciesRow({
 
   if (enableTooltip) {
     return (
-      <HoverCard.Root key={species.scientificName || index} openDelay={200} closeDelay={120}>
+      <HoverCard.Root
+        key={species.scientificName || index}
+        open={hoverOpen}
+        onOpenChange={setHoverOpen}
+        openDelay={200}
+        closeDelay={120}
+      >
         <HoverCard.Trigger asChild>{rowContent}</HoverCard.Trigger>
         <HoverCard.Portal>
           <HoverCard.Content
@@ -166,6 +180,13 @@ function SpeciesDistribution({
     }
   }
 
+  // Bumped on every scroll of the list container; child rows watch this and
+  // close their HoverCard when it changes.
+  const [scrollSignal, setScrollSignal] = useState(0)
+  const handleScroll = useCallback(() => {
+    setScrollSignal((s) => s + 1)
+  }, [])
+
   if (!displayData || displayData.length === 0) {
     return <div className="text-gray-500">No species data available</div>
   }
@@ -179,7 +200,7 @@ function SpeciesDistribution({
         <span className="text-xs text-gray-400">({speciesCount})</span>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-3 myscroll">
+      <div className="flex-1 overflow-y-auto p-3 myscroll" onScroll={handleScroll}>
         <div className="space-y-4">
           {sortSpeciesHumansLast(displayData).map((species, index) => {
             const isBlankEntry = isBlank(species.scientificName)
@@ -192,6 +213,7 @@ function SpeciesDistribution({
                 species={species}
                 index={index}
                 isBlankEntry={isBlankEntry}
+                scrollSignal={scrollSignal}
                 storedCommonName={storedCommonName}
                 selectedSpecies={selectedSpecies}
                 palette={palette}
