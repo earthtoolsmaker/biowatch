@@ -152,12 +152,16 @@ async function main() {
   const skipReasons = new Map()
   const queue = candidates.slice(0, args.limit)
 
-  // Install SIGINT handler so we flush partial work before exit.
+  // Install SIGINT/SIGTERM handlers so we flush partial work before exit.
+  // SIGTERM is what `kill <pid>` sends by default — without this, killing
+  // the script via the default signal would lose all in-flight progress.
   let interrupted = false
-  process.on('SIGINT', () => {
+  const onSignal = (sig) => {
     interrupted = true
-    console.log('\n[SIGINT] flushing progress and exiting...')
-  })
+    console.log(`\n[${sig}] flushing progress and exiting...`)
+  }
+  process.on('SIGINT', () => onSignal('SIGINT'))
+  process.on('SIGTERM', () => onSignal('SIGTERM'))
 
   for (const name of queue) {
     if (interrupted) break
