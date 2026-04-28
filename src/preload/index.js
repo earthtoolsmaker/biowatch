@@ -366,6 +366,20 @@ const api = {
     return await electronAPI.ipcRenderer.invoke('diagnostics:export')
   },
 
+  // Settings → Info tab
+  getChangelog: async (limit = 3) => {
+    return await electronAPI.ipcRenderer.invoke('info:get-changelog', limit)
+  },
+  getStorageUsage: async () => {
+    return await electronAPI.ipcRenderer.invoke('info:get-storage-usage')
+  },
+  getLicenseText: async () => {
+    return await electronAPI.ipcRenderer.invoke('info:get-license-text')
+  },
+  openPath: async (filePath) => {
+    return await electronAPI.ipcRenderer.invoke('shell:open-path', filePath)
+  },
+
   // Remote image caching (for GBIF/Agouti imported images)
   imageCache: {
     // Get cached image path if it exists

@@ -2,11 +2,12 @@ import { useState } from 'react'
 import { Navigate, Route, Routes, useNavigate } from 'react-router'
 import { ErrorBoundary } from 'react-error-boundary'
 import { useQuery } from '@tanstack/react-query'
-import { BrainCircuit, Info, Github, Earth, Loader2, Settings2 } from 'lucide-react'
+import { BrainCircuit, Info, Loader2, Settings2 } from 'lucide-react'
 import Zoo from './models'
 import { modelZoo } from '../../shared/mlmodels'
 import { Tab } from './ui/Tab'
 import Diagnostics from './Diagnostics'
+import SettingsInfo from './SettingsInfo'
 
 function SettingsFooter({ className, onRevealAdvanced }) {
   const handleLogoClick = (e) => {
@@ -37,42 +38,6 @@ function SettingsFooter({ className, onRevealAdvanced }) {
           </a>
         </span>
       </div>
-    </div>
-  )
-}
-
-function SettingsInfo({ version, platform }) {
-  return (
-    <div className="p-4">
-      <ul className="list-none space-y-2">
-        <li className="flex items-center">
-          <span className="font-semibold">
-            Biowatch version {version} for {platform}
-          </span>
-        </li>
-        <li className="flex items-center">
-          <Github size={14} className="mr-2" />
-          <a
-            href="https://github.com/earthtoolsmaker/biowatch"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-600 hover:underline"
-          >
-            https://github.com/earthtoolsmaker/biowatch
-          </a>
-        </li>
-        <li className="flex items-center">
-          <Earth size={14} className="mr-2" />
-          <a
-            href="https://www.earthtoolsmaker.org/tools/biowatch/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-600 hover:underline"
-          >
-            https://www.earthtoolsmaker.org/tools/biowatch/
-          </a>
-        </li>
-      </ul>
     </div>
   )
 }
