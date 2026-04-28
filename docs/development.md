@@ -76,6 +76,27 @@ Opens Electron app with hot reload enabled.
 | `npm run build:linux` | Build for Linux |
 | `npm run build:unpack` | Build unpacked (for debugging) |
 
+### Reference data scripts
+
+These regenerate static JSON files bundled into the renderer. Run periodically (every ~6 months, or after upstream sources change) and commit the diff.
+
+| Script | Description |
+|--------|-------------|
+| `npm run dict:build` | Rebuild `src/shared/commonNames/dictionary.json` from source files (SpeciesNet / DeepFaune / Manas / `extras.json`). |
+| `npm run species-info:build` | Rebuild `src/shared/speciesInfo/data.json` (IUCN status + Wikipedia blurb + image URL per species). Hits GBIF + Wikipedia; takes ~45–60 minutes for the full dictionary at the current ~25 species/min throughput. |
+
+`species-info:build` flags:
+
+```
+npm run species-info:build                    # incremental run, fetches missing entries
+npm run species-info:build -- --resume        # skip already-fetched entries
+npm run species-info:build -- --force         # refetch every species
+npm run species-info:build -- --limit 25      # cap candidates (smoke testing)
+npm run species-info:build -- --dry-run       # don't write the output file
+```
+
+The script is idempotent and resumable. SIGINT (Ctrl-C) flushes partial progress to disk before exiting; resume with `--resume`.
+
 ### Linux build notes
 
 The Linux build includes an `afterPack` hook (`scripts/afterPack.js`) that fixes a common Electron sandbox issue.

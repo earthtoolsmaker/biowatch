@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useMemo } from 'react'
+import { useCallback, useEffect, useState, useRef, useMemo } from 'react'
 import ReactDOMServer from 'react-dom/server'
 import L from 'leaflet'
 import { LayersControl, MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
@@ -19,7 +19,9 @@ import {
 import PlaceholderMap from './ui/PlaceholderMap'
 import BestMediaCarousel from './ui/BestMediaCarousel'
 import SpeciesTooltipContent from './ui/SpeciesTooltipContent'
-import * as Tooltip from '@radix-ui/react-tooltip'
+import IucnBadge from './ui/IucnBadge'
+import { resolveSpeciesInfo } from '../../shared/speciesInfo/index.js'
+import * as HoverCard from '@radix-ui/react-hover-card'
 import { useImportStatus } from '@renderer/hooks/import'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
@@ -266,16 +268,33 @@ function SpeciesRow({
   speciesImageMap,
   studyId,
   totalCount,
-  onRowClick
+  onRowClick,
+  scrollSignal
 }) {
   const displayName =
     useCommonName(species.scientificName, { storedCommonName }) || species.scientificName
-  const hasImage = !!speciesImageMap[species.scientificName]
   const showScientific = species.scientificName && displayName !== species.scientificName
+  const info = resolveSpeciesInfo(species.scientificName)
+  const iucn = info?.iucn
+  const studyImage = speciesImageMap[species.scientificName]
+  const tooltipImageData =
+    studyImage || (info?.imageUrl ? { scientificName: species.scientificName } : null)
+  const [hoverOpen, setHoverOpen] = useState(false)
+  // Close any open card when the parent list scrolls — Radix HoverCard tracks
+  // its trigger, so without this the card "rides along" with the row.
+  useEffect(() => {
+    if (scrollSignal > 0) setHoverOpen(false)
+  }, [scrollSignal])
 
   return (
-    <Tooltip.Root key={species.scientificName}>
-      <Tooltip.Trigger asChild>
+    <HoverCard.Root
+      key={species.scientificName}
+      open={hoverOpen}
+      onOpenChange={setHoverOpen}
+      openDelay={200}
+      closeDelay={120}
+    >
+      <HoverCard.Trigger asChild>
         <div
           className="cursor-pointer hover:bg-gray-50 transition-colors rounded py-1"
           onClick={() => onRowClick(species)}
@@ -287,7 +306,10 @@ function SpeciesRow({
                 <span className="text-gray-500 text-sm italic ml-2">{species.scientificName}</span>
               )}
             </div>
-            <span className="text-xs text-gray-500 shrink-0">{species.count}</span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <IucnBadge category={iucn} />
+              <span className="text-xs text-gray-500">{species.count}</span>
+            </div>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-2">
             <div
@@ -296,10 +318,10 @@ function SpeciesRow({
             ></div>
           </div>
         </div>
-      </Tooltip.Trigger>
-      {hasImage && (
-        <Tooltip.Portal>
-          <Tooltip.Content
+      </HoverCard.Trigger>
+      {tooltipImageData && (
+        <HoverCard.Portal>
+          <HoverCard.Content
             side="right"
             sideOffset={12}
             align="start"
@@ -307,14 +329,11 @@ function SpeciesRow({
             collisionPadding={16}
             className="z-[10000]"
           >
-            <SpeciesTooltipContent
-              imageData={speciesImageMap[species.scientificName]}
-              studyId={studyId}
-            />
-          </Tooltip.Content>
-        </Tooltip.Portal>
+            <SpeciesTooltipContent imageData={tooltipImageData} studyId={studyId} />
+          </HoverCard.Content>
+        </HoverCard.Portal>
       )}
-    </Tooltip.Root>
+    </HoverCard.Root>
   )
 }
 
@@ -359,6 +378,13 @@ function SpeciesDistribution({ data, taxonomicData, studyId }) {
     return map
   }, [taxonomicData])
 
+  // Bumped on every scroll of the list container; child rows watch this and
+  // close their HoverCard when it changes so the card doesn't ride with the row.
+  const [scrollSignal, setScrollSignal] = useState(0)
+  const handleScroll = useCallback(() => {
+    setScrollSignal((s) => s + 1)
+  }, [])
+
   if (!data || data.length === 0) {
     return <div className="text-gray-500">No species data available</div>
   }
@@ -369,7 +395,10 @@ function SpeciesDistribution({ data, taxonomicData, studyId }) {
   }
 
   return (
-    <div className="w-1/2 bg-white rounded border border-gray-200 p-3 overflow-y-auto relative">
+    <div
+      className="w-1/2 bg-white rounded border border-gray-200 p-3 overflow-y-auto relative"
+      onScroll={handleScroll}
+    >
       <div className="space-y-2">
         {sortSpeciesHumansLast(data).map((species) => {
           const storedCommonName = scientificToCommonMap[species.scientificName] || null
@@ -382,6 +411,7 @@ function SpeciesDistribution({ data, taxonomicData, studyId }) {
               studyId={studyId}
               totalCount={totalCount}
               onRowClick={handleRowClick}
+              scrollSignal={scrollSignal}
             />
           )
         })}
