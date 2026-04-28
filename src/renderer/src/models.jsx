@@ -469,7 +469,7 @@ export default function Zoo({ modelZoo }) {
     }
   }
   return (
-    <div className="px-8 py-4">
+    <div className="px-8 py-4 max-w-5xl mx-auto">
       <div className="overflow-x-auto border border-gray-200 rounded-lg shadow-sm">
         <table className="min-w-full divide-y divide-gray-200 bg-white">
           <thead className="bg-gray-50">
