@@ -62,7 +62,7 @@ export function registerDeploymentsIPCHandlers() {
   // Per-deployment period-bucket aggregation for the Deployments tab. Runs in
   // the sequences worker so the SUM(CASE) × 20 scan over observations doesn't
   // block the renderer UI on large studies.
-  ipcMain.handle('deployments:get-activity', async (_, studyId) => {
+  ipcMain.handle('deployments:get-activity', async (_, studyId, periodCount) => {
     try {
       const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
       if (!dbPath || !existsSync(dbPath)) {
@@ -70,7 +70,7 @@ export function registerDeploymentsIPCHandlers() {
         return { error: 'Database not found for this study' }
       }
 
-      const activity = await runInWorker({ type: 'deployments-activity', dbPath })
+      const activity = await runInWorker({ type: 'deployments-activity', dbPath, periodCount })
       return { data: activity }
     } catch (error) {
       log.error('Error getting deployments activity:', error)

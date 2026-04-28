@@ -623,7 +623,7 @@ const DeploymentRow = memo(function DeploymentRow({
           <div
             key={period.start}
             title={`${period.count} observations`}
-            className="flex items-center justify-center h-[25px] w-[5%]"
+            className="flex items-center justify-center h-[25px] flex-1 min-w-0"
           >
             <div
               className="rounded-full bg-[#77b7ff] aspect-square max-w-[25px]"
@@ -696,7 +696,7 @@ const LocationGroupHeader = memo(function LocationGroupHeader({
           <div
             key={period.start}
             title={`${period.count} observations (aggregated)`}
-            className="flex items-center justify-center h-[25px] w-[5%]"
+            className="flex items-center justify-center h-[25px] flex-1 min-w-0"
           >
             <div
               className="rounded-full bg-[#77b7ff] aspect-square max-w-[25px]"
@@ -821,9 +821,33 @@ function LocationsList({
   onRenameLocation,
   isPlaceMode,
   groupToExpand,
-  onGroupExpanded
+  onGroupExpanded,
+  onPeriodCountChange
 }) {
   const parentRef = useRef(null)
+  const timelineRef = useRef(null)
+  const [timelineWidth, setTimelineWidth] = useState(0)
+
+  useEffect(() => {
+    const node = timelineRef.current
+    if (!node) return
+    const ro = new ResizeObserver(([entry]) => {
+      setTimelineWidth(entry.contentRect.width)
+    })
+    ro.observe(node)
+    return () => ro.disconnect()
+  }, [])
+
+  // Date markers: live frontend-only count, ~1 per 150px, clamped 2..15.
+  const dateCount = timelineWidth ? Math.max(2, Math.min(15, Math.round(timelineWidth / 150))) : 5
+
+  // Period circles: bucketed to multiples of 10 (~1 per 30px) so we don't
+  // refetch the SQL aggregation on every pixel of resize.
+  const periodCount = timelineWidth ? Math.max(10, Math.round(timelineWidth / 30 / 10) * 10) : 20
+
+  useEffect(() => {
+    onPeriodCountChange?.(periodCount)
+  }, [periodCount, onPeriodCountChange])
 
   // Track which groups are expanded (collapsed by default)
   const [expandedGroups, setExpandedGroups] = useState(new Set())
@@ -890,8 +914,8 @@ function LocationsList({
 
   // Memoize date markers for timeline header
   const dateMarkers = useMemo(
-    () => getDateMarkers(activity.startDate, activity.endDate, 5),
-    [activity.startDate, activity.endDate]
+    () => getDateMarkers(activity.startDate, activity.endDate, dateCount),
+    [activity.startDate, activity.endDate, dateCount]
   )
 
   // Setup virtualizer with dynamic sizing
@@ -955,9 +979,9 @@ function LocationsList({
   return (
     <div className="flex-1 flex flex-col overflow-hidden min-h-0">
       <header className="bg-white z-10 pl-68 py-3 border-b border-gray-300">
-        <div className="flex justify-between text-xs text-gray-600">
+        <div ref={timelineRef} className="flex justify-between text-xs text-gray-600">
           {dateMarkers.map((date, i) => (
-            <div key={i} className="flex flex-col items-center" style={{ width: '20%' }}>
+            <div key={i} className="flex flex-col items-center flex-1 min-w-0">
               <span>{formatDateShort(date)}</span>
               <div className="w-px h-2 bg-gray-400 mt-1" />
             </div>
@@ -1040,6 +1064,9 @@ export default function Deployments({ studyId }) {
   const [selectedLocation, setSelectedLocation] = useState(null)
   const [isPlaceMode, setIsPlaceMode] = useState(false)
   const [groupToExpand, setGroupToExpand] = useState(null)
+  // Bucketed period count, set by LocationsList from its measured timeline
+  // width. Drives the SQL aggregation; null until the timeline measures itself.
+  const [periodCount, setPeriodCount] = useState(null)
   const queryClient = useQueryClient()
   const { importStatus } = useImportStatus(studyId)
 
@@ -1059,17 +1086,22 @@ export default function Deployments({ studyId }) {
   })
 
   // Heavy per-deployment period-bucket query for the list timeline. Runs in
-  // the sequences worker so the 20-CASE aggregate over observations doesn't
-  // block the UI. Resolves ~1.2s after mount on gmu8_leuven.
+  // the sequences worker so the SUM(CASE) × N aggregate over observations
+  // doesn't block the UI. periodCount is set by LocationsList from the
+  // measured timeline width (bucketed to multiples of 10) so wider screens
+  // get more circles per row; placeholderData holds the previous bucket's
+  // rows during the bucket-crossing refetch (v5 idiom — keepPreviousData was
+  // removed in @tanstack/react-query v5).
   const { data: activity, isLoading: isActivityLoading } = useQuery({
-    queryKey: ['deploymentsActivity', studyId],
+    queryKey: ['deploymentsActivity', studyId, periodCount],
     queryFn: async () => {
-      const response = await window.api.getDeploymentsActivity(studyId)
+      const response = await window.api.getDeploymentsActivity(studyId, periodCount)
       if (response.error) {
         throw new Error(response.error)
       }
       return response.data
     },
+    placeholderData: (prev) => prev,
     refetchInterval: () => (importStatus?.isRunning ? 5000 : false),
     enabled: !!studyId
   })
@@ -1080,17 +1112,22 @@ export default function Deployments({ studyId }) {
         const lat = parseFloat(latitude)
         const result = await window.api.setDeploymentLatitude(studyId, deploymentID, lat)
 
-        // Optimistic update via queryClient
-        queryClient.setQueryData(['deploymentsActivity', studyId], (prevActivity) => {
-          if (!prevActivity) return prevActivity
-          const updatedDeployments = prevActivity.deployments.map((deployment) => {
-            if (deployment.deploymentID === deploymentID) {
-              return { ...deployment, latitude: lat }
-            }
-            return deployment
-          })
-          return { ...prevActivity, deployments: updatedDeployments }
-        })
+        // Optimistic update via queryClient. Use setQueriesData (plural) with
+        // a prefix key so we patch every periodCount variant cached for this
+        // study, since periodCount is part of the full query key.
+        queryClient.setQueriesData(
+          { queryKey: ['deploymentsActivity', studyId] },
+          (prevActivity) => {
+            if (!prevActivity) return prevActivity
+            const updatedDeployments = prevActivity.deployments.map((deployment) => {
+              if (deployment.deploymentID === deploymentID) {
+                return { ...deployment, latitude: lat }
+              }
+              return deployment
+            })
+            return { ...prevActivity, deployments: updatedDeployments }
+          }
+        )
 
         // Also patch the un-deduped map cache so the dragged marker doesn't
         // snap back during the post-invalidation refetch.
@@ -1122,17 +1159,20 @@ export default function Deployments({ studyId }) {
         const lng = parseFloat(longitude)
         const result = await window.api.setDeploymentLongitude(studyId, deploymentID, lng)
 
-        // Optimistic update via queryClient
-        queryClient.setQueryData(['deploymentsActivity', studyId], (prevActivity) => {
-          if (!prevActivity) return prevActivity
-          const updatedDeployments = prevActivity.deployments.map((deployment) => {
-            if (deployment.deploymentID === deploymentID) {
-              return { ...deployment, longitude: lng }
-            }
-            return deployment
-          })
-          return { ...prevActivity, deployments: updatedDeployments }
-        })
+        // Optimistic update via queryClient (matches all periodCount variants).
+        queryClient.setQueriesData(
+          { queryKey: ['deploymentsActivity', studyId] },
+          (prevActivity) => {
+            if (!prevActivity) return prevActivity
+            const updatedDeployments = prevActivity.deployments.map((deployment) => {
+              if (deployment.deploymentID === deploymentID) {
+                return { ...deployment, longitude: lng }
+              }
+              return deployment
+            })
+            return { ...prevActivity, deployments: updatedDeployments }
+          }
+        )
 
         queryClient.setQueryData(['deploymentsAll', studyId], (prev) => {
           if (!prev) return prev
@@ -1201,17 +1241,20 @@ export default function Deployments({ studyId }) {
           throw new Error(result.error)
         }
 
-        // Optimistic update via queryClient
-        queryClient.setQueryData(['deploymentsActivity', studyId], (prevActivity) => {
-          if (!prevActivity) return prevActivity
-          const updatedDeployments = prevActivity.deployments.map((deployment) => {
-            if (deployment.locationID === locationID) {
-              return { ...deployment, locationName: newName }
-            }
-            return deployment
-          })
-          return { ...prevActivity, deployments: updatedDeployments }
-        })
+        // Optimistic update via queryClient (matches all periodCount variants).
+        queryClient.setQueriesData(
+          { queryKey: ['deploymentsActivity', studyId] },
+          (prevActivity) => {
+            if (!prevActivity) return prevActivity
+            const updatedDeployments = prevActivity.deployments.map((deployment) => {
+              if (deployment.locationID === locationID) {
+                return { ...deployment, locationName: newName }
+              }
+              return deployment
+            })
+            return { ...prevActivity, deployments: updatedDeployments }
+          }
+        )
 
         queryClient.setQueryData(['deploymentsAll', studyId], (prev) => {
           if (!prev) return prev
@@ -1269,6 +1312,7 @@ export default function Deployments({ studyId }) {
               isPlaceMode={isPlaceMode}
               groupToExpand={groupToExpand}
               onGroupExpanded={handleGroupExpanded}
+              onPeriodCountChange={setPeriodCount}
             />
           ) : null}
         </Panel>
