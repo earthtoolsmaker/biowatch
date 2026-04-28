@@ -24,7 +24,9 @@ export function Tab({ to, icon: Icon, children, end = false, indicator = null, c
       {({ isActive }) => (
         <>
           <Icon size={20} className={classNames(isActive ? 'text-blue-600' : 'text-gray-500')} />
-          <span className={compact ? 'sr-only' : 'sr-only lg:not-sr-only'}>{children}</span>
+          <span className={compact ? 'sr-only xl:not-sr-only' : 'sr-only lg:not-sr-only'}>
+            {children}
+          </span>
           {indicator}
         </>
       )}
