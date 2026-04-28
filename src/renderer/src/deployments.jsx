@@ -487,10 +487,10 @@ const EditableLocationName = memo(function EditableLocationName({
   }
 
   return (
-    <div className="group flex items-center gap-1">
+    <div className="group flex items-center gap-1 min-w-0">
       <span
         onClick={startEditing}
-        className={`cursor-pointer text-sm truncate ${
+        className={`cursor-pointer text-sm truncate min-w-0 ${
           isSelected ? 'font-semibold text-blue-700' : 'text-gray-700'
         }`}
         title={`${displayName} (click to rename)`}
@@ -499,7 +499,7 @@ const EditableLocationName = memo(function EditableLocationName({
       </span>
       <button
         onClick={startEditing}
-        className="p-0.5 opacity-0 group-hover:opacity-100 hover:bg-gray-200 rounded text-gray-500 transition-opacity"
+        className="p-0.5 opacity-0 group-hover:opacity-100 hover:bg-gray-200 rounded text-gray-500 transition-opacity flex-shrink-0"
         title="Rename"
       >
         <Pencil size={12} />
@@ -605,7 +605,7 @@ const DeploymentRow = memo(function DeploymentRow({
           <div
             key={period.start}
             title={`${period.count} observations`}
-            className="flex items-center justify-center aspect-square w-[5%]"
+            className="flex items-center justify-center h-[25px] w-[5%]"
           >
             <div
               className="rounded-full bg-[#77b7ff] aspect-square max-w-[25px]"
@@ -678,7 +678,7 @@ const LocationGroupHeader = memo(function LocationGroupHeader({
           <div
             key={period.start}
             title={`${period.count} observations (aggregated)`}
-            className="flex items-center justify-center aspect-square w-[5%]"
+            className="flex items-center justify-center h-[25px] w-[5%]"
           >
             <div
               className="rounded-full bg-[#77b7ff] aspect-square max-w-[25px]"
