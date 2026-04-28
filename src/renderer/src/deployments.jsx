@@ -5,6 +5,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ReactDOMServer from 'react-dom/server'
 import { LayersControl, MapContainer, Marker, TileLayer, useMap, useMapEvents } from 'react-leaflet'
 import MarkerClusterGroup from 'react-leaflet-cluster'
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useImportStatus } from '@renderer/hooks/import'
@@ -147,6 +148,20 @@ function MapEventHandler({ isPlaceMode, onMapClick }) {
       }
     }
   })
+  return null
+}
+
+// Component that calls map.invalidateSize() whenever the map's container resizes.
+// Required when the map sits inside a resizable panel — Leaflet caches its size
+// and won't repaint tiles correctly without this.
+function InvalidateOnResize() {
+  const map = useMap()
+  useEffect(() => {
+    const container = map.getContainer()
+    const observer = new ResizeObserver(() => map.invalidateSize())
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [map])
   return null
 }
 
@@ -318,6 +333,9 @@ function LocationMap({
           </LayersControl.BaseLayer>
         </LayersControl>
         <LayerChangeHandler onLayerChange={setSelectedLayer} />
+
+        {/* Repaint Leaflet whenever the panel housing the map is resized */}
+        <InvalidateOnResize />
 
         {/* Fly to selected location when it changes */}
         <FlyToSelected selectedLocation={selectedLocation} />
@@ -1216,42 +1234,45 @@ export default function Deployments({ studyId }) {
 
   return (
     <div
-      className={`flex flex-col px-4 h-full gap-4 overflow-hidden ${isPlaceMode ? 'place-mode-active' : ''}`}
+      className={`flex flex-col px-4 h-full overflow-hidden ${isPlaceMode ? 'place-mode-active' : ''}`}
     >
-      <div className="h-96">
-        {deploymentsList && (
-          <LocationMap
-            locations={deploymentsList}
-            selectedLocation={selectedLocation}
-            setSelectedLocation={setSelectedLocation}
-            onNewLatitude={onNewLatitude}
-            onNewLongitude={onNewLongitude}
-            isPlaceMode={isPlaceMode}
-            onPlaceLocation={handlePlaceLocation}
-            onExitPlaceMode={handleExitPlaceMode}
-            onExpandGroup={handleExpandGroup}
-            studyId={studyId}
-          />
-        )}
-      </div>
-      <div className="flex-1 min-h-0 flex flex-col">
-        {isActivityLoading ? (
-          <SkeletonDeploymentsList itemCount={6} />
-        ) : activity ? (
-          <LocationsList
-            activity={activity}
-            selectedLocation={selectedLocation}
-            setSelectedLocation={setSelectedLocation}
-            onNewLatitude={onNewLatitude}
-            onNewLongitude={onNewLongitude}
-            onEnterPlaceMode={handleEnterPlaceMode}
-            onRenameLocation={onRenameLocation}
-            isPlaceMode={isPlaceMode}
-            groupToExpand={groupToExpand}
-            onGroupExpanded={handleGroupExpanded}
-          />
-        ) : null}
-      </div>
+      <PanelGroup direction="vertical" autoSaveId="deployments-layout">
+        <Panel defaultSize={55} minSize={20} className="flex flex-col">
+          {deploymentsList && (
+            <LocationMap
+              locations={deploymentsList}
+              selectedLocation={selectedLocation}
+              setSelectedLocation={setSelectedLocation}
+              onNewLatitude={onNewLatitude}
+              onNewLongitude={onNewLongitude}
+              isPlaceMode={isPlaceMode}
+              onPlaceLocation={handlePlaceLocation}
+              onExitPlaceMode={handleExitPlaceMode}
+              onExpandGroup={handleExpandGroup}
+              studyId={studyId}
+            />
+          )}
+        </Panel>
+        <PanelResizeHandle className="h-2 my-1 rounded bg-gray-200 hover:bg-blue-300 data-[resize-handle-state=drag]:bg-blue-400 cursor-row-resize transition-colors" />
+        <Panel defaultSize={45} minSize={20} className="flex flex-col">
+          {isActivityLoading ? (
+            <SkeletonDeploymentsList itemCount={6} />
+          ) : activity ? (
+            <LocationsList
+              activity={activity}
+              selectedLocation={selectedLocation}
+              setSelectedLocation={setSelectedLocation}
+              onNewLatitude={onNewLatitude}
+              onNewLongitude={onNewLongitude}
+              onEnterPlaceMode={handleEnterPlaceMode}
+              onRenameLocation={onRenameLocation}
+              isPlaceMode={isPlaceMode}
+              groupToExpand={groupToExpand}
+              onGroupExpanded={handleGroupExpanded}
+            />
+          ) : null}
+        </Panel>
+      </PanelGroup>
     </div>
   )
 }
