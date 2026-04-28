@@ -11,6 +11,7 @@ export function Tab({ to, icon: Icon, children, end = false, indicator = null })
     <NavLink
       to={to}
       end={end}
+      title={typeof children === 'string' ? children : undefined}
       className={({ isActive }) =>
         classNames(
           isActive
@@ -23,7 +24,7 @@ export function Tab({ to, icon: Icon, children, end = false, indicator = null })
       {({ isActive }) => (
         <>
           <Icon size={20} className={classNames(isActive ? 'text-blue-600' : 'text-gray-500')} />
-          {children}
+          <span className="sr-only lg:not-sr-only">{children}</span>
           {indicator}
         </>
       )}
