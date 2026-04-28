@@ -5,6 +5,30 @@ All notable changes to Biowatch will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.1] - 2026-04-28
+
+### Added
+
+- Species tooltip with blurb, IUCN Red List badge, Wikipedia fallback image, and Wikipedia link
+- Species-info module with GBIF and Wikipedia response parsers, species-candidate pre-filter, pure synchronous resolver, and build script CLI; ships initial `data.json` covering 2054 species
+- Inline IUCN Red List badge in species list rows
+- "Show more" toggle on tooltip blurb (default 5 lines)
+- Species hover tooltip shown whenever any image (study or Wikipedia) is available
+
+### Changed
+
+- Species hover migrated from Tooltip to HoverCard
+- Wikipedia fallback images letterboxed on black to avoid awkward crops
+- Inline IUCN badge aligned to the right of the row, left of the count
+
+### Fixed
+
+- HoverCard closes on scroll instead of riding with the row
+- Inline IUCN badge hidden on media and activity sidebars
+- Species-info build flushes progress every 25 entries and on SIGTERM; atomic `data.json` writes (temp + rename) so SIGKILL can't corrupt the file
+- Species-info rejects unknown IUCN codes, maps verbose IUCN strings to codes, and hardens rate-limit handling
+- Wikipedia thumbnail cache shared app-wide instead of per-study
+
 ## [1.8.0] - 2026-04-27
 
 ### Added
@@ -371,6 +395,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Activity heatmaps
 - Overview statistics
 
+[1.8.1]: https://github.com/earthtoolsmaker/biowatch/compare/v1.8.0...v1.8.1
 [1.8.0]: https://github.com/earthtoolsmaker/biowatch/compare/v1.7.2...v1.8.0
 [1.7.2]: https://github.com/earthtoolsmaker/biowatch/compare/v1.7.1...v1.7.2
 [1.7.1]: https://github.com/earthtoolsmaker/biowatch/compare/v1.7.0...v1.7.1
