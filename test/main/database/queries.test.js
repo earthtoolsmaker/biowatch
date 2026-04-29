@@ -406,6 +406,16 @@ describe('Database Query Functions Tests', () => {
       // createTestData inserts 3 deployments
       assert.equal(totalDeployments, 3, 'totalDeployments')
     })
+
+    test('counts observations per source', async () => {
+      await createTestData(testDbPath)
+
+      const result = await getSourcesData(testDbPath)
+      const totalObservations = result.reduce((s, r) => s + r.observationCount, 0)
+
+      // createTestData inserts 5 observations
+      assert.equal(totalObservations, 5, 'totalObservations')
+    })
   })
 
   describe('Error Handling', () => {

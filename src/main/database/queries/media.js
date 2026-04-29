@@ -597,9 +597,11 @@ export async function getSourcesData(dbPath) {
           sql`COUNT(DISTINCT CASE WHEN ${media.fileMediatype} LIKE 'video/%' THEN ${media.mediaID} END)`.as(
             'videoCount'
           ),
-        deploymentCount: sql`COUNT(DISTINCT ${media.deploymentID})`.as('deploymentCount')
+        deploymentCount: sql`COUNT(DISTINCT ${media.deploymentID})`.as('deploymentCount'),
+        observationCount: sql`COUNT(${observations.observationID})`.as('observationCount')
       })
       .from(media)
+      .leftJoin(observations, eq(media.mediaID, observations.mediaID))
       .groupBy(media.importFolder)
       .orderBy(media.importFolder)
 
@@ -609,7 +611,7 @@ export async function getSourcesData(dbPath) {
       imageCount: Number(r.imageCount),
       videoCount: Number(r.videoCount),
       deploymentCount: Number(r.deploymentCount),
-      observationCount: 0,
+      observationCount: Number(r.observationCount),
       activeRun: null,
       lastModelUsed: null,
       deployments: []
