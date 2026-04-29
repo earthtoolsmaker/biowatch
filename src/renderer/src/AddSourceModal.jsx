@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router'
 import { Lock, FolderOpen, X } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 import { Button } from './ui/button.jsx'
@@ -17,6 +18,7 @@ import { countries } from '../../shared/countries.js'
  * Imports run via `window.api.addFolder(studyId, dir, modelRef, country)`.
  */
 export default function AddSourceModal({ isOpen, studyId, onClose, onImported }) {
+  const navigate = useNavigate()
   const [latestModel, setLatestModel] = useState(null) // {id, version} | null
   const [latestCountry, setLatestCountry] = useState(null) // string | null
   const [pickedModelKey, setPickedModelKey] = useState('') // 'speciesnet-4.0.1a'
@@ -102,7 +104,12 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
   }, [pickedModelKey])
 
   const needsCountry = pickedModel?.reference?.id === 'speciesnet'
-  const canImport = !!pickedModel && !!folder && (!needsCountry || !!pickedCountry)
+  const hasAnyInstalledModel = modelZoo.some(isModelCompletelyInstalled)
+  const canImport =
+    !!pickedModel &&
+    !!folder &&
+    (!needsCountry || !!pickedCountry) &&
+    isModelCompletelyInstalled(pickedModel)
 
   const handleBrowse = async () => {
     const result = await window.api.selectImagesDirectoryOnly()
@@ -158,6 +165,26 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
         </header>
 
         <div className="px-5 py-4 space-y-4">
+          {/* No-models-installed CTA: dead-end for users with a fresh install */}
+          {!modelLocked && !hasAnyInstalledModel && (
+            <div className="border border-amber-200 bg-amber-50 rounded-md p-3 text-sm text-amber-900">
+              <p className="font-medium mb-1">No models installed</p>
+              <p className="text-amber-800 mb-2 text-xs">
+                Install at least one model before adding images for analysis.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  onClose()
+                  navigate('/settings/ml_zoo')
+                }}
+              >
+                Open Models settings
+              </Button>
+            </div>
+          )}
+
           {/* Model */}
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1.5">Model</label>
