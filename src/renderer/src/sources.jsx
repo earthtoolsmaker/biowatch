@@ -115,7 +115,7 @@ function SourceRow({ source, importerName, studyName, expanded, onToggle }) {
             </span>
             {source.lastModelUsed && (
               <span
-                title={`Last model: ${source.lastModelUsed.modelID} ${source.lastModelUsed.modelVersion}`}
+                title={`Processed by ${source.lastModelUsed.modelID} ${source.lastModelUsed.modelVersion}`}
                 className="text-gray-400 flex-shrink-0"
               >
                 <Info size={13} />
