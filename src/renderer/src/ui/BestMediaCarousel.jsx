@@ -26,11 +26,12 @@ function SpeciesThumbnailLabel({ scientificName }) {
 
 /**
  * Renders "Common name (Scientific name)" when a common name resolves,
- * otherwise just the scientific name. Empty input renders "No species".
+ * otherwise just the scientific name. Empty input renders "Blank" — matching
+ * the convention used in BboxLabel/SpeciesLabel for unidentified observations.
  */
 function SpeciesHeading({ scientificName }) {
   const common = useCommonName(scientificName)
-  if (!scientificName) return <>No species</>
+  if (!scientificName) return <>Blank</>
   if (common && common !== scientificName) {
     return (
       <>

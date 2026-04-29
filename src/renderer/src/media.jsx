@@ -816,7 +816,7 @@ const BboxLabel = forwardRef(function BboxLabel(
               ? 'bg-blue-600 text-white'
               : 'bg-blue-400 text-white'
         }`}
-        title={`${displayName}${sexSymbol ? ` ${sexSymbol}` : ''}${confidence ? ` (${confidence})` : ''} - Click to edit`}
+        title={`${displayName}${sexSymbol ? ` ${sexSymbol}` : ''}${confidence && !isHuman ? ` (${confidence})` : ''} - Click to edit`}
       >
         {displayName}
         {confidence && !isHuman && <span className="ml-1 opacity-75">{confidence}</span>}
@@ -1871,7 +1871,6 @@ function ImageModal({
       }}
     >
       <div className="relative max-w-7xl w-full h-full flex items-center justify-center">
-        {/* Sequence indicator */}
         {/* Navigation arrows - anchored to the wrapper, sit on the dark backdrop */}
         {!isEditingTimestamp &&
           !showDatePicker &&
@@ -2422,12 +2421,14 @@ function ImageModal({
           {/* Footer - single row: filename on the left, species on the right */}
           <div className="px-4 py-2.5 bg-gray-50 flex-shrink-0 border-t border-gray-200 text-xs text-gray-600">
             <div className="flex items-center justify-between gap-3">
-              <span className="font-mono text-[11px] text-gray-400 truncate min-w-0 flex-1">
-                {media.fileName || ''}
-              </span>
+              {media.fileName && (
+                <span className="font-mono text-[11px] text-gray-400 truncate min-w-0 flex-1">
+                  {media.fileName}
+                </span>
+              )}
 
               {/* Species — editable for video / no-bbox cases, static summary for images with bboxes */}
-              <div className="flex-shrink-0 max-w-[60%] min-w-0">
+              <div className="flex-shrink-0 max-w-[60%] min-w-0 ml-auto">
                 {isVideoMedia(media) ? (
                   <button
                     ref={videoSpeciesLabelRef}
