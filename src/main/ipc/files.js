@@ -6,7 +6,7 @@ import { app, ipcMain } from 'electron'
 import log from 'electron-log'
 import { existsSync } from 'fs'
 import { getStudyDatabasePath } from '../services/paths.js'
-import { getSourcesData } from '../database/index.js'
+import { runInWorker } from '../services/sequences/runInWorker.js'
 
 /**
  * Register all files-related IPC handlers
@@ -20,7 +20,7 @@ export function registerFilesIPCHandlers() {
         return { error: 'Database not found for this study' }
       }
 
-      const sourcesData = await getSourcesData(dbPath)
+      const sourcesData = await runInWorker({ type: 'sources-data', dbPath })
       return { data: sourcesData }
     } catch (error) {
       log.error('Error getting sources data:', error)
