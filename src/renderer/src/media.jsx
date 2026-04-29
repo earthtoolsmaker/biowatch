@@ -1,7 +1,6 @@
 import {
   CameraOff,
   X,
-  Square,
   Calendar,
   Pencil,
   Check,
@@ -2576,11 +2575,11 @@ function GalleryControls({
                 onClick={onToggleBboxes}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                   showBboxes
-                    ? 'bg-lime-500 text-white hover:bg-lime-600'
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
-                <Square size={16} />
+                {showBboxes ? <Eye size={16} /> : <EyeOff size={16} />}
                 <span>Boxes</span>
               </button>
             </Tooltip.Trigger>
