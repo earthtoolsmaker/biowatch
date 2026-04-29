@@ -167,7 +167,7 @@ src/
 │   ├── models.jsx           # ML model manager UI
 │   ├── settings.jsx         # Settings pages
 │   ├── export.jsx           # Export UI
-│   ├── files.jsx            # File statistics
+│   ├── sources.jsx          # Sources tab (per-importFolder rollup, multi-source aware)
 │   ├── ui/                  # Reusable components
 │   └── hooks/               # Custom React hooks
 ├── preload/

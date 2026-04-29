@@ -214,11 +214,42 @@ The `setMediaFavorite` endpoint toggles a media item's favorite status. Favorite
 - CamtrapDP compliant - exported/imported with the standard `favorite` field
 - Displayed with a heart icon in the media modal and Best Captures carousel
 
-### Files
+### Sources
 
-| Method                  | Channel          | Parameters | Returns               |
-| ----------------------- | ---------------- | ---------- | --------------------- |
-| `getFilesData(studyId)` | `files:get-data` | studyId    | `{ data: FileStats }` |
+| Method                    | Channel            | Parameters | Returns                  |
+| ------------------------- | ------------------ | ---------- | ------------------------ |
+| `getSourcesData(studyId)` | `sources:get-data` | studyId    | `{ data: SourceRow[] }` |
+
+`SourceRow` shape:
+
+```ts
+{
+  importFolder: string,        // grouping key, also displayed as the source path/label
+  isRemote: boolean,           // true if any media.filePath in this source starts with 'http'
+  imageCount: number,
+  videoCount: number,
+  deploymentCount: number,
+  observationCount: number,    // observations attached to this source's media
+  activeRun: {                 // null when no model_run with status='running' targets this source
+    runID: string,
+    modelID: string,
+    modelVersion: string,
+    processed: number,         // count(model_outputs) for this run scoped to this source
+    total: number              // imageCount + videoCount
+  } | null,
+  lastModelUsed: { modelID: string, modelVersion: string } | null,
+  deployments: Array<{
+    deploymentID: string,
+    label: string,             // deployments.locationName ?? media.folderName ?? deploymentID
+    imageCount: number,
+    videoCount: number,
+    observationCount: number,
+    activeRun: { runID, processed, total } | null
+  }>
+}
+```
+
+A "source" is derived at query time as a distinct value of `media.importFolder`. No `sources` table exists — the grouping is computed on every call.
 
 ### Observations
 

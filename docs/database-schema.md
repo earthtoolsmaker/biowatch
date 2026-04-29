@@ -91,7 +91,7 @@ Media file metadata.
 | `timestamp` | TEXT | | Capture timestamp (ISO 8601) |
 | `filePath` | TEXT | | Absolute path or HTTP URL |
 | `fileName` | TEXT | | Original file name |
-| `importFolder` | TEXT | | Source import folder |
+| `importFolder` | TEXT | | Source import folder. For local imports: absolute folder path. For LILA: dataset name. For CamtrapDP: package directory. The Sources tab groups by this field. |
 | `folderName` | TEXT | | Subfolder name within import |
 | `fileMediatype` | TEXT | | IANA media type (e.g., `image/jpeg`, `video/mp4`) |
 | `exifData` | TEXT | JSON | EXIF/metadata as JSON (see below) |

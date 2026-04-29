@@ -210,8 +210,11 @@ For large datasets like Snapshot Serengeti (7.1M images), a streaming architectu
   - Chunked processing (5000 records at a time)
   - WAL mode enabled for better write performance
 - Sequence information imported (seq_id → eventID with eventStart/eventEnd bounds)
+- `media.importFolder` is set to the dataset name (e.g., `"Snapshot Serengeti"`) so the Sources tab can group LILA media into a single source row.
 
-**Key file:** `src/main/services/import/parsers/lila.js`
+**Key files:**
+- `src/main/services/import/parsers/lila.js` — orchestrator
+- `src/main/services/import/parsers/lila-helpers.js` — pure mapping helpers (testable without electron)
 
 ```javascript
 // COCO bbox normalization
@@ -607,6 +610,7 @@ On cancellation:
 | `src/main/services/import/parsers/wildlifeInsights.js` | Wildlife Insights import |
 | `src/main/services/import/parsers/deepfaune.js` | DeepFaune CSV import |
 | `src/main/services/import/parsers/lila.js` | LILA dataset import (COCO Camera Traps) |
+| `src/main/services/import/parsers/lila-helpers.js` | Pure helpers for LILA mapping (testable in isolation) |
 | `src/main/services/import/importer.js` | Image folder import with ML |
 | `src/main/services/import/timestamp.js` | Video timestamp extraction with fallback chain |
 | `src/main/services/import/index.js` | Re-exports all import functions |
