@@ -76,8 +76,41 @@ function basenameOf(p) {
   return idx >= 0 ? cleaned.slice(idx + 1) : cleaned
 }
 
+/**
+ * Merge deployment sub-rows by label. Mid-import the importer can create a
+ * temporary deployment row alongside the canonical one (same locationName,
+ * different deploymentID); they reconcile once the import finishes. Collapsing
+ * by label makes the in-flight view stable for the user.
+ */
+function mergeDeploymentsByLabel(deployments) {
+  const merged = new Map()
+  for (const d of deployments) {
+    const existing = merged.get(d.label)
+    if (!existing) {
+      merged.set(d.label, { ...d })
+      continue
+    }
+    existing.imageCount += d.imageCount
+    existing.videoCount += d.videoCount
+    existing.observationCount += d.observationCount
+    if (d.activeRun) {
+      if (existing.activeRun) {
+        existing.activeRun = {
+          runID: existing.activeRun.runID,
+          processed: existing.activeRun.processed + d.activeRun.processed,
+          total: existing.activeRun.total + d.activeRun.total
+        }
+      } else {
+        existing.activeRun = { ...d.activeRun }
+      }
+    }
+  }
+  return Array.from(merged.values())
+}
+
 function SourceRow({ source, importerName, studyName, expanded, onToggle }) {
-  const canExpand = source.deployments.length > 0
+  const mergedDeployments = mergeDeploymentsByLabel(source.deployments)
+  const canExpand = mergedDeployments.length > 0
   const hasImportFolder = !!source.importFolder
   // Treat importFolder as a path/URL when it contains a separator. Local imports
   // and CamtrapDP package directories show their basename as the row label so
@@ -135,16 +168,16 @@ function SourceRow({ source, importerName, studyName, expanded, onToggle }) {
         <MediaCounts
           imageCount={source.imageCount}
           videoCount={source.videoCount}
-          deploymentCount={source.deploymentCount}
+          deploymentCount={mergedDeployments.length}
         />
         <div className="w-[200px] flex justify-end">
           <StatusCell row={source} />
         </div>
       </div>
       {expanded &&
-        source.deployments.map((d) => (
+        mergedDeployments.map((d) => (
           <div
-            key={d.deploymentID}
+            key={`${d.label}__${d.deploymentID}`}
             className="ml-14 flex items-center gap-4 px-2 py-3 border-b border-gray-100 hover:bg-gray-50"
           >
             <div className="flex-1 min-w-0 text-sm text-gray-700 truncate">{d.label}</div>
