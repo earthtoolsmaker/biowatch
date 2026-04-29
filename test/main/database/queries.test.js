@@ -458,6 +458,179 @@ describe('Database Query Functions Tests', () => {
       assert.equal(sourceWithModel.lastModelUsed.modelVersion, '4.0.1a')
     })
 
+    test('handles studies with mixed importFolder values', async () => {
+      // Two distinct importFolders in one study; verify counts roll up per source.
+      const manager = await createImageDirectoryDatabase(testDbPath)
+      await insertDeployments(manager, {
+        d1: { deploymentID: 'd1', locationID: 'l1', locationName: 'Site A' },
+        d2: { deploymentID: 'd2', locationID: 'l2', locationName: 'Site B' }
+      })
+      await insertMedia(manager, {
+        a: {
+          mediaID: 'm-a',
+          deploymentID: 'd1',
+          filePath: '/a/1.jpg',
+          fileName: '1.jpg',
+          importFolder: '/a',
+          folderName: 'a'
+        },
+        b: {
+          mediaID: 'm-b',
+          deploymentID: 'd1',
+          filePath: '/a/2.mp4',
+          fileName: '2.mp4',
+          importFolder: '/a',
+          folderName: 'a'
+        },
+        c: {
+          mediaID: 'm-c',
+          deploymentID: 'd2',
+          filePath: '/b/1.jpg',
+          fileName: '1.jpg',
+          importFolder: '/b',
+          folderName: 'b'
+        }
+      })
+
+      const result = await getSourcesData(testDbPath)
+      const a = result.find((r) => r.importFolder === '/a')
+      const b = result.find((r) => r.importFolder === '/b')
+
+      assert.equal(result.length, 2, 'two distinct sources')
+      assert.equal(a.imageCount, 1, '/a images')
+      assert.equal(a.videoCount, 1, '/a videos (.mp4 by extension)')
+      assert.equal(a.deploymentCount, 1)
+      assert.equal(b.imageCount, 1, '/b images')
+      assert.equal(b.videoCount, 0)
+      assert.equal(b.deploymentCount, 1)
+    })
+
+    test('handles NULL importFolder (legacy pre-fix LILA imports)', async () => {
+      const manager = await createImageDirectoryDatabase(testDbPath)
+      await insertDeployments(manager, {
+        d1: { deploymentID: 'd1', locationID: 'l1', locationName: 'L' }
+      })
+      await insertMedia(manager, {
+        x: {
+          mediaID: 'm-x',
+          deploymentID: 'd1',
+          filePath: 'https://example.com/x.jpg',
+          fileName: 'x.jpg',
+          importFolder: null,
+          folderName: null
+        }
+      })
+
+      const result = await getSourcesData(testDbPath)
+      assert.equal(result.length, 1)
+      assert.equal(result[0].importFolder, '', 'NULL importFolder maps to empty string')
+      assert.equal(result[0].imageCount, 1)
+      assert.equal(result[0].isRemote, true)
+    })
+
+    test('lastModelUsed picks the most recent run when multiple exist', async () => {
+      const { manager } = await createTestData(testDbPath)
+      const db = manager.getDb()
+      await insertModelRun(db, {
+        id: 'run-old',
+        modelID: 'deepfaune',
+        modelVersion: '1.3',
+        startedAt: '2023-01-01T00:00:00.000Z',
+        status: 'completed'
+      })
+      await insertModelRun(db, {
+        id: 'run-new',
+        modelID: 'speciesnet',
+        modelVersion: '4.0.1a',
+        startedAt: '2024-06-01T00:00:00.000Z',
+        status: 'completed'
+      })
+      // Each run has at least one output on a media in the source.
+      await insertModelOutput(db, {
+        id: 'mo-old',
+        mediaID: 'media001',
+        runID: 'run-old',
+        rawOutput: null
+      })
+      await insertModelOutput(db, {
+        id: 'mo-new',
+        mediaID: 'media002',
+        runID: 'run-new',
+        rawOutput: null
+      })
+
+      const result = await getSourcesData(testDbPath)
+      const source = result.find((r) => r.importFolder === 'images')
+      assert(source.lastModelUsed)
+      assert.equal(source.lastModelUsed.modelID, 'speciesnet', 'most recent wins')
+      assert.equal(source.lastModelUsed.modelVersion, '4.0.1a')
+    })
+
+    test('activeRun with importPath that matches no media returns no active source', async () => {
+      const { manager } = await createTestData(testDbPath)
+      const db = manager.getDb()
+      await insertModelRun(db, {
+        id: 'run-orphan',
+        modelID: 'deepfaune',
+        modelVersion: '1.3',
+        startedAt: '2024-06-01T00:00:00.000Z',
+        status: 'running',
+        importPath: '/nonexistent/folder'
+      })
+
+      const result = await getSourcesData(testDbPath)
+      // No source should be flagged active because the running run's importPath
+      // doesn't match any media.importFolder in this study.
+      result.forEach((s) => {
+        assert.equal(s.activeRun, null, `${s.importFolder} should have no activeRun`)
+      })
+    })
+
+    test('per-deployment activeRun reports processed/total scoped to that deployment', async () => {
+      const { manager } = await createTestData(testDbPath)
+      const db = manager.getDb()
+      await insertModelRun(db, {
+        id: 'run-active-2',
+        modelID: 'deepfaune',
+        modelVersion: '1.3',
+        startedAt: '2024-06-01T00:00:00.000Z',
+        status: 'running',
+        importPath: 'images'
+      })
+      // createTestData puts media001 + media002 under deploy001 (2 media),
+      // media003 + media004 under deploy002 (2 media), media005 under deploy003.
+      // Process media001 (deploy001) and media003 (deploy002).
+      await insertModelOutput(db, {
+        id: 'mo-d1',
+        mediaID: 'media001',
+        runID: 'run-active-2',
+        rawOutput: null
+      })
+      await insertModelOutput(db, {
+        id: 'mo-d2',
+        mediaID: 'media003',
+        runID: 'run-active-2',
+        rawOutput: null
+      })
+
+      const result = await getSourcesData(testDbPath)
+      const source = result.find((r) => r.importFolder === 'images')
+      const deploys = source.deployments
+      const d1 = deploys.find((d) => d.deploymentID === 'deploy001')
+      const d2 = deploys.find((d) => d.deploymentID === 'deploy002')
+      const d3 = deploys.find((d) => d.deploymentID === 'deploy003')
+
+      assert(d1.activeRun, 'd1 has activeRun')
+      assert.equal(d1.activeRun.processed, 1, 'd1 processed = 1')
+      assert.equal(d1.activeRun.total, 2, 'd1 total = 2 media in deployment')
+      assert(d2.activeRun, 'd2 has activeRun')
+      assert.equal(d2.activeRun.processed, 1, 'd2 processed = 1')
+      assert.equal(d2.activeRun.total, 2)
+      assert(d3.activeRun, 'd3 has activeRun (no processed yet)')
+      assert.equal(d3.activeRun.processed, 0, 'd3 processed = 0')
+      assert.equal(d3.activeRun.total, 1)
+    })
+
     test('returns deployment rows under each source', async () => {
       await createTestData(testDbPath)
 
