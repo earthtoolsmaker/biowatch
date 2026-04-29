@@ -380,8 +380,7 @@ ipcMain.handle('study:get-latest-model-options', async (_event, id) => {
 
 /**
  * Add a folder to an existing study with an explicit model + country.
- * Replaces the auto-from-latest-run behavior of `importer:select-more-images-directory`,
- * which is left in place for backwards compatibility but should no longer be invoked.
+ * The renderer collects model/country/folder via AddSourceModal and posts here.
  */
 ipcMain.handle(
   'importer:add-folder',
@@ -409,41 +408,3 @@ ipcMain.handle(
   }
 )
 
-ipcMain.handle('importer:select-more-images-directory', async (event, id) => {
-  if (queueScheduler.activeStudyId === id && queueScheduler.isRunning) {
-    log.warn(`Processing is already running for study ${id}`)
-    return { success: false, message: 'Processing already running' }
-  }
-
-  const dbPath = path.join(app.getPath('userData'), 'biowatch-data', 'studies', id, 'study.db')
-  if (!fs.existsSync(dbPath)) {
-    log.warn(`Study database not found for ID ${id}`)
-    return { success: false, message: 'Study not found' }
-  }
-
-  // Get latest model run to retrieve model reference and options
-  const db = await getDrizzleDb(id, dbPath)
-  const latestRun = await getLatestModelRun(db)
-  if (!latestRun) {
-    log.warn(`No model run found for study ${id}`)
-    return { success: false, message: 'No model run found for study' }
-  }
-
-  const modelReference = { id: latestRun.modelID, version: latestRun.modelVersion }
-  const options = latestRun.options || {}
-  const country = options.country || null
-
-  const result = await dialog.showOpenDialog({
-    properties: ['openDirectory'],
-    title: 'Select Images Directory'
-  })
-
-  if (result.canceled || result.filePaths.length === 0) {
-    return { success: false, message: 'Selection canceled' }
-  }
-
-  const directoryPath = result.filePaths[0]
-  const importer = new Importer(id, directoryPath, modelReference, country)
-  await importer.start(true)
-  return { success: true, message: 'Importer started successfully' }
-})

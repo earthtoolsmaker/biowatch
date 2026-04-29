@@ -193,9 +193,6 @@ const api = {
   resumeImport: async (id) => {
     return await electronAPI.ipcRenderer.invoke('importer:resume', id)
   },
-  selectMoreImagesDirectory: async (id) => {
-    return await electronAPI.ipcRenderer.invoke('importer:select-more-images-directory', id)
-  },
   getStudyLatestModelOptions: async (id) => {
     return await electronAPI.ipcRenderer.invoke('study:get-latest-model-options', id)
   },
