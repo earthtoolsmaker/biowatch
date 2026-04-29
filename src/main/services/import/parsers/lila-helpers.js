@@ -28,7 +28,10 @@ export function transformDateField(dateValue) {
 }
 
 /**
- * Get MIME type from file name
+ * Get MIME type from file name. Mirrors the extensionToMediatype map in
+ * src/main/services/import/importer.js so LILA imports that contain video
+ * files (e.g. .avi in Seattle(ish) Camera Traps) don't end up stamped as
+ * image/jpeg.
  */
 export function getMediaTypeFromFileName(fileName) {
   if (!fileName) return 'image/jpeg'
@@ -40,7 +43,13 @@ export function getMediaTypeFromFileName(fileName) {
     png: 'image/png',
     gif: 'image/gif',
     bmp: 'image/bmp',
-    webp: 'image/webp'
+    webp: 'image/webp',
+    mp4: 'video/mp4',
+    mkv: 'video/x-matroska',
+    mov: 'video/quicktime',
+    webm: 'video/webm',
+    avi: 'video/x-msvideo',
+    m4v: 'video/x-m4v'
   }
 
   return mimeTypes[ext] || 'image/jpeg'

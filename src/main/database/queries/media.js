@@ -548,13 +548,26 @@ export async function getSourcesData(dbPath) {
         deploymentID: media.deploymentID,
         folderName: media.folderName,
         locationName: deployments.locationName,
-        imageCount:
-          sql`SUM(CASE WHEN ${media.fileMediatype} NOT LIKE 'video/%' THEN 1 ELSE 0 END)`.as(
-            'imageCount'
-          ),
-        videoCount: sql`SUM(CASE WHEN ${media.fileMediatype} LIKE 'video/%' THEN 1 ELSE 0 END)`.as(
-          'videoCount'
-        ),
+        // Classify by file extension instead of fileMediatype: pre-fix LILA
+        // imports stamped video files as 'image/jpeg', but the actual extension
+        // is preserved in fileName (e.g. 'DSCF0004.AVI'). Falling back to the
+        // fileName check fixes existing studies without a data migration.
+        imageCount: sql`SUM(CASE WHEN
+          LOWER(${media.fileName}) LIKE '%.mp4' OR
+          LOWER(${media.fileName}) LIKE '%.mkv' OR
+          LOWER(${media.fileName}) LIKE '%.mov' OR
+          LOWER(${media.fileName}) LIKE '%.webm' OR
+          LOWER(${media.fileName}) LIKE '%.avi' OR
+          LOWER(${media.fileName}) LIKE '%.m4v'
+          THEN 0 ELSE 1 END)`.as('imageCount'),
+        videoCount: sql`SUM(CASE WHEN
+          LOWER(${media.fileName}) LIKE '%.mp4' OR
+          LOWER(${media.fileName}) LIKE '%.mkv' OR
+          LOWER(${media.fileName}) LIKE '%.mov' OR
+          LOWER(${media.fileName}) LIKE '%.webm' OR
+          LOWER(${media.fileName}) LIKE '%.avi' OR
+          LOWER(${media.fileName}) LIKE '%.m4v'
+          THEN 1 ELSE 0 END)`.as('videoCount'),
         isRemoteAny: sql`MAX(CASE WHEN ${media.filePath} LIKE 'http%' THEN 1 ELSE 0 END)`.as(
           'isRemoteAny'
         ),
