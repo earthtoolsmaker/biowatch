@@ -615,7 +615,10 @@ export async function getSourcesData(dbPath) {
       if (!deploymentsByFolder.has(folder)) deploymentsByFolder.set(folder, [])
       deploymentsByFolder.get(folder).push({
         deploymentID: d.deploymentID,
-        label: d.locationName ?? d.folderName ?? d.deploymentID,
+        // Coalesce to a stable string so the renderer's React keys, sort, and
+        // merge-by-label logic can't collapse all NULL-labelled deployments
+        // into a single empty row.
+        label: d.locationName || d.folderName || d.deploymentID || '(unknown)',
         imageCount,
         videoCount,
         observationCount,
