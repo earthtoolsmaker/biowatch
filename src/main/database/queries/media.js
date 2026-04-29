@@ -644,6 +644,29 @@ export async function getSourcesData(dbPath) {
       })
     }
 
+    const lastModelRows = await db
+      .select({
+        importFolder: media.importFolder,
+        modelID: modelRuns.modelID,
+        modelVersion: modelRuns.modelVersion,
+        startedAt: modelRuns.startedAt
+      })
+      .from(modelOutputs)
+      .innerJoin(media, eq(modelOutputs.mediaID, media.mediaID))
+      .innerJoin(modelRuns, eq(modelOutputs.runID, modelRuns.id))
+      .orderBy(media.importFolder, desc(modelRuns.startedAt))
+
+    const lastModelByFolder = new Map()
+    for (const row of lastModelRows) {
+      const key = row.importFolder ?? ''
+      if (!lastModelByFolder.has(key)) {
+        lastModelByFolder.set(key, {
+          modelID: row.modelID,
+          modelVersion: row.modelVersion
+        })
+      }
+    }
+
     const result = rows.map((r) => ({
       importFolder: r.importFolder ?? '',
       isRemote: Number(r.isRemote) === 1,
@@ -652,7 +675,7 @@ export async function getSourcesData(dbPath) {
       deploymentCount: Number(r.deploymentCount),
       observationCount: Number(r.observationCount),
       activeRun: null,
-      lastModelUsed: null,
+      lastModelUsed: lastModelByFolder.get(r.importFolder ?? '') ?? null,
       deployments: deploymentsByFolder.get(r.importFolder ?? '') ?? []
     }))
 

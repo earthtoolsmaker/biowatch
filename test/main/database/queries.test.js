@@ -17,6 +17,8 @@ import {
   insertDeployments,
   insertMedia,
   insertObservations,
+  insertModelRun,
+  insertModelOutput,
   getStudyIdFromPath,
   getBlankMediaCount,
   getMediaForSequencePagination
@@ -415,6 +417,31 @@ describe('Database Query Functions Tests', () => {
 
       // createTestData inserts 5 observations
       assert.equal(totalObservations, 5, 'totalObservations')
+    })
+
+    test('returns lastModelUsed when a model_run exists', async () => {
+      const { manager } = await createTestData(testDbPath)
+      const db = manager.getDb()
+      await insertModelRun(db, {
+        id: 'run-completed-1',
+        modelID: 'speciesnet',
+        modelVersion: '4.0.1a',
+        startedAt: '2024-01-01T00:00:00.000Z',
+        status: 'completed'
+      })
+      await insertModelOutput(db, {
+        id: 'mo-1',
+        mediaID: 'media001',
+        runID: 'run-completed-1',
+        rawOutput: null
+      })
+
+      const result = await getSourcesData(testDbPath)
+      const sourceWithModel = result.find((r) => r.lastModelUsed !== null)
+
+      assert(sourceWithModel, 'at least one source should have lastModelUsed')
+      assert.equal(sourceWithModel.lastModelUsed.modelID, 'speciesnet')
+      assert.equal(sourceWithModel.lastModelUsed.modelVersion, '4.0.1a')
     })
 
     test('returns deployment rows under each source', async () => {
