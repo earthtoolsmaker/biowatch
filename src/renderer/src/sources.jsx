@@ -150,16 +150,16 @@ function SourceRow({ source, importerName, studyName, expanded, onToggle }) {
   return (
     <>
       <div
-        className="flex items-center gap-4 px-2 py-4 border-b border-gray-200 hover:bg-gray-50 cursor-pointer"
+        className="flex flex-wrap items-center gap-x-4 gap-y-2 px-2 py-4 border-b border-gray-200 hover:bg-gray-50 cursor-pointer"
         onClick={canExpand ? onToggle : undefined}
       >
-        <div className="w-5 text-gray-500">
+        <div className="w-5 text-gray-500 flex-shrink-0">
           {canExpand ? expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} /> : null}
         </div>
-        <div className="w-[22px] flex justify-center">
+        <div className="w-[22px] flex justify-center flex-shrink-0">
           <SourceIcon importerName={importerName} />
         </div>
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-[180px]">
           <div className="flex items-center gap-2 text-sm font-medium text-gray-900">
             <span className="truncate">{label}</span>
             <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded flex-shrink-0">
@@ -184,25 +184,33 @@ function SourceRow({ source, importerName, studyName, expanded, onToggle }) {
             </div>
           )}
         </div>
-        <MediaCounts
-          imageCount={source.imageCount}
-          videoCount={source.videoCount}
-          deploymentCount={mergedDeployments.length}
-        />
-        <div className="w-[200px] flex justify-end">
-          <StatusCell row={source} />
+        <div className="flex items-center gap-4 ml-auto">
+          <MediaCounts
+            imageCount={source.imageCount}
+            videoCount={source.videoCount}
+            deploymentCount={mergedDeployments.length}
+          />
+          <div className="w-[200px] flex justify-end flex-shrink-0">
+            <StatusCell row={source} />
+          </div>
         </div>
       </div>
       {expanded &&
         mergedDeployments.map((d) => (
           <div
             key={`${d.label}__${d.deploymentID}`}
-            className="ml-14 flex items-center gap-4 px-2 py-3 border-b border-gray-100 hover:bg-gray-50"
+            className="ml-14 flex flex-wrap items-center gap-x-4 gap-y-2 px-2 py-3 border-b border-gray-100 hover:bg-gray-50"
           >
-            <div className="flex-1 min-w-0 text-sm text-gray-700 truncate">{d.label}</div>
-            <MediaCounts imageCount={d.imageCount} videoCount={d.videoCount} deploymentCount={0} />
-            <div className="w-[200px] flex justify-end">
-              <StatusCell row={d} />
+            <div className="flex-1 min-w-[180px] text-sm text-gray-700 truncate">{d.label}</div>
+            <div className="flex items-center gap-4 ml-auto">
+              <MediaCounts
+                imageCount={d.imageCount}
+                videoCount={d.videoCount}
+                deploymentCount={0}
+              />
+              <div className="w-[200px] flex justify-end flex-shrink-0">
+                <StatusCell row={d} />
+              </div>
             </div>
           </div>
         ))}
