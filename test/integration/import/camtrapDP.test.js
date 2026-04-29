@@ -152,6 +152,11 @@ describe('CamTrapDP Import Tests', () => {
         assert(media.timestamp, 'Media should have a timestamp')
         assert(media.filePath, 'Media should have a file path')
         assert(media.fileName, 'Media should have a file name')
+        assert.equal(
+          media.importFolder,
+          testCamTrapDataPath,
+          'importFolder should be the package directory (Sources tab grouping key)'
+        )
       }
 
       // Check specific media record
