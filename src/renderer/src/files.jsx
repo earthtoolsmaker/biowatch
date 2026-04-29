@@ -80,9 +80,15 @@ export default function Files({ studyId }) {
         {Object.entries(importFolders).map(([importFolder, directories]) => (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200" key={importFolder}>
             <div className="px-6 py-4 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <div>{importFolder}</div>
-                <div className="text-sm text-gray-500">
+              <div className="flex items-center justify-between gap-4">
+                <div
+                  className="min-w-0 flex-1 truncate"
+                  style={{ direction: 'rtl', textAlign: 'left' }}
+                  title={importFolder}
+                >
+                  {'‎' + importFolder}
+                </div>
+                <div className="text-sm text-gray-500 flex-shrink-0">
                   {directories.length} {directories.length === 1 ? 'directory' : 'directories'}
                 </div>
               </div>
