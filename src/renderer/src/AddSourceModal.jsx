@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Lock, FolderOpen, X } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 import { modelZoo } from '../../shared/mlmodels.js'
-import { countries, DEFAULT_COUNTRY } from '../../shared/countries.js'
+import { countries } from '../../shared/countries.js'
 
 /**
  * One modal for adding a folder to an existing study.
@@ -19,7 +19,7 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
   const [latestModel, setLatestModel] = useState(null) // {id, version} | null
   const [latestCountry, setLatestCountry] = useState(null) // string | null
   const [pickedModelKey, setPickedModelKey] = useState('') // 'speciesnet-4.0.1a'
-  const [pickedCountry, setPickedCountry] = useState(DEFAULT_COUNTRY)
+  const [pickedCountry, setPickedCountry] = useState('')
   const [folder, setFolder] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
@@ -66,7 +66,7 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
       } else {
         setPickedModelKey('')
       }
-      setPickedCountry(res?.country || DEFAULT_COUNTRY)
+      setPickedCountry(res?.country || '')
     })
     return () => {
       cancelled = true
@@ -226,7 +226,7 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
               </label>
               <Select value={pickedCountry} onValueChange={setPickedCountry}>
                 <SelectTrigger className="w-full bg-white border-gray-200">
-                  <SelectValue />
+                  <SelectValue placeholder="Select a country" />
                 </SelectTrigger>
                 <SelectContent className="max-h-72">
                   {countries.map((c) => (
