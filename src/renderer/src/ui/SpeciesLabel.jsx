@@ -28,3 +28,34 @@ export default function SpeciesLabel({ names }) {
     </>
   )
 }
+
+function SpeciesNameWithCount({ scientificName, count }) {
+  const resolved = useCommonName(scientificName) || scientificName
+  return (
+    <>
+      {resolved}
+      {count > 1 && <span className="text-gray-500 font-normal"> ×{count}</span>}
+    </>
+  )
+}
+
+/**
+ * Species summary with per-species occurrence counts ("Red Deer ×2 · European
+ * Hare"). Single-occurrence species drop the count suffix.
+ *
+ * @param {{ entries: Array<{ scientificName: string, count: number }> }} props
+ */
+export function SpeciesCountLabel({ entries }) {
+  if (!entries || entries.length === 0) return <>No species</>
+
+  return (
+    <>
+      {entries.map((entry, i) => (
+        <span key={entry.scientificName}>
+          {i > 0 && ' · '}
+          <SpeciesNameWithCount scientificName={entry.scientificName} count={entry.count} />
+        </span>
+      ))}
+    </>
+  )
+}
