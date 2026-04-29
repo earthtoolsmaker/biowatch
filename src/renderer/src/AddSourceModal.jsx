@@ -266,12 +266,11 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
                 </Button>
               </div>
             )}
-            {modelLocked &&
-              (!pickedModel || isModelCompletelyInstalled(pickedModel)) && (
-                <p className="text-xs text-gray-400 mt-1.5">
-                  Same model as the previous run for this study.
-                </p>
-              )}
+            {modelLocked && (!pickedModel || isModelCompletelyInstalled(pickedModel)) && (
+              <p className="text-xs text-gray-400 mt-1.5">
+                Same model as the previous run for this study.
+              </p>
+            )}
           </div>
 
           {/* Country (only when model uses geofencing) */}

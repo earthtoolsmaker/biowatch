@@ -407,4 +407,3 @@ ipcMain.handle(
     }
   }
 )
-
