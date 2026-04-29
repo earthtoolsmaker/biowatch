@@ -2,7 +2,6 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import { Transform } from 'stream'
-import { DateTime } from 'luxon'
 import {
   getStudyDatabase,
   deployments,
@@ -18,6 +17,11 @@ import { chain } from 'stream-chain'
 import log from '../../logger.js'
 import { getBiowatchDataPath } from '../../paths.js'
 import { DEFAULT_SEQUENCE_GAP } from '../../../../shared/constants.js'
+import {
+  transformCOCOToMedia,
+  transformDateField,
+  getMediaTypeFromFileName
+} from './lila-helpers.js'
 
 /**
  * Whitelisted LILA datasets with their metadata and access URLs
@@ -665,7 +669,7 @@ export async function importLilaDatasetWithPath(
 
     // Transform data
     const deploymentsData = transformCOCOToDeployments(cocoData.images)
-    const mediaData = transformCOCOToMedia(cocoData.images, dataset.imageBaseUrl)
+    const mediaData = transformCOCOToMedia(cocoData.images, dataset)
     const observationsData = transformCOCOToObservations(
       cocoData.annotations || [],
       categoryMap,
@@ -1052,18 +1056,8 @@ function transformCOCOToDeployments(images) {
  * Transform COCO images to Biowatch media
  * Constructs HTTP URLs for lazy loading
  */
-function transformCOCOToMedia(images, imageBaseUrl) {
-  return images.map((img) => ({
-    mediaID: String(img.id),
-    deploymentID: img.location ? String(img.location) : null,
-    timestamp: transformDateField(img.datetime),
-    filePath: `${imageBaseUrl}${img.file_name}`,
-    fileName: img.file_name,
-    fileMediatype: getMediaTypeFromFileName(img.file_name),
-    exifData: null,
-    favorite: false
-  }))
-}
+// transformCOCOToMedia, transformDateField, and getMediaTypeFromFileName
+// are imported from ./lila-helpers.js (extracted for testability).
 
 /**
  * Transform COCO annotations to Biowatch observations
@@ -1146,46 +1140,6 @@ function normalizeBbox(bbox, imageWidth, imageHeight) {
     bboxWidth: width / imageWidth,
     bboxHeight: height / imageHeight
   }
-}
-
-/**
- * Transform date field from COCO format to ISO
- */
-function transformDateField(dateValue) {
-  if (!dateValue) return null
-
-  // Try ISO format first
-  let date = DateTime.fromISO(dateValue)
-  if (date.isValid) {
-    return date.toUTC().toISO()
-  }
-
-  // Try COCO common format: "2022-12-31 09:52:50"
-  date = DateTime.fromFormat(dateValue, 'yyyy-MM-dd HH:mm:ss')
-  if (date.isValid) {
-    return date.toUTC().toISO()
-  }
-
-  return null
-}
-
-/**
- * Get MIME type from file name
- */
-function getMediaTypeFromFileName(fileName) {
-  if (!fileName) return 'image/jpeg'
-
-  const ext = fileName.toLowerCase().split('.').pop()
-  const mimeTypes = {
-    jpg: 'image/jpeg',
-    jpeg: 'image/jpeg',
-    png: 'image/png',
-    gif: 'image/gif',
-    bmp: 'image/bmp',
-    webp: 'image/webp'
-  }
-
-  return mimeTypes[ext] || 'image/jpeg'
 }
 
 /**
@@ -1545,7 +1499,8 @@ async function insertMediaFromJsonl(
     'fileName',
     'fileMediatype',
     'exifData',
-    'favorite'
+    'favorite',
+    'importFolder'
   ]
   const mediaInserter = createBulkInserter(sqlite, 'media', mediaColumns)
 
@@ -1564,7 +1519,8 @@ async function insertMediaFromJsonl(
         fileName: img.file_name,
         fileMediatype: getMediaTypeFromFileName(img.file_name),
         exifData: null,
-        favorite: false
+        favorite: false,
+        importFolder: dataset.name
       }))
 
       mediaInserter(mediaData) // Transaction-wrapped bulk insert
