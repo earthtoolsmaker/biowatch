@@ -11,7 +11,6 @@ import {
   getLocationsActivity,
   getDeploymentLocations,
   getDeploymentsActivity,
-  getFilesData,
   getSourcesData,
   createImageDirectoryDatabase,
   insertDeployments,
@@ -347,30 +346,6 @@ describe('Database Query Functions Tests', () => {
           assert(typeof period.count === 'number', 'Period should have numeric count')
         })
       })
-    })
-  })
-
-  describe('getFilesData', () => {
-    test('should return directory statistics', async () => {
-      await createTestData(testDbPath)
-
-      const result = await getFilesData(testDbPath)
-
-      assert(Array.isArray(result), 'Should return an array')
-      assert.equal(result.length, 3, 'Should have 3 directories (locations)')
-
-      result.forEach((directory) => {
-        assert(directory.folderName, 'Directory should have folder name')
-        assert(typeof directory.imageCount === 'number', 'Should have numeric image count')
-        assert(typeof directory.processedCount === 'number', 'Should have numeric processed count')
-      })
-
-      // Verify total counts match our test data
-      const totalImages = result.reduce((sum, dir) => sum + dir.imageCount, 0)
-      const totalProcessed = result.reduce((sum, dir) => sum + dir.processedCount, 0)
-
-      assert.equal(totalImages, 5, 'Should have total of 5 images')
-      assert.equal(totalProcessed, 5, 'Should have total of 5 processed observations')
     })
   })
 

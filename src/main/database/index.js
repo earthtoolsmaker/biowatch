@@ -228,7 +228,6 @@ export {
   getSequenceAwareHeatmapSQL,
   getSequenceAwareDailyActivitySQL,
   // Media
-  getFilesData,
   getSourcesData,
   getMediaBboxes,
   getMediaBboxesBatch,

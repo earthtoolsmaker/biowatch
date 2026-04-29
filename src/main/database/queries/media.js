@@ -10,61 +10,6 @@ import { getStudyIdFromPath, formatToMatchOriginal } from './utils.js'
 import { transformBboxToCamtrapDP, detectModelType } from '../../utils/bbox.js'
 
 /**
- * Get files data (directories with image counts and processing progress) for local/ml_run studies
- * @param {string} dbPath - Path to the SQLite database
- * @returns {Promise<Array>} - Array of directory objects with image counts and processing progress
- */
-export async function getFilesData(dbPath) {
-  const startTime = Date.now()
-  log.info(`Querying files data from: ${dbPath}`)
-
-  try {
-    const studyId = getStudyIdFromPath(dbPath)
-
-    const db = await getDrizzleDb(studyId, dbPath)
-
-    // Query to get directory statistics with most recent model used
-    const rows = await db
-      .select({
-        folderName: media.folderName,
-        importFolder: media.importFolder,
-        imageCount:
-          sql`COUNT(DISTINCT CASE WHEN ${media.fileMediatype} NOT LIKE 'video/%' THEN ${media.mediaID} END)`.as(
-            'imageCount'
-          ),
-        videoCount:
-          sql`COUNT(DISTINCT CASE WHEN ${media.fileMediatype} LIKE 'video/%' THEN ${media.mediaID} END)`.as(
-            'videoCount'
-          ),
-        processedCount:
-          sql`COUNT(DISTINCT CASE WHEN ${observations.observationID} IS NOT NULL THEN ${media.mediaID} END)`.as(
-            'processedCount'
-          ),
-        lastModelUsed: sql`(
-          SELECT mr.modelID || ' ' || mr.modelVersion
-          FROM model_outputs mo
-          INNER JOIN media m2 ON mo.mediaID = m2.mediaID
-          INNER JOIN model_runs mr ON mo.runID = mr.id
-          WHERE m2.folderName = ${media.folderName}
-          ORDER BY mr.startedAt DESC
-          LIMIT 1
-        )`.as('lastModelUsed')
-      })
-      .from(media)
-      .leftJoin(observations, eq(media.mediaID, observations.mediaID))
-      .groupBy(media.folderName)
-      .orderBy(media.folderName)
-
-    const elapsedTime = Date.now() - startTime
-    log.info(`Retrieved files data: ${rows.length} directories found in ${elapsedTime}ms`)
-    return rows
-  } catch (error) {
-    log.error(`Error querying files data: ${error.message}`)
-    throw error
-  }
-}
-
-/**
  * Get all bounding boxes for a specific media file with model provenance
  * @param {string} dbPath - Path to the SQLite database
  * @param {string} mediaID - The media ID to get bboxes for
