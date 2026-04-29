@@ -662,21 +662,40 @@ export async function getSourcesData(dbPath) {
     }
 
     const processedByFolder = new Map()
+    const processedByDeployment = new Map() // key = `${folder} ${deploymentID}`
     const activeFolders = Array.from(activeRunByFolder.keys())
     if (activeFolders.length > 0) {
       const processedRows = await db
         .select({
           importFolder: media.importFolder,
+          deploymentID: media.deploymentID,
           processed: sql`COUNT(DISTINCT ${modelOutputs.mediaID})`.as('processed')
         })
         .from(modelOutputs)
         .innerJoin(media, eq(modelOutputs.mediaID, media.mediaID))
         .innerJoin(modelRuns, eq(modelOutputs.runID, modelRuns.id))
         .where(and(eq(modelRuns.status, 'running'), inArray(media.importFolder, activeFolders)))
-        .groupBy(media.importFolder)
+        .groupBy(media.importFolder, media.deploymentID)
 
       for (const row of processedRows) {
-        processedByFolder.set(row.importFolder, Number(row.processed))
+        const folder = row.importFolder ?? ''
+        const n = Number(row.processed)
+        processedByFolder.set(folder, (processedByFolder.get(folder) ?? 0) + n)
+        processedByDeployment.set(`${folder} ${row.deploymentID ?? ''}`, n)
+      }
+    }
+
+    // Populate per-deployment activeRun from the in-flight processed counts.
+    for (const [folder, deps] of deploymentsByFolder) {
+      const folderActive = activeRunByFolder.get(folder)
+      if (!folderActive) continue
+      for (const d of deps) {
+        const total = d.imageCount + d.videoCount
+        d.activeRun = {
+          runID: folderActive.runID,
+          processed: processedByDeployment.get(`${folder} ${d.deploymentID ?? ''}`) ?? 0,
+          total
+        }
       }
     }
 
