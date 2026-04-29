@@ -43,10 +43,13 @@ export function useImportStatus(id, interval = 1000) {
         throw err
       }
     },
-    // Poll unconditionally so the global progress bar catches the moment a new
-    // import starts (e.g. via the Add-images-directory modal). Without this the
-    // hook stops polling when isRunning=false and never sees the transition.
-    refetchInterval: interval,
+    refetchInterval: (query) => {
+      // Only poll while an import is running. Callers that kick off a new
+      // import (e.g. AddSourceModal.handleImport) are responsible for
+      // invalidating ['importStatus', studyId] so the next fetch picks up
+      // the running state.
+      return query?.state?.data?.isRunning ? interval : false
+    },
     refetchIntervalInBackground: false,
     enabled: !!id
   })

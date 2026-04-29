@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
+import { useQueryClient } from '@tanstack/react-query'
 import { Lock, FolderOpen, X } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 import { Button } from './ui/button.jsx'
@@ -19,6 +20,7 @@ import { countries } from '../../shared/countries.js'
  */
 export default function AddSourceModal({ isOpen, studyId, onClose, onImported }) {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [latestModel, setLatestModel] = useState(null) // {id, version} | null
   const [latestCountry, setLatestCountry] = useState(null) // string | null
   const [pickedModelKey, setPickedModelKey] = useState('') // 'speciesnet-4.0.1a'
@@ -130,6 +132,15 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
         needsCountry ? pickedCountry : null
       )
       if (res?.success) {
+        // Kick the import-status query so the global progress bar picks up the
+        // new run on its next refetch. Setting isRunning=true here also
+        // re-arms the polling interval (hooks/import.js refetches only while
+        // isRunning is truthy).
+        queryClient.setQueryData(['importStatus', studyId], (prev) => ({
+          ...(prev || { total: 0, done: 0 }),
+          isRunning: true
+        }))
+        queryClient.invalidateQueries({ queryKey: ['importStatus', studyId] })
         onImported?.()
         onClose()
       } else {
