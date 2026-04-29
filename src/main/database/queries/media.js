@@ -598,7 +598,10 @@ export async function getSourcesData(dbPath) {
             'videoCount'
           ),
         deploymentCount: sql`COUNT(DISTINCT ${media.deploymentID})`.as('deploymentCount'),
-        observationCount: sql`COUNT(${observations.observationID})`.as('observationCount')
+        observationCount: sql`COUNT(${observations.observationID})`.as('observationCount'),
+        isRemote: sql`MAX(CASE WHEN ${media.filePath} LIKE 'http%' THEN 1 ELSE 0 END)`.as(
+          'isRemote'
+        )
       })
       .from(media)
       .leftJoin(observations, eq(media.mediaID, observations.mediaID))
@@ -607,7 +610,7 @@ export async function getSourcesData(dbPath) {
 
     const result = rows.map((r) => ({
       importFolder: r.importFolder ?? '',
-      isRemote: false,
+      isRemote: Number(r.isRemote) === 1,
       imageCount: Number(r.imageCount),
       videoCount: Number(r.videoCount),
       deploymentCount: Number(r.deploymentCount),

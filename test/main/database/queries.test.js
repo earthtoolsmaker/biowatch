@@ -416,6 +416,39 @@ describe('Database Query Functions Tests', () => {
       // createTestData inserts 5 observations
       assert.equal(totalObservations, 5, 'totalObservations')
     })
+
+    test('marks isRemote=true when any filePath is an http URL', async () => {
+      const manager = await createImageDirectoryDatabase(testDbPath)
+      await insertDeployments(manager, {
+        d1: { deploymentID: 'd1', locationID: 'l1', locationName: 'Local' },
+        d2: { deploymentID: 'd2', locationID: 'l2', locationName: 'Remote' }
+      })
+      await insertMedia(manager, {
+        'a.jpg': {
+          mediaID: 'm1',
+          deploymentID: 'd1',
+          filePath: '/local/a.jpg',
+          fileName: 'a.jpg',
+          importFolder: '/local',
+          folderName: 'local'
+        },
+        'b.jpg': {
+          mediaID: 'm2',
+          deploymentID: 'd2',
+          filePath: 'https://example.com/b.jpg',
+          fileName: 'b.jpg',
+          importFolder: 'remote-dataset',
+          folderName: null
+        }
+      })
+
+      const result = await getSourcesData(testDbPath)
+      const local = result.find((r) => r.importFolder === '/local')
+      const remote = result.find((r) => r.importFolder === 'remote-dataset')
+
+      assert.equal(local.isRemote, false, 'local source')
+      assert.equal(remote.isRemote, true, 'remote source')
+    })
   })
 
   describe('Error Handling', () => {
