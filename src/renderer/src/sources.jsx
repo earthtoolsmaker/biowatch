@@ -29,10 +29,10 @@ function StatusCell({ row }) {
   if (row.observationCount > 0) {
     return (
       <span
-        className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-full bg-emerald-500 text-white"
+        className="inline-flex items-center justify-center text-gray-500"
         title={`${row.observationCount.toLocaleString()} observations`}
       >
-        <Check size={11} strokeWidth={3} />
+        <Check size={16} strokeWidth={2} />
       </span>
     )
   }
