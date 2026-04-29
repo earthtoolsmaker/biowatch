@@ -2660,18 +2660,22 @@ function ThumbnailBboxOverlay({ bboxes, imageRef, containerRef }) {
 
   return (
     <svg className="absolute inset-0 w-full h-full pointer-events-none z-10">
-      {drawableBboxes.map((bbox, index) => (
-        <rect
-          key={bbox.observationID || index}
-          x={offsetX + bbox.bboxX * renderedWidth}
-          y={offsetY + bbox.bboxY * renderedHeight}
-          width={bbox.bboxWidth * renderedWidth}
-          height={bbox.bboxHeight * renderedHeight}
-          stroke="#84cc16"
-          strokeWidth="2"
-          fill="none"
-        />
-      ))}
+      {drawableBboxes.map((bbox, index) => {
+        const isValidated = bbox.classificationMethod === 'human'
+        return (
+          <rect
+            key={bbox.observationID || index}
+            x={offsetX + bbox.bboxX * renderedWidth}
+            y={offsetY + bbox.bboxY * renderedHeight}
+            width={bbox.bboxWidth * renderedWidth}
+            height={bbox.bboxHeight * renderedHeight}
+            stroke={isValidated ? '#2563eb' : '#60a5fa'}
+            strokeWidth="2"
+            strokeDasharray={isValidated ? undefined : '4 3'}
+            fill="none"
+          />
+        )
+      })}
     </svg>
   )
 }
