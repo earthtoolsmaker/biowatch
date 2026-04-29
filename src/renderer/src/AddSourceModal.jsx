@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Lock, FolderOpen, X } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
+import { Button } from './ui/button.jsx'
 import { modelZoo } from '../../shared/mlmodels.js'
 import { countries } from '../../shared/countries.js'
 
@@ -259,14 +260,16 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
                   <span className="text-gray-400 font-sans">No folder selected</span>
                 )}
               </div>
-              <button
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={handleBrowse}
                 disabled={submitting}
-                className="px-3 py-2 border border-gray-200 rounded-md bg-white text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 flex items-center gap-1.5"
+                className="gap-1.5"
               >
                 <FolderOpen size={14} />
                 {folder ? 'Change' : 'Browse'}
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -278,24 +281,12 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
         </div>
 
         <footer className="flex justify-end gap-2 px-5 py-3 border-t border-gray-200 bg-gray-50">
-          <button
-            onClick={onClose}
-            disabled={submitting}
-            className="px-4 py-1.5 border border-gray-200 rounded-md text-sm text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-          >
+          <Button variant="outline" size="sm" onClick={onClose} disabled={submitting}>
             Cancel
-          </button>
-          <button
-            onClick={handleImport}
-            disabled={!canImport || submitting}
-            className={`px-4 py-1.5 rounded-md text-sm font-medium text-white ${
-              canImport && !submitting
-                ? 'bg-blue-600 hover:bg-blue-700'
-                : 'bg-blue-300 cursor-not-allowed'
-            }`}
-          >
+          </Button>
+          <Button size="sm" onClick={handleImport} disabled={!canImport || submitting}>
             {submitting ? 'Starting…' : 'Import'}
-          </button>
+          </Button>
         </footer>
       </div>
     </div>
