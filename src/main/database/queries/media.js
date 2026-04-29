@@ -2,7 +2,7 @@
  * Media-related database queries
  */
 
-import { getDrizzleDb, media, observations, modelRuns, modelOutputs } from '../index.js'
+import { getDrizzleDb, media, observations, modelRuns, modelOutputs, deployments } from '../index.js'
 import { eq, and, desc, count, sql, isNotNull, inArray, isNull } from 'drizzle-orm'
 import { DateTime } from 'luxon'
 import log from 'electron-log'
@@ -569,6 +569,45 @@ export async function getVideoFrameDetections(dbPath, mediaID) {
     return result
   } catch (error) {
     log.error(`Error querying video frame detections: ${error.message}`)
+    throw error
+  }
+}
+
+/**
+ * Get sources data — one row per distinct media.importFolder, with rollup stats.
+ * @param {string} dbPath
+ * @returns {Promise<Array>} array of SourceRow
+ */
+export async function getSourcesData(dbPath) {
+  const startTime = Date.now()
+  log.info(`Querying sources data from: ${dbPath}`)
+
+  try {
+    const studyId = getStudyIdFromPath(dbPath)
+    const db = await getDrizzleDb(studyId, dbPath)
+
+    const rows = await db
+      .select({ importFolder: media.importFolder })
+      .from(media)
+      .groupBy(media.importFolder)
+      .orderBy(media.importFolder)
+
+    const result = rows.map((r) => ({
+      importFolder: r.importFolder ?? '',
+      isRemote: false,
+      imageCount: 0,
+      videoCount: 0,
+      deploymentCount: 0,
+      observationCount: 0,
+      activeRun: null,
+      lastModelUsed: null,
+      deployments: []
+    }))
+
+    log.info(`Sources data: ${result.length} sources in ${Date.now() - startTime}ms`)
+    return result
+  } catch (error) {
+    log.error(`Error querying sources data: ${error.message}`)
     throw error
   }
 }

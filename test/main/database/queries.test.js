@@ -12,6 +12,7 @@ import {
   getDeploymentLocations,
   getDeploymentsActivity,
   getFilesData,
+  getSourcesData,
   createImageDirectoryDatabase,
   insertDeployments,
   insertMedia,
@@ -368,6 +369,20 @@ describe('Database Query Functions Tests', () => {
 
       assert.equal(totalImages, 5, 'Should have total of 5 images')
       assert.equal(totalProcessed, 5, 'Should have total of 5 processed observations')
+    })
+  })
+
+  describe('getSourcesData', () => {
+    test('returns one row per distinct importFolder', async () => {
+      await createTestData(testDbPath)
+
+      const result = await getSourcesData(testDbPath)
+
+      assert(Array.isArray(result), 'should return an array')
+      assert(result.length >= 1, 'should have at least one source row')
+      result.forEach((row) => {
+        assert(typeof row.importFolder === 'string', 'importFolder is a string')
+      })
     })
   })
 
