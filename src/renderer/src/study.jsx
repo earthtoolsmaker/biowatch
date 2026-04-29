@@ -233,7 +233,7 @@ export default function Study() {
             path="sources"
             element={
               <ErrorBoundary FallbackComponent={ErrorFallback} key={'sources'}>
-                <Sources studyId={id} importerName={study?.importerName} />
+                <Sources studyId={id} importerName={study?.importerName} studyName={study?.name} />
               </ErrorBoundary>
             }
           />

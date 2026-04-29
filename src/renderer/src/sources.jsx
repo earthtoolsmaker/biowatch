@@ -68,8 +68,10 @@ function MediaCounts({ imageCount, videoCount, deploymentCount }) {
   )
 }
 
-function SourceRow({ source, importerName, expanded, onToggle }) {
+function SourceRow({ source, importerName, studyName, expanded, onToggle }) {
   const canExpand = source.deployments.length > 0
+  const hasImportFolder = !!source.importFolder
+  const label = hasImportFolder ? source.importFolder : studyName || 'Imported dataset'
   return (
     <>
       <div
@@ -84,7 +86,7 @@ function SourceRow({ source, importerName, expanded, onToggle }) {
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 text-sm font-medium text-gray-900">
-            <span className="truncate">{source.importFolder || '(unnamed source)'}</span>
+            <span className="truncate">{label}</span>
             <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded flex-shrink-0">
               {source.isRemote ? 'Remote' : 'Local'}
             </span>
@@ -97,13 +99,15 @@ function SourceRow({ source, importerName, expanded, onToggle }) {
               </span>
             )}
           </div>
-          <div
-            className="text-xs text-gray-400 font-mono mt-0.5 truncate"
-            style={{ direction: 'rtl', textAlign: 'left' }}
-            title={source.importFolder}
-          >
-            {'‎' + (source.importFolder || '')}
-          </div>
+          {hasImportFolder && (
+            <div
+              className="text-xs text-gray-400 font-mono mt-0.5 truncate"
+              style={{ direction: 'rtl', textAlign: 'left' }}
+              title={source.importFolder}
+            >
+              {'‎' + source.importFolder}
+            </div>
+          )}
         </div>
         <MediaCounts
           imageCount={source.imageCount}
@@ -131,7 +135,7 @@ function SourceRow({ source, importerName, expanded, onToggle }) {
   )
 }
 
-export default function Sources({ studyId, importerName }) {
+export default function Sources({ studyId, importerName, studyName }) {
   const { id } = useParams()
   const actualStudyId = studyId || id
   const queryClient = useQueryClient()
@@ -203,9 +207,10 @@ export default function Sources({ studyId, importerName }) {
         <div>
           {sources.map((source) => (
             <SourceRow
-              key={source.importFolder}
+              key={source.importFolder || '__unnamed__'}
               source={source}
               importerName={importerName}
+              studyName={studyName}
               expanded={!!expanded[source.importFolder]}
               onToggle={() =>
                 setExpanded((e) => ({
