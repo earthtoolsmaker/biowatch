@@ -350,6 +350,65 @@ ipcMain.handle(
   }
 )
 
+/**
+ * Look up the latest model run for a study so the Add-source modal can
+ * pre-fill / lock the model and pre-fill the country.
+ *
+ * @returns {{ modelReference: { id, version } | null, country: string | null }}
+ */
+ipcMain.handle('study:get-latest-model-options', async (_event, id) => {
+  try {
+    const dbPath = path.join(app.getPath('userData'), 'biowatch-data', 'studies', id, 'study.db')
+    if (!fs.existsSync(dbPath)) {
+      return { modelReference: null, country: null }
+    }
+    const db = await getDrizzleDb(id, dbPath)
+    const latestRun = await getLatestModelRun(db)
+    if (!latestRun) {
+      return { modelReference: null, country: null }
+    }
+    const options = latestRun.options || {}
+    return {
+      modelReference: { id: latestRun.modelID, version: latestRun.modelVersion },
+      country: options.country || null
+    }
+  } catch (error) {
+    log.error('Error getting latest model options:', error)
+    return { modelReference: null, country: null, error: error.message }
+  }
+})
+
+/**
+ * Add a folder to an existing study with an explicit model + country.
+ * Replaces the auto-from-latest-run behavior of `importer:select-more-images-directory`,
+ * which is left in place for backwards compatibility but should no longer be invoked.
+ */
+ipcMain.handle(
+  'importer:add-folder',
+  async (_event, id, directoryPath, modelReference, country) => {
+    try {
+      if (queueScheduler.activeStudyId === id && queueScheduler.isRunning) {
+        log.warn(`Processing is already running for study ${id}`)
+        return { success: false, message: 'Processing already running' }
+      }
+      const dbPath = path.join(app.getPath('userData'), 'biowatch-data', 'studies', id, 'study.db')
+      if (!fs.existsSync(dbPath)) {
+        log.warn(`Study database not found for ID ${id}`)
+        return { success: false, message: 'Study not found' }
+      }
+      if (!directoryPath || !modelReference?.id || !modelReference?.version) {
+        return { success: false, message: 'Missing directory path or model reference' }
+      }
+      const importer = new Importer(id, directoryPath, modelReference, country || null)
+      await importer.start(true)
+      return { success: true }
+    } catch (error) {
+      log.error('Error adding folder to study:', error)
+      return { success: false, error: error.message }
+    }
+  }
+)
+
 ipcMain.handle('importer:select-more-images-directory', async (event, id) => {
   if (queueScheduler.activeStudyId === id && queueScheduler.isRunning) {
     log.warn(`Processing is already running for study ${id}`)

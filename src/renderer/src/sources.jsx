@@ -4,6 +4,7 @@ import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { useImportStatus } from '@renderer/hooks/import'
 import { Folder, Globe, Package, ChevronDown, ChevronRight, Info, Check } from 'lucide-react'
 import SkeletonSourcesList from './ui/SkeletonSourcesList'
+import AddSourceModal from './AddSourceModal'
 
 function SourceIcon({ importerName }) {
   if (importerName === 'lila/coco') return <Globe size={20} className="text-gray-400" />
@@ -202,6 +203,7 @@ export default function Sources({ studyId, importerName, studyName }) {
   const queryClient = useQueryClient()
   const { importStatus } = useImportStatus(actualStudyId)
   const [expanded, setExpanded] = useState({})
+  const [addOpen, setAddOpen] = useState(false)
 
   const {
     data: sources = [],
@@ -232,8 +234,7 @@ export default function Sources({ studyId, importerName, studyName }) {
     importerName === 'wildlife/folder' ||
     importerName === 'camtrap/datapackage'
 
-  const handleAddSource = async () => {
-    await window.api.selectMoreImagesDirectory(actualStudyId)
+  const handleImported = () => {
     queryClient.invalidateQueries({ queryKey: ['importStatus', actualStudyId] })
     queryClient.invalidateQueries({ queryKey: ['sourcesData', actualStudyId] })
   }
@@ -251,13 +252,13 @@ export default function Sources({ studyId, importerName, studyName }) {
                 {totalMedia.toLocaleString()} media files
               </div>
               <button
-                onClick={handleAddSource}
+                onClick={() => setAddOpen(true)}
                 disabled={!canAddSource}
                 className={`border border-gray-200 bg-white px-3 py-1.5 rounded-md text-sm ${
                   canAddSource ? 'hover:bg-gray-50' : 'opacity-50 cursor-not-allowed'
                 }`}
               >
-                + Add source
+                + Add images directory
               </button>
             </header>
             {sources.length === 0 ? (
@@ -284,6 +285,12 @@ export default function Sources({ studyId, importerName, studyName }) {
           </>
         )}
       </div>
+      <AddSourceModal
+        isOpen={addOpen}
+        studyId={actualStudyId}
+        onClose={() => setAddOpen(false)}
+        onImported={handleImported}
+      />
     </div>
   )
 }
