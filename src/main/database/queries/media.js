@@ -667,17 +667,66 @@ export async function getSourcesData(dbPath) {
       }
     }
 
-    const result = rows.map((r) => ({
-      importFolder: r.importFolder ?? '',
-      isRemote: Number(r.isRemote) === 1,
-      imageCount: Number(r.imageCount),
-      videoCount: Number(r.videoCount),
-      deploymentCount: Number(r.deploymentCount),
-      observationCount: Number(r.observationCount),
-      activeRun: null,
-      lastModelUsed: lastModelByFolder.get(r.importFolder ?? '') ?? null,
-      deployments: deploymentsByFolder.get(r.importFolder ?? '') ?? []
-    }))
+    const activeRunRows = await db
+      .select({
+        importFolder: modelRuns.importPath,
+        runID: modelRuns.id,
+        modelID: modelRuns.modelID,
+        modelVersion: modelRuns.modelVersion
+      })
+      .from(modelRuns)
+      .where(eq(modelRuns.status, 'running'))
+
+    const activeRunByFolder = new Map()
+    for (const r of activeRunRows) {
+      if (r.importFolder) activeRunByFolder.set(r.importFolder, r)
+    }
+
+    const processedByFolder = new Map()
+    const activeFolders = Array.from(activeRunByFolder.keys())
+    if (activeFolders.length > 0) {
+      const processedRows = await db
+        .select({
+          importFolder: media.importFolder,
+          processed: sql`COUNT(DISTINCT ${modelOutputs.mediaID})`.as('processed')
+        })
+        .from(modelOutputs)
+        .innerJoin(media, eq(modelOutputs.mediaID, media.mediaID))
+        .innerJoin(modelRuns, eq(modelOutputs.runID, modelRuns.id))
+        .where(and(eq(modelRuns.status, 'running'), inArray(media.importFolder, activeFolders)))
+        .groupBy(media.importFolder)
+
+      for (const row of processedRows) {
+        processedByFolder.set(row.importFolder, Number(row.processed))
+      }
+    }
+
+    const result = rows.map((r) => {
+      const folder = r.importFolder ?? ''
+      const activeRun = activeRunByFolder.get(folder)
+      const total = Number(r.imageCount) + Number(r.videoCount)
+      const finalActive = activeRun
+        ? {
+            runID: activeRun.runID,
+            modelID: activeRun.modelID,
+            modelVersion: activeRun.modelVersion,
+            processed: processedByFolder.get(folder) ?? 0,
+            total
+          }
+        : null
+
+      return {
+        importFolder: folder,
+        isRemote: Number(r.isRemote) === 1,
+        imageCount: Number(r.imageCount),
+        videoCount: Number(r.videoCount),
+        deploymentCount: Number(r.deploymentCount),
+        observationCount: Number(r.observationCount),
+        activeRun: finalActive,
+        lastModelUsed: lastModelByFolder.get(folder) ?? null,
+        deployments: deploymentsByFolder.get(folder) ?? []
+      }
+    })
 
     log.info(`Sources data: ${result.length} sources in ${Date.now() - startTime}ms`)
     return result

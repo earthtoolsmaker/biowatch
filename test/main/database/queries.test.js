@@ -419,6 +419,45 @@ describe('Database Query Functions Tests', () => {
       assert.equal(totalObservations, 5, 'totalObservations')
     })
 
+    test('returns activeRun when a model_run is currently running', async () => {
+      const { manager } = await createTestData(testDbPath)
+      const db = manager.getDb()
+
+      // createTestData puts all media under importFolder='images'
+      await insertModelRun(db, {
+        id: 'run-active-1',
+        modelID: 'deepfaune',
+        modelVersion: '1.3',
+        startedAt: '2024-01-02T00:00:00.000Z',
+        status: 'running',
+        importPath: 'images'
+      })
+      // Mark 2 of 5 media as processed by this active run
+      await insertModelOutput(db, {
+        id: 'mo-active-1',
+        mediaID: 'media001',
+        runID: 'run-active-1',
+        rawOutput: null
+      })
+      await insertModelOutput(db, {
+        id: 'mo-active-2',
+        mediaID: 'media002',
+        runID: 'run-active-1',
+        rawOutput: null
+      })
+
+      const result = await getSourcesData(testDbPath)
+      const source = result.find((r) => r.importFolder === 'images')
+
+      assert(source, 'images source row exists')
+      assert(source.activeRun, 'should have activeRun')
+      assert.equal(source.activeRun.runID, 'run-active-1')
+      assert.equal(source.activeRun.modelID, 'deepfaune')
+      assert.equal(source.activeRun.modelVersion, '1.3')
+      assert.equal(source.activeRun.processed, 2)
+      assert.equal(source.activeRun.total, 5)
+    })
+
     test('returns lastModelUsed when a model_run exists', async () => {
       const { manager } = await createTestData(testDbPath)
       const db = manager.getDb()
