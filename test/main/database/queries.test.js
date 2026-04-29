@@ -384,6 +384,18 @@ describe('Database Query Functions Tests', () => {
         assert(typeof row.importFolder === 'string', 'importFolder is a string')
       })
     })
+
+    test('counts images and videos per source', async () => {
+      await createTestData(testDbPath)
+
+      const result = await getSourcesData(testDbPath)
+      const totalImages = result.reduce((s, r) => s + r.imageCount, 0)
+      const totalVideos = result.reduce((s, r) => s + r.videoCount, 0)
+
+      // createTestData inserts 5 image rows (default fileMediatype 'image/jpeg') and 0 video rows
+      assert.equal(totalImages, 5, 'totalImages')
+      assert.equal(totalVideos, 0, 'totalVideos')
+    })
   })
 
   describe('Error Handling', () => {

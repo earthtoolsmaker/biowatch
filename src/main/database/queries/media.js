@@ -587,7 +587,17 @@ export async function getSourcesData(dbPath) {
     const db = await getDrizzleDb(studyId, dbPath)
 
     const rows = await db
-      .select({ importFolder: media.importFolder })
+      .select({
+        importFolder: media.importFolder,
+        imageCount:
+          sql`COUNT(DISTINCT CASE WHEN ${media.fileMediatype} NOT LIKE 'video/%' THEN ${media.mediaID} END)`.as(
+            'imageCount'
+          ),
+        videoCount:
+          sql`COUNT(DISTINCT CASE WHEN ${media.fileMediatype} LIKE 'video/%' THEN ${media.mediaID} END)`.as(
+            'videoCount'
+          )
+      })
       .from(media)
       .groupBy(media.importFolder)
       .orderBy(media.importFolder)
@@ -595,8 +605,8 @@ export async function getSourcesData(dbPath) {
     const result = rows.map((r) => ({
       importFolder: r.importFolder ?? '',
       isRemote: false,
-      imageCount: 0,
-      videoCount: 0,
+      imageCount: Number(r.imageCount),
+      videoCount: Number(r.videoCount),
       deploymentCount: 0,
       observationCount: 0,
       activeRun: null,
