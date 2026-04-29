@@ -287,13 +287,17 @@ A "source" is derived at query time as a distinct value of `media.importFolder`.
 
 | Method                                                                       | Channel                                       | Parameters                  | Returns                |
 | ---------------------------------------------------------------------------- | --------------------------------------------- | --------------------------- | ---------------------- |
-| `selectImagesDirectoryOnly()`                                                | `importer:select-images-directory-only`       | -                           | `{ path, id }`         |
-| `selectImagesDirectoryWithModel(directoryPath, modelReference, countryCode)` | `importer:select-images-directory-with-model` | path, modelRef, countryCode | `{ path, id }`         |
-| `getImportStatus(id)`                                                        | `importer:get-status`                         | study id                    | `ImportStatus`         |
-| `stopImport(id)`                                                             | `importer:stop`                               | study id                    | `{ success: boolean }` |
-| `resumeImport(id)`                                                           | `importer:resume`                             | study id                    | `{ success: boolean }` |
+| `selectImagesDirectoryOnly()`                                                | `importer:select-images-directory-only`       | -                           | `{ path, id }`                                                                |
+| `selectImagesDirectoryWithModel(directoryPath, modelReference, countryCode)` | `importer:select-images-directory-with-model` | path, modelRef, countryCode | `{ path, id }`                                                                |
+| `addFolder(studyId, directoryPath, modelReference, country)`                 | `importer:add-folder`                         | studyId, path, modelRef, countryCode | `{ success: boolean, error?: string }`                                |
+| `getStudyLatestModelOptions(studyId)`                                        | `study:get-latest-model-options`              | studyId                     | `{ modelReference: { id, version } \| null, country: string \| null }`        |
+| `getImportStatus(id)`                                                        | `importer:get-status`                         | study id                    | `ImportStatus`                                                                |
+| `stopImport(id)`                                                             | `importer:stop`                               | study id                    | `{ success: boolean }`                                                        |
+| `resumeImport(id)`                                                           | `importer:resume`                             | study id                    | `{ success: boolean }`                                                        |
 
 **Note:** `importer:stop` now pauses instantly (no server kill). `importer:resume` resumes instantly if paused, or cold-starts from `modelRuns` if the app was restarted. These handlers are backed by the persistent job queue (`src/main/ipc/queue.js`) rather than in-memory state.
+
+`importer:add-folder` is the canonical "Add images directory" entry point used by the Sources tab modal. The renderer chooses model + country (defaulting to the latest run when one exists) and posts here. Supersedes the older `importer:select-more-images-directory` channel. `study:get-latest-model-options` is what the modal calls on open to pre-fill / lock those choices.
 
 ### Video Transcoding
 
