@@ -396,6 +396,16 @@ describe('Database Query Functions Tests', () => {
       assert.equal(totalImages, 5, 'totalImages')
       assert.equal(totalVideos, 0, 'totalVideos')
     })
+
+    test('counts distinct deployments per source', async () => {
+      await createTestData(testDbPath)
+
+      const result = await getSourcesData(testDbPath)
+      const totalDeployments = result.reduce((s, r) => s + r.deploymentCount, 0)
+
+      // createTestData inserts 3 deployments
+      assert.equal(totalDeployments, 3, 'totalDeployments')
+    })
   })
 
   describe('Error Handling', () => {
