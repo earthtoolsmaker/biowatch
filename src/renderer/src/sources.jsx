@@ -69,10 +69,32 @@ function MediaCounts({ imageCount, videoCount, deploymentCount }) {
   )
 }
 
+function basenameOf(p) {
+  if (!p) return ''
+  const cleaned = p.replace(/[/\\]+$/, '')
+  const idx = Math.max(cleaned.lastIndexOf('/'), cleaned.lastIndexOf('\\'))
+  return idx >= 0 ? cleaned.slice(idx + 1) : cleaned
+}
+
 function SourceRow({ source, importerName, studyName, expanded, onToggle }) {
   const canExpand = source.deployments.length > 0
   const hasImportFolder = !!source.importFolder
-  const label = hasImportFolder ? source.importFolder : studyName || 'Imported dataset'
+  // Treat importFolder as a path/URL when it contains a separator. Local imports
+  // and CamtrapDP package directories show their basename as the row label so
+  // the unique part is visible without ellipsis truncation; the full path lives
+  // on line 2 with RTL ellipsis. LILA-style importFolder (just a dataset name)
+  // has no separator and renders unchanged on a single line.
+  const isPathLike =
+    hasImportFolder &&
+    (source.importFolder.startsWith('/') ||
+      source.importFolder.startsWith('http') ||
+      source.importFolder.includes('\\'))
+  const label = !hasImportFolder
+    ? studyName || 'Imported dataset'
+    : isPathLike
+      ? basenameOf(source.importFolder) || source.importFolder
+      : source.importFolder
+  const showPathLine = isPathLike
   return (
     <>
       <div
@@ -100,7 +122,7 @@ function SourceRow({ source, importerName, studyName, expanded, onToggle }) {
               </span>
             )}
           </div>
-          {hasImportFolder && (
+          {showPathLine && (
             <div
               className="text-xs text-gray-400 font-mono mt-0.5 truncate"
               style={{ direction: 'rtl', textAlign: 'left' }}
