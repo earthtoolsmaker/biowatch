@@ -242,10 +242,10 @@ export default function Sources({ studyId, importerName, studyName }) {
   }
 
   const totalMedia = sources.reduce((s, r) => s + r.imageCount + r.videoCount, 0)
-  const canAddSource =
-    importerName?.startsWith('local/') ||
-    importerName === 'wildlife/folder' ||
-    importerName === 'camtrap/datapackage'
+  // Adding a local images directory is supported for every study type. The
+  // result may legitimately mix remote (e.g. LILA-imported) and local media —
+  // that's a feature of the multi-source Sources tab, not a bug.
+  const canAddSource = !!importerName
 
   const handleImported = () => {
     queryClient.invalidateQueries({ queryKey: ['importStatus', actualStudyId] })
