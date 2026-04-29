@@ -162,14 +162,13 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1.5">Model</label>
             {modelLocked ? (
-              <div className="flex items-center justify-between px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-sm text-gray-700">
-                <span className="flex items-center gap-2">
-                  <Lock size={12} className="text-gray-400" />
+              <div className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-sm text-gray-700">
+                <Lock size={12} className="text-gray-400" />
+                <span>
                   {pickedModel
                     ? `${pickedModel.name} v${pickedModel.reference.version}`
                     : `${latestModel.id} v${latestModel.version}`}
                 </span>
-                <span className="text-xs text-gray-400">locked</span>
               </div>
             ) : (
               <Select
