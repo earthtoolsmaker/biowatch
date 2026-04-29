@@ -557,7 +557,11 @@ export async function getSourcesData(dbPath) {
         ),
         isRemoteAny: sql`MAX(CASE WHEN ${media.filePath} LIKE 'http%' THEN 1 ELSE 0 END)`.as(
           'isRemoteAny'
-        )
+        ),
+        sampleRemoteUrl:
+          sql`MAX(CASE WHEN ${media.filePath} LIKE 'http%' THEN ${media.filePath} END)`.as(
+            'sampleRemoteUrl'
+          )
       })
       .from(media)
       .leftJoin(deployments, eq(media.deploymentID, deployments.deploymentID))
@@ -609,7 +613,8 @@ export async function getSourcesData(dbPath) {
         videoCount: 0,
         observationCount: 0,
         deploymentCount: 0,
-        isRemote: 0
+        isRemote: 0,
+        sampleRemoteUrl: null
       }
       t.imageCount += imageCount
       t.videoCount += videoCount
@@ -617,6 +622,7 @@ export async function getSourcesData(dbPath) {
       // Count distinct deployments per folder; the GROUP BY guarantees one row per pair
       t.deploymentCount += 1
       if (Number(d.isRemoteAny) === 1) t.isRemote = 1
+      if (!t.sampleRemoteUrl && d.sampleRemoteUrl) t.sampleRemoteUrl = d.sampleRemoteUrl
       sourceTotals.set(folder, t)
     }
     const rows = Array.from(sourceTotals.values()).sort((a, b) =>
@@ -716,6 +722,7 @@ export async function getSourcesData(dbPath) {
       return {
         importFolder: folder,
         isRemote: Number(r.isRemote) === 1,
+        sampleRemoteUrl: r.sampleRemoteUrl || null,
         imageCount: Number(r.imageCount),
         videoCount: Number(r.videoCount),
         deploymentCount: Number(r.deploymentCount),

@@ -77,6 +77,15 @@ function basenameOf(p) {
   return idx >= 0 ? cleaned.slice(idx + 1) : cleaned
 }
 
+function hostOf(url) {
+  if (!url) return ''
+  try {
+    return new URL(url).host
+  } catch {
+    return ''
+  }
+}
+
 /**
  * Merge deployment sub-rows by label. Mid-import the importer can create a
  * temporary deployment row alongside the canonical one (same locationName,
@@ -133,7 +142,11 @@ function SourceRow({ source, importerName, studyName, expanded, onToggle }) {
     : isPathLike
       ? basenameOf(source.importFolder) || source.importFolder
       : source.importFolder
-  const showPathLine = isPathLike
+  const remoteHost = source.isRemote ? hostOf(source.sampleRemoteUrl) : ''
+  // For remote sources we show the server host below the name (parallel to the
+  // local-path row); for local sources we show the importFolder path.
+  const subtitle = remoteHost || (isPathLike ? source.importFolder : '')
+  const subtitleIsPath = !remoteHost && isPathLike
   return (
     <>
       <div
@@ -161,13 +174,13 @@ function SourceRow({ source, importerName, studyName, expanded, onToggle }) {
               </span>
             )}
           </div>
-          {showPathLine && (
+          {subtitle && (
             <div
               className="text-xs text-gray-400 font-mono mt-0.5 truncate"
-              style={{ direction: 'rtl', textAlign: 'left' }}
-              title={source.importFolder}
+              style={subtitleIsPath ? { direction: 'rtl', textAlign: 'left' } : undefined}
+              title={subtitleIsPath ? source.importFolder : source.sampleRemoteUrl || subtitle}
             >
-              {'‎' + source.importFolder}
+              {subtitleIsPath ? '‎' + subtitle : subtitle}
             </div>
           )}
         </div>
