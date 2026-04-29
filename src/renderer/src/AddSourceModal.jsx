@@ -238,11 +238,29 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
                 </SelectContent>
               </Select>
             )}
-            {modelLocked && (
-              <p className="text-xs text-gray-400 mt-1.5">
-                Same model as the previous run for this study.
-              </p>
+            {modelLocked && pickedModel && !isModelCompletelyInstalled(pickedModel) && (
+              <div className="mt-1.5 flex items-center gap-2">
+                <p className="text-xs text-amber-700">
+                  This model is no longer installed. Reinstall it to add a new directory.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    onClose()
+                    navigate('/settings/ml_zoo')
+                  }}
+                >
+                  Open Models
+                </Button>
+              </div>
             )}
+            {modelLocked &&
+              (!pickedModel || isModelCompletelyInstalled(pickedModel)) && (
+                <p className="text-xs text-gray-400 mt-1.5">
+                  Same model as the previous run for this study.
+                </p>
+              )}
           </div>
 
           {/* Country (only when model uses geofencing) */}
