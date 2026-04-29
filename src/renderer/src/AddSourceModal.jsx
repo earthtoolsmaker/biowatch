@@ -23,6 +23,35 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
   const [folder, setFolder] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
+  const [installedModels, setInstalledModels] = useState([])
+  const [installedEnvironments, setInstalledEnvironments] = useState([])
+
+  // Fetch installed model/env lists once when the modal opens.
+  useEffect(() => {
+    if (!isOpen) return
+    let cancelled = false
+    Promise.all([
+      window.api.listInstalledMLModels(),
+      window.api.listInstalledMLModelEnvironments()
+    ]).then(([models, envs]) => {
+      if (cancelled) return
+      setInstalledModels(models || [])
+      setInstalledEnvironments(envs || [])
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [isOpen])
+
+  const isModelCompletelyInstalled = (model) => {
+    const modelOk = installedModels.some(
+      (m) => m.id === model.reference.id && m.version === model.reference.version
+    )
+    const envOk = installedEnvironments.some(
+      (e) => e.id === model.pythonEnvironment.id && e.version === model.pythonEnvironment.version
+    )
+    return modelOk && envOk
+  }
 
   // Fetch the study's latest model run when the modal opens.
   useEffect(() => {
@@ -142,19 +171,43 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
                 <span className="text-xs text-gray-400">locked</span>
               </div>
             ) : (
-              <Select value={pickedModelKey} onValueChange={setPickedModelKey}>
+              <Select
+                value={pickedModelKey}
+                onValueChange={(value) => {
+                  const [id, ...rest] = value.split('-')
+                  const version = rest.join('-')
+                  const model = modelZoo.find(
+                    (m) => m.reference.id === id && m.reference.version === version
+                  )
+                  if (model && isModelCompletelyInstalled(model)) {
+                    setPickedModelKey(value)
+                  }
+                }}
+              >
                 <SelectTrigger className="w-full bg-white border-gray-200">
                   <SelectValue placeholder="Select a model" />
                 </SelectTrigger>
                 <SelectContent>
-                  {modelZoo.map((m) => (
-                    <SelectItem
-                      key={`${m.reference.id}-${m.reference.version}`}
-                      value={`${m.reference.id}-${m.reference.version}`}
-                    >
-                      {m.name} v{m.reference.version}
-                    </SelectItem>
-                  ))}
+                  {modelZoo.map((m) => {
+                    const installed = isModelCompletelyInstalled(m)
+                    const modelOk = installedModels.some(
+                      (im) => im.id === m.reference.id && im.version === m.reference.version
+                    )
+                    let suffix = ''
+                    if (!modelOk) suffix = ' (not installed)'
+                    else if (!installed) suffix = ' (environment missing)'
+                    return (
+                      <SelectItem
+                        key={`${m.reference.id}-${m.reference.version}`}
+                        value={`${m.reference.id}-${m.reference.version}`}
+                        disabled={!installed}
+                        className={!installed ? 'opacity-50 cursor-not-allowed' : ''}
+                      >
+                        {m.name} v{m.reference.version}
+                        {suffix}
+                      </SelectItem>
+                    )
+                  })}
                 </SelectContent>
               </Select>
             )}
