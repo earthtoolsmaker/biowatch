@@ -43,10 +43,10 @@ export function useImportStatus(id, interval = 1000) {
         throw err
       }
     },
-    refetchInterval: (query) => {
-      // Only poll if import is running
-      return query?.state?.data?.isRunning ? interval : false
-    },
+    // Poll unconditionally so the global progress bar catches the moment a new
+    // import starts (e.g. via the Add-images-directory modal). Without this the
+    // hook stops polling when isRunning=false and never sees the transition.
+    refetchInterval: interval,
     refetchIntervalInBackground: false,
     enabled: !!id
   })
