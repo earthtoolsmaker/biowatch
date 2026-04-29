@@ -642,6 +642,10 @@ export async function getSourcesData(dbPath) {
       String(a.importFolder ?? '').localeCompare(String(b.importFolder ?? ''))
     )
 
+    // Aggregate to one row per (importFolder, runID) so we don't drag every
+    // model_output into JS just to keep the most recent run per folder. On a
+    // study with N folders × M runs this returns N×M rows instead of
+    // ~count(model_outputs).
     const lastModelRows = await db
       .select({
         importFolder: media.importFolder,
@@ -652,6 +656,7 @@ export async function getSourcesData(dbPath) {
       .from(modelOutputs)
       .innerJoin(media, eq(modelOutputs.mediaID, media.mediaID))
       .innerJoin(modelRuns, eq(modelOutputs.runID, modelRuns.id))
+      .groupBy(media.importFolder, modelRuns.id)
       .orderBy(media.importFolder, desc(modelRuns.startedAt))
 
     const lastModelByFolder = new Map()
