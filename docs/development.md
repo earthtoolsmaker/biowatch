@@ -393,10 +393,11 @@ Releases go through a pull request rather than a direct push to `main`, so the v
    git checkout -b <yourname>/release-new-version-1.5.0
    ```
 
-2. **Update version** in `package.json`:
-   ```json
-   "version": "1.5.0"
+2. **Update version** using `npm version` so `package.json` and `package-lock.json` stay in sync:
+   ```bash
+   npm version 1.5.0 --no-git-tag-version
    ```
+   Do not edit `package.json` by hand — the lockfile would drift and need a follow-up sync commit.
 
 3. **Update `CHANGELOG.md`** with the new version's changes:
    - Add a new section for the version with the release date
@@ -405,7 +406,7 @@ Releases go through a pull request rather than a direct push to `main`, so the v
 
 4. **Commit and push the release branch**:
    ```bash
-   git add package.json CHANGELOG.md
+   git add package.json package-lock.json CHANGELOG.md
    git commit -m "chore: bump version to 1.5.0"
    git push -u origin HEAD
    ```
