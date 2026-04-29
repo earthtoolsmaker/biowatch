@@ -3,6 +3,7 @@ import { useParams } from 'react-router'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { useImportStatus } from '@renderer/hooks/import'
 import { Folder, Globe, Package, ChevronDown, ChevronRight, Info, Check } from 'lucide-react'
+import SkeletonSourcesList from './ui/SkeletonSourcesList'
 
 function SourceIcon({ importerName }) {
   if (importerName === 'lila/coco') return <Globe size={20} className="text-gray-400" />
@@ -157,13 +158,6 @@ export default function Sources({ studyId, importerName, studyName }) {
     enabled: !!actualStudyId
   })
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-gray-500">Loading sources…</div>
-      </div>
-    )
-  }
   if (error) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -187,41 +181,47 @@ export default function Sources({ studyId, importerName, studyName }) {
   return (
     <div className="h-full overflow-y-auto py-3">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-        <header className="flex items-center justify-between pb-3">
-          <div className="text-sm text-gray-500">
-            {sources.length} source{sources.length !== 1 ? 's' : ''} · {totalMedia.toLocaleString()}{' '}
-            media files
-          </div>
-          <button
-            onClick={handleAddSource}
-            disabled={!canAddSource}
-            className={`border border-gray-200 bg-white px-3 py-1.5 rounded-md text-sm ${
-              canAddSource ? 'hover:bg-gray-50' : 'opacity-50 cursor-not-allowed'
-            }`}
-          >
-            + Add source
-          </button>
-        </header>
-        {sources.length === 0 ? (
-          <div className="text-gray-500 text-sm py-8 text-center">No sources</div>
+        {isLoading ? (
+          <SkeletonSourcesList />
         ) : (
-          <div>
-            {sources.map((source) => (
-              <SourceRow
-                key={source.importFolder || '__unnamed__'}
-                source={source}
-                importerName={importerName}
-                studyName={studyName}
-                expanded={!!expanded[source.importFolder]}
-                onToggle={() =>
-                  setExpanded((e) => ({
-                    ...e,
-                    [source.importFolder]: !e[source.importFolder]
-                  }))
-                }
-              />
-            ))}
-          </div>
+          <>
+            <header className="flex items-center justify-between pb-3">
+              <div className="text-sm text-gray-500">
+                {sources.length} source{sources.length !== 1 ? 's' : ''} ·{' '}
+                {totalMedia.toLocaleString()} media files
+              </div>
+              <button
+                onClick={handleAddSource}
+                disabled={!canAddSource}
+                className={`border border-gray-200 bg-white px-3 py-1.5 rounded-md text-sm ${
+                  canAddSource ? 'hover:bg-gray-50' : 'opacity-50 cursor-not-allowed'
+                }`}
+              >
+                + Add source
+              </button>
+            </header>
+            {sources.length === 0 ? (
+              <div className="text-gray-500 text-sm py-8 text-center">No sources</div>
+            ) : (
+              <div>
+                {sources.map((source) => (
+                  <SourceRow
+                    key={source.importFolder || '__unnamed__'}
+                    source={source}
+                    importerName={importerName}
+                    studyName={studyName}
+                    expanded={!!expanded[source.importFolder]}
+                    onToggle={() =>
+                      setExpanded((e) => ({
+                        ...e,
+                        [source.importFolder]: !e[source.importFolder]
+                      }))
+                    }
+                  />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
