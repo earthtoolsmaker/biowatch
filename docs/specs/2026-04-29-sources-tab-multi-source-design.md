@@ -98,7 +98,9 @@ For sources with very many deployments (LILA-style, hundreds), the initial imple
 Top of the tab:
 
 - Left: `<bold>N sources · M media files</bold>` summary text.
-- Right: `+ Add source` button. **Disabled** for `lila/coco` and `deepfaune/csv` studies. **Enabled** for `local/ml_run`, `wildlife/folder`, and `camtrap/datapackage` (this PR keeps PR #347's `Add Folder` flow, just renamed).
+- Right: `+ Add images directory` button — **enabled for every study type that has loaded** (any non-empty `importerName`). The flow opens an `AddSourceModal` that picks a model + country + folder and runs an importer on the chosen folder. The resulting study mixes the new local source with whatever was there before; the multi-source Sources tab handles that by design.
+
+> **Note:** an earlier draft of this spec disabled the button for `lila/coco` and `deepfaune/csv` studies on the assumption that mixing remote-URL or pre-classified media with a fresh local-images run would be confusing. Implementation testing showed it is not — adding a folder to a LILA study just produces a second source row and an independent model run; nothing about the original LILA media changes. Gating was relaxed in commit `d60c845`.
 
 ### D10 — Drop the synthetic-blank-observation workaround
 
