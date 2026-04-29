@@ -16,7 +16,7 @@ import Deployments from './deployments'
 import Overview from './overview'
 import Activity from './activity'
 import Media from './media'
-import Files from './files'
+import Sources from './sources'
 import StudySettings from './StudySettings'
 import { useImportStatus } from '@renderer/hooks/import'
 import { Tab } from './ui/Tab'
@@ -185,11 +185,9 @@ export default function Study() {
             <Tab to={`/study/${id}/deployments`} icon={Cctv} compact={isImportActive}>
               Deployments
             </Tab>
-            {study?.importerName?.startsWith('local/') && (
-              <Tab to={`/study/${id}/files`} icon={FolderOpen} compact={isImportActive}>
-                Files
-              </Tab>
-            )}
+            <Tab to={`/study/${id}/sources`} icon={FolderOpen} compact={isImportActive}>
+              Sources
+            </Tab>
             <Tab to={`/study/${id}/settings`} icon={Settings} compact={isImportActive}>
               Settings
             </Tab>
@@ -231,16 +229,14 @@ export default function Study() {
               </ErrorBoundary>
             }
           />
-          {study?.importerName?.startsWith('local/') && (
-            <Route
-              path="files"
-              element={
-                <ErrorBoundary FallbackComponent={ErrorFallback} key={'files'}>
-                  <Files studyId={id} />
-                </ErrorBoundary>
-              }
-            />
-          )}
+          <Route
+            path="sources"
+            element={
+              <ErrorBoundary FallbackComponent={ErrorFallback} key={'sources'}>
+                <Sources studyId={id} importerName={study?.importerName} />
+              </ErrorBoundary>
+            }
+          />
           <Route
             path="settings"
             element={
