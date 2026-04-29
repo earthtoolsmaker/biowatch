@@ -536,7 +536,9 @@ export async function getSourcesData(dbPath) {
 
   try {
     const studyId = getStudyIdFromPath(dbPath)
-    const db = await getDrizzleDb(studyId, dbPath)
+    // Read-only matches the other worker tasks (deployments-activity, best-media)
+    // and avoids contending with the ML inference write loop on the WAL.
+    const db = await getDrizzleDb(studyId, dbPath, { readonly: true })
 
     // Pass 1: media-only deployment-grain rollup. SUM(CASE) is dramatically
     // faster than COUNT(DISTINCT mediaID) because mediaID is the PK of media —
