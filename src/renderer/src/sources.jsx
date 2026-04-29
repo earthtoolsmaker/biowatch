@@ -105,10 +105,16 @@ function mergeDeploymentsByLabel(deployments) {
     existing.observationCount += d.observationCount
     if (d.activeRun) {
       if (existing.activeRun) {
+        // Sum processed across the duplicates (each tracks distinct media that
+        // happens to have moved to that deployment). Take MAX of total — the
+        // merged label represents one logical deployment, so its total media
+        // count is bounded by either underlying row, not their sum. Without
+        // this the in-flight bar can briefly show >100% while the importer
+        // reconciles a transient duplicate.
         existing.activeRun = {
           runID: existing.activeRun.runID,
           processed: existing.activeRun.processed + d.activeRun.processed,
-          total: existing.activeRun.total + d.activeRun.total
+          total: Math.max(existing.activeRun.total, d.activeRun.total)
         }
       } else {
         existing.activeRun = { ...d.activeRun }
