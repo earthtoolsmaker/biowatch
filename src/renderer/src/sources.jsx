@@ -105,7 +105,12 @@ function mergeDeploymentsByLabel(deployments) {
       }
     }
   }
-  return Array.from(merged.values())
+  return Array.from(merged.values()).sort((a, b) =>
+    String(a.label).localeCompare(String(b.label), undefined, {
+      numeric: true,
+      sensitivity: 'base'
+    })
+  )
 }
 
 function SourceRow({ source, importerName, studyName, expanded, onToggle }) {
