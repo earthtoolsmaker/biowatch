@@ -10,12 +10,13 @@ function SpeciesName({ scientificName }) {
 /**
  * Comma-separated species label. Each scientific name resolves to a common
  * name via the four-tier cascade (stored → dictionary → GBIF → scientific
- * fallback). Empty input renders "No species".
+ * fallback). Empty input renders "Blank" — matching the convention used in
+ * BboxLabel for unidentified observations.
  *
  * @param {{ names: string[] }} props
  */
 export default function SpeciesLabel({ names }) {
-  if (!names || names.length === 0) return <>No species</>
+  if (!names || names.length === 0) return <>Blank</>
 
   return (
     <>
@@ -46,7 +47,7 @@ function SpeciesNameWithCount({ scientificName, count }) {
  * @param {{ entries: Array<{ scientificName: string, count: number }> }} props
  */
 export function SpeciesCountLabel({ entries }) {
-  if (!entries || entries.length === 0) return <>No species</>
+  if (!entries || entries.length === 0) return <>Blank</>
 
   return (
     <>
