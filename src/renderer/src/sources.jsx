@@ -185,43 +185,45 @@ export default function Sources({ studyId, importerName, studyName }) {
   }
 
   return (
-    <div className="px-8 py-3 h-full overflow-y-auto">
-      <header className="flex items-center justify-between pb-3">
-        <div className="text-sm text-gray-500">
-          {sources.length} source{sources.length !== 1 ? 's' : ''} · {totalMedia.toLocaleString()}{' '}
-          media files
-        </div>
-        <button
-          onClick={handleAddSource}
-          disabled={!canAddSource}
-          className={`border border-gray-200 bg-white px-3 py-1.5 rounded-md text-sm ${
-            canAddSource ? 'hover:bg-gray-50' : 'opacity-50 cursor-not-allowed'
-          }`}
-        >
-          + Add source
-        </button>
-      </header>
-      {sources.length === 0 ? (
-        <div className="text-gray-500 text-sm py-8 text-center">No sources</div>
-      ) : (
-        <div>
-          {sources.map((source) => (
-            <SourceRow
-              key={source.importFolder || '__unnamed__'}
-              source={source}
-              importerName={importerName}
-              studyName={studyName}
-              expanded={!!expanded[source.importFolder]}
-              onToggle={() =>
-                setExpanded((e) => ({
-                  ...e,
-                  [source.importFolder]: !e[source.importFolder]
-                }))
-              }
-            />
-          ))}
-        </div>
-      )}
+    <div className="h-full overflow-y-auto py-3">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+        <header className="flex items-center justify-between pb-3">
+          <div className="text-sm text-gray-500">
+            {sources.length} source{sources.length !== 1 ? 's' : ''} · {totalMedia.toLocaleString()}{' '}
+            media files
+          </div>
+          <button
+            onClick={handleAddSource}
+            disabled={!canAddSource}
+            className={`border border-gray-200 bg-white px-3 py-1.5 rounded-md text-sm ${
+              canAddSource ? 'hover:bg-gray-50' : 'opacity-50 cursor-not-allowed'
+            }`}
+          >
+            + Add source
+          </button>
+        </header>
+        {sources.length === 0 ? (
+          <div className="text-gray-500 text-sm py-8 text-center">No sources</div>
+        ) : (
+          <div>
+            {sources.map((source) => (
+              <SourceRow
+                key={source.importFolder || '__unnamed__'}
+                source={source}
+                importerName={importerName}
+                studyName={studyName}
+                expanded={!!expanded[source.importFolder]}
+                onToggle={() =>
+                  setExpanded((e) => ({
+                    ...e,
+                    [source.importFolder]: !e[source.importFolder]
+                  }))
+                }
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
