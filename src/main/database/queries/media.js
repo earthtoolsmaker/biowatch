@@ -608,6 +608,42 @@ export async function getSourcesData(dbPath) {
       .groupBy(media.importFolder)
       .orderBy(media.importFolder)
 
+    const deploymentRows = await db
+      .select({
+        importFolder: media.importFolder,
+        deploymentID: media.deploymentID,
+        folderName: media.folderName,
+        locationName: deployments.locationName,
+        imageCount:
+          sql`COUNT(DISTINCT CASE WHEN ${media.fileMediatype} NOT LIKE 'video/%' THEN ${media.mediaID} END)`.as(
+            'imageCount'
+          ),
+        videoCount:
+          sql`COUNT(DISTINCT CASE WHEN ${media.fileMediatype} LIKE 'video/%' THEN ${media.mediaID} END)`.as(
+            'videoCount'
+          ),
+        observationCount: sql`COUNT(${observations.observationID})`.as('observationCount')
+      })
+      .from(media)
+      .leftJoin(deployments, eq(media.deploymentID, deployments.deploymentID))
+      .leftJoin(observations, eq(media.mediaID, observations.mediaID))
+      .groupBy(media.importFolder, media.deploymentID)
+      .orderBy(media.importFolder, media.deploymentID)
+
+    const deploymentsByFolder = new Map()
+    for (const d of deploymentRows) {
+      const key = d.importFolder ?? ''
+      if (!deploymentsByFolder.has(key)) deploymentsByFolder.set(key, [])
+      deploymentsByFolder.get(key).push({
+        deploymentID: d.deploymentID,
+        label: d.locationName ?? d.folderName ?? d.deploymentID,
+        imageCount: Number(d.imageCount),
+        videoCount: Number(d.videoCount),
+        observationCount: Number(d.observationCount),
+        activeRun: null
+      })
+    }
+
     const result = rows.map((r) => ({
       importFolder: r.importFolder ?? '',
       isRemote: Number(r.isRemote) === 1,
@@ -617,7 +653,7 @@ export async function getSourcesData(dbPath) {
       observationCount: Number(r.observationCount),
       activeRun: null,
       lastModelUsed: null,
-      deployments: []
+      deployments: deploymentsByFolder.get(r.importFolder ?? '') ?? []
     }))
 
     log.info(`Sources data: ${result.length} sources in ${Date.now() - startTime}ms`)

@@ -417,6 +417,24 @@ describe('Database Query Functions Tests', () => {
       assert.equal(totalObservations, 5, 'totalObservations')
     })
 
+    test('returns deployment rows under each source', async () => {
+      await createTestData(testDbPath)
+
+      const result = await getSourcesData(testDbPath)
+      const totalDeploymentRows = result.reduce((s, r) => s + r.deployments.length, 0)
+      assert.equal(totalDeploymentRows, 3, 'one deployment row per deployment')
+
+      result.forEach((source) => {
+        source.deployments.forEach((d) => {
+          assert(typeof d.deploymentID === 'string', 'deploymentID')
+          assert(typeof d.label === 'string', 'label')
+          assert(typeof d.imageCount === 'number', 'imageCount')
+          assert(typeof d.videoCount === 'number', 'videoCount')
+          assert(typeof d.observationCount === 'number', 'observationCount')
+        })
+      })
+    })
+
     test('marks isRemote=true when any filePath is an http URL', async () => {
       const manager = await createImageDirectoryDatabase(testDbPath)
       await insertDeployments(manager, {
