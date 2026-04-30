@@ -36,7 +36,9 @@ function SpeciesHeading({ scientificName }) {
     return (
       <>
         {toTitleCase(common)}{' '}
-        <span className="italic text-white/80">({capitalizeGenus(scientificName)})</span>
+        <span className="italic text-gray-500 font-normal">
+          ({capitalizeGenus(scientificName)})
+        </span>
       </>
     )
   }
@@ -148,90 +150,107 @@ function ImageViewerModal({
 
   return (
     <div
-      className="fixed inset-0 bg-black/80 flex items-center justify-center z-[1001]"
+      className="fixed inset-0 z-[1001] flex items-center justify-center bg-black/85 p-4"
       onClick={handleClose}
     >
-      {/* Close button */}
-      <button
-        onClick={handleClose}
-        className="absolute top-4 right-4 z-10 p-2 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors"
-        aria-label="Close"
-      >
-        <X size={24} />
-      </button>
-
-      {/* Favorite button */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation()
-          favoriteMutation.mutate({ mediaID: media.mediaID, favorite: !isFavorite })
-        }}
-        className={`absolute top-4 right-16 z-10 p-2 rounded-full transition-colors ${
-          isFavorite
-            ? 'bg-red-500 text-white hover:bg-red-600'
-            : 'bg-black/50 hover:bg-black/70 text-white'
-        }`}
-        aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-        title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-      >
-        <Heart size={24} fill={isFavorite ? 'currentColor' : 'none'} />
-      </button>
-
-      {/* Previous button */}
-      {hasPrevious && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            onPrevious()
-          }}
-          className="absolute left-4 top-1/2 -translate-y-1/2 z-10 p-3 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors"
-          aria-label="Previous image"
+      <div className="relative max-w-7xl w-full h-full flex items-center justify-center">
+        <div
+          className="bg-white rounded-lg overflow-hidden shadow-2xl max-h-[90vh] flex flex-col max-w-full"
+          onClick={(e) => e.stopPropagation()}
         >
-          <ChevronLeft size={28} />
-        </button>
-      )}
+          {/* Top toolbar */}
+          <div className="flex items-center justify-between gap-3 px-3 py-2 border-b border-gray-200 bg-white">
+            <div className="flex items-center gap-2 min-w-0 flex-1 text-xs text-gray-500">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onPrevious()
+                }}
+                disabled={!hasPrevious}
+                className="w-8 h-8 rounded-md flex items-center justify-center text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                aria-label="Previous image"
+                title="Previous (←)"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onNext()
+                }}
+                disabled={!hasNext}
+                className="w-8 h-8 rounded-md flex items-center justify-center text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                aria-label="Next image"
+                title="Next (→)"
+              >
+                <ChevronRight size={18} />
+              </button>
+              <span className="truncate">
+                {media.timestamp ? new Date(media.timestamp).toLocaleString() : 'No timestamp'}
+              </span>
+            </div>
 
-      {/* Next button */}
-      {hasNext && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            onNext()
-          }}
-          className="absolute right-4 top-1/2 -translate-y-1/2 z-10 p-3 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors"
-          aria-label="Next image"
-        >
-          <ChevronRight size={28} />
-        </button>
-      )}
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  favoriteMutation.mutate({ mediaID: media.mediaID, favorite: !isFavorite })
+                }}
+                className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
+                  isFavorite
+                    ? 'text-red-600 bg-red-50 hover:bg-red-100'
+                    : 'text-gray-500 hover:bg-gray-100'
+                }`}
+                aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+              >
+                <Heart size={18} fill={isFavorite ? 'currentColor' : 'none'} />
+              </button>
 
-      {/* Image container */}
-      <div
-        className="relative max-w-[90vw] max-h-[90vh] flex items-center justify-center"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {imageError ? (
-          <div className="flex flex-col items-center justify-center bg-gray-800 rounded-lg p-16">
-            <CameraOff size={48} className="text-gray-400 mb-4" />
-            <p className="text-gray-400">Image not available</p>
+              <div className="w-px h-5 bg-gray-200 mx-1" />
+
+              <button
+                onClick={handleClose}
+                className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors"
+                aria-label="Close modal"
+                title="Close (Esc)"
+              >
+                <X size={18} />
+              </button>
+            </div>
           </div>
-        ) : (
-          <img
-            src={constructImageUrl(media.filePath, studyId)}
-            alt={media.scientificName || 'Wildlife'}
-            className="max-w-full max-h-[90vh] object-contain rounded-lg"
-            onError={() => setImageError(true)}
-          />
-        )}
 
-        {/* Species info overlay */}
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4 rounded-b-lg">
-          <p className="text-white text-lg font-medium">
-            <SpeciesHeading scientificName={media.scientificName} />
-          </p>
-          {media.timestamp && (
-            <p className="text-white/70 text-sm">{new Date(media.timestamp).toLocaleString()}</p>
-          )}
+          {/* Media area */}
+          <div className="flex-1 min-h-0 flex items-center justify-center bg-black overflow-hidden relative">
+            {imageError ? (
+              <div className="flex flex-col items-center justify-center bg-gray-800 text-gray-400 aspect-[4/3] min-w-[70vw] max-h-[calc(90vh-152px)]">
+                <CameraOff size={128} />
+                <span className="mt-4 text-lg font-medium">Image not available</span>
+                {media.fileName && <span className="mt-2 text-sm">{media.fileName}</span>}
+              </div>
+            ) : (
+              <img
+                src={constructImageUrl(media.filePath, studyId)}
+                alt={media.scientificName || 'Wildlife'}
+                className="max-w-full max-h-[calc(90vh-152px)] w-auto h-auto object-contain"
+                onError={() => setImageError(true)}
+              />
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="px-4 py-2.5 bg-gray-50 flex-shrink-0 border-t border-gray-200">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="text-sm font-medium text-gray-800 truncate flex-1 min-w-0">
+                <SpeciesHeading scientificName={media.scientificName} />
+              </span>
+              {media.fileName && (
+                <span className="font-mono text-[11px] text-gray-400 flex-shrink-0">
+                  {media.fileName}
+                </span>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -393,131 +412,146 @@ function VideoViewerModal({
 
   return (
     <div
-      className="fixed inset-0 bg-black/80 flex items-center justify-center z-[1001]"
+      className="fixed inset-0 z-[1001] flex items-center justify-center bg-black/85 p-4"
       onClick={handleClose}
     >
-      {/* Close button */}
-      <button
-        onClick={handleClose}
-        className="absolute top-4 right-4 z-10 p-2 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors"
-        aria-label="Close"
-      >
-        <X size={24} />
-      </button>
-
-      {/* Favorite button */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation()
-          favoriteMutation.mutate({ mediaID: media.mediaID, favorite: !isFavorite })
-        }}
-        className={`absolute top-4 right-16 z-10 p-2 rounded-full transition-colors ${
-          isFavorite
-            ? 'bg-red-500 text-white hover:bg-red-600'
-            : 'bg-black/50 hover:bg-black/70 text-white'
-        }`}
-        aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-        title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-      >
-        <Heart size={24} fill={isFavorite ? 'currentColor' : 'none'} />
-      </button>
-
-      {/* Previous button */}
-      {hasPrevious && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            onPrevious()
-          }}
-          className="absolute left-4 top-1/2 -translate-y-1/2 z-10 p-3 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors"
-          aria-label="Previous video"
+      <div className="relative max-w-7xl w-full h-full flex items-center justify-center">
+        <div
+          className="bg-white rounded-lg overflow-hidden shadow-2xl max-h-[90vh] flex flex-col max-w-full"
+          onClick={(e) => e.stopPropagation()}
         >
-          <ChevronLeft size={28} />
-        </button>
-      )}
+          {/* Top toolbar */}
+          <div className="flex items-center justify-between gap-3 px-3 py-2 border-b border-gray-200 bg-white">
+            <div className="flex items-center gap-2 min-w-0 flex-1 text-xs text-gray-500">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onPrevious()
+                }}
+                disabled={!hasPrevious}
+                className="w-8 h-8 rounded-md flex items-center justify-center text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                aria-label="Previous video"
+                title="Previous (←)"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onNext()
+                }}
+                disabled={!hasNext}
+                className="w-8 h-8 rounded-md flex items-center justify-center text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                aria-label="Next video"
+                title="Next (→)"
+              >
+                <ChevronRight size={18} />
+              </button>
+              <span className="truncate">
+                {media.timestamp ? new Date(media.timestamp).toLocaleString() : 'No timestamp'}
+              </span>
+            </div>
 
-      {/* Next button */}
-      {hasNext && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            onNext()
-          }}
-          className="absolute right-4 top-1/2 -translate-y-1/2 z-10 p-3 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors"
-          aria-label="Next video"
-        >
-          <ChevronRight size={28} />
-        </button>
-      )}
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  favoriteMutation.mutate({ mediaID: media.mediaID, favorite: !isFavorite })
+                }}
+                className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
+                  isFavorite
+                    ? 'text-red-600 bg-red-50 hover:bg-red-100'
+                    : 'text-gray-500 hover:bg-gray-100'
+                }`}
+                aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+              >
+                <Heart size={18} fill={isFavorite ? 'currentColor' : 'none'} />
+              </button>
 
-      {/* Video container */}
-      <div
-        className="relative max-w-[90vw] max-h-[90vh] flex items-center justify-center"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Transcoding states */}
-        {transcodeState === 'checking' ? (
-          <div className="flex flex-col items-center justify-center p-8 text-gray-400 min-h-[300px]">
-            <Loader2 size={48} className="animate-spin text-blue-500" />
-            <span className="mt-4 text-lg font-medium">Checking video format...</span>
+              <div className="w-px h-5 bg-gray-200 mx-1" />
+
+              <button
+                onClick={handleClose}
+                className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors"
+                aria-label="Close modal"
+                title="Close (Esc)"
+              >
+                <X size={18} />
+              </button>
+            </div>
           </div>
-        ) : transcodeState === 'transcoding' ? (
-          <div className="flex flex-col items-center justify-center p-8 text-gray-400 min-h-[300px]">
-            <div className="relative">
-              <Loader2 size={64} className="animate-spin text-blue-500" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-sm font-bold text-blue-400">{transcodeProgress}%</span>
+
+          {/* Media area */}
+          <div className="flex-1 min-h-0 flex items-center justify-center bg-black overflow-hidden relative">
+            {transcodeState === 'checking' ? (
+              <div className="flex flex-col items-center justify-center p-8 text-gray-400 min-h-[300px]">
+                <Loader2 size={48} className="animate-spin text-blue-500" />
+                <span className="mt-4 text-lg font-medium">Checking video format...</span>
               </div>
-            </div>
-            <span className="mt-4 text-lg font-medium">Converting video...</span>
-            <span className="mt-2 text-sm text-gray-500">
-              This format requires conversion for browser playback
-            </span>
-            <div className="mt-4 w-64 h-2 bg-gray-700 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-blue-500 transition-all duration-300"
-                style={{ width: `${transcodeProgress}%` }}
+            ) : transcodeState === 'transcoding' ? (
+              <div className="flex flex-col items-center justify-center p-8 text-gray-400 min-h-[300px]">
+                <div className="relative">
+                  <Loader2 size={64} className="animate-spin text-blue-500" />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-sm font-bold text-blue-400">{transcodeProgress}%</span>
+                  </div>
+                </div>
+                <span className="mt-4 text-lg font-medium">Converting video...</span>
+                <span className="mt-2 text-sm text-gray-500">
+                  This format requires conversion for browser playback
+                </span>
+                <div className="mt-4 w-64 h-2 bg-gray-700 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-500 transition-all duration-300"
+                    style={{ width: `${transcodeProgress}%` }}
+                  />
+                </div>
+                <span className="mt-2 text-xs text-gray-500">{media.fileName}</span>
+              </div>
+            ) : transcodeState === 'error' ? (
+              <div className="flex flex-col items-center justify-center p-8 text-gray-400 min-h-[300px]">
+                <Play size={64} className="text-red-400" />
+                <span className="mt-4 text-lg font-medium text-red-400">Conversion failed</span>
+                <span className="mt-2 text-sm text-gray-500">{transcodeError}</span>
+                <span className="mt-1 text-xs text-gray-500">{media.fileName}</span>
+              </div>
+            ) : videoError && transcodeState !== 'ready' ? (
+              <div className="flex flex-col items-center justify-center p-8 text-gray-400 min-h-[300px]">
+                <Play size={64} />
+                <span className="mt-4 text-lg font-medium">Video</span>
+                <span className="mt-2 text-sm text-gray-500">Format not supported by browser</span>
+                <span className="mt-1 text-xs text-gray-500">{media.fileName}</span>
+              </div>
+            ) : (
+              <video
+                key={transcodedUrl || media.filePath}
+                src={transcodedUrl || constructImageUrl(media.filePath, studyId)}
+                className="max-w-full max-h-[calc(90vh-152px)] w-auto h-auto object-contain"
+                controls
+                autoPlay
+                onError={() => {
+                  if (transcodeState === 'idle' || transcodeState === 'ready') {
+                    setVideoError(true)
+                  }
+                }}
               />
-            </div>
-            <span className="mt-2 text-xs text-gray-500">{media.fileName}</span>
+            )}
           </div>
-        ) : transcodeState === 'error' ? (
-          <div className="flex flex-col items-center justify-center p-8 text-gray-400 min-h-[300px]">
-            <Play size={64} className="text-red-400" />
-            <span className="mt-4 text-lg font-medium text-red-400">Conversion failed</span>
-            <span className="mt-2 text-sm text-gray-500">{transcodeError}</span>
-            <span className="mt-1 text-xs text-gray-500">{media.fileName}</span>
-          </div>
-        ) : videoError && transcodeState !== 'ready' ? (
-          <div className="flex flex-col items-center justify-center p-8 text-gray-400 min-h-[300px]">
-            <Play size={64} />
-            <span className="mt-4 text-lg font-medium">Video</span>
-            <span className="mt-2 text-sm text-gray-500">Format not supported by browser</span>
-            <span className="mt-1 text-xs text-gray-500">{media.fileName}</span>
-          </div>
-        ) : (
-          <video
-            key={transcodedUrl || media.filePath}
-            src={transcodedUrl || constructImageUrl(media.filePath, studyId)}
-            className="max-w-full max-h-[calc(90vh-120px)] w-auto h-auto object-contain rounded-lg"
-            controls
-            autoPlay
-            onError={() => {
-              if (transcodeState === 'idle' || transcodeState === 'ready') {
-                setVideoError(true)
-              }
-            }}
-          />
-        )}
 
-        {/* Species info overlay */}
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4 rounded-b-lg">
-          <p className="text-white text-lg font-medium">
-            <SpeciesHeading scientificName={media.scientificName} />
-          </p>
-          {media.timestamp && (
-            <p className="text-white/70 text-sm">{new Date(media.timestamp).toLocaleString()}</p>
-          )}
+          {/* Footer */}
+          <div className="px-4 py-2.5 bg-gray-50 flex-shrink-0 border-t border-gray-200">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="text-sm font-medium text-gray-800 truncate flex-1 min-w-0">
+                <SpeciesHeading scientificName={media.scientificName} />
+              </span>
+              {media.fileName && (
+                <span className="font-mono text-[11px] text-gray-400 flex-shrink-0">
+                  {media.fileName}
+                </span>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
