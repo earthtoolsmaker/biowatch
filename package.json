@@ -81,7 +81,7 @@
     "@types/react": "^19.2.8",
     "@vitejs/plugin-react": "^5.1.2",
     "drizzle-kit": "^0.31.8",
-    "electron": "^39.2.7",
+    "electron": "^39.8.9",
     "electron-builder": "^26.4.0",
     "electron-vite": "^5.0.0",
     "eslint": "^9.39.2",
