@@ -190,7 +190,6 @@ export default function SpeciesPicker({
           </div>
         )}
       </div>
-
     </div>
   )
 }
