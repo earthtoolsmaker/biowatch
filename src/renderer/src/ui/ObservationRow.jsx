@@ -145,6 +145,7 @@ export default function ObservationRow({
             currentScientificName={observation.scientificName}
             onSelect={handleSpeciesSelect}
             onMarkBlank={handleMarkBlank}
+            allowMarkBlank={!isBbox}
             autoFocus
           />
 

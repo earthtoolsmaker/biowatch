@@ -21,6 +21,7 @@ export default function SpeciesPicker({
   currentScientificName,
   onSelect,
   onMarkBlank,
+  allowMarkBlank = true,
   autoFocus = true
 }) {
   const [searchTerm, setSearchTerm] = useState('')
@@ -193,7 +194,7 @@ export default function SpeciesPicker({
         )}
       </div>
 
-      {currentScientificName && (
+      {allowMarkBlank && currentScientificName && (
         <button
           type="button"
           onClick={onMarkBlank}
