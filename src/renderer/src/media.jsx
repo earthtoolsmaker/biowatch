@@ -4,9 +4,6 @@ import {
   Calendar,
   Pencil,
   Check,
-  Search,
-  Trash2,
-  Plus,
   Eye,
   EyeOff,
   SquarePlus,
@@ -23,7 +20,7 @@ import {
   RotateCcw,
   Info
 } from 'lucide-react'
-import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient, useMutation, useInfiniteQuery } from '@tanstack/react-query'
 import { useParams, useSearchParams } from 'react-router'
 import * as Tooltip from '@radix-ui/react-tooltip'
@@ -33,11 +30,8 @@ import TimelineChart from './ui/timeseries'
 import DateTimePicker from './ui/DateTimePicker'
 import EditableBbox from './ui/EditableBbox'
 import VideoBboxOverlay from './ui/VideoBboxOverlay.jsx'
-import {
-  computeBboxLabelPosition,
-  computeSelectorPosition,
-  computeFooterTriggeredSelectorPosition
-} from './utils/positioning'
+import ObservationRail from './ui/ObservationRail'
+import BboxLabelMinimal from './ui/BboxLabelMinimal'
 import {
   getImageBounds,
   screenToNormalized,
@@ -49,831 +43,9 @@ import { useImagePrefetch } from './hooks/useImagePrefetch'
 import { getTopNonHumanSpecies } from './utils/speciesUtils'
 import { useSequenceGap } from './hooks/useSequenceGap'
 import { SequenceGapSlider } from './ui/SequenceGapSlider'
-import {
-  getSpeciesCountsFromBboxes,
-  getSpeciesListFromBboxes,
-  getSpeciesListFromSequence
-} from './utils/speciesFromBboxes'
-import { searchSpecies } from './utils/dictionarySearch'
-import SpeciesLabel, { SpeciesCountLabel } from './ui/SpeciesLabel'
+import { getSpeciesListFromBboxes, getSpeciesListFromSequence } from './utils/speciesFromBboxes'
+import SpeciesLabel from './ui/SpeciesLabel'
 import { useImportStatus } from './hooks/import'
-import { behaviorCategories } from '../../shared/constants.js'
-
-/**
- * Sex icon components
- */
-function FemaleIcon({ size = 20, className = '' }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
-      <circle cx="12" cy="8" r="5" />
-      <line x1="12" y1="13" x2="12" y2="21" />
-      <line x1="9" y1="18" x2="15" y2="18" />
-    </svg>
-  )
-}
-
-function MaleIcon({ size = 20, className = '' }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
-      <circle cx="10" cy="14" r="5" />
-      <line x1="19" y1="5" x2="13.6" y2="10.4" />
-      <polyline points="19 5 19 11" />
-      <polyline points="19 5 13 5" />
-    </svg>
-  )
-}
-
-function UnknownIcon({ size = 20, className = '' }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
-      <circle cx="12" cy="12" r="9" />
-      <path d="M9.5 9a3 3 0 0 1 5.5 1.5c0 2-3 3-3 3" />
-      <circle cx="12" cy="17" r="0.5" fill="currentColor" />
-    </svg>
-  )
-}
-
-/**
- * Life stage icon components - filled circles of varying sizes
- */
-function AdultIcon({ size = 20, className = '' }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
-      <circle cx="12" cy="12" r="10" fill="currentColor" />
-    </svg>
-  )
-}
-
-function SubadultIcon({ size = 20, className = '' }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
-      <circle cx="12" cy="12" r="7" fill="currentColor" />
-    </svg>
-  )
-}
-
-function JuvenileIcon({ size = 20, className = '' }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
-      <circle cx="12" cy="12" r="4" fill="currentColor" />
-    </svg>
-  )
-}
-
-/**
- * Sex selector toggle buttons for observation attributes
- */
-function SexSelector({ value, onChange }) {
-  const options = [
-    {
-      value: 'female',
-      label: 'Female',
-      Icon: FemaleIcon,
-      selectedClass: 'bg-rose-500 text-white border-rose-500 ring-2 ring-rose-200',
-      hoverClass: 'hover:bg-rose-50 hover:border-rose-300 hover:text-rose-600'
-    },
-    {
-      value: 'male',
-      label: 'Male',
-      Icon: MaleIcon,
-      selectedClass: 'bg-blue-500 text-white border-blue-500 ring-2 ring-blue-200',
-      hoverClass: 'hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600'
-    },
-    {
-      value: 'unknown',
-      label: 'Unknown',
-      Icon: UnknownIcon,
-      selectedClass: 'bg-gray-500 text-white border-gray-500 ring-2 ring-gray-200',
-      hoverClass: 'hover:bg-gray-100 hover:border-gray-400 hover:text-gray-600'
-    }
-  ]
-
-  const handleClick = (optionValue) => {
-    // Clicking the selected value clears it (sets to null)
-    if (value === optionValue) {
-      onChange(null)
-    } else {
-      onChange(optionValue)
-    }
-  }
-
-  return (
-    <div className="flex gap-2">
-      {options.map((option) => {
-        const isSelected = value === option.value
-        return (
-          <button
-            key={option.value}
-            onClick={() => handleClick(option.value)}
-            className={`flex-1 flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border transition-all ${
-              isSelected
-                ? option.selectedClass
-                : `bg-white text-gray-500 border-gray-200 ${option.hoverClass}`
-            }`}
-            title={option.label}
-          >
-            <option.Icon size={22} />
-            <span className="text-xs font-medium">{option.label}</span>
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
-/**
- * Life stage selector toggle buttons for observation attributes
- */
-function LifeStageSelector({ value, onChange }) {
-  const options = [
-    {
-      value: 'adult',
-      label: 'Adult',
-      Icon: AdultIcon,
-      selectedClass: 'bg-violet-500 text-white border-violet-500 ring-2 ring-violet-200',
-      hoverClass: 'hover:bg-violet-50 hover:border-violet-300 hover:text-violet-600'
-    },
-    {
-      value: 'subadult',
-      label: 'Subadult',
-      Icon: SubadultIcon,
-      selectedClass: 'bg-teal-500 text-white border-teal-500 ring-2 ring-teal-200',
-      hoverClass: 'hover:bg-teal-50 hover:border-teal-300 hover:text-teal-500'
-    },
-    {
-      value: 'juvenile',
-      label: 'Juvenile',
-      Icon: JuvenileIcon,
-      selectedClass: 'bg-amber-500 text-white border-amber-500 ring-2 ring-amber-200',
-      hoverClass: 'hover:bg-amber-50 hover:border-amber-300 hover:text-amber-500'
-    }
-  ]
-
-  const handleClick = (optionValue) => {
-    // Clicking the selected value clears it (sets to null)
-    if (value === optionValue) {
-      onChange(null)
-    } else {
-      onChange(optionValue)
-    }
-  }
-
-  return (
-    <div className="flex gap-2">
-      {options.map((option) => {
-        const isSelected = value === option.value
-        return (
-          <button
-            key={option.value}
-            onClick={() => handleClick(option.value)}
-            className={`flex-1 flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border transition-all ${
-              isSelected
-                ? option.selectedClass
-                : `bg-white text-gray-500 border-gray-200 ${option.hoverClass}`
-            }`}
-            title={option.label}
-          >
-            <option.Icon size={22} />
-            <span className="text-xs font-medium">{option.label}</span>
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
-/**
- * Behavior selector with grouped dropdown and checkboxes for multi-select
- * Uses local state for instant feedback, saves only when dropdown closes
- */
-function BehaviorSelector({ value = [], onChange }) {
-  const [isOpen, setIsOpen] = useState(false)
-  // Local state for immediate checkbox feedback
-  const [localBehaviors, setLocalBehaviors] = useState(value || [])
-  const dropdownRef = useRef(null)
-  const hasChangesRef = useRef(false)
-  // Track previous isOpen to detect open transition
-  const wasOpenRef = useRef(false)
-
-  // Sync local state when dropdown OPENS (transition from closed to open)
-  // This prevents race conditions where prop updates override local changes mid-edit
-  useEffect(() => {
-    if (isOpen && !wasOpenRef.current) {
-      // Dropdown just opened - sync with current prop value
-      setLocalBehaviors(value || [])
-      hasChangesRef.current = false
-    }
-    wasOpenRef.current = isOpen
-  }, [isOpen, value])
-
-  // Save changes when dropdown closes
-  const handleClose = useCallback(() => {
-    if (hasChangesRef.current) {
-      onChange(localBehaviors.length > 0 ? localBehaviors : null)
-      hasChangesRef.current = false
-    }
-    setIsOpen(false)
-  }, [localBehaviors, onChange])
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-        handleClose()
-      }
-    }
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside)
-      return () => document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [isOpen, handleClose])
-
-  const selectedCount = localBehaviors.length
-
-  const handleToggle = (behavior) => {
-    hasChangesRef.current = true
-    setLocalBehaviors((prev) =>
-      prev.includes(behavior) ? prev.filter((b) => b !== behavior) : [...prev, behavior]
-    )
-  }
-
-  const handleClearAll = (e) => {
-    e.stopPropagation()
-    hasChangesRef.current = true
-    setLocalBehaviors([])
-  }
-
-  const handleButtonClick = () => {
-    if (isOpen) {
-      handleClose()
-    } else {
-      setIsOpen(true)
-    }
-  }
-
-  return (
-    <div className="relative" ref={dropdownRef}>
-      {/* Dropdown trigger button */}
-      <button
-        onClick={handleButtonClick}
-        className={`w-full flex items-center justify-between px-3 py-2 rounded-lg border transition-all ${
-          selectedCount > 0
-            ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
-            : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
-        }`}
-      >
-        <span className="text-sm">
-          {selectedCount > 0 ? `${selectedCount} behavior${selectedCount > 1 ? 's' : ''}` : 'None'}
-        </span>
-        <div className="flex items-center gap-1">
-          {selectedCount > 0 && (
-            <button
-              onClick={handleClearAll}
-              className="p-0.5 rounded hover:bg-emerald-200 transition-colors"
-              title="Clear all"
-            >
-              <X size={14} />
-            </button>
-          )}
-          {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-        </div>
-      </button>
-
-      {/* Dropdown menu - opens above the button */}
-      {isOpen && (
-        <div className="absolute z-30 bottom-full mb-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
-          {Object.entries(behaviorCategories).map(([category, behaviors]) => (
-            <div key={category}>
-              {/* Category header */}
-              <div className="px-3 py-1.5 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-100">
-                {category}
-              </div>
-              {/* Behavior options */}
-              {behaviors.map((behavior) => {
-                const isChecked = localBehaviors.includes(behavior)
-                return (
-                  <label
-                    key={behavior}
-                    onClick={(e) => e.stopPropagation()}
-                    className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-emerald-50 transition-colors ${
-                      isChecked ? 'bg-emerald-50' : ''
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isChecked}
-                      onChange={(e) => {
-                        e.stopPropagation()
-                        handleToggle(behavior)
-                      }}
-                      className="w-4 h-4 rounded border-gray-300 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-0"
-                    />
-                    <span className="text-sm text-gray-700 capitalize">{behavior}</span>
-                  </label>
-                )
-              })}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-/**
- * Observation editor with tabs for species selection and attributes
- */
-function ObservationEditor({
-  bbox,
-  studyId,
-  onClose,
-  onUpdate,
-  initialTab = 'species',
-  maxHeight
-}) {
-  const [activeTab, setActiveTab] = useState(initialTab)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [highlightedIndex, setHighlightedIndex] = useState(-1)
-  const inputRef = useRef(null)
-  const rowRefs = useRef([])
-
-  // Sync activeTab with initialTab when it changes (e.g., clicking sex badge vs species label)
-  useEffect(() => {
-    setActiveTab(initialTab)
-  }, [initialTab])
-
-  // Fetch distinct species for the dropdown
-  const { data: speciesList = [] } = useQuery({
-    queryKey: ['distinctSpecies', studyId],
-    queryFn: async () => {
-      const response = await window.api.getDistinctSpecies(studyId)
-      return response.data || []
-    },
-    staleTime: 30000 // Cache for 30 seconds
-  })
-
-  // Focus input on mount and tab change
-  useEffect(() => {
-    if (activeTab === 'species' && inputRef.current) {
-      inputRef.current.focus()
-    }
-  }, [activeTab])
-
-  // Handle keyboard navigation
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation()
-        onClose()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
-
-  // Debounce the search term so fuse runs at most once per ~150ms burst.
-  useEffect(() => {
-    const handle = setTimeout(() => setDebouncedSearch(searchTerm), 150)
-    return () => clearTimeout(handle)
-  }, [searchTerm])
-
-  // Ranked species results: merges study-present species with a filtered
-  // view of the bundled dictionary, fuzzy-matched by common and scientific
-  // names. Below 3 chars the dictionary is skipped and study species are
-  // returned unranked, preserving today's UX for short queries.
-  const results = useMemo(
-    () => searchSpecies(debouncedSearch, speciesList),
-    [debouncedSearch, speciesList]
-  )
-
-  // Trimmed and single-space-collapsed query used for the custom-species
-  // footer button. Kept in sync with `debouncedSearch` so the button label
-  // matches what the results were computed from.
-  const customSpeciesQuery = useMemo(
-    () => debouncedSearch.trim().replace(/\s+/g, ' '),
-    [debouncedSearch]
-  )
-
-  // Reset the keyboard cursor when the results list changes (new query or
-  // new data). Also trim the ref array so stale row refs don't linger.
-  useEffect(() => {
-    setHighlightedIndex(results.length > 0 ? 0 : -1)
-    rowRefs.current.length = results.length
-  }, [results])
-
-  // Scroll the highlighted row into view when it changes via arrow keys.
-  useEffect(() => {
-    if (highlightedIndex < 0) return
-    const node = rowRefs.current[highlightedIndex]
-    if (node) node.scrollIntoView({ block: 'nearest' })
-  }, [highlightedIndex])
-
-  const handleSelectSpecies = (scientificName, commonName = null) => {
-    onUpdate({
-      observationID: bbox.observationID,
-      scientificName,
-      commonName,
-      observationType: 'animal'
-    })
-    onClose()
-  }
-
-  const handleMarkAsBlank = () => {
-    onUpdate({
-      observationID: bbox.observationID,
-      scientificName: null,
-      commonName: null,
-      observationType: 'blank'
-    })
-    onClose()
-  }
-
-  const handleSexChange = (sex) => {
-    onUpdate({
-      observationID: bbox.observationID,
-      sex
-    })
-  }
-
-  const handleLifeStageChange = (lifeStage) => {
-    onUpdate({
-      observationID: bbox.observationID,
-      lifeStage
-    })
-  }
-
-  const handleBehaviorChange = (behavior) => {
-    onUpdate({
-      observationID: bbox.observationID,
-      behavior
-    })
-  }
-
-  // Cap the dropdown at a comfortable size so it doesn't stretch to fill
-  // every pixel of available height; the list scrolls inside this cap.
-  const MAX_DROPDOWN_HEIGHT = 400
-  const effectiveMaxHeight =
-    maxHeight != null ? Math.min(maxHeight, MAX_DROPDOWN_HEIGHT) : undefined
-
-  // Once the user has started searching, lock the editor height at the cap so
-  // switching between Species and Attributes tabs doesn't reshuffle the dropdown.
-  const isSearchActive = debouncedSearch.trim().length > 0
-  const rootStyle =
-    effectiveMaxHeight != null
-      ? isSearchActive
-        ? { maxHeight: `${effectiveMaxHeight}px`, height: `${effectiveMaxHeight}px` }
-        : { maxHeight: `${effectiveMaxHeight}px` }
-      : undefined
-
-  return (
-    <div
-      className={`bg-white rounded-lg shadow-xl border border-gray-200 w-72 flex flex-col ${
-        activeTab === 'species' ? 'overflow-hidden' : 'overflow-visible'
-      }`}
-      style={rootStyle}
-      onClick={(e) => e.stopPropagation()}
-    >
-      {/* Tab bar */}
-      <div className="flex border-b border-gray-200 shrink-0">
-        <button
-          className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
-            activeTab === 'species'
-              ? 'text-lime-600 border-b-2 border-lime-500 bg-lime-50/50'
-              : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-          }`}
-          onClick={() => setActiveTab('species')}
-        >
-          Species
-        </button>
-        <button
-          className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
-            activeTab === 'attributes'
-              ? 'text-lime-600 border-b-2 border-lime-500 bg-lime-50/50'
-              : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-          }`}
-          onClick={() => setActiveTab('attributes')}
-        >
-          Attributes
-        </button>
-      </div>
-
-      {/* Species tab content */}
-      {activeTab === 'species' && (
-        <>
-          {/* Current classification chip */}
-          {bbox.scientificName && (
-            <div className="p-2 border-b border-gray-100 flex items-center gap-2 shrink-0">
-              <div
-                className="flex-1 min-w-0 inline-flex items-center gap-1 px-2 py-1 rounded bg-lime-50 text-lime-700 text-sm"
-                title={
-                  bbox.commonName
-                    ? `${bbox.commonName} (${bbox.scientificName})`
-                    : bbox.scientificName
-                }
-              >
-                <span className="truncate">
-                  <span className="font-medium">{bbox.commonName || bbox.scientificName}</span>
-                  {bbox.commonName && (
-                    <span className="ml-1 italic text-lime-600/80">({bbox.scientificName})</span>
-                  )}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={handleMarkAsBlank}
-                aria-label="Mark as blank (no species)"
-                title="Mark as blank (no species)"
-                className="shrink-0 p-1 rounded text-lime-700 hover:bg-lime-100"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          )}
-
-          {/* Search input */}
-          <div className="p-2 border-b border-gray-100 shrink-0">
-            <div className="relative">
-              <Search
-                size={16}
-                className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"
-              />
-              <input
-                ref={inputRef}
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                onKeyDown={(e) => {
-                  // Stop Backspace/Delete from reaching the ImageModal
-                  // window shortcut that deletes the selected observation.
-                  if (e.key === 'Backspace' || e.key === 'Delete') {
-                    e.stopPropagation()
-                    return
-                  }
-                  if (e.key === 'ArrowDown') {
-                    e.preventDefault()
-                    if (results.length === 0) return
-                    setHighlightedIndex((i) => (i + 1) % results.length)
-                    return
-                  }
-                  if (e.key === 'ArrowUp') {
-                    e.preventDefault()
-                    if (results.length === 0) return
-                    setHighlightedIndex((i) => (i <= 0 ? results.length - 1 : i - 1))
-                    return
-                  }
-                  if (e.key === 'Enter') {
-                    if (highlightedIndex >= 0 && highlightedIndex < results.length) {
-                      e.preventDefault()
-                      const picked = results[highlightedIndex]
-                      handleSelectSpecies(picked.scientificName, picked.commonName)
-                      return
-                    }
-                    if (results.length === 0 && customSpeciesQuery.length >= 3) {
-                      e.preventDefault()
-                      handleSelectSpecies(customSpeciesQuery)
-                    }
-                  }
-                }}
-                placeholder="Search species..."
-                className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent"
-              />
-            </div>
-          </div>
-
-          {/* Species list */}
-          <div className={`overflow-y-auto ${maxHeight != null ? 'flex-1 min-h-0' : 'max-h-52'}`}>
-            {/* Ranked species list */}
-            {results.map((species, index) => (
-              <button
-                key={species.scientificName}
-                ref={(node) => {
-                  rowRefs.current[index] = node
-                }}
-                onMouseEnter={() => setHighlightedIndex(index)}
-                onClick={() => handleSelectSpecies(species.scientificName, species.commonName)}
-                className={`w-full px-3 py-2 text-left flex items-center justify-between ${
-                  index === highlightedIndex ? 'bg-lime-50' : ''
-                } ${species.scientificName === bbox.scientificName ? 'bg-lime-100' : ''}`}
-              >
-                <div className="min-w-0 truncate">
-                  <span className="text-sm font-medium">
-                    {species.commonName || species.scientificName}
-                  </span>
-                  {species.commonName && (
-                    <span className="text-xs text-gray-500 ml-2 italic">
-                      ({species.scientificName})
-                    </span>
-                  )}
-                </div>
-                {species.inStudy !== false && typeof species.observationCount === 'number' && (
-                  <span className="flex items-center gap-1 text-xs text-gray-400 shrink-0 ml-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-lime-500" aria-hidden="true" />
-                    {species.observationCount}
-                  </span>
-                )}
-              </button>
-            ))}
-
-            {results.length === 0 &&
-              debouncedSearch.trim().length > 0 &&
-              debouncedSearch.trim().length < 3 && (
-                <div className="px-3 py-4 text-sm text-gray-500 text-center">
-                  Type at least 3 characters to search the species dictionary.
-                </div>
-              )}
-            {results.length === 0 && customSpeciesQuery.length >= 3 && (
-              <div className="px-3 py-4 text-center space-y-2">
-                <p className="text-sm text-gray-500">No species found.</p>
-                <button
-                  type="button"
-                  onClick={() => handleSelectSpecies(customSpeciesQuery)}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded bg-lime-500 text-white hover:bg-lime-600 max-w-full"
-                >
-                  <Plus size={14} className="shrink-0" />
-                  <span className="truncate">
-                    Add &ldquo;{customSpeciesQuery}&rdquo; as custom species
-                  </span>
-                </button>
-              </div>
-            )}
-          </div>
-        </>
-      )}
-
-      {/* Attributes tab content */}
-      {activeTab === 'attributes' && (
-        <div className="p-3 space-y-4">
-          <div>
-            <div className="text-xs font-medium text-gray-500 mb-2">Sex</div>
-            <SexSelector value={bbox.sex} onChange={handleSexChange} />
-          </div>
-          <div>
-            <div className="text-xs font-medium text-gray-500 mb-2">Life Stage</div>
-            <LifeStageSelector value={bbox.lifeStage} onChange={handleLifeStageChange} />
-          </div>
-          <div>
-            <div className="text-xs font-medium text-gray-500 mb-2">Behavior</div>
-            <BehaviorSelector value={bbox.behavior} onChange={handleBehaviorChange} />
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-/**
- * Clickable bbox label showing species name with smart positioning
- * - Labels near top edge are positioned below the bbox
- * - Labels near right edge are right-aligned
- */
-const BboxLabel = forwardRef(function BboxLabel(
-  { bbox, isSelected, onClick, onSexClick, onLifeStageClick, onBehaviorClick, onDelete, isHuman },
-  ref
-) {
-  const displayName = bbox.commonName || bbox.scientificName || 'Blank'
-  const confidence = bbox.classificationProbability
-    ? `${Math.round(bbox.classificationProbability * 100)}%`
-    : null
-  const sexSymbol = bbox.sex === 'female' ? '♀' : bbox.sex === 'male' ? '♂' : null
-
-  // Life stage colors and sizes
-  const lifeStageColor =
-    bbox.lifeStage === 'adult'
-      ? 'bg-violet-500'
-      : bbox.lifeStage === 'subadult'
-        ? 'bg-teal-500'
-        : 'bg-amber-500'
-  const lifeStageDotSize =
-    bbox.lifeStage === 'adult'
-      ? 'w-3 h-3'
-      : bbox.lifeStage === 'subadult'
-        ? 'w-2.5 h-2.5'
-        : 'w-2 h-2'
-
-  // Behavior display
-  const behaviors = bbox.behavior || []
-  const hasBehaviors = behaviors.length > 0
-  const behaviorDisplay =
-    behaviors.length > 2
-      ? `${behaviors.slice(0, 2).join(', ')} +${behaviors.length - 2}`
-      : behaviors.join(', ')
-
-  // Use the extracted positioning function
-  const { left: leftPos, top: topPos, transform: transformVal } = computeBboxLabelPosition(bbox)
-
-  const style = {
-    left: leftPos,
-    top: topPos,
-    transform: transformVal,
-    maxWidth: '300px',
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis'
-  }
-
-  return (
-    <div ref={ref} className="absolute flex items-center pointer-events-auto -ml-px" style={style}>
-      <button
-        onClick={(e) => {
-          e.stopPropagation()
-          onClick()
-        }}
-        className={`h-5 px-2 text-xs font-medium transition-all cursor-pointer hover:brightness-110 flex items-center ${
-          isSelected
-            ? 'bg-blue-700 text-white ring-2 ring-blue-300'
-            : isHuman
-              ? 'bg-blue-600 text-white'
-              : 'bg-blue-400 text-white'
-        }`}
-        title={`${displayName}${sexSymbol ? ` ${sexSymbol}` : ''}${confidence && !isHuman ? ` (${confidence})` : ''} - Click to edit`}
-      >
-        {displayName}
-        {confidence && !isHuman && <span className="ml-1 opacity-75">{confidence}</span>}
-      </button>
-      {sexSymbol && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            onSexClick()
-          }}
-          className={`ml-0.5 h-5 px-1.5 text-sm font-bold text-white cursor-pointer hover:brightness-110 transition-all flex items-center ${
-            bbox.sex === 'female' ? 'bg-pink-500' : 'bg-blue-500'
-          }`}
-          title="Edit sex"
-        >
-          {sexSymbol}
-        </button>
-      )}
-      {bbox.lifeStage && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            onLifeStageClick()
-          }}
-          className="ml-0.5 h-5 px-1.5 flex items-center cursor-pointer hover:brightness-110"
-          title={`Edit life stage (${bbox.lifeStage})`}
-        >
-          <span className={`${lifeStageDotSize} ${lifeStageColor} rounded-full`} />
-        </button>
-      )}
-      {hasBehaviors && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            onBehaviorClick()
-          }}
-          className="ml-0.5 h-5 px-1.5 text-xs text-white bg-emerald-500 cursor-pointer hover:brightness-110 transition-all flex items-center"
-          title={`Behaviors: ${behaviors.join(', ')} - Click to edit`}
-        >
-          {behaviorDisplay}
-        </button>
-      )}
-      {isSelected && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            onDelete()
-          }}
-          className="ml-1 p-1 rounded bg-red-500 text-white hover:bg-red-600 transition-colors"
-          title="Delete observation"
-        >
-          <Trash2 size={12} />
-        </button>
-      )}
-    </div>
-  )
-})
 
 /**
  * Overlay for drawing new bounding boxes.
@@ -1054,10 +226,7 @@ function ImageModal({
   const [inlineTimestamp, setInlineTimestamp] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState(null)
-  const [selectedBboxId, setSelectedBboxId] = useState(null)
-  const [showObservationEditor, setShowObservationEditor] = useState(false) // Only show when clicking label
-  const [editorInitialTab, setEditorInitialTab] = useState('species') // Which tab to show when editor opens
-  const [selectorPosition, setSelectorPosition] = useState(null)
+  const [selectedObservationId, setSelectedObservationId] = useState(null)
   // Draw mode state for creating new bboxes
   const [isDrawMode, setIsDrawMode] = useState(false)
   const [videoError, setVideoError] = useState(false)
@@ -1090,8 +259,6 @@ function ImageModal({
   const imageContainerRef = useRef(null)
   const bboxLabelRefs = useRef({})
   const imageRef = useRef(null)
-  const videoSpeciesLabelRef = useRef(null) // For video footer species label
-  const imageSpeciesLabelRef = useRef(null) // For images without bboxes (footer species label)
 
   // Refs + state for the video bbox overlay
   const videoRef = useRef(null)
@@ -1213,72 +380,6 @@ function ImageModal({
       }
     }
   }, [isOpen, media, isVideoMedia, studyId])
-
-  // Compute selector position when a bbox is selected AND observation editor should be shown
-  useEffect(() => {
-    if (!selectedBboxId || !showObservationEditor) {
-      setSelectorPosition(null)
-      return
-    }
-
-    // Footer-triggered: anchor dropdown over the media area (above the footer)
-    // so it stays fully visible regardless of screen height. Applies to videos
-    // and to images without bboxes.
-    const footerTriggered =
-      (isVideoMedia(media) && videoSpeciesLabelRef.current) ||
-      ((selectedBboxId === 'new-observation' || !bboxLabelRefs.current[selectedBboxId]) &&
-        imageSpeciesLabelRef.current)
-    if (footerTriggered && imageContainerRef.current) {
-      const mediaAreaRect = imageContainerRef.current.getBoundingClientRect()
-      const position = computeFooterTriggeredSelectorPosition(mediaAreaRect)
-      setSelectorPosition(position)
-      return
-    }
-
-    // For images with bboxes, use the bbox label ref
-    if (!bboxLabelRefs.current[selectedBboxId] || !imageContainerRef.current) {
-      setSelectorPosition(null)
-      return
-    }
-
-    const labelEl = bboxLabelRefs.current[selectedBboxId]
-    const labelRect = labelEl.getBoundingClientRect()
-    const containerRect = imageContainerRef.current.getBoundingClientRect()
-
-    const position = computeSelectorPosition(labelRect, containerRect)
-    setSelectorPosition(position)
-  }, [selectedBboxId, showObservationEditor, media, isVideoMedia])
-
-  // Recalculate position on window resize
-  useEffect(() => {
-    if (!selectedBboxId || !showObservationEditor) return
-
-    const handleResize = () => {
-      // Footer-triggered: recompute using the media area (excludes footer).
-      const footerTriggered =
-        (isVideoMedia(media) && videoSpeciesLabelRef.current) ||
-        ((selectedBboxId === 'new-observation' || !bboxLabelRefs.current[selectedBboxId]) &&
-          imageSpeciesLabelRef.current)
-      if (footerTriggered && imageContainerRef.current) {
-        const mediaAreaRect = imageContainerRef.current.getBoundingClientRect()
-        const position = computeFooterTriggeredSelectorPosition(mediaAreaRect)
-        setSelectorPosition(position)
-        return
-      }
-
-      // For images with bboxes, use bbox label ref
-      if (bboxLabelRefs.current[selectedBboxId] && imageContainerRef.current) {
-        const labelEl = bboxLabelRefs.current[selectedBboxId]
-        const labelRect = labelEl.getBoundingClientRect()
-        const containerRect = imageContainerRef.current.getBoundingClientRect()
-        const position = computeSelectorPosition(labelRect, containerRect)
-        setSelectorPosition(position)
-      }
-    }
-
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [selectedBboxId, showObservationEditor, media, isVideoMedia])
 
   // For videos, include observations without bbox geometry
   const isVideo = isVideoMedia(media)
@@ -1504,41 +605,6 @@ function ImageModal({
     }
   })
 
-  const handleUpdateObservation = (updates) => {
-    if (updates.observationID === 'new-observation') {
-      // Create new observation without bbox for images without bboxes
-      const observationData = {
-        mediaID: media.mediaID,
-        deploymentID: media.deploymentID,
-        timestamp: media.timestamp,
-        scientificName: updates.scientificName,
-        commonName: updates.commonName,
-        bboxX: null,
-        bboxY: null,
-        bboxWidth: null,
-        bboxHeight: null
-      }
-      createMutation.mutate(observationData)
-    } else {
-      updateMutation.mutate(updates)
-    }
-  }
-
-  // Handler for clicking the species label on images without bboxes
-  const handleImageWithoutBboxClick = useCallback(() => {
-    // Find observation without bbox coordinates for this image
-    const obsWithoutBbox = bboxes.find((b) => b.bboxX === null || b.bboxX === undefined)
-    if (obsWithoutBbox) {
-      // Existing observation - select it and show observation editor
-      setSelectedBboxId(obsWithoutBbox.observationID)
-      setShowObservationEditor(true)
-    } else {
-      // No observation exists - we'll create one when species is selected
-      setSelectedBboxId('new-observation')
-      setShowObservationEditor(true)
-    }
-  }, [bboxes])
-
   // Mutation for updating observation bounding box coordinates
   const updateBboxMutation = useMutation({
     mutationFn: async ({ observationID, bbox }) => {
@@ -1609,9 +675,8 @@ function ImageModal({
       )
 
       // Clear selection if deleted bbox was selected
-      if (selectedBboxId === observationID) {
-        setSelectedBboxId(null)
-        setShowObservationEditor(false)
+      if (selectedObservationId === observationID) {
+        setSelectedObservationId(null)
       }
 
       return { previous }
@@ -1669,7 +734,7 @@ function ImageModal({
       queryClient.invalidateQueries({ queryKey: ['bestMedia', studyId] })
       // Exit draw mode and select the new observation
       setIsDrawMode(false)
-      setSelectedBboxId(data.observationID)
+      setSelectedObservationId(data.observationID)
     }
   })
 
@@ -1736,13 +801,13 @@ function ImageModal({
       }
 
       // Handle keys when a bbox is selected
-      if (selectedBboxId) {
+      if (selectedObservationId) {
         if (e.key === 'Escape') {
-          setSelectedBboxId(null)
+          setSelectedObservationId(null)
           return
         } else if (e.key === 'Delete' || e.key === 'Backspace') {
           e.preventDefault()
-          handleDeleteObservation(selectedBboxId)
+          handleDeleteObservation(selectedObservationId)
           return
         }
         // Allow Tab to fall through to bbox cycling below
@@ -1757,7 +822,9 @@ function ImageModal({
         if (visibleBboxes.length > 0) {
           e.preventDefault() // Prevent default browser tab behavior
 
-          const currentIndex = visibleBboxes.findIndex((b) => b.observationID === selectedBboxId)
+          const currentIndex = visibleBboxes.findIndex(
+            (b) => b.observationID === selectedObservationId
+          )
 
           let nextIndex
           if (e.shiftKey) {
@@ -1768,8 +835,7 @@ function ImageModal({
             nextIndex = currentIndex >= visibleBboxes.length - 1 ? 0 : currentIndex + 1
           }
 
-          setSelectedBboxId(visibleBboxes[nextIndex].observationID)
-          setShowObservationEditor(false) // Don't auto-open observation editor
+          setSelectedObservationId(visibleBboxes[nextIndex].observationID)
         }
         return
       }
@@ -1829,7 +895,7 @@ function ImageModal({
     onSequencePrevious,
     isEditingTimestamp,
     showDatePicker,
-    selectedBboxId,
+    selectedObservationId,
     isDrawMode,
     handleDeleteObservation,
     isZoomed,
@@ -1841,7 +907,7 @@ function ImageModal({
 
   // Reset selection, draw mode, zoom, and image ready state when changing images
   useEffect(() => {
-    setSelectedBboxId(null)
+    setSelectedObservationId(null)
     setIsDrawMode(false)
     setIsCurrentImageReady(false)
     resetZoom()
@@ -1853,18 +919,12 @@ function ImageModal({
   const bboxesWithCoords = bboxes.filter((b) => b.bboxX !== null && b.bboxX !== undefined)
   const hasBboxes = bboxesWithCoords.length > 0 || videoFrameDetections.length > 0
 
-  // Get selectedBbox - for 'new-observation' create a synthetic object
-  const selectedBbox =
-    selectedBboxId === 'new-observation'
-      ? { observationID: 'new-observation', scientificName: null }
-      : bboxes.find((b) => b.observationID === selectedBboxId)
-
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4"
       onClick={() => {
-        if (selectedBboxId) {
-          setSelectedBboxId(null)
+        if (selectedObservationId) {
+          setSelectedObservationId(null)
         } else {
           onClose()
         }
@@ -1875,7 +935,7 @@ function ImageModal({
         {!isEditingTimestamp &&
           !showDatePicker &&
           !isDrawMode &&
-          !selectedBboxId &&
+          !selectedObservationId &&
           (hasPreviousInSequence || hasPrevious) && (
             <button
               onClick={(e) => {
@@ -1896,7 +956,7 @@ function ImageModal({
         {!isEditingTimestamp &&
           !showDatePicker &&
           !isDrawMode &&
-          !selectedBboxId &&
+          !selectedObservationId &&
           (hasNextInSequence || hasNext) && (
             <button
               onClick={(e) => {
@@ -2042,8 +1102,7 @@ function ImageModal({
                   onClick={(e) => {
                     e.stopPropagation()
                     setIsDrawMode(true)
-                    setSelectedBboxId(null)
-                    setShowObservationEditor(false)
+                    setSelectedObservationId(null)
                     setShowBboxes(true)
                   }}
                   className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
@@ -2072,410 +1131,355 @@ function ImageModal({
               </button>
             </div>
           </div>
-          <div
-            ref={(el) => {
-              imageContainerRef.current = el
-              zoomContainerRef.current = el
-            }}
-            className="flex items-center justify-center bg-gray-100 overflow-hidden relative"
-            onClick={() => {
-              setSelectedBboxId(null)
-              setShowObservationEditor(false)
-            }}
-            onWheel={!isVideoMedia(media) ? handleZoomWheel : undefined}
-            onMouseDown={(e) => {
-              // Only start pan if zoomed, not in draw mode, not clicking on a bbox
-              if (
-                isZoomed &&
-                !isDrawMode &&
-                !selectedBboxId &&
-                e.target.tagName !== 'rect' &&
-                !e.target.closest('button')
-              ) {
-                handlePanStart(e)
-              }
-            }}
-            style={{ cursor: isZoomed && !isDrawMode && !selectedBboxId ? 'grab' : undefined }}
-          >
-            {isVideoMedia(media) ? (
-              // Transcoding states
-              transcodeState === 'checking' ? (
-                <div className="flex flex-col items-center justify-center p-8 text-gray-500 min-h-[300px]">
-                  <Loader2 size={48} className="animate-spin text-blue-500" />
-                  <span className="mt-4 text-lg font-medium">Checking video format...</span>
-                </div>
-              ) : transcodeState === 'transcoding' ? (
-                <div className="flex flex-col items-center justify-center p-8 text-gray-500 min-h-[300px]">
-                  <div className="relative">
-                    <Loader2 size={64} className="animate-spin text-blue-500" />
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-sm font-bold text-blue-600">{transcodeProgress}%</span>
-                    </div>
+          <div className="flex flex-1 min-h-0 overflow-hidden">
+            <div
+              ref={(el) => {
+                imageContainerRef.current = el
+                zoomContainerRef.current = el
+              }}
+              className="flex-1 min-w-0 flex items-center justify-center bg-gray-100 overflow-hidden relative"
+              onWheel={!isVideoMedia(media) ? handleZoomWheel : undefined}
+              onMouseDown={(e) => {
+                // Only start pan if zoomed, not in draw mode, not clicking on a bbox
+                if (
+                  isZoomed &&
+                  !isDrawMode &&
+                  !selectedObservationId &&
+                  e.target.tagName !== 'rect' &&
+                  !e.target.closest('button')
+                ) {
+                  handlePanStart(e)
+                }
+              }}
+              style={{
+                cursor: isZoomed && !isDrawMode && !selectedObservationId ? 'grab' : undefined
+              }}
+            >
+              {isVideoMedia(media) ? (
+                // Transcoding states
+                transcodeState === 'checking' ? (
+                  <div className="flex flex-col items-center justify-center p-8 text-gray-500 min-h-[300px]">
+                    <Loader2 size={48} className="animate-spin text-blue-500" />
+                    <span className="mt-4 text-lg font-medium">Checking video format...</span>
                   </div>
-                  <span className="mt-4 text-lg font-medium">Converting video...</span>
-                  <span className="mt-2 text-sm text-gray-400">
-                    This format requires conversion for browser playback
-                  </span>
-                  {/* Progress bar */}
-                  <div className="mt-4 w-64 h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-blue-500 transition-all duration-300"
-                      style={{ width: `${transcodeProgress}%` }}
+                ) : transcodeState === 'transcoding' ? (
+                  <div className="flex flex-col items-center justify-center p-8 text-gray-500 min-h-[300px]">
+                    <div className="relative">
+                      <Loader2 size={64} className="animate-spin text-blue-500" />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-sm font-bold text-blue-600">
+                          {transcodeProgress}%
+                        </span>
+                      </div>
+                    </div>
+                    <span className="mt-4 text-lg font-medium">Converting video...</span>
+                    <span className="mt-2 text-sm text-gray-400">
+                      This format requires conversion for browser playback
+                    </span>
+                    {/* Progress bar */}
+                    <div className="mt-4 w-64 h-2 bg-gray-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-blue-500 transition-all duration-300"
+                        style={{ width: `${transcodeProgress}%` }}
+                      />
+                    </div>
+                    <span className="mt-2 text-xs text-gray-400">{media.fileName}</span>
+                  </div>
+                ) : transcodeState === 'error' ? (
+                  <div className="flex flex-col items-center justify-center p-8 text-gray-500 min-h-[300px]">
+                    <Play size={64} className="text-red-400" />
+                    <span className="mt-4 text-lg font-medium text-red-500">Conversion failed</span>
+                    <span className="mt-2 text-sm text-gray-400">{transcodeError}</span>
+                    <span className="mt-1 text-xs text-gray-400">{media.fileName}</span>
+                  </div>
+                ) : videoError && transcodeState !== 'ready' ? (
+                  <div className="flex flex-col items-center justify-center p-8 text-gray-500 min-h-[300px]">
+                    <Play size={64} />
+                    <span className="mt-4 text-lg font-medium">Video</span>
+                    <span className="mt-2 text-sm text-gray-400">
+                      Format not supported by browser
+                    </span>
+                    <span className="mt-1 text-xs text-gray-400">{media.fileName}</span>
+                  </div>
+                ) : (
+                  <div ref={videoContainerRef} className="relative">
+                    <video
+                      ref={videoRef}
+                      key={transcodedUrl || media.filePath} // Force new element when source changes
+                      src={(() => {
+                        const videoSrc = transcodedUrl || constructImageUrl(media.filePath)
+                        console.log('=== VIDEO ELEMENT ===')
+                        console.log('transcodeState:', transcodeState)
+                        console.log('transcodedUrl:', transcodedUrl)
+                        console.log('media.filePath:', media.filePath)
+                        console.log('Final video src:', videoSrc)
+                        return videoSrc
+                      })()}
+                      className="max-w-full max-h-[calc(90vh-152px)] w-auto h-auto object-contain"
+                      controls
+                      autoPlay
+                      onLoadStart={(e) => {
+                        console.log('Video onLoadStart:', e.target.src)
+                      }}
+                      onLoadedData={(e) => {
+                        console.log(
+                          'Video onLoadedData:',
+                          e.target.src,
+                          'duration:',
+                          e.target.duration
+                        )
+                      }}
+                      onCanPlay={(e) => {
+                        console.log('Video onCanPlay:', e.target.src)
+                      }}
+                      onTimeUpdate={(e) => {
+                        const now = performance.now()
+                        if (now - lastVideoTimeUpdateRef.current < 250) return
+                        lastVideoTimeUpdateRef.current = now
+                        setVideoCurrentTime(e.target.currentTime)
+                      }}
+                      onSeeked={(e) => {
+                        // Force an immediate update after seeking so boxes jump with the scrubber.
+                        lastVideoTimeUpdateRef.current = 0
+                        setVideoCurrentTime(e.target.currentTime)
+                      }}
+                      onError={(e) => {
+                        console.error('Video onError:', e.target.src)
+                        console.error('Video error details:', e.target.error)
+                        // Only set videoError if we're not in a transcoding state
+                        // (to avoid showing error during transcoding)
+                        if (transcodeState === 'idle' || transcodeState === 'ready') {
+                          setVideoError(true)
+                        }
+                      }}
+                    />
+                    <VideoBboxOverlay
+                      videoRef={videoRef}
+                      containerRef={videoContainerRef}
+                      currentFrameBboxes={currentFrameBboxes}
+                      visible={showBboxes}
                     />
                   </div>
-                  <span className="mt-2 text-xs text-gray-400">{media.fileName}</span>
-                </div>
-              ) : transcodeState === 'error' ? (
-                <div className="flex flex-col items-center justify-center p-8 text-gray-500 min-h-[300px]">
-                  <Play size={64} className="text-red-400" />
-                  <span className="mt-4 text-lg font-medium text-red-500">Conversion failed</span>
-                  <span className="mt-2 text-sm text-gray-400">{transcodeError}</span>
-                  <span className="mt-1 text-xs text-gray-400">{media.fileName}</span>
-                </div>
-              ) : videoError && transcodeState !== 'ready' ? (
-                <div className="flex flex-col items-center justify-center p-8 text-gray-500 min-h-[300px]">
-                  <Play size={64} />
-                  <span className="mt-4 text-lg font-medium">Video</span>
-                  <span className="mt-2 text-sm text-gray-400">
-                    Format not supported by browser
-                  </span>
-                  <span className="mt-1 text-xs text-gray-400">{media.fileName}</span>
+                )
+              ) : imageError ? (
+                <div className="flex flex-col items-center justify-center bg-gray-800 text-gray-400 aspect-[4/3] min-w-[70vw] max-h-[calc(90vh-152px)]">
+                  <CameraOff size={128} />
+                  <span className="mt-4 text-lg font-medium">Image not available</span>
+                  <span className="mt-2 text-sm">{media.fileName}</span>
                 </div>
               ) : (
-                <div ref={videoContainerRef} className="relative">
-                  <video
-                    ref={videoRef}
-                    key={transcodedUrl || media.filePath} // Force new element when source changes
-                    src={(() => {
-                      const videoSrc = transcodedUrl || constructImageUrl(media.filePath)
-                      console.log('=== VIDEO ELEMENT ===')
-                      console.log('transcodeState:', transcodeState)
-                      console.log('transcodedUrl:', transcodedUrl)
-                      console.log('media.filePath:', media.filePath)
-                      console.log('Final video src:', videoSrc)
-                      return videoSrc
-                    })()}
-                    className="max-w-full max-h-[calc(90vh-152px)] w-auto h-auto object-contain"
-                    controls
-                    autoPlay
-                    onLoadStart={(e) => {
-                      console.log('Video onLoadStart:', e.target.src)
+                <>
+                  {/* Zoomable container - wraps image and all overlays */}
+                  <div
+                    className="relative"
+                    style={{
+                      transform: getTransformStyle(),
+                      transformOrigin: 'center center',
+                      transition: 'transform 0.1s ease-out'
                     }}
-                    onLoadedData={(e) => {
-                      console.log(
-                        'Video onLoadedData:',
-                        e.target.src,
-                        'duration:',
-                        e.target.duration
-                      )
-                    }}
-                    onCanPlay={(e) => {
-                      console.log('Video onCanPlay:', e.target.src)
-                    }}
-                    onTimeUpdate={(e) => {
-                      const now = performance.now()
-                      if (now - lastVideoTimeUpdateRef.current < 250) return
-                      lastVideoTimeUpdateRef.current = now
-                      setVideoCurrentTime(e.target.currentTime)
-                    }}
-                    onSeeked={(e) => {
-                      // Force an immediate update after seeking so boxes jump with the scrubber.
-                      lastVideoTimeUpdateRef.current = 0
-                      setVideoCurrentTime(e.target.currentTime)
-                    }}
-                    onError={(e) => {
-                      console.error('Video onError:', e.target.src)
-                      console.error('Video error details:', e.target.error)
-                      // Only set videoError if we're not in a transcoding state
-                      // (to avoid showing error during transcoding)
-                      if (transcodeState === 'idle' || transcodeState === 'ready') {
-                        setVideoError(true)
-                      }
-                    }}
-                  />
-                  <VideoBboxOverlay
-                    videoRef={videoRef}
-                    containerRef={videoContainerRef}
-                    currentFrameBboxes={currentFrameBboxes}
-                    visible={showBboxes}
-                  />
-                </div>
-              )
-            ) : imageError ? (
-              <div className="flex flex-col items-center justify-center bg-gray-800 text-gray-400 aspect-[4/3] min-w-[70vw] max-h-[calc(90vh-152px)]">
-                <CameraOff size={128} />
-                <span className="mt-4 text-lg font-medium">Image not available</span>
-                <span className="mt-2 text-sm">{media.fileName}</span>
-              </div>
-            ) : (
-              <>
-                {/* Zoomable container - wraps image and all overlays */}
-                <div
-                  className="relative"
-                  style={{
-                    transform: getTransformStyle(),
-                    transformOrigin: 'center center',
-                    transition: 'transform 0.1s ease-out'
-                  }}
-                >
-                  <img
-                    ref={imageRef}
-                    src={constructImageUrl(media.filePath)}
-                    alt={media.fileName || `Media ${media.mediaID}`}
-                    className="max-w-full max-h-[calc(90vh-152px)] w-auto h-auto object-contain"
-                    onLoad={() => setIsCurrentImageReady(true)}
-                    onError={() => setImageError(true)}
-                    draggable={false}
-                  />
-                  {/* Loading overlay - show spinner while image is loading */}
-                  {!isCurrentImageReady && !imageError && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-gray-900/30 z-10 pointer-events-none">
-                      <Loader2 size={32} className="animate-spin text-white/70" />
-                    </div>
-                  )}
-                  {/* Empty-state hint - shown when image has no detections */}
-                  {!hasBboxes &&
-                    isCurrentImageReady &&
-                    !imageError &&
-                    !isDrawMode &&
-                    !isVideoMedia(media) && (
-                      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 pointer-events-none inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/35 backdrop-blur-sm text-white/70 text-[11px] font-medium">
-                        <SquarePlus size={12} />
-                        No detections
+                  >
+                    <img
+                      ref={imageRef}
+                      src={constructImageUrl(media.filePath)}
+                      alt={media.fileName || `Media ${media.mediaID}`}
+                      className="max-w-full max-h-[calc(90vh-152px)] w-auto h-auto object-contain"
+                      onLoad={() => setIsCurrentImageReady(true)}
+                      onError={() => setImageError(true)}
+                      draggable={false}
+                    />
+                    {/* Loading overlay - show spinner while image is loading */}
+                    {!isCurrentImageReady && !imageError && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-gray-900/30 z-10 pointer-events-none">
+                        <Loader2 size={32} className="animate-spin text-white/70" />
                       </div>
                     )}
-                  {/* Bbox overlay - editable bounding boxes (only for images, only after image loads) */}
-                  {showBboxes && hasBboxes && isCurrentImageReady && (
-                    <>
-                      <svg
-                        className="absolute inset-0 w-full h-full"
-                        style={{
-                          position: 'absolute',
-                          top: 0,
-                          left: 0,
-                          width: '100%',
-                          height: '100%'
-                        }}
-                      >
-                        {bboxes.map((bbox) => (
-                          <EditableBbox
-                            key={bbox.observationID}
-                            bbox={bbox}
-                            isSelected={bbox.observationID === selectedBboxId}
-                            onSelect={() => {
-                              // Clicking bbox selects it for geometry editing only, NOT observation editor
-                              setSelectedBboxId(
-                                bbox.observationID === selectedBboxId ? null : bbox.observationID
-                              )
-                              setShowObservationEditor(false) // Close observation editor when clicking bbox
-                            }}
-                            onUpdate={(newBbox) => handleBboxUpdate(bbox.observationID, newBbox)}
-                            imageRef={imageRef}
-                            containerRef={imageContainerRef}
-                            zoomTransform={zoomTransform}
-                            isValidated={bbox.classificationMethod === 'human'}
-                          />
-                        ))}
-                      </svg>
+                    {/* Empty-state hint - shown when image has no detections */}
+                    {!hasBboxes &&
+                      isCurrentImageReady &&
+                      !imageError &&
+                      !isDrawMode &&
+                      !isVideoMedia(media) && (
+                        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 pointer-events-none inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/35 backdrop-blur-sm text-white/70 text-[11px] font-medium">
+                          <SquarePlus size={12} />
+                          No detections
+                        </div>
+                      )}
+                    {/* Bbox overlay - editable bounding boxes (only for images, only after image loads) */}
+                    {showBboxes && hasBboxes && isCurrentImageReady && (
+                      <>
+                        <svg
+                          className="absolute inset-0 w-full h-full"
+                          style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: '100%'
+                          }}
+                        >
+                          {bboxes.map((bbox) => (
+                            <EditableBbox
+                              key={bbox.observationID}
+                              bbox={bbox}
+                              isSelected={bbox.observationID === selectedObservationId}
+                              onSelect={() => {
+                                setSelectedObservationId(
+                                  bbox.observationID === selectedObservationId
+                                    ? null
+                                    : bbox.observationID
+                                )
+                              }}
+                              onUpdate={(newBbox) => handleBboxUpdate(bbox.observationID, newBbox)}
+                              imageRef={imageRef}
+                              containerRef={imageContainerRef}
+                              zoomTransform={zoomTransform}
+                              isValidated={bbox.classificationMethod === 'human'}
+                            />
+                          ))}
+                        </svg>
 
-                      {/* Clickable bbox labels - clicking label opens observation editor */}
-                      <div className="absolute inset-0 w-full h-full pointer-events-none">
-                        {bboxes.map((bbox) => (
-                          <BboxLabel
-                            key={bbox.observationID}
-                            ref={(el) => {
-                              bboxLabelRefs.current[bbox.observationID] = el
-                            }}
-                            bbox={bbox}
-                            isSelected={bbox.observationID === selectedBboxId}
-                            isHuman={bbox.classificationMethod === 'human'}
-                            onClick={() => {
-                              // Clicking label selects bbox AND opens observation editor
-                              setSelectedBboxId(bbox.observationID)
-                              setEditorInitialTab('species')
-                              setShowObservationEditor(true)
-                            }}
-                            onSexClick={() => {
-                              // Clicking sex badge opens editor on attributes tab
-                              setSelectedBboxId(bbox.observationID)
-                              setEditorInitialTab('attributes')
-                              setShowObservationEditor(true)
-                            }}
-                            onLifeStageClick={() => {
-                              // Clicking life stage badge opens editor on attributes tab
-                              setSelectedBboxId(bbox.observationID)
-                              setEditorInitialTab('attributes')
-                              setShowObservationEditor(true)
-                            }}
-                            onBehaviorClick={() => {
-                              // Clicking behavior badge opens editor on attributes tab
-                              setSelectedBboxId(bbox.observationID)
-                              setEditorInitialTab('attributes')
-                              setShowObservationEditor(true)
-                            }}
-                            onDelete={() => handleDeleteObservation(bbox.observationID)}
-                          />
-                        ))}
-                      </div>
-                    </>
-                  )}
+                        {/* Clickable bbox labels - clicking label opens observation editor */}
+                        <div className="absolute inset-0 w-full h-full pointer-events-none">
+                          {bboxes.map((bbox) => (
+                            <BboxLabelMinimal
+                              key={bbox.observationID}
+                              ref={(el) => {
+                                bboxLabelRefs.current[bbox.observationID] = el
+                              }}
+                              bbox={bbox}
+                              isSelected={bbox.observationID === selectedObservationId}
+                              isValidated={bbox.classificationMethod === 'human'}
+                              onClick={() => setSelectedObservationId(bbox.observationID)}
+                            />
+                          ))}
+                        </div>
+                      </>
+                    )}
 
-                  {/* Drawing overlay - only show when in draw mode (images only) */}
-                  {isDrawMode && (
-                    <DrawingOverlay
-                      imageRef={imageRef}
-                      containerRef={imageContainerRef}
-                      onComplete={handleDrawComplete}
-                      zoomTransform={zoomTransform}
-                    />
-                  )}
-                </div>
+                    {/* Drawing overlay - only show when in draw mode (images only) */}
+                    {isDrawMode && (
+                      <DrawingOverlay
+                        imageRef={imageRef}
+                        containerRef={imageContainerRef}
+                        onComplete={handleDrawComplete}
+                        zoomTransform={zoomTransform}
+                      />
+                    )}
+                  </div>
 
-                {/* Zoom controls - positioned at top center, outside the transformed container */}
-                {!isDrawMode && (
-                  <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 bg-black/70 rounded-full px-3 py-1.5 shadow-lg">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        zoomOut()
-                      }}
-                      className="p-1 text-white hover:text-blue-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      disabled={zoomTransform.scale <= 1}
-                      title="Zoom out (-)"
-                    >
-                      <ZoomOut size={18} />
-                    </button>
-                    <span className="text-white text-sm font-medium min-w-[3rem] text-center">
-                      {Math.round(zoomTransform.scale * 100)}%
-                    </span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        zoomIn()
-                      }}
-                      className="p-1 text-white hover:text-blue-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      disabled={zoomTransform.scale >= 5}
-                      title="Zoom in (+)"
-                    >
-                      <ZoomIn size={18} />
-                    </button>
-                    {isZoomed && (
+                  {/* Zoom controls - positioned at top center, outside the transformed container */}
+                  {!isDrawMode && (
+                    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 bg-black/70 rounded-full px-3 py-1.5 shadow-lg">
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
-                          resetZoom()
+                          zoomOut()
                         }}
-                        className="p-1 text-white hover:text-blue-300 transition-colors ml-1"
-                        title="Reset zoom (0 or Esc)"
+                        className="p-1 text-white hover:text-blue-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={zoomTransform.scale <= 1}
+                        title="Zoom out (-)"
                       >
-                        <RotateCcw size={16} />
+                        <ZoomOut size={18} />
                       </button>
-                    )}
-                    {/* Keyboard shortcuts info */}
-                    <div className="w-px h-5 bg-white/30" />
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
+                      <span className="text-white text-sm font-medium min-w-[3rem] text-center">
+                        {Math.round(zoomTransform.scale * 100)}%
+                      </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          zoomIn()
+                        }}
+                        className="p-1 text-white hover:text-blue-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={zoomTransform.scale >= 5}
+                        title="Zoom in (+)"
+                      >
+                        <ZoomIn size={18} />
+                      </button>
+                      {isZoomed && (
                         <button
-                          onClick={(e) => e.stopPropagation()}
-                          className="p-1 text-white hover:text-blue-300 transition-colors"
-                          aria-label="Keyboard shortcuts"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            resetZoom()
+                          }}
+                          className="p-1 text-white hover:text-blue-300 transition-colors ml-1"
+                          title="Reset zoom (0 or Esc)"
                         >
-                          <Info size={18} />
+                          <RotateCcw size={16} />
                         </button>
-                      </Tooltip.Trigger>
-                      <Tooltip.Portal>
-                        <Tooltip.Content
-                          side="bottom"
-                          sideOffset={8}
-                          className="z-[10000] max-w-xs px-3 py-2 bg-gray-900 text-white text-xs rounded-md shadow-lg"
-                        >
-                          <div className="font-medium mb-1">Keyboard Shortcuts</div>
-                          <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
-                            <kbd className="text-blue-300">Tab</kbd>
-                            <span>Next bbox</span>
-                            <kbd className="text-blue-300">Shift+Tab</kbd>
-                            <span>Previous bbox</span>
-                            <kbd className="text-blue-300">←/→</kbd>
-                            <span>Navigate images</span>
-                            <kbd className="text-blue-300">B</kbd>
-                            <span>Toggle bboxes</span>
-                            <kbd className="text-blue-300">+/-</kbd>
-                            <span>Zoom in/out</span>
-                            <kbd className="text-blue-300">0</kbd>
-                            <span>Reset zoom</span>
-                            <kbd className="text-blue-300">Del</kbd>
-                            <span>Delete bbox</span>
-                            <kbd className="text-blue-300">Esc</kbd>
-                            <span>Deselect/Close</span>
-                          </div>
-                          <Tooltip.Arrow className="fill-gray-900" />
-                        </Tooltip.Content>
-                      </Tooltip.Portal>
-                    </Tooltip.Root>
-                  </div>
-                )}
-              </>
-            )}
+                      )}
+                      {/* Keyboard shortcuts info */}
+                      <div className="w-px h-5 bg-white/30" />
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <button
+                            onClick={(e) => e.stopPropagation()}
+                            className="p-1 text-white hover:text-blue-300 transition-colors"
+                            aria-label="Keyboard shortcuts"
+                          >
+                            <Info size={18} />
+                          </button>
+                        </Tooltip.Trigger>
+                        <Tooltip.Portal>
+                          <Tooltip.Content
+                            side="bottom"
+                            sideOffset={8}
+                            className="z-[10000] max-w-xs px-3 py-2 bg-gray-900 text-white text-xs rounded-md shadow-lg"
+                          >
+                            <div className="font-medium mb-1">Keyboard Shortcuts</div>
+                            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
+                              <kbd className="text-blue-300">Tab</kbd>
+                              <span>Next bbox</span>
+                              <kbd className="text-blue-300">Shift+Tab</kbd>
+                              <span>Previous bbox</span>
+                              <kbd className="text-blue-300">←/→</kbd>
+                              <span>Navigate images</span>
+                              <kbd className="text-blue-300">B</kbd>
+                              <span>Toggle bboxes</span>
+                              <kbd className="text-blue-300">+/-</kbd>
+                              <span>Zoom in/out</span>
+                              <kbd className="text-blue-300">0</kbd>
+                              <span>Reset zoom</span>
+                              <kbd className="text-blue-300">Del</kbd>
+                              <span>Delete bbox</span>
+                              <kbd className="text-blue-300">Esc</kbd>
+                              <span>Deselect/Close</span>
+                            </div>
+                            <Tooltip.Arrow className="fill-gray-900" />
+                          </Tooltip.Content>
+                        </Tooltip.Portal>
+                      </Tooltip.Root>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+            <ObservationRail
+              observations={bboxes}
+              studyId={studyId}
+              selectedObservationId={selectedObservationId}
+              onSelectObservation={setSelectedObservationId}
+              onUpdateClassification={(observationID, updates) =>
+                updateMutation.mutate({ observationID, ...updates })
+              }
+              onDeleteObservation={handleDeleteObservation}
+              onDrawRectangle={() => {
+                setIsDrawMode(true)
+                setShowBboxes(true)
+              }}
+              onAddWholeImage={() => {
+                // Wired in Task 11
+              }}
+            />
           </div>
 
-          {/* Footer - single row: filename on the left, species on the right */}
+          {/* Footer - filename only; observation editing lives in the rail */}
           <div className="px-4 py-2.5 bg-gray-50 flex-shrink-0 border-t border-gray-200 text-xs text-gray-600">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
               {media.fileName && (
                 <span className="font-mono text-[11px] text-gray-400 truncate min-w-0 flex-1">
                   {media.fileName}
                 </span>
               )}
-
-              {/* Species — editable for video / no-bbox cases, static summary for images with bboxes */}
-              <div className="flex-shrink-0 max-w-[60%] min-w-0 ml-auto">
-                {isVideoMedia(media) ? (
-                  <button
-                    ref={videoSpeciesLabelRef}
-                    onClick={() => {
-                      if (bboxes.length > 0) {
-                        setSelectedBboxId(bboxes[0].observationID)
-                        setShowObservationEditor(true)
-                      } else {
-                        handleImageWithoutBboxClick()
-                      }
-                    }}
-                    className="font-medium text-gray-900 text-left hover:text-blue-600 cursor-pointer flex items-center gap-1.5 group truncate"
-                    title="Click to edit species"
-                  >
-                    <span className="truncate">
-                      <SpeciesLabel
-                        names={bboxes[0]?.scientificName ? [bboxes[0].scientificName] : []}
-                      />
-                    </span>
-                    <Pencil
-                      size={11}
-                      className="text-gray-400 group-hover:text-blue-600 transition-colors flex-shrink-0 opacity-0 group-hover:opacity-100"
-                    />
-                  </button>
-                ) : !hasBboxes ? (
-                  <button
-                    ref={imageSpeciesLabelRef}
-                    onClick={handleImageWithoutBboxClick}
-                    className="font-medium text-gray-900 text-left hover:text-blue-600 cursor-pointer flex items-center gap-1.5 group truncate"
-                    title="Click to edit species"
-                  >
-                    <span className="truncate">
-                      <SpeciesLabel names={media.scientificName ? [media.scientificName] : []} />
-                    </span>
-                    <Pencil
-                      size={11}
-                      className="text-gray-400 group-hover:text-blue-600 transition-colors flex-shrink-0 opacity-0 group-hover:opacity-100"
-                    />
-                  </button>
-                ) : (
-                  <span className="font-medium text-gray-900 truncate block">
-                    <SpeciesCountLabel
-                      entries={getSpeciesCountsFromBboxes(bboxes, media.scientificName)}
-                    />
-                  </span>
-                )}
-              </div>
             </div>
 
             {updateMutation.isPending && (
@@ -2488,39 +1492,6 @@ function ImageModal({
             )}
           </div>
         </div>
-
-        {/* Observation editor - positioned near the BboxLabel, only shown when clicking label */}
-        {selectedBbox && showObservationEditor && selectorPosition && (
-          <div
-            className="fixed inset-0 z-[60]"
-            onClick={() => {
-              setShowObservationEditor(false)
-              setSelectedBboxId(null)
-            }}
-          >
-            <div
-              className="fixed"
-              style={{
-                left: `${selectorPosition.x}px`,
-                top: `${selectorPosition.y}px`,
-                transform: selectorPosition.transform
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <ObservationEditor
-                bbox={selectedBbox}
-                studyId={studyId}
-                initialTab={editorInitialTab}
-                maxHeight={selectorPosition.maxHeight}
-                onClose={() => {
-                  setShowObservationEditor(false)
-                  setSelectedBboxId(null)
-                }}
-                onUpdate={handleUpdateObservation}
-              />
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )

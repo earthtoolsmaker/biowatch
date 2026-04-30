@@ -1,5 +1,5 @@
 import { forwardRef } from 'react'
-import { computeBboxLabelPosition } from '../utils/bboxCoordinates'
+import { computeBboxLabelPosition } from '../utils/positioning'
 
 /**
  * Species-only label pill anchored above a bbox on the image.
