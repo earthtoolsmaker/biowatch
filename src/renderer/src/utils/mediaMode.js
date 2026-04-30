@@ -17,10 +17,7 @@ export function getMediaMode(observations) {
 
   for (const obs of observations) {
     const isBbox =
-      obs.bboxX != null ||
-      obs.bboxY != null ||
-      obs.bboxWidth != null ||
-      obs.bboxHeight != null
+      obs.bboxX != null || obs.bboxY != null || obs.bboxWidth != null || obs.bboxHeight != null
     if (isBbox) hasBbox = true
     else hasWhole = true
   }
