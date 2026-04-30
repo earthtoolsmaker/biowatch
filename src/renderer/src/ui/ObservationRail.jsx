@@ -28,11 +28,14 @@ export default function ObservationRail({
 }) {
   const mode = getMediaMode(observations)
 
+  // Auto-select only for whole-image observations (single row, no other to choose).
+  // For bbox mode, leave selection empty so keyboard navigation (← / →) isn't
+  // hijacked by the species picker input.
   useEffect(() => {
-    if (!selectedObservationId && observations.length > 0) {
+    if (!selectedObservationId && mode === 'whole-image' && observations.length > 0) {
       onSelectObservation(observations[0].observationID)
     }
-  }, [selectedObservationId, observations, onSelectObservation])
+  }, [selectedObservationId, observations, mode, onSelectObservation])
 
   return (
     <aside
