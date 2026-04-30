@@ -116,7 +116,6 @@ export default function ObservationRow({
           }`}
         >
           {displayName}
-          {!isBbox && <span className="ml-1 text-xs text-gray-400 font-normal">· whole image</span>}
         </span>
 
         {confidence && <span className="text-xs text-gray-400 flex-shrink-0">{confidence}</span>}

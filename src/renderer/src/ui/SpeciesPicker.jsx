@@ -142,63 +142,65 @@ export default function SpeciesPicker({
         />
       </div>
 
-      <div className="max-h-52 overflow-y-auto border border-gray-200 rounded">
-        {results.map((species, index) => (
-          <button
-            key={species.scientificName}
-            type="button"
-            ref={(node) => {
-              rowRefs.current[index] = node
-            }}
-            onMouseEnter={() => setHighlightedIndex(index)}
-            onClick={() => onSelect(species.scientificName, species.commonName)}
-            className={`w-full px-3 py-1.5 text-left flex items-center justify-between ${
-              index === highlightedIndex ? 'bg-[#f8f9fb]' : ''
-            } ${species.scientificName === currentScientificName ? 'bg-gray-100' : ''}`}
-          >
-            <div className="min-w-0 truncate">
-              <span className="text-sm font-medium">
-                {species.commonName || species.scientificName}
-              </span>
-              {species.commonName && (
-                <span className="text-xs text-gray-500 ml-2 italic">
-                  ({species.scientificName})
+      {debouncedSearch.trim().length > 0 && (
+        <div className="max-h-52 overflow-y-auto border border-gray-200 rounded">
+          {results.map((species, index) => (
+            <button
+              key={species.scientificName}
+              type="button"
+              ref={(node) => {
+                rowRefs.current[index] = node
+              }}
+              onMouseEnter={() => setHighlightedIndex(index)}
+              onClick={() => onSelect(species.scientificName, species.commonName)}
+              className={`w-full px-3 py-1.5 text-left flex items-center justify-between ${
+                index === highlightedIndex ? 'bg-[#f8f9fb]' : ''
+              } ${species.scientificName === currentScientificName ? 'bg-gray-100' : ''}`}
+            >
+              <div className="min-w-0 truncate">
+                <span className="text-sm font-medium">
+                  {species.commonName || species.scientificName}
+                </span>
+                {species.commonName && (
+                  <span className="text-xs text-gray-500 ml-2 italic">
+                    ({species.scientificName})
+                  </span>
+                )}
+              </div>
+              {species.inStudy !== false && typeof species.observationCount === 'number' && (
+                <span className="flex items-center gap-1 text-xs text-gray-400 shrink-0 ml-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#030213]" aria-hidden="true" />
+                  {species.observationCount}
                 </span>
               )}
-            </div>
-            {species.inStudy !== false && typeof species.observationCount === 'number' && (
-              <span className="flex items-center gap-1 text-xs text-gray-400 shrink-0 ml-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#030213]" aria-hidden="true" />
-                {species.observationCount}
-              </span>
-            )}
-          </button>
-        ))}
+            </button>
+          ))}
 
-        {results.length === 0 &&
-          debouncedSearch.trim().length > 0 &&
-          debouncedSearch.trim().length < 3 && (
-            <div className="px-3 py-3 text-sm text-gray-500 text-center">
-              Type at least 3 characters to search the species dictionary.
+          {results.length === 0 &&
+            debouncedSearch.trim().length > 0 &&
+            debouncedSearch.trim().length < 3 && (
+              <div className="px-3 py-3 text-sm text-gray-500 text-center">
+                Type at least 3 characters to search the species dictionary.
+              </div>
+            )}
+
+          {results.length === 0 && customSpeciesQuery.length >= 3 && (
+            <div className="px-3 py-3 text-center space-y-2">
+              <p className="text-sm text-gray-500">No species found.</p>
+              <button
+                type="button"
+                onClick={() => onSelect(customSpeciesQuery, null)}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded bg-[#030213] text-white hover:bg-black max-w-full"
+              >
+                <Plus size={14} className="shrink-0" />
+                <span className="truncate">
+                  Add &ldquo;{customSpeciesQuery}&rdquo; as custom species
+                </span>
+              </button>
             </div>
           )}
-
-        {results.length === 0 && customSpeciesQuery.length >= 3 && (
-          <div className="px-3 py-3 text-center space-y-2">
-            <p className="text-sm text-gray-500">No species found.</p>
-            <button
-              type="button"
-              onClick={() => onSelect(customSpeciesQuery, null)}
-              className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded bg-[#030213] text-white hover:bg-black max-w-full"
-            >
-              <Plus size={14} className="shrink-0" />
-              <span className="truncate">
-                Add &ldquo;{customSpeciesQuery}&rdquo; as custom species
-              </span>
-            </button>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
