@@ -948,13 +948,7 @@ function ImageModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4"
-      onClick={() => {
-        if (selectedObservationId) {
-          setSelectedObservationId(null)
-        } else {
-          onClose()
-        }
-      }}
+      onClick={onClose}
     >
       <div className="relative max-w-7xl w-full h-full flex items-center justify-center">
         <div
