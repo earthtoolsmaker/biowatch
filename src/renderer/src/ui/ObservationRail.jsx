@@ -49,10 +49,8 @@ export default function ObservationRail({
             Keyboard shortcuts
           </div>
           <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs text-gray-600">
-            <kbd className="font-mono text-[11px] font-semibold text-[#030213]">Tab</kbd>
-            <span>Next bbox</span>
-            <kbd className="font-mono text-[11px] font-semibold text-[#030213]">Shift+Tab</kbd>
-            <span>Previous bbox</span>
+            <kbd className="font-mono text-[11px] font-semibold text-[#030213]">Tab / Shift+Tab</kbd>
+            <span>Next / previous bbox</span>
             <kbd className="font-mono text-[11px] font-semibold text-[#030213]">←/→</kbd>
             <span>Navigate images</span>
             <kbd className="font-mono text-[11px] font-semibold text-[#030213]">B</kbd>
