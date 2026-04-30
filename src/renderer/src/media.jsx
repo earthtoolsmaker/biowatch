@@ -933,54 +933,49 @@ function ImageModal({
       }}
     >
       <div className="relative max-w-7xl w-full h-full flex items-center justify-center">
-        {/* Navigation arrows - anchored to the wrapper, sit on the dark backdrop */}
-        {!isEditingTimestamp &&
-          !showDatePicker &&
-          !isDrawMode &&
-          (hasPreviousInSequence || hasPrevious) && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                if (hasPreviousInSequence) {
-                  onSequencePrevious()
-                } else {
-                  onPrevious()
-                }
-              }}
-              className="absolute left-4 top-1/2 -translate-y-1/2 z-20 p-3 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors"
-              aria-label="Previous image"
-            >
-              <ChevronLeft size={28} />
-            </button>
-          )}
-
-        {!isEditingTimestamp &&
-          !showDatePicker &&
-          !isDrawMode &&
-          (hasNextInSequence || hasNext) && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                if (hasNextInSequence) {
-                  onSequenceNext()
-                } else {
-                  onNext()
-                }
-              }}
-              className="absolute right-4 top-1/2 -translate-y-1/2 z-20 p-3 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors"
-              aria-label="Next image"
-            >
-              <ChevronRight size={28} />
-            </button>
-          )}
-
         <div
           className="bg-white rounded-lg overflow-hidden shadow-2xl max-h-[90vh] flex flex-col max-w-full"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Top toolbar - sequence + timestamp on the left, actions on the right */}
+          {/* Top toolbar - nav + sequence + timestamp on the left, actions on the right */}
           <div className="flex items-center justify-between gap-3 px-3 py-2 border-b border-gray-200 bg-white">
             <div className="flex items-center gap-2 min-w-0 flex-1 text-xs text-gray-500">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (hasPreviousInSequence) onSequencePrevious()
+                  else if (hasPrevious) onPrevious()
+                }}
+                disabled={
+                  isEditingTimestamp ||
+                  showDatePicker ||
+                  isDrawMode ||
+                  (!hasPreviousInSequence && !hasPrevious)
+                }
+                className="w-8 h-8 rounded-md flex items-center justify-center text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                aria-label="Previous image"
+                title="Previous (←)"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (hasNextInSequence) onSequenceNext()
+                  else if (hasNext) onNext()
+                }}
+                disabled={
+                  isEditingTimestamp ||
+                  showDatePicker ||
+                  isDrawMode ||
+                  (!hasNextInSequence && !hasNext)
+                }
+                className="w-8 h-8 rounded-md flex items-center justify-center text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                aria-label="Next image"
+                title="Next (→)"
+              >
+                <ChevronRight size={18} />
+              </button>
               {sequence && sequence.items.length > 1 && (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 font-medium text-[11px] flex-shrink-0">
                   <Layers size={11} />
