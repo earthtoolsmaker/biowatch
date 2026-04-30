@@ -48,10 +48,14 @@ export default function ObservationRail({
             <span>Previous bbox</span>
             <kbd className="font-mono text-[11px] font-semibold text-[#030213]">Left/Right</kbd>
             <span>Navigate images</span>
-            <kbd className="font-mono text-[11px] font-semibold text-[#030213]">Ctrl+Left/Right</kbd>
+            <kbd className="font-mono text-[11px] font-semibold text-[#030213]">
+              Ctrl+Left/Right
+            </kbd>
             <span>Navigate sequences</span>
             <kbd className="font-mono text-[11px] font-semibold text-[#030213]">B</kbd>
             <span>Toggle bboxes</span>
+            <kbd className="font-mono text-[11px] font-semibold text-[#030213]">?</kbd>
+            <span>Toggle this panel</span>
             <kbd className="font-mono text-[11px] font-semibold text-[#030213]">+/-</kbd>
             <span>Zoom in/out</span>
             <kbd className="font-mono text-[11px] font-semibold text-[#030213]">0</kbd>

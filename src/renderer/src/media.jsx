@@ -889,6 +889,8 @@ function ImageModal({
         }
       } else if (e.key === 'b' || e.key === 'B') {
         setShowBboxes((prev) => !prev)
+      } else if (e.key === '?') {
+        setShowShortcuts((prev) => !prev)
       } else if (e.key === '+' || e.key === '=') {
         // Zoom in
         e.preventDefault()
@@ -1153,11 +1155,7 @@ function ImageModal({
               className="flex-1 min-w-0 flex items-center justify-center bg-black overflow-hidden relative"
               onClick={(e) => {
                 // Deselect when clicking on the empty image area, not on a bbox/handle/button.
-                if (
-                  !isDrawMode &&
-                  e.target.tagName !== 'rect' &&
-                  !e.target.closest('button')
-                ) {
+                if (!isDrawMode && e.target.tagName !== 'rect' && !e.target.closest('button')) {
                   setSelectedObservationId(null)
                 }
               }}
