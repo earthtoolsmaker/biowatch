@@ -1137,7 +1137,7 @@ function ImageModal({
                 imageContainerRef.current = el
                 zoomContainerRef.current = el
               }}
-              className="flex-1 min-w-0 flex items-center justify-center bg-gray-100 overflow-hidden relative"
+              className="flex-1 min-w-0 flex items-center justify-center bg-black overflow-hidden relative"
               onWheel={!isVideoMedia(media) ? handleZoomWheel : undefined}
               onMouseDown={(e) => {
                 // Only start pan if zoomed, not in draw mode, not clicking on a bbox
