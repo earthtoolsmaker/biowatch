@@ -800,6 +800,30 @@ function ImageModal({
         return
       }
 
+      // Cycle bboxes with Tab/Shift+Tab — works regardless of focus, so a focused
+      // species-picker input still hands Tab to the modal instead of walking
+      // through the row's other buttons.
+      if (e.key === 'Tab') {
+        const visibleBboxes = bboxes.filter((b) => b.bboxX !== null && b.bboxX !== undefined)
+        if (visibleBboxes.length > 0) {
+          e.preventDefault()
+
+          const currentIndex = visibleBboxes.findIndex(
+            (b) => b.observationID === selectedObservationId
+          )
+
+          let nextIndex
+          if (e.shiftKey) {
+            nextIndex = currentIndex <= 0 ? visibleBboxes.length - 1 : currentIndex - 1
+          } else {
+            nextIndex = currentIndex >= visibleBboxes.length - 1 ? 0 : currentIndex + 1
+          }
+
+          setSelectedObservationId(visibleBboxes[nextIndex].observationID)
+        }
+        return
+      }
+
       // When focus is in an input/textarea (species search, timestamp, etc.),
       // let the element handle keys natively — don't run modal-level shortcuts.
       const activeTag = document.activeElement?.tagName
@@ -815,30 +839,6 @@ function ImageModal({
       if (selectedObservationId && (e.key === 'Delete' || e.key === 'Backspace')) {
         e.preventDefault()
         handleDeleteObservation(selectedObservationId)
-        return
-      }
-
-      // Cycle through bboxes with Tab/Shift+Tab
-      if (e.key === 'Tab') {
-        const visibleBboxes = bboxes.filter((b) => b.bboxX !== null && b.bboxX !== undefined)
-        if (visibleBboxes.length > 0) {
-          e.preventDefault() // Prevent default browser tab behavior
-
-          const currentIndex = visibleBboxes.findIndex(
-            (b) => b.observationID === selectedObservationId
-          )
-
-          let nextIndex
-          if (e.shiftKey) {
-            // Shift+Tab: go to previous bbox
-            nextIndex = currentIndex <= 0 ? visibleBboxes.length - 1 : currentIndex - 1
-          } else {
-            // Tab: go to next bbox
-            nextIndex = currentIndex >= visibleBboxes.length - 1 ? 0 : currentIndex + 1
-          }
-
-          setSelectedObservationId(visibleBboxes[nextIndex].observationID)
-        }
         return
       }
 
