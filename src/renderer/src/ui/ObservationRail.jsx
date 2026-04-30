@@ -55,6 +55,8 @@ export default function ObservationRail({
             <span>Previous bbox</span>
             <kbd className="font-mono text-[11px] font-semibold text-[#030213]">←/→</kbd>
             <span>Navigate images</span>
+            <kbd className="font-mono text-[11px] font-semibold text-[#030213]">Ctrl+←/→</kbd>
+            <span>Navigate sequences</span>
             <kbd className="font-mono text-[11px] font-semibold text-[#030213]">B</kbd>
             <span>Toggle bboxes</span>
             <kbd className="font-mono text-[11px] font-semibold text-[#030213]">+/-</kbd>

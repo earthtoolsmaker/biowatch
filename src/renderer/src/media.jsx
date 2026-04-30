@@ -862,16 +862,20 @@ function ImageModal({
 
       if (e.key === 'ArrowLeft') {
         setIsDrawMode(false)
-        // Navigate within sequence first, then globally
-        if (hasPreviousInSequence) {
+        // Ctrl+← jumps to the previous sequence directly, skipping within-sequence steps.
+        if ((e.ctrlKey || e.metaKey) && hasPrevious) {
+          onPrevious()
+        } else if (hasPreviousInSequence) {
           onSequencePrevious()
         } else if (hasPrevious) {
           onPrevious()
         }
       } else if (e.key === 'ArrowRight') {
         setIsDrawMode(false)
-        // Navigate within sequence first, then globally
-        if (hasNextInSequence) {
+        // Ctrl+→ jumps to the next sequence directly, skipping within-sequence steps.
+        if ((e.ctrlKey || e.metaKey) && hasNext) {
+          onNext()
+        } else if (hasNextInSequence) {
           onSequenceNext()
         } else if (hasNext) {
           onNext()
