@@ -143,7 +143,6 @@ export default function ObservationRow({
           <SpeciesPicker
             studyId={studyId}
             currentScientificName={observation.scientificName}
-            currentCommonName={observation.commonName}
             onSelect={handleSpeciesSelect}
             onMarkBlank={handleMarkBlank}
             autoFocus

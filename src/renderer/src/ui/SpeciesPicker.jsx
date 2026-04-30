@@ -19,7 +19,6 @@ import { searchSpecies } from '../utils/dictionarySearch'
 export default function SpeciesPicker({
   studyId,
   currentScientificName,
-  currentCommonName,
   onSelect,
   onMarkBlank,
   autoFocus = true
@@ -71,35 +70,6 @@ export default function SpeciesPicker({
 
   return (
     <div className="flex flex-col">
-      {currentScientificName && (
-        <div className="flex items-center gap-2 mb-2">
-          <div
-            className="flex-1 min-w-0 inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-50 text-[#030213] text-sm border border-gray-200"
-            title={
-              currentCommonName
-                ? `${currentCommonName} (${currentScientificName})`
-                : currentScientificName
-            }
-          >
-            <span className="truncate">
-              <span className="font-medium">{currentCommonName || currentScientificName}</span>
-              {currentCommonName && (
-                <span className="ml-1 italic text-gray-500">({currentScientificName})</span>
-              )}
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={onMarkBlank}
-            aria-label="Mark as blank (no species)"
-            title="Mark as blank (no species)"
-            className="shrink-0 p-1 rounded text-gray-500 hover:bg-gray-100"
-          >
-            <X size={14} />
-          </button>
-        </div>
-      )}
-
       <div className="relative mb-2">
         <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
         <input
@@ -141,6 +111,18 @@ export default function SpeciesPicker({
           className="w-full pl-7 pr-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-transparent"
         />
       </div>
+
+      {currentScientificName && (
+        <button
+          type="button"
+          onClick={onMarkBlank}
+          className="self-start mb-2 inline-flex items-center gap-1 text-xs text-gray-500 hover:text-[#030213] hover:bg-gray-100 px-2 py-1 rounded transition-colors"
+          title="Clear species classification"
+        >
+          <X size={12} />
+          Mark as blank
+        </button>
+      )}
 
       {debouncedSearch.trim().length > 0 && (
         <div className="max-h-52 overflow-y-auto border border-gray-200 rounded">
