@@ -131,4 +131,8 @@ describe('getSpeciesCountsFromSequence', () => {
   test('returns [] when nothing found', () => {
     assert.deepEqual(getSpeciesCountsFromSequence([{ mediaID: '1' }], {}), [])
   })
+
+  test('returns [] for an empty items array', () => {
+    assert.deepEqual(getSpeciesCountsFromSequence([], {}), [])
+  })
 })
