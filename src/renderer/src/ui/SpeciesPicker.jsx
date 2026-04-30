@@ -82,6 +82,17 @@ export default function SpeciesPicker({
               e.stopPropagation()
               return
             }
+            if (e.key === 'Escape') {
+              e.stopPropagation()
+              if (searchTerm.length > 0) {
+                // First Esc: clear the search query (collapses the dropdown).
+                setSearchTerm('')
+              } else {
+                // Second Esc (empty search): blur so the modal handler can act.
+                e.currentTarget.blur()
+              }
+              return
+            }
             if (e.key === 'ArrowDown') {
               e.preventDefault()
               if (results.length === 0) return
