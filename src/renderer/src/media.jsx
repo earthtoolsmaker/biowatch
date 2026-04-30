@@ -800,20 +800,22 @@ function ImageModal({
         return
       }
 
-      // Handle keys when a bbox is selected
-      if (selectedObservationId) {
-        if (e.key === 'Escape') {
-          setSelectedObservationId(null)
-          return
-        } else if (e.key === 'Delete' || e.key === 'Backspace') {
-          e.preventDefault()
-          handleDeleteObservation(selectedObservationId)
-          return
-        }
-        // Allow Tab to fall through to bbox cycling below
-        if (e.key !== 'Tab') {
-          return
-        }
+      // When focus is in an input/textarea (species search, timestamp, etc.),
+      // let the element handle keys natively — don't run modal-level shortcuts.
+      const activeTag = document.activeElement?.tagName
+      if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return
+
+      // Escape closes the modal
+      if (e.key === 'Escape') {
+        onClose()
+        return
+      }
+
+      // Delete/Backspace removes the selected observation
+      if (selectedObservationId && (e.key === 'Delete' || e.key === 'Backspace')) {
+        e.preventDefault()
+        handleDeleteObservation(selectedObservationId)
+        return
       }
 
       // Cycle through bboxes with Tab/Shift+Tab
@@ -935,7 +937,6 @@ function ImageModal({
         {!isEditingTimestamp &&
           !showDatePicker &&
           !isDrawMode &&
-          !selectedObservationId &&
           (hasPreviousInSequence || hasPrevious) && (
             <button
               onClick={(e) => {
@@ -956,7 +957,6 @@ function ImageModal({
         {!isEditingTimestamp &&
           !showDatePicker &&
           !isDrawMode &&
-          !selectedObservationId &&
           (hasNextInSequence || hasNext) && (
             <button
               onClick={(e) => {
