@@ -53,3 +53,29 @@ export function getSpeciesListFromSequence(items, bboxesByMedia) {
 
   return [...new Set(items.map((i) => i.scientificName).filter(Boolean))]
 }
+
+/**
+ * Like getSpeciesListFromSequence but preserves per-species occurrence counts
+ * across the whole sequence. Used by the media-tab grid cell to feed
+ * SpeciesCountLabel for cards backed by a sequence of media items.
+ *
+ * @param {Array<{mediaID: string, scientificName?: string}>} items
+ * @param {Object<string, Array<{scientificName?: string}>>} bboxesByMedia
+ * @returns {Array<{scientificName: string, count: number}>}
+ */
+export function getSpeciesCountsFromSequence(items, bboxesByMedia) {
+  const counts = new Map()
+  for (const item of items) {
+    const itemBboxes = bboxesByMedia[item.mediaID] || []
+    for (const b of itemBboxes) {
+      const name = b.scientificName
+      if (!name) continue
+      counts.set(name, (counts.get(name) || 0) + 1)
+    }
+  }
+  if (counts.size > 0) {
+    return Array.from(counts, ([scientificName, count]) => ({ scientificName, count }))
+  }
+  const fallback = [...new Set(items.map((i) => i.scientificName).filter(Boolean))]
+  return fallback.map((scientificName) => ({ scientificName, count: 1 }))
+}

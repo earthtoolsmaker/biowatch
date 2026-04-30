@@ -2,7 +2,8 @@ import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   getSpeciesListFromBboxes,
-  getSpeciesListFromSequence
+  getSpeciesListFromSequence,
+  getSpeciesCountsFromSequence
 } from '../../src/renderer/src/utils/speciesFromBboxes.js'
 
 describe('getSpeciesListFromBboxes', () => {
@@ -75,5 +76,45 @@ describe('getSpeciesListFromSequence', () => {
   test('returns [] when nothing found', () => {
     const items = [{ mediaID: '1' }, { mediaID: '2' }]
     assert.deepEqual(getSpeciesListFromSequence(items, {}), [])
+  })
+})
+
+describe('getSpeciesCountsFromSequence', () => {
+  test('aggregates per-species counts across sequence items', () => {
+    const items = [{ mediaID: '1' }, { mediaID: '2' }, { mediaID: '3' }]
+    const bboxesByMedia = {
+      1: [{ scientificName: 'Panthera leo' }],
+      2: [{ scientificName: 'Panthera leo' }, { scientificName: 'Loxodonta africana' }],
+      3: [{ scientificName: 'Loxodonta africana' }]
+    }
+    assert.deepEqual(getSpeciesCountsFromSequence(items, bboxesByMedia), [
+      { scientificName: 'Panthera leo', count: 2 },
+      { scientificName: 'Loxodonta africana', count: 2 }
+    ])
+  })
+
+  test('falls back to deduped item scientificNames with count = 1', () => {
+    const items = [
+      { mediaID: '1', scientificName: 'Panthera leo' },
+      { mediaID: '2', scientificName: 'Panthera leo' }
+    ]
+    assert.deepEqual(getSpeciesCountsFromSequence(items, {}), [
+      { scientificName: 'Panthera leo', count: 1 }
+    ])
+  })
+
+  test('filters null/undefined item scientificNames in fallback', () => {
+    const items = [
+      { mediaID: '1', scientificName: null },
+      { mediaID: '2', scientificName: 'Panthera leo' },
+      { mediaID: '3', scientificName: undefined }
+    ]
+    assert.deepEqual(getSpeciesCountsFromSequence(items, {}), [
+      { scientificName: 'Panthera leo', count: 1 }
+    ])
+  })
+
+  test('returns [] when nothing found', () => {
+    assert.deepEqual(getSpeciesCountsFromSequence([{ mediaID: '1' }], {}), [])
   })
 })
