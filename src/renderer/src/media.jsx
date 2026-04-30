@@ -785,6 +785,23 @@ function ImageModal({
     [media, getDefaultSpecies, createMutation]
   )
 
+  // Handle "Add observation → Whole image" from the rail. Creates an observation
+  // with no bbox geometry; createMutation.onSuccess auto-selects it.
+  const handleAddWholeImage = useCallback(() => {
+    if (!media) return
+    createMutation.mutate({
+      mediaID: media.mediaID,
+      deploymentID: media.deploymentID,
+      timestamp: media.timestamp,
+      scientificName: null,
+      commonName: null,
+      bboxX: null,
+      bboxY: null,
+      bboxWidth: null,
+      bboxHeight: null
+    })
+  }, [media, createMutation])
+
   useEffect(() => {
     if (!isOpen) return
 
@@ -1449,9 +1466,7 @@ function ImageModal({
                 setIsDrawMode(true)
                 setShowBboxes(true)
               }}
-              onAddWholeImage={() => {
-                // Wired in Task 11
-              }}
+              onAddWholeImage={handleAddWholeImage}
             />
           </div>
 
