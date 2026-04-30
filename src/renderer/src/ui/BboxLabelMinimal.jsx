@@ -27,7 +27,7 @@ const BboxLabelMinimal = forwardRef(function BboxLabelMinimal(
         e.stopPropagation()
         onClick()
       }}
-      className={`absolute pointer-events-auto px-2 py-0.5 rounded text-white text-xs font-medium whitespace-nowrap max-w-full truncate shadow-sm ${bg} ${
+      className={`absolute pointer-events-auto h-5 px-2 text-white text-xs font-medium whitespace-nowrap max-w-full truncate flex items-center transition-colors hover:brightness-110 ${bg} ${
         isSelected ? 'ring-2 ring-white/60' : ''
       }`}
       style={{

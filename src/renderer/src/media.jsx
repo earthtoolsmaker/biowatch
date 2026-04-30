@@ -1092,28 +1092,6 @@ function ImageModal({
                 </button>
               )}
 
-              {!isVideoMedia(media) && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setIsDrawMode(true)
-                    setSelectedObservationId(null)
-                    setShowBboxes(true)
-                  }}
-                  className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
-                    isDrawMode
-                      ? 'text-white bg-blue-700 hover:bg-blue-800'
-                      : !hasBboxes
-                        ? 'text-white bg-blue-600 hover:bg-blue-700'
-                        : 'text-gray-500 hover:bg-gray-100'
-                  }`}
-                  aria-label="Add new bounding box"
-                  title="Add new detection (click and drag on image)"
-                >
-                  <SquarePlus size={18} />
-                </button>
-              )}
-
               <div className="w-px h-5 bg-gray-200 mx-1" />
 
               <button
