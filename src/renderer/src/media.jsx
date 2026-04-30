@@ -227,6 +227,7 @@ function ImageModal({
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState(null)
   const [selectedObservationId, setSelectedObservationId] = useState(null)
+  const [showShortcuts, setShowShortcuts] = useState(false)
   // Draw mode state for creating new bboxes
   const [isDrawMode, setIsDrawMode] = useState(false)
   const [videoError, setVideoError] = useState(false)
@@ -1109,47 +1110,23 @@ function ImageModal({
                 </button>
               )}
 
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <button
-                    type="button"
-                    onClick={(e) => e.stopPropagation()}
-                    className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors"
-                    aria-label="Keyboard shortcuts"
-                  >
-                    <Info size={18} />
-                  </button>
-                </Tooltip.Trigger>
-                <Tooltip.Portal>
-                  <Tooltip.Content
-                    side="bottom"
-                    align="end"
-                    sideOffset={6}
-                    className="z-[10000] max-w-xs px-3 py-2 bg-gray-900 text-white text-xs rounded-md shadow-lg"
-                  >
-                    <div className="font-medium mb-1">Keyboard shortcuts</div>
-                    <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
-                      <kbd className="text-blue-300">Tab</kbd>
-                      <span>Next bbox</span>
-                      <kbd className="text-blue-300">Shift+Tab</kbd>
-                      <span>Previous bbox</span>
-                      <kbd className="text-blue-300">←/→</kbd>
-                      <span>Navigate images</span>
-                      <kbd className="text-blue-300">B</kbd>
-                      <span>Toggle bboxes</span>
-                      <kbd className="text-blue-300">+/-</kbd>
-                      <span>Zoom in/out</span>
-                      <kbd className="text-blue-300">0</kbd>
-                      <span>Reset zoom</span>
-                      <kbd className="text-blue-300">Del</kbd>
-                      <span>Delete observation</span>
-                      <kbd className="text-blue-300">Esc</kbd>
-                      <span>Close modal</span>
-                    </div>
-                    <Tooltip.Arrow className="fill-gray-900" />
-                  </Tooltip.Content>
-                </Tooltip.Portal>
-              </Tooltip.Root>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowShortcuts((v) => !v)
+                }}
+                className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
+                  showShortcuts
+                    ? 'text-blue-600 bg-blue-50 hover:bg-blue-100'
+                    : 'text-gray-500 hover:bg-gray-100'
+                }`}
+                aria-label="Toggle keyboard shortcuts"
+                aria-pressed={showShortcuts}
+                title="Keyboard shortcuts"
+              >
+                <Info size={18} />
+              </button>
 
               <div className="w-px h-5 bg-gray-200 mx-1" />
 
@@ -1468,6 +1445,7 @@ function ImageModal({
                 setShowBboxes(true)
               }}
               onAddWholeImage={handleAddWholeImage}
+              showShortcuts={showShortcuts}
             />
           </div>
 

@@ -24,7 +24,8 @@ export default function ObservationRail({
   onUpdateClassification,
   onDeleteObservation,
   onDrawRectangle,
-  onAddWholeImage
+  onAddWholeImage,
+  showShortcuts = false
 }) {
   const mode = getMediaMode(observations)
 
@@ -46,6 +47,48 @@ export default function ObservationRail({
         <span className="text-sm font-semibold text-[#030213]">Observations</span>
         <span className="text-xs text-gray-500 font-medium">{observations.length}</span>
       </header>
+
+      {showShortcuts && (
+        <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 flex-shrink-0">
+          <div className="text-[10px] uppercase tracking-wider text-gray-500 font-medium mb-2">
+            Keyboard shortcuts
+          </div>
+          <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs text-gray-700">
+            <kbd className="font-mono text-[11px] text-[#030213] bg-white border border-gray-200 rounded px-1.5">
+              Tab
+            </kbd>
+            <span>Next bbox</span>
+            <kbd className="font-mono text-[11px] text-[#030213] bg-white border border-gray-200 rounded px-1.5">
+              Shift+Tab
+            </kbd>
+            <span>Previous bbox</span>
+            <kbd className="font-mono text-[11px] text-[#030213] bg-white border border-gray-200 rounded px-1.5">
+              ←/→
+            </kbd>
+            <span>Navigate images</span>
+            <kbd className="font-mono text-[11px] text-[#030213] bg-white border border-gray-200 rounded px-1.5">
+              B
+            </kbd>
+            <span>Toggle bboxes</span>
+            <kbd className="font-mono text-[11px] text-[#030213] bg-white border border-gray-200 rounded px-1.5">
+              +/-
+            </kbd>
+            <span>Zoom in/out</span>
+            <kbd className="font-mono text-[11px] text-[#030213] bg-white border border-gray-200 rounded px-1.5">
+              0
+            </kbd>
+            <span>Reset zoom</span>
+            <kbd className="font-mono text-[11px] text-[#030213] bg-white border border-gray-200 rounded px-1.5">
+              Del
+            </kbd>
+            <span>Delete observation</span>
+            <kbd className="font-mono text-[11px] text-[#030213] bg-white border border-gray-200 rounded px-1.5">
+              Esc
+            </kbd>
+            <span>Close modal</span>
+          </div>
+        </div>
+      )}
 
       {mode === 'empty' ? (
         <div className="flex-1 flex flex-col items-center justify-center px-8 pt-16 pb-12 text-center gap-5">
