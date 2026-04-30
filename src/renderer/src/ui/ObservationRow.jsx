@@ -79,14 +79,6 @@ export default function ObservationRow({
     })
   }
 
-  const handleMarkBlank = () => {
-    onUpdateClassification({
-      scientificName: null,
-      commonName: null,
-      observationType: 'blank'
-    })
-  }
-
   return (
     <div
       ref={rowRef}
@@ -145,8 +137,6 @@ export default function ObservationRow({
             studyId={studyId}
             currentScientificName={observation.scientificName}
             onSelect={handleSpeciesSelect}
-            onMarkBlank={handleMarkBlank}
-            allowMarkBlank={!isBbox}
             autoFocus={autoFocusPicker}
           />
 

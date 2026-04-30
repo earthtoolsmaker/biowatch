@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Search, X, Plus } from 'lucide-react'
+import { Search, Plus } from 'lucide-react'
 import { searchSpecies } from '../utils/dictionarySearch'
 
 /**
  * Species picker for one observation.
  *
  * Behavior:
- *  - Shows the current classification chip with a "mark blank" `×`.
  *  - Search input with 150ms debounce, fuzzy-matched against study species
  *    and the bundled dictionary (3+ chars).
  *  - Keyboard navigation: ↑/↓ moves highlight, Enter commits.
@@ -20,8 +19,6 @@ export default function SpeciesPicker({
   studyId,
   currentScientificName,
   onSelect,
-  onMarkBlank,
-  allowMarkBlank = true,
   autoFocus = true
 }) {
   const [searchTerm, setSearchTerm] = useState('')
@@ -194,17 +191,6 @@ export default function SpeciesPicker({
         )}
       </div>
 
-      {allowMarkBlank && currentScientificName && (
-        <button
-          type="button"
-          onClick={onMarkBlank}
-          className="self-start mt-2 inline-flex items-center gap-1 text-xs text-gray-500 hover:text-[#030213] hover:bg-gray-100 px-2 py-1 rounded transition-colors"
-          title="Clear species classification"
-        >
-          <X size={12} />
-          Mark as blank
-        </button>
-      )}
     </div>
   )
 }
