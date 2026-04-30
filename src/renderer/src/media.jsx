@@ -1072,7 +1072,7 @@ function ImageModal({
                 <Heart size={18} fill={isFavorite ? 'currentColor' : 'none'} />
               </button>
 
-              {(hasBboxes || !isVideoMedia(media)) && <div className="w-px h-5 bg-gray-200 mx-1" />}
+              {hasBboxes && <div className="w-px h-5 bg-gray-200 mx-1" />}
 
               {hasBboxes && (
                 <button
