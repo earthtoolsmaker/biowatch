@@ -51,4 +51,3 @@ export function computeBboxLabelPosition(bbox) {
 
   return { left, top, transform }
 }
-
