@@ -1,13 +1,15 @@
 import {
   CameraOff,
   X,
-  Square,
   Calendar,
   Pencil,
   Check,
   Search,
   Trash2,
   Plus,
+  Eye,
+  EyeOff,
+  SquarePlus,
   Layers,
   Play,
   Loader2,
@@ -47,132 +49,15 @@ import { useImagePrefetch } from './hooks/useImagePrefetch'
 import { getTopNonHumanSpecies } from './utils/speciesUtils'
 import { useSequenceGap } from './hooks/useSequenceGap'
 import { SequenceGapSlider } from './ui/SequenceGapSlider'
-import { getSpeciesListFromBboxes, getSpeciesListFromSequence } from './utils/speciesFromBboxes'
+import {
+  getSpeciesCountsFromBboxes,
+  getSpeciesListFromBboxes,
+  getSpeciesListFromSequence
+} from './utils/speciesFromBboxes'
 import { searchSpecies } from './utils/dictionarySearch'
-import SpeciesLabel from './ui/SpeciesLabel'
+import SpeciesLabel, { SpeciesCountLabel } from './ui/SpeciesLabel'
 import { useImportStatus } from './hooks/import'
 import { behaviorCategories } from '../../shared/constants.js'
-
-/**
- * Observation list panel - collapsible list of all detections
- * Fixed-height header ensures stable image positioning during navigation
- */
-function ObservationListPanel({ bboxes, selectedId, onSelect, onEdit, onDelete }) {
-  const [isExpanded, setIsExpanded] = useState(false)
-  const hasObservations = bboxes && bboxes.length > 0
-
-  return (
-    <div className="border-t border-gray-200 bg-gray-50 flex-shrink-0">
-      {/* Header - always visible, fixed height */}
-      <button
-        onClick={() => hasObservations && setIsExpanded(!isExpanded)}
-        className={`w-full px-4 py-2 text-xs font-medium text-gray-500 flex items-center justify-between ${
-          hasObservations ? 'hover:bg-gray-100 cursor-pointer' : 'cursor-default'
-        }`}
-        disabled={!hasObservations}
-      >
-        <span>
-          {hasObservations
-            ? `${bboxes.length} detection${bboxes.length !== 1 ? 's' : ''}`
-            : 'No detections'}
-        </span>
-        {hasObservations && (
-          <span className="flex items-center gap-1 text-gray-400">
-            <span>{isExpanded ? 'Hide' : 'Show'}</span>
-            {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-          </span>
-        )}
-      </button>
-
-      {/* Content - expandable */}
-      {hasObservations && isExpanded && (
-        <div className="max-h-32 overflow-y-auto border-t border-gray-200">
-          {bboxes.map((bbox) => (
-            <div
-              key={bbox.observationID}
-              className={`w-full px-4 py-2 flex items-center justify-between hover:bg-gray-100 transition-colors ${
-                selectedId === bbox.observationID ? 'bg-lime-100' : ''
-              }`}
-            >
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onSelect(bbox.observationID === selectedId ? null : bbox.observationID)
-                }}
-                className="flex items-center gap-2 flex-1 text-left"
-              >
-                <span
-                  className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                    bbox.classificationMethod === 'human' ? 'bg-green-500' : 'bg-lime-500'
-                  }`}
-                />
-                <span className="text-sm font-medium truncate max-w-[200px]">
-                  {bbox.commonName || bbox.scientificName || 'Blank'}
-                </span>
-                {bbox.sex && bbox.sex !== 'unknown' && (
-                  <span
-                    className={`text-base font-bold ${bbox.sex === 'female' ? 'text-pink-500' : 'text-blue-500'}`}
-                  >
-                    {bbox.sex === 'female' ? '♀' : '♂'}
-                  </span>
-                )}
-                {bbox.lifeStage && (
-                  <span
-                    className={`rounded-full ${
-                      bbox.lifeStage === 'adult'
-                        ? 'w-2.5 h-2.5 bg-violet-500'
-                        : bbox.lifeStage === 'subadult'
-                          ? 'w-2 h-2 bg-teal-500'
-                          : 'w-1.5 h-1.5 bg-amber-500'
-                    }`}
-                    title={bbox.lifeStage}
-                  />
-                )}
-                {bbox.behavior &&
-                  bbox.behavior.length > 0 &&
-                  bbox.behavior.map((b) => (
-                    <span key={b} className="text-xs text-emerald-600 bg-emerald-50 px-1 rounded">
-                      {b}
-                    </span>
-                  ))}
-                {bbox.classificationMethod === 'human' && (
-                  <span className="text-xs text-green-600">✓</span>
-                )}
-              </button>
-              <div className="flex items-center gap-2">
-                {bbox.classificationProbability && (
-                  <span className="text-xs text-gray-400">
-                    {Math.round(bbox.classificationProbability * 100)}%
-                  </span>
-                )}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onEdit(bbox.observationID)
-                  }}
-                  className="p-1 rounded hover:bg-lime-100 text-gray-400 hover:text-lime-600 transition-colors"
-                  title="Edit observation"
-                >
-                  <Pencil size={14} />
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onDelete(bbox.observationID)
-                  }}
-                  className="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-500 transition-colors"
-                  title="Delete observation"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
 
 /**
  * Sex icon components
@@ -926,16 +811,15 @@ const BboxLabel = forwardRef(function BboxLabel(
         }}
         className={`h-5 px-2 text-xs font-medium transition-all cursor-pointer hover:brightness-110 flex items-center ${
           isSelected
-            ? 'bg-lime-500 text-white ring-2 ring-lime-300'
+            ? 'bg-blue-700 text-white ring-2 ring-blue-300'
             : isHuman
-              ? 'bg-green-500 text-white'
-              : 'bg-lime-500/90 text-white'
+              ? 'bg-blue-600 text-white'
+              : 'bg-blue-400 text-white'
         }`}
-        title={`${displayName}${sexSymbol ? ` ${sexSymbol}` : ''}${confidence ? ` (${confidence})` : ''} - Click to edit`}
+        title={`${displayName}${sexSymbol ? ` ${sexSymbol}` : ''}${confidence && !isHuman ? ` (${confidence})` : ''} - Click to edit`}
       >
         {displayName}
         {confidence && !isHuman && <span className="ml-1 opacity-75">{confidence}</span>}
-        {isHuman && <span className="ml-1">✓</span>}
       </button>
       {sexSymbol && (
         <button
@@ -1969,11 +1853,6 @@ function ImageModal({
   const bboxesWithCoords = bboxes.filter((b) => b.bboxX !== null && b.bboxX !== undefined)
   const hasBboxes = bboxesWithCoords.length > 0 || videoFrameDetections.length > 0
 
-  // Get the observation for images without bboxes (for class editing)
-  const observationWithoutBbox = !hasBboxes
-    ? bboxes.find((b) => b.bboxX === null || b.bboxX === undefined)
-    : null
-
   // Get selectedBbox - for 'new-observation' create a synthetic object
   const selectedBbox =
     selectedBboxId === 'new-observation'
@@ -1992,78 +1871,7 @@ function ImageModal({
       }}
     >
       <div className="relative max-w-7xl w-full h-full flex items-center justify-center">
-        {/* Sequence indicator */}
-        {sequence && sequence.items.length > 1 && (
-          <div className="absolute top-0 left-0 z-10 bg-black/70 text-white px-3 py-2 rounded-full text-sm font-medium flex items-center gap-2">
-            <Layers size={16} />
-            <span>
-              {sequenceIndex + 1} / {sequence.items.length}
-            </span>
-          </div>
-        )}
-
-        {/* Close button */}
-        <button
-          onClick={onClose}
-          className="absolute top-0 right-0 z-10 bg-white rounded-full p-2 hover:bg-gray-100 transition-colors"
-          aria-label="Close modal"
-        >
-          <X size={24} />
-        </button>
-
-        {/* Favorite button */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            favoriteMutation.mutate({ mediaID: media.mediaID, favorite: !isFavorite })
-          }}
-          className={`absolute top-0 right-12 z-10 rounded-full p-2 transition-colors ${
-            isFavorite ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-white hover:bg-gray-100'
-          }`}
-          aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-          title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-        >
-          <Heart size={24} fill={isFavorite ? 'currentColor' : 'none'} />
-        </button>
-
-        {/* Bbox toggle button */}
-        {hasBboxes && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              setShowBboxes((prev) => !prev)
-            }}
-            className={`absolute top-0 right-24 z-10 rounded-full p-2 transition-colors ${showBboxes ? 'bg-lime-500 text-white hover:bg-lime-600' : 'bg-white hover:bg-gray-100'}`}
-            aria-label={showBboxes ? 'Hide bounding boxes' : 'Show bounding boxes'}
-            title={`${showBboxes ? 'Hide' : 'Show'} bounding boxes (B)`}
-          >
-            <Square size={24} />
-          </button>
-        )}
-
-        {/* Add bbox button - only for images (not videos) */}
-        {!isVideoMedia(media) && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              setIsDrawMode(true)
-              setSelectedBboxId(null)
-              setShowObservationEditor(false)
-              setShowBboxes(true) // Ensure bboxes are visible when adding
-            }}
-            className={`absolute top-0 z-10 rounded-full p-2 transition-colors ${
-              hasBboxes ? 'right-36' : 'right-24'
-            } ${
-              isDrawMode ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-white hover:bg-gray-100'
-            }`}
-            aria-label="Add new bounding box"
-            title="Add new detection (click and drag on image)"
-          >
-            <Plus size={24} />
-          </button>
-        )}
-
-        {/* Navigation arrows */}
+        {/* Navigation arrows - anchored to the wrapper, sit on the dark backdrop */}
         {!isEditingTimestamp &&
           !showDatePicker &&
           !isDrawMode &&
@@ -2110,6 +1918,160 @@ function ImageModal({
           className="bg-white rounded-lg overflow-hidden shadow-2xl max-h-[90vh] flex flex-col max-w-full"
           onClick={(e) => e.stopPropagation()}
         >
+          {/* Top toolbar - sequence + timestamp on the left, actions on the right */}
+          <div className="flex items-center justify-between gap-3 px-3 py-2 border-b border-gray-200 bg-white">
+            <div className="flex items-center gap-2 min-w-0 flex-1 text-xs text-gray-500">
+              {sequence && sequence.items.length > 1 && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 font-medium text-[11px] flex-shrink-0">
+                  <Layers size={11} />
+                  {sequenceIndex + 1} / {sequence.items.length}
+                </span>
+              )}
+              <div className="relative flex items-center gap-1.5 group min-w-0">
+                {isEditingTimestamp ? (
+                  <>
+                    <input
+                      type="text"
+                      value={inlineTimestamp}
+                      onChange={(e) => setInlineTimestamp(e.target.value)}
+                      onKeyDown={handleInlineKeyDown}
+                      className="text-xs text-gray-700 border border-gray-300 rounded px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[180px]"
+                      autoFocus
+                      disabled={isSaving}
+                      placeholder="Enter date/time..."
+                    />
+                    <button
+                      onClick={handleInlineSave}
+                      disabled={isSaving}
+                      className="text-blue-600 hover:text-blue-700 disabled:opacity-50 p-0.5"
+                      title="Save (Enter)"
+                    >
+                      <Check size={14} />
+                    </button>
+                    <button
+                      onClick={handleInlineCancel}
+                      disabled={isSaving}
+                      className="text-gray-400 hover:text-gray-600 disabled:opacity-50 p-0.5"
+                      title="Cancel (Escape)"
+                    >
+                      <X size={14} />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span
+                      className="cursor-pointer hover:text-gray-900 hover:underline truncate"
+                      onClick={handleInlineEdit}
+                      title="Click to edit timestamp"
+                    >
+                      {media.timestamp
+                        ? new Date(media.timestamp).toLocaleString()
+                        : 'No timestamp'}
+                    </span>
+                    <button
+                      onClick={handleInlineEdit}
+                      className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 flex-shrink-0"
+                      title="Edit timestamp inline"
+                    >
+                      <Pencil size={11} />
+                    </button>
+                    <button
+                      onClick={() => setShowDatePicker(true)}
+                      className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 flex-shrink-0"
+                      title="Open date picker"
+                    >
+                      <Calendar size={11} />
+                    </button>
+                  </>
+                )}
+                {showDatePicker && (
+                  <div className="absolute left-0 top-full mt-2 z-50">
+                    <DateTimePicker
+                      value={media.timestamp}
+                      onChange={handleTimestampSave}
+                      onCancel={() => setShowDatePicker(false)}
+                    />
+                  </div>
+                )}
+              </div>
+              {error && <span className="text-[11px] text-red-500">{error}</span>}
+              {isSaving && (
+                <span className="text-[11px] text-gray-400 animate-pulse">Saving...</span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  favoriteMutation.mutate({ mediaID: media.mediaID, favorite: !isFavorite })
+                }}
+                className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
+                  isFavorite
+                    ? 'text-red-600 bg-red-50 hover:bg-red-100'
+                    : 'text-gray-500 hover:bg-gray-100'
+                }`}
+                aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+              >
+                <Heart size={18} fill={isFavorite ? 'currentColor' : 'none'} />
+              </button>
+
+              {(hasBboxes || !isVideoMedia(media)) && <div className="w-px h-5 bg-gray-200 mx-1" />}
+
+              {hasBboxes && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setShowBboxes((prev) => !prev)
+                  }}
+                  className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
+                    showBboxes
+                      ? 'text-blue-600 bg-blue-50 hover:bg-blue-100'
+                      : 'text-gray-500 hover:bg-gray-100'
+                  }`}
+                  aria-label={showBboxes ? 'Hide bounding boxes' : 'Show bounding boxes'}
+                  title={`${showBboxes ? 'Hide' : 'Show'} bounding boxes (B)`}
+                >
+                  {showBboxes ? <Eye size={18} /> : <EyeOff size={18} />}
+                </button>
+              )}
+
+              {!isVideoMedia(media) && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setIsDrawMode(true)
+                    setSelectedBboxId(null)
+                    setShowObservationEditor(false)
+                    setShowBboxes(true)
+                  }}
+                  className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
+                    isDrawMode
+                      ? 'text-white bg-blue-700 hover:bg-blue-800'
+                      : !hasBboxes
+                        ? 'text-white bg-blue-600 hover:bg-blue-700'
+                        : 'text-gray-500 hover:bg-gray-100'
+                  }`}
+                  aria-label="Add new bounding box"
+                  title="Add new detection (click and drag on image)"
+                >
+                  <SquarePlus size={18} />
+                </button>
+              )}
+
+              <div className="w-px h-5 bg-gray-200 mx-1" />
+
+              <button
+                onClick={onClose}
+                className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors"
+                aria-label="Close modal"
+                title="Close (Esc)"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          </div>
           <div
             ref={(el) => {
               imageContainerRef.current = el
@@ -2271,6 +2233,17 @@ function ImageModal({
                       <Loader2 size={32} className="animate-spin text-white/70" />
                     </div>
                   )}
+                  {/* Empty-state hint - shown when image has no detections */}
+                  {!hasBboxes &&
+                    isCurrentImageReady &&
+                    !imageError &&
+                    !isDrawMode &&
+                    !isVideoMedia(media) && (
+                      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 pointer-events-none inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/35 backdrop-blur-sm text-white/70 text-[11px] font-medium">
+                        <SquarePlus size={12} />
+                        No detections
+                      </div>
+                    )}
                   {/* Bbox overlay - editable bounding boxes (only for images, only after image loads) */}
                   {showBboxes && hasBboxes && isCurrentImageReady && (
                     <>
@@ -2300,7 +2273,7 @@ function ImageModal({
                             imageRef={imageRef}
                             containerRef={imageContainerRef}
                             zoomTransform={zoomTransform}
-                            color={bbox.classificationMethod === 'human' ? '#22c55e' : '#84cc16'}
+                            isValidated={bbox.classificationMethod === 'human'}
                           />
                         ))}
                       </svg>
@@ -2366,7 +2339,7 @@ function ImageModal({
                         e.stopPropagation()
                         zoomOut()
                       }}
-                      className="p-1 text-white hover:text-lime-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="p-1 text-white hover:text-blue-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       disabled={zoomTransform.scale <= 1}
                       title="Zoom out (-)"
                     >
@@ -2380,7 +2353,7 @@ function ImageModal({
                         e.stopPropagation()
                         zoomIn()
                       }}
-                      className="p-1 text-white hover:text-lime-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="p-1 text-white hover:text-blue-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       disabled={zoomTransform.scale >= 5}
                       title="Zoom in (+)"
                     >
@@ -2392,7 +2365,7 @@ function ImageModal({
                           e.stopPropagation()
                           resetZoom()
                         }}
-                        className="p-1 text-white hover:text-lime-400 transition-colors ml-1"
+                        className="p-1 text-white hover:text-blue-300 transition-colors ml-1"
                         title="Reset zoom (0 or Esc)"
                       >
                         <RotateCcw size={16} />
@@ -2404,7 +2377,7 @@ function ImageModal({
                       <Tooltip.Trigger asChild>
                         <button
                           onClick={(e) => e.stopPropagation()}
-                          className="p-1 text-white hover:text-lime-400 transition-colors"
+                          className="p-1 text-white hover:text-blue-300 transition-colors"
                           aria-label="Keyboard shortcuts"
                         >
                           <Info size={18} />
@@ -2418,21 +2391,21 @@ function ImageModal({
                         >
                           <div className="font-medium mb-1">Keyboard Shortcuts</div>
                           <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
-                            <kbd className="text-lime-400">Tab</kbd>
+                            <kbd className="text-blue-300">Tab</kbd>
                             <span>Next bbox</span>
-                            <kbd className="text-lime-400">Shift+Tab</kbd>
+                            <kbd className="text-blue-300">Shift+Tab</kbd>
                             <span>Previous bbox</span>
-                            <kbd className="text-lime-400">←/→</kbd>
+                            <kbd className="text-blue-300">←/→</kbd>
                             <span>Navigate images</span>
-                            <kbd className="text-lime-400">B</kbd>
+                            <kbd className="text-blue-300">B</kbd>
                             <span>Toggle bboxes</span>
-                            <kbd className="text-lime-400">+/-</kbd>
+                            <kbd className="text-blue-300">+/-</kbd>
                             <span>Zoom in/out</span>
-                            <kbd className="text-lime-400">0</kbd>
+                            <kbd className="text-blue-300">0</kbd>
                             <span>Reset zoom</span>
-                            <kbd className="text-lime-400">Del</kbd>
+                            <kbd className="text-blue-300">Del</kbd>
                             <span>Delete bbox</span>
-                            <kbd className="text-lime-400">Esc</kbd>
+                            <kbd className="text-blue-300">Esc</kbd>
                             <span>Deselect/Close</span>
                           </div>
                           <Tooltip.Arrow className="fill-gray-900" />
@@ -2445,163 +2418,71 @@ function ImageModal({
             )}
           </div>
 
-          {/* Observation list panel - only for images with bbox coordinates (hide for videos) */}
-          {!isVideoMedia(media) && (
-            <ObservationListPanel
-              bboxes={bboxesWithCoords}
-              selectedId={selectedBboxId}
-              onSelect={setSelectedBboxId}
-              onEdit={(observationID) => {
-                setSelectedBboxId(observationID)
-                setEditorInitialTab('species')
-                setShowObservationEditor(true)
-              }}
-              onDelete={handleDeleteObservation}
-            />
-          )}
+          {/* Footer - single row: filename on the left, species on the right */}
+          <div className="px-4 py-2.5 bg-gray-50 flex-shrink-0 border-t border-gray-200 text-xs text-gray-600">
+            <div className="flex items-center justify-between gap-3">
+              {media.fileName && (
+                <span className="font-mono text-[11px] text-gray-400 truncate min-w-0 flex-1">
+                  {media.fileName}
+                </span>
+              )}
 
-          {/* Footer with metadata */}
-          <div className="px-4 py-3 bg-white flex-shrink-0 border-t border-gray-100">
-            <div className="flex items-center justify-between">
-              {/* Videos are always editable. If a video-level observation
-                  exists, edit it; otherwise fall into the create-on-pick
-                  path used for images without bboxes. */}
-              {isVideoMedia(media) ? (
-                <button
-                  ref={videoSpeciesLabelRef}
-                  onClick={() => {
-                    if (bboxes.length > 0) {
-                      setSelectedBboxId(bboxes[0].observationID)
-                      setShowObservationEditor(true)
-                    } else {
-                      handleImageWithoutBboxClick()
-                    }
-                  }}
-                  className="text-lg font-semibold text-left hover:text-lime-600 cursor-pointer flex items-center gap-2 group"
-                  title="Click to edit species"
-                >
-                  <span>
-                    <SpeciesLabel
-                      names={bboxes[0]?.scientificName ? [bboxes[0].scientificName] : []}
+              {/* Species — editable for video / no-bbox cases, static summary for images with bboxes */}
+              <div className="flex-shrink-0 max-w-[60%] min-w-0 ml-auto">
+                {isVideoMedia(media) ? (
+                  <button
+                    ref={videoSpeciesLabelRef}
+                    onClick={() => {
+                      if (bboxes.length > 0) {
+                        setSelectedBboxId(bboxes[0].observationID)
+                        setShowObservationEditor(true)
+                      } else {
+                        handleImageWithoutBboxClick()
+                      }
+                    }}
+                    className="font-medium text-gray-900 text-left hover:text-blue-600 cursor-pointer flex items-center gap-1.5 group truncate"
+                    title="Click to edit species"
+                  >
+                    <span className="truncate">
+                      <SpeciesLabel
+                        names={bboxes[0]?.scientificName ? [bboxes[0].scientificName] : []}
+                      />
+                    </span>
+                    <Pencil
+                      size={11}
+                      className="text-gray-400 group-hover:text-blue-600 transition-colors flex-shrink-0 opacity-0 group-hover:opacity-100"
+                    />
+                  </button>
+                ) : !hasBboxes ? (
+                  <button
+                    ref={imageSpeciesLabelRef}
+                    onClick={handleImageWithoutBboxClick}
+                    className="font-medium text-gray-900 text-left hover:text-blue-600 cursor-pointer flex items-center gap-1.5 group truncate"
+                    title="Click to edit species"
+                  >
+                    <span className="truncate">
+                      <SpeciesLabel names={media.scientificName ? [media.scientificName] : []} />
+                    </span>
+                    <Pencil
+                      size={11}
+                      className="text-gray-400 group-hover:text-blue-600 transition-colors flex-shrink-0 opacity-0 group-hover:opacity-100"
+                    />
+                  </button>
+                ) : (
+                  <span className="font-medium text-gray-900 truncate block">
+                    <SpeciesCountLabel
+                      entries={getSpeciesCountsFromBboxes(bboxes, media.scientificName)}
                     />
                   </span>
-                  <Pencil
-                    size={16}
-                    className="text-gray-400 group-hover:text-lime-600 transition-colors"
-                  />
-                  {bboxes[0]?.classificationMethod === 'human' && (
-                    <span className="text-xs text-green-600">✓</span>
-                  )}
-                </button>
-              ) : /* Show editable species for images without bboxes (always show pencil, even for blank images) */
-              !hasBboxes ? (
-                <button
-                  ref={imageSpeciesLabelRef}
-                  onClick={handleImageWithoutBboxClick}
-                  className="text-lg font-semibold text-left hover:text-lime-600 cursor-pointer flex items-center gap-2 group"
-                  title="Click to edit species"
-                >
-                  <span>
-                    <SpeciesLabel names={media.scientificName ? [media.scientificName] : []} />
-                  </span>
-                  <Pencil
-                    size={16}
-                    className="text-gray-400 group-hover:text-lime-600 transition-colors"
-                  />
-                  {observationWithoutBbox?.classificationMethod === 'human' && (
-                    <span className="text-xs text-green-600">✓</span>
-                  )}
-                </button>
-              ) : (
-                <h3 className="text-lg font-semibold">
-                  <SpeciesLabel names={getSpeciesListFromBboxes(bboxes, media.scientificName)} />
-                </h3>
-              )}
+                )}
+              </div>
             </div>
 
-            {/* Editable Timestamp Section */}
-            <div className="relative mt-1">
-              {isEditingTimestamp ? (
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={inlineTimestamp}
-                    onChange={(e) => setInlineTimestamp(e.target.value)}
-                    onKeyDown={handleInlineKeyDown}
-                    className="text-sm text-gray-700 border border-gray-300 rounded px-2 py-1 flex-1 focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent"
-                    autoFocus
-                    disabled={isSaving}
-                    placeholder="Enter date/time..."
-                  />
-                  <button
-                    onClick={handleInlineSave}
-                    disabled={isSaving}
-                    className="text-lime-600 hover:text-lime-700 disabled:opacity-50 p-1"
-                    title="Save (Enter)"
-                  >
-                    <Check size={18} />
-                  </button>
-                  <button
-                    onClick={handleInlineCancel}
-                    disabled={isSaving}
-                    className="text-gray-400 hover:text-gray-600 disabled:opacity-50 p-1"
-                    title="Cancel (Escape)"
-                  >
-                    <X size={18} />
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 group">
-                  <p
-                    className="text-sm text-gray-500 cursor-pointer hover:text-gray-700 hover:underline"
-                    onClick={handleInlineEdit}
-                    title="Click to edit timestamp"
-                  >
-                    {media.timestamp ? new Date(media.timestamp).toLocaleString() : 'No timestamp'}
-                  </p>
-                  <button
-                    onClick={handleInlineEdit}
-                    className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity p-0.5"
-                    title="Edit timestamp inline"
-                  >
-                    <Pencil size={14} />
-                  </button>
-                  <button
-                    onClick={() => setShowDatePicker(true)}
-                    className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity p-0.5"
-                    title="Open date picker"
-                  >
-                    <Calendar size={14} />
-                  </button>
-                </div>
-              )}
-
-              {/* Error Message */}
-              {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
-
-              {/* Saving indicator */}
-              {isSaving && <p className="text-xs text-gray-400 mt-1 animate-pulse">Saving...</p>}
-
-              {/* Date Picker Popup */}
-              {showDatePicker && (
-                <div className="absolute left-0 bottom-full mb-2 z-50">
-                  <DateTimePicker
-                    value={media.timestamp}
-                    onChange={handleTimestampSave}
-                    onCancel={() => setShowDatePicker(false)}
-                  />
-                </div>
-              )}
-            </div>
-
-            {media.fileName && (
-              <p className="text-xs text-gray-400 mt-1 truncate">{media.fileName}</p>
-            )}
             {updateMutation.isPending && (
-              <p className="text-xs text-blue-500 mt-1">Updating classification...</p>
+              <p className="text-[11px] text-blue-500 mt-1">Updating classification...</p>
             )}
             {updateMutation.isError && (
-              <p className="text-xs text-red-500 mt-1">
+              <p className="text-[11px] text-red-500 mt-1">
                 Error: {updateMutation.error?.message || 'Failed to update'}
               </p>
             )}
@@ -2695,11 +2576,11 @@ function GalleryControls({
                 onClick={onToggleBboxes}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                   showBboxes
-                    ? 'bg-lime-500 text-white hover:bg-lime-600'
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
-                <Square size={16} />
+                {showBboxes ? <Eye size={16} /> : <EyeOff size={16} />}
                 <span>Boxes</span>
               </button>
             </Tooltip.Trigger>
@@ -2780,18 +2661,22 @@ function ThumbnailBboxOverlay({ bboxes, imageRef, containerRef }) {
 
   return (
     <svg className="absolute inset-0 w-full h-full pointer-events-none z-10">
-      {drawableBboxes.map((bbox, index) => (
-        <rect
-          key={bbox.observationID || index}
-          x={offsetX + bbox.bboxX * renderedWidth}
-          y={offsetY + bbox.bboxY * renderedHeight}
-          width={bbox.bboxWidth * renderedWidth}
-          height={bbox.bboxHeight * renderedHeight}
-          stroke="#84cc16"
-          strokeWidth="2"
-          fill="none"
-        />
-      ))}
+      {drawableBboxes.map((bbox, index) => {
+        const isValidated = bbox.classificationMethod === 'human'
+        return (
+          <rect
+            key={bbox.observationID || index}
+            x={offsetX + bbox.bboxX * renderedWidth}
+            y={offsetY + bbox.bboxY * renderedHeight}
+            width={bbox.bboxWidth * renderedWidth}
+            height={bbox.bboxHeight * renderedHeight}
+            stroke={isValidated ? '#2563eb' : '#60a5fa'}
+            strokeWidth="2"
+            strokeDasharray={isValidated ? undefined : '4 3'}
+            fill="none"
+          />
+        )
+      })}
     </svg>
   )
 }

@@ -17,6 +17,28 @@ export function getSpeciesListFromBboxes(bboxes, fallbackScientificName = null) 
 }
 
 /**
+ * Like getSpeciesListFromBboxes but preserves per-species occurrence counts so
+ * the renderer can show "Red Deer ×2 · European Hare" for multi-detection
+ * frames. The fallback species, when used, is treated as a single occurrence.
+ *
+ * @param {Array<{scientificName?: string}>} bboxes
+ * @param {string|null} fallbackScientificName
+ * @returns {Array<{scientificName: string, count: number}>}
+ */
+export function getSpeciesCountsFromBboxes(bboxes, fallbackScientificName = null) {
+  const counts = new Map()
+  for (const b of bboxes) {
+    const name = b.scientificName
+    if (!name) continue
+    counts.set(name, (counts.get(name) || 0) + 1)
+  }
+  if (counts.size > 0) {
+    return Array.from(counts, ([scientificName, count]) => ({ scientificName, count }))
+  }
+  return fallbackScientificName ? [{ scientificName: fallbackScientificName, count: 1 }] : []
+}
+
+/**
  * @param {Array<{mediaID: string, scientificName?: string}>} items
  * @param {Object<string, Array<{scientificName?: string}>>} bboxesByMedia
  * @returns {string[]} Unique scientific names; empty array when nothing resolves.

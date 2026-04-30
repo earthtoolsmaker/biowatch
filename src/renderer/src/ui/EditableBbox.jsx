@@ -28,7 +28,7 @@ export default function EditableBbox({
   imageRef,
   containerRef,
   zoomTransform,
-  color = '#84cc16'
+  isValidated = false
 }) {
   const [localBbox, setLocalBbox] = useState(null)
   const localBboxRef = useRef(null) // Mirror of localBbox for closure-safe access
@@ -277,9 +277,21 @@ export default function EditableBbox({
   const width = `${bboxWidth * 100}%`
   const height = `${bboxHeight * 100}%`
 
-  const selectedColor = '#22c55e'
-  const strokeColor = isSelected ? selectedColor : color
+  // Biowatch palette: validated detections use deep blue with a solid stroke,
+  // model predictions use a lighter blue with a dashed stroke. Selected state
+  // deepens the color and thickens the stroke without losing the dashed cue
+  // for predictions.
+  const validatedColor = '#2563eb'
+  const predictedColor = '#60a5fa'
+  const selectedColor = '#1d4ed8'
+  const strokeColor = isSelected ? selectedColor : isValidated ? validatedColor : predictedColor
   const strokeWidth = isSelected ? 4 : 3
+  const strokeDasharray = isValidated ? undefined : '6 4'
+  const fillColor = isSelected
+    ? 'rgba(29, 78, 216, 0.18)'
+    : isValidated
+      ? 'rgba(37, 99, 235, 0.06)'
+      : 'rgba(96, 165, 250, 0.04)'
 
   // Handle definitions with normalized positions
   const handles = [
@@ -305,7 +317,8 @@ export default function EditableBbox({
         height={height}
         stroke={strokeColor}
         strokeWidth={strokeWidth}
-        fill={isSelected ? 'rgba(34, 197, 94, 0.1)' : 'transparent'}
+        strokeDasharray={strokeDasharray}
+        fill={fillColor}
         style={{
           pointerEvents: 'all',
           cursor: isSelected ? 'move' : 'pointer'

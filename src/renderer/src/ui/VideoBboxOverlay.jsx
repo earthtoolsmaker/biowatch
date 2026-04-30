@@ -74,8 +74,9 @@ export default function VideoBboxOverlay({ videoRef, containerRef, currentFrameB
             width={w}
             height={h}
             fill="transparent"
-            stroke="#84cc16"
+            stroke="#60a5fa"
             strokeWidth={2}
+            strokeDasharray="6 4"
           />
         )
       })}
