@@ -54,9 +54,8 @@ title-cased.
 
 ## Non-goals
 
-- Modal footer changes (`media.jsx:2472` — `SpeciesCountLabel` without
-  `capitalize`). Out of scope; user opted to keep this session
-  grid-cell-only.
+- Modal footer / observation-rail capitalize alignment. Out of scope;
+  user opted to keep this session grid-cell-only.
 - Changing the bbox overlay, video play badge, sequence count badge, or
   sequence progress dots/counter. All existing overlays remain in place
   and unchanged.
@@ -243,11 +242,15 @@ tests today.
 ## Files touched
 
 - `src/renderer/src/media.jsx`
-  - `ThumbnailCard` (~line 2747-2847): add timestamp overlay JSX inside
-    the image container; rewrite the footer block.
-  - `SequenceCard` (~line 2964-3107): same treatment, using
-    `currentMedia.timestamp` and `getSpeciesCountsFromSequence`.
+  - `ThumbnailCard` (around line 1634, footer at ~1787-1791): add
+    timestamp overlay JSX inside the image container; rewrite the footer
+    block.
+  - `SequenceCard` (around line 1801, footer at ~2046-2051): same
+    treatment, using `currentMedia.timestamp` and
+    `getSpeciesCountsFromSequence`.
   - Add `Clock` to the lucide-react import.
+  - Other `toLocaleString()` callers in the file (around lines 273, 472,
+    522, 1042) belong to the inline editor / modal — leave untouched.
 - `src/renderer/src/utils/speciesFromBboxes.js`
   - Add `getSpeciesCountsFromSequence`.
 - `src/renderer/src/utils/formatTimestamp.js` (new) — single helper.
@@ -256,9 +259,9 @@ tests today.
 
 ## Deferred
 
-- Capitalize the modal footer's `SpeciesCountLabel` for consistency
-  (`media.jsx:2472`). Trivial follow-up; user explicitly scoped this
-  session to grid cells.
+- Apply the same `capitalize` treatment to the modal / observation-rail
+  species labels for consistency. Trivial follow-up; user explicitly
+  scoped this session to grid cells.
 - Localized timestamp formatting. Today's app is en-US throughout; revisit
   if/when locale support is added project-wide.
 - Hover-only timestamp / conditional suppression on busy sequences.
