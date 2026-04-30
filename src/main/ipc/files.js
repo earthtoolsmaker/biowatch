@@ -6,13 +6,13 @@ import { app, ipcMain } from 'electron'
 import log from 'electron-log'
 import { existsSync } from 'fs'
 import { getStudyDatabasePath } from '../services/paths.js'
-import { getFilesData } from '../database/index.js'
+import { runInWorker } from '../services/sequences/runInWorker.js'
 
 /**
  * Register all files-related IPC handlers
  */
 export function registerFilesIPCHandlers() {
-  ipcMain.handle('files:get-data', async (_, studyId) => {
+  ipcMain.handle('sources:get-data', async (_, studyId) => {
     try {
       const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
       if (!dbPath || !existsSync(dbPath)) {
@@ -20,10 +20,10 @@ export function registerFilesIPCHandlers() {
         return { error: 'Database not found for this study' }
       }
 
-      const filesData = await getFilesData(dbPath)
-      return { data: filesData }
+      const sourcesData = await runInWorker({ type: 'sources-data', dbPath })
+      return { data: sourcesData }
     } catch (error) {
-      log.error('Error getting files data:', error)
+      log.error('Error getting sources data:', error)
       return { error: error.message }
     }
   })

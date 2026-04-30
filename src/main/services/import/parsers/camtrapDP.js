@@ -503,7 +503,10 @@ function transformMediaRow(row, directoryPath, pathCache) {
     fileName: row.fileName || row.file_name || path.basename(row.filePath || row.file_path || ''),
     fileMediatype: row.fileMediatype || row.file_mediatype || null,
     exifData,
-    favorite
+    favorite,
+    // Stamp the absolute package directory so the Sources tab can group by it.
+    // Per spec D3: importFolder = "absolute package directory path" for CamtrapDP imports.
+    importFolder: directoryPath
   }
 }
 

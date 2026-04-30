@@ -2,67 +2,19 @@
  * Media-related database queries
  */
 
-import { getDrizzleDb, media, observations, modelRuns, modelOutputs } from '../index.js'
+import {
+  getDrizzleDb,
+  media,
+  observations,
+  modelRuns,
+  modelOutputs,
+  deployments
+} from '../index.js'
 import { eq, and, desc, count, sql, isNotNull, inArray, isNull } from 'drizzle-orm'
 import { DateTime } from 'luxon'
 import log from 'electron-log'
 import { getStudyIdFromPath, formatToMatchOriginal } from './utils.js'
 import { transformBboxToCamtrapDP, detectModelType } from '../../utils/bbox.js'
-
-/**
- * Get files data (directories with image counts and processing progress) for local/ml_run studies
- * @param {string} dbPath - Path to the SQLite database
- * @returns {Promise<Array>} - Array of directory objects with image counts and processing progress
- */
-export async function getFilesData(dbPath) {
-  const startTime = Date.now()
-  log.info(`Querying files data from: ${dbPath}`)
-
-  try {
-    const studyId = getStudyIdFromPath(dbPath)
-
-    const db = await getDrizzleDb(studyId, dbPath)
-
-    // Query to get directory statistics with most recent model used
-    const rows = await db
-      .select({
-        folderName: media.folderName,
-        importFolder: media.importFolder,
-        imageCount:
-          sql`COUNT(DISTINCT CASE WHEN ${media.fileMediatype} NOT LIKE 'video/%' THEN ${media.mediaID} END)`.as(
-            'imageCount'
-          ),
-        videoCount:
-          sql`COUNT(DISTINCT CASE WHEN ${media.fileMediatype} LIKE 'video/%' THEN ${media.mediaID} END)`.as(
-            'videoCount'
-          ),
-        processedCount:
-          sql`COUNT(DISTINCT CASE WHEN ${observations.observationID} IS NOT NULL THEN ${media.mediaID} END)`.as(
-            'processedCount'
-          ),
-        lastModelUsed: sql`(
-          SELECT mr.modelID || ' ' || mr.modelVersion
-          FROM model_outputs mo
-          INNER JOIN media m2 ON mo.mediaID = m2.mediaID
-          INNER JOIN model_runs mr ON mo.runID = mr.id
-          WHERE m2.folderName = ${media.folderName}
-          ORDER BY mr.startedAt DESC
-          LIMIT 1
-        )`.as('lastModelUsed')
-      })
-      .from(media)
-      .leftJoin(observations, eq(media.mediaID, observations.mediaID))
-      .groupBy(media.folderName)
-      .orderBy(media.folderName)
-
-    const elapsedTime = Date.now() - startTime
-    log.info(`Retrieved files data: ${rows.length} directories found in ${elapsedTime}ms`)
-    return rows
-  } catch (error) {
-    log.error(`Error querying files data: ${error.message}`)
-    throw error
-  }
-}
 
 /**
  * Get all bounding boxes for a specific media file with model provenance
@@ -569,6 +521,245 @@ export async function getVideoFrameDetections(dbPath, mediaID) {
     return result
   } catch (error) {
     log.error(`Error querying video frame detections: ${error.message}`)
+    throw error
+  }
+}
+
+/**
+ * Get sources data — one row per distinct media.importFolder, with rollup stats.
+ * @param {string} dbPath
+ * @returns {Promise<Array>} array of SourceRow
+ */
+export async function getSourcesData(dbPath) {
+  const startTime = Date.now()
+  log.info(`Querying sources data from: ${dbPath}`)
+
+  try {
+    const studyId = getStudyIdFromPath(dbPath)
+    // Read-only matches the other worker tasks (deployments-activity, best-media)
+    // and avoids contending with the ML inference write loop on the WAL.
+    const db = await getDrizzleDb(studyId, dbPath, { readonly: true })
+
+    // Pass 1: media-only deployment-grain rollup. SUM(CASE) is dramatically
+    // faster than COUNT(DISTINCT mediaID) because mediaID is the PK of media —
+    // no LEFT JOIN observations multiplying rows means we avoid distinct dedup
+    // entirely. ~10x faster on 2M-row studies.
+    const deploymentMediaRows = await db
+      .select({
+        importFolder: media.importFolder,
+        deploymentID: media.deploymentID,
+        folderName: media.folderName,
+        locationName: deployments.locationName,
+        // Classify by file extension instead of fileMediatype: pre-fix LILA
+        // imports stamped video files as 'image/jpeg', but the actual extension
+        // is preserved in fileName (e.g. 'DSCF0004.AVI'). Falling back to the
+        // fileName check fixes existing studies without a data migration.
+        imageCount: sql`SUM(CASE WHEN
+          LOWER(${media.fileName}) LIKE '%.mp4' OR
+          LOWER(${media.fileName}) LIKE '%.mkv' OR
+          LOWER(${media.fileName}) LIKE '%.mov' OR
+          LOWER(${media.fileName}) LIKE '%.webm' OR
+          LOWER(${media.fileName}) LIKE '%.avi' OR
+          LOWER(${media.fileName}) LIKE '%.m4v'
+          THEN 0 ELSE 1 END)`.as('imageCount'),
+        videoCount: sql`SUM(CASE WHEN
+          LOWER(${media.fileName}) LIKE '%.mp4' OR
+          LOWER(${media.fileName}) LIKE '%.mkv' OR
+          LOWER(${media.fileName}) LIKE '%.mov' OR
+          LOWER(${media.fileName}) LIKE '%.webm' OR
+          LOWER(${media.fileName}) LIKE '%.avi' OR
+          LOWER(${media.fileName}) LIKE '%.m4v'
+          THEN 1 ELSE 0 END)`.as('videoCount'),
+        isRemoteAny: sql`MAX(CASE WHEN ${media.filePath} LIKE 'http%' THEN 1 ELSE 0 END)`.as(
+          'isRemoteAny'
+        ),
+        sampleRemoteUrl:
+          sql`MAX(CASE WHEN ${media.filePath} LIKE 'http%' THEN ${media.filePath} END)`.as(
+            'sampleRemoteUrl'
+          )
+      })
+      .from(media)
+      .leftJoin(deployments, eq(media.deploymentID, deployments.deploymentID))
+      .groupBy(media.importFolder, media.deploymentID)
+      .orderBy(media.importFolder, media.deploymentID)
+
+    // Pass 2: observation count grouped by (importFolder, deploymentID). One
+    // pass over observations + indexed mediaID join into media; we roll up to
+    // source-level in JS instead of running a second SQL aggregation.
+    const observationCountRows = await db
+      .select({
+        importFolder: media.importFolder,
+        deploymentID: media.deploymentID,
+        observationCount: sql`COUNT(*)`.as('observationCount')
+      })
+      .from(observations)
+      .innerJoin(media, eq(media.mediaID, observations.mediaID))
+      .groupBy(media.importFolder, media.deploymentID)
+
+    const observationsByDeployment = new Map() // key = `${folder} ${deploymentID}`
+    for (const row of observationCountRows) {
+      const key = `${row.importFolder ?? ''} ${row.deploymentID ?? ''}`
+      observationsByDeployment.set(key, Number(row.observationCount))
+    }
+
+    // Build deployment sub-rows + roll source-level totals from per-deployment data.
+    const deploymentsByFolder = new Map()
+    const sourceTotals = new Map() // folder -> { imageCount, videoCount, observationCount, deploymentCount, isRemote }
+    for (const d of deploymentMediaRows) {
+      const folder = d.importFolder ?? ''
+      const obsKey = `${folder} ${d.deploymentID ?? ''}`
+      const observationCount = observationsByDeployment.get(obsKey) ?? 0
+      const imageCount = Number(d.imageCount)
+      const videoCount = Number(d.videoCount)
+
+      if (!deploymentsByFolder.has(folder)) deploymentsByFolder.set(folder, [])
+      deploymentsByFolder.get(folder).push({
+        deploymentID: d.deploymentID,
+        // Coalesce to a stable string so the renderer's React keys, sort, and
+        // merge-by-label logic can't collapse all NULL-labelled deployments
+        // into a single empty row.
+        label: d.locationName || d.folderName || d.deploymentID || '(unknown)',
+        imageCount,
+        videoCount,
+        observationCount,
+        activeRun: null
+      })
+
+      const t = sourceTotals.get(folder) ?? {
+        importFolder: d.importFolder,
+        imageCount: 0,
+        videoCount: 0,
+        observationCount: 0,
+        deploymentCount: 0,
+        isRemote: 0,
+        sampleRemoteUrl: null
+      }
+      t.imageCount += imageCount
+      t.videoCount += videoCount
+      t.observationCount += observationCount
+      // Count distinct deployments per folder; the GROUP BY guarantees one row per pair
+      t.deploymentCount += 1
+      if (Number(d.isRemoteAny) === 1) t.isRemote = 1
+      if (!t.sampleRemoteUrl && d.sampleRemoteUrl) t.sampleRemoteUrl = d.sampleRemoteUrl
+      sourceTotals.set(folder, t)
+    }
+    const rows = Array.from(sourceTotals.values()).sort((a, b) =>
+      String(a.importFolder ?? '').localeCompare(String(b.importFolder ?? ''))
+    )
+
+    // Aggregate to one row per (importFolder, runID) so we don't drag every
+    // model_output into JS just to keep the most recent run per folder. On a
+    // study with N folders × M runs this returns N×M rows instead of
+    // ~count(model_outputs).
+    const lastModelRows = await db
+      .select({
+        importFolder: media.importFolder,
+        modelID: modelRuns.modelID,
+        modelVersion: modelRuns.modelVersion,
+        startedAt: modelRuns.startedAt
+      })
+      .from(modelOutputs)
+      .innerJoin(media, eq(modelOutputs.mediaID, media.mediaID))
+      .innerJoin(modelRuns, eq(modelOutputs.runID, modelRuns.id))
+      .groupBy(media.importFolder, modelRuns.id)
+      .orderBy(media.importFolder, desc(modelRuns.startedAt))
+
+    const lastModelByFolder = new Map()
+    for (const row of lastModelRows) {
+      const key = row.importFolder ?? ''
+      if (!lastModelByFolder.has(key)) {
+        lastModelByFolder.set(key, {
+          modelID: row.modelID,
+          modelVersion: row.modelVersion
+        })
+      }
+    }
+
+    const activeRunRows = await db
+      .select({
+        importFolder: modelRuns.importPath,
+        runID: modelRuns.id,
+        modelID: modelRuns.modelID,
+        modelVersion: modelRuns.modelVersion
+      })
+      .from(modelRuns)
+      .where(eq(modelRuns.status, 'running'))
+
+    const activeRunByFolder = new Map()
+    for (const r of activeRunRows) {
+      if (r.importFolder) activeRunByFolder.set(r.importFolder, r)
+    }
+
+    const processedByFolder = new Map()
+    const processedByDeployment = new Map() // key = `${folder} ${deploymentID}`
+    const activeFolders = Array.from(activeRunByFolder.keys())
+    if (activeFolders.length > 0) {
+      const processedRows = await db
+        .select({
+          importFolder: media.importFolder,
+          deploymentID: media.deploymentID,
+          processed: sql`COUNT(DISTINCT ${modelOutputs.mediaID})`.as('processed')
+        })
+        .from(modelOutputs)
+        .innerJoin(media, eq(modelOutputs.mediaID, media.mediaID))
+        .innerJoin(modelRuns, eq(modelOutputs.runID, modelRuns.id))
+        .where(and(eq(modelRuns.status, 'running'), inArray(media.importFolder, activeFolders)))
+        .groupBy(media.importFolder, media.deploymentID)
+
+      for (const row of processedRows) {
+        const folder = row.importFolder ?? ''
+        const n = Number(row.processed)
+        processedByFolder.set(folder, (processedByFolder.get(folder) ?? 0) + n)
+        processedByDeployment.set(`${folder} ${row.deploymentID ?? ''}`, n)
+      }
+    }
+
+    // Populate per-deployment activeRun from the in-flight processed counts.
+    for (const [folder, deps] of deploymentsByFolder) {
+      const folderActive = activeRunByFolder.get(folder)
+      if (!folderActive) continue
+      for (const d of deps) {
+        const total = d.imageCount + d.videoCount
+        d.activeRun = {
+          runID: folderActive.runID,
+          processed: processedByDeployment.get(`${folder} ${d.deploymentID ?? ''}`) ?? 0,
+          total
+        }
+      }
+    }
+
+    const result = rows.map((r) => {
+      const folder = r.importFolder ?? ''
+      const activeRun = activeRunByFolder.get(folder)
+      const total = Number(r.imageCount) + Number(r.videoCount)
+      const finalActive = activeRun
+        ? {
+            runID: activeRun.runID,
+            modelID: activeRun.modelID,
+            modelVersion: activeRun.modelVersion,
+            processed: processedByFolder.get(folder) ?? 0,
+            total
+          }
+        : null
+
+      return {
+        importFolder: folder,
+        isRemote: Number(r.isRemote) === 1,
+        sampleRemoteUrl: r.sampleRemoteUrl || null,
+        imageCount: Number(r.imageCount),
+        videoCount: Number(r.videoCount),
+        deploymentCount: Number(r.deploymentCount),
+        observationCount: Number(r.observationCount),
+        activeRun: finalActive,
+        lastModelUsed: lastModelByFolder.get(folder) ?? null,
+        deployments: deploymentsByFolder.get(folder) ?? []
+      }
+    })
+
+    log.info(`Sources data: ${result.length} sources in ${Date.now() - startTime}ms`)
+    return result
+  } catch (error) {
+    log.error(`Error querying sources data: ${error.message}`)
     throw error
   }
 }

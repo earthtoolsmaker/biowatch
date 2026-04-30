@@ -193,8 +193,17 @@ const api = {
   resumeImport: async (id) => {
     return await electronAPI.ipcRenderer.invoke('importer:resume', id)
   },
-  selectMoreImagesDirectory: async (id) => {
-    return await electronAPI.ipcRenderer.invoke('importer:select-more-images-directory', id)
+  getStudyLatestModelOptions: async (id) => {
+    return await electronAPI.ipcRenderer.invoke('study:get-latest-model-options', id)
+  },
+  addFolder: async (id, directoryPath, modelReference, country) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'importer:add-folder',
+      id,
+      directoryPath,
+      modelReference,
+      country
+    )
   },
   setDeploymentLatitude: async (studyId, deploymentID, latitude) => {
     return await electronAPI.ipcRenderer.invoke(
@@ -229,8 +238,8 @@ const api = {
   countMediaWithNullTimestamps: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('media:count-null-timestamps', studyId)
   },
-  getFilesData: async (studyId) => {
-    return await electronAPI.ipcRenderer.invoke('files:get-data', studyId)
+  getSourcesData: async (studyId) => {
+    return await electronAPI.ipcRenderer.invoke('sources:get-data', studyId)
   },
   exportImageDirectories: async (studyId, options = {}) => {
     return await electronAPI.ipcRenderer.invoke('export:image-directories', studyId, options)

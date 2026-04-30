@@ -350,41 +350,60 @@ ipcMain.handle(
   }
 )
 
-ipcMain.handle('importer:select-more-images-directory', async (event, id) => {
-  if (queueScheduler.activeStudyId === id && queueScheduler.isRunning) {
-    log.warn(`Processing is already running for study ${id}`)
-    return { success: false, message: 'Processing already running' }
+/**
+ * Look up the latest model run for a study so the Add-source modal can
+ * pre-fill / lock the model and pre-fill the country.
+ *
+ * @returns {{ modelReference: { id, version } | null, country: string | null }}
+ */
+ipcMain.handle('study:get-latest-model-options', async (_event, id) => {
+  try {
+    const dbPath = path.join(app.getPath('userData'), 'biowatch-data', 'studies', id, 'study.db')
+    if (!fs.existsSync(dbPath)) {
+      return { modelReference: null, country: null }
+    }
+    const db = await getDrizzleDb(id, dbPath)
+    const latestRun = await getLatestModelRun(db)
+    if (!latestRun) {
+      return { modelReference: null, country: null }
+    }
+    const options = latestRun.options || {}
+    return {
+      modelReference: { id: latestRun.modelID, version: latestRun.modelVersion },
+      country: options.country || null
+    }
+  } catch (error) {
+    log.error('Error getting latest model options:', error)
+    return { modelReference: null, country: null, error: error.message }
   }
-
-  const dbPath = path.join(app.getPath('userData'), 'biowatch-data', 'studies', id, 'study.db')
-  if (!fs.existsSync(dbPath)) {
-    log.warn(`Study database not found for ID ${id}`)
-    return { success: false, message: 'Study not found' }
-  }
-
-  // Get latest model run to retrieve model reference and options
-  const db = await getDrizzleDb(id, dbPath)
-  const latestRun = await getLatestModelRun(db)
-  if (!latestRun) {
-    log.warn(`No model run found for study ${id}`)
-    return { success: false, message: 'No model run found for study' }
-  }
-
-  const modelReference = { id: latestRun.modelID, version: latestRun.modelVersion }
-  const options = latestRun.options || {}
-  const country = options.country || null
-
-  const result = await dialog.showOpenDialog({
-    properties: ['openDirectory'],
-    title: 'Select Images Directory'
-  })
-
-  if (result.canceled || result.filePaths.length === 0) {
-    return { success: false, message: 'Selection canceled' }
-  }
-
-  const directoryPath = result.filePaths[0]
-  const importer = new Importer(id, directoryPath, modelReference, country)
-  await importer.start(true)
-  return { success: true, message: 'Importer started successfully' }
 })
+
+/**
+ * Add a folder to an existing study with an explicit model + country.
+ * The renderer collects model/country/folder via AddSourceModal and posts here.
+ */
+ipcMain.handle(
+  'importer:add-folder',
+  async (_event, id, directoryPath, modelReference, country) => {
+    try {
+      if (queueScheduler.activeStudyId === id && queueScheduler.isRunning) {
+        log.warn(`Processing is already running for study ${id}`)
+        return { success: false, message: 'Processing already running' }
+      }
+      const dbPath = path.join(app.getPath('userData'), 'biowatch-data', 'studies', id, 'study.db')
+      if (!fs.existsSync(dbPath)) {
+        log.warn(`Study database not found for ID ${id}`)
+        return { success: false, message: 'Study not found' }
+      }
+      if (!directoryPath || !modelReference?.id || !modelReference?.version) {
+        return { success: false, message: 'Missing directory path or model reference' }
+      }
+      const importer = new Importer(id, directoryPath, modelReference, country || null)
+      await importer.start(true)
+      return { success: true }
+    } catch (error) {
+      log.error('Error adding folder to study:', error)
+      return { success: false, error: error.message }
+    }
+  }
+)

@@ -214,11 +214,42 @@ The `setMediaFavorite` endpoint toggles a media item's favorite status. Favorite
 - CamtrapDP compliant - exported/imported with the standard `favorite` field
 - Displayed with a heart icon in the media modal and Best Captures carousel
 
-### Files
+### Sources
 
-| Method                  | Channel          | Parameters | Returns               |
-| ----------------------- | ---------------- | ---------- | --------------------- |
-| `getFilesData(studyId)` | `files:get-data` | studyId    | `{ data: FileStats }` |
+| Method                    | Channel            | Parameters | Returns                  |
+| ------------------------- | ------------------ | ---------- | ------------------------ |
+| `getSourcesData(studyId)` | `sources:get-data` | studyId    | `{ data: SourceRow[] }` |
+
+`SourceRow` shape:
+
+```ts
+{
+  importFolder: string,        // grouping key, also displayed as the source path/label
+  isRemote: boolean,           // true if any media.filePath in this source starts with 'http'
+  imageCount: number,
+  videoCount: number,
+  deploymentCount: number,
+  observationCount: number,    // observations attached to this source's media
+  activeRun: {                 // null when no model_run with status='running' targets this source
+    runID: string,
+    modelID: string,
+    modelVersion: string,
+    processed: number,         // count(model_outputs) for this run scoped to this source
+    total: number              // imageCount + videoCount
+  } | null,
+  lastModelUsed: { modelID: string, modelVersion: string } | null,
+  deployments: Array<{
+    deploymentID: string,
+    label: string,             // deployments.locationName ?? media.folderName ?? deploymentID
+    imageCount: number,
+    videoCount: number,
+    observationCount: number,
+    activeRun: { runID, processed, total } | null
+  }>
+}
+```
+
+A "source" is derived at query time as a distinct value of `media.importFolder`. No `sources` table exists — the grouping is computed on every call.
 
 ### Observations
 
@@ -256,14 +287,17 @@ The `setMediaFavorite` endpoint toggles a media item's favorite status. Favorite
 
 | Method                                                                       | Channel                                       | Parameters                  | Returns                |
 | ---------------------------------------------------------------------------- | --------------------------------------------- | --------------------------- | ---------------------- |
-| `selectImagesDirectoryOnly()`                                                | `importer:select-images-directory-only`       | -                           | `{ path, id }`         |
-| `selectImagesDirectoryWithModel(directoryPath, modelReference, countryCode)` | `importer:select-images-directory-with-model` | path, modelRef, countryCode | `{ path, id }`         |
-| `getImportStatus(id)`                                                        | `importer:get-status`                         | study id                    | `ImportStatus`         |
-| `stopImport(id)`                                                             | `importer:stop`                               | study id                    | `{ success: boolean }` |
-| `resumeImport(id)`                                                           | `importer:resume`                             | study id                    | `{ success: boolean }` |
-| `selectMoreImagesDirectory(id)`                                              | `importer:select-more-images-directory`       | study id                    | `{ success: boolean }` |
+| `selectImagesDirectoryOnly()`                                                | `importer:select-images-directory-only`       | -                           | `{ path, id }`                                                                |
+| `selectImagesDirectoryWithModel(directoryPath, modelReference, countryCode)` | `importer:select-images-directory-with-model` | path, modelRef, countryCode | `{ path, id }`                                                                |
+| `addFolder(studyId, directoryPath, modelReference, country)`                 | `importer:add-folder`                         | studyId, path, modelRef, countryCode | `{ success: boolean, error?: string }`                                |
+| `getStudyLatestModelOptions(studyId)`                                        | `study:get-latest-model-options`              | studyId                     | `{ modelReference: { id, version } \| null, country: string \| null }`        |
+| `getImportStatus(id)`                                                        | `importer:get-status`                         | study id                    | `ImportStatus`                                                                |
+| `stopImport(id)`                                                             | `importer:stop`                               | study id                    | `{ success: boolean }`                                                        |
+| `resumeImport(id)`                                                           | `importer:resume`                             | study id                    | `{ success: boolean }`                                                        |
 
 **Note:** `importer:stop` now pauses instantly (no server kill). `importer:resume` resumes instantly if paused, or cold-starts from `modelRuns` if the app was restarted. These handlers are backed by the persistent job queue (`src/main/ipc/queue.js`) rather than in-memory state.
+
+`importer:add-folder` is the canonical "Add images directory" entry point used by the Sources tab modal. The renderer chooses model + country (defaulting to the latest run when one exists) and posts here. Supersedes the older `importer:select-more-images-directory` channel. `study:get-latest-model-options` is what the modal calls on open to pre-fill / lock those choices.
 
 ### Video Transcoding
 
