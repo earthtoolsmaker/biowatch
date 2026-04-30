@@ -69,13 +69,13 @@ title-cased.
 The thumbnail image area uses up to four overlay corners. After this
 change:
 
-| Position       | Owner                                         |
-|----------------|-----------------------------------------------|
-| top-left       | **Timestamp overlay (new)** — every card with `media.timestamp` |
-| top-right      | Sequence count badge (existing) — sequence cards only |
-| bottom-left    | unused                                        |
-| bottom-center  | Sequence progress dots / counter (existing) — sequence cards only |
-| bottom-right   | Video play badge (existing) — video cards only |
+| Position      | Owner                                                             |
+| ------------- | ----------------------------------------------------------------- |
+| top-left      | **Timestamp overlay (new)** — every card with `media.timestamp`   |
+| top-right     | Sequence count badge (existing) — sequence cards only             |
+| bottom-left   | unused                                                            |
+| bottom-center | Sequence progress dots / counter (existing) — sequence cards only |
+| bottom-right  | Video play badge (existing) — video cards only                    |
 
 Worst-case density: a sequence-of-videos cell shows timestamp top-left,
 Layers count top-right, dots/counter bottom-center, play badge
@@ -88,12 +88,14 @@ bottom-right. All four corners populated, none overlap.
 Rendered inside the existing image container (`<div ref={containerRef} className="relative bg-black ...">`) of both `ThumbnailCard` and `SequenceCard`, conditional on `media.timestamp` (or `currentMedia.timestamp` for sequence) being present:
 
 ```jsx
-{media.timestamp && (
-  <div className="absolute top-2 left-2 z-20 bg-black/65 text-white px-1.5 py-0.5 rounded text-[11px] font-medium flex items-center gap-1 backdrop-blur-[2px] tabular-nums">
-    <Clock size={11} />
-    <span>{formatGridTimestamp(media.timestamp)}</span>
-  </div>
-)}
+{
+  media.timestamp && (
+    <div className="absolute top-2 left-2 z-20 bg-black/65 text-white px-1.5 py-0.5 rounded text-[11px] font-medium flex items-center gap-1 backdrop-blur-[2px] tabular-nums">
+      <Clock size={11} />
+      <span>{formatGridTimestamp(media.timestamp)}</span>
+    </div>
+  )
+}
 ```
 
 Styling notes:
@@ -119,9 +121,7 @@ and adds `capitalize`:
 ```jsx
 <div className="p-2">
   <h3 className="text-sm font-semibold truncate capitalize">
-    <SpeciesCountLabel
-      entries={getSpeciesCountsFromBboxes(bboxes, media.scientificName)}
-    />
+    <SpeciesCountLabel entries={getSpeciesCountsFromBboxes(bboxes, media.scientificName)} />
   </h3>
 </div>
 ```
@@ -141,22 +141,31 @@ that mirrors `getSpeciesListFromSequence`:
 
 ```js
 /**
+ * Counts use the MAX bbox occurrence per species across frames — sequences
+ * are usually bursts of the same scene, so summing would over-count the
+ * same animals seen in multiple frames. Max gives the conservative
+ * "at least N individuals present in the sequence" estimate.
+ *
  * @param {Array<{mediaID: string, scientificName?: string}>} items
  * @param {Object<string, Array<{scientificName?: string}>>} bboxesByMedia
  * @returns {Array<{scientificName: string, count: number}>}
  */
 export function getSpeciesCountsFromSequence(items, bboxesByMedia) {
-  const counts = new Map()
+  const maxCounts = new Map()
   for (const item of items) {
     const itemBboxes = bboxesByMedia[item.mediaID] || []
+    const frameCounts = new Map()
     for (const b of itemBboxes) {
       const name = b.scientificName
       if (!name) continue
-      counts.set(name, (counts.get(name) || 0) + 1)
+      frameCounts.set(name, (frameCounts.get(name) || 0) + 1)
+    }
+    for (const [name, count] of frameCounts) {
+      maxCounts.set(name, Math.max(maxCounts.get(name) || 0, count))
     }
   }
-  if (counts.size > 0) {
-    return Array.from(counts, ([scientificName, count]) => ({ scientificName, count }))
+  if (maxCounts.size > 0) {
+    return Array.from(maxCounts, ([scientificName, count]) => ({ scientificName, count }))
   }
   // Fallback: distinct fileScientificName across items, count = 1 each
   const fallback = [...new Set(items.map((i) => i.scientificName).filter(Boolean))]
@@ -167,9 +176,7 @@ export function getSpeciesCountsFromSequence(items, bboxesByMedia) {
 Used in `SequenceCard`'s footer:
 
 ```jsx
-<SpeciesCountLabel
-  entries={getSpeciesCountsFromSequence(sequence.items, bboxesByMedia)}
-/>
+<SpeciesCountLabel entries={getSpeciesCountsFromSequence(sequence.items, bboxesByMedia)} />
 ```
 
 ### `formatGridTimestamp` (new, small utility)
