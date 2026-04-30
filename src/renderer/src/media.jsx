@@ -44,8 +44,8 @@ import { useImagePrefetch } from './hooks/useImagePrefetch'
 import { getTopNonHumanSpecies } from './utils/speciesUtils'
 import { useSequenceGap } from './hooks/useSequenceGap'
 import { SequenceGapSlider } from './ui/SequenceGapSlider'
-import { getSpeciesListFromSequence, getSpeciesCountsFromBboxes } from './utils/speciesFromBboxes'
-import SpeciesLabel, { SpeciesCountLabel } from './ui/SpeciesLabel'
+import { getSpeciesCountsFromBboxes, getSpeciesCountsFromSequence } from './utils/speciesFromBboxes'
+import { SpeciesCountLabel } from './ui/SpeciesLabel'
 import { formatGridTimestamp } from './utils/formatTimestamp'
 import { useImportStatus } from './hooks/import'
 
@@ -2045,18 +2045,23 @@ function SequenceCard({
             )}
           </div>
         )}
+
+        {/* Timestamp overlay (top-left) — updates as the sequence cycles */}
+        {currentMedia.timestamp && (
+          <div className="absolute top-2 left-2 z-20 bg-black/65 text-white px-1.5 py-0.5 rounded text-[11px] font-medium flex items-center gap-1 backdrop-blur-[2px] tabular-nums">
+            <Clock size={11} />
+            <span>{formatGridTimestamp(currentMedia.timestamp)}</span>
+          </div>
+        )}
       </div>
 
       {/* Info section */}
       <div className="p-2">
-        <h3 className="text-sm font-semibold truncate">
-          <SpeciesLabel names={getSpeciesListFromSequence(sequence.items, bboxesByMedia)} />
+        <h3 className="text-sm font-semibold truncate capitalize">
+          <SpeciesCountLabel
+            entries={getSpeciesCountsFromSequence(sequence.items, bboxesByMedia)}
+          />
         </h3>
-        <p className="text-xs text-gray-500">
-          {currentMedia.timestamp
-            ? new Date(currentMedia.timestamp).toLocaleString()
-            : 'No timestamp'}
-        </p>
       </div>
     </div>
   )
