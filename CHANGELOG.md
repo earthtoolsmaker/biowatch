@@ -5,6 +5,41 @@ All notable changes to Biowatch will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.4] - 2026-04-30
+
+### Added
+
+- Media modal revamp: persistent right-side `ObservationRail` (replaces the bbox popover) with collapsed/expanded `ObservationRow` inline editor, `AddObservationMenu` (Draw / Whole-image), and `BboxLabelMinimal` species-only image label
+- Reusable monochrome UI components extracted from the media editor: `SpeciesPicker`, `BehaviorSelector`, `LifeStageSelector`, `SexSelector`
+- Keyboard shortcuts: `?` toggles the shortcuts panel, `Ctrl+arrow` navigates sequences, `Tab`/`Shift+Tab` cycle observations even when the species picker is focused
+- Whole-image observation creation wired from the rail menu
+- Best-captures modal aligned with the media-modal chrome
+- Media grid cell: timestamp overlay and slim footer for `ThumbnailCard` and `SequenceCard`, with new `formatGridTimestamp` utility and `getSpeciesCountsFromSequence` helper for ×N counts
+- `getMediaMode` helper to keep the whole-image vs. bbox observation-mode invariant in one place
+
+### Changed
+
+- Image viewer area uses a black background; detection chrome and palette aligned across modal and gallery thumbnails
+- "Mark as blank" surfaced as an inline link for whole-image observations only; Delete is the consistent path for marking media blank
+- Species results float as an absolute dropdown (no more row jumping) and stay hidden until the user searches
+- Shortcuts panel pinned in the rail above observations with lightened `kbd` styling; arrow glyphs replaced with text words for portability
+- `Tab` / `Shift+Tab` relabelled "next / previous observation"; next/previous chevrons moved to the top toolbar; redundant top-bar draw button removed
+- Keyboard-shortcuts info icon moved to the top toolbar next to Heart / Eye
+- Files tab: long import paths truncate from the start so the filename stays visible
+- Study bar: tab labels hidden below the `lg` breakpoint, with compact tabs forced while an import is running
+- Deployments timeline adapts to screen width
+
+### Fixed
+
+- Sequence species counts use max-per-frame instead of summing across frames (bursts no longer inflate counts)
+- Clicking outside the modal always closes it (no deselect-first dance); clicking empty image area deselects the current observation
+- Empty-state flash suppressed in the rail during media navigation
+- Auto-select scoping (only in whole-image mode), IME handling in the species picker, label fallback, and assorted dead-code cleanup from review
+
+### Chore
+
+- Bump `pytest` in `python-environments/common` (dependabot)
+
 ## [1.8.3] - 2026-04-28
 
 ### Added
@@ -427,6 +462,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Activity heatmaps
 - Overview statistics
 
+[1.8.4]: https://github.com/earthtoolsmaker/biowatch/compare/v1.8.3...v1.8.4
 [1.8.3]: https://github.com/earthtoolsmaker/biowatch/compare/v1.8.2...v1.8.3
 [1.8.2]: https://github.com/earthtoolsmaker/biowatch/compare/v1.8.1...v1.8.2
 [1.8.1]: https://github.com/earthtoolsmaker/biowatch/compare/v1.8.0...v1.8.1
