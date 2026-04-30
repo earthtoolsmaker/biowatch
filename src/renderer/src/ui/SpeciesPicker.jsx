@@ -68,6 +68,16 @@ export default function SpeciesPicker({
     if (node) node.scrollIntoView({ block: 'nearest' })
   }, [highlightedIndex])
 
+  // Wraps the parent's onSelect to immediately clear the search and refocus the
+  // input. Clearing the search collapses the results dropdown — that is the
+  // primary visual confirmation that the click registered.
+  const handleSelect = (scientificName, commonName) => {
+    setSearchTerm('')
+    setDebouncedSearch('')
+    onSelect(scientificName, commonName)
+    if (inputRef.current) inputRef.current.focus()
+  }
+
   return (
     <div className="flex flex-col">
       <div className="relative">
@@ -109,12 +119,12 @@ export default function SpeciesPicker({
               if (highlightedIndex >= 0 && highlightedIndex < results.length) {
                 e.preventDefault()
                 const picked = results[highlightedIndex]
-                onSelect(picked.scientificName, picked.commonName)
+                handleSelect(picked.scientificName, picked.commonName)
                 return
               }
               if (results.length === 0 && customSpeciesQuery.length >= 3) {
                 e.preventDefault()
-                onSelect(customSpeciesQuery, null)
+                handleSelect(customSpeciesQuery, null)
               }
             }
           }}
@@ -132,7 +142,7 @@ export default function SpeciesPicker({
                   rowRefs.current[index] = node
                 }}
                 onMouseEnter={() => setHighlightedIndex(index)}
-                onClick={() => onSelect(species.scientificName, species.commonName)}
+                onClick={() => handleSelect(species.scientificName, species.commonName)}
                 className={`w-full px-3 py-1.5 text-left flex items-center justify-between ${
                   index === highlightedIndex ? 'bg-[#f8f9fb]' : ''
                 } ${species.scientificName === currentScientificName ? 'bg-gray-100' : ''}`}
@@ -169,7 +179,7 @@ export default function SpeciesPicker({
                 <p className="text-sm text-gray-500">No species found.</p>
                 <button
                   type="button"
-                  onClick={() => onSelect(customSpeciesQuery, null)}
+                  onClick={() => handleSelect(customSpeciesQuery, null)}
                   className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded bg-[#030213] text-white hover:bg-black max-w-full"
                 >
                   <Plus size={14} className="shrink-0" />
