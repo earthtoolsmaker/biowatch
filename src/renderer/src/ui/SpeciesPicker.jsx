@@ -77,119 +77,117 @@ export default function SpeciesPicker({
   }
 
   return (
-    <div className="flex flex-col">
-      <div className="relative">
-        <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
-        <input
-          ref={inputRef}
-          type="text"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Backspace' || e.key === 'Delete') {
-              e.stopPropagation()
-              return
+    <div className="relative">
+      <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
+      <input
+        ref={inputRef}
+        type="text"
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Backspace' || e.key === 'Delete') {
+            e.stopPropagation()
+            return
+          }
+          if (e.key === 'Escape') {
+            e.stopPropagation()
+            if (searchTerm.length > 0) {
+              // First Esc: clear the search query (collapses the dropdown).
+              setSearchTerm('')
+            } else {
+              // Second Esc (empty search): blur so the modal handler can act.
+              e.currentTarget.blur()
             }
-            if (e.key === 'Escape') {
-              e.stopPropagation()
-              if (searchTerm.length > 0) {
-                // First Esc: clear the search query (collapses the dropdown).
-                setSearchTerm('')
-              } else {
-                // Second Esc (empty search): blur so the modal handler can act.
-                e.currentTarget.blur()
-              }
-              return
-            }
-            if (e.key === 'ArrowDown') {
+            return
+          }
+          if (e.key === 'ArrowDown') {
+            e.preventDefault()
+            if (results.length === 0) return
+            setHighlightedIndex((i) => (i + 1) % results.length)
+            return
+          }
+          if (e.key === 'ArrowUp') {
+            e.preventDefault()
+            if (results.length === 0) return
+            setHighlightedIndex((i) => (i <= 0 ? results.length - 1 : i - 1))
+            return
+          }
+          if (e.key === 'Enter') {
+            if (highlightedIndex >= 0 && highlightedIndex < results.length) {
               e.preventDefault()
-              if (results.length === 0) return
-              setHighlightedIndex((i) => (i + 1) % results.length)
+              const picked = results[highlightedIndex]
+              handleSelect(picked.scientificName, picked.commonName)
               return
             }
-            if (e.key === 'ArrowUp') {
+            if (results.length === 0 && customSpeciesQuery.length >= 3) {
               e.preventDefault()
-              if (results.length === 0) return
-              setHighlightedIndex((i) => (i <= 0 ? results.length - 1 : i - 1))
-              return
+              handleSelect(customSpeciesQuery, null)
             }
-            if (e.key === 'Enter') {
-              if (highlightedIndex >= 0 && highlightedIndex < results.length) {
-                e.preventDefault()
-                const picked = results[highlightedIndex]
-                handleSelect(picked.scientificName, picked.commonName)
-                return
-              }
-              if (results.length === 0 && customSpeciesQuery.length >= 3) {
-                e.preventDefault()
-                handleSelect(customSpeciesQuery, null)
-              }
-            }
-          }}
-          placeholder="Search species…"
-          className="w-full pl-7 pr-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-transparent"
-        />
+          }
+        }}
+        placeholder="Search species…"
+        className="w-full pl-7 pr-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-transparent"
+      />
 
-        {debouncedSearch.trim().length > 0 && (
-          <div className="absolute left-0 right-0 top-full mt-1 z-20 max-h-52 overflow-y-auto border border-gray-200 rounded bg-white shadow-lg">
-            {results.map((species, index) => (
-              <button
-                key={species.scientificName}
-                type="button"
-                ref={(node) => {
-                  rowRefs.current[index] = node
-                }}
-                onMouseEnter={() => setHighlightedIndex(index)}
-                onClick={() => handleSelect(species.scientificName, species.commonName)}
-                className={`w-full px-3 py-1.5 text-left flex items-center justify-between ${
-                  index === highlightedIndex ? 'bg-[#f8f9fb]' : ''
-                } ${species.scientificName === currentScientificName ? 'bg-gray-100' : ''}`}
-              >
-                <div className="min-w-0 truncate">
-                  <span className="text-sm font-medium">
-                    {species.commonName || species.scientificName}
-                  </span>
-                  {species.commonName && (
-                    <span className="text-xs text-gray-500 ml-2 italic">
-                      ({species.scientificName})
-                    </span>
-                  )}
-                </div>
-                {species.inStudy !== false && typeof species.observationCount === 'number' && (
-                  <span className="flex items-center gap-1 text-xs text-gray-400 shrink-0 ml-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#030213]" aria-hidden="true" />
-                    {species.observationCount}
+      {debouncedSearch.trim().length > 0 && (
+        <div className="absolute left-0 right-0 top-full mt-1 z-20 max-h-52 overflow-y-auto border border-gray-200 rounded bg-white shadow-lg">
+          {results.map((species, index) => (
+            <button
+              key={species.scientificName}
+              type="button"
+              ref={(node) => {
+                rowRefs.current[index] = node
+              }}
+              onMouseEnter={() => setHighlightedIndex(index)}
+              onClick={() => handleSelect(species.scientificName, species.commonName)}
+              className={`w-full px-3 py-1.5 text-left flex items-center justify-between ${
+                index === highlightedIndex ? 'bg-[#f8f9fb]' : ''
+              } ${species.scientificName === currentScientificName ? 'bg-gray-100' : ''}`}
+            >
+              <div className="min-w-0 truncate">
+                <span className="text-sm font-medium">
+                  {species.commonName || species.scientificName}
+                </span>
+                {species.commonName && (
+                  <span className="text-xs text-gray-500 ml-2 italic">
+                    ({species.scientificName})
                   </span>
                 )}
-              </button>
-            ))}
-
-            {results.length === 0 &&
-              debouncedSearch.trim().length > 0 &&
-              debouncedSearch.trim().length < 3 && (
-                <div className="px-3 py-3 text-sm text-gray-500 text-center">
-                  Type at least 3 characters to search the species dictionary.
-                </div>
+              </div>
+              {species.inStudy !== false && typeof species.observationCount === 'number' && (
+                <span className="flex items-center gap-1 text-xs text-gray-400 shrink-0 ml-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#030213]" aria-hidden="true" />
+                  {species.observationCount}
+                </span>
               )}
+            </button>
+          ))}
 
-            {results.length === 0 && customSpeciesQuery.length >= 3 && (
-              <div className="px-3 py-3 text-center space-y-2">
-                <p className="text-sm text-gray-500">No species found.</p>
-                <button
-                  type="button"
-                  onClick={() => handleSelect(customSpeciesQuery, null)}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded bg-[#030213] text-white hover:bg-black max-w-full"
-                >
-                  <Plus size={14} className="shrink-0" />
-                  <span className="truncate">
-                    Add &ldquo;{customSpeciesQuery}&rdquo; as custom species
-                  </span>
-                </button>
+          {results.length === 0 &&
+            debouncedSearch.trim().length > 0 &&
+            debouncedSearch.trim().length < 3 && (
+              <div className="px-3 py-3 text-sm text-gray-500 text-center">
+                Type at least 3 characters to search the species dictionary.
               </div>
             )}
-          </div>
-        )}
-      </div>
+
+          {results.length === 0 && customSpeciesQuery.length >= 3 && (
+            <div className="px-3 py-3 text-center space-y-2">
+              <p className="text-sm text-gray-500">No species found.</p>
+              <button
+                type="button"
+                onClick={() => handleSelect(customSpeciesQuery, null)}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded bg-[#030213] text-white hover:bg-black max-w-full"
+              >
+                <Plus size={14} className="shrink-0" />
+                <span className="truncate">
+                  Add &ldquo;{customSpeciesQuery}&rdquo; as custom species
+                </span>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

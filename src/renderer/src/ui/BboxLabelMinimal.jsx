@@ -14,7 +14,12 @@ const BboxLabelMinimal = forwardRef(function BboxLabelMinimal(
   { bbox, isSelected, isValidated, onClick },
   ref
 ) {
-  const displayName = bbox.commonName || bbox.scientificName || 'Blank'
+  // Match the fallback chain in ObservationRow: "Blank" only for confirmed-blank
+  // observationType; bbox without classification reads as "—".
+  const displayName =
+    bbox.commonName ||
+    bbox.scientificName ||
+    (bbox.observationType === 'blank' ? 'Blank' : '—')
   const { left: leftPos, top: topPos, transform: transformVal } = computeBboxLabelPosition(bbox)
 
   const bg = isSelected ? 'bg-[#030213]' : isValidated ? 'bg-[#2563eb]' : 'bg-[#60a5fa]'
@@ -38,7 +43,7 @@ const BboxLabelMinimal = forwardRef(function BboxLabelMinimal(
       title={
         bbox.commonName
           ? `${bbox.commonName} (${bbox.scientificName})`
-          : bbox.scientificName || 'Blank'
+          : bbox.scientificName || displayName
       }
     >
       {displayName}

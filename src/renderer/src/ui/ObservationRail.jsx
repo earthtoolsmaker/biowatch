@@ -3,12 +3,19 @@ import ObservationRow from './ObservationRow'
 import AddObservationMenu from './AddObservationMenu'
 import { getMediaMode } from '../utils/mediaMode'
 
+const KBD_CLASSNAME = 'font-mono text-[11px] font-semibold text-[#030213]'
+
+function Kbd({ children }) {
+  return <kbd className={KBD_CLASSNAME}>{children}</kbd>
+}
+
 /**
  * Persistent right-side rail listing every observation on the current media.
  *
  * Props:
  *  - observations: array of observation records (bbox or whole-image)
  *  - studyId: string
+ *  - mediaId: string — used to reset per-media UI state on navigation
  *  - selectedObservationId: string | null
  *  - onSelectObservation: (id: string | null) → void
  *  - onUpdateClassification: (id, updates) → void
@@ -19,6 +26,7 @@ import { getMediaMode } from '../utils/mediaMode'
 export default function ObservationRail({
   observations = [],
   studyId,
+  mediaId,
   selectedObservationId,
   onSelectObservation,
   onUpdateClassification,
@@ -30,15 +38,34 @@ export default function ObservationRail({
 }) {
   const mode = getMediaMode(observations)
 
-  // Auto-expand the single whole-image row, but mark it as not user-initiated
-  // so the picker won't autoFocus (Left/Right keyboard nav stays free).
+  // Whether the user explicitly clicked a row (drives picker autoFocus). The
+  // auto-select effect below does NOT set this — only user clicks do.
   const [userInteracted, setUserInteracted] = useState(false)
 
+  // Whether the per-media auto-select has already fired once. Prevents the
+  // effect from re-selecting after the user explicitly deselected.
+  const [hasAutoSelected, setHasAutoSelected] = useState(false)
+
+  // Reset per-media flags when navigating between media.
   useEffect(() => {
-    if (!selectedObservationId && mode === 'whole-image' && observations.length > 0) {
+    setUserInteracted(false)
+    setHasAutoSelected(false)
+  }, [mediaId])
+
+  // Auto-expand the single whole-image row once per media. After this fires,
+  // the user can deselect it (e.g., by clicking the image) without it being
+  // re-selected on the next render.
+  useEffect(() => {
+    if (
+      !hasAutoSelected &&
+      !selectedObservationId &&
+      mode === 'whole-image' &&
+      observations.length > 0
+    ) {
+      setHasAutoSelected(true)
       onSelectObservation(observations[0].observationID)
     }
-  }, [selectedObservationId, observations, mode, onSelectObservation])
+  }, [hasAutoSelected, selectedObservationId, observations, mode, onSelectObservation])
 
   return (
     <aside
@@ -51,27 +78,25 @@ export default function ObservationRail({
             Keyboard shortcuts
           </div>
           <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs text-gray-600">
-            <kbd className="font-mono text-[11px] font-semibold text-[#030213]">Tab</kbd>
+            <Kbd>Tab</Kbd>
             <span>Next observation</span>
-            <kbd className="font-mono text-[11px] font-semibold text-[#030213]">Shift+Tab</kbd>
+            <Kbd>Shift+Tab</Kbd>
             <span>Previous observation</span>
-            <kbd className="font-mono text-[11px] font-semibold text-[#030213]">Left/Right</kbd>
+            <Kbd>Left/Right</Kbd>
             <span>Navigate images</span>
-            <kbd className="font-mono text-[11px] font-semibold text-[#030213]">
-              Ctrl+Left/Right
-            </kbd>
+            <Kbd>Ctrl+Left/Right</Kbd>
             <span>Navigate sequences</span>
-            <kbd className="font-mono text-[11px] font-semibold text-[#030213]">B</kbd>
+            <Kbd>B</Kbd>
             <span>Toggle bboxes</span>
-            <kbd className="font-mono text-[11px] font-semibold text-[#030213]">?</kbd>
+            <Kbd>?</Kbd>
             <span>Toggle this panel</span>
-            <kbd className="font-mono text-[11px] font-semibold text-[#030213]">+/-</kbd>
+            <Kbd>+/-</Kbd>
             <span>Zoom in/out</span>
-            <kbd className="font-mono text-[11px] font-semibold text-[#030213]">0</kbd>
+            <Kbd>0</Kbd>
             <span>Reset zoom</span>
-            <kbd className="font-mono text-[11px] font-semibold text-[#030213]">Del</kbd>
+            <Kbd>Del</Kbd>
             <span>Delete observation</span>
-            <kbd className="font-mono text-[11px] font-semibold text-[#030213]">Esc</kbd>
+            <Kbd>Esc</Kbd>
             <span>Close modal</span>
           </div>
         </div>

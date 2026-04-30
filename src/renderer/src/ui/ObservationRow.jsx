@@ -93,6 +93,7 @@ export default function ObservationRow({
       <button
         type="button"
         onClick={onSelect}
+        aria-expanded={isSelected}
         className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-[#f8f9fb] transition-colors"
       >
         {isBbox ? BBOX_TYPE_ICON : WHOLE_TYPE_ICON}

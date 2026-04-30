@@ -820,8 +820,9 @@ function ImageModal({
 
       // Cycle bboxes with Tab/Shift+Tab — works regardless of focus, so a focused
       // species-picker input still hands Tab to the modal instead of walking
-      // through the row's other buttons.
-      if (e.key === 'Tab') {
+      // through the row's other buttons. Skip during IME composition (CJK
+      // input uses Tab to commit candidates).
+      if (e.key === 'Tab' && !e.nativeEvent?.isComposing) {
         const visibleBboxes = bboxes.filter((b) => b.bboxX !== null && b.bboxX !== undefined)
         if (visibleBboxes.length > 0) {
           e.preventDefault()
@@ -1430,6 +1431,7 @@ function ImageModal({
             <ObservationRail
               observations={bboxes}
               studyId={studyId}
+              mediaId={media?.mediaID}
               selectedObservationId={selectedObservationId}
               onSelectObservation={setSelectedObservationId}
               onUpdateClassification={(observationID, updates) =>
