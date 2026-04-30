@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import ObservationRow from './ObservationRow'
 import AddObservationMenu from './AddObservationMenu'
 import { getMediaMode } from '../utils/mediaMode'
@@ -27,9 +28,16 @@ export default function ObservationRail({
   showShortcuts = false
 }) {
   const mode = getMediaMode(observations)
-  // No auto-select: any row that's expanded auto-focuses the species picker,
-  // which hijacks keyboard navigation (Left/Right). The user expands the row
-  // by clicking it when they want to edit.
+
+  // Auto-expand the single whole-image row, but mark it as not user-initiated
+  // so the picker won't autoFocus (Left/Right keyboard nav stays free).
+  const [userInteracted, setUserInteracted] = useState(false)
+
+  useEffect(() => {
+    if (!selectedObservationId && mode === 'whole-image' && observations.length > 0) {
+      onSelectObservation(observations[0].observationID)
+    }
+  }, [selectedObservationId, observations, mode, onSelectObservation])
 
   return (
     <aside
@@ -95,11 +103,15 @@ export default function ObservationRail({
                 observation={obs}
                 studyId={studyId}
                 isSelected={obs.observationID === selectedObservationId}
-                onSelect={() => onSelectObservation(obs.observationID)}
+                onSelect={() => {
+                  setUserInteracted(true)
+                  onSelectObservation(obs.observationID)
+                }}
                 onUpdateClassification={(updates) =>
                   onUpdateClassification(obs.observationID, updates)
                 }
                 onDelete={() => onDeleteObservation(obs.observationID)}
+                autoFocusPicker={userInteracted}
               />
             ))}
           </div>

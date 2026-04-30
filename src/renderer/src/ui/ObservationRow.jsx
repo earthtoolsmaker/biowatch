@@ -37,7 +37,8 @@ export default function ObservationRow({
   isSelected,
   onSelect,
   onUpdateClassification,
-  onDelete
+  onDelete,
+  autoFocusPicker = true
 }) {
   const rowRef = useRef(null)
 
@@ -146,7 +147,7 @@ export default function ObservationRow({
             onSelect={handleSpeciesSelect}
             onMarkBlank={handleMarkBlank}
             allowMarkBlank={!isBbox}
-            autoFocus
+            autoFocus={autoFocusPicker}
           />
 
           <div>
