@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import ObservationRow from './ObservationRow'
 import AddObservationMenu from './AddObservationMenu'
 import { getMediaMode } from '../utils/mediaMode'
@@ -28,15 +27,9 @@ export default function ObservationRail({
   showShortcuts = false
 }) {
   const mode = getMediaMode(observations)
-
-  // Auto-select only for whole-image observations (single row, no other to choose).
-  // For bbox mode, leave selection empty so keyboard navigation (← / →) isn't
-  // hijacked by the species picker input.
-  useEffect(() => {
-    if (!selectedObservationId && mode === 'whole-image' && observations.length > 0) {
-      onSelectObservation(observations[0].observationID)
-    }
-  }, [selectedObservationId, observations, mode, onSelectObservation])
+  // No auto-select: any row that's expanded auto-focuses the species picker,
+  // which hijacks keyboard navigation (Left/Right). The user expands the row
+  // by clicking it when they want to edit.
 
   return (
     <aside
