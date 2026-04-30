@@ -25,7 +25,8 @@ export default function ObservationRail({
   onDeleteObservation,
   onDrawRectangle,
   onAddWholeImage,
-  showShortcuts = false
+  showShortcuts = false,
+  isLoading = false
 }) {
   const mode = getMediaMode(observations)
 
@@ -81,7 +82,11 @@ export default function ObservationRail({
         <span className="text-xs text-gray-500 font-medium">{observations.length}</span>
       </header>
 
-      {mode === 'empty' ? (
+      {isLoading ? (
+        // Suppress the empty state while data is still loading to avoid a
+        // "No observations yet" flash during media navigation.
+        <div className="flex-1" aria-hidden="true" />
+      ) : mode === 'empty' ? (
         <div className="flex-1 flex flex-col items-center justify-center px-8 pt-16 pb-12 text-center gap-5">
           <div className="text-sm text-gray-500 leading-relaxed">
             <strong className="text-[#030213] block">No observations yet</strong>

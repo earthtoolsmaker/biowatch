@@ -386,7 +386,7 @@ function ImageModal({
   const isVideo = isVideoMedia(media)
 
   // Fetch observations - first try with bbox coordinates, then include those without
-  const { data: bboxes = [] } = useQuery({
+  const { data: bboxes = [], isPending: bboxesPending } = useQuery({
     queryKey: ['mediaBboxes', studyId, media?.mediaID, isVideo],
     queryFn: async () => {
       // For videos, always include observations without bbox
@@ -1448,6 +1448,7 @@ function ImageModal({
               }}
               onAddWholeImage={handleAddWholeImage}
               showShortcuts={showShortcuts}
+              isLoading={bboxesPending}
             />
           </div>
 
