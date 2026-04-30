@@ -43,9 +43,9 @@ export default function ObservationRail({
           </div>
           <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs text-gray-600">
             <kbd className="font-mono text-[11px] font-semibold text-[#030213]">Tab</kbd>
-            <span>Next bbox</span>
+            <span>Next observation</span>
             <kbd className="font-mono text-[11px] font-semibold text-[#030213]">Shift+Tab</kbd>
-            <span>Previous bbox</span>
+            <span>Previous observation</span>
             <kbd className="font-mono text-[11px] font-semibold text-[#030213]">Left/Right</kbd>
             <span>Navigate images</span>
             <kbd className="font-mono text-[11px] font-semibold text-[#030213]">
