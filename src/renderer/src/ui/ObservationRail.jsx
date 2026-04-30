@@ -48,7 +48,7 @@ export default function ObservationRail({
       </header>
 
       {mode === 'empty' ? (
-        <div className="flex-1 flex flex-col items-center justify-center px-8 text-center gap-3">
+        <div className="flex-1 flex flex-col items-center justify-center px-8 pt-16 pb-12 text-center gap-5">
           <div className="text-sm text-gray-500 leading-relaxed">
             <strong className="text-[#030213] block">No observations yet</strong>
             Add one to start labelling this media.
