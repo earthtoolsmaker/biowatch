@@ -6,6 +6,79 @@
 import { executeRawQuery } from '../index.js'
 import log from 'electron-log'
 import { getStudyIdFromPath } from './utils.js'
+import { resolveSpeciesInfo } from '../../../shared/speciesInfo/resolver.js'
+
+/**
+ * IUCN tier → additive boost applied on top of the composite score in
+ * getBestMedia (auto-scored path) and used as the primary ORDER BY key
+ * in the favorites path when the user is over-limit.
+ *
+ * Spec: docs/specs/2026-05-02-iucn-best-captures-boost-design.md
+ *
+ * Tunable knob — change values here, rebuild. LC/DD/NE intentionally
+ * absent; the resolver only emits boosts for tiers in this map.
+ */
+export const IUCN_BOOST = Object.freeze({
+  CR: 0.25,
+  EW: 0.25,
+  EX: 0.25,
+  EN: 0.18,
+  VU: 0.10,
+  NT: 0.03
+})
+
+const IUCN_TIERS_ORDER = ['CR', 'EW', 'EX', 'EN', 'VU', 'NT']
+
+/**
+ * Group a list of distinct species names into IUCN boost-eligible tiers.
+ * Names that resolve to LC/DD/NE or do not resolve at all are dropped
+ * (they would contribute a zero-boost branch, which is the same as the
+ * default ELSE 0).
+ *
+ * @param {Array<{scientificName: string}>} distinctSpecies - rows from a
+ *   `SELECT DISTINCT scientificName FROM observations` probe.
+ * @param {(name: string) => {iucn?: string} | null} resolver - usually
+ *   the bundled `resolveSpeciesInfo`, but injectable for tests.
+ * @returns {{CR: string[], EW: string[], EX: string[], EN: string[], VU: string[], NT: string[]}}
+ *   Each tier holds the original (un-normalized) scientificName values,
+ *   matching how they appear in the DB column.
+ */
+export function groupSpeciesByIucnTier(distinctSpecies, resolver) {
+  const byTier = { CR: [], EW: [], EX: [], EN: [], VU: [], NT: [] }
+  for (const row of distinctSpecies) {
+    const name = row?.scientificName
+    if (!name) continue
+    const info = resolver(name)
+    const tier = info?.iucn
+    if (tier && byTier[tier]) byTier[tier].push(name)
+  }
+  return byTier
+}
+
+/**
+ * Build a SQL `CASE` fragment that maps `o.scientificName` to its IUCN
+ * boost. Returns `{expr: '0', params: []}` when no species qualify, so
+ * callers can always splice the expr in without a special-case branch.
+ *
+ * Each branch uses `IN (?, ?, ...)` with positional placeholders so
+ * scientific names are bound, not interpolated (SQL-injection safe).
+ *
+ * @param {ReturnType<typeof groupSpeciesByIucnTier>} byTier
+ * @returns {{expr: string, params: string[]}}
+ */
+export function buildIucnCase(byTier) {
+  const branches = []
+  const params = []
+  for (const tier of IUCN_TIERS_ORDER) {
+    const names = byTier[tier]
+    if (!names || names.length === 0) continue
+    const placeholders = names.map(() => '?').join(', ')
+    branches.push(`WHEN o.scientificName IN (${placeholders}) THEN ${IUCN_BOOST[tier]}`)
+    params.push(...names)
+  }
+  if (branches.length === 0) return { expr: '0', params: [] }
+  return { expr: `CASE ${branches.join(' ')} ELSE 0 END`, params }
+}
 
 /**
  * Assigns sequence IDs to media candidates based on timestamp proximity within the same deployment.
