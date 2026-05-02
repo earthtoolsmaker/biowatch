@@ -18,6 +18,7 @@ import {
   insertMedia,
   insertObservations
 } from '../../../../src/main/database/index.js'
+import { BLANK_SENTINEL } from '../../../../src/shared/constants.js'
 
 let testBiowatchDataPath
 let testDbPath
@@ -164,5 +165,68 @@ describe('getSpeciesForDeployment', () => {
     await seed()
     const rows = await getSpeciesForDeployment(testDbPath, 'does-not-exist')
     assert.deepEqual(rows, [])
+  })
+
+  test('appends a BLANK_SENTINEL row at the end when the deployment has media without observations', async () => {
+    const manager = await createImageDirectoryDatabase(testDbPath)
+    await insertDeployments(manager, {
+      d1: {
+        deploymentID: 'd1',
+        locationID: 'loc1',
+        locationName: 'Site A',
+        deploymentStart: DateTime.fromISO('2024-01-01T00:00:00Z'),
+        deploymentEnd: DateTime.fromISO('2024-12-31T23:59:59Z'),
+        latitude: 1,
+        longitude: 1,
+        cameraID: 'cam1'
+      }
+    })
+    await insertMedia(manager, {
+      'with-obs.jpg': {
+        mediaID: 'with-obs',
+        deploymentID: 'd1',
+        timestamp: DateTime.fromISO('2024-06-01T10:00:00Z'),
+        filePath: '/with-obs.jpg',
+        fileName: 'with-obs.jpg'
+      },
+      'blank-1.jpg': {
+        mediaID: 'blank-1',
+        deploymentID: 'd1',
+        timestamp: DateTime.fromISO('2024-06-02T10:00:00Z'),
+        filePath: '/blank-1.jpg',
+        fileName: 'blank-1.jpg'
+      },
+      'blank-2.jpg': {
+        mediaID: 'blank-2',
+        deploymentID: 'd1',
+        timestamp: DateTime.fromISO('2024-06-03T10:00:00Z'),
+        filePath: '/blank-2.jpg',
+        fileName: 'blank-2.jpg'
+      }
+    })
+    await insertObservations(manager, [
+      {
+        observationID: 'o1',
+        mediaID: 'with-obs',
+        deploymentID: 'd1',
+        scientificName: 'Vulpes vulpes'
+      }
+    ])
+
+    const rows = await getSpeciesForDeployment(testDbPath, 'd1')
+    // Species first, blanks at the bottom.
+    assert.equal(rows[0].scientificName, 'Vulpes vulpes')
+    assert.equal(rows[0].count, 1)
+    assert.equal(rows[rows.length - 1].scientificName, BLANK_SENTINEL)
+    assert.equal(rows[rows.length - 1].count, 2)
+  })
+
+  test('omits the BLANK_SENTINEL row when there are no blanks', async () => {
+    await seed() // every d1 media has at least one observation
+    const rows = await getSpeciesForDeployment(testDbPath, 'd1')
+    assert.equal(
+      rows.find((r) => r.scientificName === BLANK_SENTINEL),
+      undefined
+    )
   })
 })

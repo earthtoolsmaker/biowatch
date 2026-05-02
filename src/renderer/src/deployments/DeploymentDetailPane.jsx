@@ -6,6 +6,7 @@ import DeploymentMediaGallery from '../media/DeploymentMediaGallery'
 import EditableLocationName from './EditableLocationName'
 import SpeciesTooltipContent from '../ui/SpeciesTooltipContent'
 import { resolveCommonName } from '../../../shared/commonNames/index.js'
+import { BLANK_SENTINEL } from '../../../shared/constants.js'
 
 /**
  * Bottom-pane container for the Deployments tab. Mounted only when a
@@ -170,47 +171,66 @@ function SpeciesFilterButton({ studyId, deploymentID, selectedSpecies, onChange 
 }
 
 function SpeciesFilterRow({ studyId, scientificName, count, isSelected, onToggle, scrollSignal }) {
-  const commonName = resolveCommonName(scientificName)
+  const isBlank = scientificName === BLANK_SENTINEL
+  const commonName = isBlank ? null : resolveCommonName(scientificName)
   const [hoverOpen, setHoverOpen] = useState(false)
   // Close any open card when the popover scrolls.
   useEffect(() => {
     if (scrollSignal > 0) setHoverOpen(false)
   }, [scrollSignal])
 
+  // Blanks (media with no observations) skip the species hover card —
+  // there's no scientificName to look up.
+  const rowButton = (
+    <button
+      onClick={onToggle}
+      className={`w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors ${
+        isSelected ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-gray-50'
+      }`}
+    >
+      <span
+        className={`flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center ${
+          isSelected ? 'bg-blue-500 border-blue-500' : 'border-gray-300 bg-white'
+        }`}
+      >
+        {isSelected && <Check size={12} className="text-white" />}
+      </span>
+      <span className="flex-1 min-w-0">
+        {isBlank ? (
+          <span
+            className={`block text-sm truncate italic ${
+              isSelected ? 'text-blue-900 font-medium' : 'text-gray-600'
+            }`}
+          >
+            No observations
+          </span>
+        ) : (
+          <>
+            <span
+              className={`block text-sm truncate ${commonName ? 'capitalize' : ''} ${
+                isSelected ? 'text-blue-900 font-medium' : 'text-gray-800'
+              }`}
+            >
+              {commonName || scientificName}
+            </span>
+            {commonName && (
+              <span className="block text-xs italic text-gray-500 truncate">{scientificName}</span>
+            )}
+          </>
+        )}
+      </span>
+      <span className="flex-shrink-0 text-xs tabular-nums text-gray-500">{count}</span>
+    </button>
+  )
+
+  if (isBlank) {
+    return <li>{rowButton}</li>
+  }
+
   return (
     <li>
       <HoverCard.Root open={hoverOpen} onOpenChange={setHoverOpen} openDelay={250} closeDelay={120}>
-        <HoverCard.Trigger asChild>
-          <button
-            onClick={onToggle}
-            className={`w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors ${
-              isSelected ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-gray-50'
-            }`}
-          >
-            <span
-              className={`flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center ${
-                isSelected ? 'bg-blue-500 border-blue-500' : 'border-gray-300 bg-white'
-              }`}
-            >
-              {isSelected && <Check size={12} className="text-white" />}
-            </span>
-            <span className="flex-1 min-w-0">
-              <span
-                className={`block text-sm truncate ${commonName ? 'capitalize' : ''} ${
-                  isSelected ? 'text-blue-900 font-medium' : 'text-gray-800'
-                }`}
-              >
-                {commonName || scientificName}
-              </span>
-              {commonName && (
-                <span className="block text-xs italic text-gray-500 truncate">
-                  {scientificName}
-                </span>
-              )}
-            </span>
-            <span className="flex-shrink-0 text-xs tabular-nums text-gray-500">{count}</span>
-          </button>
-        </HoverCard.Trigger>
+        <HoverCard.Trigger asChild>{rowButton}</HoverCard.Trigger>
         <HoverCard.Portal>
           <HoverCard.Content
             side="left"

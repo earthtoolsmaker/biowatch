@@ -2,10 +2,11 @@
  * Deployment-related database queries
  */
 
-import { getDrizzleDb, deployments, observations } from '../index.js'
+import { getDrizzleDb, deployments, media, observations } from '../index.js'
 import { eq, desc, sql } from 'drizzle-orm'
 import log from 'electron-log'
 import { getStudyIdFromPath } from './utils.js'
+import { BLANK_SENTINEL } from '../../../shared/constants.js'
 
 /**
  * Get one deployment row per unique (latitude, longitude) — intended for
@@ -118,6 +119,12 @@ export async function getAllDeployments(dbPath) {
  * Not sequence-aware (counts are media, not sequences) — the popover only
  * needs the species set; exact counts are a nice-to-have.
  *
+ * Includes a synthetic row with `scientificName === BLANK_SENTINEL` and
+ * a count of media at this deployment that have no observations. The
+ * sequences-paginated query already special-cases BLANK_SENTINEL on
+ * input, so the popover can pass it straight through to filter for
+ * blanks.
+ *
  * @param {string} dbPath - Path to the SQLite database
  * @param {string} deploymentID
  * @returns {Promise<Array<{scientificName: string, count: number}>>}
@@ -140,9 +147,31 @@ export async function getSpeciesForDeployment(dbPath, deploymentID) {
       .groupBy(observations.scientificName)
       .orderBy(desc(sql`count`))
 
+    // Count media at this deployment with zero matching observations.
+    // Same NOT EXISTS shape the sequences query uses for BLANK_SENTINEL.
+    const blankRows = await db
+      .select({ count: sql`COUNT(*)`.as('count') })
+      .from(media)
+      .where(
+        sql`${media.deploymentID} = ${deploymentID} AND NOT EXISTS (SELECT 1 FROM ${observations} WHERE ${observations.mediaID} = ${media.mediaID})`
+      )
+    const blankCount = Number(blankRows[0]?.count || 0)
+
+    const result = rows.map((r) => ({
+      scientificName: r.scientificName,
+      count: Number(r.count)
+    }))
+    // Blanks pinned to the bottom of the list — keeps the species rows in
+    // count-desc order while still surfacing the no-observations bucket.
+    if (blankCount > 0) {
+      result.push({ scientificName: BLANK_SENTINEL, count: blankCount })
+    }
+
     const elapsedTime = Date.now() - startTime
-    log.info(`Retrieved ${rows.length} species for deployment ${deploymentID} in ${elapsedTime}ms`)
-    return rows.map((r) => ({ scientificName: r.scientificName, count: Number(r.count) }))
+    log.info(
+      `Retrieved ${rows.length} species (+ ${blankCount} blanks) for deployment ${deploymentID} in ${elapsedTime}ms`
+    )
+    return result
   } catch (error) {
     log.error(`Error querying species for deployment: ${error.message}`)
     throw error
