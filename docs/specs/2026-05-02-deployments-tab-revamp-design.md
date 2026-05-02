@@ -326,3 +326,41 @@ is unchanged.
   `getSequences`.
 - `docs/architecture.md` — note the new `DeploymentDetailPane` and the
   shared `Gallery` extraction in the renderer's component tree.
+
+## Iterations beyond v1
+
+Landed during the implementation cycle on top of the v1 spec above.
+None of these change the architecture or non-goals; they're additive
+polish on the detail-pane chrome.
+
+- **Inline rename in the detail-pane header.** The deployment name is
+  rendered via `EditableLocationName` (extracted from `deployments.jsx`)
+  so users can rename a deployment from the same place they see its
+  media. New shared file: `src/renderer/src/deployments/EditableLocationName.jsx`.
+- **Species filter popover.** A filter button next to ✕ opens a popover
+  listing species observed at this deployment (one row per species:
+  common name + scientific name + media count). Click rows to toggle;
+  selection threads into `Gallery`'s `species` prop. Hovering a row
+  opens the project's `SpeciesTooltipContent` card. New IPC
+  `deployments:get-species` and DB query `getSpeciesForDeployment`.
+- **"No observations" (blanks) row.** The species filter popover
+  appends a synthetic row at the bottom for media at the deployment
+  with no observations. Reuses the existing `BLANK_SENTINEL` convention
+  — the sequences-paginated query already special-cases it on input,
+  so the popover passes it straight through.
+- **Top-row swap.** Map and list swapped horizontally — list on the
+  left (~62%), map on the right (~38%). The list timeline uses width
+  productively; the map's geography reads at any size.
+- **Subtle open/close animation.** 180ms fade-in + slide-up when the
+  detail pane mounts; 150ms fade-out via deferred unmount. Doesn't
+  retrigger on deployment-to-deployment swaps because the inner
+  `DeploymentDetailPane` keeps its own `key={deploymentID}` for state
+  isolation.
+- **Map polish.** `rounded-xl` + `shadow-md` chrome matching the
+  Overview tab; `max-h-[500px]` cap so the map doesn't stretch on tall
+  windows; `ImageModal` z-index raised to `z-[9999]` so it sits above
+  Leaflet's map controls.
+- **`embedded` prop on `Gallery`.** When set (true for
+  `DeploymentMediaGallery`), the controls bar and outer `bg-white
+  rounded border` chrome are dropped — the detail pane provides the
+  surrounding shell instead.
