@@ -12,7 +12,7 @@ describe('IUCN_BOOST constant', () => {
     assert.equal(IUCN_BOOST.EW, 0.25)
     assert.equal(IUCN_BOOST.EX, 0.25)
     assert.equal(IUCN_BOOST.EN, 0.18)
-    assert.equal(IUCN_BOOST.VU, 0.10)
+    assert.equal(IUCN_BOOST.VU, 0.1)
     assert.equal(IUCN_BOOST.NT, 0.03)
   })
 
@@ -56,10 +56,7 @@ describe('groupSpeciesByIucnTier', () => {
   })
 
   test('LC, DD, and unresolved species are dropped (not zero-bucketed)', () => {
-    const distinct = [
-      { scientificName: 'Vulpes vulpes' },
-      { scientificName: 'Unknown species X' }
-    ]
+    const distinct = [{ scientificName: 'Vulpes vulpes' }, { scientificName: 'Unknown species X' }]
     const byTier = groupSpeciesByIucnTier(distinct, stubResolver)
     for (const tier of ['CR', 'EW', 'EX', 'EN', 'VU', 'NT']) {
       assert.deepEqual(byTier[tier], [])
@@ -111,8 +108,12 @@ describe('buildIucnCase', () => {
 
   test('CR/EW/EX share the 0.25 boost (each gets its own branch)', () => {
     const byTier = {
-      CR: ['A a'], EW: ['B b'], EX: ['C c'],
-      EN: [], VU: [], NT: []
+      CR: ['A a'],
+      EW: ['B b'],
+      EX: ['C c'],
+      EN: [],
+      VU: [],
+      NT: []
     }
     const { expr, params } = buildIucnCase(byTier)
     // Three branches, all THEN 0.25

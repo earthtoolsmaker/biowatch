@@ -23,7 +23,7 @@ export const IUCN_BOOST = Object.freeze({
   EW: 0.25,
   EX: 0.25,
   EN: 0.18,
-  VU: 0.10,
+  VU: 0.1,
   NT: 0.03
 })
 
@@ -447,9 +447,8 @@ export async function getBestMedia(dbPath, options = {}) {
     // IUCN params only bind when both branches above hold: over limit AND at
     // least one threatened species in study. Otherwise SQL has zero unbound
     // IUCN placeholders, so we send only [limit].
-    const favoritesParams = favoritesOverLimit && iucnCase.params.length > 0
-      ? [...iucnCase.params, limit]
-      : [limit]
+    const favoritesParams =
+      favoritesOverLimit && iucnCase.params.length > 0 ? [...iucnCase.params, limit] : [limit]
     const favorites = await executeRawQuery(studyId, dbPath, favoritesQuery, favoritesParams)
     log.info(`Found ${favorites.length} favorites`)
 
