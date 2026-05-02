@@ -597,3 +597,121 @@ describe('getBestMedia auto-scored IUCN boost', () => {
     assert.equal(result[0].scientificName, NOT_IN_DICT)
   })
 })
+
+describe('getBestMedia favorites over-limit ordering', () => {
+  const EN_NAME = 'Ailurus fulgens'  // Endangered
+  const VU_NAME = 'Acinonyx jubatus' // Vulnerable
+  const LC_NAME = 'Vulpes vulpes'    // Least Concern
+
+  test('when favorites count ≤ limit, ordering is timestamp DESC (unchanged)', async () => {
+    // 3 favorites, limit=12 → under limit. The IUCN-aware reorder must NOT trigger.
+    // The user's curated set is preserved in chronological order.
+    const manager = await seed({
+      media: {
+        'a.jpg': mediaEntry('m-old-en', '2024-01-01T10:00:00Z'),
+        'b.jpg': mediaEntry('m-mid-lc', '2024-01-02T10:00:00Z'),
+        'c.jpg': mediaEntry('m-new-vu', '2024-01-03T10:00:00Z')
+      },
+      observations: [
+        {
+          observationID: 'o-en', mediaID: 'm-old-en', deploymentID: 'd1',
+          eventID: 'e-en', scientificName: EN_NAME, count: 1
+        },
+        {
+          observationID: 'o-lc', mediaID: 'm-mid-lc', deploymentID: 'd1',
+          eventID: 'e-lc', scientificName: LC_NAME, count: 1
+        },
+        {
+          observationID: 'o-vu', mediaID: 'm-new-vu', deploymentID: 'd1',
+          eventID: 'e-vu', scientificName: VU_NAME, count: 1
+        }
+      ]
+    })
+    markFavorites(manager, ['m-old-en', 'm-mid-lc', 'm-new-vu'])
+
+    const result = await getBestMedia(testDbPath, { limit: 12 })
+
+    // All three favorites returned, in timestamp DESC order — NOT tier order.
+    assert.deepEqual(
+      result.map((r) => r.mediaID),
+      ['m-new-vu', 'm-mid-lc', 'm-old-en']
+    )
+  })
+
+  test('when favorites count > limit, ordering is IUCN tier DESC then timestamp DESC', async () => {
+    // 5 favorites, limit=3 → over limit. EN (oldest) must beat LC (newest)
+    // because tier-first beats recency.
+    const manager = await seed({
+      media: {
+        'a.jpg': mediaEntry('m-en-old',  '2024-01-01T10:00:00Z'),
+        'b.jpg': mediaEntry('m-en-new',  '2024-01-02T10:00:00Z'),
+        'c.jpg': mediaEntry('m-vu',      '2024-01-03T10:00:00Z'),
+        'd.jpg': mediaEntry('m-lc-old',  '2024-01-04T10:00:00Z'),
+        'e.jpg': mediaEntry('m-lc-new',  '2024-01-05T10:00:00Z')
+      },
+      observations: [
+        {
+          observationID: 'o-1', mediaID: 'm-en-old', deploymentID: 'd1',
+          eventID: 'e-1', scientificName: EN_NAME, count: 1
+        },
+        {
+          observationID: 'o-2', mediaID: 'm-en-new', deploymentID: 'd1',
+          eventID: 'e-2', scientificName: EN_NAME, count: 1
+        },
+        {
+          observationID: 'o-3', mediaID: 'm-vu', deploymentID: 'd1',
+          eventID: 'e-3', scientificName: VU_NAME, count: 1
+        },
+        {
+          observationID: 'o-4', mediaID: 'm-lc-old', deploymentID: 'd1',
+          eventID: 'e-4', scientificName: LC_NAME, count: 1
+        },
+        {
+          observationID: 'o-5', mediaID: 'm-lc-new', deploymentID: 'd1',
+          eventID: 'e-5', scientificName: LC_NAME, count: 1
+        }
+      ]
+    })
+    markFavorites(manager, ['m-en-old', 'm-en-new', 'm-vu', 'm-lc-old', 'm-lc-new'])
+
+    const result = await getBestMedia(testDbPath, { limit: 3 })
+
+    // Top 3 by tier-first: both EN (newest first within tier), then VU.
+    // The two LC favorites get pushed off, even though one is the newest overall.
+    assert.deepEqual(
+      result.map((r) => r.mediaID),
+      ['m-en-new', 'm-en-old', 'm-vu']
+    )
+  })
+
+  test('with exactly limit favorites, no reorder happens (timestamp DESC preserved)', async () => {
+    // Boundary: count === limit. Neither over-limit reorder nor auto-scored fill.
+    const manager = await seed({
+      media: {
+        'a.jpg': mediaEntry('m-lc',  '2024-01-01T10:00:00Z'),
+        'b.jpg': mediaEntry('m-en',  '2024-01-02T10:00:00Z')
+      },
+      observations: [
+        {
+          observationID: 'o-lc', mediaID: 'm-lc', deploymentID: 'd1',
+          eventID: 'e-lc', scientificName: LC_NAME, count: 1
+        },
+        {
+          observationID: 'o-en', mediaID: 'm-en', deploymentID: 'd1',
+          eventID: 'e-en', scientificName: EN_NAME, count: 1
+        }
+      ]
+    })
+    markFavorites(manager, ['m-lc', 'm-en'])
+
+    const result = await getBestMedia(testDbPath, { limit: 2 })
+
+    // Count == limit → original timestamp-DESC path. EN (newest) first, LC second.
+    // (Tier-first WOULD pass too — they happen to coincide here. The previous
+    // test is the one that distinguishes tier-first from timestamp-first.)
+    assert.deepEqual(
+      result.map((r) => r.mediaID),
+      ['m-en', 'm-lc']
+    )
+  })
+})

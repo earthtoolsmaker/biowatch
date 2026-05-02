@@ -341,6 +341,39 @@ export async function getBestMedia(dbPath, options = {}) {
   try {
     const studyId = getStudyIdFromPath(dbPath)
 
+    // Probe distinct species in the study so the IUCN CASE list is bounded by
+    // species actually present, not the entire bundled IUCN dictionary.
+    // Cheap thanks to idx_observations_scientificName. The result feeds both
+    // the favorites over-limit ordering (below) and the auto-scored path.
+    const distinctSpecies = await executeRawQuery(
+      studyId,
+      dbPath,
+      `SELECT DISTINCT scientificName FROM observations
+         WHERE scientificName IS NOT NULL AND scientificName != ''`,
+      []
+    )
+    const byTier = groupSpeciesByIucnTier(distinctSpecies, iucnResolver)
+    const iucnCase = buildIucnCase(byTier)
+
+    // Bounded probe: stop scanning as soon as we have limit + 1 favorite rows.
+    // No COUNT(*) — that would full-scan the media table (no index on favorite).
+    const favoriteProbe = await executeRawQuery(
+      studyId,
+      dbPath,
+      `SELECT 1 FROM media WHERE favorite = 1 LIMIT ?`,
+      [limit + 1]
+    )
+    const favoritesOverLimit = favoriteProbe.length > limit
+
+    // The favorites helper emits CASE WHEN o.scientificName IN (...) ... but
+    // the favorites query projects scientificName via COALESCE of two LEFT
+    // JOIN aliases. Rewrite the alias for the favorites context. Bound
+    // parameters are unaffected — only the column reference changes.
+    const favoritesIucnExpr = iucnCase.expr.replace(
+      /o\.scientificName/g,
+      'COALESCE(o1.scientificName, o2.scientificName)'
+    )
+
     // Step 1: Get user-marked favorites first.
     // Observations link to media via mediaID for most importers, or via
     // eventStart = media.timestamp for CamTrap DP datasets (where
@@ -407,11 +440,17 @@ export async function getBestMedia(dbPath, options = {}) {
       LEFT JOIN obs_by_mediaID o1 ON o1.mediaID = f.mediaID AND o1.rn = 1
       LEFT JOIN obs_by_ts o2 ON o2.eventStart = f.timestamp AND o2.rn = 1
       WHERE COALESCE(o1.scientificName, o2.scientificName) IS NOT NULL
-      ORDER BY f.timestamp DESC
+      ORDER BY ${favoritesOverLimit && iucnCase.params.length > 0 ? `(${favoritesIucnExpr}) DESC, ` : ''}f.timestamp DESC
       LIMIT ?
     `
 
-    const favorites = await executeRawQuery(studyId, dbPath, favoritesQuery, [limit])
+    // IUCN params only bind when both branches above hold: over limit AND at
+    // least one threatened species in study. Otherwise SQL has zero unbound
+    // IUCN placeholders, so we send only [limit].
+    const favoritesParams = favoritesOverLimit && iucnCase.params.length > 0
+      ? [...iucnCase.params, limit]
+      : [limit]
+    const favorites = await executeRawQuery(studyId, dbPath, favoritesQuery, favoritesParams)
     log.info(`Found ${favorites.length} favorites`)
 
     // If we have enough favorites, return them
@@ -446,19 +485,6 @@ export async function getBestMedia(dbPath, options = {}) {
       )
       return favorites
     }
-
-    // Probe distinct species in the study so the CASE list is bounded by
-    // species actually present, not the entire bundled IUCN dictionary.
-    // Cheap thanks to idx_observations_scientificName.
-    const distinctSpecies = await executeRawQuery(
-      studyId,
-      dbPath,
-      `SELECT DISTINCT scientificName FROM observations
-         WHERE scientificName IS NOT NULL AND scientificName != ''`,
-      []
-    )
-    const byTier = groupSpeciesByIucnTier(distinctSpecies, iucnResolver)
-    const iucnCase = buildIucnCase(byTier)
 
     // Step 2: Get auto-scored non-favorites to fill remaining slots
     const remainingSlots = limit - favorites.length
