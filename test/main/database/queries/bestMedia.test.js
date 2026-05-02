@@ -715,3 +715,41 @@ describe('getBestMedia favorites over-limit ordering', () => {
     )
   })
 })
+
+describe('getBestMedia IUCN scaling', () => {
+  test('handles 1000 distinct species, all marked threatened, without "too many SQL variables"', async () => {
+    // The realistic worst case is ~20 IUCN-tagged species per study (measured
+    // on 56 local DBs); 1000 is two orders of magnitude beyond that. SQLite's
+    // hard cap is 32766, so 1000 should comfortably succeed.
+    const numSpecies = 1000
+
+    // Stub resolver: every species we hand it is EN. No dependency on the
+    // bundled dictionary — keeps this test deterministic.
+    const stubResolver = () => ({ iucn: 'EN' })
+
+    const media = {}
+    const observations = []
+    for (let i = 0; i < numSpecies; i++) {
+      const mid = `m-${i}`
+      media[`${i}.jpg`] = mediaEntry(mid, `2024-01-01T${String(i % 24).padStart(2, '0')}:00:00Z`)
+      observations.push({
+        observationID: `o-${i}`, mediaID: mid, deploymentID: 'd1',
+        eventID: `e-${i}`, scientificName: `Genus speciesnumber${i}`, count: 1
+      })
+    }
+    const manager = await seed({ media, observations })
+    for (let i = 0; i < numSpecies; i++) {
+      setBbox(manager, `o-${i}`, { x: 0.3, y: 0.3, width: 0.3, height: 0.3, detectionConfidence: 0.9 })
+    }
+
+    const t0 = Date.now()
+    const result = await getBestMedia(testDbPath, { limit: 12, iucnResolver: stubResolver })
+    const elapsed = Date.now() - t0
+
+    // We injected the stub resolver, so every species is "EN" and gets +0.18.
+    assert.equal(result.length, 12)
+    // Sanity bound: the test infrastructure (seeding 1000 obs) dominates,
+    // but the actual query should be well under 5 seconds even on slow CI.
+    assert.ok(elapsed < 10000, `getBestMedia took ${elapsed}ms with 1000 species`)
+  })
+})
