@@ -497,3 +497,103 @@ describe('getBestImagePerSpecies short-circuit on missing bbox data', () => {
     assert.equal(result.length, 2)
   })
 })
+
+describe('getBestMedia auto-scored IUCN boost', () => {
+  // Real species names that resolve in the bundled IUCN dictionary.
+  // Verify with: grep '"ailurus fulgens"' src/shared/speciesInfo/data.json
+  const EN_NAME = 'Ailurus fulgens'      // Endangered (red panda) → +0.18
+  const LC_NAME = 'Vulpes vulpes'        // Least Concern (red fox) → 0
+  const NOT_IN_DICT = 'Made up species'  // No resolution → 0
+
+  test('an EN species displaces a comparable LC species when their raw scores are close', async () => {
+    // Two media at the same deployment, identical bbox geometry and detection
+    // confidence so the only difference between them in the orig formula is
+    // the rarity boost (which is the same when each species appears once).
+    // The IUCN boost should tip the EN species above the LC one.
+    const manager = await seed({
+      media: {
+        'a.jpg': mediaEntry('m-en', '2024-01-05T12:00:00Z'),
+        'b.jpg': mediaEntry('m-lc', '2024-01-06T12:00:00Z')
+      },
+      observations: [
+        {
+          observationID: 'o-en', mediaID: 'm-en', deploymentID: 'd1',
+          eventID: 'e-en', scientificName: EN_NAME, count: 1
+        },
+        {
+          observationID: 'o-lc', mediaID: 'm-lc', deploymentID: 'd1',
+          eventID: 'e-lc', scientificName: LC_NAME, count: 1
+        }
+      ]
+    })
+    setBbox(manager, 'o-en', { x: 0.3, y: 0.3, width: 0.3, height: 0.3, detectionConfidence: 0.9 })
+    setBbox(manager, 'o-lc', { x: 0.3, y: 0.3, width: 0.3, height: 0.3, detectionConfidence: 0.9 })
+
+    const result = await getBestMedia(testDbPath, { limit: 12 })
+
+    const enRow = result.find((r) => r.scientificName === EN_NAME)
+    const lcRow = result.find((r) => r.scientificName === LC_NAME)
+    assert.ok(enRow, `expected EN row for ${EN_NAME}`)
+    assert.ok(lcRow, `expected LC row for ${LC_NAME}`)
+    assert.ok(
+      enRow.compositeScore > lcRow.compositeScore,
+      `expected EN boost to make ${EN_NAME} (${enRow.compositeScore}) outrank ${LC_NAME} (${lcRow.compositeScore})`
+    )
+    // Boost magnitude: EN gets +0.18 on top of an otherwise-equal score.
+    // We allow a small tolerance because rarity score is per-species count.
+    assert.ok(
+      enRow.compositeScore - lcRow.compositeScore >= 0.17,
+      `expected score gap ≥ 0.17, got ${enRow.compositeScore - lcRow.compositeScore}`
+    )
+  })
+
+  test('a species not in the IUCN dictionary gets no boost', async () => {
+    const manager = await seed({
+      media: {
+        'a.jpg': mediaEntry('m-x', '2024-01-05T12:00:00Z'),
+        'b.jpg': mediaEntry('m-lc', '2024-01-06T12:00:00Z')
+      },
+      observations: [
+        {
+          observationID: 'o-x', mediaID: 'm-x', deploymentID: 'd1',
+          eventID: 'e-x', scientificName: NOT_IN_DICT, count: 1
+        },
+        {
+          observationID: 'o-lc', mediaID: 'm-lc', deploymentID: 'd1',
+          eventID: 'e-lc', scientificName: LC_NAME, count: 1
+        }
+      ]
+    })
+    setBbox(manager, 'o-x', { x: 0.3, y: 0.3, width: 0.3, height: 0.3, detectionConfidence: 0.9 })
+    setBbox(manager, 'o-lc', { x: 0.3, y: 0.3, width: 0.3, height: 0.3, detectionConfidence: 0.9 })
+
+    const result = await getBestMedia(testDbPath, { limit: 12 })
+
+    const xRow = result.find((r) => r.scientificName === NOT_IN_DICT)
+    const lcRow = result.find((r) => r.scientificName === LC_NAME)
+    assert.ok(xRow && lcRow)
+    // Both have no IUCN boost, so the gap should be ≤ 0.01 (just rarity ties).
+    assert.ok(
+      Math.abs(xRow.compositeScore - lcRow.compositeScore) < 0.05,
+      `expected no boost for unresolved species; gap was ${Math.abs(xRow.compositeScore - lcRow.compositeScore)}`
+    )
+  })
+
+  test('zero IUCN-tagged species in the study → query still runs (CASE expr is "0")', async () => {
+    const manager = await seed({
+      media: { 'a.jpg': mediaEntry('m-x', '2024-01-05T12:00:00Z') },
+      observations: [
+        {
+          observationID: 'o-x', mediaID: 'm-x', deploymentID: 'd1',
+          eventID: 'e-x', scientificName: NOT_IN_DICT, count: 1
+        }
+      ]
+    })
+    setBbox(manager, 'o-x', { x: 0.3, y: 0.3, width: 0.3, height: 0.3, detectionConfidence: 0.9 })
+
+    const result = await getBestMedia(testDbPath, { limit: 12 })
+
+    assert.equal(result.length, 1)
+    assert.equal(result[0].scientificName, NOT_IN_DICT)
+  })
+})
