@@ -125,6 +125,13 @@ export async function getAllDeployments(dbPath) {
  * input, so the popover can pass it straight through to filter for
  * blanks.
  *
+ * Edge case: a media whose only observations have empty or NULL
+ * `scientificName` is neither a species nor a blank here — the species
+ * rows skip empty-name observations, and the blank count uses NOT
+ * EXISTS (any observation row disqualifies). Matches the convention in
+ * `getMediaForSequencePagination` so the popover and gallery agree on
+ * what "blank" means.
+ *
  * @param {string} dbPath - Path to the SQLite database
  * @param {string} deploymentID
  * @returns {Promise<Array<{scientificName: string, count: number}>>}
