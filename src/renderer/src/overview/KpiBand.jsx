@@ -184,7 +184,7 @@ export default function KpiBand({ studyId, studyData, isImporting }) {
           >
             <ChevronLeft size={20} />
           </button>
-          <div className="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-white to-transparent z-[1] pointer-events-none" />
+          <div className="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-card to-transparent dark:from-card z-[1] pointer-events-none" />
         </>
       )}
       {canScrollRight && (
@@ -197,7 +197,7 @@ export default function KpiBand({ studyId, studyData, isImporting }) {
           >
             <ChevronRight size={20} />
           </button>
-          <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-white to-transparent z-[1] pointer-events-none" />
+          <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-card to-transparent dark:from-card z-[1] pointer-events-none" />
         </>
       )}
       <div

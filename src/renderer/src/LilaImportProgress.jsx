@@ -259,7 +259,7 @@ function LilaImportProgress({ isOpen, progress, onCancel }) {
             </div>
           ) : (
             /* Progress stages */
-            <div className="divide-y divide-gray-100">
+            <div className="divide-y divide-border">
               {stages.map((s, idx) => (
                 <StageRow
                   key={s.key}

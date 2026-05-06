@@ -3,7 +3,7 @@ import ObservationRow from './ObservationRow'
 import AddObservationMenu from './AddObservationMenu'
 import { getMediaMode } from '../utils/mediaMode'
 
-const KBD_CLASSNAME = 'font-mono text-[11px] font-semibold text-[#030213]'
+const KBD_CLASSNAME = 'font-mono text-[11px] font-semibold text-foreground'
 
 function Kbd({ children }) {
   return <kbd className={KBD_CLASSNAME}>{children}</kbd>
@@ -105,7 +105,7 @@ export default function ObservationRail({
       )}
 
       <header className="flex items-center justify-between px-4 py-2.5 border-b border-border flex-shrink-0">
-        <span className="text-sm font-semibold text-[#030213]">Observations</span>
+        <span className="text-sm font-semibold text-foreground">Observations</span>
         <span className="text-xs text-muted-foreground font-medium">{observations.length}</span>
       </header>
 
@@ -116,7 +116,7 @@ export default function ObservationRail({
       ) : mode === 'empty' ? (
         <div className="flex-1 flex flex-col items-center justify-center px-8 pt-16 pb-12 text-center gap-5">
           <div className="text-sm text-muted-foreground leading-relaxed">
-            <strong className="text-[#030213] block">No observations yet</strong>
+            <strong className="text-foreground block">No observations yet</strong>
             Add one to start labelling this media.
           </div>
           <AddObservationMenu

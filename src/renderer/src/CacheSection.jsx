@@ -99,7 +99,7 @@ export default function CacheSection({ studyId }) {
       )}
 
       {expanded && breakdown && (
-        <div className="mt-2 pl-5 divide-y divide-gray-100">
+        <div className="mt-2 pl-5 divide-y divide-border">
           {Object.keys(BREAKDOWN_LABELS).map((key) => (
             <div key={key} className="flex items-center justify-between py-1.5">
               <span className="text-sm text-foreground">{BREAKDOWN_LABELS[key]}</span>

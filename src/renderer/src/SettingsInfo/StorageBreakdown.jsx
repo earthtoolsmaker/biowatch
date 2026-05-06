@@ -50,7 +50,7 @@ export default function StorageBreakdown() {
       <p className="text-sm text-muted-foreground mb-2">
         Disk space used by Biowatch on this machine.
       </p>
-      <div className="divide-y divide-gray-100">
+      <div className="divide-y divide-border">
         {Object.keys(ROW_LABELS).map((key) => (
           <StorageRow key={key} label={ROW_LABELS[key]} entry={data?.[key]} isLoading={isLoading} />
         ))}

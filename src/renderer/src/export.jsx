@@ -184,7 +184,7 @@ export default function Export({ studyId }) {
         </div>
       )}
 
-      <div className="divide-y divide-gray-100">
+      <div className="divide-y divide-border">
         <ExportRow
           icon={FolderTree}
           title="Media Directories"

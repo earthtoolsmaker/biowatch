@@ -7,7 +7,7 @@ import LicenseSection from './LicenseSection'
 export default function SettingsInfo({ version, platform }) {
   return (
     <div className="px-4 sm:px-6">
-      <div className="max-w-2xl mx-auto divide-y divide-gray-200">
+      <div className="max-w-2xl mx-auto divide-y divide-border">
         <section className="py-6">
           <div className="flex items-baseline gap-2">
             <h1 className="text-lg font-semibold text-foreground">Biowatch</h1>

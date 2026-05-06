@@ -78,7 +78,7 @@ export default function RecentReleases() {
             <ReleaseBlock key={r.version} release={r} />
           ))}
           {isCollapsed && (
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white to-transparent" />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-card to-transparent dark:from-card" />
           )}
         </div>
       )}

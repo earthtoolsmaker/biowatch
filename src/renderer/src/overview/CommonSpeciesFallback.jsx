@@ -143,10 +143,10 @@ function ScrollableStrip({ children }) {
         </button>
       )}
       {canScrollLeft && (
-        <div className="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-white to-transparent z-[1] pointer-events-none" />
+        <div className="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-card to-transparent dark:from-card z-[1] pointer-events-none" />
       )}
       {canScrollRight && (
-        <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-white to-transparent z-[1] pointer-events-none" />
+        <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-card to-transparent dark:from-card z-[1] pointer-events-none" />
       )}
       <div
         ref={containerRef}

@@ -97,7 +97,7 @@ export default function AddObservationMenu({
               close()
               onDrawRectangle()
             }}
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-[#030213] hover:bg-[#f8f9fb] text-left"
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-foreground hover:bg-accent text-left"
           >
             {BBOX_ICON}
             <span className="flex flex-col">
@@ -112,7 +112,7 @@ export default function AddObservationMenu({
                 close()
                 onWholeImage()
               }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-[#030213] hover:bg-[#f8f9fb] text-left border-t border-border"
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-foreground hover:bg-accent text-left border-t border-border"
             >
               {WHOLE_ICON}
               <span className="flex flex-col">

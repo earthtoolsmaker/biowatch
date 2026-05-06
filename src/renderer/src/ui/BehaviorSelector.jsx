@@ -73,7 +73,7 @@ export default function BehaviorSelector({ value = [], onChange }) {
         onClick={handleButtonClick}
         className={`w-full flex items-center justify-between px-3 py-1.5 rounded-md border text-sm transition-colors ${
           selectedCount > 0
-            ? 'bg-card border-border text-[#030213]'
+            ? 'bg-card border-border text-foreground'
             : 'bg-card border-border text-muted-foreground hover:border-border'
         }`}
       >
@@ -126,7 +126,7 @@ export default function BehaviorSelector({ value = [], onChange }) {
                         e.stopPropagation()
                         handleToggle(behavior)
                       }}
-                      className="w-4 h-4 rounded border-border text-[#030213] focus:ring-gray-400 focus:ring-offset-0"
+                      className="w-4 h-4 rounded border-border text-foreground focus:ring-gray-400 focus:ring-offset-0"
                     />
                     <span className="text-sm text-foreground">{behavior}</span>
                   </label>

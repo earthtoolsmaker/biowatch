@@ -15,7 +15,7 @@ function SkeletonDeploymentsList({ itemCount = 5 }) {
         </header>
 
         {/* Skeleton rows */}
-        <div className="flex flex-col divide-y divide-gray-200 mb-4">
+        <div className="flex flex-col divide-y divide-border mb-4">
           {Array.from({ length: itemCount }).map((_, index) => (
             <div key={index} className="flex gap-4 items-center py-4 first:pt-2 px-2">
               <div className="flex flex-col gap-2">

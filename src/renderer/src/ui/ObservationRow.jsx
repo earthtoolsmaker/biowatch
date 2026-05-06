@@ -106,7 +106,7 @@ export default function ObservationRow({
         type="button"
         onClick={onSelect}
         aria-expanded={isSelected}
-        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-[#f8f9fb] transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-accent transition-colors"
       >
         {isBbox ? BBOX_TYPE_ICON : WHOLE_TYPE_ICON}
 
@@ -122,7 +122,7 @@ export default function ObservationRow({
           className={`text-sm flex-1 min-w-0 truncate ${
             isPseudoSpecies
               ? 'italic text-muted-foreground'
-              : `text-[#030213] font-medium ${showSci ? 'italic' : 'capitalize'}`
+              : `text-foreground font-medium ${showSci ? 'italic' : 'capitalize'}`
           }`}
         >
           {displayName}

@@ -76,8 +76,8 @@ function SpeciesRow({
               isPseudoEntry
                 ? 'text-muted-foreground italic'
                 : showScientificInItalic
-                  ? 'capitalize'
-                  : 'italic'
+                  ? 'text-foreground capitalize'
+                  : 'text-foreground italic'
             }`}
           >
             {displayName}
