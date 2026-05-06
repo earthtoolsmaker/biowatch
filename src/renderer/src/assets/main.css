@@ -78,11 +78,11 @@ code {
   --color-primary: oklch(0.985 0 0);
   --color-primary-foreground: #030213;
   --color-secondary: #334155;
-  --color-secondary-foreground: #f1f5f9;
+  --color-secondary-foreground: #fafafa;
   --color-muted: #334155;
   --color-muted-foreground: #94a3b8;
   --color-accent: #334155;
-  --color-accent-foreground: #f1f5f9;
+  --color-accent-foreground: #fafafa;
   --color-destructive: #f87171;
   --color-destructive-foreground: #ffffff;
   --color-border: rgba(255, 255, 255, 0.1);
@@ -100,7 +100,7 @@ code {
   --color-sidebar-primary: oklch(0.985 0 0);
   --color-sidebar-primary-foreground: #030213;
   --color-sidebar-accent: #1e293b;
-  --color-sidebar-accent-foreground: #f1f5f9;
+  --color-sidebar-accent-foreground: #fafafa;
   --color-sidebar-border: rgba(255, 255, 255, 0.08);
   --color-sidebar-ring: oklch(0.708 0 0);
 }
