@@ -76,7 +76,11 @@ export default function MarkerHoverCard({ counts, selectedSpecies, palette, scie
                 </div>
               )}
             </div>
-            <span style={{ fontSize: '11px', color: '#6b7280', flexShrink: 0 }}>{count}</span>
+            <span
+              style={{ fontSize: '11px', color: 'var(--color-muted-foreground)', flexShrink: 0 }}
+            >
+              {count}
+            </span>
           </div>
         )
       })}
