@@ -85,17 +85,17 @@ function ImageDirectoriesExportModal({ isOpen, onConfirm, onCancel, studyId }) {
       onClick={onCancel}
     >
       <div
-        className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[80vh] flex flex-col"
+        className="bg-card rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[80vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-start">
+        <div className="px-6 py-4 border-b border-border flex justify-between items-start">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Export Media Directories</h2>
-            <p className="text-sm text-gray-500 mt-1">Select species to export</p>
+            <h2 className="text-lg font-semibold text-foreground">Export Media Directories</h2>
+            <p className="text-sm text-muted-foreground mt-1">Select species to export</p>
           </div>
           <button
             onClick={onCancel}
-            className="p-1 hover:bg-gray-100 rounded text-gray-500 hover:text-gray-700 transition-colors"
+            className="p-1 hover:bg-accent rounded text-muted-foreground hover:text-foreground transition-colors"
             aria-label="Close modal"
           >
             <X size={20} />
@@ -104,31 +104,31 @@ function ImageDirectoriesExportModal({ isOpen, onConfirm, onCancel, studyId }) {
 
         <div className="flex-1 overflow-hidden flex flex-col">
           {loading ? (
-            <div className="px-6 py-8 text-center text-gray-500">
+            <div className="px-6 py-8 text-center text-muted-foreground">
               <div className="animate-pulse">Loading species...</div>
             </div>
           ) : error ? (
-            <div className="px-6 py-8 text-center text-red-600">{error}</div>
+            <div className="px-6 py-8 text-center text-red-600 dark:text-red-400">{error}</div>
           ) : species.length === 0 ? (
-            <div className="px-6 py-8 text-center text-gray-500">
+            <div className="px-6 py-8 text-center text-muted-foreground">
               No species found in this study
             </div>
           ) : (
             <>
-              <div className="px-6 py-3 border-b border-gray-100 flex gap-2">
+              <div className="px-6 py-3 border-b border-border flex gap-2">
                 <button
                   onClick={handleSelectAll}
-                  className="px-3 py-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded transition-colors"
+                  className="px-3 py-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded transition-colors dark:text-blue-400 dark:bg-blue-500/15 dark:hover:bg-blue-500/25"
                 >
                   Select All
                 </button>
                 <button
                   onClick={handleDeselectAll}
-                  className="px-3 py-1 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                  className="px-3 py-1 text-xs font-medium text-muted-foreground bg-muted hover:bg-accent rounded transition-colors"
                 >
                   Deselect All
                 </button>
-                <span className="ml-auto text-xs text-gray-500 self-center">
+                <span className="ml-auto text-xs text-muted-foreground self-center">
                   {selectedSpecies.size} of {species.length} selected
                 </span>
               </div>
@@ -146,26 +146,26 @@ function ImageDirectoriesExportModal({ isOpen, onConfirm, onCancel, studyId }) {
                     return (
                       <label
                         key={s.scientificName}
-                        className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded"
+                        className="flex items-center space-x-3 cursor-pointer hover:bg-accent p-2 rounded"
                       >
                         <input
                           type="checkbox"
                           checked={selectedSpecies.has(s.scientificName)}
                           onChange={() => handleSpeciesToggle(s.scientificName)}
-                          className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-border rounded dark:text-blue-400"
                         />
                         <div className="flex-1 flex justify-between items-center min-w-0">
                           <span
-                            className={`text-sm text-gray-900 truncate ${showSci ? 'capitalize' : 'italic'}`}
+                            className={`text-sm text-foreground truncate ${showSci ? 'capitalize' : 'italic'}`}
                           >
                             {display}
                             {showSci && (
-                              <span className="text-xs text-gray-500 ml-2 italic normal-case">
+                              <span className="text-xs text-muted-foreground ml-2 italic normal-case">
                                 ({formatScientificName(s.scientificName)})
                               </span>
                             )}
                           </span>
-                          <span className="text-xs text-gray-500 ml-2 flex-shrink-0">
+                          <span className="text-xs text-muted-foreground ml-2 flex-shrink-0">
                             {s.count} media
                           </span>
                         </div>
@@ -177,28 +177,30 @@ function ImageDirectoriesExportModal({ isOpen, onConfirm, onCancel, studyId }) {
             </>
           )}
 
-          <div className="px-6 py-3 border-t border-gray-100">
-            <label className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded">
+          <div className="px-6 py-3 border-t border-border">
+            <label className="flex items-center space-x-3 cursor-pointer hover:bg-accent p-2 rounded">
               <input
                 type="checkbox"
                 checked={includeBlank}
                 onChange={(e) => setIncludeBlank(e.target.checked)}
-                className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-border rounded dark:text-blue-400"
               />
               <div className="flex-1">
-                <span className="text-sm font-medium text-gray-900">
+                <span className="text-sm font-medium text-foreground">
                   Include blank media (no detections)
                 </span>
-                <p className="text-xs text-gray-500">Export media where no animals were detected</p>
+                <p className="text-xs text-muted-foreground">
+                  Export media where no animals were detected
+                </p>
               </div>
             </label>
           </div>
         </div>
 
-        <div className="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
+        <div className="px-6 py-4 border-t border-border flex justify-end space-x-3">
           <button
             onClick={onCancel}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+            className="px-4 py-2 text-sm font-medium text-foreground bg-muted hover:bg-accent rounded-md transition-colors"
           >
             Cancel
           </button>
@@ -206,7 +208,9 @@ function ImageDirectoriesExportModal({ isOpen, onConfirm, onCancel, studyId }) {
             onClick={handleConfirm}
             disabled={!canExport}
             className={`px-4 py-2 text-sm font-medium text-white rounded-md transition-colors ${
-              canExport ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-300 cursor-not-allowed'
+              canExport
+                ? 'bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600'
+                : 'bg-blue-300 cursor-not-allowed'
             }`}
           >
             Export

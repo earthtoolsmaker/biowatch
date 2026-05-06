@@ -200,7 +200,7 @@ function ImageViewerModal({
                 }}
                 className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
                   isFavorite
-                    ? 'text-red-600 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-500/20'
+                    ? 'text-red-600 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-500/20 dark:bg-red-500/15'
                     : 'text-muted-foreground hover:bg-accent'
                 }`}
                 aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
@@ -472,7 +472,7 @@ function VideoViewerModal({
                 }}
                 className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
                   isFavorite
-                    ? 'text-red-600 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-500/20'
+                    ? 'text-red-600 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-500/20 dark:bg-red-500/15'
                     : 'text-muted-foreground hover:bg-accent'
                 }`}
                 aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}

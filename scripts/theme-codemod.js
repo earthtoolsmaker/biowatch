@@ -19,12 +19,15 @@ import { join, extname } from 'path'
 // Order matters — more specific rules first.
 const SUBSTITUTIONS = [
   // Neutral surfaces
+  { from: /\bhover:bg-gray-50\b/g, to: 'hover:bg-accent' },
   { from: /\bhover:bg-gray-100\b/g, to: 'hover:bg-accent' },
   { from: /\bhover:bg-gray-200\b/g, to: 'hover:bg-accent' },
-  { from: /\bhover:bg-gray-50\b/g, to: 'hover:bg-accent' },
+  { from: /\bhover:bg-gray-300\b/g, to: 'hover:bg-accent' },
+  { from: /\bgroup-hover:bg-gray-100\b/g, to: 'group-hover:bg-accent' },
+  { from: /\bgroup-hover:bg-gray-200\b/g, to: 'group-hover:bg-accent' },
+  { from: /\bbg-gray-50\b/g, to: 'bg-muted' },
   { from: /\bbg-gray-100\b/g, to: 'bg-muted' },
   { from: /\bbg-gray-200\b/g, to: 'bg-muted' },
-  { from: /\bbg-gray-50\b/g, to: 'bg-muted' },
 
   // Text neutrals
   { from: /\btext-gray-950\b/g, to: 'text-foreground' },
@@ -37,9 +40,9 @@ const SUBSTITUTIONS = [
   { from: /\btext-gray-300\b/g, to: 'text-muted-foreground' },
 
   // Borders
+  { from: /\bborder-gray-100\b/g, to: 'border-border' },
   { from: /\bborder-gray-200\b/g, to: 'border-border' },
   { from: /\bborder-gray-300\b/g, to: 'border-border' },
-  { from: /\bborder-gray-100\b/g, to: 'border-border' },
   { from: /\bborder-gray-400\b/g, to: 'border-border' }
 ]
 
@@ -98,6 +101,26 @@ const COLORED_IDIOMS = [
   [
     /(?<![:\w-])bg-red-200 text-red-900\b/g,
     'bg-red-200 text-red-900 dark:bg-red-500/30 dark:text-red-200'
+  ],
+
+  // Status banner idioms
+  [
+    /(?<![:\w-])bg-red-50 border border-red-200\b/g,
+    'bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30'
+  ],
+  [
+    /(?<![:\w-])bg-green-50 border border-green-200\b/g,
+    'bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30'
+  ],
+  [
+    /(?<![:\w-])bg-yellow-50 border border-yellow-200\b/g,
+    'bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/30'
+  ],
+
+  // Secondary gray button idiom (used in import-progress modals)
+  [
+    /(?<![:\w-])bg-gray-600 hover:bg-gray-700\b/g,
+    'bg-gray-600 hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600'
   ]
 ]
 
@@ -116,7 +139,13 @@ const BARE_DARK_PAIRS = new Map([
   ['text-amber-600', 'dark:text-amber-300'],
   ['text-green-600', 'dark:text-green-400'],
   ['text-green-700', 'dark:text-green-400'],
+  ['bg-blue-50', 'dark:bg-blue-500/15'],
   ['bg-blue-100', 'dark:bg-blue-500/20'],
+  ['bg-red-50', 'dark:bg-red-500/15'],
+  ['bg-red-100', 'dark:bg-red-500/20'],
+  ['bg-yellow-50', 'dark:bg-yellow-500/15'],
+  ['bg-green-50', 'dark:bg-green-500/15'],
+  ['bg-green-100', 'dark:bg-green-500/20'],
   ['bg-blue-500', 'dark:bg-blue-400'],
   ['bg-blue-600', 'dark:bg-blue-500'],
   ['hover:bg-red-100', 'dark:hover:bg-red-500/20'],
@@ -126,7 +155,17 @@ const BARE_DARK_PAIRS = new Map([
   ['hover:bg-blue-600', 'dark:hover:bg-blue-500'],
   ['hover:bg-blue-700', 'dark:hover:bg-blue-600'],
   ['hover:text-red-600', 'dark:hover:text-red-400'],
-  ['hover:text-blue-700', 'dark:hover:text-blue-400']
+  ['hover:text-blue-700', 'dark:hover:text-blue-400'],
+  ['bg-red-300', 'dark:bg-red-500/40'],
+  ['bg-red-600', 'dark:bg-red-500'],
+  ['bg-red-700', 'dark:bg-red-600'],
+  ['hover:bg-red-700', 'dark:hover:bg-red-600'],
+  ['hover:bg-red-100', 'dark:hover:bg-red-500/20'],
+  ['text-red-800', 'dark:text-red-300'],
+  ['text-red-700', 'dark:text-red-300'],
+  ['text-green-800', 'dark:text-green-300'],
+  ['group-hover:bg-blue-50', 'dark:group-hover:bg-blue-500/15'],
+  ['group-hover:text-blue-600', 'dark:group-hover:text-blue-400']
 ])
 
 // Phrases that are ambiguous and need human review.

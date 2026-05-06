@@ -29,12 +29,14 @@ function SourceRow({ icon: Icon, title, description, children, className = '' })
     <Card className={`shadow-none hover:border-blue-500/30 transition-colors ${className}`}>
       <CardContent className="p-3">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="size-8 rounded-md bg-gray-100 flex items-center justify-center shrink-0">
-            <Icon className="size-4 text-gray-500" />
+          <div className="size-8 rounded-md bg-muted flex items-center justify-center shrink-0">
+            <Icon className="size-4 text-muted-foreground" />
           </div>
           <div className="flex-1 min-w-0">
             <h4 className="text-sm font-medium leading-tight">{title}</h4>
-            {description && <p className="text-xs text-gray-500 truncate mt-0.5">{description}</p>}
+            {description && (
+              <p className="text-xs text-muted-foreground truncate mt-0.5">{description}</p>
+            )}
           </div>
           {children}
         </div>
@@ -498,7 +500,7 @@ export default function Import({ studiesCount = 0 }) {
         }
       }}
     >
-      <SelectTrigger className="w-full sm:max-w-lg bg-white border-gray-200">
+      <SelectTrigger className="w-full sm:max-w-lg bg-card border-border">
         <SelectValue>
           {selectedModel
             ? (() => {
@@ -549,7 +551,7 @@ export default function Import({ studiesCount = 0 }) {
           <h1 className="text-2xl font-semibold mb-1">
             {studiesCount === 0 ? 'Create Your First Study' : 'Create New Study'}
           </h1>
-          <p className="text-sm text-gray-500">Choose a data source below.</p>
+          <p className="text-sm text-muted-foreground">Choose a data source below.</p>
         </div>
 
         {/* Hero — recommended path (lighter treatment) */}
@@ -557,15 +559,15 @@ export default function Import({ studiesCount = 0 }) {
           <Card className="mb-3 shadow-none border-l-[3px] border-l-blue-500">
             <CardContent className="p-4">
               <div className="flex flex-wrap items-center gap-3">
-                <div className="size-9 rounded-md bg-blue-50 flex items-center justify-center shrink-0">
-                  <Sparkles className="size-4 text-blue-600" />
+                <div className="size-9 rounded-md bg-blue-50 flex items-center justify-center shrink-0 dark:bg-blue-500/15">
+                  <Sparkles className="size-4 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <h3 className="font-medium">Demo Dataset</h3>
-                    <span className="text-xs text-blue-600">Recommended</span>
+                    <span className="text-xs text-blue-600 dark:text-blue-400">Recommended</span>
                   </div>
-                  <p className="text-sm text-gray-500 mt-0.5">
+                  <p className="text-sm text-muted-foreground mt-0.5">
                     Explore all features with sample camera trap data.
                   </p>
                 </div>
@@ -583,15 +585,15 @@ export default function Import({ studiesCount = 0 }) {
           <Card className="mb-3 shadow-none border-l-[3px] border-l-blue-500">
             <CardContent className="p-4">
               <div className="flex flex-wrap items-center gap-3">
-                <div className="size-9 rounded-md bg-blue-50 flex items-center justify-center shrink-0">
-                  <FolderOpen className="size-4 text-blue-600" />
+                <div className="size-9 rounded-md bg-blue-50 flex items-center justify-center shrink-0 dark:bg-blue-500/15">
+                  <FolderOpen className="size-4 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <h3 className="font-medium">Images Directory</h3>
-                    <span className="text-xs text-blue-600">Recommended</span>
+                    <span className="text-xs text-blue-600 dark:text-blue-400">Recommended</span>
                   </div>
-                  <p className="text-sm text-gray-500 mt-0.5">
+                  <p className="text-sm text-muted-foreground mt-0.5">
                     Import images and detect species using AI models.
                     {!hasInstalledModels && ' Install an AI model to get started.'}
                   </p>
@@ -622,12 +624,12 @@ export default function Import({ studiesCount = 0 }) {
             <Card className="shadow-none hover:border-blue-500/30 transition-colors">
               <CardContent className="p-3">
                 <div className="flex flex-wrap items-center gap-3">
-                  <div className="size-8 rounded-md bg-gray-100 flex items-center justify-center shrink-0">
-                    <FolderOpen className="size-4 text-gray-500" />
+                  <div className="size-8 rounded-md bg-muted flex items-center justify-center shrink-0">
+                    <FolderOpen className="size-4 text-muted-foreground" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <h4 className="text-sm font-medium leading-tight">Images Directory</h4>
-                    <p className="text-xs text-gray-500 truncate mt-0.5">
+                    <p className="text-xs text-muted-foreground truncate mt-0.5">
                       {hasInstalledModels
                         ? 'Import images and classify species using AI'
                         : 'Install an AI model to import an images folder'}
@@ -691,15 +693,15 @@ export default function Import({ studiesCount = 0 }) {
         </div>
 
         {/* Tier 2 — Online datasets */}
-        <h4 className="text-xs font-medium text-gray-500 mt-6 mb-2 uppercase tracking-wide">
+        <h4 className="text-xs font-medium text-muted-foreground mt-6 mb-2 uppercase tracking-wide">
           Online datasets
         </h4>
         <div className="space-y-2">
           <Card className="shadow-none hover:border-blue-500/30 transition-colors">
             <CardContent className="p-3">
               <div className="flex flex-wrap items-center gap-3">
-                <div className="size-8 rounded-md bg-gray-100 flex items-center justify-center shrink-0">
-                  <Globe className="size-4 text-gray-500" />
+                <div className="size-8 rounded-md bg-muted flex items-center justify-center shrink-0">
+                  <Globe className="size-4 text-muted-foreground" />
                 </div>
                 <h4 className="text-sm font-medium leading-tight">GBIF</h4>
                 <div className="flex flex-1 basis-full sm:basis-auto min-w-[240px] gap-2 sm:ml-auto">
@@ -711,7 +713,7 @@ export default function Import({ studiesCount = 0 }) {
                     }}
                     disabled={loadingGbifDatasets}
                   >
-                    <SelectTrigger className="flex-1 min-w-0 bg-white border-gray-200">
+                    <SelectTrigger className="flex-1 min-w-0 bg-card border-border">
                       <SelectValue className="truncate">
                         {loadingGbifDatasets
                           ? 'Loading datasets...'
@@ -749,8 +751,8 @@ export default function Import({ studiesCount = 0 }) {
           <Card className="shadow-none hover:border-blue-500/30 transition-colors">
             <CardContent className="p-3">
               <div className="flex flex-wrap items-center gap-3">
-                <div className="size-8 rounded-md bg-gray-100 flex items-center justify-center shrink-0">
-                  <Database className="size-4 text-gray-500" />
+                <div className="size-8 rounded-md bg-muted flex items-center justify-center shrink-0">
+                  <Database className="size-4 text-muted-foreground" />
                 </div>
                 <h4 className="text-sm font-medium leading-tight">LILA</h4>
                 <div className="flex flex-1 basis-full sm:basis-auto min-w-[240px] gap-2 sm:ml-auto">
@@ -762,7 +764,7 @@ export default function Import({ studiesCount = 0 }) {
                     }}
                     disabled={loadingLilaDatasets}
                   >
-                    <SelectTrigger className="flex-1 min-w-0 bg-white border-gray-200">
+                    <SelectTrigger className="flex-1 min-w-0 bg-card border-border">
                       <SelectValue className="truncate">
                         {loadingLilaDatasets
                           ? 'Loading datasets...'
@@ -802,7 +804,7 @@ export default function Import({ studiesCount = 0 }) {
         <button
           type="button"
           onClick={() => setShowMoreFormats((v) => !v)}
-          className="flex items-center gap-1 mt-4 mb-2 text-xs font-medium text-gray-500 hover:text-gray-900 transition-colors uppercase tracking-wide"
+          className="flex items-center gap-1 mt-4 mb-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors uppercase tracking-wide"
         >
           {showMoreFormats ? (
             <ChevronDown className="size-3.5" />

@@ -270,7 +270,7 @@ export default function ContributorsModal({ open, onClose, studyId, studyData })
               <button
                 type="button"
                 onClick={() => remove(deletingIndex)}
-                className="px-3 py-1.5 text-sm bg-red-600 text-white dark:bg-red-500 dark:text-white hover:bg-red-700 rounded"
+                className="px-3 py-1.5 text-sm bg-red-600 text-white dark:bg-red-500 dark:text-white hover:bg-red-700 rounded dark:hover:bg-red-600"
               >
                 Delete
               </button>

@@ -81,7 +81,7 @@ const createClusterCustomIcon = (cluster) => {
   }
 
   const icon = L.divIcon({
-    html: `<div class="flex items-center justify-center ${sizeClasses[size]} bg-blue-500 text-white rounded-full border-2 border-white shadow-lg font-semibold">${count}</div>`,
+    html: `<div class="flex items-center justify-center ${sizeClasses[size]} bg-blue-500 dark:bg-blue-600 text-white rounded-full border-2 border-white dark:border-slate-900 shadow-lg font-semibold">${count}</div>`,
     className: 'custom-cluster-icon',
     iconSize: L.point(40, 40, true)
   })
@@ -156,7 +156,7 @@ function DeploymentMap({ deployments, studyId }) {
   })
 
   return (
-    <div className="w-full h-full bg-white rounded-xl border border-gray-200 shadow-md overflow-hidden">
+    <div className="w-full h-full bg-card rounded-xl border border-border shadow-md overflow-hidden">
       <MapContainer
         key={studyId}
         bounds={bounds}
@@ -300,7 +300,7 @@ export default function Overview({ data, studyId, studyName }) {
           </div>
         </Panel>
 
-        <PanelResizeHandle className="h-1 my-1.5 rounded-full bg-gray-100 hover:bg-gray-300 data-[resize-handle-state=drag]:bg-blue-300 cursor-row-resize transition-colors" />
+        <PanelResizeHandle className="h-1 my-1.5 rounded-full bg-muted hover:bg-accent data-[resize-handle-state=drag]:bg-blue-300 dark:data-[resize-handle-state=drag]:bg-blue-500 cursor-row-resize transition-colors" />
 
         <Panel defaultSize={50} minSize={bottomMinPercent} className="flex flex-col">
           <div className="flex flex-col gap-4 h-full pt-2 pb-1 pr-1 min-h-0">
@@ -314,7 +314,11 @@ export default function Overview({ data, studyId, studyName }) {
                 taxonomicData={data?.taxonomic || null}
               />
             </div>
-            {error && <div className="text-red-500 text-sm flex-shrink-0">Error: {error}</div>}
+            {error && (
+              <div className="text-red-500 text-sm flex-shrink-0 dark:text-red-400">
+                Error: {error}
+              </div>
+            )}
           </div>
         </Panel>
       </PanelGroup>

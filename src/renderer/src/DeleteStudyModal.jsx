@@ -49,22 +49,22 @@ function DeleteStudyModal({ isOpen, onConfirm, onCancel, studyName }) {
     >
       <div
         data-testid="delete-modal"
-        className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 flex flex-col"
+        className="bg-card rounded-lg shadow-xl max-w-md w-full mx-4 flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-start">
+        <div className="px-6 py-4 border-b border-border flex justify-between items-start">
           <div className="flex items-start gap-3">
-            <div className="p-2 bg-red-100 rounded-full">
-              <AlertTriangle size={20} className="text-red-600" />
+            <div className="p-2 bg-red-100 rounded-full dark:bg-red-500/20">
+              <AlertTriangle size={20} className="text-red-600 dark:text-red-400" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">Delete Study</h2>
-              <p className="text-sm text-gray-500 mt-1">This action cannot be undone</p>
+              <h2 className="text-lg font-semibold text-foreground">Delete Study</h2>
+              <p className="text-sm text-muted-foreground mt-1">This action cannot be undone</p>
             </div>
           </div>
           <button
             onClick={onCancel}
-            className="p-1 hover:bg-gray-100 rounded text-gray-500 hover:text-gray-700 transition-colors"
+            className="p-1 hover:bg-accent rounded text-muted-foreground hover:text-foreground transition-colors"
             aria-label="Close modal"
           >
             <X size={20} />
@@ -72,21 +72,21 @@ function DeleteStudyModal({ isOpen, onConfirm, onCancel, studyName }) {
         </div>
 
         <div className="px-6 py-4">
-          <p className="text-sm text-gray-700 mb-4">
+          <p className="text-sm text-foreground mb-4">
             You are about to permanently delete the study{' '}
-            <span className="font-semibold text-gray-900">&ldquo;{studyName}&rdquo;</span>. This
+            <span className="font-semibold text-foreground">&ldquo;{studyName}&rdquo;</span>. This
             will remove all associated data, deployments, and media references.
           </p>
 
-          <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4">
-            <p className="text-sm text-red-800">
+          <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-md p-3 mb-4 dark:bg-red-500/15">
+            <p className="text-sm text-red-800 dark:text-red-300">
               This action is <strong>irreversible</strong>. All data will be permanently lost.
             </p>
           </div>
 
           <label className="block">
-            <span className="text-sm font-medium text-gray-700">
-              Type <span className="font-mono bg-gray-100 px-1 rounded">{confirmPhrase}</span> to
+            <span className="text-sm font-medium text-foreground">
+              Type <span className="font-mono bg-muted px-1 rounded">{confirmPhrase}</span> to
               confirm
             </span>
             <input
@@ -96,16 +96,16 @@ function DeleteStudyModal({ isOpen, onConfirm, onCancel, studyName }) {
               onChange={(e) => setConfirmText(e.target.value)}
               onKeyDown={handleKeyPress}
               placeholder={confirmPhrase}
-              className="mt-2 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+              className="mt-2 block w-full px-3 py-2 border border-border rounded-md shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
               autoFocus
             />
           </label>
         </div>
 
-        <div className="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
+        <div className="px-6 py-4 border-t border-border flex justify-end space-x-3">
           <button
             onClick={onCancel}
-            className="cursor-pointer px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+            className="cursor-pointer px-4 py-2 text-sm font-medium text-foreground bg-muted hover:bg-accent rounded-md transition-colors"
           >
             Cancel
           </button>
@@ -115,8 +115,8 @@ function DeleteStudyModal({ isOpen, onConfirm, onCancel, studyName }) {
             disabled={!canDelete}
             className={`px-4 py-2 text-sm font-medium text-white rounded-md transition-colors ${
               canDelete
-                ? 'cursor-pointer bg-red-600 hover:bg-red-700'
-                : 'bg-red-300 cursor-not-allowed'
+                ? 'cursor-pointer bg-red-600 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600'
+                : 'bg-red-300 cursor-not-allowed dark:bg-red-500/40'
             }`}
           >
             Delete Study

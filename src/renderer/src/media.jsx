@@ -234,7 +234,9 @@ export default function Activity({ studyData, studyId }) {
   return (
     <div className="px-4 flex flex-col h-full">
       {speciesDistributionError ? (
-        <div className="text-red-500 py-4">Error: {speciesDistributionError.message}</div>
+        <div className="text-red-500 py-4 dark:text-red-400">
+          Error: {speciesDistributionError.message}
+        </div>
       ) : (
         <div className="flex flex-col h-full gap-4">
           {/* First row - takes remaining space */}
@@ -274,7 +276,7 @@ export default function Activity({ studyData, studyId }) {
               bordered containers don't appear empty during the initial load. */}
           {speciesInitialized && sequenceGap !== undefined && (
             <div className="w-full flex h-[130px] flex-shrink-0 gap-3">
-              <div className="w-[140px] h-full rounded border border-gray-200 flex items-center justify-center relative">
+              <div className="w-[140px] h-full rounded border border-border flex items-center justify-center relative">
                 <DailyActivityRadar
                   activityData={dailyActivityData}
                   selectedSpecies={selectedSpecies}
@@ -288,7 +290,7 @@ export default function Activity({ studyData, studyId }) {
                   />
                 </div>
               </div>
-              <div className="flex-grow rounded px-2 border border-gray-200">
+              <div className="flex-grow rounded px-2 border border-border">
                 <TimelineChart
                   timeseriesData={timeseriesData}
                   selectedSpecies={selectedSpecies}

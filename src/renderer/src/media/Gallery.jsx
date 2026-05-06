@@ -1152,7 +1152,7 @@ function ImageModal({
                 }}
                 className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
                   isFavorite
-                    ? 'text-red-600 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-500/20'
+                    ? 'text-red-600 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-500/20 dark:bg-red-500/15'
                     : 'text-muted-foreground hover:bg-accent'
                 }`}
                 aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
@@ -1171,7 +1171,7 @@ function ImageModal({
                   }}
                   className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
                     showBboxes
-                      ? 'text-blue-600 bg-blue-50 hover:bg-blue-100 dark:text-blue-400 dark:hover:bg-blue-500/25'
+                      ? 'text-blue-600 bg-blue-50 hover:bg-blue-100 dark:text-blue-400 dark:hover:bg-blue-500/25 dark:bg-blue-500/15'
                       : 'text-muted-foreground hover:bg-accent'
                   }`}
                   aria-label={showBboxes ? 'Hide bounding boxes' : 'Show bounding boxes'}
@@ -1189,7 +1189,7 @@ function ImageModal({
                 }}
                 className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
                   showShortcuts
-                    ? 'text-blue-600 bg-blue-50 hover:bg-blue-100 dark:text-blue-400 dark:hover:bg-blue-500/25'
+                    ? 'text-blue-600 bg-blue-50 hover:bg-blue-100 dark:text-blue-400 dark:hover:bg-blue-500/25 dark:bg-blue-500/15'
                     : 'text-muted-foreground hover:bg-accent'
                 }`}
                 aria-label="Toggle keyboard shortcuts"

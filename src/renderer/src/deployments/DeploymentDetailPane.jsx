@@ -207,7 +207,9 @@ function SpeciesFilterRow({ studyId, scientificName, count, isSelected, onToggle
     <button
       onClick={onToggle}
       className={`w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors ${
-        isSelected ? 'bg-blue-50 hover:bg-blue-100 dark:hover:bg-blue-500/25' : 'hover:bg-accent'
+        isSelected
+          ? 'bg-blue-50 hover:bg-blue-100 dark:hover:bg-blue-500/25 dark:bg-blue-500/15'
+          : 'hover:bg-accent'
       }`}
     >
       <span
