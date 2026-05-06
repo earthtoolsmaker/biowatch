@@ -90,7 +90,7 @@ export default function SpeciesTooltipContent({ imageData, studyId, size = 'md' 
     >
       {/* Image */}
       <div
-        className={`relative w-full ${imageHeight} ${usingFallbackImage ? 'bg-black' : 'bg-muted'}`}
+        className={`relative w-full ${imageHeight} ${usingFallbackImage ? 'bg-black' : 'bg-gray-100 dark:bg-muted'}`}
       >
         {!imageSource || imageError ? (
           <div className="absolute inset-0 flex items-center justify-center">
@@ -99,11 +99,11 @@ export default function SpeciesTooltipContent({ imageData, studyId, size = 'md' 
         ) : (
           <>
             {!imageLoaded && (
-              <div className="absolute inset-0 flex items-center justify-center bg-muted">
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-muted">
                 {isRemoteUrl(imageSource) ? (
                   <Loader2 size={24} className="text-muted-foreground animate-spin" />
                 ) : (
-                  <div className="animate-pulse bg-muted w-full h-full" />
+                  <div className="animate-pulse bg-gray-200 dark:bg-muted w-full h-full" />
                 )}
               </div>
             )}
@@ -119,7 +119,7 @@ export default function SpeciesTooltipContent({ imageData, studyId, size = 'md' 
       </div>
 
       {/* Footer: name + badge + blurb + Wikipedia link */}
-      <div className="px-2.5 py-2 bg-muted border-t border-border space-y-1.5">
+      <div className="px-2.5 py-2 bg-gray-50 dark:bg-muted border-t border-gray-100 dark:border-border space-y-1.5">
         <div className="flex items-center gap-1.5 flex-wrap">
           <p className={`${nameClass} truncate`}>
             {hasCommon ? (
