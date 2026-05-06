@@ -12,7 +12,7 @@ const MODES = [
  */
 export default function SparklineToggle({ mode, onChange }) {
   return (
-    <div className="flex items-center gap-px rounded border border-gray-200 bg-white p-px">
+    <div className="flex items-center gap-px rounded border border-border bg-card p-px">
       {MODES.map(({ id, label, Icon }) => (
         <button
           key={id}
@@ -22,8 +22,8 @@ export default function SparklineToggle({ mode, onChange }) {
           aria-pressed={mode === id}
           className={`p-1 rounded ${
             mode === id
-              ? 'bg-blue-50 text-blue-700'
-              : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+              ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300'
+              : 'text-muted-foreground hover:bg-accent hover:text-foreground'
           }`}
         >
           <Icon size={14} />

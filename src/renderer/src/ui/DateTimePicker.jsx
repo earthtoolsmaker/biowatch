@@ -204,7 +204,7 @@ export default function DateTimePicker({
                   day === i + 1
                     ? 'bg-blue-600 text-white dark:bg-blue-500 dark:text-white hover:bg-blue-700 dark:hover:bg-blue-600'
                     : 'hover:bg-accent'
-                } dark:hover:bg-blue-600`}
+                }`}
             >
               {i + 1}
             </button>

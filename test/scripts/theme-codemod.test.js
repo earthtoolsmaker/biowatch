@@ -63,4 +63,34 @@ describe('transformClassString', () => {
     )
     assert.equal(output, 'bg-card text-foreground border border-border hover:bg-accent')
   })
+
+  test('hover:bg-blue-100 does not trigger bare bg-blue-100 pair', () => {
+    // Regression: \\bbg-blue-100\\b would match inside hover:bg-blue-100,
+    // producing a stray `dark:bg-blue-500/20` instead of the correct
+    // `dark:hover:bg-blue-500/25`.
+    const { output } = transformClassString('hover:bg-blue-100')
+    assert.equal(output, 'hover:bg-blue-100 dark:hover:bg-blue-500/25')
+  })
+
+  test('text-blue-700 inside string-literal token (with trailing apostrophe)', () => {
+    // Tokens from object-literal class strings can carry a trailing quote
+    // when split by whitespace. Bare-pair lookup must strip it.
+    const { output } = transformClassString("'bg-blue-50 text-blue-700'")
+    assert.ok(output.includes('dark:bg-blue-500/15'))
+    assert.ok(output.includes('dark:text-blue-300'))
+  })
+
+  test('idiom does not match inside hover: prefix', () => {
+    // Regression: `\\bbg-blue-600 text-white\\b` matched inside
+    // `hover:bg-blue-600 text-white`, producing two corrupting expansions.
+    const { output } = transformClassString('bg-blue-500 hover:bg-blue-600 text-white')
+    // Must NOT contain a stray `dark:bg-blue-500 dark:text-white` from
+    // the bg-blue-600 text-white idiom expansion.
+    const occurrences = (output.match(/dark:bg-blue-500\b/g) || []).length
+    assert.equal(occurrences, 0, `output should not duplicate dark:bg-blue-500: ${output}`)
+    // The bare-pair logic should still pair bg-blue-500 → dark:bg-blue-400
+    // and hover:bg-blue-600 → dark:hover:bg-blue-500.
+    assert.ok(output.includes('dark:bg-blue-400'))
+    assert.ok(output.includes('dark:hover:bg-blue-500'))
+  })
 })

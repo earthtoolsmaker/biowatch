@@ -46,77 +46,101 @@ const SUBSTITUTIONS = [
 // Idioms to expand into light + dark: pairs. Matched as a single phrase.
 // Each entry is [matcher (regex), replacement string]. We only append dark
 // variants when none of the dark: substitutes are already present.
+//
+// Negative lookbehind `(?<![:\w-])` prevents matching inside variant
+// prefixes — e.g., `bg-blue-600 text-white` must NOT match within
+// `hover:bg-blue-600 text-white` (which would corrupt that idiom).
 const COLORED_IDIOMS = [
   [
-    /\bbg-blue-50 text-blue-700\b/g,
+    /(?<![:\w-])bg-blue-50 text-blue-700\b/g,
     'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300'
   ],
-  [/\bbg-blue-600 text-white\b/g, 'bg-blue-600 text-white dark:bg-blue-500 dark:text-white'],
-  [/\bbg-blue-700 text-white\b/g, 'bg-blue-700 text-white dark:bg-blue-600 dark:text-white'],
   [
-    /\bbg-red-50 text-red-700\b/g,
+    /(?<![:\w-])bg-blue-600 text-white\b/g,
+    'bg-blue-600 text-white dark:bg-blue-500 dark:text-white'
+  ],
+  [
+    /(?<![:\w-])bg-blue-700 text-white\b/g,
+    'bg-blue-700 text-white dark:bg-blue-600 dark:text-white'
+  ],
+  [
+    /(?<![:\w-])bg-red-50 text-red-700\b/g,
     'bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-300'
   ],
   [
-    /\bbg-red-100 text-red-800\b/g,
+    /(?<![:\w-])bg-red-100 text-red-800\b/g,
     'bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300'
   ],
-  [/\bbg-red-600 text-white\b/g, 'bg-red-600 text-white dark:bg-red-500 dark:text-white'],
   [
-    /\bbg-green-50 text-green-700\b/g,
+    /(?<![:\w-])bg-red-600 text-white\b/g,
+    'bg-red-600 text-white dark:bg-red-500 dark:text-white'
+  ],
+  [
+    /(?<![:\w-])bg-green-50 text-green-700\b/g,
     'bg-green-50 text-green-700 dark:bg-green-500/15 dark:text-green-300'
   ],
   [
-    /\bbg-green-100 text-green-800\b/g,
+    /(?<![:\w-])bg-green-100 text-green-800\b/g,
     'bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-300'
   ],
   [
-    /\bbg-yellow-50 text-yellow-700\b/g,
+    /(?<![:\w-])bg-yellow-50 text-yellow-700\b/g,
     'bg-yellow-50 text-yellow-700 dark:bg-yellow-500/15 dark:text-yellow-300'
   ],
   [
-    /\bbg-yellow-100 text-yellow-800\b/g,
+    /(?<![:\w-])bg-yellow-100 text-yellow-800\b/g,
     'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300'
   ],
   [
-    /\bbg-orange-100 text-orange-800\b/g,
+    /(?<![:\w-])bg-orange-100 text-orange-800\b/g,
     'bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-300'
   ],
   [
-    /\bbg-red-200 text-red-900\b/g,
+    /(?<![:\w-])bg-red-200 text-red-900\b/g,
     'bg-red-200 text-red-900 dark:bg-red-500/30 dark:text-red-200'
   ]
 ]
 
 // Bare colored utilities to pair with dark variants. Appended to the end
-// of the class string when present (Tailwind doesn't care about order).
-// Idempotent via .includes(darkVariant) check.
-const BARE_DARK_PAIRS = [
-  { from: /\btext-blue-600\b/, dark: 'dark:text-blue-400' },
-  { from: /\btext-blue-500\b/, dark: 'dark:text-blue-400' },
-  { from: /\btext-blue-400\b/, dark: 'dark:text-blue-300' },
-  { from: /\btext-red-600\b/, dark: 'dark:text-red-400' },
-  { from: /\btext-red-500\b/, dark: 'dark:text-red-400' },
-  { from: /\btext-red-400\b/, dark: 'dark:text-red-300' },
-  { from: /\btext-amber-700\b/, dark: 'dark:text-amber-300' },
-  { from: /\btext-amber-600\b/, dark: 'dark:text-amber-300' },
-  { from: /\btext-green-600\b/, dark: 'dark:text-green-400' },
-  { from: /\btext-green-700\b/, dark: 'dark:text-green-400' },
-  { from: /\bbg-blue-100\b/, dark: 'dark:bg-blue-500/20' },
-  { from: /\bbg-blue-500\b/, dark: 'dark:bg-blue-400' },
-  { from: /\bhover:bg-red-100\b/, dark: 'dark:hover:bg-red-500/20' },
-  { from: /\bhover:bg-red-200\b/, dark: 'dark:hover:bg-red-500/30' },
-  { from: /\bhover:bg-blue-50\b/, dark: 'dark:hover:bg-blue-500/15' },
-  { from: /\bhover:bg-blue-700\b/, dark: 'dark:hover:bg-blue-600' },
-  { from: /\bhover:text-red-600\b/, dark: 'dark:hover:text-red-400' }
-]
+// of the class string when the exact token is present and the dark
+// counterpart isn't already there. Exact-token map (no regex) so we don't
+// match `bg-blue-100` inside `hover:bg-blue-100` etc.
+const BARE_DARK_PAIRS = new Map([
+  ['text-blue-600', 'dark:text-blue-400'],
+  ['text-blue-500', 'dark:text-blue-400'],
+  ['text-blue-400', 'dark:text-blue-300'],
+  ['text-red-600', 'dark:text-red-400'],
+  ['text-red-500', 'dark:text-red-400'],
+  ['text-red-400', 'dark:text-red-300'],
+  ['text-amber-700', 'dark:text-amber-300'],
+  ['text-amber-600', 'dark:text-amber-300'],
+  ['text-green-600', 'dark:text-green-400'],
+  ['text-green-700', 'dark:text-green-400'],
+  ['bg-blue-100', 'dark:bg-blue-500/20'],
+  ['bg-blue-500', 'dark:bg-blue-400'],
+  ['bg-blue-600', 'dark:bg-blue-500'],
+  ['hover:bg-red-100', 'dark:hover:bg-red-500/20'],
+  ['hover:bg-red-200', 'dark:hover:bg-red-500/30'],
+  ['hover:bg-blue-50', 'dark:hover:bg-blue-500/15'],
+  ['hover:bg-blue-100', 'dark:hover:bg-blue-500/25'],
+  ['hover:bg-blue-600', 'dark:hover:bg-blue-500'],
+  ['hover:bg-blue-700', 'dark:hover:bg-blue-600'],
+  ['hover:text-red-600', 'dark:hover:text-red-400'],
+  ['hover:text-blue-700', 'dark:hover:text-blue-400']
+])
 
 // Phrases that are ambiguous and need human review.
 const REVIEW_FLAGS = [/\bbg-white\b/]
 
 const BG_WHITE_TO_CARD = /\bbg-white\b/g
 
-export function transformClassString(input) {
+// `append` controls whether bare-pair darks are appended at the end of the
+// string. Set to false when transforming the body of a template literal —
+// the body contains `${...}` interpolations and trailing tokens; appending
+// outside the inner string literals would land outside the template.
+// Inner string literals are handled by transformFile's pass 2 with
+// `append: true`, so the appending happens at the right place.
+export function transformClassString(input, { append = true } = {}) {
   let output = input
   const flags = []
 
@@ -141,23 +165,23 @@ export function transformClassString(input) {
     output = output.replace(BG_WHITE_TO_CARD, 'bg-card')
   }
 
-  // 4. Bare-colored utilities: walk tokens, skip dark:-prefixed ones, append
-  //    a dark counterpart for any bare pattern that matches and isn't already
-  //    paired. Token-walk avoids false positives like \bbg-blue-500\b matching
-  //    inside `dark:bg-blue-500/15`.
+  if (!append) return { output, flags }
+
+  // 4. Bare-colored utilities: walk tokens, look up exact-match dark pair,
+  //    append if not already present. Tokens may have trailing punctuation
+  //    from string-literal context (e.g., `hover:bg-blue-100'`) — strip
+  //    that before matching. Skip dark:-prefixed tokens entirely.
   const tokens = output.split(/\s+/).filter(Boolean)
   const seen = new Set(tokens)
   const toAppend = []
-  for (const token of tokens) {
-    if (token.startsWith('dark:')) continue
-    for (const { from, dark } of BARE_DARK_PAIRS) {
-      if (from.test(token)) {
-        if (!seen.has(dark)) {
-          toAppend.push(dark)
-          seen.add(dark)
-        }
-        break
-      }
+  for (const rawToken of tokens) {
+    if (rawToken.startsWith('dark:')) continue
+    // Strip leading/trailing non-Tailwind chars (quotes, parens, commas)
+    const token = rawToken.replace(/^[^\w]+|[^\w/\][]+$/g, '')
+    const dark = BARE_DARK_PAIRS.get(token)
+    if (dark && !seen.has(dark)) {
+      toAppend.push(dark)
+      seen.add(dark)
     }
   }
   if (toAppend.length) {
@@ -192,12 +216,17 @@ export function transformFile(source) {
   let touched = false
   const reviewMarkers = new Set()
 
-  // Pass 1: transform class strings inside className= props (full transform,
-  // including bg-white review flagging).
+  // Pass 1: transform class strings inside className= props.
+  // - Double-quoted simple values: full transform incl. bare-pair appending.
+  // - Template-literal values: only substitutions/idioms (in-place edits).
+  //   The inner string literals inside `${...}` interpolations get the
+  //   bare-pair appending in pass 2, where they are matched as standalone
+  //   string literals and the append lands at the right place.
   let intermediate = source.replace(CLASSNAME_RE, (match, dq, tpl) => {
     const original = dq ?? tpl
     if (original == null) return match
-    const { output, flags } = transformClassString(original)
+    const isTemplate = tpl != null
+    const { output, flags } = transformClassString(original, { append: !isTemplate })
     if (output === original) return match
     touched = true
     flags.forEach((f) => reviewMarkers.add(f))

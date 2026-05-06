@@ -202,7 +202,7 @@ function ImageViewerModal({
                   isFavorite
                     ? 'text-red-600 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-500/20'
                     : 'text-muted-foreground hover:bg-accent'
-                } dark:text-red-400 dark:hover:bg-red-500/20`}
+                }`}
                 aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
                 title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
               >
@@ -474,7 +474,7 @@ function VideoViewerModal({
                   isFavorite
                     ? 'text-red-600 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-500/20'
                     : 'text-muted-foreground hover:bg-accent'
-                } dark:text-red-400 dark:hover:bg-red-500/20`}
+                }`}
                 aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
                 title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
               >

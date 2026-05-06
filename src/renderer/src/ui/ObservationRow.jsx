@@ -199,7 +199,7 @@ export default function ObservationRow({
             <button
               type="button"
               onClick={onDelete}
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-red-600 px-2 py-1 rounded hover:bg-red-50 transition-colors dark:text-red-400"
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-red-600 px-2 py-1 rounded hover:bg-red-50 transition-colors dark:text-red-400 dark:hover:text-red-400"
               title="Delete observation"
             >
               <Trash2 size={12} />

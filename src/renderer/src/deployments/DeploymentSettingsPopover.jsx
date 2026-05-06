@@ -48,7 +48,7 @@ export default function DeploymentSettingsPopover({ studyId, deployment }) {
       <button
         ref={buttonRef}
         onClick={() => setIsOpen((v) => !v)}
-        className="p-1 rounded text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+        className="p-1 rounded text-muted-foreground hover:bg-accent hover:text-foreground"
         title="Deployment settings"
         aria-label="Deployment settings"
       >
@@ -57,7 +57,7 @@ export default function DeploymentSettingsPopover({ studyId, deployment }) {
       {isOpen && (
         <div
           ref={popoverRef}
-          className="absolute right-0 top-full mt-1 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-[1100] p-4"
+          className="absolute right-0 top-full mt-1 w-80 bg-card border border-border rounded-lg shadow-lg z-[1100] p-4"
         >
           <StatsSection stats={stats} />
           <CameraSection deployment={deployment} />
@@ -78,7 +78,7 @@ function StatsSection({ stats }) {
 
   return (
     <div className="mb-3">
-      <div className="text-[11px] font-semibold text-gray-700 uppercase tracking-wide mb-2">
+      <div className="text-[11px] font-semibold text-foreground uppercase tracking-wide mb-2">
         Stats
       </div>
 
@@ -87,16 +87,16 @@ function StatsSection({ stats }) {
         <Tile value={formatCount(observationCount)} label="Observations" />
       </div>
 
-      <div className="flex items-baseline justify-between text-[11px] text-gray-500 mb-1">
+      <div className="flex items-baseline justify-between text-[11px] text-muted-foreground mb-1">
         <span className="uppercase tracking-wide">Blank rate</span>
-        <span className="text-gray-900 font-medium">
+        <span className="text-foreground font-medium">
           {blankRate === null ? '—' : `${blankRate.toFixed(1)}%`}{' '}
-          <span className="text-gray-400 font-normal">({formatCount(blankCount)})</span>
+          <span className="text-muted-foreground font-normal">({formatCount(blankCount)})</span>
         </span>
       </div>
-      <div className="h-1.5 bg-gray-200 rounded-sm overflow-hidden">
+      <div className="h-1.5 bg-muted rounded-sm overflow-hidden">
         <div
-          className="h-full bg-gray-400"
+          className="h-full bg-muted-foreground"
           style={{ width: blankRate === null ? '0%' : `${Math.min(blankRate, 100)}%` }}
         />
       </div>
@@ -112,7 +112,7 @@ function CameraSection({ deployment }) {
 
   return (
     <div className="mb-3">
-      <div className="text-[11px] font-semibold text-gray-700 uppercase tracking-wide mb-1.5">
+      <div className="text-[11px] font-semibold text-foreground uppercase tracking-wide mb-1.5">
         Camera
       </div>
       <Row label="ID" value={id} />
@@ -128,7 +128,7 @@ function DeploymentSection({ deployment }) {
 
   return (
     <div>
-      <div className="text-[11px] font-semibold text-gray-700 uppercase tracking-wide mb-1.5">
+      <div className="text-[11px] font-semibold text-foreground uppercase tracking-wide mb-1.5">
         Deployment
       </div>
       <Row label="Start" value={formatDate(start)} />
@@ -140,9 +140,9 @@ function DeploymentSection({ deployment }) {
 
 function Tile({ value, label }) {
   return (
-    <div className="bg-gray-50 border border-gray-200 rounded-md p-2 text-center">
-      <div className="text-lg font-semibold text-gray-900 tabular-nums">{value}</div>
-      <div className="text-[10px] text-gray-500 uppercase tracking-wide">{label}</div>
+    <div className="bg-muted border border-border rounded-md p-2 text-center">
+      <div className="text-lg font-semibold text-foreground tabular-nums">{value}</div>
+      <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{label}</div>
     </div>
   )
 }
@@ -152,8 +152,8 @@ function Row({ label, value }) {
   const isEmpty = display === '—'
   return (
     <div className="flex justify-between text-[13px] leading-7">
-      <span className="text-gray-500">{label}</span>
-      <span className={isEmpty ? 'text-gray-400' : 'text-gray-900'}>{display}</span>
+      <span className="text-muted-foreground">{label}</span>
+      <span className={isEmpty ? 'text-muted-foreground' : 'text-foreground'}>{display}</span>
     </div>
   )
 }
