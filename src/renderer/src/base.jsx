@@ -419,7 +419,7 @@ function AppContent() {
                     `w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors group mb-0.5 ${
                       isActive
                         ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300'
-                        : 'text-gray-600 dark:text-zinc-300 hover:bg-accent hover:text-foreground'
+                        : 'text-gray-600 dark:text-zinc-400 hover:bg-accent hover:text-foreground'
                     }`
                   }
                 >
