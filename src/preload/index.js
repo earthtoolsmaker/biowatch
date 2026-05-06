@@ -470,10 +470,20 @@ function parseThemeInitial() {
     const arg = args.find((a) => a.startsWith(prefix))
     return arg ? arg.slice(prefix.length) : null
   }
-  return {
-    source: find('--theme-initial-source=') || 'system',
-    resolved: find('--theme-initial-resolved=') === 'dark' ? 'dark' : 'light'
+  const source = find('--theme-initial-source=') || 'system'
+  let resolved = find('--theme-initial-resolved=') === 'dark' ? 'dark' : 'light'
+  // On some platforms (notably Linux/GTK), nativeTheme.shouldUseDarkColors
+  // may lag behind the OS preference at window-creation time. When source
+  // is 'system', cross-check via matchMedia which reads Chromium's CSS
+  // engine directly and is reliable from preload.
+  if (source === 'system' && typeof window !== 'undefined' && window.matchMedia) {
+    try {
+      resolved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    } catch {
+      // ignore — keep the value parsed from argv
+    }
   }
+  return { source, resolved }
 }
 api.themeInitial = parseThemeInitial()
 
