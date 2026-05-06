@@ -477,6 +477,21 @@ function parseThemeInitial() {
 }
 api.themeInitial = parseThemeInitial()
 
+// Apply dark class as early as possible to avoid FOUC. The preload runs
+// before the page's HTML body parses, but documentElement already exists.
+// Inline <script> in index.html would be blocked by the CSP script-src 'self'.
+if (api.themeInitial.resolved === 'dark') {
+  if (document.documentElement) {
+    document.documentElement.classList.add('dark')
+  } else {
+    document.addEventListener(
+      'DOMContentLoaded',
+      () => document.documentElement.classList.add('dark'),
+      { once: true }
+    )
+  }
+}
+
 // Use `contextBridge` APIs to expose Electron APIs to
 // renderer only if context isolation is enabled, otherwise
 // just add to the DOM global.
