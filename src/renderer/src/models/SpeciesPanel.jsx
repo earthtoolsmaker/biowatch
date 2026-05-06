@@ -63,7 +63,7 @@ export default function SpeciesPanel({ model }) {
 
   if (!data) {
     return (
-      <div className="mt-2 p-2 bg-muted rounded border border-border text-xs text-muted-foreground">
+      <div className="mt-2 p-2 bg-gray-50 dark:bg-muted rounded border border-border text-xs text-muted-foreground">
         Loading species…
       </div>
     )
@@ -75,7 +75,7 @@ export default function SpeciesPanel({ model }) {
 
   return (
     <div
-      className="mt-2 p-2 bg-muted rounded border border-border cursor-default"
+      className="mt-2 p-2 bg-gray-50 dark:bg-muted rounded border border-border cursor-default"
       onClick={(e) => e.stopPropagation()}
     >
       {searchable && (
