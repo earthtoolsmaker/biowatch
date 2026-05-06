@@ -210,7 +210,7 @@ function ImageDirectoriesExportModal({ isOpen, onConfirm, onCancel, studyId }) {
             className={`px-4 py-2 text-sm font-medium text-white rounded-md transition-colors ${
               canExport
                 ? 'bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600'
-                : 'bg-blue-300 cursor-not-allowed'
+                : 'bg-blue-300 dark:bg-blue-500/40 cursor-not-allowed'
             }`}
           >
             Export
