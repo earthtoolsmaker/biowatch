@@ -446,8 +446,36 @@ const api = {
     clearCache: async (studyId) => {
       return await electronAPI.ipcRenderer.invoke('image-cache:clear', studyId)
     }
+  },
+
+  // Theme
+  getTheme: async () => {
+    return await electronAPI.ipcRenderer.invoke('theme:get')
+  },
+  setThemeSource: async (source) => {
+    return await electronAPI.ipcRenderer.invoke('theme:set', source)
+  },
+  onThemeChanged: (handler) => {
+    const listener = (_event, payload) => handler(payload)
+    electronAPI.ipcRenderer.on('theme:changed', listener)
+    return () => {
+      electronAPI.ipcRenderer.removeListener('theme:changed', listener)
+    }
   }
 }
+
+function parseThemeInitial() {
+  const args = process.argv
+  const find = (prefix) => {
+    const arg = args.find((a) => a.startsWith(prefix))
+    return arg ? arg.slice(prefix.length) : null
+  }
+  return {
+    source: find('--theme-initial-source=') || 'system',
+    resolved: find('--theme-initial-resolved=') === 'dark' ? 'dark' : 'light'
+  }
+}
+api.themeInitial = parseThemeInitial()
 
 // Use `contextBridge` APIs to expose Electron APIs to
 // renderer only if context isolation is enabled, otherwise

@@ -1,5 +1,3 @@
-import log from './logger.js'
-
 const VALID_SOURCES = new Set(['system', 'light', 'dark'])
 
 export function createThemeService({ nativeTheme, store, broadcast }) {
