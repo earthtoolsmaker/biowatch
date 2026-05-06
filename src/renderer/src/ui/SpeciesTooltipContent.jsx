@@ -53,8 +53,8 @@ export default function SpeciesTooltipContent({ imageData, studyId, size = 'md' 
   const isLarge = size === 'lg'
   const cardWidth = isLarge ? 'w-[400px]' : 'w-[320px]'
   const imageHeight = isLarge ? 'h-[230px]' : 'h-[180px]'
-  const nameClass = isLarge ? 'text-sm text-gray-700' : 'text-xs text-gray-600'
-  const blurbClass = isLarge ? 'text-[13px] text-gray-700' : 'text-[11px] text-gray-700'
+  const nameClass = isLarge ? 'text-sm text-foreground' : 'text-xs text-muted-foreground'
+  const blurbClass = isLarge ? 'text-[13px] text-foreground' : 'text-[11px] text-foreground'
   const linkClass = isLarge ? 'text-[12px]' : 'text-[10px]'
 
   // Reset state when imageData changes
@@ -86,24 +86,24 @@ export default function SpeciesTooltipContent({ imageData, studyId, size = 'md' 
 
   return (
     <div
-      className={`${cardWidth} bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden`}
+      className={`${cardWidth} bg-card rounded-lg shadow-xl border border-border overflow-hidden`}
     >
       {/* Image */}
       <div
-        className={`relative w-full ${imageHeight} ${usingFallbackImage ? 'bg-black' : 'bg-gray-100'}`}
+        className={`relative w-full ${imageHeight} ${usingFallbackImage ? 'bg-black' : 'bg-muted'}`}
       >
         {!imageSource || imageError ? (
           <div className="absolute inset-0 flex items-center justify-center">
-            <CameraOff size={32} className="text-gray-300" />
+            <CameraOff size={32} className="text-muted-foreground" />
           </div>
         ) : (
           <>
             {!imageLoaded && (
-              <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+              <div className="absolute inset-0 flex items-center justify-center bg-muted">
                 {isRemoteUrl(imageSource) ? (
-                  <Loader2 size={24} className="text-gray-400 animate-spin" />
+                  <Loader2 size={24} className="text-muted-foreground animate-spin" />
                 ) : (
-                  <div className="animate-pulse bg-gray-200 w-full h-full" />
+                  <div className="animate-pulse bg-muted w-full h-full" />
                 )}
               </div>
             )}
@@ -119,13 +119,15 @@ export default function SpeciesTooltipContent({ imageData, studyId, size = 'md' 
       </div>
 
       {/* Footer: name + badge + blurb + Wikipedia link */}
-      <div className="px-2.5 py-2 bg-gray-50 border-t border-gray-100 space-y-1.5">
+      <div className="px-2.5 py-2 bg-muted border-t border-border space-y-1.5">
         <div className="flex items-center gap-1.5 flex-wrap">
           <p className={`${nameClass} truncate`}>
             {hasCommon ? (
               <>
                 {toTitleCase(common)}{' '}
-                <span className="italic text-gray-500">({formatScientificName(sciName)})</span>
+                <span className="italic text-muted-foreground">
+                  ({formatScientificName(sciName)})
+                </span>
               </>
             ) : (
               <span className="italic">{formatScientificName(sciName)}</span>
@@ -139,10 +141,12 @@ export default function SpeciesTooltipContent({ imageData, studyId, size = 'md' 
             href={iucnUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className={`block border-l-4 ${IUCN_ACCENT_BORDER[info.iucn] ?? 'border-gray-300'} pl-2 -ml-0.5 py-1 hover:bg-gray-100 rounded-r transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300`}
+            className={`block border-l-4 ${IUCN_ACCENT_BORDER[info.iucn] ?? 'border-border'} pl-2 -ml-0.5 py-1 hover:bg-accent rounded-r transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300`}
           >
-            <p className={`${blurbClass} font-semibold text-gray-800`}>Why threatened?</p>
-            <p className={`${linkClass} text-blue-600`}>View IUCN Red List assessment ↗</p>
+            <p className={`${blurbClass} font-semibold text-foreground`}>Why threatened?</p>
+            <p className={`${linkClass} text-blue-600 dark:text-blue-400`}>
+              View IUCN Red List assessment ↗
+            </p>
           </a>
         )}
 
@@ -159,7 +163,7 @@ export default function SpeciesTooltipContent({ imageData, studyId, size = 'md' 
               <button
                 type="button"
                 onClick={() => setBlurbExpanded((v) => !v)}
-                className={`${linkClass} text-blue-600 hover:underline`}
+                className={`${linkClass} text-blue-600 hover:underline dark:text-blue-400`}
               >
                 {blurbExpanded ? 'Show less' : 'Show more'}
               </button>
@@ -172,7 +176,7 @@ export default function SpeciesTooltipContent({ imageData, studyId, size = 'md' 
             href={info.wikipediaUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className={`block ${linkClass} text-blue-600 hover:underline`}
+            className={`block ${linkClass} text-blue-600 hover:underline dark:text-blue-400`}
           >
             Read on Wikipedia
           </a>

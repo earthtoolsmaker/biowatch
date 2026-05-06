@@ -71,15 +71,15 @@ export default function ObservationRail({
 
   return (
     <aside
-      className="w-[300px] flex-shrink-0 bg-white border-l border-gray-200 flex flex-col h-full"
+      className="w-[300px] flex-shrink-0 bg-card border-l border-border flex flex-col h-full"
       aria-label="Observations"
     >
       {showShortcuts && (
-        <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 flex-shrink-0">
-          <div className="text-[10px] uppercase tracking-wider text-gray-500 font-medium mb-2">
+        <div className="px-4 py-3 border-b border-border bg-muted flex-shrink-0">
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-2">
             Keyboard shortcuts
           </div>
-          <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs text-gray-600">
+          <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <Kbd>Tab</Kbd>
             <span>Next observation</span>
             <Kbd>Shift+Tab</Kbd>
@@ -104,9 +104,9 @@ export default function ObservationRail({
         </div>
       )}
 
-      <header className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200 flex-shrink-0">
+      <header className="flex items-center justify-between px-4 py-2.5 border-b border-border flex-shrink-0">
         <span className="text-sm font-semibold text-[#030213]">Observations</span>
-        <span className="text-xs text-gray-500 font-medium">{observations.length}</span>
+        <span className="text-xs text-muted-foreground font-medium">{observations.length}</span>
       </header>
 
       {isLoading ? (
@@ -115,7 +115,7 @@ export default function ObservationRail({
         <div className="flex-1" aria-hidden="true" />
       ) : mode === 'empty' ? (
         <div className="flex-1 flex flex-col items-center justify-center px-8 pt-16 pb-12 text-center gap-5">
-          <div className="text-sm text-gray-500 leading-relaxed">
+          <div className="text-sm text-muted-foreground leading-relaxed">
             <strong className="text-[#030213] block">No observations yet</strong>
             Add one to start labelling this media.
           </div>

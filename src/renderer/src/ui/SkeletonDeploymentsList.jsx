@@ -9,9 +9,9 @@ function SkeletonDeploymentsList({ itemCount = 5 }) {
     <div className="flex-1 overflow-y-auto">
       <div className="flex flex-col gap-2">
         {/* Skeleton header */}
-        <header className="sticky top-0 bg-white z-10 pl-68 flex justify-between text-sm text-gray-700 py-2">
-          <span className="h-4 w-20 bg-gray-200 rounded animate-pulse" />
-          <span className="h-4 w-20 bg-gray-200 rounded animate-pulse" />
+        <header className="sticky top-0 bg-card z-10 pl-68 flex justify-between text-sm text-foreground py-2">
+          <span className="h-4 w-20 bg-muted rounded animate-pulse" />
+          <span className="h-4 w-20 bg-muted rounded animate-pulse" />
         </header>
 
         {/* Skeleton rows */}
@@ -20,12 +20,12 @@ function SkeletonDeploymentsList({ itemCount = 5 }) {
             <div key={index} className="flex gap-4 items-center py-4 first:pt-2 px-2">
               <div className="flex flex-col gap-2">
                 {/* Location name skeleton */}
-                <div className="h-4 w-48 bg-gray-200 rounded animate-pulse" />
+                <div className="h-4 w-48 bg-muted rounded animate-pulse" />
                 {/* Coordinate inputs skeleton */}
                 <div className="flex gap-2 items-center">
-                  <div className="h-6 w-20 bg-gray-200 rounded animate-pulse" />
-                  <div className="h-6 w-20 bg-gray-200 rounded animate-pulse" />
-                  <div className="h-6 w-6 bg-gray-200 rounded animate-pulse" />
+                  <div className="h-6 w-20 bg-muted rounded animate-pulse" />
+                  <div className="h-6 w-20 bg-muted rounded animate-pulse" />
+                  <div className="h-6 w-6 bg-muted rounded animate-pulse" />
                 </div>
               </div>
               {/* Activity periods skeleton — matches DeploymentRow's h-[25px]
@@ -39,7 +39,7 @@ function SkeletonDeploymentsList({ itemCount = 5 }) {
                     className="flex items-center justify-center h-[25px] flex-1 min-w-0"
                   >
                     <div
-                      className="rounded-full bg-gray-200 aspect-square animate-pulse"
+                      className="rounded-full bg-muted aspect-square animate-pulse"
                       style={{ width: `${10 + ((periodIndex * 5) % 16)}px` }}
                     />
                   </div>

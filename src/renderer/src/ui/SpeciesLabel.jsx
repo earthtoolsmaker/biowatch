@@ -52,7 +52,7 @@ function SpeciesNameWithCount({ scientificName, count }) {
   return (
     <>
       {showSci ? <span className="italic">{label}</span> : label}
-      {count > 1 && <span className="text-gray-500 font-normal"> ×{count}</span>}
+      {count > 1 && <span className="text-muted-foreground font-normal"> ×{count}</span>}
     </>
   )
 }

@@ -104,7 +104,10 @@ export default function SpeciesPicker({
 
   return (
     <div className="relative">
-      <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
+      <Search
+        size={14}
+        className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground"
+      />
       <input
         ref={inputRef}
         type="text"
@@ -160,11 +163,11 @@ export default function SpeciesPicker({
           }
         }}
         placeholder="Search species…"
-        className="w-full pl-7 pr-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-transparent"
+        className="w-full pl-7 pr-2 py-1.5 text-sm border border-border rounded focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-transparent"
       />
 
       {(debouncedSearch.trim().length > 0 || browseOpen) && (
-        <div className="absolute left-0 right-0 top-full mt-1 z-20 max-h-52 overflow-y-auto border border-gray-200 rounded bg-white shadow-lg">
+        <div className="absolute left-0 right-0 top-full mt-1 z-20 max-h-52 overflow-y-auto border border-border rounded bg-card shadow-lg">
           {results.map((species, index) => (
             <button
               key={species.scientificName}
@@ -176,7 +179,7 @@ export default function SpeciesPicker({
               onClick={() => handleSelect(species.scientificName, species.commonName)}
               className={`w-full px-3 py-1.5 text-left flex items-center justify-between ${
                 index === highlightedIndex ? 'bg-[#f8f9fb]' : ''
-              } ${species.scientificName === currentScientificName ? 'bg-gray-100' : ''}`}
+              } ${species.scientificName === currentScientificName ? 'bg-muted' : ''}`}
             >
               {(() => {
                 // Prefer the dictionary's curated common name over whatever
@@ -194,7 +197,7 @@ export default function SpeciesPicker({
                       {display}
                     </span>
                     {showSci && (
-                      <span className="text-xs text-gray-500 ml-2 italic normal-case">
+                      <span className="text-xs text-muted-foreground ml-2 italic normal-case">
                         ({formatScientificName(species.scientificName)})
                       </span>
                     )}
@@ -202,7 +205,7 @@ export default function SpeciesPicker({
                 )
               })()}
               {species.inStudy !== false && typeof species.observationCount === 'number' && (
-                <span className="flex items-center gap-1 text-xs text-gray-400 shrink-0 ml-2">
+                <span className="flex items-center gap-1 text-xs text-muted-foreground shrink-0 ml-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#030213]" aria-hidden="true" />
                   {species.observationCount}
                 </span>
@@ -213,14 +216,14 @@ export default function SpeciesPicker({
           {results.length === 0 &&
             debouncedSearch.trim().length > 0 &&
             debouncedSearch.trim().length < 3 && (
-              <div className="px-3 py-3 text-sm text-gray-500 text-center">
+              <div className="px-3 py-3 text-sm text-muted-foreground text-center">
                 Type at least 3 characters to search the species dictionary.
               </div>
             )}
 
           {results.length === 0 && customSpeciesQuery.length >= 3 && (
             <div className="px-3 py-3 text-center space-y-2">
-              <p className="text-sm text-gray-500">No species found.</p>
+              <p className="text-sm text-muted-foreground">No species found.</p>
               <button
                 type="button"
                 onClick={() => handleSelect(customSpeciesQuery, null)}

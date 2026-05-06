@@ -32,7 +32,9 @@ function SpeciesThumbnailLabel({ scientificName }) {
 function SpeciesHeading({ scientificName, tone = 'light' }) {
   const common = useCommonName(scientificName)
   const sciClass =
-    tone === 'dark' ? 'italic text-gray-300 font-normal' : 'italic text-gray-500 font-normal'
+    tone === 'dark'
+      ? 'italic text-muted-foreground font-normal'
+      : 'italic text-muted-foreground font-normal'
   if (!scientificName) return <>Blank</>
   if (common && common !== scientificName) {
     return (
@@ -155,19 +157,19 @@ function ImageViewerModal({
     >
       <div className="relative max-w-7xl w-full h-full flex items-center justify-center">
         <div
-          className="bg-white rounded-lg overflow-hidden shadow-2xl max-h-[90vh] flex flex-col max-w-full"
+          className="bg-card rounded-lg overflow-hidden shadow-2xl max-h-[90vh] flex flex-col max-w-full"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Top toolbar */}
-          <div className="flex items-center justify-between gap-3 px-3 py-2 border-b border-gray-200 bg-white">
-            <div className="flex items-center gap-2 min-w-0 flex-1 text-xs text-gray-500">
+          <div className="flex items-center justify-between gap-3 px-3 py-2 border-b border-border bg-card">
+            <div className="flex items-center gap-2 min-w-0 flex-1 text-xs text-muted-foreground">
               <button
                 onClick={(e) => {
                   e.stopPropagation()
                   onPrevious()
                 }}
                 disabled={!hasPrevious}
-                className="w-8 h-8 rounded-md flex items-center justify-center text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                className="w-8 h-8 rounded-md flex items-center justify-center text-muted-foreground hover:bg-accent disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex-shrink-0"
                 aria-label="Previous image"
                 title="Previous (←)"
               >
@@ -179,7 +181,7 @@ function ImageViewerModal({
                   onNext()
                 }}
                 disabled={!hasNext}
-                className="w-8 h-8 rounded-md flex items-center justify-center text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                className="w-8 h-8 rounded-md flex items-center justify-center text-muted-foreground hover:bg-accent disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex-shrink-0"
                 aria-label="Next image"
                 title="Next (→)"
               >
@@ -198,20 +200,20 @@ function ImageViewerModal({
                 }}
                 className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
                   isFavorite
-                    ? 'text-red-600 bg-red-50 hover:bg-red-100'
-                    : 'text-gray-500 hover:bg-gray-100'
-                }`}
+                    ? 'text-red-600 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-500/20'
+                    : 'text-muted-foreground hover:bg-accent'
+                } dark:text-red-400 dark:hover:bg-red-500/20`}
                 aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
                 title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
               >
                 <Heart size={18} fill={isFavorite ? 'currentColor' : 'none'} />
               </button>
 
-              <div className="w-px h-5 bg-gray-200 mx-1" />
+              <div className="w-px h-5 bg-muted mx-1" />
 
               <button
                 onClick={handleClose}
-                className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors"
+                className="w-9 h-9 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-accent transition-colors"
                 aria-label="Close modal"
                 title="Close (Esc)"
               >
@@ -226,7 +228,7 @@ function ImageViewerModal({
               <SpeciesHeading scientificName={media.scientificName} tone="dark" />
             </div>
             {imageError ? (
-              <div className="flex flex-col items-center justify-center bg-gray-800 text-gray-400 aspect-[4/3] min-w-[70vw] max-h-[calc(90vh-152px)]">
+              <div className="flex flex-col items-center justify-center bg-gray-800 text-muted-foreground aspect-[4/3] min-w-[70vw] max-h-[calc(90vh-152px)]">
                 <CameraOff size={128} />
                 <span className="mt-4 text-lg font-medium">Image not available</span>
                 {media.fileName && <span className="mt-2 text-sm">{media.fileName}</span>}
@@ -242,10 +244,10 @@ function ImageViewerModal({
           </div>
 
           {/* Footer */}
-          <div className="px-4 py-2.5 bg-gray-50 flex-shrink-0 border-t border-gray-200">
+          <div className="px-4 py-2.5 bg-muted flex-shrink-0 border-t border-border">
             <div className="flex items-center gap-3 min-w-0">
               {media.fileName && (
-                <span className="font-mono text-[11px] text-gray-400 truncate min-w-0 flex-1">
+                <span className="font-mono text-[11px] text-muted-foreground truncate min-w-0 flex-1">
                   {media.fileName}
                 </span>
               )}
@@ -427,19 +429,19 @@ function VideoViewerModal({
     >
       <div className="relative max-w-7xl w-full h-full flex items-center justify-center">
         <div
-          className="bg-white rounded-lg overflow-hidden shadow-2xl max-h-[90vh] flex flex-col max-w-full"
+          className="bg-card rounded-lg overflow-hidden shadow-2xl max-h-[90vh] flex flex-col max-w-full"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Top toolbar */}
-          <div className="flex items-center justify-between gap-3 px-3 py-2 border-b border-gray-200 bg-white">
-            <div className="flex items-center gap-2 min-w-0 flex-1 text-xs text-gray-500">
+          <div className="flex items-center justify-between gap-3 px-3 py-2 border-b border-border bg-card">
+            <div className="flex items-center gap-2 min-w-0 flex-1 text-xs text-muted-foreground">
               <button
                 onClick={(e) => {
                   e.stopPropagation()
                   onPrevious()
                 }}
                 disabled={!hasPrevious}
-                className="w-8 h-8 rounded-md flex items-center justify-center text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                className="w-8 h-8 rounded-md flex items-center justify-center text-muted-foreground hover:bg-accent disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex-shrink-0"
                 aria-label="Previous video"
                 title="Previous (←)"
               >
@@ -451,7 +453,7 @@ function VideoViewerModal({
                   onNext()
                 }}
                 disabled={!hasNext}
-                className="w-8 h-8 rounded-md flex items-center justify-center text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                className="w-8 h-8 rounded-md flex items-center justify-center text-muted-foreground hover:bg-accent disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex-shrink-0"
                 aria-label="Next video"
                 title="Next (→)"
               >
@@ -470,20 +472,20 @@ function VideoViewerModal({
                 }}
                 className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
                   isFavorite
-                    ? 'text-red-600 bg-red-50 hover:bg-red-100'
-                    : 'text-gray-500 hover:bg-gray-100'
-                }`}
+                    ? 'text-red-600 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-500/20'
+                    : 'text-muted-foreground hover:bg-accent'
+                } dark:text-red-400 dark:hover:bg-red-500/20`}
                 aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
                 title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
               >
                 <Heart size={18} fill={isFavorite ? 'currentColor' : 'none'} />
               </button>
 
-              <div className="w-px h-5 bg-gray-200 mx-1" />
+              <div className="w-px h-5 bg-muted mx-1" />
 
               <button
                 onClick={handleClose}
-                className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors"
+                className="w-9 h-9 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-accent transition-colors"
                 aria-label="Close modal"
                 title="Close (Esc)"
               >
@@ -498,43 +500,49 @@ function VideoViewerModal({
               <SpeciesHeading scientificName={media.scientificName} tone="dark" />
             </div>
             {transcodeState === 'checking' ? (
-              <div className="flex flex-col items-center justify-center p-8 text-gray-400 min-h-[300px]">
-                <Loader2 size={48} className="animate-spin text-blue-500" />
+              <div className="flex flex-col items-center justify-center p-8 text-muted-foreground min-h-[300px]">
+                <Loader2 size={48} className="animate-spin text-blue-500 dark:text-blue-400" />
                 <span className="mt-4 text-lg font-medium">Checking video format...</span>
               </div>
             ) : transcodeState === 'transcoding' ? (
-              <div className="flex flex-col items-center justify-center p-8 text-gray-400 min-h-[300px]">
+              <div className="flex flex-col items-center justify-center p-8 text-muted-foreground min-h-[300px]">
                 <div className="relative">
-                  <Loader2 size={64} className="animate-spin text-blue-500" />
+                  <Loader2 size={64} className="animate-spin text-blue-500 dark:text-blue-400" />
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-sm font-bold text-blue-400">{transcodeProgress}%</span>
+                    <span className="text-sm font-bold text-blue-400 dark:text-blue-300">
+                      {transcodeProgress}%
+                    </span>
                   </div>
                 </div>
                 <span className="mt-4 text-lg font-medium">Converting video...</span>
-                <span className="mt-2 text-sm text-gray-500">
+                <span className="mt-2 text-sm text-muted-foreground">
                   This format requires conversion for browser playback
                 </span>
                 <div className="mt-4 w-64 h-2 bg-gray-700 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-blue-500 transition-all duration-300"
+                    className="h-full bg-blue-500 transition-all duration-300 dark:bg-blue-400"
                     style={{ width: `${transcodeProgress}%` }}
                   />
                 </div>
-                <span className="mt-2 text-xs text-gray-500">{media.fileName}</span>
+                <span className="mt-2 text-xs text-muted-foreground">{media.fileName}</span>
               </div>
             ) : transcodeState === 'error' ? (
-              <div className="flex flex-col items-center justify-center p-8 text-gray-400 min-h-[300px]">
-                <Play size={64} className="text-red-400" />
-                <span className="mt-4 text-lg font-medium text-red-400">Conversion failed</span>
-                <span className="mt-2 text-sm text-gray-500">{transcodeError}</span>
-                <span className="mt-1 text-xs text-gray-500">{media.fileName}</span>
+              <div className="flex flex-col items-center justify-center p-8 text-muted-foreground min-h-[300px]">
+                <Play size={64} className="text-red-400 dark:text-red-300" />
+                <span className="mt-4 text-lg font-medium text-red-400 dark:text-red-300">
+                  Conversion failed
+                </span>
+                <span className="mt-2 text-sm text-muted-foreground">{transcodeError}</span>
+                <span className="mt-1 text-xs text-muted-foreground">{media.fileName}</span>
               </div>
             ) : videoError && transcodeState !== 'ready' ? (
-              <div className="flex flex-col items-center justify-center p-8 text-gray-400 min-h-[300px]">
+              <div className="flex flex-col items-center justify-center p-8 text-muted-foreground min-h-[300px]">
                 <Play size={64} />
                 <span className="mt-4 text-lg font-medium">Video</span>
-                <span className="mt-2 text-sm text-gray-500">Format not supported by browser</span>
-                <span className="mt-1 text-xs text-gray-500">{media.fileName}</span>
+                <span className="mt-2 text-sm text-muted-foreground">
+                  Format not supported by browser
+                </span>
+                <span className="mt-1 text-xs text-muted-foreground">{media.fileName}</span>
               </div>
             ) : (
               <video
@@ -553,10 +561,10 @@ function VideoViewerModal({
           </div>
 
           {/* Footer */}
-          <div className="px-4 py-2.5 bg-gray-50 flex-shrink-0 border-t border-gray-200">
+          <div className="px-4 py-2.5 bg-muted flex-shrink-0 border-t border-border">
             <div className="flex items-center gap-3 min-w-0">
               {media.fileName && (
-                <span className="font-mono text-[11px] text-gray-400 truncate min-w-0 flex-1">
+                <span className="font-mono text-[11px] text-muted-foreground truncate min-w-0 flex-1">
                   {media.fileName}
                 </span>
               )}
@@ -638,13 +646,13 @@ function MediaCard({ media, onClick, studyId, scrollSignal }) {
     <button
       type="button"
       onClick={() => onClick(media)}
-      className="flex-shrink-0 w-56 rounded-lg overflow-hidden cursor-pointer border border-gray-200 shadow hover:shadow-md transition-shadow text-left bg-white"
+      className="flex-shrink-0 w-56 rounded-lg overflow-hidden cursor-pointer border border-border shadow hover:shadow-md transition-shadow text-left bg-card"
     >
-      <div className="relative w-full h-40 bg-gray-100">
+      <div className="relative w-full h-40 bg-muted">
         {isVideo ? (
           <>
             {/* Video placeholder background */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-800 text-gray-400">
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-800 text-muted-foreground">
               {isExtractingThumbnail ? (
                 <>
                   <Loader2 size={28} className="animate-spin" />
@@ -692,7 +700,7 @@ function MediaCard({ media, onClick, studyId, scrollSignal }) {
               loading="lazy"
             />
             {imageError && (
-              <div className="absolute inset-0 flex items-center justify-center text-gray-300">
+              <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
                 <CameraOff size={24} />
               </div>
             )}
@@ -701,7 +709,7 @@ function MediaCard({ media, onClick, studyId, scrollSignal }) {
       </div>
 
       <div className="px-2 py-1.5">
-        <p className="text-xs font-medium text-gray-900 truncate capitalize">
+        <p className="text-xs font-medium text-foreground truncate capitalize">
           <SpeciesThumbnailLabel scientificName={media.scientificName} />
         </p>
       </div>
@@ -833,7 +841,7 @@ export default function BestMediaCarousel({ studyId, isRunning, renderEmpty }) {
         {/* Left scroll button */}
         {canScrollLeft && (
           <button
-            className="absolute left-0 top-[5.75rem] -translate-y-1/2 z-10 bg-white/90 rounded-full p-1 shadow-md border border-gray-200"
+            className="absolute left-0 top-[5.75rem] -translate-y-1/2 z-10 bg-card/90 rounded-full p-1 shadow-md border border-border"
             onClick={() => scroll('left')}
             aria-label="Scroll left"
           >
@@ -844,7 +852,7 @@ export default function BestMediaCarousel({ studyId, isRunning, renderEmpty }) {
         {/* Right scroll button */}
         {canScrollRight && (
           <button
-            className="absolute right-0 top-[5.75rem] -translate-y-1/2 z-10 bg-white/90 rounded-full p-1 shadow-md border border-gray-200"
+            className="absolute right-0 top-[5.75rem] -translate-y-1/2 z-10 bg-card/90 rounded-full p-1 shadow-md border border-border"
             onClick={() => scroll('right')}
             aria-label="Scroll right"
           >

@@ -17,7 +17,7 @@ export default function ActivityMapContextMenu({ x, y, onSave, onClose }) {
 
   return (
     <div
-      className="fixed z-[2000] bg-white rounded-md shadow-lg border border-gray-200 py-1"
+      className="fixed z-[2000] bg-card rounded-md shadow-lg border border-border py-1"
       style={{ top: y, left: x }}
       onClick={(e) => e.stopPropagation()}
     >
@@ -27,7 +27,7 @@ export default function ActivityMapContextMenu({ x, y, onSave, onClose }) {
           onSave()
           onClose()
         }}
-        className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+        className="flex items-center gap-2 px-3 py-1.5 text-sm text-foreground hover:bg-accent w-full text-left"
       >
         <Download className="h-4 w-4" />
         Save map as PNG…

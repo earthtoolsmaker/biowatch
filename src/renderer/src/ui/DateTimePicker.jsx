@@ -138,14 +138,14 @@ export default function DateTimePicker({
   return (
     <div
       ref={containerRef}
-      className={`bg-white rounded-lg shadow-lg border border-gray-200 p-4 w-80 ${className}`}
+      className={`bg-card rounded-lg shadow-lg border border-border p-4 w-80 ${className}`}
       onClick={(e) => e.stopPropagation()}
     >
       {/* Calendar Header */}
       <div className="flex items-center justify-between mb-3">
         <button
           onClick={prevMonth}
-          className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+          className="p-1.5 hover:bg-accent rounded transition-colors"
           type="button"
         >
           <ChevronLeft size={18} />
@@ -166,14 +166,14 @@ export default function DateTimePicker({
             type="number"
             value={year}
             onChange={(e) => setYear(parseInt(e.target.value, 10) || year)}
-            className="w-16 text-sm font-medium text-center border border-gray-200 rounded px-1 py-0.5"
+            className="w-16 text-sm font-medium text-center border border-border rounded px-1 py-0.5"
             min="1900"
             max="2100"
           />
         </div>
         <button
           onClick={nextMonth}
-          className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+          className="p-1.5 hover:bg-accent rounded transition-colors"
           type="button"
         >
           <ChevronRight size={18} />
@@ -183,7 +183,7 @@ export default function DateTimePicker({
       {/* Calendar Grid */}
       <div className="grid grid-cols-7 gap-1 mb-4">
         {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
-          <div key={d} className="text-center text-xs text-gray-500 py-1 font-medium">
+          <div key={d} className="text-center text-xs text-muted-foreground py-1 font-medium">
             {d}
           </div>
         ))}
@@ -201,8 +201,10 @@ export default function DateTimePicker({
               type="button"
               className={`text-center py-1.5 text-sm rounded transition-colors
                 ${
-                  day === i + 1 ? 'bg-blue-600 text-white hover:bg-blue-700' : 'hover:bg-gray-100'
-                }`}
+                  day === i + 1
+                    ? 'bg-blue-600 text-white dark:bg-blue-500 dark:text-white hover:bg-blue-700 dark:hover:bg-blue-600'
+                    : 'hover:bg-accent'
+                } dark:hover:bg-blue-600`}
             >
               {i + 1}
             </button>
@@ -211,35 +213,35 @@ export default function DateTimePicker({
 
       {/* Time Inputs - hidden when dateOnly is true */}
       {!dateOnly && (
-        <div className="flex items-center gap-2 mb-4 justify-center bg-gray-50 rounded-lg py-2">
-          <Clock size={16} className="text-gray-500" />
+        <div className="flex items-center gap-2 mb-4 justify-center bg-muted rounded-lg py-2">
+          <Clock size={16} className="text-muted-foreground" />
           <input
             type="number"
             min="0"
             max="23"
             value={hours.toString().padStart(2, '0')}
             onChange={handleTimeInputChange(setHours, 0, 23)}
-            className="w-12 text-center border border-gray-200 rounded px-1 py-1.5 text-sm font-mono"
+            className="w-12 text-center border border-border rounded px-1 py-1.5 text-sm font-mono"
             title="Hours (0-23)"
           />
-          <span className="text-gray-500 font-medium">:</span>
+          <span className="text-muted-foreground font-medium">:</span>
           <input
             type="number"
             min="0"
             max="59"
             value={minutes.toString().padStart(2, '0')}
             onChange={handleTimeInputChange(setMinutes, 0, 59)}
-            className="w-12 text-center border border-gray-200 rounded px-1 py-1.5 text-sm font-mono"
+            className="w-12 text-center border border-border rounded px-1 py-1.5 text-sm font-mono"
             title="Minutes (0-59)"
           />
-          <span className="text-gray-500 font-medium">:</span>
+          <span className="text-muted-foreground font-medium">:</span>
           <input
             type="number"
             min="0"
             max="59"
             value={seconds.toString().padStart(2, '0')}
             onChange={handleTimeInputChange(setSeconds, 0, 59)}
-            className="w-12 text-center border border-gray-200 rounded px-1 py-1.5 text-sm font-mono"
+            className="w-12 text-center border border-border rounded px-1 py-1.5 text-sm font-mono"
             title="Seconds (0-59)"
           />
         </div>
@@ -247,7 +249,7 @@ export default function DateTimePicker({
 
       {/* Validation Error */}
       {validationError && (
-        <p className="text-xs text-red-500 mb-2 text-center">{validationError}</p>
+        <p className="text-xs text-red-500 mb-2 text-center dark:text-red-400">{validationError}</p>
       )}
 
       {/* Action Buttons */}
@@ -256,7 +258,7 @@ export default function DateTimePicker({
           <button
             type="button"
             onClick={onResetToAuto}
-            className="text-xs text-blue-600 hover:underline self-start"
+            className="text-xs text-blue-600 hover:underline self-start dark:text-blue-400"
             title="Clear override and fall back to auto-derived range"
           >
             Reset to auto
@@ -266,14 +268,14 @@ export default function DateTimePicker({
           <button
             onClick={onCancel}
             type="button"
-            className="flex-1 px-3 py-2 text-sm font-medium border border-gray-200 rounded-md hover:bg-gray-50 transition-colors"
+            className="flex-1 px-3 py-2 text-sm font-medium border border-border rounded-md hover:bg-accent transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             type="button"
-            className="flex-1 px-3 py-2 text-sm font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            className="flex-1 px-3 py-2 text-sm font-medium bg-blue-600 text-white dark:bg-blue-500 dark:text-white rounded-md hover:bg-blue-700 transition-colors dark:hover:bg-blue-600"
           >
             Save
           </button>
