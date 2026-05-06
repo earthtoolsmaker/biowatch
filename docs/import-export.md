@@ -64,6 +64,7 @@ User Selection
 **Format detection:** Looks for `datapackage.json` in directory.
 
 **Process:**
+
 1. Parse `datapackage.json` for metadata
 2. Import CSVs in dependency order:
    - `deployments.csv` → deployments table
@@ -126,6 +127,7 @@ plus a per-stub `log.warn` line (capped at 50).
 **Format detection:** Looks for `projects.csv` in directory.
 
 **Process:**
+
 1. Parse `projects.csv` for study metadata
 2. Import `deployments.csv` → deployments table
 3. Import `images.csv` → both media AND observations tables
@@ -139,6 +141,7 @@ plus a per-stub `log.warn` line (capped at 50).
 **Format:** COCO Camera Traps JSON (from lila.science datasets)
 
 **Process (small datasets <100K images):**
+
 ```
 ┌─────────────────┐
 │  Select Dataset │
@@ -229,6 +232,7 @@ For large datasets like Snapshot Serengeti (7.1M images), a streaming architectu
 ```
 
 **Supported Datasets (24 total):**
+
 - Biome Health Project Maasai Mara 2018 (37K images, Kenya)
 - Snapshot Karoo (38K images, South Africa)
 - Snapshot Serengeti (7.1M images, Tanzania) - uses streaming
@@ -237,6 +241,7 @@ For large datasets like Snapshot Serengeti (7.1M images), a streaming architectu
 - And 19 more...
 
 **Key features:**
+
 - Images loaded remotely via HTTP (no local download)
 - COCO bbox normalized from pixels to 0-1 coordinates
 - ZIP metadata extraction supported (e.g., Snapshot Karoo)
@@ -251,6 +256,7 @@ For large datasets like Snapshot Serengeti (7.1M images), a streaming architectu
 - `media.importFolder` is set to the dataset name (e.g., `"Snapshot Serengeti"`) so the Sources tab can group LILA media into a single source row.
 
 **Key files:**
+
 - `src/main/services/import/parsers/lila.js` — orchestrator
 - `src/main/services/import/parsers/lila-helpers.js` — pure mapping helpers (testable without electron)
 
@@ -268,7 +274,7 @@ function normalizeBbox(bbox, imageWidth, imageHeight) {
 }
 
 // Streaming threshold - datasets with more images use streaming
-const STREAMING_THRESHOLD = 100000  // 100K images
+const STREAMING_THRESHOLD = 100000 // 100K images
 ```
 
 ## Image Folder Import with ML
@@ -433,6 +439,7 @@ Export Request
 ## CamTrap DP Export
 
 **Options:**
+
 - `includeMedia` - Copy media files to export
 - `selectedSpecies` - Filter to specific species
 - `includeBlank` - Include blank observations
@@ -442,6 +449,7 @@ Export Request
   - Generated eventID format: `{deploymentID}_seq_{paddedIndex}` (e.g., `CAM001_seq_0001`)
 
 **Output structure:**
+
 ```
 export/
 ├── datapackage.json
@@ -466,12 +474,16 @@ function generateDataPackage(studyId, studyName, metadata) {
     version: '1.0.0',
     created: new Date().toISOString(),
     contributors: metadata?.contributors || [{ title: 'Biowatch User', role: 'author' }],
-    licenses: [{
-      name: 'CC-BY-4.0',
-      path: 'https://creativecommons.org/licenses/by/4.0/'
-    }],
+    licenses: [
+      {
+        name: 'CC-BY-4.0',
+        path: 'https://creativecommons.org/licenses/by/4.0/'
+      }
+    ],
     profile: 'tabular-data-package',
-    resources: [/* CSV schemas */]
+    resources: [
+      /* CSV schemas */
+    ]
   }
 }
 ```
@@ -497,10 +509,12 @@ Saves the Activity tab's species distribution map (Leaflet basemap + pie chart m
 Organizes images into species-named folders.
 
 **Options:**
+
 - `selectedSpecies` - Which species to export
 - `includeBlank` - Create `blank/` folder
 
 **Output structure:**
+
 ```
 export/
 ├── Vulpes vulpes/
@@ -559,7 +573,7 @@ sendExportProgress({
   isDownloading: true,
   downloadPercent: 45,
   errorCount: 2,
-  estimatedTimeRemaining: 120,  // seconds
+  estimatedTimeRemaining: 120, // seconds
   overallPercent: 15
 })
 
@@ -599,6 +613,7 @@ Remote images from GBIF, Agouti, and LILA imports are cached to disk for offline
 5. Next view → serves from cache
 
 **Cache characteristics:**
+
 - **Location:** `{userData}/biowatch-data/studies/{studyId}/cache/images/`
 - **Key:** SHA256 hash of URL (first 16 characters)
 - **Expiration:** 30 days (auto-cleaned at app startup)
@@ -644,11 +659,13 @@ await window.api.cancelLilaImport(datasetId)
 ```
 
 The cancellation signal (`AbortSignal`) is threaded through the entire pipeline:
+
 - **Downloads**: Aborts the fetch reader loop in `downloadFileWithRetry`
 - **Extraction**: Destroys the unzipper read stream in `extractZip`
 - **Database imports**: Checked between batch inserts (every 1000-2000 rows)
 
 On cancellation:
+
 1. The active operation throws an `AbortError`
 2. The study database is closed and its directory is deleted
 3. Temporary download/extraction files are cleaned up
@@ -658,18 +675,18 @@ On cancellation:
 
 ## Key Files
 
-| File | Purpose |
-|------|---------|
-| `src/main/services/import/parsers/camtrapDP.js` | CamTrap DP import |
-| `src/main/services/import/parsers/wildlifeInsights.js` | Wildlife Insights import |
-| `src/main/services/import/parsers/deepfaune.js` | DeepFaune CSV import |
-| `src/main/services/import/parsers/lila.js` | LILA dataset import (COCO Camera Traps) |
-| `src/main/services/import/parsers/lila-helpers.js` | Pure helpers for LILA mapping (testable in isolation) |
-| `src/main/services/import/importer.js` | Image folder import with ML |
-| `src/main/services/import/timestamp.js` | Video timestamp extraction with fallback chain |
-| `src/main/services/import/index.js` | Re-exports all import functions |
-| `src/main/services/export/exporter.js` | All export functionality |
-| `src/main/services/download.ts` | File download with retry |
-| `src/main/utils/bbox.js` | Bbox format conversions |
-| `src/main/services/cache/image.js` | Remote image caching for Best Captures |
-| `src/main/services/cache/cleanup.js` | Cache expiration cleanup |
+| File                                                   | Purpose                                               |
+| ------------------------------------------------------ | ----------------------------------------------------- |
+| `src/main/services/import/parsers/camtrapDP.js`        | CamTrap DP import                                     |
+| `src/main/services/import/parsers/wildlifeInsights.js` | Wildlife Insights import                              |
+| `src/main/services/import/parsers/deepfaune.js`        | DeepFaune CSV import                                  |
+| `src/main/services/import/parsers/lila.js`             | LILA dataset import (COCO Camera Traps)               |
+| `src/main/services/import/parsers/lila-helpers.js`     | Pure helpers for LILA mapping (testable in isolation) |
+| `src/main/services/import/importer.js`                 | Image folder import with ML                           |
+| `src/main/services/import/timestamp.js`                | Video timestamp extraction with fallback chain        |
+| `src/main/services/import/index.js`                    | Re-exports all import functions                       |
+| `src/main/services/export/exporter.js`                 | All export functionality                              |
+| `src/main/services/download.ts`                        | File download with retry                              |
+| `src/main/utils/bbox.js`                               | Bbox format conversions                               |
+| `src/main/services/cache/image.js`                     | Remote image caching for Best Captures                |
+| `src/main/services/cache/cleanup.js`                   | Cache expiration cleanup                              |

@@ -70,6 +70,7 @@ Negligible.
 ### 2 — Component extraction: shared `DeploymentLinkPill`
 
 **Files:**
+
 - New: `src/renderer/src/media/DeploymentLinkPill.jsx`
 - Modify: `src/renderer/src/media/Gallery.jsx`
 

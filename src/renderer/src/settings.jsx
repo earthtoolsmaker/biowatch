@@ -112,9 +112,6 @@ export default function SettingsPage() {
     <div className="flex gap-4 flex-col h-full">
       <header className="w-full border-b border-border sticky top-0 bg-card z-10">
         <nav aria-label="Tabs" className="-mb-px flex space-x-8 px-4">
-          <Tab to="/settings/appearance" icon={Palette}>
-            Appearance
-          </Tab>
           <Tab
             to="/settings/ml_zoo"
             icon={BrainCircuit}
@@ -128,6 +125,9 @@ export default function SettingsPage() {
           </Tab>
           <Tab to="/settings/info" icon={Info}>
             Info
+          </Tab>
+          <Tab to="/settings/appearance" icon={Palette}>
+            Appearance
           </Tab>
           {showAdvanced && (
             <Tab to="/settings/advanced" icon={Settings2}>

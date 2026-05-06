@@ -5,14 +5,14 @@
 
 ## Problem
 
-The app displays common names (e.g. "Eurasian Red Squirrel") alongside scientific names (e.g. *Sciurus vulgaris*) in the overview, species distribution, and media views. Common names come from two sources:
+The app displays common names (e.g. "Eurasian Red Squirrel") alongside scientific names (e.g. _Sciurus vulgaris_) in the overview, species distribution, and media views. Common names come from two sources:
 
 1. **Imported data.** CamtrapDP, WildlifeInsights, DeepFaune, and LILA parsers populate `observations.commonName` from the source file. This is authoritative.
 2. **Renderer-side GBIF lookups.** When `commonName` is missing (e.g. for ML-generated observations), `overview.jsx` and `ui/speciesDistribution.jsx` each call GBIF's `/species/match` → `/species/{usageKey}/vernacularNames` and pick the first entry with `language === "eng"`.
 
 Source (2) is broken in two ways:
 
-- **GBIF's `language` field is unreliable.** For *Sciurus vulgaris* (usageKey 8211070), GBIF returns multiple entries tagged `language: "eng"` that are actually Spanish ("Ardilla roja", "Ardilla Roja de Eurasia") or French ("Ecureuil d'Eurasie"), because source providers (Catalogue of Life, EUNIS, etc.) mis-tag the field. `find(name.language === "eng")` picks the first mis-tagged entry. The genuinely English entries ("Eurasian Red Squirrel") exist further down the list.
+- **GBIF's `language` field is unreliable.** For _Sciurus vulgaris_ (usageKey 8211070), GBIF returns multiple entries tagged `language: "eng"` that are actually Spanish ("Ardilla roja", "Ardilla Roja de Eurasia") or French ("Ecureuil d'Eurasie"), because source providers (Catalogue of Life, EUNIS, etc.) mis-tag the field. `find(name.language === "eng")` picks the first mis-tagged entry. The genuinely English entries ("Eurasian Red Squirrel") exist further down the list.
 - **ML inference leaves `commonName` null.** `prediction.js insertPrediction` / `insertVideoPredictions` parse the scientific name but do not set `commonName`. The burden falls entirely on the renderer's GBIF lookup for every ML-generated observation.
 
 Additional problems:
@@ -24,7 +24,7 @@ Additional problems:
 
 ## Goals
 
-- Show the correct English common name for species like *Sciurus vulgaris* where GBIF mislabels entries.
+- Show the correct English common name for species like _Sciurus vulgaris_ where GBIF mislabels entries.
 - Remove runtime dependence on GBIF for species that are covered by a shipped dictionary.
 - Persist common names on observations when we have an authoritative source (import, dictionary hit at write time).
 - Eliminate duplicate GBIF code in the renderer.
@@ -65,7 +65,7 @@ Tiers 1 and 2 run in the main process at write time (insert and update) and pers
 
 - Format: `{ "sciurus vulgaris": "Eurasian Red Squirrel", ... }`.
 - Two purposes: (a) fix known-bad GBIF cases where even the scorer gets it wrong, (b) add species that appear in imported data but aren't in any model's label list.
-- Starting entries include *Sciurus vulgaris* (the known-bad case).
+- Starting entries include _Sciurus vulgaris_ (the known-bad case).
 
 **`resolver.js`** — exports `resolveCommonName(scientificName) → string | null`.
 
@@ -140,7 +140,7 @@ The scorer is the trickiest piece and must be designed against real data, not fi
    - All DeepFaune labels (~25).
    - All Manas labels (~30).
    - ~150 SpeciesNet species sampled across taxonomic classes (mammals, birds, reptiles) and biogeographic regions (Neotropical, Palearctic, Nearctic, Afrotropical).
-   - ~30-50 "high-risk" species known to produce multilingual-name-noisy GBIF responses (common European mammals with EUNIS entries; widely-introduced species like *Sciurus*, *Rattus*, *Mustela*; species with strong Spanish/Portuguese/French common names).
+   - ~30-50 "high-risk" species known to produce multilingual-name-noisy GBIF responses (common European mammals with EUNIS entries; widely-introduced species like _Sciurus_, _Rattus_, _Mustela_; species with strong Spanish/Portuguese/French common names).
 
 2. Run `scripts/explore-gbif-vernaculars.js` against the audit set. For each species, dump the full GBIF response to `scripts/output/gbif-dumps/` (gitignored).
 
@@ -163,6 +163,7 @@ The scorer is the trickiest piece and must be designed against real data, not fi
 ### Data flow summary
 
 **Flow 1 — ML inference writes observation:**
+
 ```
 Python server → prediction JSON
   → parseScientificName()                  [unchanged]
@@ -171,6 +172,7 @@ Python server → prediction JSON
 ```
 
 **Flow 2 — User edits species:**
+
 ```
 Picker list selection (both known):
   → save scientificName + commonName as-is
@@ -184,6 +186,7 @@ Species cleared:
 ```
 
 **Flow 3 — Renderer displays species:**
+
 ```
 Query row { scientificName, commonName }
   → useCommonName(scientificName, { storedCommonName: commonName })

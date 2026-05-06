@@ -83,7 +83,7 @@ Behavior:
    - Always keep the top detection.
    - Keep additional detections only if `conf >= 0.5`.
 5. Normalize each kept detection via `transformBboxToCamtrapDP(detection,
-   modelType)` so coordinates are top-left, normalized 0–1.
+modelType)` so coordinates are top-left, normalized 0–1.
 6. Emit a flat array sorted by `frameNumber` ascending.
 
 Response shape:

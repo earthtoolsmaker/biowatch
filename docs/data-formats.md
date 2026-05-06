@@ -68,63 +68,64 @@ dataset/
 > reference `deploymentID`s missing from `deployments.csv`, the importer
 > writes stub rows so the FK constraints hold. Stubs are stored with
 > `locationID = deploymentID`, `locationName = NULL`, `latitude / longitude /
-> cameraID / cameraModel / coordinateUncertainty = NULL`, and `deploymentStart`
+cameraID / cameraModel / coordinateUncertainty = NULL`, and `deploymentStart`
 > / `deploymentEnd` derived from the referencing rows' min/max timestamps.
 > See `import-export.md` ("Orphan deploymentID recovery") for the full flow.
 
 ### deployments.csv
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `deploymentID` | string | Unique deployment identifier (primary key) |
-| `locationID` | string | Location identifier |
-| `locationName` | string | Human-readable location name |
-| `latitude` | number | Decimal degrees |
-| `longitude` | number | Decimal degrees |
-| `deploymentStart` | datetime | ISO 8601 with timezone |
-| `deploymentEnd` | datetime | ISO 8601 with timezone |
+| Column            | Type     | Description                                |
+| ----------------- | -------- | ------------------------------------------ |
+| `deploymentID`    | string   | Unique deployment identifier (primary key) |
+| `locationID`      | string   | Location identifier                        |
+| `locationName`    | string   | Human-readable location name               |
+| `latitude`        | number   | Decimal degrees                            |
+| `longitude`       | number   | Decimal degrees                            |
+| `deploymentStart` | datetime | ISO 8601 with timezone                     |
+| `deploymentEnd`   | datetime | ISO 8601 with timezone                     |
 
 ### media.csv
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `mediaID` | string | Unique media identifier (primary key) |
-| `deploymentID` | string | Foreign key to deployments |
-| `timestamp` | datetime | Capture timestamp (ISO 8601) |
-| `filePath` | string | Relative path to media file or HTTP URL |
-| `filePublic` | boolean | Whether file is publicly accessible |
-| `fileMediatype` | string | MIME type (e.g., `image/jpeg`, `video/mp4`) |
-| `fileName` | string | Original file name |
-| `exifData` | object | EXIF/metadata as JSON. For images: camera settings, GPS, timestamps (e.g., `{"Make": "RECONYX", "Model": "HP2X", "DateTimeOriginal": "2024-03-20T14:30:15.000Z", "latitude": 46.77, "longitude": 6.64}`). For videos: `{"fps": 30, "duration": 60, "frameCount": 1800}` |
-| `favorite` | boolean | User-marked favorite/best capture (CamtrapDP standard field) |
+| Column          | Type     | Description                                                                                                                                                                                                                                                             |
+| --------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mediaID`       | string   | Unique media identifier (primary key)                                                                                                                                                                                                                                   |
+| `deploymentID`  | string   | Foreign key to deployments                                                                                                                                                                                                                                              |
+| `timestamp`     | datetime | Capture timestamp (ISO 8601)                                                                                                                                                                                                                                            |
+| `filePath`      | string   | Relative path to media file or HTTP URL                                                                                                                                                                                                                                 |
+| `filePublic`    | boolean  | Whether file is publicly accessible                                                                                                                                                                                                                                     |
+| `fileMediatype` | string   | MIME type (e.g., `image/jpeg`, `video/mp4`)                                                                                                                                                                                                                             |
+| `fileName`      | string   | Original file name                                                                                                                                                                                                                                                      |
+| `exifData`      | object   | EXIF/metadata as JSON. For images: camera settings, GPS, timestamps (e.g., `{"Make": "RECONYX", "Model": "HP2X", "DateTimeOriginal": "2024-03-20T14:30:15.000Z", "latitude": 46.77, "longitude": 6.64}`). For videos: `{"fps": 30, "duration": 60, "frameCount": 1800}` |
+| `favorite`      | boolean  | User-marked favorite/best capture (CamtrapDP standard field)                                                                                                                                                                                                            |
 
 ### observations.csv
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `observationID` | string | Unique observation identifier (primary key) |
-| `deploymentID` | string | Foreign key to deployments |
-| `mediaID` | string | Foreign key to media |
-| `eventID` | string | Event/sequence grouping |
-| `eventStart` | datetime | Event start time |
-| `eventEnd` | datetime | Event end time |
-| `observationLevel` | string | Always `media` |
-| `observationType` | string | `animal`, `human`, `vehicle`, `blank`, `unknown`, `unclassified` (see "Empty-species observations" below) |
-| `scientificName` | string | Latin species name (null/empty for `vehicle`/`blank`/`unknown`/`unclassified` rows) |
-| `count` | integer | Number of individuals (min: 1, null if unknown) |
-| `lifeStage` | string | `adult`, `subadult`, `juvenile` |
-| `sex` | string | `male`, `female` |
-| `behavior` | string | Observed behavior |
-| `bboxX` | number | Bounding box X (normalized 0-1) |
-| `bboxY` | number | Bounding box Y (normalized 0-1) |
-| `bboxWidth` | number | Bounding box width (normalized, min: 1e-15, max: 1) |
-| `bboxHeight` | number | Bounding box height (normalized, min: 1e-15, max: 1) |
-| `classificationMethod` | string | `human` or `machine` |
-| `classifiedBy` | string | Model name or person |
-| `classificationTimestamp` | datetime | When classification was made |
-| `classificationProbability` | number | Confidence score (0-1) |
+| Column                      | Type     | Description                                                                                               |
+| --------------------------- | -------- | --------------------------------------------------------------------------------------------------------- |
+| `observationID`             | string   | Unique observation identifier (primary key)                                                               |
+| `deploymentID`              | string   | Foreign key to deployments                                                                                |
+| `mediaID`                   | string   | Foreign key to media                                                                                      |
+| `eventID`                   | string   | Event/sequence grouping                                                                                   |
+| `eventStart`                | datetime | Event start time                                                                                          |
+| `eventEnd`                  | datetime | Event end time                                                                                            |
+| `observationLevel`          | string   | Always `media`                                                                                            |
+| `observationType`           | string   | `animal`, `human`, `vehicle`, `blank`, `unknown`, `unclassified` (see "Empty-species observations" below) |
+| `scientificName`            | string   | Latin species name (null/empty for `vehicle`/`blank`/`unknown`/`unclassified` rows)                       |
+| `count`                     | integer  | Number of individuals (min: 1, null if unknown)                                                           |
+| `lifeStage`                 | string   | `adult`, `subadult`, `juvenile`                                                                           |
+| `sex`                       | string   | `male`, `female`                                                                                          |
+| `behavior`                  | string   | Observed behavior                                                                                         |
+| `bboxX`                     | number   | Bounding box X (normalized 0-1)                                                                           |
+| `bboxY`                     | number   | Bounding box Y (normalized 0-1)                                                                           |
+| `bboxWidth`                 | number   | Bounding box width (normalized, min: 1e-15, max: 1)                                                       |
+| `bboxHeight`                | number   | Bounding box height (normalized, min: 1e-15, max: 1)                                                      |
+| `classificationMethod`      | string   | `human` or `machine`                                                                                      |
+| `classifiedBy`              | string   | Model name or person                                                                                      |
+| `classificationTimestamp`   | datetime | When classification was made                                                                              |
+| `classificationProbability` | number   | Confidence score (0-1)                                                                                    |
 
 **Key files:**
+
 - Import: `src/main/services/import/parsers/camtrapDP.js`
 - Export: `src/main/services/export/exporter.js`
 - Validation schemas: `src/main/services/export/schemas.js`
@@ -138,6 +139,7 @@ Camtrap DP exporters typically attach an observation row with an empty
 `unknown`, and `vehicle` all carry no species name.
 
 The importer preserves these rows verbatim. Downstream:
+
 - `blank`/`unclassified`/`unknown`-typed empty-species rows roll up into
   the **Blank** pseudo-species in the species filter.
 - `vehicle`-typed rows roll up into the **Vehicle** pseudo-species.
@@ -155,6 +157,7 @@ complete rationale and per-study verification.
 During CamTrap DP export, the datapackage.json, deployments, observations, and media are validated against the [official TDWG CamtrapDP 1.0 specification](https://camtrap-dp.tdwg.org/). Validation is non-blocking - warnings are logged but don't prevent export.
 
 **Datapackage sanitization rules:**
+
 - `name` is converted to lowercase (must be alphanumeric with hyphens only)
 - `profile` is set to the official CamtrapDP 1.0 profile URL
 - `created` timestamps without timezone get `Z` (UTC) appended
@@ -163,12 +166,14 @@ During CamTrap DP export, the datapackage.json, deployments, observations, and m
 - Default contributor `{ title: 'Biowatch User', role: 'contributor' }` added if none provided
 
 **Deployments sanitization rules:**
+
 - Timestamps (`deploymentStart`, `deploymentEnd`) without timezone get `Z` (UTC) appended
 - `latitude` must be in range -90 to 90
 - `longitude` must be in range -180 to 180
 - Empty `locationID`/`locationName` converted to `null`
 
 **Observations sanitization rules:**
+
 - Timestamps without timezone get `Z` (UTC) appended
 - `count` values of 0 or negative become `null`
 - `bboxWidth`/`bboxHeight` of 0 are clamped to `1e-15` (minimum positive)
@@ -177,10 +182,12 @@ During CamTrap DP export, the datapackage.json, deployments, observations, and m
 - `classificationMethod` values are mapped (`ai`/`ml`/`auto` → `machine`, `manual` → `human`)
 
 **Media sanitization rules:**
+
 - Timestamps without timezone get `Z` (UTC) appended
 - `fileMediatype` must match pattern `^(image|video|audio)/.*$`
 
 **Validation summary returned:**
+
 ```json
 {
   "validation": {
@@ -230,43 +237,43 @@ dataset/
 
 ### projects.csv
 
-| Column | Maps to |
-|--------|---------|
-| `project_short_name` | Study name |
-| `project_objectives` | Description |
-| `project_admin` | Contributor name |
+| Column                       | Maps to                  |
+| ---------------------------- | ------------------------ |
+| `project_short_name`         | Study name               |
+| `project_objectives`         | Description              |
+| `project_admin`              | Contributor name         |
 | `project_admin_organization` | Contributor organization |
-| `project_admin_email` | Contributor email |
+| `project_admin_email`        | Contributor email        |
 
 ### deployments.csv
 
-| Column | Maps to |
-|--------|---------|
-| `deployment_id` | deploymentID |
-| `latitude` | latitude |
-| `longitude` | longitude |
-| `start_date` | deploymentStart (SQL date format) |
-| `end_date` | deploymentEnd (SQL date format) |
+| Column          | Maps to                           |
+| --------------- | --------------------------------- |
+| `deployment_id` | deploymentID                      |
+| `latitude`      | latitude                          |
+| `longitude`     | longitude                         |
+| `start_date`    | deploymentStart (SQL date format) |
+| `end_date`      | deploymentEnd (SQL date format)   |
 
 ### images.csv
 
 Combined media + observations in one file:
 
-| Column | Maps to |
-|--------|---------|
-| `image_id` | mediaID |
-| `deployment_id` | deploymentID |
-| `timestamp` | timestamp (SQL format) |
-| `location` | filePath |
-| `filename` | fileName |
-| `genus` + `species` | scientificName |
-| `common_name` | commonName |
-| `cv_confidence` | classificationProbability |
-| `number_of_objects` | count |
-| `age` | lifeStage |
-| `sex` | sex |
-| `behavior` | behavior |
-| `sequence_id` | eventID |
+| Column              | Maps to                   |
+| ------------------- | ------------------------- |
+| `image_id`          | mediaID                   |
+| `deployment_id`     | deploymentID              |
+| `timestamp`         | timestamp (SQL format)    |
+| `location`          | filePath                  |
+| `filename`          | fileName                  |
+| `genus` + `species` | scientificName            |
+| `common_name`       | commonName                |
+| `cv_confidence`     | classificationProbability |
+| `number_of_objects` | count                     |
+| `age`               | lifeStage                 |
+| `sex`               | sex                       |
+| `behavior`          | behavior                  |
+| `sequence_id`       | eventID                   |
 
 **Key file:** `src/main/services/import/parsers/wildlifeInsights.js`
 
@@ -280,11 +287,11 @@ Export format from [DeepFaune](https://www.deepfaune.cnrs.fr/) desktop applicati
 
 Single CSV file with image paths and predictions.
 
-| Column | Description |
-|--------|-------------|
-| `filename` | Image file path |
-| `prediction` | Species prediction |
-| `score` | Classification probability |
+| Column       | Description                |
+| ------------ | -------------------------- |
+| `filename`   | Image file path            |
+| `prediction` | Species prediction         |
+| `score`      | Classification probability |
 
 **Key file:** `src/main/services/import/parsers/deepfaune.js`
 
@@ -309,33 +316,33 @@ Single JSON file following COCO Camera Traps format:
 
 ### Image Object
 
-| Field | Type | Maps to | Description |
-|-------|------|---------|-------------|
-| `id` | string | mediaID | Unique image identifier |
-| `file_name` | string | fileName | Image filename |
-| `location` | string | deploymentID | Camera location identifier |
-| `datetime` | string | timestamp | Capture timestamp |
-| `width` | int | (used for bbox normalization) | Image width in pixels |
-| `height` | int | (used for bbox normalization) | Image height in pixels |
-| `seq_id` | string | eventID | **Sequence identifier** |
-| `seq_num_frames` | int | (not stored) | Total images in sequence |
-| `frame_num` | int | (not stored) | Zero-indexed frame position |
+| Field            | Type   | Maps to                       | Description                 |
+| ---------------- | ------ | ----------------------------- | --------------------------- |
+| `id`             | string | mediaID                       | Unique image identifier     |
+| `file_name`      | string | fileName                      | Image filename              |
+| `location`       | string | deploymentID                  | Camera location identifier  |
+| `datetime`       | string | timestamp                     | Capture timestamp           |
+| `width`          | int    | (used for bbox normalization) | Image width in pixels       |
+| `height`         | int    | (used for bbox normalization) | Image height in pixels      |
+| `seq_id`         | string | eventID                       | **Sequence identifier**     |
+| `seq_num_frames` | int    | (not stored)                  | Total images in sequence    |
+| `frame_num`      | int    | (not stored)                  | Zero-indexed frame position |
 
 ### Category Object
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | int | Category identifier (0 = empty) |
-| `name` | string | Species/category name |
+| Field  | Type   | Description                     |
+| ------ | ------ | ------------------------------- |
+| `id`   | int    | Category identifier (0 = empty) |
+| `name` | string | Species/category name           |
 
 ### Annotation Object
 
-| Field | Type | Maps to | Description |
-|-------|------|---------|-------------|
-| `id` | string | observationID | Annotation identifier |
-| `image_id` | string | mediaID | Foreign key to image |
-| `category_id` | int | scientificName | Category lookup |
-| `bbox` | [x,y,w,h] | bboxX/Y/Width/Height | Bounding box (pixels, converted to normalized) |
+| Field         | Type      | Maps to              | Description                                    |
+| ------------- | --------- | -------------------- | ---------------------------------------------- |
+| `id`          | string    | observationID        | Annotation identifier                          |
+| `image_id`    | string    | mediaID              | Foreign key to image                           |
+| `category_id` | int       | scientificName       | Category lookup                                |
+| `bbox`        | [x,y,w,h] | bboxX/Y/Width/Height | Bounding box (pixels, converted to normalized) |
 
 ### Sequence/Event Handling
 
@@ -346,6 +353,7 @@ Many LILA datasets include sequence information where images are grouped into "b
 - For datasets without `seq_id`, `eventID` is `null` and event timestamps default to image timestamp
 
 **Datasets with sequence info:**
+
 - Snapshot Serengeti (2.65M sequences)
 - SWG Camera Traps (436K sequences)
 - Snapshot Safari datasets (Karoo, Kruger, Enonkishu, etc.)
@@ -353,6 +361,7 @@ Many LILA datasets include sequence information where images are grouped into "b
 - Wellington Camera Traps
 
 **Datasets without sequence info:**
+
 - Biome Health Project Maasai Mara 2018
 - ENA24 Detection
 
@@ -508,13 +517,14 @@ Biowatch can download CamTrap DP datasets directly from [GBIF](https://www.gbif.
 
 ### CamTrap DP Export
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `includeMedia` | boolean | Copy media files to `media/` subdirectory |
-| `selectedSpecies` | string[] | Filter to specific species |
-| `includeBlank` | boolean | Include blank observations |
+| Option            | Type     | Description                               |
+| ----------------- | -------- | ----------------------------------------- |
+| `includeMedia`    | boolean  | Copy media files to `media/` subdirectory |
+| `selectedSpecies` | string[] | Filter to specific species                |
+| `includeBlank`    | boolean  | Include blank observations                |
 
 Output structure:
+
 ```
 export/
 ├── datapackage.json
@@ -528,12 +538,13 @@ export/
 
 ### Image Directory Export
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `selectedSpecies` | string[] | Species to export |
-| `includeBlank` | boolean | Include blank images |
+| Option            | Type     | Description          |
+| ----------------- | -------- | -------------------- |
+| `selectedSpecies` | string[] | Species to export    |
+| `includeBlank`    | boolean  | Include blank images |
 
 Output structure:
+
 ```
 export/
 ├── Vulpes vulpes/
@@ -578,6 +589,7 @@ Generated by `scripts/build-species-info.js` from two sources:
 The file is **hand-editable** — if Wikipedia returns the wrong page or an awkward intro, edit the JSON and commit. Re-running the script produces a clean diff so changes are auditable.
 
 **Key files:**
+
 - `scripts/build-species-info.js` — generator CLI (`npm run species-info:build`)
 - `src/shared/speciesInfo/resolver.js` — synchronous lookup (`resolveSpeciesInfo(scientificName)`)
 - `src/renderer/src/ui/SpeciesTooltipContent.jsx` — consumer

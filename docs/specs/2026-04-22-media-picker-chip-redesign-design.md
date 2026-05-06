@@ -62,20 +62,20 @@ actually apply.
 
 ## Design choices (locked from brainstorming)
 
-| Choice | Decision |
-| --- | --- |
-| Current state surface | Dismissible chip at the top of the species tab |
-| Chip render condition | `bbox.scientificName` is non-null (covers dictionary, study-present, and custom-entered strings) |
-| Chip label | `commonName (scientificName)` — fallback to scientific-only when no common name stored |
-| Chip ✕ action | Writes `{ observationType: 'blank', scientificName: null, commonName: null }` and closes picker |
-| Custom-entry visual distinction | None — a chip with scientific-only text already reads as "not a dictionary species" |
-| Search input on open | Always empty, auto-focused; no pre-fill |
-| "Mark as blank" alt affordance | None — chip ✕ is the only path; new/already-blank bboxes show no chip and no blank button |
-| "Add custom species" affordance | Zero-results footer button with the trimmed query as its label, only when `debouncedSearch.length >= 3` and results are empty |
-| Custom write payload | `{ scientificName: query.trim(), commonName: null, observationType: 'animal' }` — identical to today's custom-form submission |
-| Enter key with empty results + 3+ char query | Fires the custom-add button |
-| Enter key with empty results + short query | No-op |
-| "No species selected" empty state | No chip, focused empty input — applies to both new bboxes and previously-blanked bboxes |
+| Choice                                       | Decision                                                                                                                      |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Current state surface                        | Dismissible chip at the top of the species tab                                                                                |
+| Chip render condition                        | `bbox.scientificName` is non-null (covers dictionary, study-present, and custom-entered strings)                              |
+| Chip label                                   | `commonName (scientificName)` — fallback to scientific-only when no common name stored                                        |
+| Chip ✕ action                                | Writes `{ observationType: 'blank', scientificName: null, commonName: null }` and closes picker                               |
+| Custom-entry visual distinction              | None — a chip with scientific-only text already reads as "not a dictionary species"                                           |
+| Search input on open                         | Always empty, auto-focused; no pre-fill                                                                                       |
+| "Mark as blank" alt affordance               | None — chip ✕ is the only path; new/already-blank bboxes show no chip and no blank button                                     |
+| "Add custom species" affordance              | Zero-results footer button with the trimmed query as its label, only when `debouncedSearch.length >= 3` and results are empty |
+| Custom write payload                         | `{ scientificName: query.trim(), commonName: null, observationType: 'animal' }` — identical to today's custom-form submission |
+| Enter key with empty results + 3+ char query | Fires the custom-add button                                                                                                   |
+| Enter key with empty results + short query   | No-op                                                                                                                         |
+| "No species selected" empty state            | No chip, focused empty input — applies to both new bboxes and previously-blanked bboxes                                       |
 
 ## Layout
 
@@ -151,8 +151,8 @@ outer modal layout are untouched.
 // Kept (from today or from the fuzzy-search spec)
 const [activeTab, setActiveTab]
 const [searchTerm, setSearchTerm]
-const [debouncedSearch, setDebouncedSearch]    // fuzzy-search spec
-const [highlightedIndex, setHighlightedIndex]  // fuzzy-search spec
+const [debouncedSearch, setDebouncedSearch] // fuzzy-search spec
+const [highlightedIndex, setHighlightedIndex] // fuzzy-search spec
 const inputRef
 
 // Removed
@@ -194,11 +194,11 @@ Deleted code in media.jsx:
 All three go through the existing `onUpdate` →
 `window.api.updateObservationClassification` path. No new IPC.
 
-| Trigger | Payload |
-| --- | --- |
-| Click / Enter on a result row | `{ observationID, scientificName, commonName, observationType: 'animal' }` |
+| Trigger                                                 | Payload                                                                                        |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Click / Enter on a result row                           | `{ observationID, scientificName, commonName, observationType: 'animal' }`                     |
 | Click on zero-results footer / Enter with empty results | `{ observationID, scientificName: query.trim(), commonName: null, observationType: 'animal' }` |
-| Click on chip ✕ | `{ observationID, scientificName: null, commonName: null, observationType: 'blank' }` |
+| Click on chip ✕                                         | `{ observationID, scientificName: null, commonName: null, observationType: 'blank' }`          |
 
 The three-case discrimination in `updateObservationClassification`
 (observations.js:50–68) already handles all three correctly — no

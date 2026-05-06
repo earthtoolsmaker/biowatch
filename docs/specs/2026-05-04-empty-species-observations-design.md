@@ -12,7 +12,7 @@ Camtrap DP exporters typically attach an observation row with empty
 spec defines six values: `animal`, `human`, `vehicle`, `blank`,
 `unknown`, `unclassified`.
 
-Today the codebase treats "blank" as *"media with zero observation rows"*
+Today the codebase treats "blank" as _"media with zero observation rows"_
 (`getBlankMediaCount`, `species.js:71-100`). Studies whose exporter
 attaches a `blank`/`unclassified`/`unknown` row instead are silently
 mishandled:
@@ -27,15 +27,15 @@ mishandled:
 
 GMU8 Leuven baseline (~2.5M observations):
 
-| observationType | scientificName | rows    |
-|-----------------|----------------|---------|
-| animal          | has species    | 2,162,411 |
-| human           | has species    | 39,973  |
-| unclassified    | empty          | 281,376 |
-| blank           | empty          | 192,941 |
-| unknown         | empty          | 28,832  |
-| vehicle         | empty          | 6,579   |
-| (zero-obs media)| —              | 0       |
+| observationType  | scientificName | rows      |
+| ---------------- | -------------- | --------- |
+| animal           | has species    | 2,162,411 |
+| human            | has species    | 39,973    |
+| unclassified     | empty          | 281,376   |
+| blank            | empty          | 192,941   |
+| unknown          | empty          | 28,832    |
+| vehicle          | empty          | 6,579     |
+| (zero-obs media) | —              | 0         |
 
 `human` always carries a species name (`Homo sapiens`) and needs no
 special handling. Empty-species rows currently rendered as "—" total
@@ -46,23 +46,23 @@ special handling. Empty-species rows currently rendered as "—" total
 Spec assumptions checked against all 15 studies currently imported in
 the local Biowatch (5 of which are GMU8-style and broken today).
 
-| Study | Obs / Media | Pattern | Blank today | Blank (new) | Vehicle |
-|---|---|---|---|---|---|
-| GMU8 Leuven (`64294958`) | 2.71M / large | GMU8-style | **0** ❌ | ~470K ✓ | 6,579 |
-| `2e034359` | 738K / large | GMU8-style (dup of `54b660f0`) | **0** ❌ | non-zero ✓ | 860 |
-| `54b660f0` | 738K / large | GMU8-style (dup of `2e034359`) | **0** ❌ | non-zero ✓ | 860 |
-| `2269a895` | 163K / 163K | GMU8-style, no vehicle | **0** ❌ | 54,802 ✓ | 0 |
-| `b49cb045` | 31K / 30K | Mixed Camtrap-DP | **0** ❌ | 17,596 ✓ | 0 |
-| `e5a77c17` | 469K / 1.54M | Image-only + animal | 1,082,823 ✓ | 1,082,823 ✓ | 0 |
-| `ca9faf6c` | 39K / 37K | All-animal + sparse zero-obs | 630 ✓ | 630 ✓ | 0 |
-| `403232c9` | 6.5K / 38K | Sparse annotations | 31,792 ✓ | 31,792 ✓ | 0 |
-| `1378cb43` | 0 / 2.4M | Image-only | 2,400,000 ✓ | 2,400,000 ✓ | 0 |
-| `99cd9e64` | 0 / 304K | Image-only | 304,000 ✓ | 304,000 ✓ | 0 |
-| `931c0685` | 210K / —  | Mixed | works ✓ | works ✓ | 0 |
-| `bd24b0f1` | 7.3K / —  | Mixed, NULL observationType | works ✓ | works ✓ | 0 |
-| `e1b6a9fe` | 7.3K / —  | Mixed, NULL observationType | works ✓ | works ✓ | 0 |
-| `6febe0a8` | 11.9K | All-animal, no blanks | n/a | n/a | 0 |
-| `ccf0fbdc` | 11.6K | All-animal, no blanks | n/a | n/a | 0 |
+| Study                    | Obs / Media   | Pattern                        | Blank today | Blank (new) | Vehicle |
+| ------------------------ | ------------- | ------------------------------ | ----------- | ----------- | ------- |
+| GMU8 Leuven (`64294958`) | 2.71M / large | GMU8-style                     | **0** ❌    | ~470K ✓     | 6,579   |
+| `2e034359`               | 738K / large  | GMU8-style (dup of `54b660f0`) | **0** ❌    | non-zero ✓  | 860     |
+| `54b660f0`               | 738K / large  | GMU8-style (dup of `2e034359`) | **0** ❌    | non-zero ✓  | 860     |
+| `2269a895`               | 163K / 163K   | GMU8-style, no vehicle         | **0** ❌    | 54,802 ✓    | 0       |
+| `b49cb045`               | 31K / 30K     | Mixed Camtrap-DP               | **0** ❌    | 17,596 ✓    | 0       |
+| `e5a77c17`               | 469K / 1.54M  | Image-only + animal            | 1,082,823 ✓ | 1,082,823 ✓ | 0       |
+| `ca9faf6c`               | 39K / 37K     | All-animal + sparse zero-obs   | 630 ✓       | 630 ✓       | 0       |
+| `403232c9`               | 6.5K / 38K    | Sparse annotations             | 31,792 ✓    | 31,792 ✓    | 0       |
+| `1378cb43`               | 0 / 2.4M      | Image-only                     | 2,400,000 ✓ | 2,400,000 ✓ | 0       |
+| `99cd9e64`               | 0 / 304K      | Image-only                     | 304,000 ✓   | 304,000 ✓   | 0       |
+| `931c0685`               | 210K / —      | Mixed                          | works ✓     | works ✓     | 0       |
+| `bd24b0f1`               | 7.3K / —      | Mixed, NULL observationType    | works ✓     | works ✓     | 0       |
+| `e1b6a9fe`               | 7.3K / —      | Mixed, NULL observationType    | works ✓     | works ✓     | 0       |
+| `6febe0a8`               | 11.9K         | All-animal, no blanks          | n/a         | n/a         | 0       |
+| `ccf0fbdc`               | 11.6K         | All-animal, no blanks          | n/a         | n/a         | 0       |
 
 Validation outcomes:
 
@@ -79,7 +79,7 @@ Validation outcomes:
 5. **`b49cb045` exposes a subtle counting trap:** 16,982 blank +
    15 unclassified + 611 unknown = 17,608 empty-species observations,
    but only 17,596 media qualify as blank — meaning ~12 media have
-   *both* a blank-typed observation and an animal observation. The
+   _both_ a blank-typed observation and an animal observation. The
    media-level `NOT EXISTS (… real species OR vehicle)` query correctly
    excludes those. Implementation must not derive blank-media counts by
    naively counting empty-species observation rows; always group/exist
@@ -96,7 +96,7 @@ Validation outcomes:
    whether the exporter wrote a `blank` row or left the media
    observation-less.
 3. Vehicle observations are surfaced as a distinct, filterable category.
-4. Existing studies that *do* leave blank media observation-less (e.g.
+4. Existing studies that _do_ leave blank media observation-less (e.g.
    the test fixture, MICA, NACTI) continue to work.
 
 ## Non-goals
@@ -126,7 +126,7 @@ AND (o.scientificName IS NOT NULL AND o.scientificName != '' OR
 o.observationType = 'vehicle'))`.
 
 **Vehicle media:** media with at least one vehicle observation. Vehicle
-media is *not* blank media.
+media is _not_ blank media.
 
 A media with both a vehicle observation and a `Sus scrofa` observation
 matches both the Vehicle filter and the Sus scrofa filter, and is not
@@ -145,8 +145,7 @@ Replace the current `(observation.observationType === 'blank' ? 'Blank'
 : '—')` fallback with:
 
 ```js
-const fallbackLabel =
-  observation.observationType === 'vehicle' ? 'Vehicle' : 'Blank'
+const fallbackLabel = observation.observationType === 'vehicle' ? 'Vehicle' : 'Blank'
 ```
 
 Vehicle rows render with the same italic-gray treatment used for blank

@@ -32,16 +32,16 @@ const { data, error } = await window.api.getSequences(studyId, { limit: 20 })
 
 ### Studies
 
-| Method                                 | Channel                  | Parameters                   | Returns                    |
-| -------------------------------------- | ------------------------ | ---------------------------- | -------------------------- |
-| `getStudies()`                         | `studies:list`           | -                            | `Study[]`                  |
-| `updateStudy(id, update)`              | `studies:update`         | studyId, update object       | `Study`                    |
-| `deleteStudyDatabase(studyId)`         | `study:delete-database`  | studyId                      | `{ success: boolean }`     |
-| `checkStudyHasEventIDs(studyId)`       | `study:has-event-ids`    | studyId                      | `{ data: boolean }`        |
-| `getSequenceGap(studyId)`              | `study:get-sequence-gap` | studyId                      | `{ data: number \| null }` |
-| `setSequenceGap(studyId, sequenceGap)` | `study:set-sequence-gap` | studyId, sequenceGap (0-600) | `{ data: number }`         |
+| Method                                 | Channel                  | Parameters                   | Returns                                                                                                                                                                                                                        |
+| -------------------------------------- | ------------------------ | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `getStudies()`                         | `studies:list`           | -                            | `Study[]`                                                                                                                                                                                                                      |
+| `updateStudy(id, update)`              | `studies:update`         | studyId, update object       | `Study`                                                                                                                                                                                                                        |
+| `deleteStudyDatabase(studyId)`         | `study:delete-database`  | studyId                      | `{ success: boolean }`                                                                                                                                                                                                         |
+| `checkStudyHasEventIDs(studyId)`       | `study:has-event-ids`    | studyId                      | `{ data: boolean }`                                                                                                                                                                                                            |
+| `getSequenceGap(studyId)`              | `study:get-sequence-gap` | studyId                      | `{ data: number \| null }`                                                                                                                                                                                                     |
+| `setSequenceGap(studyId, sequenceGap)` | `study:set-sequence-gap` | studyId, sequenceGap (0-600) | `{ data: number }`                                                                                                                                                                                                             |
 | `getStudyCacheStats(studyId)`          | `study:get-cache-stats`  | studyId                      | `{ data: { total: { bytes, files }, breakdown: { transcodes, thumbnails, images, videos } } }` — each breakdown entry is `{ bytes, files }`. Files in `cache/` outside the four known subdirs are counted toward `total` only. |
-| `clearStudyCache(studyId)`             | `study:clear-cache`      | studyId                      | `{ data: { freedBytes, clearedFiles, error? } }` — removes the entire `<study>/cache/` directory; subdirs are recreated lazily by per-cache services on next write. |
+| `clearStudyCache(studyId)`             | `study:clear-cache`      | studyId                      | `{ data: { freedBytes, clearedFiles, error? } }` — removes the entire `<study>/cache/` directory; subdirs are recreated lazily by per-cache services on next write.                                                            |
 
 ### Data Import
 
@@ -58,18 +58,18 @@ const { data, error } = await window.api.getSequences(studyId, { limit: 20 })
 
 ### Species & Distribution
 
-| Method                            | Channel                    | Parameters | Returns                    |
-| --------------------------------- | -------------------------- | ---------- | -------------------------- |
-| `getSpeciesDistribution(studyId)` | `species:get-distribution` | studyId    | `{ data: Distribution[] }` |
-| `getDistinctSpecies(studyId)`     | `species:get-distinct`     | studyId    | `{ data: string[] }`       |
-| `getBlankMediaCount(studyId)`     | `species:get-blank-count`  | studyId    | `{ data: number }` — count of media with no animal/human/vehicle observation (covers zero-obs media + media with only `blank`/`unclassified`/`unknown`-typed empty-species rows). |
-| `getVehicleMediaCount(studyId)`   | `species:get-vehicle-count`| studyId    | `{ data: number }` — count of media with at least one `observationType='vehicle'` observation.  |
+| Method                            | Channel                     | Parameters | Returns                                                                                                                                                                           |
+| --------------------------------- | --------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `getSpeciesDistribution(studyId)` | `species:get-distribution`  | studyId    | `{ data: Distribution[] }`                                                                                                                                                        |
+| `getDistinctSpecies(studyId)`     | `species:get-distinct`      | studyId    | `{ data: string[] }`                                                                                                                                                              |
+| `getBlankMediaCount(studyId)`     | `species:get-blank-count`   | studyId    | `{ data: number }` — count of media with no animal/human/vehicle observation (covers zero-obs media + media with only `blank`/`unclassified`/`unknown`-typed empty-species rows). |
+| `getVehicleMediaCount(studyId)`   | `species:get-vehicle-count` | studyId    | `{ data: number }` — count of media with at least one `observationType='vehicle'` observation.                                                                                    |
 
 ### Overview
 
-| Method                       | Channel              | Parameters | Returns                  |
-| ---------------------------- | -------------------- | ---------- | ------------------------ |
-| `getOverviewStats(studyId)`  | `overview:get-stats` | studyId    | `{ data: OverviewStats }` |
+| Method                      | Channel              | Parameters | Returns                   |
+| --------------------------- | -------------------- | ---------- | ------------------------- |
+| `getOverviewStats(studyId)` | `overview:get-stats` | studyId    | `{ data: OverviewStats }` |
 
 `OverviewStats`:
 
@@ -77,16 +77,17 @@ const { data, error } = await window.api.getSequences(studyId, { limit: 20 })
 {
   speciesCount: number
   threatenedCount: number
-  threatenedSpecies: Array<{ scientificName: string, iucn: string }>
-  cameraCount: number       // distinct COALESCE(cameraID, deploymentID)
-  locationCount: number     // distinct deployments.locationID
-  observationCount: number  // animal/human (with species) + vehicle observations only;
-                            // excludes blank/unclassified/unknown empty-species rows
-  cameraDays: number        // sum of deployment durations, days
+  threatenedSpecies: Array<{ scientificName: string; iucn: string }>
+  cameraCount: number // distinct COALESCE(cameraID, deploymentID)
+  locationCount: number // distinct deployments.locationID
+  observationCount: number // animal/human (with species) + vehicle observations only;
+  // excludes blank/unclassified/unknown empty-species rows
+  cameraDays: number // sum of deployment durations, days
   mediaCount: number
-  derivedRange: {           // independently per side: override → observations
-    start: string | null    // → deployments → media → null
-    end:   string | null
+  derivedRange: {
+    // independently per side: override → observations
+    start: string | null // → deployments → media → null
+    end: string | null
   }
 }
 ```
@@ -95,16 +96,16 @@ Runs in the sequences worker thread (off the main process). Threatened species a
 
 ### Deployments
 
-| Method                                                         | Channel                         | Parameters                        | Returns                  |
-| -------------------------------------------------------------- | ------------------------------- | --------------------------------- | ------------------------ |
-| `getDeploymentLocations(studyId)`                              | `deployments:get-locations`     | studyId                           | `{ data: Deployment[] }` |
-| `getAllDeployments(studyId)`                                   | `deployments:get-all`           | studyId                           | `{ data: Deployment[] }` |
-| `getDeploymentSpecies(studyId, deploymentID)`                  | `deployments:get-species`       | studyId, deploymentID             | `{ data: { scientificName, count }[] }` |
+| Method                                                         | Channel                         | Parameters                        | Returns                                                                                                                                                                                                              |
+| -------------------------------------------------------------- | ------------------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `getDeploymentLocations(studyId)`                              | `deployments:get-locations`     | studyId                           | `{ data: Deployment[] }`                                                                                                                                                                                             |
+| `getAllDeployments(studyId)`                                   | `deployments:get-all`           | studyId                           | `{ data: Deployment[] }`                                                                                                                                                                                             |
+| `getDeploymentSpecies(studyId, deploymentID)`                  | `deployments:get-species`       | studyId, deploymentID             | `{ data: { scientificName, count }[] }`                                                                                                                                                                              |
 | `getDeploymentStats(studyId, deploymentID)`                    | `deployments:get-stats`         | studyId, deploymentID             | `{ data: { mediaCount, observationCount, blankCount } }` — `blankCount` is media-level (count of media with no real animal/human/vehicle observation), matching the species-filter popover's `BLANK_SENTINEL` count. |
-| `getDeploymentsActivity(studyId, periodCount?)`                | `deployments:get-activity`      | studyId, periodCount (optional)   | `{ data: Activity[] }`   |
-| `setDeploymentLatitude(studyId, deploymentID, latitude)`       | `deployments:set-latitude`      | studyId, deploymentID, latitude   | `{ success: boolean }`   |
-| `setDeploymentLongitude(studyId, deploymentID, longitude)`     | `deployments:set-longitude`     | studyId, deploymentID, longitude  | `{ success: boolean }`   |
-| `setDeploymentLocationName(studyId, locationID, locationName)` | `deployments:set-location-name` | studyId, locationID, locationName | `{ success: boolean }`   |
+| `getDeploymentsActivity(studyId, periodCount?)`                | `deployments:get-activity`      | studyId, periodCount (optional)   | `{ data: Activity[] }`                                                                                                                                                                                               |
+| `setDeploymentLatitude(studyId, deploymentID, latitude)`       | `deployments:set-latitude`      | studyId, deploymentID, latitude   | `{ success: boolean }`                                                                                                                                                                                               |
+| `setDeploymentLongitude(studyId, deploymentID, longitude)`     | `deployments:set-longitude`     | studyId, deploymentID, longitude  | `{ success: boolean }`                                                                                                                                                                                               |
+| `setDeploymentLocationName(studyId, locationID, locationName)` | `deployments:set-location-name` | studyId, locationID, locationName | `{ success: boolean }`                                                                                                                                                                                               |
 
 **Note on `getDeploymentLocations` vs `getAllDeployments`:** `getDeploymentLocations` dedupes by `(latitude, longitude)` and returns one row per physical camera-trap location — intended for read-only overview maps. `getAllDeployments` returns every deployment row (no dedup) — used by the Deployments tab's editable map so `MarkerClusterGroup` can correctly count co-located deployments and dragging doesn't silently split a group. `getDeploymentsActivity` runs in the sequences worker thread to keep the UI responsive on large studies.
 
@@ -122,9 +123,9 @@ Runs in the sequences worker thread (off the main process). Threatened species a
 
 ### Activity Map Export
 
-| Method                                                  | Channel                    | Parameters                  | Returns                                                                |
-| ------------------------------------------------------- | -------------------------- | --------------------------- | ---------------------------------------------------------------------- |
-| `exportActivityMapPng({ dataUrl, defaultFilename })`    | `activity:export-map-png`  | base64 PNG data URL, name   | `{ success: true, filePath } \| { cancelled: true } \| { success: false, error }` |
+| Method                                               | Channel                   | Parameters                | Returns                                                                           |
+| ---------------------------------------------------- | ------------------------- | ------------------------- | --------------------------------------------------------------------------------- |
+| `exportActivityMapPng({ dataUrl, defaultFilename })` | `activity:export-map-png` | base64 PNG data URL, name | `{ success: true, filePath } \| { cancelled: true } \| { success: false, error }` |
 
 The renderer captures the Leaflet map container with `html-to-image` (`pixelRatio: 2`, `crossOrigin=""` set on the tile layers so the canvas isn't tainted) and passes a `data:image/png;base64,…` URL plus a default filename. Main shows a save dialog (default location: Downloads) and writes the decoded buffer to disk. Triggered from the Activity tab's right-click context menu on the map.
 
@@ -261,8 +262,8 @@ The `setMediaFavorite` endpoint toggles a media item's favorite status. Favorite
 
 ### Sources
 
-| Method                    | Channel            | Parameters | Returns                  |
-| ------------------------- | ------------------ | ---------- | ------------------------ |
+| Method                    | Channel            | Parameters | Returns                 |
+| ------------------------- | ------------------ | ---------- | ----------------------- |
 | `getSourcesData(studyId)` | `sources:get-data` | studyId    | `{ data: SourceRow[] }` |
 
 `SourceRow` shape:
@@ -298,13 +299,13 @@ A "source" is derived at query time as a distinct value of `media.importFolder`.
 
 ### Observations
 
-| Method                                                             | Channel                              | Parameters                                                      | Returns                          |
-| ------------------------------------------------------------------ | ------------------------------------ | --------------------------------------------------------------- | -------------------------------- |
-| `updateObservationClassification(studyId, observationID, updates)` | `observations:update-classification` | studyId, observationID, { scientificName?, commonName? }        | `{ data: Observation }`          |
-| `updateObservationBbox(studyId, observationID, bboxUpdates)`       | `observations:update-bbox`           | studyId, observationID, { bboxX, bboxY, bboxWidth, bboxHeight } | `{ data: Observation }`          |
-| `deleteObservation(studyId, observationID)`                        | `observations:delete`                | studyId, observationID                                          | `{ data: { deleted: boolean } }` |
+| Method                                                             | Channel                              | Parameters                                                       | Returns                          |
+| ------------------------------------------------------------------ | ------------------------------------ | ---------------------------------------------------------------- | -------------------------------- |
+| `updateObservationClassification(studyId, observationID, updates)` | `observations:update-classification` | studyId, observationID, { scientificName?, commonName? }         | `{ data: Observation }`          |
+| `updateObservationBbox(studyId, observationID, bboxUpdates)`       | `observations:update-bbox`           | studyId, observationID, { bboxX, bboxY, bboxWidth, bboxHeight }  | `{ data: Observation }`          |
+| `deleteObservation(studyId, observationID)`                        | `observations:delete`                | studyId, observationID                                           | `{ data: { deleted: boolean } }` |
 | `createObservation(studyId, observationData)`                      | `observations:create`                | studyId, observation object (optional `observationID`/`eventID`) | `{ data: Observation }`          |
-| `restoreObservation(studyId, observationID, fields)`               | `observations:restore`               | studyId, observationID, fields to overwrite                     | `{ data: Observation }`          |
+| `restoreObservation(studyId, observationID, fields)`               | `observations:restore`               | studyId, observationID, fields to overwrite                      | `{ data: Observation }`          |
 
 `observations:create` accepts optional `observationID` and `eventID` in its
 payload. When supplied (used by undo-of-delete), the row is inserted with those
@@ -349,15 +350,15 @@ and drops it from the stack. Direct user edits go through the `update-bbox` /
 
 ### Image Import with ML
 
-| Method                                                                       | Channel                                       | Parameters                  | Returns                |
-| ---------------------------------------------------------------------------- | --------------------------------------------- | --------------------------- | ---------------------- |
-| `selectImagesDirectoryOnly()`                                                | `importer:select-images-directory-only`       | -                           | `{ path, id }`                                                                |
-| `selectImagesDirectoryWithModel(directoryPath, modelReference, countryCode)` | `importer:select-images-directory-with-model` | path, modelRef, countryCode | `{ path, id }`                                                                |
-| `addFolder(studyId, directoryPath, modelReference, country)`                 | `importer:add-folder`                         | studyId, path, modelRef, countryCode | `{ success: boolean, error?: string }`                                |
-| `getStudyLatestModelOptions(studyId)`                                        | `study:get-latest-model-options`              | studyId                     | `{ modelReference: { id, version } \| null, country: string \| null }`        |
-| `getImportStatus(id)`                                                        | `importer:get-status`                         | study id                    | `ImportStatus`                                                                |
-| `stopImport(id)`                                                             | `importer:stop`                               | study id                    | `{ success: boolean }`                                                        |
-| `resumeImport(id)`                                                           | `importer:resume`                             | study id                    | `{ success: boolean }`                                                        |
+| Method                                                                       | Channel                                       | Parameters                           | Returns                                                                |
+| ---------------------------------------------------------------------------- | --------------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------- |
+| `selectImagesDirectoryOnly()`                                                | `importer:select-images-directory-only`       | -                                    | `{ path, id }`                                                         |
+| `selectImagesDirectoryWithModel(directoryPath, modelReference, countryCode)` | `importer:select-images-directory-with-model` | path, modelRef, countryCode          | `{ path, id }`                                                         |
+| `addFolder(studyId, directoryPath, modelReference, country)`                 | `importer:add-folder`                         | studyId, path, modelRef, countryCode | `{ success: boolean, error?: string }`                                 |
+| `getStudyLatestModelOptions(studyId)`                                        | `study:get-latest-model-options`              | studyId                              | `{ modelReference: { id, version } \| null, country: string \| null }` |
+| `getImportStatus(id)`                                                        | `importer:get-status`                         | study id                             | `ImportStatus`                                                         |
+| `stopImport(id)`                                                             | `importer:stop`                               | study id                             | `{ success: boolean }`                                                 |
+| `resumeImport(id)`                                                           | `importer:resume`                             | study id                             | `{ success: boolean }`                                                 |
 
 **Note:** `importer:stop` now pauses instantly (no server kill). `importer:resume` resumes instantly if paused, or cold-starts from `modelRuns` if the app was restarted. These handlers are backed by the persistent job queue (`src/main/ipc/queue.js`) rather than in-memory state.
 
@@ -531,3 +532,32 @@ const data = response.data
 | `src/main/services/ml/download.ts`     | ML model download/installation               |
 | `src/main/services/cache/video.js`     | Video transcoding with FFmpeg                |
 | `src/main/services/cache/image.js`     | Remote image caching for GBIF/Agouti imports |
+| `src/main/services/preferences.js`     | User preferences (theme) JSON store          |
+| `src/main/services/theme.js`           | Theme service wrapping `nativeTheme`         |
+| `src/main/ipc/theme.js`                | Theme IPC handlers                           |
+
+---
+
+### Theme
+
+| Channel         | Direction       | Payload                            | Returns                                                                  |
+| --------------- | --------------- | ---------------------------------- | ------------------------------------------------------------------------ |
+| `theme:get`     | renderer → main | (none)                             | `{ source: 'system' \| 'light' \| 'dark', resolved: 'light' \| 'dark' }` |
+| `theme:set`     | renderer → main | `'system' \| 'light' \| 'dark'`    | `{ source, resolved }`                                                   |
+| `theme:changed` | main → renderer | `{ source, resolved }` (broadcast) | —                                                                        |
+
+**Renderer API:**
+
+```javascript
+window.api.themeInitial // sync, populated from preload args ({ source, resolved })
+await window.api.getTheme() // → { source, resolved }
+await window.api.setThemeSource('dark') // persists, broadcasts, returns new state
+const off = window.api.onThemeChanged((payload) => {
+  /* { source, resolved } */
+})
+// Later: off()
+```
+
+`theme:set` throws if `source` is not one of the three valid values.
+`theme:changed` broadcasts both on user-initiated changes and on OS
+preference changes when `source` is `'system'`.

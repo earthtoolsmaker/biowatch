@@ -16,19 +16,19 @@ Goal: a session-wide undo/redo stack covering the four observation-mutation IPCs
 
 ## Decisions (locked)
 
-| Topic | Decision |
-|---|---|
-| Stack scope | Study-session-wide; survives modal close; cleared on study switch / app quit |
-| Trigger context | Keyboard shortcut active only while an `ImageModal` is mounted |
+| Topic                | Decision                                                                      |
+| -------------------- | ----------------------------------------------------------------------------- |
+| Stack scope          | Study-session-wide; survives modal close; cleared on study switch / app quit  |
+| Trigger context      | Keyboard shortcut active only while an `ImageModal` is mounted                |
 | Cross-image behavior | Undo auto-navigates the modal to the affected image, then applies the inverse |
-| Granularity | One stack entry per IPC call; no coalescing in v1 |
-| Operations tracked | Create / Delete / Update-bbox / Update-classification observation only |
-| Operations excluded | ML inference, imports, view state (zoom/pan/visibility/navigation) |
-| Redo | `Cmd+Shift+Z` / `Ctrl+Y`; any new edit clears the redo stack |
-| Visual feedback | Subtle pulse on affected bbox; no toast on success |
-| Failure handling | Error toast + drop the entry from the stack |
-| Stack size | 100 entries; oldest dropped on overflow |
-| In-flight races | Don't bother; IPC is fast (revisit if observed) |
+| Granularity          | One stack entry per IPC call; no coalescing in v1                             |
+| Operations tracked   | Create / Delete / Update-bbox / Update-classification observation only        |
+| Operations excluded  | ML inference, imports, view state (zoom/pan/visibility/navigation)            |
+| Redo                 | `Cmd+Shift+Z` / `Ctrl+Y`; any new edit clears the redo stack                  |
+| Visual feedback      | Subtle pulse on affected bbox; no toast on success                            |
+| Failure handling     | Error toast + drop the entry from the stack                                   |
+| Stack size           | 100 entries; oldest dropped on overflow                                       |
+| In-flight races      | Don't bother; IPC is fast (revisit if observed)                               |
 
 ## Architecture
 
@@ -88,22 +88,22 @@ Stack entry shape:
 
 `before` / `after` contents per type:
 
-| Op | `before` | `after` | Undo dispatches | Redo dispatches |
-|---|---|---|---|---|
-| `create` | `null` | full obs row (incl. `observationID`, `eventID`) | `deleteObservation(id)` | `createObservation(after)` (with explicit IDs) |
-| `delete` | full obs row | `null` | `createObservation(before)` (with explicit IDs) | `deleteObservation(id)` |
-| `update-bbox` | `{ bboxX, bboxY, bboxWidth, bboxHeight, classificationMethod, classifiedBy, classificationTimestamp, classificationProbability }` | same shape | `restoreObservation(before)` | `restoreObservation(after)` |
-| `update-classification` | classification fields (`scientificName`, `commonName`, `observationType`, `sex`, `lifeStage`, `behavior`) plus metadata (`classificationMethod`, `classifiedBy`, `classificationTimestamp`, `classificationProbability`) | same | `restoreObservation(before)` | `restoreObservation(after)` |
+| Op                      | `before`                                                                                                                                                                                                                 | `after`                                         | Undo dispatches                                 | Redo dispatches                                |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------- | ----------------------------------------------- | ---------------------------------------------- |
+| `create`                | `null`                                                                                                                                                                                                                   | full obs row (incl. `observationID`, `eventID`) | `deleteObservation(id)`                         | `createObservation(after)` (with explicit IDs) |
+| `delete`                | full obs row                                                                                                                                                                                                             | `null`                                          | `createObservation(before)` (with explicit IDs) | `deleteObservation(id)`                        |
+| `update-bbox`           | `{ bboxX, bboxY, bboxWidth, bboxHeight, classificationMethod, classifiedBy, classificationTimestamp, classificationProbability }`                                                                                        | same shape                                      | `restoreObservation(before)`                    | `restoreObservation(after)`                    |
+| `update-classification` | classification fields (`scientificName`, `commonName`, `observationType`, `sex`, `lifeStage`, `behavior`) plus metadata (`classificationMethod`, `classifiedBy`, `classificationTimestamp`, `classificationProbability`) | same                                            | `restoreObservation(before)`                    | `restoreObservation(after)`                    |
 
 The `before` snapshot is sourced from the React Query cache (`['mediaBboxes', studyId, mediaId]`) immediately before the mutation runs.
 
 ## IPC changes
 
-| Handler | Change |
-|---|---|
-| `createObservation` (`src/main/database/queries/observations.js`) | Accept optional `observationID` and `eventID` in `observationData`. If provided, use them instead of generating new UUIDs. Default behavior unchanged. |
-| `restoreObservation` | **New.** Plain `UPDATE` of the supplied fields on a given `observationID`. **No auto-stamping** of `classificationMethod`, `classifiedBy`, `classificationTimestamp`. Throws if 0 rows are affected (so an externally-deleted target triggers the failure path instead of silently doing nothing). Used only by the undo path. |
-| `deleteObservation`, `updateObservationBbox`, `updateObservationClassification` | Unchanged. |
+| Handler                                                                         | Change                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `createObservation` (`src/main/database/queries/observations.js`)               | Accept optional `observationID` and `eventID` in `observationData`. If provided, use them instead of generating new UUIDs. Default behavior unchanged.                                                                                                                                                                         |
+| `restoreObservation`                                                            | **New.** Plain `UPDATE` of the supplied fields on a given `observationID`. **No auto-stamping** of `classificationMethod`, `classifiedBy`, `classificationTimestamp`. Throws if 0 rows are affected (so an externally-deleted target triggers the failure path instead of silently doing nothing). Used only by the undo path. |
+| `deleteObservation`, `updateObservationBbox`, `updateObservationClassification` | Unchanged.                                                                                                                                                                                                                                                                                                                     |
 
 Why a separate `restoreObservation`: the existing update IPCs encode "user just made a manual edit" by stamping `classificationMethod='human'`, `classifiedBy='User'`, `classificationTimestamp=now()`. That semantic is wrong for undo — undoing a manual change to a value that was originally machine-classified should restore `classificationMethod='machine'`. Undo is "revert state", not "another user edit", so it gets its own stamp-free path.
 
@@ -122,12 +122,14 @@ Mutation sites call:
 ```js
 const undo = useUndo()
 
-undo.exec(commands.updateBbox({
-  mediaId,
-  observationId,
-  before: snapshotFromCache(observationId),
-  after:  { bboxX, bboxY, bboxWidth, bboxHeight }
-}))
+undo.exec(
+  commands.updateBbox({
+    mediaId,
+    observationId,
+    before: snapshotFromCache(observationId),
+    after: { bboxX, bboxY, bboxWidth, bboxHeight }
+  })
+)
 ```
 
 `commands.updateBbox(...)` (and siblings) return:
@@ -204,16 +206,16 @@ try {
 
 ## Edge cases
 
-| Case | Behavior |
-|---|---|
-| Stack empty | `Cmd+Z` is a silent no-op |
-| Modal closed | No keyboard handler bound; stacks remain in memory |
-| Study switched | `UndoManager` torn down; both stacks cleared |
-| External mutation (ML run, import) invalidates a stacked entry | `inverse()` throws (`UPDATE 0 rows` or PK conflict on recreate) → toast + drop entry |
-| Same observation edited multiple times | Each edit is its own entry; undo unwinds in reverse order |
-| Stack cap reached (101st edit) | Drop oldest entry from `undoStack`; `redoStack` was already cleared by the new edit |
-| Race: second `Cmd+Z` while previous still in-flight | Not handled in v1; IPC is fast enough that double-fires are rare. Revisit if observed. |
-| Auto-navigation from undo lands on a now-deleted media | Modal navigation already handles "no such media" via existing logic; manager treats this as a failure → toast + drop |
+| Case                                                           | Behavior                                                                                                             |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Stack empty                                                    | `Cmd+Z` is a silent no-op                                                                                            |
+| Modal closed                                                   | No keyboard handler bound; stacks remain in memory                                                                   |
+| Study switched                                                 | `UndoManager` torn down; both stacks cleared                                                                         |
+| External mutation (ML run, import) invalidates a stacked entry | `inverse()` throws (`UPDATE 0 rows` or PK conflict on recreate) → toast + drop entry                                 |
+| Same observation edited multiple times                         | Each edit is its own entry; undo unwinds in reverse order                                                            |
+| Stack cap reached (101st edit)                                 | Drop oldest entry from `undoStack`; `redoStack` was already cleared by the new edit                                  |
+| Race: second `Cmd+Z` while previous still in-flight            | Not handled in v1; IPC is fast enough that double-fires are rare. Revisit if observed.                               |
+| Auto-navigation from undo lands on a now-deleted media         | Modal navigation already handles "no such media" via existing logic; manager treats this as a failure → toast + drop |
 
 ## Out of scope (v1)
 
@@ -241,6 +243,7 @@ try {
 ## Files touched
 
 **New**:
+
 - `src/renderer/src/undo/UndoManager.js`
 - `src/renderer/src/undo/useUndo.js`
 - `src/renderer/src/undo/commands.js`
@@ -249,6 +252,7 @@ try {
 - `src/renderer/src/undo/commands.test.js`
 
 **Modified**:
+
 - `src/main/database/queries/observations.js` — extend `createObservation`, add `restoreObservation`
 - `src/main/ipc/observations.js` — register `observations:restore` channel
 - `src/preload/index.js` — expose `restoreObservation` bridge
@@ -262,6 +266,7 @@ try {
 ## Documentation updates
 
 Per `CLAUDE.md`, update:
+
 - `docs/architecture.md` — new module + IPC channel.
 - `docs/ipc-api.md` — `observations:restore` handler; extended `observations:create` payload.
 - `docs/database-schema.md` — no schema change, but document that `observationID` reuse-after-delete is supported and relied on by the undo path.

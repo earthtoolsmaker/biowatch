@@ -20,8 +20,8 @@ list below).
 ## Motivation
 
 The current tab treats all models as equivalent rows. The single most
-useful piece of information for picking a model — *which part of the
-world it works on* — is buried in description prose. Users coming to
+useful piece of information for picking a model — _which part of the
+world it works on_ — is buried in description prose. Users coming to
 this tab cold (typical first run, before any study exists) have no
 visual cue that DeepFaune is European or that Manas is for the
 Himalayas; they have to read three descriptions and reverse-engineer
@@ -36,7 +36,7 @@ Three concrete frictions:
    species each model handles, and can't browse the actual list — both
    are decision-relevant when choosing between e.g. DeepFaune (26
    targeted European species) and SpeciesNet (2,000+ general).
-3. **The recommendation moment is wasted.** Users install models *before*
+3. **The recommendation moment is wasted.** Users install models _before_
    creating studies (a hard workflow constraint), so we can't infer
    their region from data. The tab itself has to do the explaining.
 
@@ -121,7 +121,7 @@ Electron settings window with the sidebar deducted.
   - `himalayas.geojson` — Kyrgyzstan boundary (Natural Earth) or a
     hand-drawn high-altitude Central Asian polygon. To be confirmed
     with the model author; Kyrgyzstan is the safe default.
-- **Worldwide handling:** SpeciesNet does *not* get a polygon. Painting
+- **Worldwide handling:** SpeciesNet does _not_ get a polygon. Painting
   the entire world would visually wash out the regional zones. Instead,
   a persistent chip sits above the map: "🌍 Worldwide model available".
   Clicking the chip selects SpeciesNet's card on the right (and scrolls
@@ -241,11 +241,11 @@ It stays a hardcoded entry in the renderer, as today.
 
 ### Per-model assignments (initial)
 
-| Model      | region.id    | region.label | species_count | Source for species list |
-|------------|--------------|--------------|---------------|--------------------------|
-| SpeciesNet | `worldwide`  | Worldwide    | `'2,000+'`    | Google's published labels file |
-| DeepFaune  | `europe`     | Europe       | `26`          | DeepFaune project repo |
-| Manas      | `himalayas`  | Himalayas    | `11`          | OSI-Panthera (to confirm) |
+| Model      | region.id   | region.label | species_count | Source for species list        |
+| ---------- | ----------- | ------------ | ------------- | ------------------------------ |
+| SpeciesNet | `worldwide` | Worldwide    | `'2,000+'`    | Google's published labels file |
+| DeepFaune  | `europe`    | Europe       | `26`          | DeepFaune project repo         |
+| Manas      | `himalayas` | Himalayas    | `11`          | OSI-Panthera (to confirm)      |
 
 Exact `species_count` for DeepFaune and Manas to be confirmed against
 their published label files before merge.

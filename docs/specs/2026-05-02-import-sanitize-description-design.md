@@ -36,8 +36,8 @@ The result: tags appear literally in the UI. Example seen with the GMU8 Leuven
 dataset:
 
 > `<emphasis>GMU8_LEUVEN - …</emphasis> is a dataset published by the
-> <ulink url="https://www.inbo.be/en"><citetitle>Research Institute for Nature
-> and Forest (INBO)</citetitle></ulink>. …`
+<ulink url="https://www.inbo.be/en"><citetitle>Research Institute for Nature
+and Forest (INBO)</citetitle></ulink>. …`
 
 ## Architecture
 

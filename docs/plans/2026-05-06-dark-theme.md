@@ -19,6 +19,7 @@
 ### Task 1: Add dark variant + dark token block to main.css
 
 **Files:**
+
 - Modify: `src/renderer/src/assets/main.css`
 
 This task makes `dark:` classes work and adds dark counterpart values for every existing light token, but produces zero visible change because no component yet references `dark:` and no element has the `dark` class.
@@ -37,9 +38,9 @@ Append this block at the end of the file (after the existing `@theme` block, aft
 
 ```css
 .dark {
-  --color-background: #0f172a;        /* slate-900 */
-  --color-foreground: #f1f5f9;        /* slate-100 */
-  --color-card: #1e293b;              /* slate-800 */
+  --color-background: #0f172a; /* slate-900 */
+  --color-foreground: #f1f5f9; /* slate-100 */
+  --color-card: #1e293b; /* slate-800 */
   --color-card-foreground: #f1f5f9;
   --color-popover: #1e293b;
   --color-popover-foreground: #f1f5f9;
@@ -53,7 +54,7 @@ Append this block at the end of the file (after the existing `@theme` block, aft
   --color-accent-foreground: #f1f5f9;
   --color-destructive: #f87171;
   --color-destructive-foreground: #ffffff;
-  --color-border: rgba(255, 255, 255, 0.10);
+  --color-border: rgba(255, 255, 255, 0.1);
   --color-input: transparent;
   --color-input-background: #1e293b;
   --color-switch-background: #475569;
@@ -62,7 +63,7 @@ Append this block at the end of the file (after the existing `@theme` block, aft
   --color-chart-2: oklch(0.65 0.14 184);
   --color-chart-3: oklch(0.55 0.16 227);
   --color-chart-4: oklch(0.78 0.18 84);
-  --color-chart-5: oklch(0.72 0.20 70);
+  --color-chart-5: oklch(0.72 0.2 70);
   --color-sidebar: #0a0f1f;
   --color-sidebar-foreground: #cbd5e1;
   --color-sidebar-primary: oklch(0.985 0 0);
@@ -116,6 +117,7 @@ but most components still hardcode utilities and won't yet re-theme."
 ### Task 2: Preferences service with tests
 
 **Files:**
+
 - Create: `src/main/services/preferences.js`
 - Create: `test/main/services/preferences.test.js`
 
@@ -239,6 +241,7 @@ corrupt files. Lives at userData/preferences.json."
 ### Task 3: Theme service (main) with tests
 
 **Files:**
+
 - Create: `src/main/services/theme.js`
 - Create: `test/main/services/theme.test.js`
 
@@ -457,6 +460,7 @@ without Electron. IPC wiring lands in a follow-up."
 ### Task 4: IPC handlers for theme
 
 **Files:**
+
 - Create: `src/main/ipc/theme.js`
 - Modify: `src/main/ipc/index.js` (lines 1–50, registration list)
 - Modify: `src/preload/index.js` (add API methods)
@@ -519,7 +523,7 @@ import { registerThemeIPCHandlers } from './theme.js'
 Inside the `registerAllIPCHandlers` function, alongside the other `register…IPCHandlers()` calls, add:
 
 ```js
-  registerThemeIPCHandlers()
+registerThemeIPCHandlers()
 ```
 
 (Place it next to `registerInfoIPCHandlers()` for grouping; ordering does not affect correctness.)
@@ -535,9 +539,9 @@ import { initializeThemeService } from './ipc/theme.js'
 Inside the `app.whenReady().then(async () => { ... })` block, after `await initializeApp()` but **before** `createWindow()`, add:
 
 ```js
-  // Initialize theme (must happen before BrowserWindow so we can set
-  // the initial backgroundColor and avoid FOUC).
-  initializeThemeService()
+// Initialize theme (must happen before BrowserWindow so we can set
+// the initial backgroundColor and avoid FOUC).
+initializeThemeService()
 ```
 
 (`nativeTheme` is imported as a reference inside `ipc/theme.js`; properties are only accessed inside `initializeThemeService()` and later, all after `app.whenReady`.)
@@ -555,25 +559,25 @@ import { getThemeService } from '../ipc/theme.js'
 Replace the `BrowserWindow` constructor call with:
 
 ```js
-  const themeService = getThemeService()
-  const themeState = themeService.getState()
-  const bgColor = themeState.resolved === 'dark' ? '#0f172a' : '#ffffff'
+const themeService = getThemeService()
+const themeState = themeService.getState()
+const bgColor = themeState.resolved === 'dark' ? '#0f172a' : '#ffffff'
 
-  const mainWindow = new BrowserWindow({
-    width: 1300,
-    height: 800,
-    autoHideMenuBar: true,
-    backgroundColor: bgColor,
-    ...(process.platform === 'linux' ? { icon } : {}),
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      sandbox: false,
-      additionalArguments: [
-        `--theme-initial-source=${themeState.source}`,
-        `--theme-initial-resolved=${themeState.resolved}`
-      ]
-    }
-  })
+const mainWindow = new BrowserWindow({
+  width: 1300,
+  height: 800,
+  autoHideMenuBar: true,
+  backgroundColor: bgColor,
+  ...(process.platform === 'linux' ? { icon } : {}),
+  webPreferences: {
+    preload: join(__dirname, '../preload/index.js'),
+    sandbox: false,
+    additionalArguments: [
+      `--theme-initial-source=${themeState.source}`,
+      `--theme-initial-resolved=${themeState.resolved}`
+    ]
+  }
+})
 ```
 
 The `additionalArguments` are read by the preload script to expose the initial theme to the renderer synchronously (before HTML loads).
@@ -675,6 +679,7 @@ window.api.{themeInitial,getTheme,setThemeSource,onThemeChanged}."
 ### Task 5: Inline boot script in index.html
 
 **Files:**
+
 - Modify: `src/renderer/index.html` (lines 11–14, body section)
 
 A small inline script runs before React mounts. It reads `window.api.themeInitial.resolved` and adds `class="dark"` to `<html>` if needed. Without this, dark-mode users would see a flash of light content while React boots.
@@ -684,30 +689,30 @@ A small inline script runs before React mounts. It reads `window.api.themeInitia
 Open `src/renderer/index.html`. Replace the `<body>` block:
 
 ```html
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
 ```
 
 with:
 
 ```html
-  <body>
-    <script>
-      // Apply dark class before React mounts to avoid FOUC.
-      // window.api.themeInitial is set by the preload from process.argv.
-      try {
-        if (window.api && window.api.themeInitial && window.api.themeInitial.resolved === 'dark') {
-          document.documentElement.classList.add('dark')
-        }
-      } catch (e) {
-        // Preload not yet available — fall back gracefully.
+<body>
+  <script>
+    // Apply dark class before React mounts to avoid FOUC.
+    // window.api.themeInitial is set by the preload from process.argv.
+    try {
+      if (window.api && window.api.themeInitial && window.api.themeInitial.resolved === 'dark') {
+        document.documentElement.classList.add('dark')
       }
-    </script>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+    } catch (e) {
+      // Preload not yet available — fall back gracefully.
+    }
+  </script>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
 ```
 
 - [ ] **Step 2: Verify FOUC behavior**
@@ -735,6 +740,7 @@ of light content for dark-mode users on launch."
 ### Task 6: useTheme hook
 
 **Files:**
+
 - Create: `src/renderer/src/hooks/useTheme.js`
 
 Returns `{ source, resolved, setSource }` and keeps `<html class="dark">` in sync with the broadcast events from main.
@@ -793,8 +799,8 @@ export function useTheme() {
 The hook must run somewhere on every page so `<html class="dark">` stays synced. Open `src/renderer/src/base.jsx`. Inside `AppContent` (line 89), add at the top of the function body, before the existing state declarations:
 
 ```jsx
-  // Keeps <html class="dark"> in sync with main-process theme state
-  useTheme()
+// Keeps <html class="dark"> in sync with main-process theme state
+useTheme()
 ```
 
 Add the import at the top of the file:
@@ -843,6 +849,7 @@ the html class stays accurate across navigation."
 ### Task 7: Build the theme codemod
 
 **Files:**
+
 - Create: `scripts/theme-codemod.js`
 - Create: `test/scripts/theme-codemod.test.js`
 
@@ -918,10 +925,7 @@ describe('transformClassString', () => {
     const { output } = transformClassString(
       'bg-white text-gray-700 border border-gray-200 hover:bg-gray-100'
     )
-    assert.equal(
-      output,
-      'bg-card text-foreground border border-border hover:bg-accent'
-    )
+    assert.equal(output, 'bg-card text-foreground border border-border hover:bg-accent')
   })
 })
 ```
@@ -982,16 +986,31 @@ const SUBSTITUTIONS = [
 // Each entry is [matcher (regex), replacement string]. We only append dark
 // variants when none of the dark: substitutes are already present.
 const COLORED_IDIOMS = [
-  [/\bbg-blue-50 text-blue-700\b/g, 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300'],
+  [
+    /\bbg-blue-50 text-blue-700\b/g,
+    'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300'
+  ],
   [/\bbg-blue-600 text-white\b/g, 'bg-blue-600 text-white dark:bg-blue-500 dark:text-white'],
   [/\bbg-blue-700 text-white\b/g, 'bg-blue-700 text-white dark:bg-blue-600 dark:text-white'],
   [/\bbg-red-50 text-red-700\b/g, 'bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-300'],
   [/\bbg-red-100 text-red-800\b/g, 'bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300'],
   [/\bbg-red-600 text-white\b/g, 'bg-red-600 text-white dark:bg-red-500 dark:text-white'],
-  [/\bbg-green-50 text-green-700\b/g, 'bg-green-50 text-green-700 dark:bg-green-500/15 dark:text-green-300'],
-  [/\bbg-green-100 text-green-800\b/g, 'bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-300'],
-  [/\bbg-yellow-50 text-yellow-700\b/g, 'bg-yellow-50 text-yellow-700 dark:bg-yellow-500/15 dark:text-yellow-300'],
-  [/\bbg-yellow-100 text-yellow-800\b/g, 'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300']
+  [
+    /\bbg-green-50 text-green-700\b/g,
+    'bg-green-50 text-green-700 dark:bg-green-500/15 dark:text-green-300'
+  ],
+  [
+    /\bbg-green-100 text-green-800\b/g,
+    'bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-300'
+  ],
+  [
+    /\bbg-yellow-50 text-yellow-700\b/g,
+    'bg-yellow-50 text-yellow-700 dark:bg-yellow-500/15 dark:text-yellow-300'
+  ],
+  [
+    /\bbg-yellow-100 text-yellow-800\b/g,
+    'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300'
+  ]
 ]
 
 // Phrases that are ambiguous and need human review.
@@ -1160,6 +1179,7 @@ git diff src/renderer/src/ui
 ```
 
 Read every change. Look for:
+
 - Wrong context for `bg-white` → `bg-card`. If it's used as a page-level surface (rare in `ui/`), edit to `bg-background`.
 - Hardcoded hex/rgb in `style={{ backgroundColor: ... }}` (codemod doesn't touch these). Note for Task 15.
 - Status-pill colors (e.g., `bg-yellow-50 text-yellow-800`) — verify the dark variant the codemod added has acceptable contrast.
@@ -1187,6 +1207,7 @@ await window.api.setThemeSource('dark')
 ```
 
 Click through every interactive element that lives in `src/renderer/src/ui/` (tabs, tooltips, hover cards, marker hover cards, observation rail, behavior selector, species tooltip, study hover card). Look for:
+
 - White rectangles inside dark cards (missed `bg-white` → `bg-card`).
 - Black-on-black text or white-on-white (token mismatch).
 - Borders disappearing (`border-gray-X` not converted).
@@ -1317,7 +1338,7 @@ Expected: zero lines of diff in those directories. If any subdirectory has a dif
 - [ ] **Step 2:** Review diff: `git diff src/renderer/src/*.jsx`. This is the largest changeset of the migration — review it carefully.
 
 - [ ] **Step 3:** Resolve `THEME-REVIEW` flags. The biggest concentration of these will be:
-  - `base.jsx`'s sidebar (`bg-white` doesn't apply but `bg-gray-100` for hover, `bg-blue-50` for active link). The main content `<div className="flex-col bg-white shadow w-full rounded-xl ...">` is a *card surface* → keep as `bg-card`.
+  - `base.jsx`'s sidebar (`bg-white` doesn't apply but `bg-gray-100` for hover, `bg-blue-50` for active link). The main content `<div className="flex-col bg-white shadow w-full rounded-xl ...">` is a _card surface_ → keep as `bg-card`.
   - Modal containers — typically `bg-card` (the modal panel) inside an overlay (`bg-black/50` keeps as-is, that's deliberate).
   - `ErrorFallback` panels — `bg-red-50 text-red-700` already gets paired by the codemod.
 
@@ -1480,6 +1501,7 @@ git commit -m "refactor(theme): pipe recharts colors through CSS variables"
 Swap CartoDB Positron / OSM tiles to a dark equivalent in dark mode.
 
 **Files:**
+
 - Modify: `src/renderer/src/activity.jsx` (lines 416–432, the LayersControl block)
 - Modify: `src/renderer/src/deployments.jsx` (TileLayer block around line 365)
 - Modify: `src/renderer/src/study.jsx` (any TileLayer usage)
@@ -1515,19 +1537,21 @@ Inside the component body (near other hooks):
 
 ```jsx
 const { resolved } = useTheme()
-const streetMapUrl = resolved === 'dark'
-  ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-  : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
-const streetMapAttribution = resolved === 'dark'
-  ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-  : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+const streetMapUrl =
+  resolved === 'dark'
+    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+    : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+const streetMapAttribution =
+  resolved === 'dark'
+    ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+    : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 ```
 
 Replace the TileLayer with:
 
 ```jsx
 <TileLayer
-  key={resolved}  // force remount on theme change
+  key={resolved} // force remount on theme change
   attribution={streetMapAttribution}
   url={streetMapUrl}
   crossOrigin=""
@@ -1567,6 +1591,7 @@ TileLayer remounts on theme change via the resolved-keyed prop."
 ### Task 18: sonner Toaster theme prop
 
 **Files:**
+
 - Modify: `src/renderer/src/base.jsx` (around line 524, the `<Toaster>` element)
 
 - [ ] **Step 1: Pipe theme into Toaster**
@@ -1613,6 +1638,7 @@ git commit -m "feat(theme): pipe resolved theme into sonner Toaster"
 ### Task 19: ThemeSegmentedControl component
 
 **Files:**
+
 - Create: `src/renderer/src/ui/ThemeSegmentedControl.jsx`
 
 - [ ] **Step 1: Implement the component**
@@ -1672,6 +1698,7 @@ No commit yet; combined with Task 20.
 ### Task 20: Appearance settings panel + tab
 
 **Files:**
+
 - Create: `src/renderer/src/settings/Appearance.jsx`
 - Modify: `src/renderer/src/settings.jsx` (full file — add Appearance route and tab)
 
@@ -1689,9 +1716,7 @@ export default function Appearance() {
   return (
     <div className="p-6 max-w-2xl">
       <h2 className="text-lg font-semibold text-foreground mb-1">Appearance</h2>
-      <p className="text-sm text-muted-foreground mb-6">
-        Choose how Biowatch looks.
-      </p>
+      <p className="text-sm text-muted-foreground mb-6">Choose how Biowatch looks.</p>
 
       <div className="mb-2">
         <ThemeSegmentedControl value={source} onChange={setSource} />
@@ -1749,6 +1774,7 @@ In `base.jsx`, the sidebar Settings NavLink points to `/settings/ml_zoo` (around
 Run `npm run dev`. Click Settings in the sidebar → click the Appearance tab. The segmented control should be visible with the current source highlighted.
 
 Click each segment in turn:
+
 - **Dark** → `<html>` gains `class="dark"`, page goes dark instantly. Helper text below the control disappears.
 - **Light** → `dark` class removed, page back to light.
 - **System** → matches OS preference. Helper text reappears: "Following system preference (currently Dark/Light)."
@@ -1777,6 +1803,7 @@ Helper text below the control shows what System resolves to."
 ### Task 21: E2E test for theme toggle
 
 **Files:**
+
 - Create: `test/e2e/theme.spec.js`
 
 - [ ] **Step 1: Write the test**
@@ -1854,6 +1881,7 @@ git commit -m "test(theme): e2e coverage for the appearance toggle"
 ### Task 22: Documentation updates
 
 **Files:**
+
 - Modify: `docs/architecture.md`
 - Modify: `docs/ipc-api.md`
 - Modify: `docs/troubleshooting.md`
@@ -1882,11 +1910,11 @@ Add a new section:
 ```markdown
 ## Theme
 
-| Channel | Direction | Payload | Returns |
-|---|---|---|---|
-| `theme:get` | renderer → main | (none) | `{ source: 'system' \| 'light' \| 'dark', resolved: 'light' \| 'dark' }` |
-| `theme:set` | renderer → main | `'system' \| 'light' \| 'dark'` | `{ source, resolved }` (post-set state) |
-| `theme:changed` | main → renderer | `{ source, resolved }` | (broadcast) |
+| Channel         | Direction       | Payload                         | Returns                                                                  |
+| --------------- | --------------- | ------------------------------- | ------------------------------------------------------------------------ |
+| `theme:get`     | renderer → main | (none)                          | `{ source: 'system' \| 'light' \| 'dark', resolved: 'light' \| 'dark' }` |
+| `theme:set`     | renderer → main | `'system' \| 'light' \| 'dark'` | `{ source, resolved }` (post-set state)                                  |
+| `theme:changed` | main → renderer | `{ source, resolved }`          | (broadcast)                                                              |
 
 **Renderer API:** `window.api.getTheme()`, `window.api.setThemeSource(source)`,
 `window.api.onThemeChanged(handler)` (returns an unsubscribe function),

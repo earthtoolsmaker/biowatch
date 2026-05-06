@@ -9,6 +9,7 @@ Common issues and solutions.
 **Cause:** Selected folder is not a valid CamTrap DP dataset.
 
 **Solution:**
+
 - Ensure the folder contains `datapackage.json`
 - If importing a ZIP, ensure it extracts to a folder with `datapackage.json`
 - Check folder structure matches CamTrap DP specification
@@ -18,6 +19,7 @@ Common issues and solutions.
 **Cause:** Selected folder is not a Wildlife Insights export.
 
 **Solution:**
+
 - Wildlife Insights exports should contain `projects.csv`, `deployments.csv`, and `images.csv`
 - Download a fresh export from Wildlife Insights
 
@@ -26,6 +28,7 @@ Common issues and solutions.
 **Cause:** Image file paths in CSV don't match actual file locations.
 
 **Solution:**
+
 - For CamTrap DP: `media.csv` `filePath` should be relative to dataset folder
 - Check paths use correct separator (`/` on macOS/Linux, `\` on Windows)
 - If images are HTTP URLs, ensure they're accessible
@@ -43,6 +46,7 @@ timestamps), so the FK insert succeeds. Observation rows whose `mediaID` is
 missing from `media.csv` are dropped (cannot be recovered).
 
 If you still see this error:
+
 - Check the import log for `Synthesized stub deployment …` warnings to see
   what was auto-recovered.
 - The error indicates a different FK shape we don't yet handle — please open
@@ -53,6 +57,7 @@ If you still see this error:
 **Cause:** Very large dataset exceeding memory.
 
 **Solution:**
+
 - Try importing a smaller subset first
 - Close other applications to free memory
 - Check available disk space
@@ -66,6 +71,7 @@ If you still see this error:
 **Cause:** Another process is accessing the SQLite database.
 
 **Solutions:**
+
 1. Close Biowatch completely and restart
 2. Check for zombie processes:
    ```bash
@@ -79,6 +85,7 @@ If you still see this error:
 **Cause:** Schema migration couldn't complete.
 
 **Solutions:**
+
 1. Check logs for specific error:
    ```bash
    tail -f ~/.config/biowatch/logs/main.log
@@ -93,6 +100,7 @@ If you still see this error:
 **Cause:** Migration file names don't match journal.
 
 **Solution:**
+
 1. Check `src/main/database/migrations/meta/_journal.json`
 2. Ensure migration files match the `tag` values exactly
 3. Regenerate if needed: `npx drizzle-kit generate --name initial`
@@ -106,6 +114,7 @@ If you still see this error:
 **Cause:** Network issues or CDN problems.
 
 **Solutions:**
+
 1. Check internet connection
 2. Try downloading again
 3. Check free disk space (models are 500MB-3GB)
@@ -116,6 +125,7 @@ If you still see this error:
 **Cause:** Python server didn't respond to health checks in 30 seconds.
 
 **Solutions:**
+
 1. **First-time GPU init**: Can take longer; wait and retry
 2. **Check logs**:
    ```bash
@@ -129,6 +139,7 @@ If you still see this error:
 **Cause:** Download was incomplete or corrupted.
 
 **Solution:**
+
 1. Delete the model from Models tab
 2. Re-download
 
@@ -137,6 +148,7 @@ If you still see this error:
 **Cause:** Running on CPU instead of GPU.
 
 **Solutions:**
+
 1. Check GPU is available:
    ```bash
    nvidia-smi  # For NVIDIA GPUs
@@ -150,6 +162,7 @@ If you still see this error:
 **Cause:** Previous server didn't shut down cleanly.
 
 **Solution:**
+
 ```bash
 # Find process using the port
 lsof -i :8000
@@ -169,24 +182,28 @@ kill -9 <pid>
 **Solutions:**
 
 **macOS:**
+
 ```bash
 xcode-select --install
 npm rebuild better-sqlite3
 ```
 
 **Linux:**
+
 ```bash
 sudo apt install build-essential python3
 npm rebuild better-sqlite3
 ```
 
 **Windows:**
+
 - Install Visual Studio Build Tools
 - Run in Developer Command Prompt
 
 ### Electron rebuild fails
 
 **Solution:**
+
 ```bash
 npx electron-rebuild -f -w better-sqlite3
 ```
@@ -196,6 +213,7 @@ npx electron-rebuild -f -w better-sqlite3
 **Cause:** `uv` not installed or wrong Python version.
 
 **Solutions:**
+
 1. Install uv:
    ```bash
    pipx install uv
@@ -216,6 +234,7 @@ npx electron-rebuild -f -w better-sqlite3
 **Cause:** Large number of files or slow network (for remote images).
 
 **Solutions:**
+
 1. Export smaller batches (filter by species)
 2. Cancel and retry
 3. Check network connection for remote files
@@ -225,6 +244,7 @@ npx electron-rebuild -f -w better-sqlite3
 **Cause:** Source files not found or inaccessible.
 
 **Solutions:**
+
 1. Check export log for errors
 2. Verify source images still exist at original paths
 3. For remote URLs, ensure they're still accessible
@@ -240,6 +260,7 @@ npx electron-rebuild -f -w better-sqlite3
 ### App is slow with large dataset
 
 **Solutions:**
+
 1. **Pagination**: Media browser uses pagination; reduce page size if needed
 2. **Close unused studies**: Only active study is loaded
 3. **Clear browser cache**: DevTools → Application → Clear storage
@@ -249,6 +270,7 @@ npx electron-rebuild -f -w better-sqlite3
 **Cause:** Too many markers.
 
 **Solutions:**
+
 1. Markers are clustered automatically
 2. Zoom in to reduce visible markers
 3. Filter to specific deployments
@@ -262,6 +284,7 @@ npx electron-rebuild -f -w better-sqlite3
 **Cause:** App not signed/notarized or Gatekeeper blocking.
 
 **Solution:**
+
 ```bash
 xattr -cr /Applications/Biowatch.app
 ```
@@ -269,18 +292,21 @@ xattr -cr /Applications/Biowatch.app
 ### macOS: Camera/file access denied
 
 **Solution:**
+
 - System Preferences → Security & Privacy → Files and Folders
 - Grant Biowatch access
 
 ### Linux: AppImage won't run
 
 **Solutions:**
+
 ```bash
 chmod +x Biowatch-*.AppImage
 ./Biowatch-*.AppImage
 ```
 
 **SUID sandbox error** ("chrome-sandbox is not configured correctly"):
+
 ```bash
 # Option 1: Run with --no-sandbox flag
 ./Biowatch-*.AppImage --no-sandbox
@@ -292,6 +318,7 @@ chmod +x Biowatch-*.AppImage
 Note: Starting from v1.5.0, the app automatically handles this.
 
 **FUSE issues:**
+
 ```bash
 ./Biowatch-*.AppImage --appimage-extract-and-run
 ```
@@ -299,6 +326,7 @@ Note: Starting from v1.5.0, the app automatically handles this.
 ### Windows: SmartScreen warning
 
 **Solution:**
+
 - Click "More info" → "Run anyway"
 - This is normal for new applications
 
@@ -306,11 +334,11 @@ Note: Starting from v1.5.0, the app automatically handles this.
 
 ## Log Locations
 
-| Platform | Path |
-|----------|------|
-| macOS | `~/Library/Logs/biowatch/` |
-| Linux | `~/.config/biowatch/logs/` |
-| Windows | `%APPDATA%\biowatch\logs\` |
+| Platform | Path                       |
+| -------- | -------------------------- |
+| macOS    | `~/Library/Logs/biowatch/` |
+| Linux    | `~/.config/biowatch/logs/` |
+| Windows  | `%APPDATA%\biowatch\logs\` |
 
 ### Viewing logs
 
@@ -326,11 +354,11 @@ open ~/.config/biowatch/logs/main.log
 
 ## Data Locations
 
-| Platform | Path |
-|----------|------|
-| macOS | `~/Library/Application Support/biowatch/biowatch-data/` |
-| Linux | `~/.config/biowatch/biowatch-data/` |
-| Windows | `%APPDATA%\biowatch\biowatch-data\` |
+| Platform | Path                                                    |
+| -------- | ------------------------------------------------------- |
+| macOS    | `~/Library/Application Support/biowatch/biowatch-data/` |
+| Linux    | `~/.config/biowatch/biowatch-data/`                     |
+| Windows  | `%APPDATA%\biowatch\biowatch-data\`                     |
 
 ### Study databases
 
@@ -366,6 +394,25 @@ Biowatch includes a hidden Advanced tab with diagnostics tools. To access it:
 - Study databases or actual data
 - Image/media files
 - User credentials
+
+---
+
+## Theme stuck on light/dark, or not following system
+
+The theme preference persists in `preferences.json` inside the user data
+directory:
+
+- **macOS**: `~/Library/Application Support/biowatch/preferences.json`
+- **Windows**: `%APPDATA%\biowatch\preferences.json`
+- **Linux**: `~/.config/biowatch/preferences.json`
+
+To reset, quit Biowatch, delete the `theme` key from `preferences.json` (or
+the entire file), and relaunch. The app falls back to `'system'` and
+follows the OS preference.
+
+If the toggle responds in **Settings → Appearance** but the page doesn't
+visually re-theme, force-quit and relaunch — a stuck WebContents may not
+pick up new CSS variables until a fresh load.
 
 ---
 
