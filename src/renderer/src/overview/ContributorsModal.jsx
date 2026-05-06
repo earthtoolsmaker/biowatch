@@ -156,12 +156,12 @@ export default function ContributorsModal({ open, onClose, studyId, studyData })
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[80vh] overflow-y-auto p-6"
+        className="bg-card rounded-lg shadow-xl max-w-lg w-full max-h-[80vh] overflow-y-auto p-6"
       >
         <h3 id={titleId} className="text-lg font-medium mb-1">
           Manage contributors
         </h3>
-        <p className="text-sm text-gray-500 mb-4">
+        <p className="text-sm text-muted-foreground mb-4">
           Researchers and organizations associated with this study.
         </p>
 
@@ -178,13 +178,13 @@ export default function ContributorsModal({ open, onClose, studyId, studyData })
             ) : (
               <div
                 key={i}
-                className="border border-gray-200 rounded-md px-3 py-2 flex items-start justify-between gap-2"
+                className="border border-border rounded-md px-3 py-2 flex items-start justify-between gap-2"
               >
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm text-gray-900 truncate">
+                  <div className="text-sm text-foreground truncate">
                     {c.title || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Unnamed'}
                   </div>
-                  <div className="text-xs text-gray-500 truncate">
+                  <div className="text-xs text-muted-foreground truncate">
                     {[friendlyRole(c.role), c.organization, c.email].filter(Boolean).join(' · ')}
                   </div>
                 </div>
@@ -192,7 +192,7 @@ export default function ContributorsModal({ open, onClose, studyId, studyData })
                   <button
                     type="button"
                     onClick={() => startEdit(i)}
-                    className="p-1 hover:bg-gray-100 rounded text-gray-500"
+                    className="p-1 hover:bg-accent rounded text-muted-foreground"
                     title="Edit"
                   >
                     <Pencil size={14} />
@@ -200,7 +200,7 @@ export default function ContributorsModal({ open, onClose, studyId, studyData })
                   <button
                     type="button"
                     onClick={() => setDeletingIndex(i)}
-                    className="p-1 hover:bg-red-50 rounded text-red-600"
+                    className="p-1 hover:bg-red-50 rounded text-red-600 dark:text-red-400"
                     title="Delete"
                   >
                     <Trash2 size={14} />
@@ -227,7 +227,7 @@ export default function ContributorsModal({ open, onClose, studyId, studyData })
                 setAdding(true)
                 cancelEdit()
               }}
-              className="border border-dashed border-gray-300 text-gray-600 rounded-md px-3 py-2 hover:border-gray-400 hover:bg-gray-50 transition-colors flex items-center justify-center gap-1.5 text-sm"
+              className="border border-dashed border-border text-muted-foreground rounded-md px-3 py-2 hover:border-border hover:bg-accent transition-colors flex items-center justify-center gap-1.5 text-sm"
             >
               <Plus size={14} />
               Add contributor
@@ -239,7 +239,7 @@ export default function ContributorsModal({ open, onClose, studyId, studyData })
           <button
             type="button"
             onClick={onClose}
-            className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded"
+            className="px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent rounded"
           >
             Done
           </button>
@@ -252,25 +252,25 @@ export default function ContributorsModal({ open, onClose, studyId, studyData })
           onClick={() => setDeletingIndex(null)}
         >
           <div
-            className="bg-white rounded-lg shadow-xl max-w-sm w-full p-6"
+            className="bg-card rounded-lg shadow-xl max-w-sm w-full p-6"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-medium mb-2">Delete contributor</h3>
-            <p className="text-gray-600 text-sm mb-4">
+            <p className="text-muted-foreground text-sm mb-4">
               Are you sure you want to delete this contributor?
             </p>
             <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setDeletingIndex(null)}
-                className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded"
+                className="px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent rounded"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={() => remove(deletingIndex)}
-                className="px-3 py-1.5 text-sm bg-red-600 text-white hover:bg-red-700 rounded"
+                className="px-3 py-1.5 text-sm bg-red-600 text-white dark:bg-red-500 dark:text-white hover:bg-red-700 rounded"
               >
                 Delete
               </button>
@@ -285,7 +285,7 @@ export default function ContributorsModal({ open, onClose, studyId, studyData })
 function ContributorEditForm({ value, onChange, onSave, onCancel }) {
   return (
     <div
-      className="border border-gray-200 rounded-md px-3 py-2 flex flex-col gap-2 bg-gray-50"
+      className="border border-border rounded-md px-3 py-2 flex flex-col gap-2 bg-muted"
       onKeyDown={(e) => {
         if (e.key === 'Enter') {
           e.preventDefault()
@@ -299,15 +299,15 @@ function ContributorEditForm({ value, onChange, onSave, onCancel }) {
         type="text"
         value={value.title || ''}
         onChange={(e) => onChange({ ...value, title: e.target.value })}
-        className="border border-gray-300 rounded-md px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        className="border border-border rounded-md px-2 py-1.5 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         placeholder="Name *"
         autoFocus
       />
       <Select value={value.role || ''} onValueChange={(v) => onChange({ ...value, role: v })}>
-        <SelectTrigger className="w-full bg-white border-gray-300 px-2 py-1.5 h-auto data-[placeholder]:text-gray-400">
+        <SelectTrigger className="w-full bg-card border-border px-2 py-1.5 h-auto data-[placeholder]:text-muted-foreground">
           <SelectValue placeholder="Select role…" />
         </SelectTrigger>
-        <SelectContent className="z-[1001] bg-white">
+        <SelectContent className="z-[1001] bg-card">
           {CONTRIBUTOR_ROLES.map((r) => (
             <SelectItem key={r.value} value={r.value}>
               {r.label}
@@ -319,21 +319,21 @@ function ContributorEditForm({ value, onChange, onSave, onCancel }) {
         type="text"
         value={value.organization || ''}
         onChange={(e) => onChange({ ...value, organization: e.target.value })}
-        className="border border-gray-300 rounded-md px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        className="border border-border rounded-md px-2 py-1.5 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         placeholder="Organization"
       />
       <input
         type="email"
         value={value.email || ''}
         onChange={(e) => onChange({ ...value, email: e.target.value })}
-        className="border border-gray-300 rounded-md px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        className="border border-border rounded-md px-2 py-1.5 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         placeholder="Email"
       />
       <div className="flex justify-end gap-1">
         <button
           type="button"
           onClick={onCancel}
-          className="p-1 hover:bg-gray-100 rounded text-gray-500"
+          className="p-1 hover:bg-accent rounded text-muted-foreground"
           title="Cancel"
         >
           <X size={16} />
@@ -341,7 +341,7 @@ function ContributorEditForm({ value, onChange, onSave, onCancel }) {
         <button
           type="button"
           onClick={onSave}
-          className="p-1 hover:bg-blue-50 rounded text-blue-600"
+          className="p-1 hover:bg-blue-50 rounded text-blue-600 dark:hover:bg-blue-500/15 dark:text-blue-400"
           title="Save"
         >
           <Check size={16} />

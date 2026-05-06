@@ -58,7 +58,7 @@ export default function CommonSpeciesFallback({ studyId }) {
 
   return (
     <section>
-      <h3 className="text-[0.7rem] uppercase tracking-wider text-gray-500 font-semibold mb-3">
+      <h3 className="text-[0.7rem] uppercase tracking-wider text-muted-foreground font-semibold mb-3">
         Featured species
       </h3>
       <ScrollableStrip>
@@ -125,7 +125,7 @@ function ScrollableStrip({ children }) {
       {canScrollLeft && (
         <button
           type="button"
-          className="absolute left-0 top-[5.75rem] -translate-y-1/2 z-10 bg-white/90 rounded-full p-1 shadow-md border border-gray-200"
+          className="absolute left-0 top-[5.75rem] -translate-y-1/2 z-10 bg-card/90 rounded-full p-1 shadow-md border border-border"
           onClick={() => scroll('left')}
           aria-label="Scroll left"
         >
@@ -135,7 +135,7 @@ function ScrollableStrip({ children }) {
       {canScrollRight && (
         <button
           type="button"
-          className="absolute right-0 top-[5.75rem] -translate-y-1/2 z-10 bg-white/90 rounded-full p-1 shadow-md border border-gray-200"
+          className="absolute right-0 top-[5.75rem] -translate-y-1/2 z-10 bg-card/90 rounded-full p-1 shadow-md border border-border"
           onClick={() => scroll('right')}
           aria-label="Scroll right"
         >
@@ -177,11 +177,11 @@ function SpeciesReferenceCard({ species, studyId, onClick, scrollSignal }) {
         <button
           type="button"
           onClick={() => onClick(species.scientificName)}
-          className="flex-shrink-0 w-56 rounded-lg overflow-hidden cursor-pointer border border-gray-200 shadow hover:shadow-md transition-shadow text-left bg-white"
+          className="flex-shrink-0 w-56 rounded-lg overflow-hidden cursor-pointer border border-border shadow hover:shadow-md transition-shadow text-left bg-card"
         >
-          <div className="relative w-full h-40 bg-gray-100">
+          <div className="relative w-full h-40 bg-muted">
             {imageError ? (
-              <div className="absolute inset-0 flex items-center justify-center text-gray-300">
+              <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
                 <CameraOff size={24} />
               </div>
             ) : (
@@ -197,11 +197,11 @@ function SpeciesReferenceCard({ species, studyId, onClick, scrollSignal }) {
           </div>
           <div className="px-2 py-1.5">
             <p
-              className={`text-xs font-medium text-gray-900 truncate ${showSci ? 'italic' : 'capitalize'}`}
+              className={`text-xs font-medium text-foreground truncate ${showSci ? 'italic' : 'capitalize'}`}
             >
               {commonName}
             </p>
-            <p className="text-[0.65rem] text-gray-500">
+            <p className="text-[0.65rem] text-muted-foreground">
               {species.count.toLocaleString('en-US')} observations
             </p>
           </div>

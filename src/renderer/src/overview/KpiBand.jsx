@@ -180,7 +180,7 @@ export default function KpiBand({ studyId, studyData, isImporting }) {
             type="button"
             onClick={() => scrollCarousel('left')}
             aria-label="Scroll KPIs left"
-            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white/90 rounded-full p-1 shadow-md border border-gray-200"
+            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-card/90 rounded-full p-1 shadow-md border border-border"
           >
             <ChevronLeft size={20} />
           </button>
@@ -193,7 +193,7 @@ export default function KpiBand({ studyId, studyData, isImporting }) {
             type="button"
             onClick={() => scrollCarousel('right')}
             aria-label="Scroll KPIs right"
-            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-white/90 rounded-full p-1 shadow-md border border-gray-200"
+            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-card/90 rounded-full p-1 shadow-md border border-border"
           >
             <ChevronRight size={20} />
           </button>
@@ -334,10 +334,10 @@ function ThreatenedSpeciesPopover({ studyId, species, onClose, ignoreOutsideClic
     <div
       ref={containerRef}
       onScroll={() => setScrollSignal((s) => s + 1)}
-      className="bg-white rounded-lg shadow-xl border border-gray-200 w-72 max-h-80 overflow-y-auto"
+      className="bg-card rounded-lg shadow-xl border border-border w-72 max-h-80 overflow-y-auto"
     >
-      <div className="px-3 py-2 border-b border-gray-100 sticky top-0 bg-white">
-        <div className="text-[0.7rem] uppercase tracking-wider text-gray-500 font-semibold">
+      <div className="px-3 py-2 border-b border-border sticky top-0 bg-card">
+        <div className="text-[0.7rem] uppercase tracking-wider text-muted-foreground font-semibold">
           Threatened species
         </div>
       </div>
@@ -375,17 +375,19 @@ function ThreatenedSpeciesRow({ studyId, scientificName, iucn, onClick, scrollSi
           <button
             type="button"
             onClick={onClick}
-            className="w-full text-left px-3 py-1.5 hover:bg-blue-50 transition-colors flex items-center gap-2"
+            className="w-full text-left px-3 py-1.5 hover:bg-blue-50 transition-colors flex items-center gap-2 dark:hover:bg-blue-500/15"
           >
             <span className="flex-shrink-0">
               <IucnBadge category={iucn} />
             </span>
             <span className="min-w-0 flex-1 truncate">
-              <span className={`text-sm text-gray-900 ${showScientific ? 'capitalize' : 'italic'}`}>
+              <span
+                className={`text-sm text-foreground ${showScientific ? 'capitalize' : 'italic'}`}
+              >
                 {display}
               </span>
               {showScientific && (
-                <span className="text-xs italic text-gray-400 ml-1.5">
+                <span className="text-xs italic text-muted-foreground ml-1.5">
                   {formatScientificName(scientificName)}
                 </span>
               )}

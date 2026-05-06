@@ -30,7 +30,7 @@ export default function BestCapturesSection({ studyId, isRunning }) {
 
   return (
     <section>
-      <h3 className="text-[0.7rem] uppercase tracking-wider text-gray-500 font-semibold mb-3">
+      <h3 className="text-[0.7rem] uppercase tracking-wider text-muted-foreground font-semibold mb-3">
         Best captures
       </h3>
       <BestMediaCarousel studyId={studyId} isRunning={isRunning} />

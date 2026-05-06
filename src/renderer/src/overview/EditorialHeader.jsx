@@ -156,7 +156,7 @@ export default function EditorialHeader({ studyId, studyName, studyData, mapSlot
                   if (e.key === 'Enter') saveTitle()
                   else if (e.key === 'Escape') cancelTitle()
                 }}
-                className="text-2xl font-semibold text-gray-900 bg-transparent border-b-2 border-blue-500 focus:outline-none w-full"
+                className="text-2xl font-semibold text-foreground bg-transparent border-b-2 border-blue-500 focus:outline-none w-full"
                 autoFocus
               />
             </div>
@@ -166,14 +166,14 @@ export default function EditorialHeader({ studyId, studyName, studyData, mapSlot
                 target="_blank"
                 rel="noopener noreferrer"
                 href={studyData?.homepage}
-                className="text-2xl font-semibold text-gray-900 capitalize"
+                className="text-2xl font-semibold text-foreground capitalize"
               >
                 {studyName}
               </a>
               <button
                 type="button"
                 onClick={startTitleEdit}
-                className="opacity-0 group-hover:opacity-100 focus:opacity-100 p-1 hover:bg-gray-100 rounded text-gray-400 transition-opacity"
+                className="opacity-0 group-hover:opacity-100 focus:opacity-100 p-1 hover:bg-accent rounded text-muted-foreground transition-opacity"
                 title="Edit title"
                 aria-label="Edit title"
               >
@@ -202,17 +202,17 @@ export default function EditorialHeader({ studyId, studyName, studyData, mapSlot
                     cancelDescription()
                   }
                 }}
-                className="w-full text-sm text-gray-700 leading-relaxed border-2 border-blue-500 rounded p-2 focus:outline-none resize-none overflow-hidden min-h-[160px] max-w-prose"
+                className="w-full text-sm text-foreground leading-relaxed border-2 border-blue-500 rounded p-2 focus:outline-none resize-none overflow-hidden min-h-[160px] max-w-prose"
                 autoFocus
                 placeholder="Camera trap dataset containing deployment information, media files metadata, and species observations collected during wildlife monitoring."
               />
-              <div className="text-[0.7rem] text-gray-400 mt-1 max-w-prose">
+              <div className="text-[0.7rem] text-muted-foreground mt-1 max-w-prose">
                 Press{' '}
-                <kbd className="px-1 py-0.5 bg-gray-100 rounded border border-gray-200 font-mono text-[0.65rem]">
+                <kbd className="px-1 py-0.5 bg-muted rounded border border-border font-mono text-[0.65rem]">
                   ⌘ Enter
                 </kbd>{' '}
                 to save,{' '}
-                <kbd className="px-1 py-0.5 bg-gray-100 rounded border border-gray-200 font-mono text-[0.65rem]">
+                <kbd className="px-1 py-0.5 bg-muted rounded border border-border font-mono text-[0.65rem]">
                   Esc
                 </kbd>{' '}
                 to cancel
@@ -227,10 +227,10 @@ export default function EditorialHeader({ studyId, studyName, studyData, mapSlot
             >
               <div
                 ref={descRef}
-                className="text-sm text-gray-700 leading-relaxed flex-1 min-h-0 overflow-hidden"
+                className="text-sm text-foreground leading-relaxed flex-1 min-h-0 overflow-hidden"
               >
                 {description || (
-                  <span className="text-gray-400 italic">
+                  <span className="text-muted-foreground italic">
                     Camera trap dataset containing deployment information, media files metadata, and
                     species observations collected during wildlife monitoring.
                   </span>
@@ -242,7 +242,7 @@ export default function EditorialHeader({ studyId, studyName, studyData, mapSlot
             <button
               type="button"
               onClick={() => setDescModalOpen(true)}
-              className="text-gray-500 text-xs flex items-center hover:text-blue-700 transition-colors mt-1 flex-shrink-0"
+              className="text-muted-foreground text-xs flex items-center hover:text-blue-700 dark:hover:text-blue-400 transition-colors mt-1 flex-shrink-0"
             >
               Show more
               <ChevronDown size={14} className="ml-1" />
@@ -357,10 +357,10 @@ function DescriptionModal({ open, onClose, onSave, title, description }) {
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col overflow-hidden"
+        className="bg-card rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col overflow-hidden"
       >
-        <div className="flex items-start justify-between gap-3 px-5 pt-4 pb-3 border-b border-gray-100">
-          <h3 id={titleId} className="text-base font-semibold text-gray-900 capitalize truncate">
+        <div className="flex items-start justify-between gap-3 px-5 pt-4 pb-3 border-b border-border">
+          <h3 id={titleId} className="text-base font-semibold text-foreground capitalize truncate">
             {title}
           </h3>
           <div className="flex items-center gap-1 flex-shrink-0">
@@ -368,7 +368,7 @@ function DescriptionModal({ open, onClose, onSave, title, description }) {
               <button
                 type="button"
                 onClick={startEdit}
-                className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded inline-flex items-center gap-1"
+                className="px-2 py-1 text-xs text-muted-foreground hover:bg-accent rounded inline-flex items-center gap-1"
                 title="Edit description"
               >
                 <Pencil size={12} />
@@ -378,7 +378,7 @@ function DescriptionModal({ open, onClose, onSave, title, description }) {
             <button
               type="button"
               onClick={onClose}
-              className="p-1 -mr-1 hover:bg-gray-100 rounded text-gray-500"
+              className="p-1 -mr-1 hover:bg-accent rounded text-muted-foreground"
               aria-label="Close"
             >
               <X size={18} />
@@ -402,18 +402,18 @@ function DescriptionModal({ open, onClose, onSave, title, description }) {
                     handleSave()
                   }
                 }}
-                className="w-full text-sm text-gray-700 leading-relaxed border border-gray-300 rounded p-2 focus:outline-none focus:border-blue-500 resize-none overflow-hidden min-h-[160px]"
+                className="w-full text-sm text-foreground leading-relaxed border border-border rounded p-2 focus:outline-none focus:border-blue-500 resize-none overflow-hidden min-h-[160px]"
                 autoFocus
                 placeholder="Camera trap dataset containing deployment information, media files metadata, and species observations collected during wildlife monitoring."
               />
             </div>
-            <div className="flex items-center justify-between gap-2 px-5 py-3 border-t border-gray-100 bg-gray-50">
-              <span className="text-[0.7rem] text-gray-500">
-                <kbd className="px-1 py-0.5 bg-white rounded border border-gray-200 font-mono text-[0.65rem]">
+            <div className="flex items-center justify-between gap-2 px-5 py-3 border-t border-border bg-muted">
+              <span className="text-[0.7rem] text-muted-foreground">
+                <kbd className="px-1 py-0.5 bg-card rounded border border-border font-mono text-[0.65rem]">
                   ⌘ Enter
                 </kbd>{' '}
                 to save,{' '}
-                <kbd className="px-1 py-0.5 bg-white rounded border border-gray-200 font-mono text-[0.65rem]">
+                <kbd className="px-1 py-0.5 bg-card rounded border border-border font-mono text-[0.65rem]">
                   Esc
                 </kbd>{' '}
                 to cancel
@@ -422,14 +422,14 @@ function DescriptionModal({ open, onClose, onSave, title, description }) {
                 <button
                   type="button"
                   onClick={cancelEdit}
-                  className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded"
+                  className="px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent rounded"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={handleSave}
-                  className="px-3 py-1.5 text-sm bg-blue-600 text-white hover:bg-blue-700 rounded"
+                  className="px-3 py-1.5 text-sm bg-blue-600 text-white dark:bg-blue-500 dark:text-white hover:bg-blue-700 rounded dark:hover:bg-blue-600"
                 >
                   Save
                 </button>
@@ -437,7 +437,7 @@ function DescriptionModal({ open, onClose, onSave, title, description }) {
             </div>
           </>
         ) : (
-          <div className="px-5 py-4 overflow-y-auto text-sm text-gray-700 leading-relaxed whitespace-pre-line">
+          <div className="px-5 py-4 overflow-y-auto text-sm text-foreground leading-relaxed whitespace-pre-line">
             {description}
           </div>
         )}
