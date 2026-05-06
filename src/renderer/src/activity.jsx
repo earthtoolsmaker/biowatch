@@ -13,6 +13,7 @@ import ActivityMapContextMenu from './ui/ActivityMapContextMenu'
 import CircularTimeFilter, { DailyActivityRadar } from './ui/clock'
 import HideLeafletAttribution from './ui/HideLeafletAttribution'
 import MarkerHoverCard from './ui/MarkerHoverCard'
+import { useTheme } from './hooks/useTheme'
 import PlaceholderMap from './ui/PlaceholderMap'
 import SpeciesDistribution from './ui/speciesDistribution'
 import TimelineChart from './ui/timeseries'
@@ -119,6 +120,17 @@ const SpeciesMap = ({
   useEffect(() => {
     localStorage.setItem(mapLayerKey, selectedLayer)
   }, [selectedLayer, mapLayerKey])
+
+  // Theme-aware Street Map tile layer (light: OpenStreetMap, dark: CartoDB Dark Matter).
+  const { resolved: streetMapResolved } = useTheme()
+  const streetMapUrl =
+    streetMapResolved === 'dark'
+      ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+      : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+  const streetMapAttribution =
+    streetMapResolved === 'dark'
+      ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+      : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 
   // Right-click context menu for "Save map as PNG…"
   const mapRef = useRef(null)
@@ -424,8 +436,9 @@ const SpeciesMap = ({
 
           <LayersControl.BaseLayer name="Street Map" checked={selectedLayer === 'Street Map'}>
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              key={`street-${streetMapResolved}`}
+              attribution={streetMapAttribution}
+              url={streetMapUrl}
               crossOrigin=""
             />
           </LayersControl.BaseLayer>

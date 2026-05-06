@@ -14,6 +14,7 @@ import EditorialHeader from './overview/EditorialHeader'
 import KpiBand from './overview/KpiBand'
 import BestCapturesSection from './overview/BestCapturesSection'
 import SpeciesDistribution from './overview/SpeciesDistribution'
+import { useTheme } from './hooks/useTheme'
 
 // ──────────────────────────────────────────────────────────────────────────
 // DeploymentMap — kept here for now. Self-contained.
@@ -104,6 +105,16 @@ function DeploymentMap({ deployments, studyId }) {
     localStorage.setItem(mapLayerKey, selectedLayer)
   }, [selectedLayer, mapLayerKey])
 
+  const { resolved: streetMapResolved } = useTheme()
+  const streetMapUrl =
+    streetMapResolved === 'dark'
+      ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+      : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+  const streetMapAttribution =
+    streetMapResolved === 'dark'
+      ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+      : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+
   if (!deployments || deployments.length === 0) {
     return (
       <PlaceholderMap
@@ -174,8 +185,9 @@ function DeploymentMap({ deployments, studyId }) {
 
           <LayersControl.BaseLayer name="Street Map" checked={selectedLayer === 'Street Map'}>
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              key={`street-${streetMapResolved}`}
+              attribution={streetMapAttribution}
+              url={streetMapUrl}
             />
           </LayersControl.BaseLayer>
         </LayersControl>

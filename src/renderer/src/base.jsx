@@ -524,11 +524,16 @@ function AppContent() {
   )
 }
 
+function ThemedToaster() {
+  const { resolved } = useTheme()
+  return <Toaster position="top-right" richColors theme={resolved} />
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <Tooltip.Provider delayDuration={200} skipDelayDuration={0}>
-        <Toaster position="top-right" richColors />
+        <ThemedToaster />
         <HashRouter>
           <ErrorBoundary FallbackComponent={ErrorFallback}>
             <AppContent />
