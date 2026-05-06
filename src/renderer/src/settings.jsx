@@ -2,12 +2,13 @@ import { useState } from 'react'
 import { Navigate, Route, Routes, useNavigate } from 'react-router'
 import { ErrorBoundary } from 'react-error-boundary'
 import { useQuery } from '@tanstack/react-query'
-import { BrainCircuit, Info, Loader2, Settings2 } from 'lucide-react'
+import { BrainCircuit, Info, Loader2, Palette, Settings2 } from 'lucide-react'
 import MlZoo from './models'
 import { modelZoo } from '../../shared/mlmodels'
 import { Tab } from './ui/Tab'
 import Diagnostics from './Diagnostics'
 import SettingsInfo from './SettingsInfo'
+import Appearance from './settings/Appearance'
 
 function SettingsFooter({ className, onRevealAdvanced }) {
   const handleLogoClick = (e) => {
@@ -111,6 +112,9 @@ export default function SettingsPage() {
     <div className="flex gap-4 flex-col h-full">
       <header className="w-full border-b border-border sticky top-0 bg-card z-10">
         <nav aria-label="Tabs" className="-mb-px flex space-x-8 px-4">
+          <Tab to="/settings/appearance" icon={Palette}>
+            Appearance
+          </Tab>
           <Tab
             to="/settings/ml_zoo"
             icon={BrainCircuit}
@@ -134,6 +138,17 @@ export default function SettingsPage() {
       </header>
       <div className="flex-1 overflow-y-auto pb-4">
         <Routes>
+          <Route
+            path="appearance"
+            element={
+              <ErrorBoundary FallbackComponent={ErrorFallback} key={'appearance'}>
+                <div className="min-h-full flex flex-col">
+                  <Appearance />
+                  <SettingsFooter className="mt-auto" onRevealAdvanced={handleRevealAdvanced} />
+                </div>
+              </ErrorBoundary>
+            }
+          />
           <Route
             path="ml_zoo"
             element={
