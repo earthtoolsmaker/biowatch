@@ -74,10 +74,7 @@ const COLORED_IDIOMS = [
     /(?<![:\w-])bg-red-100 text-red-800\b/g,
     'bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300'
   ],
-  [
-    /(?<![:\w-])bg-red-600 text-white\b/g,
-    'bg-red-600 text-white dark:bg-red-500 dark:text-white'
-  ],
+  [/(?<![:\w-])bg-red-600 text-white\b/g, 'bg-red-600 text-white dark:bg-red-500 dark:text-white'],
   [
     /(?<![:\w-])bg-green-50 text-green-700\b/g,
     'bg-green-50 text-green-700 dark:bg-green-500/15 dark:text-green-300'
