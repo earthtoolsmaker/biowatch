@@ -95,7 +95,7 @@ export default function ObservationRow({
     <div
       ref={rowRef}
       className={`relative border-b border-border ${
-        isSelected ? 'bg-accent sticky top-0 z-10' : ''
+        isSelected ? 'bg-[#f8f9fb] dark:bg-accent sticky top-0 z-10' : ''
       }`}
     >
       {isSelected && (
@@ -109,7 +109,7 @@ export default function ObservationRow({
         type="button"
         onClick={onSelect}
         aria-expanded={isSelected}
-        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-accent transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-[#f8f9fb] dark:hover:bg-accent transition-colors"
       >
         {isBbox ? BBOX_TYPE_ICON : WHOLE_TYPE_ICON}
 

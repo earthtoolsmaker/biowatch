@@ -75,7 +75,7 @@ export default function ObservationRail({
       aria-label="Observations"
     >
       {showShortcuts && (
-        <div className="px-4 py-3 border-b border-border bg-muted flex-shrink-0">
+        <div className="px-4 py-3 border-b border-border bg-gray-50 dark:bg-muted flex-shrink-0">
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-2">
             Keyboard shortcuts
           </div>

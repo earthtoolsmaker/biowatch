@@ -178,8 +178,8 @@ export default function SpeciesPicker({
               onMouseEnter={() => setHighlightedIndex(index)}
               onClick={() => handleSelect(species.scientificName, species.commonName)}
               className={`w-full px-3 py-1.5 text-left flex items-center justify-between ${
-                index === highlightedIndex ? 'bg-accent' : ''
-              } ${species.scientificName === currentScientificName ? 'bg-muted' : ''}`}
+                index === highlightedIndex ? 'bg-[#f8f9fb] dark:bg-accent' : ''
+              } ${species.scientificName === currentScientificName ? 'bg-gray-100 dark:bg-muted' : ''}`}
             >
               {(() => {
                 // Prefer the dictionary's curated common name over whatever
