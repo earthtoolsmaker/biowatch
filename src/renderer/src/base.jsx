@@ -418,8 +418,8 @@ function AppContent() {
                   className={({ isActive }) =>
                     `w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors group ${
                       isActive
-                        ? 'rounded-md bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300'
-                        : 'text-gray-500 dark:text-zinc-500 hover:rounded-md hover:bg-accent hover:text-foreground'
+                        ? 'rounded-md bg-blue-50 text-blue-700 dark:bg-blue-500/8 dark:text-blue-300'
+                        : 'text-gray-500 dark:text-zinc-400 hover:rounded-md hover:bg-accent/50 hover:text-foreground'
                     }`
                   }
                 >
