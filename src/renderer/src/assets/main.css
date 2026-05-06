@@ -70,11 +70,11 @@ code {
 
 .dark {
   --color-background: #0f172a;
-  --color-foreground: #f1f5f9;
+  --color-foreground: #fafafa;
   --color-card: #1e293b;
-  --color-card-foreground: #f1f5f9;
+  --color-card-foreground: #fafafa;
   --color-popover: #1e293b;
-  --color-popover-foreground: #f1f5f9;
+  --color-popover-foreground: #fafafa;
   --color-primary: oklch(0.985 0 0);
   --color-primary-foreground: #030213;
   --color-secondary: #334155;

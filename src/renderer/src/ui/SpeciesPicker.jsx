@@ -178,7 +178,7 @@ export default function SpeciesPicker({
               onMouseEnter={() => setHighlightedIndex(index)}
               onClick={() => handleSelect(species.scientificName, species.commonName)}
               className={`w-full px-3 py-1.5 text-left flex items-center justify-between ${
-                index === highlightedIndex ? 'bg-[#f8f9fb]' : ''
+                index === highlightedIndex ? 'bg-accent' : ''
               } ${species.scientificName === currentScientificName ? 'bg-muted' : ''}`}
             >
               {(() => {
@@ -206,7 +206,7 @@ export default function SpeciesPicker({
               })()}
               {species.inStudy !== false && typeof species.observationCount === 'number' && (
                 <span className="flex items-center gap-1 text-xs text-muted-foreground shrink-0 ml-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#030213]" aria-hidden="true" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-foreground" aria-hidden="true" />
                   {species.observationCount}
                 </span>
               )}
@@ -227,7 +227,7 @@ export default function SpeciesPicker({
               <button
                 type="button"
                 onClick={() => handleSelect(customSpeciesQuery, null)}
-                className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded bg-[#030213] text-white hover:bg-black max-w-full"
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded bg-foreground text-background hover:bg-foreground/80 max-w-full"
               >
                 <Plus size={14} className="shrink-0" />
                 <span className="truncate">

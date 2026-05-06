@@ -9,7 +9,7 @@ import { formatScientificName } from '../utils/scientificName'
 
 const BBOX_TYPE_ICON = (
   <span
-    className="inline-flex w-4 h-4 rounded-sm border-[1.5px] border-[#2563eb] flex-shrink-0"
+    className="inline-flex w-4 h-4 rounded-sm border-[1.5px] border-blue-600 dark:border-blue-500 flex-shrink-0"
     style={{ background: 'rgba(37,99,235,0.08)' }}
     aria-hidden="true"
   />
@@ -95,11 +95,14 @@ export default function ObservationRow({
     <div
       ref={rowRef}
       className={`relative border-b border-border ${
-        isSelected ? 'bg-[#f8f9fb] sticky top-0 z-10' : ''
+        isSelected ? 'bg-accent sticky top-0 z-10' : ''
       }`}
     >
       {isSelected && (
-        <span className="absolute left-0 top-0 bottom-0 w-0.5 bg-[#2563eb]" aria-hidden="true" />
+        <span
+          className="absolute left-0 top-0 bottom-0 w-0.5 bg-blue-600 dark:bg-blue-500"
+          aria-hidden="true"
+        />
       )}
 
       <button

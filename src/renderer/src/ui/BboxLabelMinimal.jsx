@@ -31,7 +31,11 @@ const BboxLabelMinimal = forwardRef(function BboxLabelMinimal(
     (bbox.observationType === 'blank' ? 'Blank' : '—')
   const { left: leftPos, top: topPos, transform: transformVal } = computeBboxLabelPosition(bbox)
 
-  const bg = isSelected ? 'bg-[#030213]' : isValidated ? 'bg-[#2563eb]' : 'bg-[#60a5fa]'
+  const bg = isSelected
+    ? 'bg-foreground text-background'
+    : isValidated
+      ? 'bg-blue-600 dark:bg-blue-500 text-white'
+      : 'bg-blue-400 dark:bg-blue-500 text-white'
 
   return (
     <button
@@ -41,7 +45,7 @@ const BboxLabelMinimal = forwardRef(function BboxLabelMinimal(
         e.stopPropagation()
         onClick()
       }}
-      className={`absolute pointer-events-auto h-5 px-2 text-white text-xs font-medium whitespace-nowrap max-w-full truncate flex items-center transition-colors hover:brightness-110 ${
+      className={`absolute pointer-events-auto h-5 px-2 text-xs font-medium whitespace-nowrap max-w-full truncate flex items-center transition-colors hover:brightness-110 ${
         showSci ? 'italic' : 'capitalize'
       } ${bg} ${isSelected ? 'ring-2 ring-white/60' : ''}`}
       style={{

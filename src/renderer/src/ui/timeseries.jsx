@@ -118,8 +118,8 @@ const TimelineChart = ({ timeseriesData, selectedSpecies, dateRange, setDateRang
           y={margin.top}
           width={rectWidth}
           height={rectHeight}
-          fill="rgba(0, 0, 255, 0.1)"
-          stroke="rgba(0, 0, 255, 0.5)"
+          fill="rgb(59 130 246 / 0.15)"
+          stroke="rgb(59 130 246 / 0.6)"
           onMouseDown={(e) => handleMouseDown(e, 'move')}
           style={{ cursor: 'move' }}
         />
@@ -130,8 +130,8 @@ const TimelineChart = ({ timeseriesData, selectedSpecies, dateRange, setDateRang
           y={margin.top}
           width={5}
           height={rectHeight}
-          fill="rgba(0, 0, 255, 0.2)"
-          stroke="rgba(0, 0, 255, 0.7)"
+          fill="rgb(59 130 246 / 0.3)"
+          stroke="rgb(59 130 246 / 0.8)"
           onMouseDown={(e) => handleMouseDown(e, 'left')}
           style={{ cursor: 'ew-resize' }}
         />
@@ -142,8 +142,8 @@ const TimelineChart = ({ timeseriesData, selectedSpecies, dateRange, setDateRang
           y={margin.top}
           width={5}
           height={rectHeight}
-          fill="rgba(0, 0, 255, 0.2)"
-          stroke="rgba(0, 0, 255, 0.7)"
+          fill="rgb(59 130 246 / 0.3)"
+          stroke="rgb(59 130 246 / 0.8)"
           onMouseDown={(e) => handleMouseDown(e, 'right')}
           style={{ cursor: 'ew-resize' }}
         />

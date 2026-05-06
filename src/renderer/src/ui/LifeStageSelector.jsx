@@ -48,7 +48,7 @@ export default function LifeStageSelector({ value, onChange }) {
             onClick={() => handleClick(option.value)}
             className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
               isSelected
-                ? 'bg-[#030213] text-white border-[#030213]'
+                ? 'bg-foreground text-white border-foreground'
                 : 'bg-card text-muted-foreground border-border hover:bg-accent'
             }`}
             title={option.label}

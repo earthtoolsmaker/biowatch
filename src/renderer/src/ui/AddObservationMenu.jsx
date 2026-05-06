@@ -63,7 +63,7 @@ export default function AddObservationMenu({
       <button
         type="button"
         onClick={() => setIsOpen((v) => !v)}
-        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-[#2563eb] text-white text-sm font-medium hover:bg-[#1d4ed8]"
+        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-blue-600 dark:bg-blue-500 text-white text-sm font-medium hover:bg-blue-700 dark:hover:bg-blue-600"
       >
         <Plus size={14} />
         Add observation
