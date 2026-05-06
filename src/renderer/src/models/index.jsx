@@ -34,8 +34,8 @@ export default function MlZoo({ modelZoo }) {
 
   return (
     <div className="max-w-[1950px] mx-auto w-full px-6 py-4 space-y-4">
-      <p className="text-sm text-gray-600 leading-relaxed">
-        <span className="text-gray-900 font-medium">
+      <p className="text-sm text-muted-foreground leading-relaxed">
+        <span className="text-foreground font-medium">
           Choose the model whose coverage best matches your study sites.
         </span>{' '}
         Regional models (Europe, Himalayas) are usually more accurate within their range. The

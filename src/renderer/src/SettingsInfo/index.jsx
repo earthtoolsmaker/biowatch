@@ -10,8 +10,8 @@ export default function SettingsInfo({ version, platform }) {
       <div className="max-w-2xl mx-auto divide-y divide-gray-200">
         <section className="py-6">
           <div className="flex items-baseline gap-2">
-            <h1 className="text-lg font-semibold text-gray-900">Biowatch</h1>
-            <span className="text-sm text-gray-500">
+            <h1 className="text-lg font-semibold text-foreground">Biowatch</h1>
+            <span className="text-sm text-muted-foreground">
               v{version} · {platform}
             </span>
           </div>

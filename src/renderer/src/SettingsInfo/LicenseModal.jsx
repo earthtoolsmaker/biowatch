@@ -39,14 +39,14 @@ export default function LicenseModal({ isOpen, onClose }) {
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col"
+        className="bg-card rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-          <h2 className="text-base font-medium text-gray-900">License</h2>
+        <div className="px-6 py-4 border-b border-border flex justify-between items-center">
+          <h2 className="text-base font-medium text-foreground">License</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-muted-foreground hover:text-muted-foreground transition-colors"
             aria-label="Close"
           >
             <X size={18} />
@@ -54,11 +54,11 @@ export default function LicenseModal({ isOpen, onClose }) {
         </div>
         <div className="px-6 py-4 overflow-y-auto">
           {isLoading ? (
-            <div className="text-sm text-gray-400">Loading…</div>
+            <div className="text-sm text-muted-foreground">Loading…</div>
           ) : text ? (
-            <pre className="text-xs text-gray-700 whitespace-pre-wrap font-mono">{text}</pre>
+            <pre className="text-xs text-foreground whitespace-pre-wrap font-mono">{text}</pre>
           ) : (
-            <div className="text-sm text-gray-400">License text not available.</div>
+            <div className="text-sm text-muted-foreground">License text not available.</div>
           )}
         </div>
       </div>

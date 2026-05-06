@@ -28,13 +28,13 @@ export default function ModelListPane({
   return (
     <div className="min-w-0">
       <div className="flex justify-between items-center mb-2 px-1">
-        <span className="text-xs font-semibold text-gray-900">
+        <span className="text-xs font-semibold text-foreground">
           {modelZoo.length} models · {downloadedCount} downloaded
         </span>
         {downloadedCount > 0 && (
           <button
             onClick={onClearAll}
-            className="text-xs text-gray-500 hover:text-gray-700 inline-flex items-center gap-1"
+            className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
           >
             <Trash2 size={12} />
             Clear all

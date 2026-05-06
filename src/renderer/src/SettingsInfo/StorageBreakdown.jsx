@@ -13,21 +13,21 @@ function StorageRow({ label, entry, isLoading }) {
   if (!entry) {
     return (
       <div className="flex items-center justify-between py-2">
-        <span className="text-sm text-gray-700">{label}</span>
-        <span className="text-sm text-gray-400">—</span>
+        <span className="text-sm text-foreground">{label}</span>
+        <span className="text-sm text-muted-foreground">—</span>
       </div>
     )
   }
   return (
     <div className="flex items-center justify-between py-2">
-      <span className="text-sm text-gray-700">{label}</span>
+      <span className="text-sm text-foreground">{label}</span>
       <div className="flex items-center gap-3">
-        <span className="text-sm tabular-nums text-gray-900">
+        <span className="text-sm tabular-nums text-foreground">
           {isLoading ? '…' : formatBytes(entry.bytes)}
         </span>
         <button
           onClick={() => window.api.openPath(entry.path)}
-          className="text-gray-400 hover:text-gray-700 transition-colors"
+          className="text-muted-foreground hover:text-foreground transition-colors"
           title={`Open ${entry.path}`}
         >
           <FolderOpen size={14} />
@@ -46,8 +46,10 @@ export default function StorageBreakdown() {
 
   return (
     <section className="py-6">
-      <h2 className="text-base font-medium text-gray-900 mb-1">Storage</h2>
-      <p className="text-sm text-gray-500 mb-2">Disk space used by Biowatch on this machine.</p>
+      <h2 className="text-base font-medium text-foreground mb-1">Storage</h2>
+      <p className="text-sm text-muted-foreground mb-2">
+        Disk space used by Biowatch on this machine.
+      </p>
       <div className="divide-y divide-gray-100">
         {Object.keys(ROW_LABELS).map((key) => (
           <StorageRow key={key} label={ROW_LABELS[key]} entry={data?.[key]} isLoading={isLoading} />

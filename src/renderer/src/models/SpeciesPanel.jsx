@@ -9,7 +9,7 @@ function SpeciesChip({ species }) {
   const hasContent = !!(info?.imageUrl || info?.blurb || info?.iucn)
 
   const chip = (
-    <span className="text-[10px] bg-white border border-gray-200 rounded-full px-2 py-0.5 text-gray-700 cursor-default">
+    <span className="text-[10px] bg-card border border-border rounded-full px-2 py-0.5 text-foreground cursor-default">
       {species.common}
     </span>
   )
@@ -63,7 +63,7 @@ export default function SpeciesPanel({ model }) {
 
   if (!data) {
     return (
-      <div className="mt-2 p-2 bg-gray-50 rounded border border-gray-200 text-xs text-gray-500">
+      <div className="mt-2 p-2 bg-muted rounded border border-border text-xs text-muted-foreground">
         Loading species…
       </div>
     )
@@ -75,7 +75,7 @@ export default function SpeciesPanel({ model }) {
 
   return (
     <div
-      className="mt-2 p-2 bg-gray-50 rounded border border-gray-200 cursor-default"
+      className="mt-2 p-2 bg-muted rounded border border-border cursor-default"
       onClick={(e) => e.stopPropagation()}
     >
       {searchable && (
@@ -84,7 +84,7 @@ export default function SpeciesPanel({ model }) {
           placeholder={isLarge ? 'Search any species…' : 'Filter species…'}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="w-full px-2 py-1 text-xs border border-gray-300 rounded mb-2 bg-white"
+          className="w-full px-2 py-1 text-xs border border-border rounded mb-2 bg-card"
         />
       )}
       {isLarge ? (
@@ -99,7 +99,7 @@ export default function SpeciesPanel({ model }) {
 function SmallView({ data, query }) {
   const filtered = useMemo(() => filterSpecies(data.species, query), [data.species, query])
   if (filtered.length === 0) {
-    return <div className="text-xs text-gray-500 italic">No matches.</div>
+    return <div className="text-xs text-muted-foreground italic">No matches.</div>
   }
   return (
     <div className="flex flex-wrap gap-1">
@@ -116,7 +116,7 @@ function LargeView({ data, query, searchable }) {
 
   if (searchable && query.trim()) {
     if (filtered.length === 0) {
-      return <div className="text-xs text-gray-500 italic">No matches.</div>
+      return <div className="text-xs text-muted-foreground italic">No matches.</div>
     }
     return (
       <div className="flex flex-wrap gap-1">
@@ -124,7 +124,7 @@ function LargeView({ data, query, searchable }) {
           <SpeciesChip key={s.scientific || s.common} species={s} />
         ))}
         {filtered.length > 50 && (
-          <span className="text-[10px] text-gray-500 italic px-2 py-0.5">
+          <span className="text-[10px] text-muted-foreground italic px-2 py-0.5">
             …and {filtered.length - 50} more
           </span>
         )}
@@ -133,7 +133,7 @@ function LargeView({ data, query, searchable }) {
   }
 
   if (!summary.classes) {
-    return <div className="text-xs text-gray-500 italic">No taxonomic data available.</div>
+    return <div className="text-xs text-muted-foreground italic">No taxonomic data available.</div>
   }
 
   return (
@@ -143,14 +143,14 @@ function LargeView({ data, query, searchable }) {
           <span>
             {c.icon} {c.label}
           </span>
-          <span className="text-gray-500 text-[10px]">
+          <span className="text-muted-foreground text-[10px]">
             {c.approximate ? '~' : ''}
             {c.count}
           </span>
         </div>
       ))}
       {!searchable && (
-        <div className="text-[10px] text-gray-400 italic px-2 pt-2">
+        <div className="text-[10px] text-muted-foreground italic px-2 pt-2">
           Per-species search coming soon.
         </div>
       )}
