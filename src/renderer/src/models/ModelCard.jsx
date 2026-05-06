@@ -218,7 +218,7 @@ export default function ModelCard({
 function StatusPill({ state }) {
   if (state === 'downloaded') {
     return (
-      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-500/30">
         ✓ Downloaded
       </span>
     )

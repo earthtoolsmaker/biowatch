@@ -178,9 +178,9 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
         <div className="px-5 py-4 space-y-4">
           {/* No-models-installed CTA: dead-end for users with a fresh install */}
           {!modelLocked && !hasAnyInstalledModel && (
-            <div className="border border-amber-200 bg-amber-50 rounded-md p-3 text-sm text-amber-900">
+            <div className="border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 rounded-md p-3 text-sm text-amber-900 dark:text-amber-200">
               <p className="font-medium mb-1">No models installed</p>
-              <p className="text-amber-800 mb-2 text-xs">
+              <p className="text-amber-800 dark:text-amber-300 mb-2 text-xs">
                 Install at least one model before adding images for analysis.
               </p>
               <Button

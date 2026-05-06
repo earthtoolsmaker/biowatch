@@ -239,12 +239,12 @@ function CamtrapDPExportModal({ isOpen, onConfirm, onCancel, studyId }) {
 
           {!loading && nullTimestampCount > 0 && (
             <div className="px-6 py-3 border-t border-border">
-              <div className="flex items-start gap-2 p-2 bg-amber-50 rounded border border-amber-200">
+              <div className="flex items-start gap-2 p-2 bg-amber-50 dark:bg-amber-500/10 rounded border border-amber-200 dark:border-amber-500/30">
                 <AlertTriangle
                   size={16}
                   className="text-amber-600 flex-shrink-0 mt-0.5 dark:text-amber-300"
                 />
-                <p className="text-sm text-amber-800">
+                <p className="text-sm text-amber-800 dark:text-amber-200">
                   <span className="font-medium">{nullTimestampCount} media</span>{' '}
                   {nullTimestampCount === 1 ? 'file is' : 'files are'} missing timestamps and will
                   be excluded from export.

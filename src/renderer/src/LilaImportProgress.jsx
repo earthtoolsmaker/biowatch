@@ -226,7 +226,7 @@ function LilaImportProgress({ isOpen, progress, onCancel }) {
         <div className="px-6 py-4">
           {isCancelled ? (
             /* Cancelled state */
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+            <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-lg p-4">
               <div className="flex items-center gap-2 text-amber-600 dark:text-amber-300">
                 <X size={20} />
                 <span className="font-medium">Import cancelled</span>
