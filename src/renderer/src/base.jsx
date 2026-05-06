@@ -10,6 +10,7 @@ import SettingsPage from './settings'
 import DeleteStudyModal from './DeleteStudyModal'
 import StudyHoverCard from './ui/StudyHoverCard'
 import { useEffect, useState, useRef } from 'react'
+import { useTheme } from './hooks/useTheme'
 
 // Create a client outside the component to avoid recreation
 const queryClient = new QueryClient({
@@ -87,6 +88,9 @@ function ErrorFallback({ error, resetErrorBoundary }) {
 }
 
 function AppContent() {
+  // Keeps <html class="dark"> in sync with main-process theme state
+  useTheme()
+
   const navigate = useNavigate()
   const location = useLocation()
 
