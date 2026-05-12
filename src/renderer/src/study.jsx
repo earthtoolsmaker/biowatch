@@ -169,7 +169,7 @@ export default function Study() {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex gap-4 flex-col h-full">
       <header className="w-full border-b border-border sticky top-0 bg-card z-10">
         <div className="flex items-center">
           <nav aria-label="Tabs" className="-mb-px flex space-x-8 px-4">
