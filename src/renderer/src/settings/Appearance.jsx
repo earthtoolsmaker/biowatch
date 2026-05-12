@@ -22,7 +22,7 @@ export default function Appearance() {
           <ThemeSegmentedControl value={source} onChange={setSource} />
 
           {source === 'system' && (
-            <p className="mt-3 text-xs text-muted-foreground">
+            <p className="mt-3 text-xs text-muted-foreground" data-testid="theme-system-helper">
               Currently following your system preference:{' '}
               <span className="font-medium text-foreground">
                 {resolved === 'dark' ? 'Dark' : 'Light'}
