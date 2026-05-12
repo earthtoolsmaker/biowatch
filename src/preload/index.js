@@ -254,6 +254,9 @@ const api = {
   exportDeploymentsCsv: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('deployments:export-csv', studyId)
   },
+  getDeploymentsCsvPreview: async (studyId) => {
+    return await electronAPI.ipcRenderer.invoke('deployments:get-csv-preview', studyId)
+  },
   pickDeploymentsCsvFile: async () => {
     return await electronAPI.ipcRenderer.invoke('deployments:pick-csv-file')
   },

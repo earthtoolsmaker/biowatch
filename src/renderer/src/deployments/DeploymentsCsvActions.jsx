@@ -2,6 +2,7 @@ import { Download, Upload } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
 import DeploymentsImportPreviewModal from './DeploymentsImportPreviewModal'
+import DeploymentsExportPreviewModal from './DeploymentsExportPreviewModal'
 
 /**
  * Tab-level Export / Import buttons rendered in the always-visible
@@ -15,16 +16,44 @@ export default function DeploymentsCsvActions({ studyId, onApplied }) {
   const [isApplying, setIsApplying] = useState(false)
   const [applyError, setApplyError] = useState(null)
 
-  const handleExport = useCallback(async () => {
-    const result = await window.api.exportDeploymentsCsv(studyId)
-    if (result?.cancelled) return
-    if (result?.error) {
-      toast.error(`Export failed: ${result.error}`)
-      return
+  const [exportRows, setExportRows] = useState(null)
+  const [isLoadingExport, setIsLoadingExport] = useState(false)
+  const [isSavingExport, setIsSavingExport] = useState(false)
+
+  const handleExportClick = useCallback(async () => {
+    setIsLoadingExport(true)
+    try {
+      const response = await window.api.getDeploymentsCsvPreview(studyId)
+      if (response.error) {
+        toast.error(`Could not load preview: ${response.error}`)
+        return
+      }
+      setExportRows(response.data)
+    } finally {
+      setIsLoadingExport(false)
     }
-    const noun = result.rowCount === 1 ? 'deployment' : 'deployments'
-    toast.success(`Exported ${result.rowCount} ${noun} to ${result.filePath}`)
   }, [studyId])
+
+  const handleExportSave = useCallback(async () => {
+    setIsSavingExport(true)
+    try {
+      const result = await window.api.exportDeploymentsCsv(studyId)
+      if (result?.cancelled) return
+      if (result?.error) {
+        toast.error(`Export failed: ${result.error}`)
+        return
+      }
+      const noun = result.rowCount === 1 ? 'deployment' : 'deployments'
+      toast.success(`Exported ${result.rowCount} ${noun} to ${result.filePath}`)
+      setExportRows(null)
+    } finally {
+      setIsSavingExport(false)
+    }
+  }, [studyId])
+
+  const handleExportCancel = useCallback(() => {
+    setExportRows(null)
+  }, [])
 
   const handleImport = useCallback(async () => {
     const pick = await window.api.pickDeploymentsCsvFile()
@@ -85,10 +114,11 @@ export default function DeploymentsCsvActions({ studyId, onApplied }) {
     <>
       <div className="inline-flex items-center rounded border border-border overflow-hidden bg-card">
         <button
-          onClick={handleExport}
+          onClick={handleExportClick}
           title="Export deployments CSV"
           className={btnClass}
           aria-label="Export deployments CSV"
+          disabled={isLoadingExport}
         >
           <Download size={12} />
           Export CSV
@@ -105,10 +135,19 @@ export default function DeploymentsCsvActions({ studyId, onApplied }) {
         </button>
       </div>
 
-      {isParsing && (
+      {(isParsing || isLoadingExport) && (
         <div className="fixed inset-0 z-[1900] flex items-center justify-center bg-black/20 text-xs text-white">
-          Parsing CSV…
+          {isLoadingExport ? 'Loading preview…' : 'Parsing CSV…'}
         </div>
+      )}
+
+      {exportRows && (
+        <DeploymentsExportPreviewModal
+          rows={exportRows}
+          onCancel={handleExportCancel}
+          onSave={handleExportSave}
+          isSaving={isSavingExport}
+        />
       )}
 
       {preview && (

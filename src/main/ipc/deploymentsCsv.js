@@ -72,6 +72,37 @@ export function registerDeploymentsCsvIPCHandlers() {
     }
   })
 
+  // Returns the rows that exportDeploymentsCsv would write, in the same
+  // (natural-sorted) order. Used by the export-preview modal so the user
+  // sees exactly what the saved file will contain before the save dialog
+  // opens.
+  ipcMain.handle('deployments:get-csv-preview', async (_event, studyId) => {
+    try {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) return { error: 'Database not found for this study' }
+
+      const db = await getReadonlyDrizzleDb(studyId, dbPath)
+      const rows = await db
+        .select({
+          deploymentID: deployments.deploymentID,
+          locationID: deployments.locationID,
+          locationName: deployments.locationName,
+          latitude: deployments.latitude,
+          longitude: deployments.longitude
+        })
+        .from(deployments)
+      await closeStudyDatabase(studyId, dbPath)
+
+      const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' })
+      rows.sort((a, b) => collator.compare(a.deploymentID ?? '', b.deploymentID ?? ''))
+
+      return { data: rows }
+    } catch (error) {
+      log.error('Error getting deployments CSV preview:', error)
+      return { error: error.message }
+    }
+  })
+
   ipcMain.handle('deployments:pick-csv-file', async () => {
     const result = await dialog.showOpenDialog({
       title: 'Import deployments CSV',
