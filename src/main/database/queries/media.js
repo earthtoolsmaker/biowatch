@@ -176,6 +176,35 @@ export async function checkMediaHaveBboxes(dbPath, mediaIDs) {
 }
 
 /**
+ * Check if the study has any bboxes anywhere — study-wide existence check.
+ * Used to decide whether to render the "show boxes" toggle in the Media tab's
+ * right-pane display strip. Coarser than checkMediaHaveBboxes (which is
+ * scoped to a list of media IDs).
+ * @param {string} dbPath - Path to the SQLite database
+ * @returns {Promise<boolean>} - True if any observation in the study has a bbox
+ */
+export async function studyHasAnyBboxes(dbPath) {
+  const startTime = Date.now()
+  try {
+    const studyId = getStudyIdFromPath(dbPath)
+    const db = await getDrizzleDb(studyId, dbPath)
+
+    const result = await db
+      .select({ exists: sql`1` })
+      .from(observations)
+      .where(isNotNull(observations.bboxX))
+      .limit(1)
+
+    const hasBboxes = result.length > 0
+    log.info(`studyHasAnyBboxes completed in ${Date.now() - startTime}ms: ${hasBboxes}`)
+    return hasBboxes
+  } catch (error) {
+    log.error(`Error in studyHasAnyBboxes: ${error.message}`)
+    throw error
+  }
+}
+
+/**
  * Update media timestamp and propagate changes to related observations
  * Observations are updated with the same offset to preserve duration
  * @param {string} dbPath - Path to the SQLite database

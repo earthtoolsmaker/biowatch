@@ -45,6 +45,7 @@ export {
   getMediaBboxes,
   getMediaBboxesBatch,
   checkMediaHaveBboxes,
+  studyHasAnyBboxes,
   getVideoFrameDetections,
   updateMediaTimestamp,
   insertMedia,

@@ -8,6 +8,7 @@ import { getTopNonHumanSpecies } from './utils/speciesUtils'
 import { useSequenceGap } from './hooks/useSequenceGap'
 import { useImportStatus } from './hooks/import'
 import Gallery from './media/Gallery'
+import GalleryDisplayStrip from './media/GalleryDisplayStrip'
 
 // Color palette used to tint species across the Activity tab's distribution
 // pill, daily-activity radar, and timeline chart.
@@ -255,18 +256,24 @@ export default function Activity({ studyData, studyId }) {
                 />
               )}
             </div>
-            <div className="h-full overflow-auto w-xs">
+            <div className="h-full w-xs flex flex-col gap-2 min-h-0">
+              {speciesInitialized && sequenceGap !== undefined && (
+                <GalleryDisplayStrip studyId={actualStudyId} />
+              )}
               {speciesDistributionData && (
-                <SpeciesDistribution
-                  data={speciesDistributionData}
-                  taxonomicData={taxonomicData}
-                  selectedSpecies={selectedSpecies}
-                  onSpeciesChange={handleSpeciesChange}
-                  palette={palette}
-                  blankCount={blankCount}
-                  vehicleCount={vehicleCount}
-                  studyId={actualStudyId}
-                />
+                <div className="flex-1 min-h-0">
+                  <SpeciesDistribution
+                    data={speciesDistributionData}
+                    taxonomicData={taxonomicData}
+                    selectedSpecies={selectedSpecies}
+                    onSpeciesChange={handleSpeciesChange}
+                    palette={palette}
+                    blankCount={blankCount}
+                    vehicleCount={vehicleCount}
+                    studyId={actualStudyId}
+                    showHeader={false}
+                  />
+                </div>
               )}
             </div>
           </div>

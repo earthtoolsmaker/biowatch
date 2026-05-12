@@ -22,8 +22,6 @@ import {
   Layers,
   Play,
   Loader2,
-  ChevronDown,
-  ChevronUp,
   ChevronLeft,
   ChevronRight,
   Heart,
@@ -35,7 +33,6 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient, useMutation, useInfiniteQuery } from '@tanstack/react-query'
 import { useParams } from 'react-router'
-import * as Tooltip from '@radix-ui/react-tooltip'
 import DeploymentLinkPill from './DeploymentLinkPill'
 import EditableBbox from '../ui/EditableBbox'
 import VideoBboxOverlay from '../ui/VideoBboxOverlay.jsx'
@@ -58,8 +55,8 @@ import {
 import { SpeciesCountLabel } from '../ui/SpeciesLabel'
 import { formatGridTimestamp } from '../utils/formatTimestamp'
 import { useSequenceGap } from '../hooks/useSequenceGap'
+import { useShowThumbnailBboxes } from '../hooks/useShowThumbnailBboxes'
 import DateTimePicker from '../ui/DateTimePicker'
-import { SequenceGapSlider } from '../ui/SequenceGapSlider'
 
 function DrawingOverlay({ imageRef, containerRef, onComplete, zoomTransform }) {
   const [drawStart, setDrawStart] = useState(null)
@@ -1572,87 +1569,6 @@ function ImageModal({
 }
 
 /**
- * Collapsible control bar for gallery view options
- */
-function GalleryControls({
-  showBboxes,
-  onToggleBboxes,
-  hasBboxes,
-  sequenceGap,
-  onSequenceGapChange,
-  isExpanded,
-  onToggleExpanded
-}) {
-  // Collapsed state: tiny chevron on the right
-  if (!isExpanded) {
-    return (
-      <div className="flex items-center justify-end px-3 py-1 border-b border-border flex-shrink-0">
-        <button
-          onClick={onToggleExpanded}
-          className="p-1 text-muted-foreground hover:text-muted-foreground hover:bg-accent rounded transition-colors"
-          title="Show gallery controls"
-        >
-          <ChevronDown size={14} />
-        </button>
-      </div>
-    )
-  }
-
-  // Expanded state: full controls with chevron-up on the right
-  return (
-    <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border flex-shrink-0">
-      {/* Sequence Gap Slider */}
-      <SequenceGapSlider value={sequenceGap} onChange={onSequenceGapChange} variant="compact" />
-
-      <div className="flex items-center gap-2">
-        {/* Show Bboxes Toggle - only render if bboxes exist */}
-        {hasBboxes && (
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <button
-                onClick={onToggleBboxes}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                  showBboxes
-                    ? 'bg-blue-600 text-white dark:bg-blue-500 dark:text-white hover:bg-blue-700 dark:hover:bg-blue-600'
-                    : 'bg-muted text-foreground hover:bg-accent'
-                }`}
-              >
-                {showBboxes ? <Eye size={16} /> : <EyeOff size={16} />}
-                <span>Boxes</span>
-              </button>
-            </Tooltip.Trigger>
-            <Tooltip.Portal>
-              <Tooltip.Content
-                side="bottom"
-                sideOffset={8}
-                align="end"
-                className="z-[10000] max-w-xs px-3 py-2 bg-gray-900 text-white text-xs rounded-md shadow-lg"
-              >
-                <p className="font-medium mb-1">Bounding Boxes</p>
-                <p className="text-muted-foreground">
-                  Show detection boxes on thumbnails highlighting where animals were identified by
-                  the AI model.
-                </p>
-                <Tooltip.Arrow className="fill-gray-900" />
-              </Tooltip.Content>
-            </Tooltip.Portal>
-          </Tooltip.Root>
-        )}
-
-        {/* Collapse toggle - chevron-up on the right */}
-        <button
-          onClick={onToggleExpanded}
-          className="p-1 text-muted-foreground hover:text-muted-foreground hover:bg-accent rounded transition-colors"
-          title="Hide gallery controls"
-        >
-          <ChevronUp size={14} />
-        </button>
-      </div>
-    </div>
-  )
-}
-
-/**
  * SVG overlay showing bboxes on a thumbnail
  * Handles letterboxing by calculating actual image bounds within the container.
  * Receives bbox data and refs as props from parent.
@@ -2211,21 +2127,9 @@ function Gallery({
   const { id } = useParams()
   const queryClient = useQueryClient()
 
-  // Grid controls state - persisted per study in localStorage
-  const showBboxesKey = `showBboxes:${id}`
-  const [showThumbnailBboxes, setShowThumbnailBboxes] = useState(() => {
-    const saved = localStorage.getItem(showBboxesKey)
-    return saved !== null ? JSON.parse(saved) : false
-  })
+  const { showThumbnailBboxes } = useShowThumbnailBboxes(id)
 
   const [itemWidth, setItemWidth] = useState(null)
-
-  const [controlsExpanded, setControlsExpanded] = useState(false)
-
-  // Persist showThumbnailBboxes to localStorage when it changes
-  useEffect(() => {
-    localStorage.setItem(showBboxesKey, JSON.stringify(showThumbnailBboxes))
-  }, [showThumbnailBboxes, showBboxesKey])
 
   // Auto-switch grid columns and calculate exact item width based on container width
   useEffect(() => {
@@ -2264,7 +2168,7 @@ function Gallery({
 
   // Sequence gap - uses React Query cache for cross-component sync
   // Default value is set during study import based on whether the dataset has eventIDs
-  const { sequenceGap, setSequenceGap, isLoading: isSequenceGapLoading } = useSequenceGap(id)
+  const { sequenceGap, isLoading: isSequenceGapLoading } = useSequenceGap(id)
 
   // Fetch pre-grouped sequences from main process with cursor-based pagination
   // This moves the grouping logic to the main process, keeping the client "dumb"
@@ -2328,17 +2232,6 @@ function Gallery({
     queryFn: async () => {
       const response = await window.api.getMediaBboxesBatch(id, mediaIDs)
       return response.data || {}
-    },
-    enabled: mediaIDs.length > 0 && !!id,
-    staleTime: 60000
-  })
-
-  // Check if any media have bboxes (lightweight check for showing/hiding toggle)
-  const { data: anyMediaHaveBboxes = false } = useQuery({
-    queryKey: ['mediaHaveBboxes', id, mediaIDs],
-    queryFn: async () => {
-      const response = await window.api.checkMediaHaveBboxes(id, mediaIDs)
-      return response.data || false
     },
     enabled: mediaIDs.length > 0 && !!id,
     staleTime: 60000
@@ -2583,20 +2476,6 @@ function Gallery({
             : 'flex flex-col h-full bg-card rounded border border-border overflow-hidden'
         }
       >
-        {/* Collapsible Control Bar — hidden when embedded (e.g. inside the
-            Deployments tab's detail pane, which provides its own chrome). */}
-        {!embedded && (
-          <GalleryControls
-            showBboxes={showThumbnailBboxes}
-            onToggleBboxes={() => setShowThumbnailBboxes((prev) => !prev)}
-            hasBboxes={anyMediaHaveBboxes}
-            sequenceGap={sequenceGap}
-            onSequenceGapChange={setSequenceGap}
-            isExpanded={controlsExpanded}
-            onToggleExpanded={() => setControlsExpanded((prev) => !prev)}
-          />
-        )}
-
         {/* Grid — drop horizontal padding when embedded so the first
             image cell aligns with the panel's left edge (matches the map
             in the Deployments tab). */}
