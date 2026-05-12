@@ -846,7 +846,7 @@ export default function Activity({ studyData, studyId }) {
             </div>
             <div className="h-full w-xs flex flex-col gap-2 min-h-0">
               {speciesInitialized && sequenceGap !== undefined && (
-                <div className="flex items-center gap-2 px-2 py-1.5">
+                <div className="flex items-center gap-2 px-2 h-10 flex-shrink-0">
                   <SequenceGapSlider
                     value={sequenceGap}
                     onChange={setSequenceGap}

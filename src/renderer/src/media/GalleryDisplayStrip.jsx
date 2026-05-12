@@ -27,7 +27,7 @@ export default function GalleryDisplayStrip({ studyId }) {
   })
 
   return (
-    <div className="flex items-center gap-2 px-2 py-1.5">
+    <div className="flex items-center gap-2 px-2 h-10 flex-shrink-0">
       <SequenceGapSlider value={sequenceGap} onChange={setSequenceGap} variant="compact" />
       {studyHasBboxes && (
         <Tooltip.Root>
