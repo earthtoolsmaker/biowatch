@@ -1,5 +1,5 @@
 /**
- * Compact "MMM D, h:mm AM/PM" formatter used by the media-tab grid cell
+ * Compact "MMM D, YYYY, h:mm AM/PM" formatter used by the media-tab grid cell
  * timestamp overlay. Pure, no React, safe to unit-test.
  *
  * Uses the runtime's local timezone — camera-trap timestamps in the DB are
@@ -7,11 +7,12 @@
  * time elsewhere (e.g. inline editor timestamps).
  *
  * @param {string | number | Date} timestamp - Anything `new Date(x)` accepts.
- * @returns {string} Formatted string, e.g. "Apr 30, 2:34 PM".
+ * @returns {string} Formatted string, e.g. "Apr 30, 2026, 2:34 PM".
  */
 const FORMATTER = new Intl.DateTimeFormat('en-US', {
   month: 'short',
   day: 'numeric',
+  year: 'numeric',
   hour: 'numeric',
   minute: '2-digit'
 })
