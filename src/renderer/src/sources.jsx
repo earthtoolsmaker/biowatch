@@ -160,7 +160,7 @@ function SourceRow({ source, importerName, studyName, expanded, onToggle }) {
   return (
     <>
       <div
-        className="flex flex-wrap items-center gap-x-4 gap-y-2 px-2 py-4 border-b border-border hover:bg-accent cursor-pointer"
+        className="flex flex-wrap items-center gap-x-4 gap-y-2 px-2 py-4 border-b border-border hover:bg-gray-50 dark:hover:bg-accent cursor-pointer"
         onClick={canExpand ? onToggle : undefined}
       >
         <div className="w-5 text-muted-foreground flex-shrink-0">
@@ -209,7 +209,7 @@ function SourceRow({ source, importerName, studyName, expanded, onToggle }) {
         mergedDeployments.map((d) => (
           <div
             key={`${d.label}__${d.deploymentID}`}
-            className="ml-14 flex flex-wrap items-center gap-x-4 gap-y-2 px-2 py-3 border-b border-border hover:bg-accent"
+            className="ml-14 flex flex-wrap items-center gap-x-4 gap-y-2 px-2 py-3 border-b border-border hover:bg-gray-50 dark:hover:bg-accent"
           >
             <div className="flex-1 min-w-[180px] text-sm text-foreground truncate">{d.label}</div>
             <div className="flex items-center gap-4 ml-auto">
@@ -286,7 +286,9 @@ export default function Sources({ studyId, importerName, studyName }) {
                 onClick={() => setAddOpen(true)}
                 disabled={!canAddSource}
                 className={`border border-border bg-card px-3 py-1.5 rounded-md text-sm ${
-                  canAddSource ? 'hover:bg-accent' : 'opacity-50 cursor-not-allowed'
+                  canAddSource
+                    ? 'hover:bg-gray-50 dark:hover:bg-accent'
+                    : 'opacity-50 cursor-not-allowed'
                 }`}
               >
                 + Add images directory

@@ -470,7 +470,7 @@ const DeploymentRow = memo(function DeploymentRow({
     <div
       id={location.deploymentID}
       onClick={handleRowClick}
-      className={`flex gap-3 items-center px-3 h-10 hover:bg-accent cursor-pointer border-b border-border transition-colors ${
+      className={`flex gap-3 items-center px-3 h-10 hover:bg-gray-200 dark:hover:bg-accent cursor-pointer border-b border-border transition-colors ${
         indented ? 'pl-9 bg-[#fcfcfd] dark:bg-card' : ''
       } ${
         isSelected
@@ -752,7 +752,7 @@ function LocationsList({
         <header className="relative bg-card z-10 py-2 border-b border-border flex items-stretch">
           {hoverX != null && hoverBucket && (
             <div
-              className="absolute top-0 -translate-x-1/2 px-1.5 py-0.5 rounded bg-muted border border-border text-[11px] text-foreground whitespace-nowrap shadow-sm pointer-events-none z-20"
+              className="absolute top-0 -translate-x-1/2 px-1.5 py-0.5 rounded bg-gray-100 dark:bg-muted border border-gray-200 dark:border-border text-[11px] text-gray-700 dark:text-foreground whitespace-nowrap shadow-sm pointer-events-none z-20"
               style={{ left: `${sparklineLeft + hoverX}px` }}
             >
               {formatBucketRange(hoverBucket.start, hoverBucket.end)}
@@ -770,7 +770,7 @@ function LocationsList({
             {dateMarkers.map((date, i) => (
               <div key={i} className="flex flex-col items-center flex-1 min-w-0">
                 <span>{formatDateShort(date)}</span>
-                <div className="w-px h-2 bg-muted-foreground mt-1" />
+                <div className="w-px h-2 bg-gray-400 dark:bg-muted-foreground mt-1" />
               </div>
             ))}
           </div>
@@ -806,7 +806,7 @@ function LocationsList({
           {/* pointer-events-none so the line never intercepts row clicks */}
           {hoverX != null && (
             <div
-              className="absolute top-0 bottom-0 w-px bg-muted-foreground/50 pointer-events-none z-10"
+              className="absolute top-0 bottom-0 w-px bg-gray-400/50 dark:bg-muted-foreground/50 pointer-events-none z-10"
               style={{ left: `${sparklineLeft + hoverX}px` }}
             />
           )}
@@ -1192,7 +1192,7 @@ export default function Deployments({ studyId }) {
                 />
               ) : null}
             </Panel>
-            <PanelResizeHandle className="w-1 mx-1.5 rounded-full bg-muted hover:bg-accent data-[resize-handle-state=drag]:bg-blue-300 dark:data-[resize-handle-state=drag]:bg-blue-500 cursor-col-resize transition-colors" />
+            <PanelResizeHandle className="w-1 mx-1.5 rounded-full bg-gray-100 hover:bg-gray-300 dark:bg-muted dark:hover:bg-accent data-[resize-handle-state=drag]:bg-blue-300 dark:data-[resize-handle-state=drag]:bg-blue-500 cursor-col-resize transition-colors" />
             <Panel defaultSize={38} minSize={20} className="flex flex-col">
               {/* Cap the map at a comfortable max-height so on tall windows
                   it doesn't stretch to the full panel — the list timeline
@@ -1218,7 +1218,7 @@ export default function Deployments({ studyId }) {
         </Panel>
         {paneSnapshot && (
           <>
-            <PanelResizeHandle className="h-1 my-3 rounded-full bg-muted hover:bg-accent data-[resize-handle-state=drag]:bg-blue-300 dark:data-[resize-handle-state=drag]:bg-blue-500 cursor-row-resize transition-colors" />
+            <PanelResizeHandle className="h-1 my-3 rounded-full bg-gray-100 hover:bg-gray-300 dark:bg-muted dark:hover:bg-accent data-[resize-handle-state=drag]:bg-blue-300 dark:data-[resize-handle-state=drag]:bg-blue-500 cursor-row-resize transition-colors" />
             <Panel defaultSize={62} minSize={20} className="flex flex-col">
               {/* No `key` on the wrapper so deployment-to-deployment swaps
                   don't re-trigger the enter animation. The inner pane uses
