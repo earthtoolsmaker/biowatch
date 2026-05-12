@@ -39,8 +39,9 @@ which is a long-term win independent of dark mode itself.
   changes (no app restart).
 - Preference persists across launches.
 - No flash of light content on launch when dark is active.
-- Toggle lives in a new **Appearance** tab in the Settings page (first tab),
-  using a segmented control with `Monitor` / `Sun` / `Moon` icons.
+- Toggle lives under a new **General** tab in the Settings page
+  (between AI Models and Info), using a segmented control with
+  `Monitor` / `Sun` / `Moon` icons.
 - Light-mode appearance after the migration is **pixel-identical** to today.
 - Dark palette uses Tailwind's slate scale as a base, harmonising with
   Biowatch's existing blue accents.
@@ -101,14 +102,26 @@ files fall back to defaults silently and are rewritten on next set.
    and creates the `BrowserWindow` with `backgroundColor` set to the
    resolved theme's background hex (`#ffffff` / `#0f172a`). The native
    window paints the right color before HTML loads.
-3. The resolved value is exposed to the renderer via `contextBridge`
-   in the preload (`window.api.themeInitial = { source, resolved }`).
-4. An inline `<script>` at the top of `index.html` reads
-   `window.api.themeInitial.resolved` and adds `class="dark"` to
-   `document.documentElement` _before_ React mounts.
+3. The resolved value is passed to the renderer via
+   `webPreferences.additionalArguments` (read from `process.argv` in the
+   preload). The preload exposes `window.api.themeInitial = { source, resolved }`.
+4. The preload script itself adds `class="dark"` to `document.documentElement`
+   if the resolved theme is dark. The preload runs before HTML body parses
+   and `document.documentElement` is already available at that point.
 
-Step 4 means React's first render already sees the correct class — no
-FOUC.
+We use the preload (not an inline `<script>` in `index.html`) because the
+renderer's CSP is `script-src 'self'`, which blocks inline scripts. The
+preload is same-origin and runs at the right time.
+
+**Linux quirk**: `nativeTheme.shouldUseDarkColors` can lag the actual
+GTK preference at window creation on Linux. The preload cross-checks via
+`window.matchMedia('(prefers-color-scheme: dark)').matches` when source
+is `'system'` — matchMedia reads Chromium's CSS engine directly and is
+reliable. This only affects step 4 (the class on `<html>`); step 2's
+BrowserWindow `backgroundColor` is still computed from `nativeTheme`, so
+on first launch with dark OS + stale `nativeTheme` the native window can
+briefly paint the light background hex before React renders. Subsequent
+launches see the persisted value and have no flash.
 
 ### Live updates
 
@@ -305,42 +318,47 @@ DevTools, click through the chunk's pages, check contrast on both modes.
 
 ## Settings UI
 
-A new **Appearance** tab is added to the Settings page, ordered first.
+A new **General** tab is added to the Settings page (between AI Models
+and Info). It hosts an Appearance section with the theme control; future
+general preferences (language, density) can slot in as sibling sections.
 
 ```
-[Appearance]  AI Models  Info   (Advanced — hidden)
+AI Models  [General]  Info   (Advanced — hidden)
 ```
 
-Tab icon: `Palette` from `lucide-react`. Placement first matches OS
-conventions and is where users hunt for theme controls.
+Tab icon: `Settings` from `lucide-react`. Placed between AI Models and
+Info; Info stays last so it remains the "about" landing spot.
 
 ### Layout
 
 ```
-Appearance
+General
 ─────────────────────────────────────────
-Theme
-Choose how Biowatch looks.
+Appearance
+Choose how Biowatch looks. System matches your
+operating system preference.
 
   ┌──────────┬──────────┬──────────┐
   │ ☐ System │  ☐ Light │  ◼ Dark  │
   └──────────┴──────────┴──────────┘
 
-  Following system preference (currently Dark).
+  Currently following your system preference: Dark.
 ```
 
 The helper line below the segmented control appears only when **System**
-is selected, showing what the OS resolved to ("currently Dark" or
-"currently Light"). Updates live when the OS preference flips.
+is selected, showing what the OS resolved to. Updates live when the OS
+preference flips. The panel uses the same `divide-y divide-border`
+section pattern as the Info tab so future General sections (language,
+density) drop in as siblings.
 
 ### Components
 
-- **`Appearance.jsx`** — the panel. Reads `useTheme()`, renders the
-  segmented control plus helper text. ~60 lines.
+- **`Appearance.jsx`** — the panel rendered under the General tab. Reads
+  `useTheme()`, renders the segmented control plus helper text. ~30 lines.
 - **`ThemeSegmentedControl.jsx`** — reusable tri-state control. Three
   buttons in a single bordered row. Selected segment uses
-  `bg-primary/10 text-primary`. Icons from `lucide-react`:
-  `Monitor` / `Sun` / `Moon`.
+  `bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300`.
+  Icons from `lucide-react`: `Monitor` / `Sun` / `Moon`.
 
 ### No app restart required
 
