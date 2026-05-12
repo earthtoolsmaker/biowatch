@@ -1,5 +1,5 @@
 import { X, AlertTriangle, Ban, ArrowRight, ArrowLeftRight } from 'lucide-react'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 const FIELD_LABELS = {
   deploymentID: 'deploymentID',
@@ -86,6 +86,12 @@ export default function DeploymentsImportPreviewModal({
   isApplying = false,
   errorMessage = null
 }) {
+  // Row filter — 'all' (default) | 'updated' | 'skipped'. The summary tiles
+  // act as toggles: click an active filter to clear it.
+  const [filter, setFilter] = useState('all')
+
+  const toggleFilter = (next) => setFilter((prev) => (prev === next ? 'all' : next))
+
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === 'Escape' && !isApplying) onCancel()
@@ -112,6 +118,21 @@ export default function DeploymentsImportPreviewModal({
     }
     return plan
   }, [preview])
+
+  const filteredRows = useMemo(() => {
+    if (!preview) return []
+    if (filter === 'all') return preview.rows
+    if (filter === 'updated') {
+      return preview.rows.filter((row) => {
+        if (row.rowState !== 'normal') return false
+        return EDITABLE_KEYS.some((k) => row.columns[k]?.state === 'change')
+      })
+    }
+    if (filter === 'skipped') {
+      return preview.rows.filter((row) => row.rowState === 'skipped')
+    }
+    return preview.rows
+  }, [preview, filter])
 
   if (!preview) return null
 
@@ -141,17 +162,52 @@ export default function DeploymentsImportPreviewModal({
           </button>
         </div>
 
-        {/* Summary banner */}
-        <div className="flex items-center gap-4 px-4 py-2 border-b border-border text-xs">
-          <span className="inline-flex items-center gap-1 text-green-700 dark:text-green-300">
+        {/* Summary banner — tiles are filter toggles */}
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-border text-xs">
+          <button
+            onClick={() => toggleFilter('updated')}
+            disabled={preview.applyCount === 0}
+            title={
+              filter === 'updated'
+                ? 'Click to show all rows'
+                : 'Click to show only rows that will update'
+            }
+            className={`inline-flex items-center gap-1 px-2 py-1 rounded border transition-colors disabled:cursor-default disabled:opacity-60 ${
+              filter === 'updated'
+                ? 'bg-green-100 dark:bg-green-500/20 border-green-300 dark:border-green-500/40 text-green-800 dark:text-green-200'
+                : 'border-transparent hover:bg-accent text-green-700 dark:text-green-300'
+            }`}
+          >
             <ArrowLeftRight size={12} /> {preview.applyCount} rows will update
-          </span>
-          <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-300">
+          </button>
+          <span className="inline-flex items-center gap-1 px-2 py-1 text-amber-700 dark:text-amber-300">
             <AlertTriangle size={12} /> {preview.cellWarningCount} cells skipped
           </span>
-          <span className="inline-flex items-center gap-1 text-muted-foreground">
+          <button
+            onClick={() => toggleFilter('skipped')}
+            disabled={preview.rowSkipCount === 0}
+            title={
+              filter === 'skipped'
+                ? 'Click to show all rows'
+                : 'Click to show only rows that will be skipped'
+            }
+            className={`inline-flex items-center gap-1 px-2 py-1 rounded border transition-colors disabled:cursor-default disabled:opacity-60 ${
+              filter === 'skipped'
+                ? 'bg-muted border-border text-foreground'
+                : 'border-transparent hover:bg-accent text-muted-foreground'
+            }`}
+          >
             <Ban size={12} /> {preview.rowSkipCount} rows unknown ID
-          </span>
+          </button>
+          {filter !== 'all' && (
+            <button
+              onClick={() => setFilter('all')}
+              className="ml-1 inline-flex items-center gap-1 px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent rounded"
+              title="Clear filter"
+            >
+              Show all
+            </button>
+          )}
         </div>
 
         {errorMessage && (
@@ -174,7 +230,17 @@ export default function DeploymentsImportPreviewModal({
               </tr>
             </thead>
             <tbody>
-              {preview.rows.map((row) => (
+              {filteredRows.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={Object.keys(FIELD_LABELS).length + 1}
+                    className="px-2 py-6 text-center text-muted-foreground"
+                  >
+                    No rows match the current filter.
+                  </td>
+                </tr>
+              )}
+              {filteredRows.map((row) => (
                 <tr
                   key={row.rowIndex}
                   className={`border-t border-border ${rowBackgroundClass(row)}`}
