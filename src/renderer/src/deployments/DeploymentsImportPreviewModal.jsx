@@ -22,33 +22,37 @@ function formatCellValue(value) {
 function CellContent({ col }) {
   if (col.state === 'warning') {
     return (
-      <span
+      <div
         title={col.warning}
-        className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-300 truncate"
+        className="flex items-center gap-1 min-w-0 text-amber-700 dark:text-amber-300"
       >
         <AlertTriangle size={12} className="flex-shrink-0" />
-        <span className="tabular-nums">{formatCellValue(col.dbValue)}</span>
-        <span className="text-muted-foreground">·</span>
-        <span className="tabular-nums line-through opacity-70">
+        <span className="tabular-nums truncate min-w-0">{formatCellValue(col.dbValue)}</span>
+        <span className="text-muted-foreground flex-shrink-0">·</span>
+        <span className="tabular-nums line-through opacity-70 truncate min-w-0">
           {formatCellValue(col.csvValue)}
         </span>
-      </span>
+      </div>
     )
   }
   if (col.state === 'change') {
     return (
-      <span className="inline-flex items-center gap-1 font-medium text-green-700 dark:text-green-300 truncate">
-        <span className="tabular-nums line-through opacity-70 text-muted-foreground font-normal">
+      <div
+        title={`${formatCellValue(col.dbValue)} → ${formatCellValue(col.csvValue)}`}
+        className="flex items-center gap-1 min-w-0 font-medium text-green-700 dark:text-green-300"
+      >
+        <span className="tabular-nums line-through opacity-70 text-muted-foreground font-normal truncate min-w-0">
           {formatCellValue(col.dbValue)}
         </span>
         <ArrowRight size={12} className="flex-shrink-0" />
-        <span className="tabular-nums">{formatCellValue(col.csvValue)}</span>
-      </span>
+        <span className="tabular-nums truncate min-w-0">{formatCellValue(col.csvValue)}</span>
+      </div>
     )
   }
   const display = col.csvValue !== '' ? col.csvValue : (col.dbValue ?? '—')
   return (
     <span
+      title={String(display)}
       className={
         col.state === 'readonly'
           ? 'text-muted-foreground italic tabular-nums truncate block'
@@ -301,7 +305,7 @@ export default function DeploymentsImportPreviewModal({
                       )}
                     </div>
                     {FIELDS.map((key) => (
-                      <div key={key} className="min-w-0">
+                      <div key={key} className="min-w-0 overflow-hidden">
                         <CellContent col={row.columns[key]} />
                       </div>
                     ))}
