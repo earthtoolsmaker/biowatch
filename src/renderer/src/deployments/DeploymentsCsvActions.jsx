@@ -22,7 +22,8 @@ export default function DeploymentsCsvActions({ studyId, onApplied }) {
       toast.error(`Export failed: ${result.error}`)
       return
     }
-    toast.success(`Exported ${result.rowCount} deployments to ${result.filePath}`)
+    const noun = result.rowCount === 1 ? 'deployment' : 'deployments'
+    toast.success(`Exported ${result.rowCount} ${noun} to ${result.filePath}`)
   }, [studyId])
 
   const handleImport = useCallback(async () => {
@@ -58,8 +59,10 @@ export default function DeploymentsCsvActions({ studyId, onApplied }) {
           return
         }
         const { deploymentsUpdated, locationsNamed } = response.summary
+        const depNoun = deploymentsUpdated === 1 ? 'deployment' : 'deployments'
+        const nameNoun = locationsNamed === 1 ? 'location name' : 'location names'
         toast.success(
-          `Updated ${deploymentsUpdated} deployments. ${locationsNamed} location names propagated.`
+          `Updated ${deploymentsUpdated} ${depNoun}. ${locationsNamed} ${nameNoun} propagated.`
         )
         setPreview(null)
         if (onApplied) onApplied()

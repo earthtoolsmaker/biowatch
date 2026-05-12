@@ -70,7 +70,9 @@ function rowBackgroundClass(row) {
   }
   const hasChange = EDITABLE_KEYS.some((k) => row.columns[k]?.state === 'change')
   if (hasChange) return 'bg-green-50 dark:bg-green-500/10'
-  const hasWarning = EDITABLE_KEYS.some((k) => row.columns[k]?.state === 'warning')
+  // Any column with a warning counts — including readonly mismatches on
+  // locationID — so the visual matches what the warnings filter selects.
+  const hasWarning = Object.values(row.columns).some((c) => c?.state === 'warning')
   if (hasWarning) return 'bg-amber-50 dark:bg-amber-500/5'
   return ''
 }
@@ -209,7 +211,8 @@ export default function DeploymentsImportPreviewModal({
                 : 'border-transparent hover:bg-accent text-green-700 dark:text-green-300'
             }`}
           >
-            <ArrowLeftRight size={12} /> {preview.applyCount} rows will update
+            <ArrowLeftRight size={12} /> {preview.applyCount}{' '}
+            {preview.applyCount === 1 ? 'row' : 'rows'} will update
           </button>
           <button
             onClick={() => toggleFilter('warnings')}
@@ -225,7 +228,8 @@ export default function DeploymentsImportPreviewModal({
                 : 'border-transparent hover:bg-accent text-amber-700 dark:text-amber-300'
             }`}
           >
-            <AlertTriangle size={12} /> {preview.cellWarningCount} cells skipped
+            <AlertTriangle size={12} /> {preview.cellWarningCount}{' '}
+            {preview.cellWarningCount === 1 ? 'cell' : 'cells'} skipped
           </button>
           <button
             onClick={() => toggleFilter('skipped')}
@@ -241,7 +245,8 @@ export default function DeploymentsImportPreviewModal({
                 : 'border-transparent hover:bg-accent text-muted-foreground'
             }`}
           >
-            <Ban size={12} /> {preview.rowSkipCount} rows unknown ID
+            <Ban size={12} /> {preview.rowSkipCount} {preview.rowSkipCount === 1 ? 'row' : 'rows'}{' '}
+            unknown ID
           </button>
           {filter !== 'all' && (
             <button
