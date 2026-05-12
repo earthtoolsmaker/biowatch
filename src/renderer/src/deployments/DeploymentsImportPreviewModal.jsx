@@ -12,7 +12,7 @@ const EDITABLE_KEYS = ['locationName', 'latitude', 'longitude']
 const GRID_COLUMNS =
   'grid grid-cols-[40px_minmax(140px,1.2fr)_minmax(80px,0.9fr)_minmax(140px,1.5fr)_minmax(120px,1fr)_minmax(120px,1fr)]'
 
-const ROW_HEIGHT = 32
+const ROW_HEIGHT = 36
 
 function formatCellValue(value) {
   if (value === null || value === undefined || value === '') return '—'
@@ -55,7 +55,7 @@ function CellContent({ col }) {
       title={String(display)}
       className={
         col.state === 'readonly'
-          ? 'text-muted-foreground italic tabular-nums truncate block'
+          ? 'text-muted-foreground tabular-nums truncate block'
           : 'text-foreground tabular-nums truncate block'
       }
     >
@@ -262,11 +262,13 @@ export default function DeploymentsImportPreviewModal({
 
         {/* Header row (matches body grid columns) */}
         <div
-          className={`${GRID_COLUMNS} gap-2 bg-muted text-muted-foreground text-xs px-3 py-1.5 border-b border-border flex-shrink-0 cursor-default`}
+          className={`${GRID_COLUMNS} gap-2 bg-muted/60 dark:bg-muted text-muted-foreground text-[10px] uppercase tracking-wider font-semibold px-3 py-2 border-b border-border flex-shrink-0 cursor-default`}
         >
           <div>#</div>
           {FIELDS.map((key) => (
-            <div key={key}>{key}</div>
+            <div key={key} className="truncate">
+              {key}
+            </div>
           ))}
         </div>
 
@@ -293,9 +295,9 @@ export default function DeploymentsImportPreviewModal({
                       height: `${vi.size}px`,
                       transform: `translateY(${vi.start}px)`
                     }}
-                    className={`${GRID_COLUMNS} gap-2 items-center px-3 text-xs border-b border-border cursor-default ${rowBackgroundClass(row)}`}
+                    className={`${GRID_COLUMNS} gap-2 items-center px-3 text-xs border-b border-border/60 cursor-default transition-colors hover:bg-accent/40 ${rowBackgroundClass(row)}`}
                   >
-                    <div className="text-muted-foreground">
+                    <div className="text-muted-foreground/70 tabular-nums text-[11px]">
                       {row.rowState === 'skipped' ? (
                         <span title={row.rowWarning} className="inline-flex items-center gap-1">
                           <Ban size={12} /> {row.rowIndex}
