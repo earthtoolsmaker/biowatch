@@ -145,7 +145,7 @@ export default function DeploymentsImportPreviewModal({
       aria-modal="true"
       aria-label="Import deployments CSV"
     >
-      <div className="bg-card border border-border rounded-lg shadow-2xl w-[90vw] max-w-[1100px] max-h-[85vh] flex flex-col">
+      <div className="bg-card border border-border rounded-lg shadow-2xl w-[90vw] max-w-[1100px] h-[85vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <div>
