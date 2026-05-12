@@ -53,7 +53,7 @@ export default function SpeciesTooltipContent({ imageData, studyId, size = 'md' 
   const isLarge = size === 'lg'
   const cardWidth = isLarge ? 'w-[400px]' : 'w-[320px]'
   const imageHeight = isLarge ? 'h-[230px]' : 'h-[180px]'
-  const nameClass = isLarge ? 'text-sm text-foreground' : 'text-xs text-muted-foreground'
+  const nameClass = isLarge ? 'text-sm text-foreground' : 'text-xs text-foreground'
   const blurbClass = isLarge ? 'text-[13px] text-foreground' : 'text-[11px] text-foreground'
   const linkClass = isLarge ? 'text-[12px]' : 'text-[10px]'
 
