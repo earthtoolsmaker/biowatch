@@ -1535,7 +1535,7 @@ function ImageModal({
           </div>
 
           {/* Footer - filename + deployment link */}
-          <div className="px-4 py-2.5 bg-muted flex-shrink-0 border-t border-border text-xs text-muted-foreground">
+          <div className="px-4 py-2.5 bg-card flex-shrink-0 border-t border-border text-xs text-muted-foreground">
             <div className="flex items-center gap-3">
               {media.fileName && (
                 <span className="font-mono text-[11px] text-muted-foreground truncate min-w-0 flex-1">
