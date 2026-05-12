@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
 import DeploymentsImportPreviewModal from './DeploymentsImportPreviewModal'
 import DeploymentsExportPreviewModal from './DeploymentsExportPreviewModal'
+import DeploymentsImportPickerModal from './DeploymentsImportPickerModal'
 
 /**
  * Tab-level Export / Import buttons rendered in the always-visible
@@ -55,27 +56,34 @@ export default function DeploymentsCsvActions({ studyId, onApplied }) {
     setExportRows(null)
   }, [])
 
-  const handleImport = useCallback(async () => {
-    const pick = await window.api.pickDeploymentsCsvFile()
-    if (pick?.cancelled) return
-    if (pick?.error) {
-      toast.error(`Could not open file: ${pick.error}`)
-      return
-    }
+  const [isPickerOpen, setIsPickerOpen] = useState(false)
 
-    setIsParsing(true)
-    try {
-      const response = await window.api.parseDeploymentsCsvForImport(studyId, pick.filePath)
-      if (response.error) {
-        toast.error(response.error)
-        return
+  const handleImportClick = useCallback(() => {
+    setIsPickerOpen(true)
+  }, [])
+
+  const handlePickerCancel = useCallback(() => {
+    setIsPickerOpen(false)
+  }, [])
+
+  const handleFilePicked = useCallback(
+    async (filePath) => {
+      setIsPickerOpen(false)
+      setIsParsing(true)
+      try {
+        const response = await window.api.parseDeploymentsCsvForImport(studyId, filePath)
+        if (response.error) {
+          toast.error(response.error)
+          return
+        }
+        setPreview(response.data)
+        setApplyError(null)
+      } finally {
+        setIsParsing(false)
       }
-      setPreview(response.data)
-      setApplyError(null)
-    } finally {
-      setIsParsing(false)
-    }
-  }, [studyId])
+    },
+    [studyId]
+  )
 
   const handleApply = useCallback(
     async (applyPlan) => {
@@ -125,7 +133,7 @@ export default function DeploymentsCsvActions({ studyId, onApplied }) {
         </button>
         <div className="w-px self-stretch bg-border" aria-hidden="true" />
         <button
-          onClick={handleImport}
+          onClick={handleImportClick}
           title="Import deployments CSV"
           className={btnClass}
           aria-label="Import deployments CSV"
@@ -147,6 +155,13 @@ export default function DeploymentsCsvActions({ studyId, onApplied }) {
           onCancel={handleExportCancel}
           onSave={handleExportSave}
           isSaving={isSavingExport}
+        />
+      )}
+
+      {isPickerOpen && (
+        <DeploymentsImportPickerModal
+          onCancel={handlePickerCancel}
+          onFilePicked={handleFilePicked}
         />
       )}
 

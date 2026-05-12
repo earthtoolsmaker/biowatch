@@ -1,5 +1,5 @@
 import { electronAPI } from '@electron-toolkit/preload'
-import { contextBridge } from 'electron'
+import { contextBridge, webUtils } from 'electron'
 
 // Custom APIs for renderer
 const api = {
@@ -260,6 +260,10 @@ const api = {
   pickDeploymentsCsvFile: async () => {
     return await electronAPI.ipcRenderer.invoke('deployments:pick-csv-file')
   },
+  // Electron 32+ removes File.path; webUtils.getPathForFile is the
+  // replacement. Called from the drop handler in the import picker
+  // modal to resolve a dropped File to an absolute path.
+  getDroppedFilePath: (file) => webUtils.getPathForFile(file),
   parseDeploymentsCsvForImport: async (studyId, filePath) => {
     return await electronAPI.ipcRenderer.invoke(
       'deployments:parse-csv-for-import',
