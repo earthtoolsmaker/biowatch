@@ -10,6 +10,7 @@ import {
   getMediaBboxes,
   getMediaBboxesBatch,
   checkMediaHaveBboxes,
+  studyHasAnyBboxes,
   getVideoFrameDetections,
   updateMediaTimestamp,
   updateMediaFavorite,
@@ -70,6 +71,23 @@ export function registerMediaIPCHandlers() {
       return { data: hasBboxes }
     } catch (error) {
       log.error('Error checking media bboxes existence:', error)
+      return { error: error.message }
+    }
+  })
+
+  // Study-wide bbox existence check — used by Media tab right-pane strip
+  ipcMain.handle('media:study-has-any-bboxes', async (_, studyId) => {
+    try {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) {
+        log.warn(`Database not found for study ID: ${studyId}`)
+        return { error: 'Database not found for this study' }
+      }
+
+      const hasBboxes = await studyHasAnyBboxes(dbPath)
+      return { data: hasBboxes }
+    } catch (error) {
+      log.error('Error checking study-wide bbox existence:', error)
       return { error: error.message }
     }
   })

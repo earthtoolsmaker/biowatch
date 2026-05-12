@@ -94,6 +94,9 @@ const api = {
   checkMediaHaveBboxes: async (studyId, mediaIDs) => {
     return await electronAPI.ipcRenderer.invoke('media:have-bboxes', studyId, mediaIDs)
   },
+  studyHasAnyBboxes: async (studyId) => {
+    return await electronAPI.ipcRenderer.invoke('media:study-has-any-bboxes', studyId)
+  },
   getBestMedia: async (studyId, options = {}) => {
     return await electronAPI.ipcRenderer.invoke('media:get-best', studyId, options)
   },

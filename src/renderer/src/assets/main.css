@@ -335,24 +335,69 @@ input::-webkit-inner-spin-button {
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15));
 }
 
-/* Radix Tooltip animations */
-[data-radix-tooltip-content][data-state='delayed-open'],
-[data-radix-tooltip-content][data-state='instant-open'] {
-  animation: tooltip-fade-in 150ms ease-out;
+/* Radix Tooltip animations — subtle slide from the trigger side + spring fade */
+[data-radix-tooltip-content][data-state='delayed-open'][data-side='top'],
+[data-radix-tooltip-content][data-state='instant-open'][data-side='top'] {
+  animation: tooltip-slide-up 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+[data-radix-tooltip-content][data-state='delayed-open'][data-side='bottom'],
+[data-radix-tooltip-content][data-state='instant-open'][data-side='bottom'] {
+  animation: tooltip-slide-down 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+[data-radix-tooltip-content][data-state='delayed-open'][data-side='left'],
+[data-radix-tooltip-content][data-state='instant-open'][data-side='left'] {
+  animation: tooltip-slide-left 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+[data-radix-tooltip-content][data-state='delayed-open'][data-side='right'],
+[data-radix-tooltip-content][data-state='instant-open'][data-side='right'] {
+  animation: tooltip-slide-right 180ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 [data-radix-tooltip-content][data-state='closed'] {
   animation: tooltip-fade-out 100ms ease-in;
 }
 
-@keyframes tooltip-fade-in {
+@keyframes tooltip-slide-down {
   from {
     opacity: 0;
-    transform: scale(0.95);
+    transform: translateY(-6px) scale(0.96);
   }
   to {
     opacity: 1;
-    transform: scale(1);
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes tooltip-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes tooltip-slide-left {
+  from {
+    opacity: 0;
+    transform: translateX(6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes tooltip-slide-right {
+  from {
+    opacity: 0;
+    transform: translateX(-6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
   }
 }
 
@@ -363,7 +408,7 @@ input::-webkit-inner-spin-button {
   }
   to {
     opacity: 0;
-    transform: scale(0.95);
+    transform: scale(0.96);
   }
 }
 

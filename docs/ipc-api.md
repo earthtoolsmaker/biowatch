@@ -224,6 +224,7 @@ const { data, fetchNextPage, hasNextPage } = useInfiniteQuery({
 | `getMediaBboxes(studyId, mediaID)`               | `media:get-bboxes`       | studyId, mediaID            | `{ data: Bbox[] }`                        |
 | `getMediaBboxesBatch(studyId, mediaIDs)`         | `media:get-bboxes-batch` | studyId, mediaID[]          | `{ data: Map<mediaID, Bbox[]> }`          |
 | `checkMediaHaveBboxes(studyId, mediaIDs)`        | `media:have-bboxes`      | studyId, mediaID[]          | `{ data: boolean }`                       |
+| `studyHasAnyBboxes(studyId)`                     | `media:study-has-any-bboxes` | studyId                 | `{ data: boolean }`                       |
 | `getBestMedia(studyId, options)`                 | `media:get-best`         | studyId, { limit? }         | `{ data: ScoredMedia[] }`                 |
 | `setMediaTimestamp(studyId, mediaID, timestamp)` | `media:set-timestamp`    | studyId, mediaID, timestamp | `{ success: boolean }`                    |
 | `setMediaFavorite(studyId, mediaID, favorite)`   | `media:set-favorite`     | studyId, mediaID, boolean   | `{ success: boolean, mediaID, favorite }` |

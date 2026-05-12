@@ -139,7 +139,8 @@ function SpeciesDistribution({
   palette,
   blankCount = 0,
   vehicleCount = 0,
-  studyId = null
+  studyId = null,
+  showHeader = true
 }) {
   // Append pseudo-species rows (Blank, Vehicle) when their counts are > 0.
   const displayData = useMemo(() => {
@@ -218,10 +219,12 @@ function SpeciesDistribution({
 
   return (
     <div className="w-full h-full bg-card rounded border border-border flex flex-col overflow-hidden">
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border flex-shrink-0">
-        <span className="text-sm font-medium text-foreground">Species</span>
-        <span className="text-xs text-muted-foreground">({speciesCount})</span>
-      </div>
+      {showHeader && (
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-border flex-shrink-0">
+          <span className="text-sm font-medium text-foreground">Species</span>
+          <span className="text-xs text-muted-foreground">({speciesCount})</span>
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto px-3 myscroll" onScroll={handleScroll}>
         <div>
