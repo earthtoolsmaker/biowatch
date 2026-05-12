@@ -504,6 +504,102 @@ Saves the Activity tab's species distribution map (Leaflet basemap + pie chart m
 
 **Tile CORS:** both `<TileLayer>` components in `SpeciesMap` set `crossOrigin=""` so the Esri World_Imagery and OSM tiles can be rendered onto the canvas without tainting it.
 
+## Deployments CSV (locations + names)
+
+Round-trip flow for bulk-editing deployment coordinates and location
+names. Triggered from the always-visible **Export CSV** / **Import CSV**
+buttons in the Deployments-tab list panel header (sibling of the
+conditional timeline header, so the controls stay reachable for studies
+where `hasTimestamps === false`).
+
+### Export
+
+Writes one row per deployment with the canonical columns:
+
+```
+deploymentID,locationID,locationName,latitude,longitude
+```
+
+Default filename: `deployments-<study-slug>-<YYYY-MM-DD>.csv`. Rows are
+sorted by `deploymentID` using `Intl.Collator({ numeric: true })` so
+numeric IDs come out as `1, 2, …, 10, 11` rather than lexicographic.
+Null DB values become empty cells. Synthesized `biowatch-geo:`
+`locationID` prefixes are preserved as-is (unlike the CamtrapDP
+exporter which strips them for spec compliance) so the round-trip is
+byte-stable.
+
+### Import (two-call flow)
+
+1. **`deployments:parse-csv-for-import`** — pure read. Loads the CSV
+   via `csv-parser`, fetches the current `deployments` snapshot, and
+   classifies every cell into one of `unchanged | change | warning |
+readonly`. Returns a `PreviewPayload` (see
+   [ipc-api.md](./ipc-api.md#deployments-csv-importexport)) plus
+   aggregate counts (`applyCount`, `cellWarningCount`, `rowSkipCount`).
+   Required column is `deploymentID`; missing it returns
+   `{ error: "Required column 'deploymentID' not found in CSV." }`
+   before the modal opens.
+2. **`deployments:apply-csv-import`** — runs a single Drizzle
+   transaction. Defensive re-validation drops out-of-range coords
+   silently. Coordinate updates apply per `deploymentID`; `locationName`
+   updates propagate to every deployment sharing the resolved
+   `locationID` (matching the inline `set-location-name` semantics).
+   On rollback the modal stays open with an inline error banner.
+
+### Validation rules (per cell)
+
+| Rule | Effect | Tooltip |
+| --- | --- | --- |
+| `deploymentID` empty | row skipped | `deploymentID is required.` |
+| `deploymentID` not in DB | row skipped | `No deployment with this ID in the study.` |
+| `locationID` differs from DB | cell warning | `locationID is read-only. Existing value will be kept; CSV value ignored.` |
+| `latitude` non-numeric | cell warning | `'X' is not a valid number.` |
+| `latitude` ∉ [-90, 90] | cell warning | `Latitude X is outside [-90, 90].` |
+| `longitude` non-numeric | cell warning | `'X' is not a valid number.` |
+| `longitude` ∉ [-180, 180] | cell warning | `Longitude X is outside [-180, 180].` |
+| Duplicate `deploymentID` rows in CSV | earlier change cells → warning | `Overridden by row N below.` |
+| Intra-`locationID` name conflict in CSV | earlier name cells → warning | `Conflicting names for LOC_A; row N below wins.` |
+
+Empty cell semantics: empty = leave existing DB value untouched. There
+is no sentinel for "clear" — clearing remains a per-row action via
+`LocationPopover`. Unknown CSV columns are silently ignored.
+
+### Preview modal UI
+
+Virtualized via `@tanstack/react-virtual` so studies with thousands of
+deployments stay responsive. The three summary tiles double as filter
+toggles:
+
+- **N rows will update** — filters to rows with at least one change cell.
+- **N cells skipped** — filters to rows containing at least one warning cell.
+- **N rows unknown ID** — filters to fully-skipped rows.
+
+Click an active tile to clear; a `Show all` chip appears whenever a
+filter is engaged. Row backgrounds reinforce the state: green for
+change rows, amber for cell-warning rows, gray + opacity for skipped
+rows. Change cells render as `old → new`; warning cells render as
+`db-value · csv-value (strikethrough)` so the user sees both what stays
+and what was rejected.
+
+### Coord/name asymmetry (intentional)
+
+Coordinates are applied **per deploymentID** (matches
+`setDeploymentLatitude` / `setDeploymentLongitude`). `locationName`
+propagates across the resolved `locationID`. This mirrors the existing
+inline-edit behavior, so a CSV doesn't introduce a stricter invariant
+than the rest of the UI. Per a 28-study audit, no real-world study has
+ever exhibited intra-`locationID` coord divergence — the asymmetry
+exists in the schema but doesn't fire in practice.
+
+### Key files
+
+- `src/main/services/export/deploymentsCsv.js` — pure CSV renderer
+- `src/main/services/import/parsers/deploymentsCsv.js` — parser + validator
+- `src/main/services/import/applyDeploymentsCsv.js` — transactional applier
+- `src/main/ipc/deploymentsCsv.js` — IPC handlers (export, parse, apply, pick)
+- `src/renderer/src/deployments/DeploymentsCsvActions.jsx` — Export/Import buttons + flow state
+- `src/renderer/src/deployments/DeploymentsImportPreviewModal.jsx` — virtualized preview modal
+
 ## Image Directory Export
 
 Organizes images into species-named folders.

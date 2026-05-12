@@ -115,6 +115,49 @@ Runs in the sequences worker thread (off the main process). Threatened species a
 
 **Note on `setDeploymentLocationName`:** This updates the `locationName` for ALL deployments with the given `locationID`. When deployments share a `locationID` (grouped deployments), renaming any one updates the entire group.
 
+#### Deployments CSV import/export
+
+| Method                                            | Channel                             | Parameters             | Returns                                                                                |
+| ------------------------------------------------- | ----------------------------------- | ---------------------- | -------------------------------------------------------------------------------------- |
+| `exportDeploymentsCsv(studyId)`                   | `deployments:export-csv`            | studyId                | `{ success, filePath, rowCount }` \| `{ cancelled: true }` \| `{ error }`              |
+| `pickDeploymentsCsvFile()`                        | `deployments:pick-csv-file`         | —                      | `{ filePath }` \| `{ cancelled: true }`                                                |
+| `parseDeploymentsCsvForImport(studyId, filePath)` | `deployments:parse-csv-for-import`  | studyId, filePath      | `{ data: PreviewPayload }` \| `{ error }`                                              |
+| `applyDeploymentsCsvImport(studyId, applyPlan)`   | `deployments:apply-csv-import`      | studyId, applyPlan     | `{ success, summary: { deploymentsUpdated, locationsNamed } }` \| `{ error }`          |
+
+**Flow:** Renderer calls `exportDeploymentsCsv` (opens save dialog) to write a CSV with one row per deployment. To import, the renderer picks a file via `pickDeploymentsCsvFile`, hands the path to `parseDeploymentsCsvForImport` (which validates against the current DB and returns a per-cell preview payload), then on user confirmation passes the derived `applyPlan` to `applyDeploymentsCsvImport` (single SQLite transaction).
+
+**`PreviewPayload` shape:**
+
+```ts
+{
+  filePath: string
+  fileName: string
+  totalRows: number
+  applyCount: number       // rows with at least one 'change' cell
+  cellWarningCount: number // total 'warning' cells
+  rowSkipCount: number     // total 'skipped' rows
+  rows: Array<{
+    rowIndex: number       // 1-based
+    deploymentID: string
+    rowState: 'normal' | 'skipped'
+    rowWarning: string | null
+    columns: {
+      [column: string]: {
+        state: 'unchanged' | 'change' | 'warning' | 'readonly'
+        csvValue: string
+        dbValue: string | number | null
+        appliedValue?: any   // present when state === 'change'
+        warning?: string     // present when state === 'warning'
+      }
+    }
+  }>
+}
+```
+
+**`applyPlan` shape:** `Array<{ deploymentID: string, fields: { latitude?, longitude?, locationName? } }>`. The applier re-validates each value defensively (out-of-range coords are silently dropped) and propagates `locationName` to every deployment sharing the resolved `locationID`, matching `setDeploymentLocationName` semantics.
+
+**Sort order on export:** Rows are sorted by `deploymentID` using `Intl.Collator({ numeric: true })` so numeric IDs come out in human order (`1, 2, …, 10, 11`) rather than lexicographic (`1, 10, 11, 2`). Alphanumeric IDs like `CAM_001, CAM_002, CAM_010` are also handled correctly; UUID IDs receive a deterministic but arbitrary ordering (UUIDs have no human-meaningful order).
+
 ### Locations
 
 | Method                          | Channel                  | Parameters | Returns                |

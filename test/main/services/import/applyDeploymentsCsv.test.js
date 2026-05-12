@@ -81,10 +81,7 @@ describe('applyDeploymentsCsv', () => {
     ])
 
     assert.equal(summary.deploymentsUpdated, 1)
-    const row = await db
-      .select()
-      .from(deployments)
-      .where(eq(deployments.deploymentID, 'CAM_001'))
+    const row = await db.select().from(deployments).where(eq(deployments.deploymentID, 'CAM_001'))
     assert.equal(row[0].latitude, 45.5)
     assert.equal(row[0].longitude, 6.5)
   })
