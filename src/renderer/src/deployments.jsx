@@ -753,7 +753,7 @@ function LocationsList({
       {/* Tab-level actions strip — always visible (sibling of the conditional
           timeline header). Hosts deployments-CSV export/import so the buttons
           stay reachable for studies with hasTimestamps === false. */}
-      <div className="bg-card border-b border-border px-3 py-1.5 flex items-center justify-end gap-1">
+      <div className="bg-card border-b border-border px-3 py-1 flex items-center justify-end">
         <DeploymentsCsvActions studyId={studyId} onApplied={onCsvApplied} />
       </div>
       {hasTimestamps && (
