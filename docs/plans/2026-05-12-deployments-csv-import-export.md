@@ -1,7 +1,5 @@
 # Deployments CSV import/export — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** Add CSV export/import in the Deployments tab so users can bulk-edit `latitude`, `longitude`, and `locationName` for many deployments at once. Includes a preview-table modal with cell-level error highlighting.
 
 **Architecture:** Three pure main-process modules (parse, apply, export) plus one IPC handler module that wires them up. Two new renderer components (`DeploymentsCsvMenu`, `DeploymentsImportPreviewModal`) mounted into `deployments.jsx`'s timeline header. Apply runs as a single SQLite transaction. Renderer is stateless wrt validation — it just renders the preview payload main produces.
