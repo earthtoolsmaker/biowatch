@@ -18,6 +18,7 @@ function SpeciesRow({
   index,
   isBlankEntry,
   isVehicleEntry,
+  isFirstPseudo,
   storedCommonName,
   selectedSpecies,
   palette,
@@ -62,7 +63,9 @@ function SpeciesRow({
 
   const rowContent = (
     <div
-      className="cursor-pointer group hover:bg-blue-50 transition-colors py-2 -mx-3 px-3 first:pt-3 last:pb-3 dark:hover:bg-blue-500/15"
+      className={`cursor-pointer group hover:bg-blue-50 transition-colors py-2 -mx-3 px-3 first:pt-3 last:pb-3 dark:hover:bg-blue-500/15 ${
+        isFirstPseudo ? 'border-t border-border mt-1 pt-3' : ''
+      }`}
       onClick={() => onToggle(species)}
     >
       <div className="flex justify-between mb-1 items-center cursor-pointer gap-2">
@@ -90,15 +93,17 @@ function SpeciesRow({
         </div>
         <span className="text-xs text-muted-foreground flex-shrink-0">{species.count}</span>
       </div>
-      <div className="w-full bg-muted rounded-full h-2">
-        <div
-          className="h-2 rounded-full"
-          style={{
-            width: `${(species.count / totalCount) * 100}%`,
-            backgroundColor: isSelected ? color : '#ccc'
-          }}
-        ></div>
-      </div>
+      {!isPseudoEntry && (
+        <div className="w-full bg-muted rounded-full h-2">
+          <div
+            className="h-2 rounded-full"
+            style={{
+              width: `${(species.count / totalCount) * 100}%`,
+              backgroundColor: isSelected ? color : '#ccc'
+            }}
+          ></div>
+        </div>
+      )}
     </div>
   )
 
@@ -154,7 +159,12 @@ function SpeciesDistribution({
     return result
   }, [data, blankCount, vehicleCount])
 
-  const totalCount = displayData.reduce((sum, item) => sum + item.count, 0)
+  // Normalize bar widths against species-only counts so the bars match
+  // between the Media and Activity tabs. Media adds pseudo-rows for
+  // Blank/Vehicle which would otherwise inflate the denominator and shrink
+  // the species bars relative to Activity. Pseudo-rows render no bar (see
+  // SpeciesRow), so they don't need to participate in this sum.
+  const totalCount = data.reduce((sum, item) => sum + item.count, 0)
 
   // Fetch best image per species for hover tooltips (only when studyId is provided)
   const { data: bestImagesData } = useQuery({
@@ -228,31 +238,42 @@ function SpeciesDistribution({
 
       <div className="flex-1 overflow-y-auto px-3 myscroll" onScroll={handleScroll}>
         <div>
-          {sortSpeciesHumansLast(displayData).map((species, index) => {
-            const isBlankEntry = isBlank(species.scientificName)
-            const isVehicleEntry = isVehicle(species.scientificName)
-            const isPseudo = isBlankEntry || isVehicleEntry
-            const storedCommonName = isPseudo
-              ? null
-              : scientificToCommonMap[species.scientificName] || null
-            return (
-              <SpeciesRow
-                key={species.scientificName || index}
-                species={species}
-                index={index}
-                isBlankEntry={isBlankEntry}
-                isVehicleEntry={isVehicleEntry}
-                scrollSignal={scrollSignal}
-                storedCommonName={storedCommonName}
-                selectedSpecies={selectedSpecies}
-                palette={palette}
-                totalCount={totalCount}
-                speciesImageMap={speciesImageMap}
-                studyId={studyId}
-                onToggle={handleSpeciesToggle}
-              />
+          {(() => {
+            const sorted = sortSpeciesHumansLast(displayData)
+            // Index of the first pseudo-row in the sorted list; used to render a
+            // divider between real species and Blank/Vehicle. Only show the
+            // divider when there's at least one real species above it.
+            const firstPseudoIndex = sorted.findIndex(
+              (s) => isBlank(s.scientificName) || isVehicle(s.scientificName)
             )
-          })}
+            return sorted.map((species, index) => {
+              const isBlankEntry = isBlank(species.scientificName)
+              const isVehicleEntry = isVehicle(species.scientificName)
+              const isPseudo = isBlankEntry || isVehicleEntry
+              const isFirstPseudo = isPseudo && index === firstPseudoIndex && index > 0
+              const storedCommonName = isPseudo
+                ? null
+                : scientificToCommonMap[species.scientificName] || null
+              return (
+                <SpeciesRow
+                  key={species.scientificName || index}
+                  species={species}
+                  index={index}
+                  isBlankEntry={isBlankEntry}
+                  isVehicleEntry={isVehicleEntry}
+                  isFirstPseudo={isFirstPseudo}
+                  scrollSignal={scrollSignal}
+                  storedCommonName={storedCommonName}
+                  selectedSpecies={selectedSpecies}
+                  palette={palette}
+                  totalCount={totalCount}
+                  speciesImageMap={speciesImageMap}
+                  studyId={studyId}
+                  onToggle={handleSpeciesToggle}
+                />
+              )
+            })
+          })()}
         </div>
       </div>
     </div>
