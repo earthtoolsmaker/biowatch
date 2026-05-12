@@ -79,18 +79,31 @@ export default function DeploymentsCsvActions({ studyId, onApplied }) {
   }, [])
 
   const btnClass =
-    'inline-flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent rounded'
+    'inline-flex items-center gap-1.5 px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors'
 
   return (
     <>
-      <button onClick={handleExport} title="Export deployments CSV" className={btnClass}>
-        <Download size={12} />
-        Export CSV
-      </button>
-      <button onClick={handleImport} title="Import deployments CSV" className={btnClass}>
-        <Upload size={12} />
-        Import CSV
-      </button>
+      <div className="inline-flex items-center rounded border border-border overflow-hidden bg-card">
+        <button
+          onClick={handleExport}
+          title="Export deployments CSV"
+          className={btnClass}
+          aria-label="Export deployments CSV"
+        >
+          <Download size={12} />
+          Export CSV
+        </button>
+        <div className="w-px self-stretch bg-border" aria-hidden="true" />
+        <button
+          onClick={handleImport}
+          title="Import deployments CSV"
+          className={btnClass}
+          aria-label="Import deployments CSV"
+        >
+          <Upload size={12} />
+          Import CSV
+        </button>
+      </div>
 
       {isParsing && (
         <div className="fixed inset-0 z-[1900] flex items-center justify-center bg-black/20 text-xs text-white">
