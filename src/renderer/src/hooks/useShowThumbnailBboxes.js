@@ -15,9 +15,14 @@ function readFromStorage(studyId) {
 /**
  * Per-study "show bboxes on thumbnails" toggle.
  *
- * Backed by localStorage (UI-only preference) and broadcast via the React
- * Query cache so multiple consumers (Gallery, GalleryDisplayStrip) stay in
- * sync without prop drilling.
+ * UI-only preference — persisted to `localStorage` under
+ * `showBboxes:${studyId}`, not the SQLite study database. Intentionally
+ * different from {@link useSequenceGap}, which round-trips through IPC to
+ * persist in the study DB; thumbnail-bbox visibility is a per-renderer
+ * display preference with no need for main-process awareness.
+ *
+ * Broadcast via the React Query cache so multiple consumers (Gallery,
+ * GalleryDisplayStrip) stay in sync without prop drilling.
  *
  * @param {string} studyId
  * @returns {{ showThumbnailBboxes: boolean, setShowThumbnailBboxes: (next: boolean | ((prev: boolean) => boolean)) => void }}

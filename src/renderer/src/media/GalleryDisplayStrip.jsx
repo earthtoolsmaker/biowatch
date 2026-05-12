@@ -15,6 +15,9 @@ export default function GalleryDisplayStrip({ studyId }) {
   const { sequenceGap, setSequenceGap } = useSequenceGap(studyId)
   const { showThumbnailBboxes, setShowThumbnailBboxes } = useShowThumbnailBboxes(studyId)
 
+  // On IPC failure we fall back to `false` (toggle hidden), which is the
+  // safer default than showing a button that does nothing — matches the
+  // resilience pattern in useSequenceGap.
   const { data: studyHasBboxes = false } = useQuery({
     queryKey: ['studyHasAnyBboxes', studyId],
     queryFn: async () => {
@@ -23,7 +26,9 @@ export default function GalleryDisplayStrip({ studyId }) {
       return response.data
     },
     enabled: !!studyId,
-    staleTime: Infinity
+    staleTime: Infinity,
+    retry: 1,
+    throwOnError: false
   })
 
   return (
