@@ -14,6 +14,7 @@ import HideLeafletAttribution from './ui/HideLeafletAttribution'
 import SkeletonDeploymentsList from './ui/SkeletonDeploymentsList'
 import { resolveSelectedDeployment, withDeploymentParam } from './deployments/urlState'
 import DeploymentDetailPane from './deployments/DeploymentDetailPane'
+import DeploymentsCsvActions from './deployments/DeploymentsCsvActions'
 import EditableLocationName from './deployments/EditableLocationName'
 import { groupDeploymentsByLocation } from './deployments/groupDeployments'
 import Sparkline from './deployments/Sparkline'
@@ -545,7 +546,8 @@ function LocationsList({
   setSelectedLocation,
   onRenameLocation,
   onSectionClick,
-  onPeriodCountChange
+  onPeriodCountChange,
+  onCsvApplied
 }) {
   // Default true so legacy responses (and any external caller) still get the
   // timeline; only the explicit `false` flag from getDeploymentsActivity hides
@@ -748,6 +750,12 @@ function LocationsList({
 
   return (
     <div ref={containerRef} className="relative flex-1 flex flex-col overflow-hidden min-h-0">
+      {/* Tab-level actions strip — always visible (sibling of the conditional
+          timeline header). Hosts deployments-CSV export/import so the buttons
+          stay reachable for studies with hasTimestamps === false. */}
+      <div className="bg-card border-b border-border px-3 py-1.5 flex items-center justify-end gap-1">
+        <DeploymentsCsvActions studyId={studyId} onApplied={onCsvApplied} />
+      </div>
       {hasTimestamps && (
         <header className="relative bg-card z-10 py-2 border-b border-border flex items-stretch">
           {hoverX != null && hoverBucket && (
@@ -1053,6 +1061,13 @@ export default function Deployments({ studyId }) {
     [studyId, queryClient]
   )
 
+  const onCsvApplied = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['deploymentLocations', studyId] })
+    queryClient.invalidateQueries({ queryKey: ['deploymentsAll', studyId] })
+    queryClient.invalidateQueries({ queryKey: ['deploymentsActivity', studyId] })
+    queryClient.invalidateQueries({ queryKey: ['heatmapData', studyId] })
+  }, [studyId, queryClient])
+
   const handleEnterPlaceMode = useCallback(
     (location) => {
       // The popover only opens when a deployment is selected, so the
@@ -1189,6 +1204,7 @@ export default function Deployments({ studyId }) {
                   onRenameLocation={onRenameLocation}
                   onSectionClick={handleSectionClick}
                   onPeriodCountChange={setPeriodCount}
+                  onCsvApplied={onCsvApplied}
                 />
               ) : null}
             </Panel>
