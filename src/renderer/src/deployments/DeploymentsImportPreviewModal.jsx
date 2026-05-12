@@ -123,11 +123,30 @@ export default function DeploymentsImportPreviewModal({
         return EDITABLE_KEYS.some((k) => row.columns[k]?.state === 'change')
       })
     }
+    if (filter === 'warnings') {
+      return preview.rows.filter((row) => {
+        if (row.rowState !== 'normal') return false
+        return Object.values(row.columns).some((c) => c?.state === 'warning')
+      })
+    }
     if (filter === 'skipped') {
       return preview.rows.filter((row) => row.rowState === 'skipped')
     }
     return preview.rows
   }, [preview, filter])
+
+  // Rows (not cells) with at least one warning. Used to disable the
+  // warnings-filter tile when there's nothing to show, and to label it
+  // honestly: cellWarningCount is per-cell, this is per-row.
+  const rowsWithWarningCount = useMemo(() => {
+    if (!preview) return 0
+    let n = 0
+    for (const row of preview.rows) {
+      if (row.rowState !== 'normal') continue
+      if (Object.values(row.columns).some((c) => c?.state === 'warning')) n++
+    }
+    return n
+  }, [preview])
 
   const rowVirtualizer = useVirtualizer({
     count: filteredRows.length,
@@ -188,9 +207,22 @@ export default function DeploymentsImportPreviewModal({
           >
             <ArrowLeftRight size={12} /> {preview.applyCount} rows will update
           </button>
-          <span className="inline-flex items-center gap-1 px-2 py-1 text-amber-700 dark:text-amber-300">
+          <button
+            onClick={() => toggleFilter('warnings')}
+            disabled={rowsWithWarningCount === 0}
+            title={
+              filter === 'warnings'
+                ? 'Click to show all rows'
+                : 'Click to show only rows with cell warnings'
+            }
+            className={`inline-flex items-center gap-1 px-2 py-1 rounded border transition-colors disabled:cursor-default disabled:opacity-60 ${
+              filter === 'warnings'
+                ? 'bg-amber-100 dark:bg-amber-500/20 border-amber-300 dark:border-amber-500/40 text-amber-800 dark:text-amber-200'
+                : 'border-transparent hover:bg-accent text-amber-700 dark:text-amber-300'
+            }`}
+          >
             <AlertTriangle size={12} /> {preview.cellWarningCount} cells skipped
-          </span>
+          </button>
           <button
             onClick={() => toggleFilter('skipped')}
             disabled={preview.rowSkipCount === 0}
