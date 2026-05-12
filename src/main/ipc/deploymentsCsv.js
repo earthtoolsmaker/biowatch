@@ -1,7 +1,6 @@
 import { app, dialog, ipcMain } from 'electron'
 import { existsSync } from 'fs'
 import fs from 'fs/promises'
-import { asc } from 'drizzle-orm'
 import log from 'electron-log'
 
 import {
@@ -46,9 +45,15 @@ export function registerDeploymentsCsvIPCHandlers() {
           longitude: deployments.longitude
         })
         .from(deployments)
-        .orderBy(asc(deployments.deploymentID))
 
       await closeStudyDatabase(studyId, dbPath)
+
+      // Natural sort by deploymentID so numeric IDs like 2 come before 10,
+      // while still grouping alphanumeric IDs (CAM_001 < CAM_002 < CAM_010,
+      // A01 < A02 < A10 < B01). SQLite's lexicographic ORDER BY would put
+      // "10" before "2".
+      const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' })
+      rows.sort((a, b) => collator.compare(a.deploymentID ?? '', b.deploymentID ?? ''))
 
       const result = await dialog.showSaveDialog({
         title: 'Export deployments CSV',
