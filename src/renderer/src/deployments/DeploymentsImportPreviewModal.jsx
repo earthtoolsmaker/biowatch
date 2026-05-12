@@ -1,4 +1,4 @@
-import { X, AlertTriangle, Ban, ArrowLeftRight } from 'lucide-react'
+import { X, AlertTriangle, Ban, ArrowRight, ArrowLeftRight } from 'lucide-react'
 import { useEffect, useMemo } from 'react'
 
 const FIELD_LABELS = {
@@ -11,23 +11,37 @@ const FIELD_LABELS = {
 
 const EDITABLE_KEYS = ['locationName', 'latitude', 'longitude']
 
+function formatCellValue(value) {
+  if (value === null || value === undefined || value === '') return '—'
+  return String(value)
+}
+
 function CellContent({ col }) {
   if (col.state === 'warning') {
+    // Cell was rejected; DB value stays, CSV value shown crossed-out so user
+    // sees what they tried to set and what will be kept.
     return (
       <span
         title={col.warning}
         className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-300"
       >
-        <AlertTriangle size={12} />
-        <span className="tabular-nums">{col.csvValue || '—'}</span>
+        <AlertTriangle size={12} className="flex-shrink-0" />
+        <span className="tabular-nums">{formatCellValue(col.dbValue)}</span>
+        <span className="text-muted-foreground">·</span>
+        <span className="tabular-nums line-through opacity-70">
+          {formatCellValue(col.csvValue)}
+        </span>
       </span>
     )
   }
   if (col.state === 'change') {
     return (
       <span className="inline-flex items-center gap-1 font-medium text-green-700 dark:text-green-300">
-        <ArrowLeftRight size={12} />
-        <span className="tabular-nums">{col.csvValue}</span>
+        <span className="tabular-nums line-through opacity-70 text-muted-foreground font-normal">
+          {formatCellValue(col.dbValue)}
+        </span>
+        <ArrowRight size={12} className="flex-shrink-0" />
+        <span className="tabular-nums">{formatCellValue(col.csvValue)}</span>
       </span>
     )
   }
@@ -43,6 +57,22 @@ function CellContent({ col }) {
       {String(display)}
     </span>
   )
+}
+
+function rowBackgroundClass(row) {
+  if (row.rowState === 'skipped') {
+    return 'bg-muted/40 dark:bg-muted/30 opacity-60'
+  }
+  const editableKeys = ['locationName', 'latitude', 'longitude']
+  const hasChange = editableKeys.some((k) => row.columns[k]?.state === 'change')
+  if (hasChange) {
+    return 'bg-green-50 dark:bg-green-500/10'
+  }
+  const hasWarning = editableKeys.some((k) => row.columns[k]?.state === 'warning')
+  if (hasWarning) {
+    return 'bg-amber-50 dark:bg-amber-500/5'
+  }
+  return ''
 }
 
 /**
@@ -147,9 +177,7 @@ export default function DeploymentsImportPreviewModal({
               {preview.rows.map((row) => (
                 <tr
                   key={row.rowIndex}
-                  className={`border-t border-border ${
-                    row.rowState === 'skipped' ? 'opacity-50' : ''
-                  }`}
+                  className={`border-t border-border ${rowBackgroundClass(row)}`}
                 >
                   <td className="px-2 py-1.5 text-muted-foreground">
                     {row.rowState === 'skipped' ? (
@@ -173,11 +201,19 @@ export default function DeploymentsImportPreviewModal({
 
         {/* Footer */}
         <div className="flex items-center justify-between px-4 py-3 border-t border-border">
-          <div className="text-[11px] text-muted-foreground">
-            <span className="text-green-700 dark:text-green-300">⇆</span> change &nbsp;
-            <span className="text-amber-700 dark:text-amber-300">⚠</span> warning (cell skipped)
-            &nbsp;
-            <span className="text-muted-foreground">⊝</span> row skipped
+          <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block w-3 h-3 rounded-sm bg-green-50 dark:bg-green-500/10 border border-green-300/60 dark:border-green-500/30" />
+              will update
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block w-3 h-3 rounded-sm bg-amber-50 dark:bg-amber-500/5 border border-amber-300/60 dark:border-amber-500/30" />
+              cell warning
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block w-3 h-3 rounded-sm bg-muted/40 dark:bg-muted/30 border border-border" />
+              skipped
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <button
