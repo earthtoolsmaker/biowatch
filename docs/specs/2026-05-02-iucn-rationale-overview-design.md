@@ -2,7 +2,7 @@
 
 ## Goal
 
-Surface the *why* behind a species' IUCN threat status — i.e. the IUCN Red List **rationale** prose — for species classified as Vulnerable (VU), Endangered (EN), or Critically Endangered (CR), starting from the species hover card on the Overview tab.
+Surface the _why_ behind a species' IUCN threat status — i.e. the IUCN Red List **rationale** prose — for species classified as Vulnerable (VU), Endangered (EN), or Critically Endangered (CR), starting from the species hover card on the Overview tab.
 
 ## Two-phase plan
 
@@ -106,7 +106,7 @@ Specifics:
 - The "Why threatened?" block uses a left-edge color bar matching `IucnBadge`'s palette for the species' category (yellow VU, orange EN, red CR), and a slightly heavier text weight than the body to signal importance.
 - The block as a whole is the link target — clicking anywhere in it opens `https://www.iucnredlist.org/species/<iucnTaxonId>/<iucnAssessmentId>` in the user's default browser. Implemented as a regular `<a target="_blank" rel="noopener noreferrer">`; the existing `setWindowOpenHandler` in `src/main/app/lifecycle.js` routes external URLs through `shell.openExternal`, same as the existing "Read on Wikipedia" link.
 - Cursor `pointer`, hover state lightens the left-edge bar, focus-visible ring for keyboard users.
-- The Wikipedia "About" section is **unchanged** when `iucnTaxonId` is present — full body text, expand/collapse "Show more" toggle, "Read on Wikipedia" link all behave identically to today. Both the IUCN CTA and the Wikipedia blurb stay useful: the CTA explains *why threatened*, the Wikipedia blurb gives general species context.
+- The Wikipedia "About" section is **unchanged** when `iucnTaxonId` is present — full body text, expand/collapse "Show more" toggle, "Read on Wikipedia" link all behave identically to today. Both the IUCN CTA and the Wikipedia blurb stay useful: the CTA explains _why threatened_, the Wikipedia blurb gives general species context.
 - For LC/NT/DD/NE/EW/EX species (no `iucnTaxonId`): tooltip renders identically to today — only the IUCN CTA is conditional; the rest of the layout doesn't depend on threat status.
 
 ### Acceptance criteria — Phase 1
@@ -135,11 +135,11 @@ Specifics:
 
 The IUCN bulk export is account-bound and not redistributable, so only contributors who have downloaded their own copy can refresh the IUCN link IDs. The committed `data.json` is the canonical artifact for everyone else.
 
-| Action | Requires | Who can do it |
-|---|---|---|
-| Use the committed `data.json` (run the app, ship a build) | Nothing | Anyone — clone the repo and you're done |
-| Refresh GBIF + Wikipedia fields (`npm run build:species-info`) | Network access | Anyone — the script hits live APIs that don't need auth |
-| Refresh IUCN link IDs (`npm run iucn-link-id:build`) | A logged-in IUCN account that requested a bulk export, with the resulting folder placed under `data/` | Only contributors with their own download |
+| Action                                                         | Requires                                                                                              | Who can do it                                           |
+| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| Use the committed `data.json` (run the app, ship a build)      | Nothing                                                                                               | Anyone — clone the repo and you're done                 |
+| Refresh GBIF + Wikipedia fields (`npm run build:species-info`) | Network access                                                                                        | Anyone — the script hits live APIs that don't need auth |
+| Refresh IUCN link IDs (`npm run iucn-link-id:build`)           | A logged-in IUCN account that requested a bulk export, with the resulting folder placed under `data/` | Only contributors with their own download               |
 
 Recommended cadence: rerun `iucn-link-id:build` when IUCN publishes a new Red List version (typically once or twice a year — versions are tagged like "2024-1", "2024-2", "2025-1"). The two `_iucnSourceVersion` / `_iucnRefreshedAt` metadata fields in `data.json` make it easy to see at a glance whether a refresh is overdue. New species added to the camera-trap dictionary between IUCN refreshes simply won't have an `iucnTaxonId` in the meantime — the hover card falls back to its non-threatened layout, and a maintainer with the export catches them up on the next refresh.
 

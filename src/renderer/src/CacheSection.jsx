@@ -46,22 +46,22 @@ export default function CacheSection({ studyId }) {
 
   return (
     <section className="py-6">
-      <h2 className="text-base font-medium text-gray-900 mb-1">Cache</h2>
-      <p className="text-sm text-gray-500 mb-4">
+      <h2 className="text-base font-medium text-foreground mb-1">Cache</h2>
+      <p className="text-sm text-muted-foreground mb-4">
         Cached transcoded videos, thumbnails, and remote images. Cleared files are regenerated
         automatically when needed.
       </p>
 
       <div className="flex items-center justify-between py-2">
-        <span className="text-sm text-gray-700">Total used</span>
+        <span className="text-sm text-foreground">Total used</span>
         <div className="flex items-center gap-3">
-          <span className="text-sm tabular-nums text-gray-900">
+          <span className="text-sm tabular-nums text-foreground">
             {isLoading ? '…' : formatRow(total)}
           </span>
           <button
             onClick={handleClear}
             disabled={isLoading || isEmpty || clearing}
-            className="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-foreground bg-card border border-border rounded-md hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {clearing ? (
               <>
@@ -76,10 +76,12 @@ export default function CacheSection({ studyId }) {
       </div>
 
       {lastResult?.error && (
-        <p className="text-sm text-red-600 mt-1">Failed to clear cache: {lastResult.error}</p>
+        <p className="text-sm text-red-600 mt-1 dark:text-red-400">
+          Failed to clear cache: {lastResult.error}
+        </p>
       )}
       {lastResult && !lastResult.error && (
-        <p className="text-sm text-green-700 mt-1">
+        <p className="text-sm text-green-700 mt-1 dark:text-green-400">
           Cleared {formatBytes(lastResult.freedBytes)} · {lastResult.clearedFiles.toLocaleString()}{' '}
           files
         </p>
@@ -89,7 +91,7 @@ export default function CacheSection({ studyId }) {
         <button
           onClick={() => setExpanded((v) => !v)}
           disabled={clearing}
-          className="cursor-pointer flex items-center gap-1 mt-3 text-sm text-gray-500 hover:text-gray-700 disabled:opacity-50"
+          className="cursor-pointer flex items-center gap-1 mt-3 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
         >
           {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
           {expanded ? 'Hide breakdown' : 'Show breakdown'}
@@ -97,11 +99,11 @@ export default function CacheSection({ studyId }) {
       )}
 
       {expanded && breakdown && (
-        <div className="mt-2 pl-5 divide-y divide-gray-100">
+        <div className="mt-2 pl-5 divide-y divide-border">
           {Object.keys(BREAKDOWN_LABELS).map((key) => (
             <div key={key} className="flex items-center justify-between py-1.5">
-              <span className="text-sm text-gray-700">{BREAKDOWN_LABELS[key]}</span>
-              <span className="text-sm tabular-nums text-gray-900">
+              <span className="text-sm text-foreground">{BREAKDOWN_LABELS[key]}</span>
+              <span className="text-sm tabular-nums text-foreground">
                 {formatRow(breakdown[key])}
               </span>
             </div>

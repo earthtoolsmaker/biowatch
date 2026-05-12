@@ -202,7 +202,7 @@ function DrawingOverlay({ imageRef, containerRef, onComplete, zoomTransform }) {
       )}
 
       {/* Draw mode indicator */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 bg-blue-500 text-white px-3 py-1 rounded-full text-sm font-medium shadow-lg pointer-events-none">
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 bg-blue-500 text-white px-3 py-1 rounded-full text-sm font-medium shadow-lg pointer-events-none dark:bg-blue-400">
         Click and drag to draw a box
       </div>
     </>
@@ -1023,12 +1023,12 @@ function ImageModal({
     >
       <div className="relative max-w-7xl w-full h-full flex items-center justify-center">
         <div
-          className="bg-white rounded-lg overflow-hidden shadow-2xl max-h-[90vh] flex flex-col max-w-full"
+          className="bg-card rounded-lg overflow-hidden shadow-2xl max-h-[90vh] flex flex-col max-w-full"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Top toolbar - nav + sequence + timestamp on the left, actions on the right */}
-          <div className="flex items-center justify-between gap-3 px-3 py-2 border-b border-gray-200 bg-white">
-            <div className="flex items-center gap-2 min-w-0 flex-1 text-xs text-gray-500">
+          <div className="flex items-center justify-between gap-3 px-3 py-2 border-b border-border bg-card">
+            <div className="flex items-center gap-2 min-w-0 flex-1 text-xs text-muted-foreground">
               <button
                 onClick={(e) => {
                   e.stopPropagation()
@@ -1041,7 +1041,7 @@ function ImageModal({
                   isDrawMode ||
                   (!hasPreviousInSequence && !hasPrevious)
                 }
-                className="w-8 h-8 rounded-md flex items-center justify-center text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                className="w-8 h-8 rounded-md flex items-center justify-center text-muted-foreground hover:bg-accent disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex-shrink-0"
                 aria-label="Previous image"
                 title="Previous (←)"
               >
@@ -1059,14 +1059,14 @@ function ImageModal({
                   isDrawMode ||
                   (!hasNextInSequence && !hasNext)
                 }
-                className="w-8 h-8 rounded-md flex items-center justify-center text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                className="w-8 h-8 rounded-md flex items-center justify-center text-muted-foreground hover:bg-accent disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex-shrink-0"
                 aria-label="Next image"
                 title="Next (→)"
               >
                 <ChevronRight size={18} />
               </button>
               {sequence && sequence.items.length > 1 && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 font-medium text-[11px] flex-shrink-0">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-muted-foreground font-medium text-[11px] flex-shrink-0">
                   <Layers size={11} />
                   {sequenceIndex + 1} / {sequence.items.length}
                 </span>
@@ -1079,7 +1079,7 @@ function ImageModal({
                       value={inlineTimestamp}
                       onChange={(e) => setInlineTimestamp(e.target.value)}
                       onKeyDown={handleInlineKeyDown}
-                      className="text-xs text-gray-700 border border-gray-300 rounded px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[180px]"
+                      className="text-xs text-foreground border border-border rounded px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[180px]"
                       autoFocus
                       disabled={isSaving}
                       placeholder="Enter date/time..."
@@ -1087,7 +1087,7 @@ function ImageModal({
                     <button
                       onClick={handleInlineSave}
                       disabled={isSaving}
-                      className="text-blue-600 hover:text-blue-700 disabled:opacity-50 p-0.5"
+                      className="text-blue-600 hover:text-blue-700 disabled:opacity-50 p-0.5 dark:text-blue-400 dark:hover:text-blue-400"
                       title="Save (Enter)"
                     >
                       <Check size={14} />
@@ -1095,7 +1095,7 @@ function ImageModal({
                     <button
                       onClick={handleInlineCancel}
                       disabled={isSaving}
-                      className="text-gray-400 hover:text-gray-600 disabled:opacity-50 p-0.5"
+                      className="text-muted-foreground hover:text-muted-foreground disabled:opacity-50 p-0.5"
                       title="Cancel (Escape)"
                     >
                       <X size={14} />
@@ -1104,7 +1104,7 @@ function ImageModal({
                 ) : (
                   <>
                     <span
-                      className="cursor-pointer hover:text-gray-900 hover:underline truncate"
+                      className="cursor-pointer hover:text-foreground hover:underline truncate"
                       onClick={handleInlineEdit}
                       title="Click to edit timestamp"
                     >
@@ -1114,14 +1114,14 @@ function ImageModal({
                     </span>
                     <button
                       onClick={handleInlineEdit}
-                      className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 flex-shrink-0"
+                      className="text-muted-foreground hover:text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity p-0.5 flex-shrink-0"
                       title="Edit timestamp inline"
                     >
                       <Pencil size={11} />
                     </button>
                     <button
                       onClick={() => setShowDatePicker(true)}
-                      className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 flex-shrink-0"
+                      className="text-muted-foreground hover:text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity p-0.5 flex-shrink-0"
                       title="Open date picker"
                     >
                       <Calendar size={11} />
@@ -1138,9 +1138,9 @@ function ImageModal({
                   </div>
                 )}
               </div>
-              {error && <span className="text-[11px] text-red-500">{error}</span>}
+              {error && <span className="text-[11px] text-red-500 dark:text-red-400">{error}</span>}
               {isSaving && (
-                <span className="text-[11px] text-gray-400 animate-pulse">Saving...</span>
+                <span className="text-[11px] text-muted-foreground animate-pulse">Saving...</span>
               )}
             </div>
 
@@ -1152,8 +1152,8 @@ function ImageModal({
                 }}
                 className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
                   isFavorite
-                    ? 'text-red-600 bg-red-50 hover:bg-red-100'
-                    : 'text-gray-500 hover:bg-gray-100'
+                    ? 'text-red-600 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-500/20 dark:bg-red-500/15'
+                    : 'text-muted-foreground hover:bg-accent'
                 }`}
                 aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
                 title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
@@ -1161,7 +1161,7 @@ function ImageModal({
                 <Heart size={18} fill={isFavorite ? 'currentColor' : 'none'} />
               </button>
 
-              {hasBboxes && <div className="w-px h-5 bg-gray-200 mx-1" />}
+              {hasBboxes && <div className="w-px h-5 bg-muted mx-1" />}
 
               {hasBboxes && (
                 <button
@@ -1171,8 +1171,8 @@ function ImageModal({
                   }}
                   className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
                     showBboxes
-                      ? 'text-blue-600 bg-blue-50 hover:bg-blue-100'
-                      : 'text-gray-500 hover:bg-gray-100'
+                      ? 'text-blue-600 bg-blue-50 hover:bg-blue-100 dark:text-blue-400 dark:hover:bg-blue-500/25 dark:bg-blue-500/15'
+                      : 'text-muted-foreground hover:bg-accent'
                   }`}
                   aria-label={showBboxes ? 'Hide bounding boxes' : 'Show bounding boxes'}
                   title={`${showBboxes ? 'Hide' : 'Show'} bounding boxes (B)`}
@@ -1189,8 +1189,8 @@ function ImageModal({
                 }}
                 className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
                   showShortcuts
-                    ? 'text-blue-600 bg-blue-50 hover:bg-blue-100'
-                    : 'text-gray-500 hover:bg-gray-100'
+                    ? 'text-blue-600 bg-blue-50 hover:bg-blue-100 dark:text-blue-400 dark:hover:bg-blue-500/25 dark:bg-blue-500/15'
+                    : 'text-muted-foreground hover:bg-accent'
                 }`}
                 aria-label="Toggle keyboard shortcuts"
                 aria-pressed={showShortcuts}
@@ -1207,7 +1207,7 @@ function ImageModal({
                         e.stopPropagation()
                         zoomIn()
                       }}
-                      className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors"
+                      className="w-9 h-9 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-accent transition-colors"
                       aria-label="Zoom in"
                       title="Zoom in (+)"
                     >
@@ -1221,13 +1221,13 @@ function ImageModal({
                           zoomOut()
                         }}
                         disabled={zoomTransform.scale <= 1}
-                        className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        className="w-9 h-9 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-accent disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                         aria-label="Zoom out"
                         title="Zoom out (-)"
                       >
                         <ZoomOut size={18} />
                       </button>
-                      <span className="text-xs text-gray-600 font-medium min-w-[2.75rem] text-center tabular-nums">
+                      <span className="text-xs text-muted-foreground font-medium min-w-[2.75rem] text-center tabular-nums">
                         {Math.round(zoomTransform.scale * 100)}%
                       </span>
                       <button
@@ -1236,7 +1236,7 @@ function ImageModal({
                           zoomIn()
                         }}
                         disabled={zoomTransform.scale >= 5}
-                        className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        className="w-9 h-9 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-accent disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                         aria-label="Zoom in"
                         title="Zoom in (+)"
                       >
@@ -1247,7 +1247,7 @@ function ImageModal({
                           e.stopPropagation()
                           resetZoom()
                         }}
-                        className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors"
+                        className="w-9 h-9 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-accent transition-colors"
                         aria-label="Reset zoom"
                         title="Reset zoom (0)"
                       >
@@ -1258,11 +1258,11 @@ function ImageModal({
                 </>
               )}
 
-              <div className="w-px h-5 bg-gray-200 mx-1" />
+              <div className="w-px h-5 bg-muted mx-1" />
 
               <button
                 onClick={onClose}
-                className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors"
+                className="w-9 h-9 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-accent transition-colors"
                 aria-label="Close modal"
                 title="Close (Esc)"
               >
@@ -1303,48 +1303,53 @@ function ImageModal({
               {isVideoMedia(media) ? (
                 // Transcoding states
                 transcodeState === 'checking' ? (
-                  <div className="flex flex-col items-center justify-center p-8 text-gray-500 min-h-[300px]">
-                    <Loader2 size={48} className="animate-spin text-blue-500" />
+                  <div className="flex flex-col items-center justify-center p-8 text-muted-foreground min-h-[300px]">
+                    <Loader2 size={48} className="animate-spin text-blue-500 dark:text-blue-400" />
                     <span className="mt-4 text-lg font-medium">Checking video format...</span>
                   </div>
                 ) : transcodeState === 'transcoding' ? (
-                  <div className="flex flex-col items-center justify-center p-8 text-gray-500 min-h-[300px]">
+                  <div className="flex flex-col items-center justify-center p-8 text-muted-foreground min-h-[300px]">
                     <div className="relative">
-                      <Loader2 size={64} className="animate-spin text-blue-500" />
+                      <Loader2
+                        size={64}
+                        className="animate-spin text-blue-500 dark:text-blue-400"
+                      />
                       <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="text-sm font-bold text-blue-600">
+                        <span className="text-sm font-bold text-blue-600 dark:text-blue-400">
                           {transcodeProgress}%
                         </span>
                       </div>
                     </div>
                     <span className="mt-4 text-lg font-medium">Converting video...</span>
-                    <span className="mt-2 text-sm text-gray-400">
+                    <span className="mt-2 text-sm text-muted-foreground">
                       This format requires conversion for browser playback
                     </span>
                     {/* Progress bar */}
-                    <div className="mt-4 w-64 h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div className="mt-4 w-64 h-2 bg-muted rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-blue-500 transition-all duration-300"
+                        className="h-full bg-blue-500 transition-all duration-300 dark:bg-blue-400"
                         style={{ width: `${transcodeProgress}%` }}
                       />
                     </div>
-                    <span className="mt-2 text-xs text-gray-400">{media.fileName}</span>
+                    <span className="mt-2 text-xs text-muted-foreground">{media.fileName}</span>
                   </div>
                 ) : transcodeState === 'error' ? (
-                  <div className="flex flex-col items-center justify-center p-8 text-gray-500 min-h-[300px]">
-                    <Play size={64} className="text-red-400" />
-                    <span className="mt-4 text-lg font-medium text-red-500">Conversion failed</span>
-                    <span className="mt-2 text-sm text-gray-400">{transcodeError}</span>
-                    <span className="mt-1 text-xs text-gray-400">{media.fileName}</span>
+                  <div className="flex flex-col items-center justify-center p-8 text-muted-foreground min-h-[300px]">
+                    <Play size={64} className="text-red-400 dark:text-red-300" />
+                    <span className="mt-4 text-lg font-medium text-red-500 dark:text-red-400">
+                      Conversion failed
+                    </span>
+                    <span className="mt-2 text-sm text-muted-foreground">{transcodeError}</span>
+                    <span className="mt-1 text-xs text-muted-foreground">{media.fileName}</span>
                   </div>
                 ) : videoError && transcodeState !== 'ready' ? (
-                  <div className="flex flex-col items-center justify-center p-8 text-gray-500 min-h-[300px]">
+                  <div className="flex flex-col items-center justify-center p-8 text-muted-foreground min-h-[300px]">
                     <Play size={64} />
                     <span className="mt-4 text-lg font-medium">Video</span>
-                    <span className="mt-2 text-sm text-gray-400">
+                    <span className="mt-2 text-sm text-muted-foreground">
                       Format not supported by browser
                     </span>
-                    <span className="mt-1 text-xs text-gray-400">{media.fileName}</span>
+                    <span className="mt-1 text-xs text-muted-foreground">{media.fileName}</span>
                   </div>
                 ) : (
                   <div ref={videoContainerRef} className="relative">
@@ -1407,7 +1412,7 @@ function ImageModal({
                   </div>
                 )
               ) : imageError ? (
-                <div className="flex flex-col items-center justify-center bg-gray-800 text-gray-400 aspect-[4/3] min-w-[70vw] max-h-[calc(90vh-152px)]">
+                <div className="flex flex-col items-center justify-center bg-gray-800 text-muted-foreground aspect-[4/3] min-w-[70vw] max-h-[calc(90vh-152px)]">
                   <CameraOff size={128} />
                   <span className="mt-4 text-lg font-medium">Image not available</span>
                   <span className="mt-2 text-sm">{media.fileName}</span>
@@ -1530,10 +1535,10 @@ function ImageModal({
           </div>
 
           {/* Footer - filename + deployment link */}
-          <div className="px-4 py-2.5 bg-gray-50 flex-shrink-0 border-t border-gray-200 text-xs text-gray-600">
+          <div className="px-4 py-2.5 bg-card flex-shrink-0 border-t border-border text-xs text-muted-foreground">
             <div className="flex items-center gap-3">
               {media.fileName && (
-                <span className="font-mono text-[11px] text-gray-400 truncate min-w-0 flex-1">
+                <span className="font-mono text-[11px] text-muted-foreground truncate min-w-0 flex-1">
                   {media.fileName}
                 </span>
               )}
@@ -1550,10 +1555,12 @@ function ImageModal({
             </div>
 
             {classificationUpdatePending && (
-              <p className="text-[11px] text-blue-500 mt-1">Updating classification...</p>
+              <p className="text-[11px] text-blue-500 mt-1 dark:text-blue-400">
+                Updating classification...
+              </p>
             )}
             {classificationUpdateError && (
-              <p className="text-[11px] text-red-500 mt-1">
+              <p className="text-[11px] text-red-500 mt-1 dark:text-red-400">
                 Error: {classificationUpdateError?.message || 'Failed to update'}
               </p>
             )}
@@ -1579,10 +1586,10 @@ function GalleryControls({
   // Collapsed state: tiny chevron on the right
   if (!isExpanded) {
     return (
-      <div className="flex items-center justify-end px-3 py-1 border-b border-gray-200 flex-shrink-0">
+      <div className="flex items-center justify-end px-3 py-1 border-b border-border flex-shrink-0">
         <button
           onClick={onToggleExpanded}
-          className="p-1 text-gray-300 hover:text-gray-400 hover:bg-gray-100 rounded transition-colors"
+          className="p-1 text-muted-foreground hover:text-muted-foreground hover:bg-accent rounded transition-colors"
           title="Show gallery controls"
         >
           <ChevronDown size={14} />
@@ -1593,7 +1600,7 @@ function GalleryControls({
 
   // Expanded state: full controls with chevron-up on the right
   return (
-    <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-gray-200 flex-shrink-0">
+    <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border flex-shrink-0">
       {/* Sequence Gap Slider */}
       <SequenceGapSlider value={sequenceGap} onChange={onSequenceGapChange} variant="compact" />
 
@@ -1606,8 +1613,8 @@ function GalleryControls({
                 onClick={onToggleBboxes}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                   showBboxes
-                    ? 'bg-blue-600 text-white hover:bg-blue-700'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    ? 'bg-blue-600 text-white dark:bg-blue-500 dark:text-white hover:bg-blue-700 dark:hover:bg-blue-600'
+                    : 'bg-muted text-foreground hover:bg-accent'
                 }`}
               >
                 {showBboxes ? <Eye size={16} /> : <EyeOff size={16} />}
@@ -1622,7 +1629,7 @@ function GalleryControls({
                 className="z-[10000] max-w-xs px-3 py-2 bg-gray-900 text-white text-xs rounded-md shadow-lg"
               >
                 <p className="font-medium mb-1">Bounding Boxes</p>
-                <p className="text-gray-300">
+                <p className="text-muted-foreground">
                   Show detection boxes on thumbnails highlighting where animals were identified by
                   the AI model.
                 </p>
@@ -1635,7 +1642,7 @@ function GalleryControls({
         {/* Collapse toggle - chevron-up on the right */}
         <button
           onClick={onToggleExpanded}
-          className="p-1 text-gray-300 hover:text-gray-400 hover:bg-gray-100 rounded transition-colors"
+          className="p-1 text-muted-foreground hover:text-muted-foreground hover:bg-accent rounded transition-colors"
           title="Hide gallery controls"
         >
           <ChevronUp size={14} />
@@ -1776,7 +1783,7 @@ function ThumbnailCard({
 
   return (
     <div
-      className="border border-gray-300 rounded-lg overflow-hidden flex flex-col transition-all"
+      className="border border-border rounded-lg overflow-hidden flex flex-col transition-all"
       style={{ width: itemWidth ? `${itemWidth}px` : undefined }}
     >
       <div
@@ -1787,7 +1794,7 @@ function ThumbnailCard({
         {isVideo ? (
           <>
             {/* Video placeholder background - always visible */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-800 text-gray-400">
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-800 text-muted-foreground">
               {isExtractingThumbnail ? (
                 <>
                   <Loader2 size={32} className="animate-spin" />
@@ -1829,7 +1836,7 @@ function ThumbnailCard({
           <>
             {/* Loading placeholder for images */}
             {isImageLoading && !imageErrors[media.mediaID] && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black text-gray-400 z-0">
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black text-muted-foreground z-0">
                 <Loader2 size={32} className="animate-spin" />
               </div>
             )}
@@ -1857,7 +1864,7 @@ function ThumbnailCard({
         {/* Image error fallback - only for non-video */}
         {!isVideo && imageErrors[media.mediaID] && (
           <div
-            className="absolute inset-0 flex flex-col items-center justify-center bg-gray-800 text-gray-400"
+            className="absolute inset-0 flex flex-col items-center justify-center bg-gray-800 text-muted-foreground"
             title="Image not available"
           >
             <CameraOff size={32} />
@@ -1997,7 +2004,7 @@ function SequenceCard({
 
   return (
     <div
-      className="border border-gray-300 rounded-lg overflow-hidden flex flex-col transition-all relative group"
+      className="border border-border rounded-lg overflow-hidden flex flex-col transition-all relative group"
       style={{ width: itemWidth ? `${itemWidth}px` : undefined }}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => {
@@ -2012,7 +2019,7 @@ function SequenceCard({
       </div>
 
       {/* Stacked effect (visual indicator) */}
-      <div className="absolute -top-1 -right-1 w-full h-full border border-gray-200 rounded-lg bg-gray-100 -z-10 transform translate-x-1 -translate-y-1" />
+      <div className="absolute -top-1 -right-1 w-full h-full border border-border rounded-lg bg-muted -z-10 transform translate-x-1 -translate-y-1" />
 
       {/* Media container */}
       <div
@@ -2023,7 +2030,7 @@ function SequenceCard({
         {isVideo ? (
           <>
             {/* Video placeholder background - always visible */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-800 text-gray-400">
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-800 text-muted-foreground">
               {isExtractingCurrentThumbnail ? (
                 <>
                   <Loader2 size={32} className="animate-spin" />
@@ -2067,7 +2074,7 @@ function SequenceCard({
           <>
             {/* Loading placeholder for images */}
             {!loadedImages[currentMedia.mediaID] && !imageErrors[currentMedia.mediaID] && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black text-gray-400 z-0">
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black text-muted-foreground z-0">
                 <Loader2 size={32} className="animate-spin" />
               </div>
             )}
@@ -2098,7 +2105,7 @@ function SequenceCard({
         {/* Image error fallback - only for non-video */}
         {!isVideo && imageErrors[currentMedia.mediaID] && (
           <div
-            className="absolute inset-0 flex flex-col items-center justify-center bg-gray-800 text-gray-400"
+            className="absolute inset-0 flex flex-col items-center justify-center bg-gray-800 text-muted-foreground"
             title="Image not available"
           >
             <CameraOff size={32} />
@@ -2114,7 +2121,7 @@ function SequenceCard({
                 <div
                   key={idx}
                   className={`w-1.5 h-1.5 rounded-full transition-colors ${
-                    idx === currentIndex ? 'bg-blue-500' : 'bg-white/60'
+                    idx === currentIndex ? 'bg-blue-500 dark:bg-blue-400' : 'bg-card/60'
                   }`}
                 />
               ))
@@ -2573,7 +2580,7 @@ function Gallery({
         className={
           embedded
             ? 'flex flex-col h-full overflow-hidden'
-            : 'flex flex-col h-full bg-white rounded border border-gray-200 overflow-hidden'
+            : 'flex flex-col h-full bg-card rounded border border-border overflow-hidden'
         }
       >
         {/* Collapsible Control Bar — hidden when embedded (e.g. inside the
@@ -2644,15 +2651,15 @@ function Gallery({
           <div ref={loaderRef} className="w-full flex justify-center p-4">
             {isFetchingNextPage && (
               <div className="flex items-center justify-center">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-foreground"></div>
                 <span className="ml-2">Loading more...</span>
               </div>
             )}
             {!hasNextPage && mediaFiles.length > 0 && !isFetchingNextPage && (
-              <p className="text-gray-500 text-sm">No more media to load</p>
+              <p className="text-muted-foreground text-sm">No more media to load</p>
             )}
             {!hasNextPage && mediaFiles.length === 0 && !isLoading && (
-              <p className="text-gray-500">No media files match the selected filters</p>
+              <p className="text-muted-foreground">No media files match the selected filters</p>
             )}
           </div>
         </div>

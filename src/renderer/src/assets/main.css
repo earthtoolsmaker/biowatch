@@ -1,6 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap');
 @import 'tailwindcss';
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 code {
   font-weight: 600;
   padding: 3px 5px;
@@ -66,8 +68,50 @@ code {
   }
 }
 
+.dark {
+  --color-background: #0f172a;
+  --color-foreground: #fafafa;
+  --color-card: #1e293b;
+  --color-card-foreground: #fafafa;
+  --color-popover: #1e293b;
+  --color-popover-foreground: #fafafa;
+  --color-primary: oklch(0.985 0 0);
+  --color-primary-foreground: #030213;
+  --color-secondary: #334155;
+  --color-secondary-foreground: #fafafa;
+  --color-muted: #334155;
+  --color-muted-foreground: #a1a1aa;
+  --color-accent: #334155;
+  --color-accent-foreground: #fafafa;
+  --color-destructive: #f87171;
+  --color-destructive-foreground: #ffffff;
+  --color-border: rgba(255, 255, 255, 0.1);
+  --color-input: transparent;
+  --color-input-background: #1e293b;
+  --color-switch-background: #475569;
+  --color-ring: oklch(0.708 0 0);
+  --color-chart-1: oklch(0.7 0.18 41);
+  --color-chart-2: oklch(0.65 0.14 184);
+  --color-chart-3: oklch(0.55 0.16 227);
+  --color-chart-4: oklch(0.78 0.18 84);
+  --color-chart-5: oklch(0.72 0.2 70);
+  --color-sidebar: #0a0f1f;
+  --color-sidebar-foreground: #cbd5e1;
+  --color-sidebar-primary: oklch(0.985 0 0);
+  --color-sidebar-primary-foreground: #030213;
+  --color-sidebar-accent: #1e293b;
+  --color-sidebar-accent-foreground: #fafafa;
+  --color-sidebar-border: rgba(255, 255, 255, 0.08);
+  --color-sidebar-ring: oklch(0.708 0 0);
+}
+
 body {
   background-color: rgb(250, 250, 250);
+  color: var(--color-foreground);
+}
+
+.dark body {
+  background-color: var(--color-background);
 }
 
 .logo {
@@ -325,8 +369,9 @@ input::-webkit-inner-spin-button {
 
 /* Activity map species tooltip styles */
 .leaflet-tooltip.species-map-tooltip {
-  background: white;
-  border: 1px solid #e5e7eb;
+  background: var(--color-card);
+  color: var(--color-card-foreground);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   box-shadow:
     0 4px 6px -1px rgba(0, 0, 0, 0.1),

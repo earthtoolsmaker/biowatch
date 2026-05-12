@@ -1,15 +1,15 @@
 // IUCN Red List category palette + label.
 // Used in the species hover tooltip and the species-distribution list rows.
 const IUCN_COLORS = {
-  LC: 'bg-green-100 text-green-800',
-  NT: 'bg-yellow-100 text-yellow-800',
-  VU: 'bg-orange-100 text-orange-800',
-  EN: 'bg-red-100 text-red-800',
-  CR: 'bg-red-200 text-red-900',
+  LC: 'bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-300',
+  NT: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300',
+  VU: 'bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-300',
+  EN: 'bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300',
+  CR: 'bg-red-200 text-red-900 dark:bg-red-500/30 dark:text-red-200',
   EX: 'bg-gray-800 text-white',
   EW: 'bg-gray-700 text-white',
-  DD: 'bg-gray-100 text-gray-700',
-  NE: 'bg-gray-100 text-gray-700'
+  DD: 'bg-muted text-foreground',
+  NE: 'bg-muted text-foreground'
 }
 
 const IUCN_LABELS = {
@@ -26,7 +26,7 @@ const IUCN_LABELS = {
 
 export default function IucnBadge({ category }) {
   if (!category) return null
-  const cls = IUCN_COLORS[category] ?? 'bg-gray-100 text-gray-700'
+  const cls = IUCN_COLORS[category] ?? 'bg-muted text-foreground'
   const label = IUCN_LABELS[category] ?? category
   return (
     <span

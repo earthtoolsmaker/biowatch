@@ -7,12 +7,12 @@ export default function LicenseSection() {
 
   return (
     <section className="py-6">
-      <h2 className="text-base font-medium text-gray-900 mb-1">License</h2>
+      <h2 className="text-base font-medium text-foreground mb-1">License</h2>
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-gray-600">CC BY-NC 4.0 · © 2026 EarthToolsMaker</p>
+        <p className="text-sm text-muted-foreground">CC BY-NC 4.0 · © 2026 EarthToolsMaker</p>
         <button
           onClick={() => setIsModalOpen(true)}
-          className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline"
+          className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline dark:text-blue-400"
         >
           View license
           <ExternalLink size={12} />

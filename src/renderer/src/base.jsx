@@ -10,6 +10,7 @@ import SettingsPage from './settings'
 import DeleteStudyModal from './DeleteStudyModal'
 import StudyHoverCard from './ui/StudyHoverCard'
 import { useEffect, useState, useRef } from 'react'
+import { useTheme } from './hooks/useTheme'
 
 // Create a client outside the component to avoid recreation
 const queryClient = new QueryClient({
@@ -40,10 +41,10 @@ function ErrorFallback({ error, resetErrorBoundary }) {
   }
 
   return (
-    <div className="p-4 bg-red-50 text-red-700 rounded-md m-4">
+    <div className="p-4 bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-300 rounded-md m-4">
       <h3 className="font-semibold mb-2">Something went wrong</h3>
       <p className="text-sm mb-2">There was an error loading this content.</p>
-      <details className="text-xs bg-white p-2 rounded border border-red-200">
+      <details className="text-xs bg-card p-2 rounded border border-red-200">
         <summary>Error details</summary>
         <pre className="mt-2 whitespace-pre-wrap">{error.message}</pre>
       </details>
@@ -53,20 +54,20 @@ function ErrorFallback({ error, resetErrorBoundary }) {
             navigate('/import')
             // window.location.reload()
           }}
-          className="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-800 rounded text-sm"
+          className="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-800 rounded text-sm dark:bg-red-500/20 dark:hover:bg-red-500/30 dark:text-red-300"
         >
           Back
         </button>
 
         <button
           onClick={resetErrorBoundary}
-          className="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-800 rounded text-sm"
+          className="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-800 rounded text-sm dark:bg-red-500/20 dark:hover:bg-red-500/30 dark:text-red-300"
         >
           Try again
         </button>
         <button
           onClick={copyErrorToClipboard}
-          className="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-800 rounded text-sm"
+          className="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-800 rounded text-sm dark:bg-red-500/20 dark:hover:bg-red-500/30 dark:text-red-300"
         >
           Copy error
         </button>
@@ -77,7 +78,7 @@ function ErrorFallback({ error, resetErrorBoundary }) {
             resetErrorBoundary()
             navigate('/import')
           }}
-          className="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-800 rounded text-sm"
+          className="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-800 rounded text-sm dark:bg-red-500/20 dark:hover:bg-red-500/30 dark:text-red-300"
         >
           Clear all Data
         </button>
@@ -87,6 +88,9 @@ function ErrorFallback({ error, resetErrorBoundary }) {
 }
 
 function AppContent() {
+  // Keeps <html class="dark"> in sync with main-process theme state
+  useTheme()
+
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -312,9 +316,9 @@ function AppContent() {
     <div className={`relative flex h-svh flex-row`}>
       <div data-testid="studies-sidebar" className="w-64 h-full flex flex-col fixed">
         {/* Header */}
-        <div className="p-4 border-b border-gray-200">
+        <div className="p-4 border-b border-border">
           <div className={`flex items-center justify-between ${studies.length > 0 ? 'mb-3' : ''}`}>
-            <h2 className="text-gray-900">Studies</h2>
+            <h2 className="text-foreground">Studies</h2>
             <Tooltip.Root delayDuration={500}>
               <Tooltip.Trigger asChild>
                 <NavLink
@@ -322,8 +326,8 @@ function AppContent() {
                   data-testid="add-study-btn"
                   className={`h-7 w-7 p-0 flex items-center justify-center rounded transition-colors ${
                     location.pathname === '/import'
-                      ? 'bg-blue-50 text-blue-700'
-                      : 'hover:bg-gray-100'
+                      ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300'
+                      : 'hover:bg-accent'
                   }`}
                 >
                   <Plus className="h-4 w-4" />
@@ -337,7 +341,7 @@ function AppContent() {
                   className="z-[10000] max-w-xs px-3 py-2 bg-gray-900 text-white text-xs rounded-md shadow-lg"
                 >
                   <p className="font-medium mb-1">Add Study</p>
-                  <p className="text-gray-300">
+                  <p className="text-muted-foreground">
                     Create a new study by importing camera trap images.
                   </p>
                   <Tooltip.Arrow className="fill-gray-900" />
@@ -349,12 +353,12 @@ function AppContent() {
           {/* Search - only show when there are studies */}
           {!isLoading && studies.length > 0 && (
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
               <input
                 type="text"
                 placeholder="Search studies..."
                 data-testid="search-studies"
-                className="w-full pl-8 h-9 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full pl-8 h-9 rounded-md border border-border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -373,7 +377,7 @@ function AppContent() {
               {[...Array(4)].map((_, i) => (
                 <div key={i} className="flex items-center gap-2 px-3 py-2.5 rounded-lg">
                   <div
-                    className="h-4 bg-gray-200 rounded animate-pulse flex-1"
+                    className="h-4 bg-muted rounded animate-pulse flex-1"
                     style={{ maxWidth: `${70 - i * 10}%` }}
                   />
                 </div>
@@ -386,16 +390,16 @@ function AppContent() {
             location.pathname !== '/import' && (
               <div className="flex items-center h-full pb-20">
                 <div className="p-4 text-center flex items-center flex-col">
-                  <div className="p-3 bg-blue-50 rounded-full w-fit mx-auto mb-3">
-                    <FolderPlus className="h-6 w-6 text-blue-500" />
+                  <div className="p-3 bg-blue-50 rounded-full w-fit mx-auto mb-3 dark:bg-blue-500/15">
+                    <FolderPlus className="h-6 w-6 text-blue-500 dark:text-blue-400" />
                   </div>
-                  <p className="text-sm font-medium text-gray-700 mb-1">No studies yet</p>
-                  <p className="text-xs text-gray-500 mb-4">
+                  <p className="text-sm font-medium text-foreground mb-1">No studies yet</p>
+                  <p className="text-xs text-muted-foreground mb-4">
                     Create your first study to start analyzing wildlife data
                   </p>
                   <NavLink
                     to="/import"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 text-white dark:bg-blue-500 dark:text-white rounded-md hover:bg-blue-700 transition-colors dark:hover:bg-blue-600"
                   >
                     <Plus className="h-3.5 w-3.5" />
                     Create Study
@@ -411,11 +415,11 @@ function AppContent() {
               const navLink = (
                 <NavLink
                   to={`/study/${study.id}`}
-                  className={({ isActive }) =>
-                    `w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm transition-all group mb-1 ${
-                      isActive ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100'
-                    }`
-                  }
+                  className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm transition-all group mb-1 rounded-lg ${
+                    isCurrentStudy
+                      ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300'
+                      : 'text-neutral-700 hover:bg-gray-100 dark:text-zinc-400 dark:hover:bg-accent/40 dark:hover:text-foreground'
+                  }`}
                 >
                   <span className="flex-1 text-left truncate">{study.name}</span>
                   <ChevronRight
@@ -455,13 +459,13 @@ function AppContent() {
         </div>
 
         {/* Footer */}
-        <div className="p-2 border-t border-gray-200">
+        <div className="p-2 border-t border-border">
           <NavLink
             to="/settings/ml_zoo"
             className={`w-full flex items-center justify-start gap-2 px-3 py-2 text-sm rounded-md transition-colors ${
               location.pathname.startsWith('/settings')
-                ? 'bg-blue-50 text-blue-700'
-                : 'text-gray-700 hover:bg-gray-100'
+                ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300'
+                : 'text-foreground hover:bg-accent'
             }`}
           >
             <Settings className="h-4 w-4" />
@@ -470,7 +474,7 @@ function AppContent() {
         </div>
       </div>
       <main className="ml-64 relative flex w-[calc(100%-16rem)] flex-1 bg-transparent pt-3 pr-3">
-        <div className="flex-col bg-white shadow w-full rounded-xl overflow-hidden">
+        <div className="flex-col bg-card shadow w-full rounded-xl overflow-hidden">
           <Routes>
             <Route path="/import" element={<Import studiesCount={studies.length} />} />
             <Route path="/study/:id/*" element={<Study />} />
@@ -484,14 +488,14 @@ function AppContent() {
       {contextMenu && (
         <div
           data-testid="study-context-menu"
-          className="fixed z-50 bg-white rounded-md shadow-lg border border-gray-200 py-1 min-w-[140px]"
+          className="fixed z-50 bg-card rounded-md shadow-lg border border-border py-1 min-w-[140px]"
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onClick={(e) => e.stopPropagation()}
         >
           <button
             data-testid="context-menu-rename"
             onClick={() => startRename(contextMenu.study)}
-            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 text-left"
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-accent text-left"
           >
             <Pencil size={14} />
             Rename
@@ -499,7 +503,7 @@ function AppContent() {
           <button
             data-testid="context-menu-delete"
             onClick={() => startDelete(contextMenu.study)}
-            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-gray-100 text-left"
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-accent text-left dark:text-red-400"
           >
             <Trash2 size={14} />
             Delete
@@ -518,11 +522,16 @@ function AppContent() {
   )
 }
 
+function ThemedToaster() {
+  const { resolved } = useTheme()
+  return <Toaster position="top-right" richColors theme={resolved} />
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <Tooltip.Provider delayDuration={200} skipDelayDuration={0}>
-        <Toaster position="top-right" richColors />
+        <ThemedToaster />
         <HashRouter>
           <ErrorBoundary FallbackComponent={ErrorFallback}>
             <AppContent />

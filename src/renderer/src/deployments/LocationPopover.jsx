@@ -107,7 +107,9 @@ export default function LocationPopover({ deployment, onCommitLatLon, onEnterPla
   const buttonClass = useMemo(
     () =>
       `p-1 rounded ${
-        isOpen ? 'bg-blue-50 text-blue-700' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+        isOpen
+          ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300'
+          : 'text-muted-foreground hover:bg-accent hover:text-foreground'
       }`,
     [isOpen]
   )
@@ -127,15 +129,15 @@ export default function LocationPopover({ deployment, onCommitLatLon, onEnterPla
       {isOpen && (
         <div
           ref={popoverRef}
-          className="absolute right-0 top-full mt-1 w-[300px] bg-white border border-gray-200 rounded-lg shadow-lg z-[1100] p-3"
+          className="absolute right-0 top-full mt-1 w-[300px] bg-card border border-border rounded-lg shadow-lg z-[1100] p-3"
         >
           <div className="flex items-center justify-between mb-2">
-            <h5 className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+            <h5 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Location
             </h5>
             <button
               onClick={handlePlaceClick}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-500 hover:bg-blue-600 text-white text-[11px] rounded"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-500 hover:bg-blue-600 text-white text-[11px] rounded dark:bg-blue-400 dark:hover:bg-blue-500"
             >
               <MapPin size={12} />
               Place on map
@@ -149,16 +151,18 @@ export default function LocationPopover({ deployment, onCommitLatLon, onEnterPla
               onChange={handleCombinedChange}
               onBlur={handleCombinedBlur}
               placeholder="Paste lat, lon"
-              className="w-full px-2.5 py-1.5 border border-gray-300 rounded text-xs tabular-nums focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full px-2.5 py-1.5 border border-border rounded text-xs tabular-nums focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
-            <div className="text-[10px] text-gray-400 mt-1">
+            <div className="text-[10px] text-muted-foreground mt-1">
               Paste from a spreadsheet, GPS, etc.
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2 mb-2">
             <label className="flex flex-col gap-1">
-              <span className="text-[10px] uppercase tracking-wider text-gray-500">Latitude</span>
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Latitude
+              </span>
               <input
                 type="number"
                 step="0.00001"
@@ -167,11 +171,13 @@ export default function LocationPopover({ deployment, onCommitLatLon, onEnterPla
                 value={latInput ?? ''}
                 onChange={handleLatChange}
                 onBlur={handleLatBlur}
-                className="px-2 py-1.5 border border-gray-300 rounded text-xs tabular-nums"
+                className="px-2 py-1.5 border border-border rounded text-xs tabular-nums"
               />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-[10px] uppercase tracking-wider text-gray-500">Longitude</span>
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Longitude
+              </span>
               <input
                 type="number"
                 step="0.00001"
@@ -180,7 +186,7 @@ export default function LocationPopover({ deployment, onCommitLatLon, onEnterPla
                 value={lonInput ?? ''}
                 onChange={handleLonChange}
                 onBlur={handleLonBlur}
-                className="px-2 py-1.5 border border-gray-300 rounded text-xs tabular-nums"
+                className="px-2 py-1.5 border border-border rounded text-xs tabular-nums"
               />
             </label>
           </div>

@@ -6,10 +6,11 @@ const Button = React.forwardRef(
       'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50'
 
     const variants = {
-      default: 'bg-blue-600 text-white hover:bg-blue-700 focus-visible:ring-blue-600',
+      default:
+        'bg-blue-600 text-white dark:bg-blue-500 dark:text-white hover:bg-blue-700 focus-visible:ring-blue-600 dark:hover:bg-blue-600',
       outline:
-        'border border-gray-200 bg-white hover:bg-gray-50 text-gray-900 focus-visible:ring-gray-400',
-      ghost: 'hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-gray-400'
+        'border border-border bg-card hover:bg-accent text-foreground focus-visible:ring-gray-400',
+      ghost: 'hover:bg-accent hover:text-foreground focus-visible:ring-gray-400'
     }
 
     const sizes = {

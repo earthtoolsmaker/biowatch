@@ -23,6 +23,7 @@ import { registerDiagnosticsIPCHandlers } from './diagnostics.js'
 import { registerQueueIPCHandlers } from './queue.js'
 import { registerInfoIPCHandlers } from './info.js'
 import { registerOverviewIPCHandlers } from './overview.js'
+import { registerThemeIPCHandlers } from './theme.js'
 
 /**
  * Register all IPC handlers
@@ -48,6 +49,7 @@ export function registerAllIPCHandlers() {
   registerQueueIPCHandlers()
   registerInfoIPCHandlers()
   registerOverviewIPCHandlers()
+  registerThemeIPCHandlers()
 
   log.info('All IPC handlers registered')
 }
@@ -69,5 +71,6 @@ export {
   registerDiagnosticsIPCHandlers,
   registerQueueIPCHandlers,
   registerInfoIPCHandlers,
-  registerOverviewIPCHandlers
+  registerOverviewIPCHandlers,
+  registerThemeIPCHandlers
 }

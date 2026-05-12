@@ -4,22 +4,25 @@ Setup, testing, and building Biowatch.
 
 ## Prerequisites
 
-| Tool | Version | Purpose |
-|------|---------|---------|
-| Node.js | 18+ | JavaScript runtime |
-| npm | 9+ | Package manager |
-| uv | Latest | Python package manager |
-| Python | 3.11+ | ML model servers |
+| Tool    | Version | Purpose                |
+| ------- | ------- | ---------------------- |
+| Node.js | 18+     | JavaScript runtime     |
+| npm     | 9+      | Package manager        |
+| uv      | Latest  | Python package manager |
+| Python  | 3.11+   | ML model servers       |
 
 ### Platform-specific
 
 **macOS:**
+
 - Xcode Command Line Tools: `xcode-select --install`
 
 **Linux:**
+
 - Build essentials: `sudo apt install build-essential`
 
 **Windows:**
+
 - Visual Studio Build Tools
 
 ## Setup
@@ -54,36 +57,36 @@ Opens Electron app with hot reload enabled.
 
 ## npm Scripts
 
-| Script | Description |
-|--------|-------------|
-| `npm run dev` | Start development server with hot reload |
-| `npm run build` | Build application |
-| `npm run start` | Preview built application |
-| `npm run lint` | Check code style |
-| `npm run fix` | Auto-fix lint issues |
-| `npm run format` | Format code with Prettier |
-| `npm test` | Run all tests |
-| `npm run test:watch` | Run tests in watch mode |
-| `npm run test:e2e` | Run E2E tests (requires `npm run build` first) |
+| Script               | Description                                    |
+| -------------------- | ---------------------------------------------- |
+| `npm run dev`        | Start development server with hot reload       |
+| `npm run build`      | Build application                              |
+| `npm run start`      | Preview built application                      |
+| `npm run lint`       | Check code style                               |
+| `npm run fix`        | Auto-fix lint issues                           |
+| `npm run format`     | Format code with Prettier                      |
+| `npm test`           | Run all tests                                  |
+| `npm run test:watch` | Run tests in watch mode                        |
+| `npm run test:e2e`   | Run E2E tests (requires `npm run build` first) |
 
 ### Build scripts
 
-| Script | Description |
-|--------|-------------|
-| `npm run build:win` | Build for Windows |
-| `npm run build:mac` | Build for macOS (with signing) |
-| `npm run build:mac:no-sign` | Build for macOS (no signing) |
-| `npm run build:linux` | Build for Linux |
-| `npm run build:unpack` | Build unpacked (for debugging) |
+| Script                      | Description                    |
+| --------------------------- | ------------------------------ |
+| `npm run build:win`         | Build for Windows              |
+| `npm run build:mac`         | Build for macOS (with signing) |
+| `npm run build:mac:no-sign` | Build for macOS (no signing)   |
+| `npm run build:linux`       | Build for Linux                |
+| `npm run build:unpack`      | Build unpacked (for debugging) |
 
 ### Reference data scripts
 
 These regenerate static JSON files bundled into the renderer. Run periodically (every ~6 months, or after upstream sources change) and commit the diff.
 
-| Script | Description |
-|--------|-------------|
-| `npm run dict:build` | Rebuild `src/shared/commonNames/dictionary.json` from source files (SpeciesNet / DeepFaune / Manas / `extras.json`). |
-| `npm run species-info:build` | Rebuild `src/shared/speciesInfo/data.json` (IUCN status + Wikipedia blurb + image URL per species). Hits GBIF + Wikipedia; takes ~45–60 minutes for the full dictionary at the current ~25 species/min throughput. |
+| Script                       | Description                                                                                                                                                                                                                                                      |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run dict:build`         | Rebuild `src/shared/commonNames/dictionary.json` from source files (SpeciesNet / DeepFaune / Manas / `extras.json`).                                                                                                                                             |
+| `npm run species-info:build` | Rebuild `src/shared/speciesInfo/data.json` (IUCN status + Wikipedia blurb + image URL per species). Hits GBIF + Wikipedia; takes ~45–60 minutes for the full dictionary at the current ~25 species/min throughput.                                               |
 | `npm run iucn-link-id:build` | Add IUCN Red List link IDs (`iucnTaxonId`, `iucnAssessmentId`) to `src/shared/speciesInfo/data.json` for VU/EN/CR species. Reads `data/redlist_species_data_*/assessments.csv` (account-bound, gitignored). See "IUCN Red List link IDs" below for the workflow. |
 
 `species-info:build` flags:
@@ -131,6 +134,7 @@ but is not configured correctly.
 ```
 
 This affects distributions where unprivileged user namespaces are disabled:
+
 - Ubuntu 24.04+ (AppArmor restriction)
 - Debian (disabled by default)
 - Some enterprise distributions
@@ -138,6 +142,7 @@ This affects distributions where unprivileged user namespaces are disabled:
 **The solution:**
 
 The `afterPack` hook creates a wrapper script that:
+
 1. Renames `biowatch` → `biowatch.bin`
 2. Creates a shell script `biowatch` that checks kernel settings at runtime
 3. Passes `--no-sandbox` only when the kernel doesn't support unprivileged namespaces
@@ -145,6 +150,7 @@ The `afterPack` hook creates a wrapper script that:
 This means the sandbox is preserved on systems that support it, while still working on restricted systems.
 
 **Files involved:**
+
 - `scripts/afterPack.js` - The hook script (Linux-only, skipped on macOS/Windows)
 - `electron-builder.yml` - References the hook via `afterPack`
 
@@ -273,6 +279,7 @@ npx playwright test test/e2e/demo-import.spec.js
 E2E tests are in `test/e2e/` with `.spec.js` extension (separate from unit tests which use `.test.js`).
 
 **Test coverage:**
+
 - Demo dataset import flow
 - Study search/filter
 - Study rename via context menu
@@ -332,6 +339,7 @@ biowatch/
 ### DevTools
 
 In development mode:
+
 - Press `F12` to open DevTools
 - Or uncomment in `src/main/index.js`:
   ```javascript
@@ -351,40 +359,60 @@ tail -f ~/Library/Logs/biowatch/main.log
 ### React Query DevTools
 
 Add to `src/renderer/src/base.jsx`:
+
 ```javascript
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 
 // In component:
-<ReactQueryDevtools initialIsOpen={false} />
+;<ReactQueryDevtools initialIsOpen={false} />
 ```
 
 ## Configuration Files
 
-| File | Purpose |
-|------|---------|
-| `electron-builder.yml` | Build configuration |
-| `electron.vite.config.mjs` | Vite build config |
-| `drizzle.config.js` | Drizzle ORM config |
-| `eslint.config.mjs` | ESLint rules |
-| `.prettierrc` | Prettier config |
+| File                       | Purpose             |
+| -------------------------- | ------------------- |
+| `electron-builder.yml`     | Build configuration |
+| `electron.vite.config.mjs` | Vite build config   |
+| `drizzle.config.js`        | Drizzle ORM config  |
+| `eslint.config.mjs`        | ESLint rules        |
+| `.prettierrc`              | Prettier config     |
+
+## Theme codemod
+
+`scripts/theme-codemod.js` walks `.jsx` files under a target path and
+converts hardcoded color utilities into either semantic tokens (where the
+existing token paints the same pixels) or paired light + `dark:` variants
+(for colored idioms like `bg-blue-50 text-blue-700`).
+
+```bash
+node scripts/theme-codemod.js src/renderer/src/<dir>
+```
+
+The script writes changes in-place. Review with `git diff`, resolve any
+`THEME-REVIEW: bg-white` flags (printed to stdout) by deciding `bg-card`
+vs `bg-background` in context, then commit per directory.
+
+Tests: `node --test test/scripts/theme-codemod.test.js`.
 
 ## Environment Variables
 
-| Variable | Purpose |
-|----------|---------|
-| `GH_TOKEN` | GitHub token for releases (CI only) |
-| `ELECTRON_RENDERER_URL` | Dev server URL (set automatically) |
+| Variable                | Purpose                             |
+| ----------------------- | ----------------------------------- |
+| `GH_TOKEN`              | GitHub token for releases (CI only) |
+| `ELECTRON_RENDERER_URL` | Dev server URL (set automatically)  |
 
 ## IDE Setup
 
 ### VS Code
 
 Recommended extensions:
+
 - ESLint
 - Prettier
 - Tailwind CSS IntelliSense
 
 Settings (`.vscode/settings.json`):
+
 ```json
 {
   "editor.formatOnSave": true,
@@ -407,6 +435,7 @@ Biowatch uses an automated CI/CD pipeline that builds and publishes releases for
 Releases go through a pull request rather than a direct push to `main`, so the version bump gets the same review and CI checks as any other change.
 
 1. **Create a release branch** off `main`:
+
    ```bash
    git checkout main
    git pull
@@ -414,9 +443,11 @@ Releases go through a pull request rather than a direct push to `main`, so the v
    ```
 
 2. **Update version** using `npm version` so `package.json` and `package-lock.json` stay in sync:
+
    ```bash
    npm version 1.5.0 --no-git-tag-version
    ```
+
    Do not edit `package.json` by hand — the lockfile would drift and need a follow-up sync commit.
 
 3. **Update `CHANGELOG.md`** with the new version's changes:
@@ -425,6 +456,7 @@ Releases go through a pull request rather than a direct push to `main`, so the v
    - Update the comparison links at the bottom of the file
 
 4. **Commit and push the release branch**:
+
    ```bash
    git add package.json package-lock.json CHANGELOG.md
    git commit -m "chore: bump version to 1.5.0"
@@ -434,6 +466,7 @@ Releases go through a pull request rather than a direct push to `main`, so the v
 5. **Open a pull request** targeting `main` and get it reviewed/merged. Do **not** push the bump commit straight to `main` — the tag in step 6 must point at the merge commit on `main`.
 
 6. **Create and push a version tag** from `main` after the PR merges:
+
    ```bash
    git checkout main
    git pull
@@ -449,11 +482,12 @@ Releases go through a pull request rather than a direct push to `main`, so the v
 
 A single GitHub Actions workflow handles releases:
 
-| Workflow | File | Trigger | Purpose |
-|----------|------|---------|---------|
+| Workflow      | File                          | Trigger                         | Purpose                                          |
+| ------------- | ----------------------------- | ------------------------------- | ------------------------------------------------ |
 | Build/Release | `.github/workflows/build.yml` | Push to `main` or `v*.*.*` tags | Builds binaries and publishes the GitHub Release |
 
 **Build/Release workflow:**
+
 - Runs on 3 parallel runners: `windows-latest`, `macos-latest`, `ubuntu-22.04`
 - Executes platform-specific build scripts (`build:win`, `build:mac`, `build:linux`)
 - Publishes artifacts and creates the GitHub Release via `electron-builder --publish always` (the release body starts empty and must be filled in manually — see step 8 above)
@@ -462,25 +496,25 @@ A single GitHub Actions workflow handles releases:
 
 Each release produces the following files:
 
-| Platform | File | Description |
-|----------|------|-------------|
-| Windows | `Biowatch-setup.exe` | NSIS installer |
-| macOS | `Biowatch.dmg` | Signed and notarized disk image |
-| Linux | `Biowatch.AppImage` | Portable application |
-| Linux | `Biowatch_<version>_amd64.deb` | Debian package |
+| Platform | File                           | Description                     |
+| -------- | ------------------------------ | ------------------------------- |
+| Windows  | `Biowatch-setup.exe`           | NSIS installer                  |
+| macOS    | `Biowatch.dmg`                 | Signed and notarized disk image |
+| Linux    | `Biowatch.AppImage`            | Portable application            |
+| Linux    | `Biowatch_<version>_amd64.deb` | Debian package                  |
 
 ### GitHub Secrets (for maintainers)
 
 The following secrets must be configured in repository settings for releases to work:
 
-| Secret | Purpose |
-|--------|---------|
-| `GH_TOKEN` | GitHub token for publishing releases |
-| `APPLE_SIGNING_CERTIFICATE_BASE64` | Base64-encoded macOS signing certificate |
-| `APPLE_SIGNING_CERTIFICATE_PASSWORD` | Password for the signing certificate |
-| `APPLE_ID` | Apple ID for notarization |
-| `APPLE_APP_SPECIFIC_PASSWORD` | App-specific password for notarization |
-| `APPLE_TEAM_ID` | Apple Developer Team ID |
+| Secret                               | Purpose                                  |
+| ------------------------------------ | ---------------------------------------- |
+| `GH_TOKEN`                           | GitHub token for publishing releases     |
+| `APPLE_SIGNING_CERTIFICATE_BASE64`   | Base64-encoded macOS signing certificate |
+| `APPLE_SIGNING_CERTIFICATE_PASSWORD` | Password for the signing certificate     |
+| `APPLE_ID`                           | Apple ID for notarization                |
+| `APPLE_APP_SPECIFIC_PASSWORD`        | App-specific password for notarization   |
+| `APPLE_TEAM_ID`                      | Apple Developer Team ID                  |
 
 ### Auto-Updates
 
@@ -492,6 +526,7 @@ Biowatch uses `electron-updater` to automatically notify users of new versions:
 4. Users can install when ready (usually on next app restart)
 
 The update mechanism uses the `publish` configuration in `electron-builder.yml`:
+
 ```yaml
 publish:
   provider: github
@@ -502,20 +537,24 @@ publish:
 ### Troubleshooting Releases
 
 **Build fails on macOS:**
+
 - Verify all Apple signing secrets are correctly set
 - Check that the signing certificate hasn't expired
 - Review the build logs for notarization errors
 
 **Build fails on Linux:**
+
 - The `afterPack` hook may fail if `scripts/afterPack.js` has issues
 - Check that the script handles the Linux platform correctly
 
 **Release not appearing:**
+
 - Ensure the tag matches the pattern `v*.*.*` (e.g., `v1.5.0`)
 - Check that `GH_TOKEN` has `write` permissions for releases
 - Verify the Build/Release workflow completed successfully
 
 **Users not seeing updates:**
+
 - The version in `package.json` must be higher than the installed version
 - Check that the release is not marked as draft or prerelease
 
@@ -524,6 +563,7 @@ publish:
 ### Add new IPC handler
 
 1. Create handler file in `src/main/ipc/myfeature.js`:
+
    ```javascript
    import { ipcMain } from 'electron'
 
@@ -533,6 +573,7 @@ publish:
    ```
 
 2. Register in `src/main/ipc/index.js`:
+
    ```javascript
    import { registerMyFeatureIPCHandlers } from './myfeature.js'
    // In registerAllIPCHandlers():
@@ -540,6 +581,7 @@ publish:
    ```
 
 3. Expose in `src/preload/index.js`:
+
    ```javascript
    myAction: async (params) => {
      return await electronAPI.ipcRenderer.invoke('myfeature:action', params)

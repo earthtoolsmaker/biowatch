@@ -97,7 +97,7 @@ const EditableLocationName = memo(function EditableLocationName({
           maxLength={100}
           disabled={isSaving}
           title="Enter saves, Esc cancels"
-          className="text-sm text-gray-700 bg-transparent border-b-2 border-blue-500 focus:outline-none w-full max-w-[180px] py-0.5"
+          className="text-sm text-foreground bg-transparent border-b-2 border-blue-500 focus:outline-none w-full max-w-[180px] py-0.5"
         />
       </div>
     )
@@ -108,7 +108,7 @@ const EditableLocationName = memo(function EditableLocationName({
       <span
         onClick={startEditing}
         className={`cursor-pointer text-sm truncate min-w-0 ${
-          isSelected ? 'font-semibold text-blue-700' : 'text-gray-700'
+          isSelected ? 'font-semibold text-blue-700 dark:text-blue-400' : 'text-foreground'
         }`}
         title={`${displayName} (click to rename)`}
       >
@@ -116,7 +116,7 @@ const EditableLocationName = memo(function EditableLocationName({
       </span>
       <button
         onClick={startEditing}
-        className="p-0.5 opacity-0 group-hover:opacity-100 hover:bg-gray-200 rounded text-gray-500 transition-opacity flex-shrink-0"
+        className="p-0.5 opacity-0 group-hover:opacity-100 hover:bg-accent rounded text-muted-foreground transition-opacity flex-shrink-0"
         title="Rename"
       >
         <Pencil size={12} />

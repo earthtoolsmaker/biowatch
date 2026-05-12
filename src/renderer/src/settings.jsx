@@ -2,12 +2,13 @@ import { useState } from 'react'
 import { Navigate, Route, Routes, useNavigate } from 'react-router'
 import { ErrorBoundary } from 'react-error-boundary'
 import { useQuery } from '@tanstack/react-query'
-import { BrainCircuit, Info, Loader2, Settings2 } from 'lucide-react'
+import { BrainCircuit, Info, Loader2, Settings, Settings2 } from 'lucide-react'
 import MlZoo from './models'
 import { modelZoo } from '../../shared/mlmodels'
 import { Tab } from './ui/Tab'
 import Diagnostics from './Diagnostics'
 import SettingsInfo from './SettingsInfo'
+import Appearance from './settings/Appearance'
 
 function SettingsFooter({ className, onRevealAdvanced }) {
   const handleLogoClick = (e) => {
@@ -32,7 +33,7 @@ function SettingsFooter({ className, onRevealAdvanced }) {
             href="https://www.earthtoolsmaker.org/tools/biowatch/"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-blue-600 hover:underline"
+            className="text-blue-600 hover:underline dark:text-blue-400"
           >
             EarthToolsMaker
           </a>
@@ -61,23 +62,23 @@ function ErrorFallback({ error, resetErrorBoundary }) {
   }
 
   return (
-    <div className="p-4 bg-red-50 text-red-700 rounded-md m-4">
+    <div className="p-4 bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-300 rounded-md m-4">
       <h3 className="font-semibold mb-2">Something went wrong</h3>
       <p className="text-sm mb-2">There was an error loading this content.</p>
-      <details className="text-xs bg-white p-2 rounded border border-red-200">
+      <details className="text-xs bg-card p-2 rounded border border-red-200">
         <summary>Error details</summary>
         <pre className="mt-2 whitespace-pre-wrap">{error.message}</pre>
       </details>
       <div className="flex gap-2 mt-3">
         <button
           onClick={resetErrorBoundary}
-          className="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-800 rounded text-sm"
+          className="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-800 rounded text-sm dark:bg-red-500/20 dark:hover:bg-red-500/30 dark:text-red-300"
         >
           Try again
         </button>
         <button
           onClick={copyErrorToClipboard}
-          className="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-800 rounded text-sm"
+          className="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-800 rounded text-sm dark:bg-red-500/20 dark:hover:bg-red-500/30 dark:text-red-300"
         >
           Copy error
         </button>
@@ -109,18 +110,21 @@ export default function SettingsPage() {
 
   return (
     <div className="flex gap-4 flex-col h-full">
-      <header className="w-full border-b border-gray-200 sticky top-0 bg-white z-10">
+      <header className="w-full border-b border-border sticky top-0 bg-card z-10">
         <nav aria-label="Tabs" className="-mb-px flex space-x-8 px-4">
           <Tab
             to="/settings/ml_zoo"
             icon={BrainCircuit}
             indicator={
               isModelDownloading ? (
-                <Loader2 size={16} className="animate-spin text-blue-600" />
+                <Loader2 size={16} className="animate-spin text-blue-600 dark:text-blue-400" />
               ) : null
             }
           >
             AI Models
+          </Tab>
+          <Tab to="/settings/general" icon={Settings}>
+            General
           </Tab>
           <Tab to="/settings/info" icon={Info}>
             Info
@@ -134,6 +138,17 @@ export default function SettingsPage() {
       </header>
       <div className="flex-1 overflow-y-auto pb-4">
         <Routes>
+          <Route
+            path="general"
+            element={
+              <ErrorBoundary FallbackComponent={ErrorFallback} key={'general'}>
+                <div className="min-h-full flex flex-col">
+                  <Appearance />
+                  <SettingsFooter className="mt-auto" onRevealAdvanced={handleRevealAdvanced} />
+                </div>
+              </ErrorBoundary>
+            }
+          />
           <Route
             path="ml_zoo"
             element={

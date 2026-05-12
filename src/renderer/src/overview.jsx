@@ -14,6 +14,7 @@ import EditorialHeader from './overview/EditorialHeader'
 import KpiBand from './overview/KpiBand'
 import BestCapturesSection from './overview/BestCapturesSection'
 import SpeciesDistribution from './overview/SpeciesDistribution'
+import { useTheme } from './hooks/useTheme'
 
 // ──────────────────────────────────────────────────────────────────────────
 // DeploymentMap — kept here for now. Self-contained.
@@ -81,7 +82,7 @@ const createClusterCustomIcon = (cluster) => {
   }
 
   const icon = L.divIcon({
-    html: `<div class="flex items-center justify-center ${sizeClasses[size]} bg-blue-500 text-white rounded-full border-2 border-white shadow-lg font-semibold">${count}</div>`,
+    html: `<div class="flex items-center justify-center ${sizeClasses[size]} bg-blue-500 dark:bg-blue-600 text-white rounded-full border-2 border-white dark:border-slate-900 shadow-lg font-semibold">${count}</div>`,
     className: 'custom-cluster-icon',
     iconSize: L.point(40, 40, true)
   })
@@ -103,6 +104,16 @@ function DeploymentMap({ deployments, studyId }) {
   useEffect(() => {
     localStorage.setItem(mapLayerKey, selectedLayer)
   }, [selectedLayer, mapLayerKey])
+
+  const { resolved: streetMapResolved } = useTheme()
+  const streetMapUrl =
+    streetMapResolved === 'dark'
+      ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+      : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+  const streetMapAttribution =
+    streetMapResolved === 'dark'
+      ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+      : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 
   if (!deployments || deployments.length === 0) {
     return (
@@ -156,7 +167,7 @@ function DeploymentMap({ deployments, studyId }) {
   })
 
   return (
-    <div className="w-full h-full bg-white rounded-xl border border-gray-200 shadow-md overflow-hidden">
+    <div className="w-full h-full bg-card rounded-xl border border-border shadow-md overflow-hidden">
       <MapContainer
         key={studyId}
         bounds={bounds}
@@ -174,8 +185,9 @@ function DeploymentMap({ deployments, studyId }) {
 
           <LayersControl.BaseLayer name="Street Map" checked={selectedLayer === 'Street Map'}>
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              key={`street-${streetMapResolved}`}
+              attribution={streetMapAttribution}
+              url={streetMapUrl}
             />
           </LayersControl.BaseLayer>
         </LayersControl>
@@ -300,7 +312,7 @@ export default function Overview({ data, studyId, studyName }) {
           </div>
         </Panel>
 
-        <PanelResizeHandle className="h-1 my-1.5 rounded-full bg-gray-100 hover:bg-gray-300 data-[resize-handle-state=drag]:bg-blue-300 cursor-row-resize transition-colors" />
+        <PanelResizeHandle className="h-1 my-1.5 rounded-full bg-muted hover:bg-accent data-[resize-handle-state=drag]:bg-blue-300 dark:data-[resize-handle-state=drag]:bg-blue-500 cursor-row-resize transition-colors" />
 
         <Panel defaultSize={50} minSize={bottomMinPercent} className="flex flex-col">
           <div className="flex flex-col gap-4 h-full pt-2 pb-1 pr-1 min-h-0">
@@ -314,7 +326,11 @@ export default function Overview({ data, studyId, studyName }) {
                 taxonomicData={data?.taxonomic || null}
               />
             </div>
-            {error && <div className="text-red-500 text-sm flex-shrink-0">Error: {error}</div>}
+            {error && (
+              <div className="text-red-500 text-sm flex-shrink-0 dark:text-red-400">
+                Error: {error}
+              </div>
+            )}
           </div>
         </Panel>
       </PanelGroup>

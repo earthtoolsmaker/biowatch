@@ -91,7 +91,7 @@ export default function MapPane({ modelZoo, selectedId, onSelect }) {
 
   return (
     <div
-      className="relative bg-white rounded-xl border border-gray-200 shadow-md overflow-hidden w-full"
+      className="relative bg-card rounded-xl border border-border shadow-md overflow-hidden w-full"
       style={{ aspectRatio: '2.8 / 1', minHeight: '220px' }}
     >
       {worldwideModel && (
@@ -100,8 +100,8 @@ export default function MapPane({ modelZoo, selectedId, onSelect }) {
           className={[
             'absolute top-2 right-2 z-[500] text-xs font-medium rounded-full px-3 py-1 shadow-sm border cursor-pointer transition-colors inline-flex items-center gap-1.5',
             selectedId === worldwideModel.reference.id
-              ? 'bg-blue-50 text-blue-700 border-blue-300'
-              : 'bg-white/95 text-gray-700 border-gray-200 hover:bg-gray-50'
+              ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300 border-blue-300'
+              : 'bg-card/95 text-foreground border-border hover:bg-accent'
           ].join(' ')}
         >
           <span aria-hidden>🌍</span>
@@ -162,7 +162,7 @@ export default function MapPane({ modelZoo, selectedId, onSelect }) {
         />
       </MapContainer>
 
-      <div className="absolute bottom-2 left-2 z-[500] bg-white/90 rounded px-2 py-1 text-[10px] text-gray-700">
+      <div className="absolute bottom-2 left-2 z-[500] bg-card/90 rounded px-2 py-1 text-[10px] text-foreground">
         Click a zone to see its model
       </div>
     </div>

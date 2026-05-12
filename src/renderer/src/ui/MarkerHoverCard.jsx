@@ -20,10 +20,10 @@ export default function MarkerHoverCard({ counts, selectedSpecies, palette, scie
         style={{
           fontSize: '11px',
           fontWeight: 500,
-          color: '#6b7280',
+          color: 'var(--color-muted-foreground)',
           marginBottom: '4px',
           paddingBottom: '4px',
-          borderBottom: '1px solid #e5e7eb'
+          borderBottom: '1px solid var(--color-border)'
         }}
       >
         {total} observation{total !== 1 ? 's' : ''}
@@ -57,7 +57,7 @@ export default function MarkerHoverCard({ counts, selectedSpecies, palette, scie
               <div
                 style={{
                   fontSize: '12px',
-                  color: '#111827',
+                  color: 'var(--color-foreground)',
                   textTransform: common ? 'capitalize' : 'none',
                   fontStyle: common ? 'normal' : 'italic'
                 }}
@@ -68,7 +68,7 @@ export default function MarkerHoverCard({ counts, selectedSpecies, palette, scie
                 <div
                   style={{
                     fontSize: '10px',
-                    color: '#6b7280',
+                    color: 'var(--color-muted-foreground)',
                     fontStyle: 'italic'
                   }}
                 >
@@ -76,7 +76,11 @@ export default function MarkerHoverCard({ counts, selectedSpecies, palette, scie
                 </div>
               )}
             </div>
-            <span style={{ fontSize: '11px', color: '#6b7280', flexShrink: 0 }}>{count}</span>
+            <span
+              style={{ fontSize: '11px', color: 'var(--color-muted-foreground)', flexShrink: 0 }}
+            >
+              {count}
+            </span>
           </div>
         )
       })}

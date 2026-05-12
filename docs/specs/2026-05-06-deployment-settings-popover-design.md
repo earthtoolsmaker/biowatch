@@ -58,15 +58,15 @@ ID, adjusting deployment dates, etc.).
 Field-population rates across the 17 studies in the user's local
 `biowatch-data/studies/` directory:
 
-| Field                   | Coverage          | Decision                                                |
-|-------------------------|-------------------|---------------------------------------------------------|
-| `deploymentStart`/`End` | ~94% of studies   | Show; em-dash when null. Duration row hidden if either null. |
-| `locationID`            | ~100%             | Not displayed (internal grouping key, not user context). |
-| `locationName`          | ~94%              | Not displayed (already in pane header via `EditableLocationName`). |
-| `latitude`/`longitude`  | ~70%              | Not displayed (already in `LocationPopover`).           |
-| `cameraModel`           | ~0% (3 rows total)| Show only when populated; whole Camera section hidden if both camera fields null. |
-| `cameraID`              | ~25% (3 studies)  | Same — show when populated.                             |
-| `coordinateUncertainty` | ~0%               | **Dropped** from spec.                                  |
+| Field                   | Coverage           | Decision                                                                          |
+| ----------------------- | ------------------ | --------------------------------------------------------------------------------- |
+| `deploymentStart`/`End` | ~94% of studies    | Show; em-dash when null. Duration row hidden if either null.                      |
+| `locationID`            | ~100%              | Not displayed (internal grouping key, not user context).                          |
+| `locationName`          | ~94%               | Not displayed (already in pane header via `EditableLocationName`).                |
+| `latitude`/`longitude`  | ~70%               | Not displayed (already in `LocationPopover`).                                     |
+| `cameraModel`           | ~0% (3 rows total) | Show only when populated; whole Camera section hidden if both camera fields null. |
+| `cameraID`              | ~25% (3 studies)   | Same — show when populated.                                                       |
+| `coordinateUncertainty` | ~0%                | **Dropped** from spec.                                                            |
 
 ## Layout
 
@@ -151,7 +151,7 @@ rounded-lg shadow-lg z-[1100]`. Outside-click closes it via the same
 - `Start` / `End`: rendered with the same formatter the app already
   uses for deployment dates (`overview.jsx:138`'s `formatDate` —
   `toLocaleDateString('en-US', { year: 'numeric', month: 'short', day:
-  'numeric' })` → e.g. `Aug 1, 2024`). Time-of-day is intentionally
+'numeric' })` → e.g. `Aug 1, 2024`). Time-of-day is intentionally
   omitted to match existing convention; if camera-trap deployments turn
   out to need minute precision in the popover, switch to
   `toLocaleString()` in a follow-up. Em-dash when the underlying field
@@ -220,7 +220,7 @@ Implementation: three counts run concurrently with `Promise.all`:
   `getMediaCountForDeployment(dbPath, deploymentID)`) added to
   `src/main/database/queries/deployments.js`.
 - **`observationCount`** — `SELECT COUNT(*) FROM observations WHERE
-  deploymentID = ?`. New small query helper (e.g.
+deploymentID = ?`. New small query helper (e.g.
   `getObservationCountForDeployment(dbPath, deploymentID)`) in the
   same file.
 - **`blankCount`** — reuse the existing
@@ -253,7 +253,7 @@ const { data: stats } = useQuery({
     return response.data
   },
   enabled: isOpen && !!studyId && !!deploymentID,
-  staleTime: Infinity,
+  staleTime: Infinity
 })
 ```
 
@@ -294,7 +294,7 @@ swaps to an input on edit.
 - `src/main/ipc/deployments.js` — register
   `deployments:get-stats` handler.
 - `src/preload/index.js` — expose `getDeploymentStats(studyId,
-  deploymentID)`.
+deploymentID)`.
 - `docs/ipc-api.md` — document the new handler.
 - `docs/database-schema.md` — no schema change; only update if we
   document the queries.

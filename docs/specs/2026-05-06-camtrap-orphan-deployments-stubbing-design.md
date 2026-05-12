@@ -65,16 +65,16 @@ Downloaded from `https://ipt.biodiversidad.co/sib/archive.do?r=panthera_camtrap-
   do not appear in `deployments.csv`:
 
   | Orphan deploymentID | Orphan media rows |
-  |---|---|
-  | `FFB034` | 446 |
-  | `FFB033` | 322 |
-  | `FFB035` | 268 |
-  | `FFB006A` | 174 |
-  | `FFB032` | 134 |
-  | `Segundo muestreo` | 95 |
-  | `FFB030` | 53 |
-  | `FFB031` | 45 |
-  | `FFP021` | 34 |
+  | ------------------- | ----------------- |
+  | `FFB034`            | 446               |
+  | `FFB033`            | 322               |
+  | `FFB035`            | 268               |
+  | `FFB006A`           | 174               |
+  | `FFB032`            | 134               |
+  | `Segundo muestreo`  | 95                |
+  | `FFB030`            | 53                |
+  | `FFB031`            | 45                |
+  | `FFP021`            | 34                |
 
   Eight of the nine match the dataset's normal `FFB###` / `FFP###` naming —
   almost certainly real cameras the curator forgot to register. One
@@ -196,8 +196,8 @@ The GBIF IPC handler (`src/main/ipc/import.js:656`) and the folder-import
 handler each forward `synthesized` to:
 
 - The `complete`-stage progress payload (`sendGbifImportProgress`), so the
-  renderer can render a non-blocking toast like *"Imported with N synthesized
-  deployments from M orphan media rows."* Toast UX is the renderer's call;
+  renderer can render a non-blocking toast like _"Imported with N synthesized
+  deployments from M orphan media rows."_ Toast UX is the renderer's call;
   this spec only commits to surfacing the counts.
 - A `log.warn` line listing each synthesized `deploymentID` and its row counts
   (one log line per stub, capped at e.g. 50 IDs to avoid log flooding on
@@ -275,13 +275,13 @@ Assertions after `importCamTrapDatasetWithPath`:
 
 - `deployments` table has 3 rows (2 real + 1 stub).
 - Stub row has `locationID = deploymentID`, `locationName = NULL`, `latitude
-  = NULL`, `longitude = NULL`.
+= NULL`, `longitude = NULL`.
 - Stub `deploymentStart` / `deploymentEnd` match expected min/max from the
   fixture.
 - `media` table has all 5 rows.
 - `observations` table has 2 rows (the missing-mediaID one was dropped).
 - Returned `synthesized` has `{ deployments: 1, orphanMediaRows: 2,
-  orphanObservationRows: 2, droppedObservationRows: 1 }`.
+orphanObservationRows: 2, droppedObservationRows: 1 }`.
 
 Existing CamTrap-DP parser tests: re-run unchanged, must still pass (the
 no-orphan path is unchanged).

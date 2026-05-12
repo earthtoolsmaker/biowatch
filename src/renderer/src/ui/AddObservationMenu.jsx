@@ -11,7 +11,7 @@ const BBOX_ICON = (
 
 const WHOLE_ICON = (
   <span
-    className="w-4 h-4 rounded-sm border-[1.5px] border-dashed border-gray-400 bg-gray-100"
+    className="w-4 h-4 rounded-sm border-[1.5px] border-dashed border-border bg-muted"
     aria-hidden="true"
   />
 )
@@ -63,7 +63,7 @@ export default function AddObservationMenu({
       <button
         type="button"
         onClick={() => setIsOpen((v) => !v)}
-        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-[#2563eb] text-white text-sm font-medium hover:bg-[#1d4ed8]"
+        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-blue-600 dark:bg-blue-500 text-white text-sm font-medium hover:bg-blue-700 dark:hover:bg-blue-600"
       >
         <Plus size={14} />
         Add observation
@@ -72,7 +72,7 @@ export default function AddObservationMenu({
       <button
         type="button"
         onClick={() => setIsOpen((v) => !v)}
-        className="w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 flex items-center gap-1.5 border-t border-gray-100"
+        className="w-full text-left px-3 py-2 text-sm text-muted-foreground hover:bg-accent flex items-center gap-1.5 border-t border-border"
       >
         <Plus size={14} />
         Add observation
@@ -89,7 +89,7 @@ export default function AddObservationMenu({
             variant === 'centered-button'
               ? 'top-full mt-1 left-1/2 -translate-x-1/2'
               : 'bottom-full mb-1 left-3'
-          } w-56 bg-white border border-gray-200 rounded-md shadow-lg overflow-hidden`}
+          } w-56 bg-card border border-border rounded-md shadow-lg overflow-hidden`}
         >
           <button
             type="button"
@@ -97,12 +97,12 @@ export default function AddObservationMenu({
               close()
               onDrawRectangle()
             }}
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-[#030213] hover:bg-[#f8f9fb] text-left"
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-foreground hover:bg-accent text-left"
           >
             {BBOX_ICON}
             <span className="flex flex-col">
               <span>Draw rectangle</span>
-              <span className="text-xs text-gray-400">Click and drag on the image</span>
+              <span className="text-xs text-muted-foreground">Click and drag on the image</span>
             </span>
           </button>
           {showWhole && (
@@ -112,12 +112,12 @@ export default function AddObservationMenu({
                 close()
                 onWholeImage()
               }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-[#030213] hover:bg-[#f8f9fb] text-left border-t border-gray-100"
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-foreground hover:bg-accent text-left border-t border-border"
             >
               {WHOLE_ICON}
               <span className="flex flex-col">
                 <span>Whole image</span>
-                <span className="text-xs text-gray-400">No rectangle, image-level</span>
+                <span className="text-xs text-muted-foreground">No rectangle, image-level</span>
               </span>
             </button>
           )}

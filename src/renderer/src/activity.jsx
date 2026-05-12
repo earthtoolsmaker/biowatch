@@ -13,6 +13,7 @@ import ActivityMapContextMenu from './ui/ActivityMapContextMenu'
 import CircularTimeFilter, { DailyActivityRadar } from './ui/clock'
 import HideLeafletAttribution from './ui/HideLeafletAttribution'
 import MarkerHoverCard from './ui/MarkerHoverCard'
+import { useTheme } from './hooks/useTheme'
 import PlaceholderMap from './ui/PlaceholderMap'
 import SpeciesDistribution from './ui/speciesDistribution'
 import TimelineChart from './ui/timeseries'
@@ -119,6 +120,17 @@ const SpeciesMap = ({
   useEffect(() => {
     localStorage.setItem(mapLayerKey, selectedLayer)
   }, [selectedLayer, mapLayerKey])
+
+  // Theme-aware Street Map tile layer (light: OpenStreetMap, dark: CartoDB Dark Matter).
+  const { resolved: streetMapResolved } = useTheme()
+  const streetMapUrl =
+    streetMapResolved === 'dark'
+      ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+      : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+  const streetMapAttribution =
+    streetMapResolved === 'dark'
+      ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+      : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 
   // Right-click context menu for "Save map as PNG…"
   const mapRef = useRef(null)
@@ -406,11 +418,7 @@ const SpeciesMap = ({
 
   return (
     <>
-      <MapContainer
-        bounds={bounds}
-        boundsOptions={boundsOptions}
-        className="rounded w-full h-full border border-gray-200"
-      >
+      <MapContainer bounds={bounds} boundsOptions={boundsOptions} className="rounded w-full h-full">
         <HideLeafletAttribution />
         <MapContextMenuController onContextMenu={setContextMenu} mapRef={mapRef} />
         <LayersControl position="topright">
@@ -424,8 +432,9 @@ const SpeciesMap = ({
 
           <LayersControl.BaseLayer name="Street Map" checked={selectedLayer === 'Street Map'}>
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              key={`street-${streetMapResolved}`}
+              attribution={streetMapAttribution}
+              url={streetMapUrl}
               crossOrigin=""
             />
           </LayersControl.BaseLayer>
@@ -510,7 +519,7 @@ const SpeciesMap = ({
           </LayersControl.Overlay>
 
           {/* Add a legend */}
-          <div className="absolute bottom-5 right-5 bg-white p-2 rounded shadow-md z-[1000] flex flex-col gap-2">
+          <div className="absolute bottom-5 right-5 bg-card p-2 rounded shadow-md z-[1000] flex flex-col gap-2">
             {selectedSpecies.map((species, index) => {
               const common = getMapDisplayName(species.scientificName, scientificToCommon)
               const showSci = common && common !== species.scientificName
@@ -525,7 +534,7 @@ const SpeciesMap = ({
                       {common || formatScientificName(species.scientificName)}
                     </span>
                     {showSci && (
-                      <span className="text-[10px] text-gray-500 italic">
+                      <span className="text-[10px] text-muted-foreground italic">
                         {formatScientificName(species.scientificName)}
                       </span>
                     )}
@@ -792,7 +801,9 @@ export default function Activity({ studyData, studyId }) {
   return (
     <div className="px-4 flex flex-col h-full">
       {speciesDistributionError ? (
-        <div className="text-red-500 py-4">Error: {speciesDistributionError.message}</div>
+        <div className="text-red-500 py-4 dark:text-red-400">
+          Error: {speciesDistributionError.message}
+        </div>
       ) : (
         <div className="flex flex-col h-full gap-4">
           {/* First row - takes remaining space */}
@@ -856,7 +867,7 @@ export default function Activity({ studyData, studyId }) {
           <div className="w-full h-[130px] flex-shrink-0">
             {speciesInitialized && sequenceGap !== undefined && (
               <div className="w-full flex h-full gap-3">
-                <div className="w-[140px] h-full rounded border border-gray-200 flex items-center justify-center relative">
+                <div className="w-[140px] h-full rounded border border-border flex items-center justify-center relative">
                   <DailyActivityRadar
                     activityData={dailyActivityData}
                     selectedSpecies={selectedSpecies}
@@ -870,7 +881,7 @@ export default function Activity({ studyData, studyId }) {
                     />
                   </div>
                 </div>
-                <div className="flex-grow rounded px-2 border border-gray-200">
+                <div className="flex-grow rounded px-2 border border-border">
                   <TimelineChart
                     timeseriesData={timeseriesData}
                     selectedSpecies={selectedSpecies}

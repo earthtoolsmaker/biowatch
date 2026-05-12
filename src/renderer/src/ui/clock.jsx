@@ -167,7 +167,14 @@ const CircularTimeFilter = ({ onChange, startTime = 6, endTime = 18 }) => {
         onMouseMove={handleMouseMove}
         ref={svgRef}
       >
-        <circle cx={center.x} cy={center.y} r={radius} fill="none" stroke="#ddd" strokeWidth="2" />
+        <circle
+          cx={center.x}
+          cy={center.y}
+          r={radius}
+          fill="none"
+          stroke="var(--color-border)"
+          strokeWidth="2"
+        />
 
         {Array.from({ length: 24 }).map((_, i) => {
           const angle = timeToAngle(i)
@@ -189,7 +196,7 @@ const CircularTimeFilter = ({ onChange, startTime = 6, endTime = 18 }) => {
                 }
                 x2={coord.x}
                 y2={coord.y}
-                stroke={isMajor ? '#aaa' : '#9ca3af'}
+                stroke="var(--color-muted-foreground)"
                 strokeWidth={isMajor ? 2 : 1}
               />
             </g>
@@ -198,9 +205,8 @@ const CircularTimeFilter = ({ onChange, startTime = 6, endTime = 18 }) => {
 
         <path
           d={createArc(timeToAngle(start), timeToAngle(end))}
-          fill="rgba(0,0,255,0.1)"
-          // fillOpacity="0.1"
-          stroke="#8484f0"
+          fill="rgb(59 130 246 / 0.15)"
+          stroke="rgb(59 130 246 / 0.8)"
           strokeWidth="2"
           cursor="pointer"
           onMouseDown={handleMouseDown('arc')}
@@ -210,7 +216,7 @@ const CircularTimeFilter = ({ onChange, startTime = 6, endTime = 18 }) => {
           cx={startCoord.x}
           cy={startCoord.y}
           r="4"
-          fill="#8484f0"
+          fill="rgb(59 130 246)"
           cursor="pointer"
           onMouseDown={handleMouseDown('start')}
         />
@@ -219,7 +225,7 @@ const CircularTimeFilter = ({ onChange, startTime = 6, endTime = 18 }) => {
           cx={endCoord.x}
           cy={endCoord.y}
           r="4"
-          fill="#8484f0"
+          fill="rgb(59 130 246)"
           cursor="pointer"
           onMouseDown={handleMouseDown('end')}
         />
@@ -256,16 +262,16 @@ const DailyActivityRadar = ({ activityData, selectedSpecies, palette }) => {
       <div className="relative w-full h-full" ref={chartRef}>
         {/* Hour labels with hardcoded positions */}
         <div className="absolute w-full h-full pointer-events-none">
-          <div className="absolute top-0.5 left-1/2 transform -translate-x-1/2  text-[10px] text-gray-500">
+          <div className="absolute top-0.5 left-1/2 transform -translate-x-1/2  text-[10px] text-muted-foreground">
             0h
           </div>
-          <div className="absolute top-1/2 right-1 transform -translate-y-1/2 text-[10px] text-gray-500">
+          <div className="absolute top-1/2 right-1 transform -translate-y-1/2 text-[10px] text-muted-foreground">
             6h
           </div>
-          <div className="absolute bottom-0.5 left-1/2 transform -translate-x-1/2 text-[10px] text-gray-500">
+          <div className="absolute bottom-0.5 left-1/2 transform -translate-x-1/2 text-[10px] text-muted-foreground">
             12h
           </div>
-          <div className="absolute top-1/2 left-0.5 transform  -translate-y-1/2 text-[10px] text-gray-500">
+          <div className="absolute top-1/2 left-0.5 transform  -translate-y-1/2 text-[10px] text-muted-foreground">
             18h
           </div>
         </div>

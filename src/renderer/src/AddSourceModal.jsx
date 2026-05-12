@@ -161,15 +161,15 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
       onClick={() => !submitting && onClose()}
     >
       <div
-        className="bg-white rounded-lg shadow-xl w-[480px] max-w-[92vw] flex flex-col"
+        className="bg-card rounded-lg shadow-xl w-[480px] max-w-[92vw] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <header className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-          <h3 className="text-base font-medium text-gray-900">Add images directory</h3>
+        <header className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h3 className="text-base font-medium text-foreground">Add images directory</h3>
           <button
             onClick={onClose}
             disabled={submitting}
-            className="text-gray-400 hover:text-gray-600 disabled:opacity-50"
+            className="text-muted-foreground hover:text-muted-foreground disabled:opacity-50"
           >
             <X size={18} />
           </button>
@@ -178,9 +178,9 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
         <div className="px-5 py-4 space-y-4">
           {/* No-models-installed CTA: dead-end for users with a fresh install */}
           {!modelLocked && !hasAnyInstalledModel && (
-            <div className="border border-amber-200 bg-amber-50 rounded-md p-3 text-sm text-amber-900">
+            <div className="border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 rounded-md p-3 text-sm text-amber-900 dark:text-amber-200">
               <p className="font-medium mb-1">No models installed</p>
-              <p className="text-amber-800 mb-2 text-xs">
+              <p className="text-amber-800 dark:text-amber-300 mb-2 text-xs">
                 Install at least one model before adding images for analysis.
               </p>
               <Button
@@ -198,10 +198,10 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
 
           {/* Model */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">Model</label>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Model</label>
             {modelLocked ? (
-              <div className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-sm text-gray-700">
-                <Lock size={12} className="text-gray-400" />
+              <div className="flex items-center gap-2 px-3 py-2 border border-gray-200 dark:border-border rounded-md bg-gray-50 dark:bg-muted text-sm text-gray-700 dark:text-foreground">
+                <Lock size={12} className="text-muted-foreground" />
                 <span>
                   {pickedModel
                     ? `${pickedModel.name} v${pickedModel.reference.version}`
@@ -222,7 +222,7 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
                   }
                 }}
               >
-                <SelectTrigger className="w-full bg-white border-gray-200">
+                <SelectTrigger className="w-full bg-card border-border">
                   <SelectValue placeholder="Select a model" />
                 </SelectTrigger>
                 <SelectContent>
@@ -251,7 +251,7 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
             )}
             {modelLocked && pickedModel && !isModelCompletelyInstalled(pickedModel) && (
               <div className="mt-1.5 flex items-center gap-2">
-                <p className="text-xs text-amber-700">
+                <p className="text-xs text-amber-700 dark:text-amber-300">
                   This model is no longer installed. Reinstall it to add a new directory.
                 </p>
                 <Button
@@ -267,7 +267,7 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
               </div>
             )}
             {modelLocked && (!pickedModel || isModelCompletelyInstalled(pickedModel)) && (
-              <p className="text-xs text-gray-400 mt-1.5">
+              <p className="text-xs text-muted-foreground mt-1.5">
                 Same model as the previous run for this study.
               </p>
             )}
@@ -276,11 +276,11 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
           {/* Country (only when model uses geofencing) */}
           {needsCountry && (
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1.5">
-                Country <span className="text-gray-400 font-normal">(geofencing)</span>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                Country <span className="text-muted-foreground font-normal">(geofencing)</span>
               </label>
               <Select value={pickedCountry} onValueChange={setPickedCountry}>
-                <SelectTrigger className="w-full bg-white border-gray-200">
+                <SelectTrigger className="w-full bg-card border-border">
                   <SelectValue placeholder="Select a country" />
                 </SelectTrigger>
                 <SelectContent className="max-h-72">
@@ -292,7 +292,7 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
                 </SelectContent>
               </Select>
               {latestCountry && (
-                <p className="text-xs text-gray-400 mt-1.5">
+                <p className="text-xs text-muted-foreground mt-1.5">
                   Pre-filled from the previous run; change it for this folder if needed.
                 </p>
               )}
@@ -301,17 +301,17 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
 
           {/* Folder */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">Folder</label>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Folder</label>
             <div className="flex gap-2">
               <div
-                className="flex-1 px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-xs font-mono text-gray-600 truncate"
+                className="flex-1 px-3 py-2 border border-gray-200 dark:border-border rounded-md bg-gray-50 dark:bg-muted text-xs font-mono text-gray-600 dark:text-muted-foreground truncate"
                 style={folder ? { direction: 'rtl', textAlign: 'left' } : undefined}
                 title={folder || ''}
               >
                 {folder ? (
                   `‎${folder}`
                 ) : (
-                  <span className="text-gray-400 font-sans">No folder selected</span>
+                  <span className="text-muted-foreground font-sans">No folder selected</span>
                 )}
               </div>
               <Button
@@ -328,13 +328,13 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
           </div>
 
           {error && (
-            <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+            <div className="text-sm text-red-600 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-md px-3 py-2 dark:text-red-400 dark:bg-red-500/15">
               {error}
             </div>
           )}
         </div>
 
-        <footer className="flex justify-end gap-2 px-5 py-3 border-t border-gray-200 bg-gray-50">
+        <footer className="flex justify-end gap-2 px-5 py-3 border-t border-gray-200 dark:border-border bg-gray-50 dark:bg-muted">
           <Button variant="outline" size="sm" onClick={onClose} disabled={submitting}>
             Cancel
           </Button>

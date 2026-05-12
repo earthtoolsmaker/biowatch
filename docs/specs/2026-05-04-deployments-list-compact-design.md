@@ -85,7 +85,7 @@ Three concrete frictions fall out of that mismatch:
 - **Name:** `EditableLocationName` (existing component, unchanged
   semantically). Click-to-rename behavior preserved.
 - **Activity sparkline:** ~22px tall, full available width. Renders
-  whichever variant is active for the study (see *Sparkline toggle*).
+  whichever variant is active for the study (see _Sparkline toggle_).
 - **Total count:** right-aligned, tabular-numbers, secondary text
   color. Sourced from the existing per-deployment activity sum.
 - **No lat/lon inputs in the row.**
@@ -108,7 +108,7 @@ section header. Singletons sit at the top level with no header.
 ```
 
 - **Header height:** ~36px. Background `bg-gray-100`, border-bottom,
-  bold name + count badge, *aggregated* sparkline (muted color, e.g.
+  bold name + count badge, _aggregated_ sparkline (muted color, e.g.
   `bg-slate-300` instead of `#77b7ff`), total count.
 - **Child rows:** 40px, indented ~30px from the left, lighter
   background tint to reinforce visual grouping.
@@ -138,13 +138,13 @@ across the remaining width. Selection persisted in `localStorage` under
 
 ### Map ↔ list selection contract
 
-| User action                  | Result                                           |
-|------------------------------|--------------------------------------------------|
-| Click deployment row (singleton or child) | Select that deployment. Detail pane mounts. |
-| Click section header         | Fly map to bounds of that location's deployments. **Does not change the current deployment selection** — if a deployment is open in the detail pane, the pane stays. |
-| Click marker                 | Select that one deployment. Scroll list to its row. Detail pane mounts. |
-| Click cluster icon           | Existing Leaflet behavior (zoom in).            |
-| Click already-selected row   | Deselect (existing toggle-off, closes pane).    |
+| User action                               | Result                                                                                                                                                               |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Click deployment row (singleton or child) | Select that deployment. Detail pane mounts.                                                                                                                          |
+| Click section header                      | Fly map to bounds of that location's deployments. **Does not change the current deployment selection** — if a deployment is open in the detail pane, the pane stays. |
+| Click marker                              | Select that one deployment. Scroll list to its row. Detail pane mounts.                                                                                              |
+| Click cluster icon                        | Existing Leaflet behavior (zoom in).                                                                                                                                 |
+| Click already-selected row                | Deselect (existing toggle-off, closes pane).                                                                                                                         |
 
 Section-header click producing a `flyTo(bounds)` is new. It uses
 `L.latLngBounds(...)` over the children's coordinates and a small
@@ -162,7 +162,7 @@ top-to-bottom:
 
 1. **Combined coordinate field** (`type="text"`). Placeholder:
    `Paste lat, lon`. On change, attempts to parse `^\s*(-?\d+\.?\d*)
-   [,\s]+\s*(-?\d+\.?\d*)\s*$`. On match, writes both halves into the
+[,\s]+\s*(-?\d+\.?\d*)\s*$`. On match, writes both halves into the
    inputs below; on no match, leaves them alone but doesn't error.
 2. **Two number inputs** — `Latitude` and `Longitude`, with proper
    labels above each input. `step="0.00001"`, `min/max` for the valid
@@ -171,7 +171,7 @@ top-to-bottom:
    the "Location" heading). On click: closes the popover and sets
    `isPlaceMode = true` for the existing place-mode flow.
 
-A "Clear" button was scoped out — see *Future work*. The IPC's
+A "Clear" button was scoped out — see _Future work_. The IPC's
 `setDeploymentLatitude` / `setDeploymentLongitude` handlers
 `parseFloat(null) → NaN` rather than persist `NULL`, so a clean clear
 requires null-guard fixes that are out of scope here.
@@ -188,7 +188,7 @@ New files:
 
 - `src/renderer/src/deployments/SparklineToggle.jsx` — three icon
   buttons + localStorage persistence; emits a `'bars' | 'line' |
-  'heatmap'` value.
+'heatmap'` value.
 - `src/renderer/src/deployments/Sparkline.jsx` — single component that
   takes `periods[]`, `mode`, `percentile90Count` and renders any of the
   three variants. Memoized.

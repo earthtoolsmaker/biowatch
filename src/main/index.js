@@ -18,6 +18,7 @@ import {
   setupShutdownHandlers
 } from './app/index.js'
 import { registerAllIPCHandlers } from './ipc/index.js'
+import { initializeThemeService } from './ipc/theme.js'
 import { registerExportIPCHandlers } from './services/export/exporter.js'
 import { registerTranscodeIPCHandlers } from './services/cache/video.js'
 import { registerImageCacheIPCHandlers } from './services/cache/image.js'
@@ -41,6 +42,10 @@ app.whenReady().then(async () => {
   if (!success) {
     return // App will quit if initialization failed
   }
+
+  // Initialize theme (must happen before BrowserWindow so we can set
+  // the initial backgroundColor and avoid FOUC).
+  initializeThemeService()
 
   // Create the main window
   try {

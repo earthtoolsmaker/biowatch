@@ -26,7 +26,7 @@ const SectionHeader = memo(function SectionHeader({
   return (
     <div
       onClick={handleClick}
-      className={`flex gap-3 items-center px-3 h-9 bg-gray-100 hover:bg-gray-200 cursor-pointer border-b border-gray-200 transition-colors ${
+      className={`flex gap-3 items-center px-3 h-9 bg-muted hover:bg-accent cursor-pointer border-b border-border transition-colors ${
         isSelected ? 'border-l-4 border-l-blue-500 pl-2' : 'border-l-4 border-l-transparent'
       }`}
     >
@@ -39,7 +39,7 @@ const SectionHeader = memo(function SectionHeader({
             onRename={onRenameLocation}
           />
         </div>
-        <span className="text-xs text-gray-600 bg-gray-300 px-1.5 py-0.5 rounded font-medium flex-shrink-0">
+        <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-medium flex-shrink-0">
           {group.deployments.length}
         </span>
       </div>
@@ -55,7 +55,7 @@ const SectionHeader = memo(function SectionHeader({
         )}
       </div>
 
-      <div className="flex-shrink-0 w-16 text-right text-xs text-gray-600 tabular-nums">
+      <div className="flex-shrink-0 w-16 text-right text-xs text-muted-foreground tabular-nums">
         {total.toLocaleString()}
       </div>
     </div>

@@ -57,7 +57,12 @@ export function SequenceGapSlider({
   if (variant === 'compact') {
     return (
       <div className="flex items-center gap-2">
-        <Layers size={16} className={dragValue !== null ? 'text-blue-500' : 'text-gray-400'} />
+        <Layers
+          size={16}
+          className={
+            dragValue !== null ? 'text-blue-500 dark:text-blue-400' : 'text-muted-foreground'
+          }
+        />
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <input
@@ -72,7 +77,7 @@ export function SequenceGapSlider({
               onTouchEnd={commit}
               onBlur={commit}
               disabled={disabled}
-              className="w-24 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-24 h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label={`Sequence grouping: ${formatGapValue(dragValue)}`}
             />
           </Tooltip.Trigger>
@@ -84,10 +89,10 @@ export function SequenceGapSlider({
               className="z-[10000] max-w-xs px-3 py-2 bg-gray-900 text-white text-xs rounded-md shadow-lg"
             >
               <p className="font-medium mb-1">Sequence Grouping</p>
-              <p className="text-gray-300 mb-1.5">
+              <p className="text-muted-foreground mb-1.5">
                 Groups nearby photos/videos into sequences for easier browsing.
               </p>
-              <ul className="text-gray-300 space-y-0.5">
+              <ul className="text-muted-foreground space-y-0.5">
                 <li>
                   <span className="text-white font-medium">Off:</span> Preserves original event
                   groupings from import
@@ -101,7 +106,7 @@ export function SequenceGapSlider({
             </Tooltip.Content>
           </Tooltip.Portal>
         </Tooltip.Root>
-        <span className="text-xs text-gray-600 w-12">{formatGapValue(dragValue)}</span>
+        <span className="text-xs text-muted-foreground w-12">{formatGapValue(dragValue)}</span>
       </div>
     )
   }
@@ -111,10 +116,17 @@ export function SequenceGapSlider({
     <div>
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <Layers size={16} className={dragValue !== null ? 'text-blue-500' : 'text-gray-400'} />
-          <span className="text-sm font-medium text-gray-900">Sequence grouping</span>
+          <Layers
+            size={16}
+            className={
+              dragValue !== null ? 'text-blue-500 dark:text-blue-400' : 'text-muted-foreground'
+            }
+          />
+          <span className="text-sm font-medium text-foreground">Sequence grouping</span>
         </div>
-        <span className="text-sm font-medium text-blue-600">{formatGapValue(dragValue)}</span>
+        <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
+          {formatGapValue(dragValue)}
+        </span>
       </div>
       <input
         type="range"
@@ -128,11 +140,11 @@ export function SequenceGapSlider({
         onTouchEnd={commit}
         onBlur={commit}
         disabled={disabled}
-        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
         aria-label={`Sequence grouping: ${formatGapValue(dragValue)}`}
       />
       {showDescription && (
-        <p className="text-xs text-gray-500 mt-2">
+        <p className="text-xs text-muted-foreground mt-2">
           {dragValue === null
             ? 'Preserves imported event groupings (eventID from original data)'
             : `Groups observations within ${formatGapValue(dragValue)} into sequences (generates new eventIDs)`}

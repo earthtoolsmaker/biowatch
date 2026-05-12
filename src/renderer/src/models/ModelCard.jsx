@@ -126,19 +126,19 @@ export default function ModelCard({
   })
 
   const cardClass = [
-    'bg-white rounded-lg p-4 mb-2 border cursor-pointer transition-shadow',
+    'bg-card rounded-lg p-4 mb-2 border cursor-pointer transition-shadow',
     selected
       ? 'border-blue-300 shadow-[0_0_0_2px_rgba(59,130,246,0.15)]'
-      : 'border-gray-200 hover:shadow-md'
+      : 'border-border hover:shadow-md'
   ].join(' ')
 
   return (
     <div className={cardClass} onClick={() => onSelect?.(model.reference.id)}>
       <div className="flex items-start justify-between gap-3 mb-1">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="font-medium text-sm text-gray-900 truncate">{model.name}</span>
+          <span className="font-medium text-sm text-foreground truncate">{model.name}</span>
           {region && (
-            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 inline-flex items-center gap-1 flex-shrink-0">
+            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground inline-flex items-center gap-1 flex-shrink-0">
               <span
                 className="w-1.5 h-1.5 rounded-full"
                 style={{ background: region.color }}
@@ -157,7 +157,7 @@ export default function ModelCard({
                 e.stopPropagation()
                 handleDelete()
               }}
-              className="text-xs px-3 py-1 rounded-md border border-gray-200 bg-white text-red-600 hover:bg-red-50 hover:border-red-200 inline-flex items-center gap-1.5 shadow-xs"
+              className="text-xs px-3 py-1 rounded-md border border-border bg-card text-red-600 hover:bg-red-50 hover:border-red-200 inline-flex items-center gap-1.5 shadow-xs dark:text-red-400 dark:hover:bg-red-500/15 dark:hover:border-red-500/30"
             >
               <Trash2 size={12} />
               Delete
@@ -168,7 +168,7 @@ export default function ModelCard({
                 e.stopPropagation()
                 handleDownload()
               }}
-              className="text-xs px-3 py-1 rounded-md border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 inline-flex items-center gap-1.5 shadow-xs"
+              className="text-xs px-3 py-1 rounded-md border border-border bg-card text-foreground hover:bg-accent inline-flex items-center gap-1.5 shadow-xs"
             >
               <Download size={12} />
               Download
@@ -177,31 +177,31 @@ export default function ModelCard({
         </div>
       </div>
 
-      <div className="text-xs text-gray-500 mb-1.5">
+      <div className="text-xs text-muted-foreground mb-1.5">
         v{model.reference.version} · {formatSize(model.size_in_MB)} ·{' '}
-        <span className="text-gray-700 font-medium">{model.species_count} species</span>
+        <span className="text-foreground font-medium">{model.species_count} species</span>
       </div>
 
       {!isDownloading && (
-        <div className="text-xs text-gray-600 leading-snug">{model.description}</div>
+        <div className="text-xs text-muted-foreground leading-snug">{model.description}</div>
       )}
 
       {isDownloading && (
         <div className="mt-3">
-          <div className="bg-gray-100 rounded-full h-1.5 overflow-hidden">
+          <div className="bg-muted rounded-full h-1.5 overflow-hidden">
             <div
-              className="h-full bg-blue-500 transition-all"
+              className="h-full bg-blue-500 transition-all dark:bg-blue-400"
               style={{ width: `${downloadProgress}%` }}
             />
           </div>
-          <div className="flex justify-between mt-1 text-[10px] text-gray-500">
+          <div className="flex justify-between mt-1 text-[10px] text-muted-foreground">
             <span>{downloadMessage}</span>
           </div>
         </div>
       )}
 
       <div
-        className="mt-3 text-xs text-blue-600 hover:underline cursor-pointer select-none"
+        className="mt-3 text-xs text-blue-600 hover:underline cursor-pointer select-none dark:text-blue-400"
         onClick={(e) => {
           e.stopPropagation()
           onToggleSpecies?.(model.reference.id)
@@ -218,20 +218,20 @@ export default function ModelCard({
 function StatusPill({ state }) {
   if (state === 'downloaded') {
     return (
-      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-500/30">
         ✓ Downloaded
       </span>
     )
   }
   if (state === 'downloading') {
     return (
-      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
+      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300 border border-blue-100">
         Downloading…
       </span>
     )
   }
   return (
-    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-50 text-gray-600 border border-gray-200">
+    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
       Not downloaded
     </span>
   )

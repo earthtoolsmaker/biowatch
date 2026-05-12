@@ -175,23 +175,23 @@ Changes:
 
 ### Runtime
 
-| Condition | Behavior |
-|---|---|
-| Scientific name absent from `data.json` AND study has `filePath` | Tooltip shows study image + name only (today's behavior). |
+| Condition                                                           | Behavior                                                                                                                                                                                                                                                          |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Scientific name absent from `data.json` AND study has `filePath`    | Tooltip shows study image + name only (today's behavior).                                                                                                                                                                                                         |
 | Scientific name absent from `data.json` AND study has no `filePath` | Tooltip shows `<CameraOff>` placeholder + name. **Behavior change:** today the tooltip returns `null` and does not render at all. New behavior renders an info-only tooltip — desirable since users still get the name and (when present) the IUCN badge / blurb. |
-| Entry exists but `iucn` missing | No badge rendered. |
-| Entry exists but `blurb` missing | No description paragraph. |
-| Entry exists but `imageUrl` 404s at runtime | Existing `onError` handler on the `<img>` falls back to `<CameraOff>`. |
-| `cached-image://` cannot fetch the Wikipedia URL (offline, blocked) | Same `onError` fallback. |
+| Entry exists but `iucn` missing                                     | No badge rendered.                                                                                                                                                                                                                                                |
+| Entry exists but `blurb` missing                                    | No description paragraph.                                                                                                                                                                                                                                         |
+| Entry exists but `imageUrl` 404s at runtime                         | Existing `onError` handler on the `<img>` falls back to `<CameraOff>`.                                                                                                                                                                                            |
+| `cached-image://` cannot fetch the Wikipedia URL (offline, blocked) | Same `onError` fallback.                                                                                                                                                                                                                                          |
 
 ### Script
 
-| Condition | Behavior |
-|---|---|
+| Condition                                    | Behavior                                                                                                              |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | GBIF or Wikipedia 5xx for a single candidate | Retry with backoff; on final failure, log and skip. Partial entry still recorded if any of the three calls succeeded. |
-| Network drop mid-run | SIGINT flushes progress; `--resume` continues from where it stopped. |
-| Wikipedia returns a disambiguation page | Blurb is still recorded but may be suboptimal — operator can hand-edit `data.json`. |
-| Rate limited | Polite default delay (~200ms). If still hit, retry/backoff handles it. |
+| Network drop mid-run                         | SIGINT flushes progress; `--resume` continues from where it stopped.                                                  |
+| Wikipedia returns a disambiguation page      | Blurb is still recorded but may be suboptimal — operator can hand-edit `data.json`.                                   |
+| Rate limited                                 | Polite default delay (~200ms). If still hit, retry/backoff handles it.                                                |
 
 ## Build & packaging
 

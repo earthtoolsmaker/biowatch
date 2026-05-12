@@ -51,7 +51,7 @@ export default function StudyHoverCard({ study, scrollSignal, children }) {
           align="start"
           avoidCollisions
           collisionPadding={16}
-          className="z-[10001] w-80 bg-white rounded-lg shadow-xl border border-gray-200 p-4"
+          className="z-[10001] w-80 bg-card rounded-lg shadow-xl border border-border p-4"
         >
           <Body study={study} stats={stats} isLoading={isLoading} />
         </HoverCard.Content>
@@ -66,12 +66,12 @@ function Body({ study, stats, isLoading }) {
 
   return (
     <div className="flex flex-col gap-3">
-      <h3 className="text-base font-semibold text-gray-900 capitalize leading-tight">
+      <h3 className="text-base font-semibold text-foreground capitalize leading-tight">
         {study.name}
       </h3>
 
       {description && (
-        <p className="text-xs text-gray-600 leading-relaxed line-clamp-2">{description}</p>
+        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">{description}</p>
       )}
 
       <KpiStrip stats={stats} isLoading={isLoading} />
@@ -85,8 +85,8 @@ function KpiStrip({ stats, isLoading }) {
   if (isLoading || !stats) {
     return (
       <div className="flex flex-col gap-1.5">
-        <div className="h-3 bg-gray-200 rounded animate-pulse w-3/4" />
-        <div className="h-3 bg-gray-200 rounded animate-pulse w-2/3" />
+        <div className="h-3 bg-muted rounded animate-pulse w-3/4" />
+        <div className="h-3 bg-muted rounded animate-pulse w-2/3" />
       </div>
     )
   }
@@ -97,7 +97,7 @@ function KpiStrip({ stats, isLoading }) {
   const rangeLabel = formatRangeShort(derivedRange?.start, derivedRange?.end)
 
   return (
-    <div className="flex flex-col gap-1.5 text-xs text-gray-700">
+    <div className="flex flex-col gap-1.5 text-xs text-foreground">
       <div className="flex items-center gap-3 flex-wrap">
         <Stat icon={<PawPrint size={12} />}>{formatStatNumber(speciesCount)} species</Stat>
         <Stat icon={<Camera size={12} />}>{formatStatNumber(cameraCount)} deployments</Stat>
@@ -111,7 +111,7 @@ function KpiStrip({ stats, isLoading }) {
         <Stat icon={<Eye size={12} />}>{formatStatNumber(observationCount)} obs</Stat>
         <Stat icon={<ImageIcon size={12} />}>{formatStatNumber(mediaCount)} media</Stat>
         {threatenedCount > 0 && (
-          <span className="inline-flex items-center gap-1 text-amber-700">
+          <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-300">
             <AlertTriangle size={12} />
             {formatStatNumber(threatenedCount)} threatened
           </span>
@@ -124,7 +124,7 @@ function KpiStrip({ stats, isLoading }) {
 function Stat({ icon, children, title }) {
   return (
     <span className="inline-flex items-center gap-1" title={title}>
-      <span className="text-gray-500">{icon}</span>
+      <span className="text-muted-foreground">{icon}</span>
       {children}
     </span>
   )
@@ -135,18 +135,18 @@ function ContributorsLine({ contributors }) {
   const overflow = contributors.length - visible.length
 
   return (
-    <div className="text-[0.7rem] text-gray-500 pt-2 border-t border-gray-100 flex items-center gap-1 flex-wrap">
-      <span className="text-gray-400">By</span>
+    <div className="text-[0.7rem] text-muted-foreground pt-2 border-t border-border flex items-center gap-1 flex-wrap">
+      <span className="text-muted-foreground">By</span>
       {visible.map((c, i) => (
         <span key={i} className="flex items-center gap-1">
-          <span className="text-gray-600">{displayName(c)}</span>
-          {i < visible.length - 1 && <span className="text-gray-300">·</span>}
+          <span className="text-muted-foreground">{displayName(c)}</span>
+          {i < visible.length - 1 && <span className="text-muted-foreground">·</span>}
         </span>
       ))}
       {overflow > 0 && (
         <>
-          <span className="text-gray-300">·</span>
-          <span className="text-gray-400">+{overflow} more</span>
+          <span className="text-muted-foreground">·</span>
+          <span className="text-muted-foreground">+{overflow} more</span>
         </>
       )}
     </div>

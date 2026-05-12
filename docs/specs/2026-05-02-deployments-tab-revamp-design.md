@@ -20,7 +20,7 @@ deployment is selected.
 
 Today the Deployments tab is a discovery surface — map of camera
 locations, list of deployments with activity timelines — but to actually
-look at the *images* a deployment captured, the user must mentally hop
+look at the _images_ a deployment captured, the user must mentally hop
 to the Media tab and filter. That round-trip is the workflow the user
 spends the most time on (QA: spot-checking classifications for a
 specific deployment), and Media's filters don't expose
@@ -66,7 +66,7 @@ top row to full height — pixels stay efficient.
   deployment. Filtering can be added later without rework — the
   underlying `getSequences` query already accepts those filters.
 - Future bottom-pane sections (timeline graph, camera-days, species at
-  location). Designed *for*, not *built*.
+  location). Designed _for_, not _built_.
 - Changes to the existing map (markers, clustering, place mode,
   drag-to-edit lat/lng). All retained as-is.
 - Changes to the existing list rows (timeline activity bars, inline
@@ -261,9 +261,7 @@ The cursor-paginated query gains one additional `WHERE` clause,
 slotted into the existing `and(...)` next to species/date/time:
 
 ```js
-filters.deploymentID
-  ? eq(media.deploymentID, filters.deploymentID)
-  : undefined
+filters.deploymentID ? eq(media.deploymentID, filters.deploymentID) : undefined
 ```
 
 Confirm `media.deploymentID` is indexed (it is — used elsewhere for
@@ -275,10 +273,18 @@ When `deploymentID` is present, include it in the `useInfiniteQuery`
 queryKey so distinct deployments cache separately:
 
 ```js
-queryKey: ['sequences', studyId, sequenceGap, deploymentID,
-           JSON.stringify(species),
-           dateRange[0]?.toISOString(), dateRange[1]?.toISOString(),
-           timeRange.start, timeRange.end, includeNullTimestamps]
+queryKey: [
+  'sequences',
+  studyId,
+  sequenceGap,
+  deploymentID,
+  JSON.stringify(species),
+  dateRange[0]?.toISOString(),
+  dateRange[1]?.toISOString(),
+  timeRange.start,
+  timeRange.end,
+  includeNullTimestamps
+]
 ```
 
 Activity tab callers pass no `deploymentID` — the existing query path

@@ -84,17 +84,17 @@ export default function SpanPicker({
   return (
     <div
       ref={containerRef}
-      className="bg-white rounded-lg shadow-xl border border-gray-200 p-3"
+      className="bg-card rounded-lg shadow-xl border border-border p-3"
       onClick={(e) => e.stopPropagation()}
     >
       <div className="flex gap-3">
         <CalendarPane label="Start" value={start} onChange={setStart} />
-        <div className="w-px bg-gray-100 self-stretch" aria-hidden="true" />
+        <div className="w-px bg-muted self-stretch" aria-hidden="true" />
         <CalendarPane label="End" value={end} onChange={setEnd} />
       </div>
 
       {validationError && (
-        <p className="text-xs text-red-500 mt-2 text-center">{validationError}</p>
+        <p className="text-xs text-red-500 mt-2 text-center dark:text-red-400">{validationError}</p>
       )}
 
       <div
@@ -104,7 +104,7 @@ export default function SpanPicker({
           <button
             type="button"
             onClick={onResetToAuto}
-            className="text-xs text-blue-600 hover:underline"
+            className="text-xs text-blue-600 hover:underline dark:text-blue-400"
             title="Clear override and fall back to auto-derived range"
           >
             Reset to auto
@@ -114,14 +114,14 @@ export default function SpanPicker({
           <button
             type="button"
             onClick={onCancel}
-            className="px-2.5 py-1 text-xs font-medium border border-gray-200 rounded-md hover:bg-gray-50 transition-colors"
+            className="px-2.5 py-1 text-xs font-medium border border-border rounded-md hover:bg-accent transition-colors"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={handleSave}
-            className="px-2.5 py-1 text-xs font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            className="px-2.5 py-1 text-xs font-medium bg-blue-600 text-white dark:bg-blue-500 dark:text-white rounded-md hover:bg-blue-700 transition-colors dark:hover:bg-blue-600"
           >
             Save
           </button>
@@ -166,7 +166,7 @@ function CalendarPane({ label, value, onChange }) {
 
   return (
     <div className="w-60">
-      <div className="text-[0.6rem] uppercase tracking-wider text-gray-500 font-semibold mb-1.5">
+      <div className="text-[0.6rem] uppercase tracking-wider text-muted-foreground font-semibold mb-1.5">
         {label}
       </div>
 
@@ -174,7 +174,7 @@ function CalendarPane({ label, value, onChange }) {
       <div className="flex items-center justify-between mb-2">
         <button
           onClick={prevMonth}
-          className="p-1 hover:bg-gray-100 rounded transition-colors"
+          className="p-1 hover:bg-accent rounded transition-colors"
           type="button"
           aria-label="Previous month"
         >
@@ -196,14 +196,14 @@ function CalendarPane({ label, value, onChange }) {
             type="number"
             value={year}
             onChange={(e) => setYear(parseInt(e.target.value, 10) || year)}
-            className="w-14 text-xs font-medium text-center border border-gray-200 rounded px-1 py-0.5"
+            className="w-14 text-xs font-medium text-center border border-border rounded px-1 py-0.5"
             min="1900"
             max="2100"
           />
         </div>
         <button
           onClick={nextMonth}
-          className="p-1 hover:bg-gray-100 rounded transition-colors"
+          className="p-1 hover:bg-accent rounded transition-colors"
           type="button"
           aria-label="Next month"
         >
@@ -214,7 +214,10 @@ function CalendarPane({ label, value, onChange }) {
       {/* Day grid */}
       <div className="grid grid-cols-7 gap-0.5">
         {DAYS_OF_WEEK.map((d) => (
-          <div key={d} className="text-center text-[0.65rem] text-gray-500 py-0.5 font-medium">
+          <div
+            key={d}
+            className="text-center text-[0.65rem] text-muted-foreground py-0.5 font-medium"
+          >
             {d}
           </div>
         ))}
@@ -235,8 +238,8 @@ function CalendarPane({ label, value, onChange }) {
                 onClick={() => onChange(new Date(year, month, day))}
                 className={`text-xs py-1 rounded transition-colors ${
                   selected
-                    ? 'bg-blue-600 text-white font-medium'
-                    : 'text-gray-700 hover:bg-gray-100'
+                    ? 'bg-blue-600 text-white dark:bg-blue-500 dark:text-white font-medium'
+                    : 'text-foreground hover:bg-accent'
                 }`}
               >
                 {day}

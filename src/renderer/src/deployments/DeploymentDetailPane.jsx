@@ -34,8 +34,8 @@ export default function DeploymentDetailPane({
   const [selectedSpecies, setSelectedSpecies] = useState([])
 
   return (
-    <div className="flex flex-col h-full bg-white min-h-0">
-      <div className="flex items-center justify-between px-2 py-2 border-b border-gray-200 flex-shrink-0 gap-2">
+    <div className="flex flex-col h-full bg-card min-h-0">
+      <div className="flex items-center justify-between px-2 py-2 border-b border-border flex-shrink-0 gap-2">
         {/* isSelected=false keeps the header in the same neutral gray as
             the rest of the pane chrome — the blue "selected" treatment is
             for the list rows where it's a state indicator. */}
@@ -60,7 +60,7 @@ export default function DeploymentDetailPane({
           <DeploymentSettingsPopover studyId={studyId} deployment={deployment} />
           <button
             onClick={onClose}
-            className="p-1 hover:bg-gray-100 rounded text-gray-500 hover:text-gray-700"
+            className="p-1 hover:bg-accent rounded text-muted-foreground hover:text-foreground"
             title="Close (Esc)"
             aria-label="Close media pane"
           >
@@ -138,33 +138,36 @@ function SpeciesFilterButton({ studyId, deploymentID, selectedSpecies, onChange 
         onClick={() => setIsOpen((v) => !v)}
         className={`p-1 rounded relative ${
           hasFilter
-            ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
-            : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+            ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-500/25'
+            : 'text-muted-foreground hover:bg-accent hover:text-foreground'
         }`}
         title={hasFilter ? `Filter: ${selectedSpecies.length} species` : 'Filter species'}
         aria-label="Filter species"
       >
         <Filter size={16} />
         {hasFilter && (
-          <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-blue-500" />
+          <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-blue-400" />
         )}
       </button>
       {isOpen && (
         <div
           ref={popoverRef}
           onScroll={() => setScrollSignal((n) => n + 1)}
-          className="absolute right-0 top-full mt-1 w-80 max-h-96 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg z-[1100]"
+          className="absolute right-0 top-full mt-1 w-80 max-h-96 overflow-y-auto bg-card border border-border rounded-lg shadow-lg z-[1100]"
         >
-          <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100 sticky top-0 bg-white">
-            <span className="text-xs font-medium text-gray-700">Filter by species</span>
+          <div className="flex items-center justify-between px-3 py-2 border-b border-border sticky top-0 bg-card">
+            <span className="text-xs font-medium text-foreground">Filter by species</span>
             {hasFilter && (
-              <button onClick={clearAll} className="text-xs text-blue-600 hover:underline">
+              <button
+                onClick={clearAll}
+                className="text-xs text-blue-600 hover:underline dark:text-blue-400"
+              >
                 Clear
               </button>
             )}
           </div>
           {speciesList.length === 0 ? (
-            <div className="px-3 py-3 text-xs text-gray-400">Loading…</div>
+            <div className="px-3 py-3 text-xs text-muted-foreground">Loading…</div>
           ) : (
             <ul className="py-1">
               {speciesList.map((s) => (
@@ -204,12 +207,14 @@ function SpeciesFilterRow({ studyId, scientificName, count, isSelected, onToggle
     <button
       onClick={onToggle}
       className={`w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors ${
-        isSelected ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-gray-50'
+        isSelected
+          ? 'bg-blue-50 hover:bg-blue-100 dark:hover:bg-blue-500/25 dark:bg-blue-500/15'
+          : 'hover:bg-accent'
       }`}
     >
       <span
         className={`flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center ${
-          isSelected ? 'bg-blue-500 border-blue-500' : 'border-gray-300 bg-white'
+          isSelected ? 'bg-blue-500 border-blue-500 dark:bg-blue-400' : 'border-border bg-card'
         }`}
       >
         {isSelected && <Check size={12} className="text-white" />}
@@ -218,21 +223,21 @@ function SpeciesFilterRow({ studyId, scientificName, count, isSelected, onToggle
         <span
           className={`block text-sm truncate ${
             isPseudo
-              ? 'italic text-gray-500'
+              ? 'italic text-muted-foreground'
               : `${commonName ? 'capitalize' : 'italic'} ${
-                  isSelected ? 'text-blue-900 font-medium' : 'text-gray-800'
+                  isSelected ? 'text-blue-900 dark:text-blue-300 font-medium' : 'text-foreground'
                 }`
           }`}
         >
           {pseudoLabel || commonName || formatScientificName(scientificName)}
         </span>
         {!isPseudo && commonName && (
-          <span className="block text-xs italic text-gray-500 truncate">
+          <span className="block text-xs italic text-muted-foreground truncate">
             {formatScientificName(scientificName)}
           </span>
         )}
       </span>
-      <span className="flex-shrink-0 text-xs tabular-nums text-gray-500">{count}</span>
+      <span className="flex-shrink-0 text-xs tabular-nums text-muted-foreground">{count}</span>
     </button>
   )
 

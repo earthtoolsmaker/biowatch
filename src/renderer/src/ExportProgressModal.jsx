@@ -76,10 +76,10 @@ function ExportProgressModal({ isOpen, onCancel, progress }) {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Exporting Images</h2>
-          <p className="text-sm text-gray-500 mt-1">
+      <div className="bg-card rounded-lg shadow-xl max-w-md w-full mx-4">
+        <div className="px-6 py-4 border-b border-border">
+          <h2 className="text-lg font-semibold text-foreground">Exporting Images</h2>
+          <p className="text-sm text-muted-foreground mt-1">
             {isCancelling ? 'Cancelling export...' : 'Please wait while images are being exported'}
           </p>
         </div>
@@ -87,7 +87,7 @@ function ExportProgressModal({ isOpen, onCancel, progress }) {
         <div className="px-6 py-6">
           {/* Progress bar */}
           <div className="mb-4">
-            <div className="flex justify-between text-sm text-gray-600 mb-2">
+            <div className="flex justify-between text-sm text-muted-foreground mb-2">
               <span>
                 {isDownloading ? (
                   <span className="flex items-center gap-1">
@@ -103,9 +103,9 @@ function ExportProgressModal({ isOpen, onCancel, progress }) {
               </span>
               <span>{displayPercent}%</span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+            <div className="w-full bg-muted rounded-full h-3 overflow-hidden">
               <div
-                className="bg-blue-600 h-3 rounded-full transition-all duration-300 animate-pulse"
+                className="bg-blue-600 h-3 rounded-full transition-all duration-300 animate-pulse dark:bg-blue-500"
                 style={{ width: `${displayPercent}%` }}
               />
             </div>
@@ -113,7 +113,7 @@ function ExportProgressModal({ isOpen, onCancel, progress }) {
 
           {/* Time estimate */}
           {timeRemainingStr && (
-            <div className="flex items-center justify-center gap-1.5 text-sm text-gray-500 mb-4">
+            <div className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground mb-4">
               <Clock size={14} />
               <span>~{timeRemainingStr} remaining</span>
             </div>
@@ -121,27 +121,27 @@ function ExportProgressModal({ isOpen, onCancel, progress }) {
 
           {/* File counter */}
           <div className="text-center mb-4">
-            <p className="text-2xl font-semibold text-gray-900">
-              {currentFile} <span className="text-gray-400">of</span> {totalFiles}
+            <p className="text-2xl font-semibold text-foreground">
+              {currentFile} <span className="text-muted-foreground">of</span> {totalFiles}
             </p>
-            <p className="text-sm text-gray-500">images processed</p>
+            <p className="text-sm text-muted-foreground">images processed</p>
           </div>
 
           {/* Current file name */}
           {fileName && (
-            <div className="bg-gray-50 rounded-lg p-3 mb-4 overflow-hidden">
-              <p className="text-xs text-gray-500 mb-1">Current file:</p>
+            <div className="bg-muted rounded-lg p-3 mb-4 overflow-hidden">
+              <p className="text-xs text-muted-foreground mb-1">Current file:</p>
               {speciesName && (
-                <p className="text-sm text-gray-900 font-medium italic mb-1">
+                <p className="text-sm text-foreground font-medium italic mb-1">
                   {formatScientificName(speciesName)}
                 </p>
               )}
-              <p className="text-sm text-gray-700 truncate font-mono">{fileName}</p>
+              <p className="text-sm text-foreground truncate font-mono">{fileName}</p>
               {isDownloading && downloadPercent > 0 && (
                 <div className="mt-2">
-                  <div className="w-full bg-gray-200 rounded-full h-1.5">
+                  <div className="w-full bg-muted rounded-full h-1.5">
                     <div
-                      className="bg-blue-600 h-1.5 rounded-full transition-all duration-150"
+                      className="bg-blue-600 h-1.5 rounded-full transition-all duration-150 dark:bg-blue-500"
                       style={{ width: `${downloadPercent}%` }}
                     />
                   </div>
@@ -152,7 +152,7 @@ function ExportProgressModal({ isOpen, onCancel, progress }) {
 
           {/* Error count */}
           {errorCount > 0 && (
-            <div className="flex items-center gap-2 text-amber-600 bg-amber-50 rounded-lg p-3">
+            <div className="flex items-center gap-2 text-amber-600 bg-amber-50 rounded-lg p-3 dark:text-amber-300 dark:bg-amber-500/10">
               <AlertCircle size={16} />
               <span className="text-sm">
                 {errorCount} {errorCount === 1 ? 'file' : 'files'} failed to export
@@ -161,11 +161,11 @@ function ExportProgressModal({ isOpen, onCancel, progress }) {
           )}
         </div>
 
-        <div className="px-6 py-4 border-t border-gray-200">
+        <div className="px-6 py-4 border-t border-border">
           <button
             onClick={handleCancel}
             disabled={isCancelling}
-            className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full px-4 py-2 text-sm font-medium text-foreground bg-muted hover:bg-accent rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isCancelling ? 'Cancelling...' : 'Cancel Export'}
           </button>

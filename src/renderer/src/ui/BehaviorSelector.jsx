@@ -73,8 +73,8 @@ export default function BehaviorSelector({ value = [], onChange }) {
         onClick={handleButtonClick}
         className={`w-full flex items-center justify-between px-3 py-1.5 rounded-md border text-sm transition-colors ${
           selectedCount > 0
-            ? 'bg-white border-gray-300 text-[#030213]'
-            : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
+            ? 'bg-card border-border text-foreground'
+            : 'bg-card border-border text-muted-foreground hover:border-border'
         }`}
       >
         <span>
@@ -92,7 +92,7 @@ export default function BehaviorSelector({ value = [], onChange }) {
                   handleClearAll(e)
                 }
               }}
-              className="p-0.5 rounded hover:bg-gray-100 transition-colors cursor-pointer"
+              className="p-0.5 rounded hover:bg-accent transition-colors cursor-pointer"
               title="Clear all"
             >
               <X size={14} />
@@ -103,10 +103,10 @@ export default function BehaviorSelector({ value = [], onChange }) {
       </button>
 
       {isOpen && (
-        <div className="absolute z-30 bottom-full mb-1 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-64 overflow-y-auto">
+        <div className="absolute z-30 bottom-full mb-1 w-full bg-card border border-border rounded-md shadow-lg max-h-64 overflow-y-auto">
           {Object.entries(behaviorCategories).map(([category, behaviors]) => (
             <div key={category}>
-              <div className="px-3 py-1.5 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-100">
+              <div className="px-3 py-1.5 bg-muted text-xs font-semibold text-muted-foreground uppercase tracking-wider border-b border-border">
                 {category}
               </div>
               {behaviors.map((behavior) => {
@@ -115,8 +115,8 @@ export default function BehaviorSelector({ value = [], onChange }) {
                   <label
                     key={behavior}
                     onClick={(e) => e.stopPropagation()}
-                    className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-gray-50 transition-colors ${
-                      isChecked ? 'bg-gray-50' : ''
+                    className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-accent transition-colors ${
+                      isChecked ? 'bg-muted' : ''
                     }`}
                   >
                     <input
@@ -126,9 +126,9 @@ export default function BehaviorSelector({ value = [], onChange }) {
                         e.stopPropagation()
                         handleToggle(behavior)
                       }}
-                      className="w-4 h-4 rounded border-gray-300 text-[#030213] focus:ring-gray-400 focus:ring-offset-0"
+                      className="w-4 h-4 rounded border-border text-foreground focus:ring-gray-400 focus:ring-offset-0"
                     />
-                    <span className="text-sm text-gray-700">{behavior}</span>
+                    <span className="text-sm text-foreground">{behavior}</span>
                   </label>
                 )
               })}

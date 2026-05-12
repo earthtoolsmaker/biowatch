@@ -41,23 +41,23 @@ function ErrorFallback({ error, resetErrorBoundary }) {
   }
 
   return (
-    <div className="p-4 bg-red-50 text-red-700 rounded-md m-4">
+    <div className="p-4 bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-300 rounded-md m-4">
       <h3 className="font-semibold mb-2">Something went wrong</h3>
       <p className="text-sm mb-2">There was an error loading this content.</p>
-      <details className="text-xs bg-white p-2 rounded border border-red-200">
+      <details className="text-xs bg-card p-2 rounded border border-red-200">
         <summary>Error details</summary>
         <pre className="mt-2 whitespace-pre-wrap">{error.message}</pre>
       </details>
       <div className="flex gap-2 mt-3">
         <button
           onClick={resetErrorBoundary}
-          className="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-800 rounded text-sm"
+          className="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-800 rounded text-sm dark:bg-red-500/20 dark:hover:bg-red-500/30 dark:text-red-300"
         >
           Try again
         </button>
         <button
           onClick={copyErrorToClipboard}
-          className="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-800 rounded text-sm"
+          className="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-800 rounded text-sm dark:bg-red-500/20 dark:hover:bg-red-500/30 dark:text-red-300"
         >
           Copy error
         </button>
@@ -93,7 +93,7 @@ function ImportStatus({ studyId, importerName }) {
     <div className="flex items-center gap-3 px-4 ml-auto">
       <button
         onClick={importStatus.isRunning ? pauseImport : resumeImport}
-        className="px-2 py-0.5 bg-white hover:bg-gray-50 border border-gray-300 rounded text-sm font-medium text-gray-700 transition-colors flex items-center gap-1"
+        className="px-2 py-0.5 bg-card hover:bg-accent border border-border rounded text-sm font-medium text-foreground transition-colors flex items-center gap-1"
         title={importStatus.isRunning ? 'Pause import' : 'Resume import'}
       >
         {importStatus.isRunning ? (
@@ -108,19 +108,19 @@ function ImportStatus({ studyId, importerName }) {
           : 'Resume'}
       </button>
 
-      <span className="text-gray-600 tabular-nums text-xs" style={{ width: spanWidth }}>
+      <span className="text-muted-foreground tabular-nums text-xs" style={{ width: spanWidth }}>
         {importStatus.done} / {importStatus.total}
       </span>
 
-      <div className={`w-20 bg-gray-200 rounded-full h-2`}>
+      <div className={`w-20 bg-muted rounded-full h-2`}>
         <div
-          className={`h-full bg-blue-600 transition-all duration-500 ease-in-out rounded-full`}
+          className={`h-full bg-blue-600 dark:bg-blue-500 transition-all duration-500 ease-in-out rounded-full`}
           style={{ width: `${progress}%` }}
         />
       </div>
 
       <span
-        className="text-xs text-gray-600 text-right"
+        className="text-xs text-muted-foreground text-right"
         title={`${importStatus.speed} media/minute`}
       >
         {importStatus.estimatedMinutesRemaining
@@ -159,7 +159,7 @@ export default function Study() {
   if (error) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-red-500">Error loading study: {error.message}</div>
+        <div className="text-red-500 dark:text-red-400">Error loading study: {error.message}</div>
       </div>
     )
   }
@@ -170,7 +170,7 @@ export default function Study() {
 
   return (
     <div className="flex gap-4 flex-col h-full">
-      <header className="w-full border-b border-gray-200 sticky top-0 bg-white z-10">
+      <header className="w-full border-b border-border sticky top-0 bg-card z-10">
         <div className="flex items-center">
           <nav aria-label="Tabs" className="-mb-px flex space-x-8 px-4">
             <Tab to={`/study/${id}`} icon={NotebookText} end compact={isImportActive}>

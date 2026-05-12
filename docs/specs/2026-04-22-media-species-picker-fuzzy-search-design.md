@@ -46,21 +46,21 @@ fuzzy search away.
 
 ## Design choices (locked from brainstorming)
 
-| Choice | Decision |
-| --- | --- |
-| Ranking | Single merged list, study-present gets a score boost |
-| Row layout | One line: `common name (scientific name)` |
-| Search library | `fuse.js` |
-| Dictionary filter | Keep entries where `commonName !== scientificName` (~2105 of 2535) |
-| Keyboard | Arrow keys navigate, Enter selects highlighted, no implicit custom-submit |
-| Index lifetime | Dictionary Fuse is module-level (built once at import); study Fuse is rebuilt per call because the study list changes as species are added |
-| Debounce | 150 ms on the search input |
-| Min query length for dictionary | 3 characters |
-| Result cap | Top 50 |
-| Write on pick | Both `scientificName` and `commonName` |
-| Merge strategy | Two Fuse queries merged in JS; study entry wins on duplicates |
-| Field weighting | Equal weight on `scientificName` and `commonName` |
-| Edit surface | Unchanged — wherever `ObservationEditor` already opens today |
+| Choice                          | Decision                                                                                                                                   |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Ranking                         | Single merged list, study-present gets a score boost                                                                                       |
+| Row layout                      | One line: `common name (scientific name)`                                                                                                  |
+| Search library                  | `fuse.js`                                                                                                                                  |
+| Dictionary filter               | Keep entries where `commonName !== scientificName` (~2105 of 2535)                                                                         |
+| Keyboard                        | Arrow keys navigate, Enter selects highlighted, no implicit custom-submit                                                                  |
+| Index lifetime                  | Dictionary Fuse is module-level (built once at import); study Fuse is rebuilt per call because the study list changes as species are added |
+| Debounce                        | 150 ms on the search input                                                                                                                 |
+| Min query length for dictionary | 3 characters                                                                                                                               |
+| Result cap                      | Top 50                                                                                                                                     |
+| Write on pick                   | Both `scientificName` and `commonName`                                                                                                     |
+| Merge strategy                  | Two Fuse queries merged in JS; study entry wins on duplicates                                                                              |
+| Field weighting                 | Equal weight on `scientificName` and `commonName`                                                                                          |
+| Edit surface                    | Unchanged — wherever `ObservationEditor` already opens today                                                                               |
 
 ## Architecture
 
@@ -109,9 +109,7 @@ export function searchSpecies(query, studySpeciesList) {
     }
   }
 
-  return [...merged.values()]
-    .sort((a, b) => a.score - b.score)
-    .slice(0, 50)
+  return [...merged.values()].sort((a, b) => a.score - b.score).slice(0, 50)
 }
 ```
 
@@ -148,9 +146,9 @@ today.
 ### State additions
 
 ```js
-const [searchTerm, setSearchTerm]              // existing
-const [debouncedSearch, setDebouncedSearch]    // NEW — 150 ms debounced
-const [highlightedIndex, setHighlightedIndex]  // NEW — arrow-key cursor
+const [searchTerm, setSearchTerm] // existing
+const [debouncedSearch, setDebouncedSearch] // NEW — 150 ms debounced
+const [highlightedIndex, setHighlightedIndex] // NEW — arrow-key cursor
 ```
 
 A `useEffect` sets `debouncedSearch` to `searchTerm` after 150 ms of

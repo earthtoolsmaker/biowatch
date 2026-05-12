@@ -42,12 +42,12 @@ export default function Diagnostics() {
       <Card className="group hover:border-blue-500/20 transition-all hover:shadow-md">
         <CardContent className="p-5">
           <div className="flex items-center gap-4">
-            <div className="size-12 rounded-xl bg-gray-100 flex items-center justify-center shrink-0 group-hover:bg-blue-50 transition-colors">
-              <FileArchive className="size-5 text-gray-500 group-hover:text-blue-600 transition-colors" />
+            <div className="size-12 rounded-xl bg-muted flex items-center justify-center shrink-0 group-hover:bg-blue-50 transition-colors dark:group-hover:bg-blue-500/15">
+              <FileArchive className="size-5 text-muted-foreground group-hover:text-blue-600 transition-colors dark:group-hover:text-blue-400" />
             </div>
             <div className="flex-1 min-w-0">
               <h4 className="mb-1 font-medium">Export Logs</h4>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-muted-foreground">
                 Export application logs and system info for troubleshooting
               </p>
             </div>

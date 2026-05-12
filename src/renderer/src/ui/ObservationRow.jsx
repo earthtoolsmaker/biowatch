@@ -9,7 +9,7 @@ import { formatScientificName } from '../utils/scientificName'
 
 const BBOX_TYPE_ICON = (
   <span
-    className="inline-flex w-4 h-4 rounded-sm border-[1.5px] border-[#2563eb] flex-shrink-0"
+    className="inline-flex w-4 h-4 rounded-sm border-[1.5px] border-blue-600 dark:border-blue-500 flex-shrink-0"
     style={{ background: 'rgba(37,99,235,0.08)' }}
     aria-hidden="true"
   />
@@ -17,7 +17,7 @@ const BBOX_TYPE_ICON = (
 
 const WHOLE_TYPE_ICON = (
   <span
-    className="inline-flex w-4 h-4 rounded-sm border-[1.5px] border-dashed border-gray-400 bg-gray-100 flex-shrink-0"
+    className="inline-flex w-4 h-4 rounded-sm border-[1.5px] border-dashed border-border bg-muted flex-shrink-0"
     aria-hidden="true"
   />
 )
@@ -94,53 +94,62 @@ export default function ObservationRow({
   return (
     <div
       ref={rowRef}
-      className={`relative border-b border-gray-100 ${
-        isSelected ? 'bg-[#f8f9fb] sticky top-0 z-10' : ''
+      className={`relative border-b border-border ${
+        isSelected ? 'bg-[#f8f9fb] dark:bg-accent sticky top-0 z-10' : ''
       }`}
     >
       {isSelected && (
-        <span className="absolute left-0 top-0 bottom-0 w-0.5 bg-[#2563eb]" aria-hidden="true" />
+        <span
+          className="absolute left-0 top-0 bottom-0 w-0.5 bg-blue-600 dark:bg-blue-500"
+          aria-hidden="true"
+        />
       )}
 
       <button
         type="button"
         onClick={onSelect}
         aria-expanded={isSelected}
-        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-[#f8f9fb] transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-[#f8f9fb] dark:hover:bg-accent transition-colors"
       >
         {isBbox ? BBOX_TYPE_ICON : WHOLE_TYPE_ICON}
 
         {isHuman && (
-          <Check size={12} className="text-gray-500 flex-shrink-0" aria-label="Human-validated" />
+          <Check
+            size={12}
+            className="text-muted-foreground flex-shrink-0"
+            aria-label="Human-validated"
+          />
         )}
 
         <span
           className={`text-sm flex-1 min-w-0 truncate ${
             isPseudoSpecies
-              ? 'italic text-gray-400'
-              : `text-[#030213] font-medium ${showSci ? 'italic' : 'capitalize'}`
+              ? 'italic text-muted-foreground'
+              : `text-foreground font-medium ${showSci ? 'italic' : 'capitalize'}`
           }`}
         >
           {displayName}
         </span>
 
-        {confidence && <span className="text-xs text-gray-400 flex-shrink-0">{confidence}</span>}
+        {confidence && (
+          <span className="text-xs text-muted-foreground flex-shrink-0">{confidence}</span>
+        )}
 
         {!isSelected && stageBadge && (
-          <span className="text-[10px] px-1.5 py-px rounded bg-gray-100 text-gray-600">
+          <span className="text-[10px] px-1.5 py-px rounded bg-muted text-muted-foreground">
             {stageBadge}
           </span>
         )}
         {!isSelected && sexBadge && (
-          <span className="text-[10px] px-1.5 py-px rounded bg-gray-100 text-gray-600">
+          <span className="text-[10px] px-1.5 py-px rounded bg-muted text-muted-foreground">
             {sexBadge}
           </span>
         )}
 
         {isSelected ? (
-          <ChevronUp size={14} className="text-gray-400 flex-shrink-0" />
+          <ChevronUp size={14} className="text-muted-foreground flex-shrink-0" />
         ) : (
-          <ChevronDown size={14} className="text-gray-400 flex-shrink-0" />
+          <ChevronDown size={14} className="text-muted-foreground flex-shrink-0" />
         )}
       </button>
 
@@ -160,7 +169,7 @@ export default function ObservationRow({
           />
 
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-gray-500 font-medium mb-1.5">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-1.5">
               Sex
             </div>
             <SexSelector
@@ -170,7 +179,7 @@ export default function ObservationRow({
           </div>
 
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-gray-500 font-medium mb-1.5">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-1.5">
               Life stage
             </div>
             <LifeStageSelector
@@ -180,7 +189,7 @@ export default function ObservationRow({
           </div>
 
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-gray-500 font-medium mb-1.5">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-1.5">
               Behavior
             </div>
             <BehaviorSelector
@@ -193,7 +202,7 @@ export default function ObservationRow({
             <button
               type="button"
               onClick={onDelete}
-              className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-red-600 px-2 py-1 rounded hover:bg-red-50 transition-colors"
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-red-600 px-2 py-1 rounded hover:bg-red-50 transition-colors dark:text-red-400 dark:hover:text-red-400"
               title="Delete observation"
             >
               <Trash2 size={12} />

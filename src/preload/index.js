@@ -446,6 +446,59 @@ const api = {
     clearCache: async (studyId) => {
       return await electronAPI.ipcRenderer.invoke('image-cache:clear', studyId)
     }
+  },
+
+  // Theme
+  getTheme: async () => {
+    return await electronAPI.ipcRenderer.invoke('theme:get')
+  },
+  setThemeSource: async (source) => {
+    return await electronAPI.ipcRenderer.invoke('theme:set', source)
+  },
+  onThemeChanged: (handler) => {
+    const listener = (_event, payload) => handler(payload)
+    electronAPI.ipcRenderer.on('theme:changed', listener)
+    return () => {
+      electronAPI.ipcRenderer.removeListener('theme:changed', listener)
+    }
+  }
+}
+
+function parseThemeInitial() {
+  const args = process.argv
+  const find = (prefix) => {
+    const arg = args.find((a) => a.startsWith(prefix))
+    return arg ? arg.slice(prefix.length) : null
+  }
+  const source = find('--theme-initial-source=') || 'system'
+  let resolved = find('--theme-initial-resolved=') === 'dark' ? 'dark' : 'light'
+  // On some platforms (notably Linux/GTK), nativeTheme.shouldUseDarkColors
+  // may lag behind the OS preference at window-creation time. When source
+  // is 'system', cross-check via matchMedia which reads Chromium's CSS
+  // engine directly and is reliable from preload.
+  if (source === 'system' && typeof window !== 'undefined' && window.matchMedia) {
+    try {
+      resolved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    } catch {
+      // ignore — keep the value parsed from argv
+    }
+  }
+  return { source, resolved }
+}
+api.themeInitial = parseThemeInitial()
+
+// Apply dark class as early as possible to avoid FOUC. The preload runs
+// before the page's HTML body parses, but documentElement already exists.
+// Inline <script> in index.html would be blocked by the CSP script-src 'self'.
+if (api.themeInitial.resolved === 'dark') {
+  if (document.documentElement) {
+    document.documentElement.classList.add('dark')
+  } else {
+    document.addEventListener(
+      'DOMContentLoaded',
+      () => document.documentElement.classList.add('dark'),
+      { once: true }
+    )
   }
 }
 

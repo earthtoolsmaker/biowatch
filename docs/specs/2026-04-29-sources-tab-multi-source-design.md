@@ -57,24 +57,24 @@ GBIF is not a distinct importer. The current import flow's "Gbif" awareness live
 
 Each row shows:
 
-| Element | Source |
-| --- | --- |
-| Expand chevron | only when sub-rows exist |
-| Source-type icon (lucide SVG, gray) | `Folder` for local-style, `Globe` for LILA-remote, `Package` for CamtrapDP |
-| Source name | for local: folder basename; for CamtrapDP: package basename; for LILA: `"LILA — <Dataset name>"` |
-| **Local / Remote** badge | derived from any media's `filePath` in this source — `Remote` if the first matching row's path is a URL |
-| Path / URL | `media.importFolder` truncated with `text-overflow: ellipsis`, full value on hover |
-| Last-model info icon `ⓘ` | shown only when at least one model run has produced outputs for media in this source; tooltip shows `modelID + modelVersion` |
-| Counts | `<bold>X</bold> images · <bold>Y</bold> videos · Z deployments` — drop the videos term when Y=0; drop the images term when X=0 (matches today's `files.jsx` convention) |
-| Status | one of: ✓ pill, in-flight progress bar, or empty (see D6) |
+| Element                             | Source                                                                                                                                                                  |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Expand chevron                      | only when sub-rows exist                                                                                                                                                |
+| Source-type icon (lucide SVG, gray) | `Folder` for local-style, `Globe` for LILA-remote, `Package` for CamtrapDP                                                                                              |
+| Source name                         | for local: folder basename; for CamtrapDP: package basename; for LILA: `"LILA — <Dataset name>"`                                                                        |
+| **Local / Remote** badge            | derived from any media's `filePath` in this source — `Remote` if the first matching row's path is a URL                                                                 |
+| Path / URL                          | `media.importFolder` truncated with `text-overflow: ellipsis`, full value on hover                                                                                      |
+| Last-model info icon `ⓘ`            | shown only when at least one model run has produced outputs for media in this source; tooltip shows `modelID + modelVersion`                                            |
+| Counts                              | `<bold>X</bold> images · <bold>Y</bold> videos · Z deployments` — drop the videos term when Y=0; drop the images term when X=0 (matches today's `files.jsx` convention) |
+| Status                              | one of: ✓ pill, in-flight progress bar, or empty (see D6)                                                                                                               |
 
 ### D6 — Status column has three states
 
-| State | Condition | Display |
-| --- | --- | --- |
-| **✓** (green circle, 18px) | source has at least one observation row whose mediaID is in this source's media | hover tooltip shows `<count> observations` |
+| State                                            | Condition                                                                                            | Display                                                                                                                                                                                         |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **✓** (green circle, 18px)                       | source has at least one observation row whose mediaID is in this source's media                      | hover tooltip shows `<count> observations`                                                                                                                                                      |
 | **In-flight** (thin progress bar + `X / Y` text) | a `model_run` with `status='running'` exists whose `importPath` matches this source's `importFolder` | bar fill width = `processed / total` computed at render time, never hardcoded; `X / Y` is `count(model_outputs for this run, scoped to this source's media)` over `count(media in this source)` |
-| empty cell | none of the above | nothing rendered |
+| empty cell                                       | none of the above                                                                                    | nothing rendered                                                                                                                                                                                |
 
 The states are mutually exclusive and computed in the order above. **In-flight wins over ✓** if a model is running, even though observations may already exist on the source.
 
@@ -116,27 +116,29 @@ A new query (effectively a renamed `getFilesData` → `getSourcesData`) returns:
 
 ```ts
 type SourceRow = {
-  importFolder: string                // grouping key
-  isRemote: boolean                   // any filePath in this source startsWith('http')
+  importFolder: string // grouping key
+  isRemote: boolean // any filePath in this source startsWith('http')
   imageCount: number
   videoCount: number
   deploymentCount: number
-  observationCount: number            // for ✓ tooltip
-  activeRun: {                        // null when no in-flight model run
+  observationCount: number // for ✓ tooltip
+  activeRun: {
+    // null when no in-flight model run
     runID: string
     modelID: string
     modelVersion: string
     processed: number
     total: number
   } | null
-  lastModelUsed: { modelID: string, modelVersion: string } | null  // most recent completed run
-  deployments: Array<{                // sub-row data
+  lastModelUsed: { modelID: string; modelVersion: string } | null // most recent completed run
+  deployments: Array<{
+    // sub-row data
     deploymentID: string
-    label: string                     // locationName ?? folderName ?? deploymentID
+    label: string // locationName ?? folderName ?? deploymentID
     imageCount: number
     videoCount: number
     observationCount: number
-    activeRun: { processed, total } | null
+    activeRun: { processed; total } | null
   }>
 }
 ```
@@ -157,15 +159,15 @@ Final mockup: `v11` of the brainstorming session (`.superpowers/brainstorm/.../s
 
 ## Code changes (file-level)
 
-| File | Change |
-| --- | --- |
-| `src/renderer/src/study.jsx` | Drop `local/*` gate on Sources tab and route. Update tab label to "Sources". Update icon import if desired (keep `FolderOpen` or switch to `Layers` / `Database`). |
-| `src/renderer/src/files.jsx` | Rewrite for the new layout per the v11 mockup. Consider renaming the file to `sources.jsx`. |
-| `src/main/database/queries/media.js` | Rewrite `getFilesData` (rename to `getSourcesData`) to return the `SourceRow[]` shape above. Drop the LIKE-based `lastModelUsed` correlated subquery in favor of an explicit join, scoped per source. |
-| `src/main/services/import/parsers/lila.js` | Set `importFolder` = LILA dataset name and `folderName` = an appropriate sub-grouping (e.g., the imageBaseUrl path segment) at insert time. |
-| `src/main/services/import/parsers/camtrapDP.js` | No required changes for the Sources tab itself; PR #347's `importFolder` / `folderName` derivation stays. **Re-evaluate** whether `createBlankObservationsForUnlinkedMedia` can be removed (see D10) — likely not in this PR. |
-| `src/main/ipc/media.js`, `src/preload/index.js` | Rename API endpoint if `getFilesData` → `getSourcesData`. |
-| `docs/architecture.md`, `docs/database-schema.md`, `docs/import-export.md` | Update references to "Files" → "Sources"; document derived-source semantics (D3). |
+| File                                                                       | Change                                                                                                                                                                                                                        |
+| -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/renderer/src/study.jsx`                                               | Drop `local/*` gate on Sources tab and route. Update tab label to "Sources". Update icon import if desired (keep `FolderOpen` or switch to `Layers` / `Database`).                                                            |
+| `src/renderer/src/files.jsx`                                               | Rewrite for the new layout per the v11 mockup. Consider renaming the file to `sources.jsx`.                                                                                                                                   |
+| `src/main/database/queries/media.js`                                       | Rewrite `getFilesData` (rename to `getSourcesData`) to return the `SourceRow[]` shape above. Drop the LIKE-based `lastModelUsed` correlated subquery in favor of an explicit join, scoped per source.                         |
+| `src/main/services/import/parsers/lila.js`                                 | Set `importFolder` = LILA dataset name and `folderName` = an appropriate sub-grouping (e.g., the imageBaseUrl path segment) at insert time.                                                                                   |
+| `src/main/services/import/parsers/camtrapDP.js`                            | No required changes for the Sources tab itself; PR #347's `importFolder` / `folderName` derivation stays. **Re-evaluate** whether `createBlankObservationsForUnlinkedMedia` can be removed (see D10) — likely not in this PR. |
+| `src/main/ipc/media.js`, `src/preload/index.js`                            | Rename API endpoint if `getFilesData` → `getSourcesData`.                                                                                                                                                                     |
+| `docs/architecture.md`, `docs/database-schema.md`, `docs/import-export.md` | Update references to "Files" → "Sources"; document derived-source semantics (D3).                                                                                                                                             |
 
 ## Open implementation questions
 

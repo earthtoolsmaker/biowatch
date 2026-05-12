@@ -20,6 +20,7 @@ import Sparkline from './deployments/Sparkline'
 import SectionHeader from './deployments/SectionHeader'
 import SparklineToggle from './deployments/SparklineToggle'
 import { useSparklineMode } from './hooks/useSparklineMode'
+import { useTheme } from './hooks/useTheme'
 import { formatStatNumber } from './overview/utils/formatStats'
 
 // Fix the default marker icon issue in react-leaflet
@@ -142,7 +143,7 @@ const createClusterCustomIcon = (cluster) => {
   }
 
   const icon = L.divIcon({
-    html: `<div class="flex items-center justify-center ${sizeClasses[size]} bg-blue-500 text-white rounded-full border-2 border-white shadow-lg font-semibold">${count}</div>`,
+    html: `<div class="flex items-center justify-center ${sizeClasses[size]} bg-blue-500 dark:bg-blue-600 text-white rounded-full border-2 border-white dark:border-slate-900 shadow-lg font-semibold">${count}</div>`,
     className: 'custom-cluster-icon',
     iconSize: L.point(40, 40, true)
   })
@@ -323,6 +324,16 @@ function LocationMap({
     localStorage.setItem(mapLayerKey, selectedLayer)
   }, [selectedLayer, mapLayerKey])
 
+  const { resolved: streetMapResolved } = useTheme()
+  const streetMapUrl =
+    streetMapResolved === 'dark'
+      ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+      : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+  const streetMapAttribution =
+    streetMapResolved === 'dark'
+      ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+      : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+
   // Escape key handler to exit place mode
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -351,7 +362,7 @@ function LocationMap({
   }, [validLocations])
 
   return (
-    <div className="w-full h-full bg-white rounded-xl border border-gray-200 shadow-md overflow-hidden relative">
+    <div className="w-full h-full bg-card rounded-xl border border-border shadow-md overflow-hidden relative">
       <MapContainer
         {...(bounds
           ? { bounds: bounds, boundsOptions: { padding: [30, 30] } }
@@ -370,8 +381,9 @@ function LocationMap({
 
           <LayersControl.BaseLayer name="Street Map" checked={selectedLayer === 'Street Map'}>
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              key={`street-${streetMapResolved}`}
+              attribution={streetMapAttribution}
+              url={streetMapUrl}
             />
           </LayersControl.BaseLayer>
         </LayersControl>
@@ -421,14 +433,14 @@ function LocationMap({
       {/* Place mode indicator */}
       {isPlaceMode && selectedLocation && (
         <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-[1000]">
-          <div className="bg-blue-600 text-white px-4 py-2 rounded-full shadow-lg text-sm font-medium flex items-center gap-2">
+          <div className="bg-blue-600 text-white dark:bg-blue-500 dark:text-white px-4 py-2 rounded-full shadow-lg text-sm font-medium flex items-center gap-2">
             <MapPin size={16} />
             <span>
               Click to place: {selectedLocation?.locationName || selectedLocation?.locationID}
             </span>
             <button
               onClick={onExitPlaceMode}
-              className="ml-2 hover:bg-blue-700 rounded-full p-1"
+              className="ml-2 hover:bg-blue-700 rounded-full p-1 dark:hover:bg-blue-600"
               title="Cancel (Esc)"
             >
               <X size={14} />
@@ -458,11 +470,13 @@ const DeploymentRow = memo(function DeploymentRow({
     <div
       id={location.deploymentID}
       onClick={handleRowClick}
-      className={`flex gap-3 items-center px-3 h-10 hover:bg-gray-200 cursor-pointer border-b border-gray-100 transition-colors ${
-        indented ? 'pl-9 bg-[#fcfcfd]' : ''
+      className={`flex gap-3 items-center px-3 h-10 hover:bg-gray-100 dark:hover:bg-accent cursor-pointer border-b border-gray-100 dark:border-border transition-colors ${
+        indented ? 'pl-9 bg-[#fcfcfd] dark:bg-card' : ''
       } ${
         isSelected
-          ? `bg-blue-50 border-l-4 border-l-blue-500 ${indented ? 'pl-8' : 'pl-2'}`
+          ? `bg-blue-50 dark:bg-blue-500/15 border-l-4 border-l-blue-500 dark:border-l-blue-400 ${
+              indented ? 'pl-8' : 'pl-2'
+            }`
           : 'border-l-4 border-l-transparent'
       }`}
     >
@@ -485,7 +499,7 @@ const DeploymentRow = memo(function DeploymentRow({
         )}
       </div>
 
-      <div className="flex-shrink-0 w-16 text-right text-xs text-gray-500 tabular-nums">
+      <div className="flex-shrink-0 w-16 text-right text-xs text-muted-foreground tabular-nums">
         {total.toLocaleString()}
       </div>
     </div>
@@ -697,7 +711,7 @@ function LocationsList({
   if (!activity.deployments || activity.deployments.length === 0) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
-        <div className="text-gray-400 mb-3">
+        <div className="text-muted-foreground mb-3">
           <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
               strokeLinecap="round"
@@ -713,8 +727,10 @@ function LocationsList({
             />
           </svg>
         </div>
-        <p className="text-gray-500 font-medium">No deployments found</p>
-        <p className="text-gray-400 text-sm mt-1">Import deployment data to see camera locations</p>
+        <p className="text-muted-foreground font-medium">No deployments found</p>
+        <p className="text-muted-foreground text-sm mt-1">
+          Import deployment data to see camera locations
+        </p>
       </div>
     )
   }
@@ -733,10 +749,10 @@ function LocationsList({
   return (
     <div ref={containerRef} className="relative flex-1 flex flex-col overflow-hidden min-h-0">
       {hasTimestamps && (
-        <header className="relative bg-white z-10 py-2 border-b border-gray-300 flex items-stretch">
+        <header className="relative bg-card z-10 py-2 border-b border-border flex items-stretch">
           {hoverX != null && hoverBucket && (
             <div
-              className="absolute top-0 -translate-x-1/2 px-1.5 py-0.5 rounded bg-gray-100 border border-gray-200 text-[11px] text-gray-700 whitespace-nowrap shadow-sm pointer-events-none z-20"
+              className="absolute top-0 -translate-x-1/2 px-1.5 py-0.5 rounded bg-gray-100 dark:bg-muted border border-gray-200 dark:border-border text-[11px] text-gray-700 dark:text-foreground whitespace-nowrap shadow-sm pointer-events-none z-20"
               style={{ left: `${sparklineLeft + hoverX}px` }}
             >
               {formatBucketRange(hoverBucket.start, hoverBucket.end)}
@@ -747,11 +763,14 @@ function LocationsList({
               the 16px right gutter matches the count column; toggle on
               the far right. */}
           <div className="w-[152px] flex-shrink-0" />
-          <div ref={timelineRef} className="flex-1 flex justify-between text-xs text-gray-600">
+          <div
+            ref={timelineRef}
+            className="flex-1 flex justify-between text-xs text-muted-foreground"
+          >
             {dateMarkers.map((date, i) => (
               <div key={i} className="flex flex-col items-center flex-1 min-w-0">
                 <span>{formatDateShort(date)}</span>
-                <div className="w-px h-2 bg-gray-400 mt-1" />
+                <div className="w-px h-2 bg-gray-400 dark:bg-muted-foreground mt-1" />
               </div>
             ))}
           </div>
@@ -787,7 +806,7 @@ function LocationsList({
           {/* pointer-events-none so the line never intercepts row clicks */}
           {hoverX != null && (
             <div
-              className="absolute top-0 bottom-0 w-px bg-gray-400/50 pointer-events-none z-10"
+              className="absolute top-0 bottom-0 w-px bg-gray-400/50 dark:bg-muted-foreground/50 pointer-events-none z-10"
               style={{ left: `${sparklineLeft + hoverX}px` }}
             />
           )}
@@ -857,7 +876,7 @@ function LocationsList({
           so rapid sweeps don't flash count after count. */}
       {hoverX != null && hoverCursorY != null && cursorCount != null && (
         <div
-          className={`absolute pointer-events-none z-30 px-2 py-0.5 rounded-md bg-white border border-gray-200 text-[11px] text-gray-700 shadow-sm whitespace-nowrap transition-opacity duration-150 ${
+          className={`absolute pointer-events-none z-30 px-2 py-0.5 rounded-md bg-card border border-border text-[11px] text-foreground shadow-sm whitespace-nowrap transition-opacity duration-150 ${
             showCount ? 'opacity-100' : 'opacity-0'
           }`}
           style={{
@@ -1173,7 +1192,7 @@ export default function Deployments({ studyId }) {
                 />
               ) : null}
             </Panel>
-            <PanelResizeHandle className="w-1 mx-1.5 rounded-full bg-gray-100 hover:bg-gray-300 data-[resize-handle-state=drag]:bg-blue-300 cursor-col-resize transition-colors" />
+            <PanelResizeHandle className="w-1 mx-1.5 rounded-full bg-gray-100 hover:bg-gray-300 dark:bg-muted dark:hover:bg-accent data-[resize-handle-state=drag]:bg-blue-300 dark:data-[resize-handle-state=drag]:bg-blue-500 cursor-col-resize transition-colors" />
             <Panel defaultSize={38} minSize={20} className="flex flex-col">
               {/* Cap the map at a comfortable max-height so on tall windows
                   it doesn't stretch to the full panel — the list timeline
@@ -1199,7 +1218,7 @@ export default function Deployments({ studyId }) {
         </Panel>
         {paneSnapshot && (
           <>
-            <PanelResizeHandle className="h-1 my-3 rounded-full bg-gray-100 hover:bg-gray-300 data-[resize-handle-state=drag]:bg-blue-300 cursor-row-resize transition-colors" />
+            <PanelResizeHandle className="h-1 my-3 rounded-full bg-gray-100 hover:bg-gray-300 dark:bg-muted dark:hover:bg-accent data-[resize-handle-state=drag]:bg-blue-300 dark:data-[resize-handle-state=drag]:bg-blue-500 cursor-row-resize transition-colors" />
             <Panel defaultSize={62} minSize={20} className="flex flex-col">
               {/* No `key` on the wrapper so deployment-to-deployment swaps
                   don't re-trigger the enter animation. The inner pane uses

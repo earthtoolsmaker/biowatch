@@ -14,12 +14,12 @@ export default function ContributorByline({ contributors, onManageClick }) {
 
   if (list.length === 0) {
     return (
-      <div className="text-[0.78rem] text-gray-500 mt-3 pt-3 border-t border-gray-100">
+      <div className="text-[0.78rem] text-muted-foreground mt-3 pt-3 border-t border-border">
         No contributors yet
         <button
           type="button"
           onClick={onManageClick}
-          className="ml-2 text-blue-600 hover:underline inline-flex items-center gap-1 text-[0.72rem]"
+          className="ml-2 text-blue-600 hover:underline inline-flex items-center gap-1 text-[0.72rem] dark:text-blue-400"
           title="Add contributor"
         >
           <Pencil size={11} />
@@ -33,37 +33,37 @@ export default function ContributorByline({ contributors, onManageClick }) {
   const overflow = list.length - visible.length
 
   return (
-    <div className="text-[0.78rem] text-gray-500 mt-3 pt-3 border-t border-gray-100 flex items-center gap-1.5 flex-wrap">
-      <span className="text-gray-400">By</span>
+    <div className="text-[0.78rem] text-muted-foreground mt-3 pt-3 border-t border-border flex items-center gap-1.5 flex-wrap">
+      <span className="text-muted-foreground">By</span>
       {visible.map((c, idx) => (
         <span key={idx} className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={onManageClick}
-            className="text-gray-600 hover:text-blue-600 hover:underline"
+            className="text-muted-foreground hover:text-blue-600 hover:underline dark:text-blue-400"
           >
             {displayName(c)}
           </button>
-          {idx < visible.length - 1 && <span className="text-gray-300">·</span>}
+          {idx < visible.length - 1 && <span className="text-muted-foreground">·</span>}
         </span>
       ))}
       {overflow > 0 && (
         <>
-          <span className="text-gray-300">·</span>
+          <span className="text-muted-foreground">·</span>
           <button
             type="button"
             onClick={onManageClick}
-            className="text-gray-400 hover:text-blue-600 hover:underline"
+            className="text-muted-foreground hover:text-blue-600 hover:underline dark:text-blue-400"
           >
             +{overflow} more
           </button>
         </>
       )}
-      <span className="text-gray-300">·</span>
+      <span className="text-muted-foreground">·</span>
       <button
         type="button"
         onClick={onManageClick}
-        className="text-blue-600 hover:underline opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity inline-flex items-center gap-1 text-[0.72rem]"
+        className="text-blue-600 hover:underline opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity inline-flex items-center gap-1 text-[0.72rem] dark:text-blue-400"
         title="Manage contributors"
       >
         <Pencil size={11} />

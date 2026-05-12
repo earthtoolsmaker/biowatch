@@ -32,11 +32,11 @@ The redesign also restyles all editing controls to Biowatch's monochrome palette
 
 Today's editing surfaces in `src/renderer/src/media.jsx`:
 
-| Surface | Location | Triggered by |
-|---|---|---|
-| `ObservationEditor` popover | Anchored to `BboxLabel` | Click species pill or sex/lifestage/behavior chip on a bbox label |
-| Footer species label (image, no bboxes) | Modal footer | Click species text |
-| Footer species label (video) | Modal footer | Click species text |
+| Surface                                 | Location                | Triggered by                                                      |
+| --------------------------------------- | ----------------------- | ----------------------------------------------------------------- |
+| `ObservationEditor` popover             | Anchored to `BboxLabel` | Click species pill or sex/lifestage/behavior chip on a bbox label |
+| Footer species label (image, no bboxes) | Modal footer            | Click species text                                                |
+| Footer species label (video)            | Modal footer            | Click species text                                                |
 
 `ObservationEditor` is a 288px popover with two tabs (Species / Attributes). The Species tab uses lime as the accent. The Attributes tab uses rose/blue/gray for sex, violet/teal/amber for life-stage, and emerald for the behavior dropdown.
 
@@ -81,10 +81,10 @@ The `ObservationEditor` name is reused but its scope changes: it's now the conte
 
 A media is in exactly one of three modes:
 
-| Mode | Condition | Constraint |
-|---|---|---|
-| Empty | 0 observations | Both create options available |
-| Bbox | 1+ bbox observations, 0 whole-image | Only "Draw rectangle" available |
+| Mode        | Condition                                 | Constraint                                                                     |
+| ----------- | ----------------------------------------- | ------------------------------------------------------------------------------ |
+| Empty       | 0 observations                            | Both create options available                                                  |
+| Bbox        | 1+ bbox observations, 0 whole-image       | Only "Draw rectangle" available                                                |
 | Whole-image | exactly 1 whole-image observation, 0 bbox | "+ Add observation" affordance hidden; existing draw-bbox affordances disabled |
 
 Switching between bbox and whole-image mode requires deleting all observations of the current type first.
@@ -101,12 +101,12 @@ When the media has 1+ observations and the modal first opens, `selectedObservati
 
 ### Two-way coupling: image ↔ rail
 
-| User action | Effect |
-|---|---|
-| Click a bbox rectangle on the image | Sets `selectedObservationId`. Rail row scrolls into view, expands. Rectangle gets the "selected" stroke. |
-| Click `BboxLabelMinimal` on the image | Same as clicking the rectangle. |
-| Click a row header in the rail | Sets `selectedObservationId`. Corresponding rectangle gets the "selected" stroke. |
-| Click empty image area | No change. Selection is sticky. |
+| User action                           | Effect                                                                                                   |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Click a bbox rectangle on the image   | Sets `selectedObservationId`. Rail row scrolls into view, expands. Rectangle gets the "selected" stroke. |
+| Click `BboxLabelMinimal` on the image | Same as clicking the rectangle.                                                                          |
+| Click a row header in the rail        | Sets `selectedObservationId`. Corresponding rectangle gets the "selected" stroke.                        |
+| Click empty image area                | No change. Selection is sticky.                                                                          |
 
 Whole-image observations have no rectangle, so only "click row" applies.
 
@@ -129,24 +129,27 @@ Whole-image observations have no rectangle, so only "click row" applies.
 ### Add-observation menu
 
 Triggered by:
+
 - Empty state: centered "+ Add observation" button in the rail body.
 - Bbox mode: "+ Add observation" affordance at the bottom of the rail.
 - Whole-image mode: affordance is hidden.
 
 Menu contents are mode-aware:
 
-| Mode | Menu items |
-|---|---|
-| Empty | `Draw rectangle`, `Whole image` |
-| Bbox | `Draw rectangle` |
-| Whole-image | n/a (menu never opens) |
+| Mode        | Menu items                      |
+| ----------- | ------------------------------- |
+| Empty       | `Draw rectangle`, `Whole image` |
+| Bbox        | `Draw rectangle`                |
+| Whole-image | n/a (menu never opens)          |
 
 **Draw rectangle:**
+
 1. Closes the menu.
 2. Sets `drawMode = true`. Existing `DrawingOverlay` runs.
 3. On `onComplete`: creates a new bbox observation in the database; sets `selectedObservationId` to the new ID; rail auto-expands the new row with `SpeciesPicker` focused.
 
 **Whole image:**
+
 1. Closes the menu.
 2. Creates a new whole-image observation in the database (null bbox columns).
 3. Sets `selectedObservationId` to the new ID; rail auto-expands the new row with `SpeciesPicker` focused.
@@ -166,17 +169,17 @@ No "group by species" view — deferred. Revisit only if real usage demands it.
 
 ### Palette tokens
 
-| Token | Value | Used for |
-|---|---|---|
-| `--bw-text` | `#030213` | Primary text, selected pill fill |
-| `--bw-text-muted` | `#717182` | Field labels, secondary text |
-| `--bw-text-faint` | `#9ca3af` | Confidence values, chevrons |
-| `--bw-bg` | `#ffffff` | Rail background |
-| `--bw-bg-row-selected` | `#f8f9fb` | Selected row background |
-| `--bw-border` | `#e5e7eb` | Rail outline, pill borders |
-| `--bw-border-soft` | `#f3f4f6` | Row separators |
-| `--bw-accent-bbox` | `#2563eb` | Validated bbox stroke, selected-row left stripe |
-| `--bw-accent-bbox-soft` | `#60a5fa` | Predicted bbox stroke (existing) |
+| Token                   | Value     | Used for                                        |
+| ----------------------- | --------- | ----------------------------------------------- |
+| `--bw-text`             | `#030213` | Primary text, selected pill fill                |
+| `--bw-text-muted`       | `#717182` | Field labels, secondary text                    |
+| `--bw-text-faint`       | `#9ca3af` | Confidence values, chevrons                     |
+| `--bw-bg`               | `#ffffff` | Rail background                                 |
+| `--bw-bg-row-selected`  | `#f8f9fb` | Selected row background                         |
+| `--bw-border`           | `#e5e7eb` | Rail outline, pill borders                      |
+| `--bw-border-soft`      | `#f3f4f6` | Row separators                                  |
+| `--bw-accent-bbox`      | `#2563eb` | Validated bbox stroke, selected-row left stripe |
+| `--bw-accent-bbox-soft` | `#60a5fa` | Predicted bbox stroke (existing)                |
 
 These reuse Biowatch's existing tokens where they exist (`#030213` is the project's `--color-primary`); the rest are concrete values used directly. The bbox accent values match the recently-shipped `EditableBbox` palette so the rail and image agree.
 
@@ -202,6 +205,7 @@ Pills sit in a horizontal row under their `field-label` (Sex, Life stage). Re-cl
 ### Behavior dropdown
 
 Restyled but keeps today's interaction:
+
 - Trigger: `--bw-bg`, 1px `--bw-border`, shows count ("2 behaviors") or "None".
 - Open state: white background, gray border (no emerald tint).
 - Selected count badge: `--bw-text` background, white text — same treatment as pills.

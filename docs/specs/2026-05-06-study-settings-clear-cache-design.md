@@ -120,14 +120,14 @@ chevron icon (lucide `ChevronRight` / `ChevronDown`).
 
 ### States
 
-| State | Total | Button | Notes |
-|---|---|---|---|
-| Loading (initial fetch) | "…" placeholder | disabled | spinner not required; brief query |
-| Empty (`total.bytes === 0`) | "0 B · 0 files" gray | disabled | no breakdown toggle shown |
-| Populated | "260 MB · 1,142 files" | enabled | breakdown toggle shown |
-| Clearing | unchanged | disabled, label "Clearing…" with spinner | breakdown toggle disabled |
-| Cleared (success) | refetched (zeros) | enabled | green inline "Cleared 240 MB · 1,142 files" next to button, persists until unmount |
-| Cleared (error) | unchanged | enabled | red inline "Failed to clear cache: <message>" |
+| State                       | Total                  | Button                                   | Notes                                                                              |
+| --------------------------- | ---------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------- |
+| Loading (initial fetch)     | "…" placeholder        | disabled                                 | spinner not required; brief query                                                  |
+| Empty (`total.bytes === 0`) | "0 B · 0 files" gray   | disabled                                 | no breakdown toggle shown                                                          |
+| Populated                   | "260 MB · 1,142 files" | enabled                                  | breakdown toggle shown                                                             |
+| Clearing                    | unchanged              | disabled, label "Clearing…" with spinner | breakdown toggle disabled                                                          |
+| Cleared (success)           | refetched (zeros)      | enabled                                  | green inline "Cleared 240 MB · 1,142 files" next to button, persists until unmount |
+| Cleared (error)             | unchanged              | enabled                                  | red inline "Failed to clear cache: <message>"                                      |
 
 ## Component architecture
 
@@ -224,13 +224,13 @@ export async function clearStudyCache(studyId)
 1. Calls `getStudyCacheStats(studyId)` first to capture totals (so we
    can return `freedBytes` / `clearedFiles` without re-walking).
 2. If the cache dir exists, `rmSync(cacheDir, { recursive: true,
-   force: true })`. We do **not** recreate the empty `cache/`
+force: true })`. We do **not** recreate the empty `cache/`
    directory; the per-subdir `ensure*Dir` helpers in `cache/video.js`
    and `cache/image.js` already create their subdirs lazily on next
    write.
 3. Returns `{ freedBytes: total.bytes, clearedFiles: total.files }`.
 4. On error, logs via `services/logger.js` and returns `{
-   freedBytes: 0, clearedFiles: 0, error: e.message }`.
+freedBytes: 0, clearedFiles: 0, error: e.message }`.
 
 ### Main process: IPC handlers
 

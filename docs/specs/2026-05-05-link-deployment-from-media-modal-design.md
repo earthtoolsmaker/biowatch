@@ -103,16 +103,18 @@ Render call inside the footer at line 1531, immediately after the filename
 span:
 
 ```jsx
-{media.deploymentID && (
-  <DeploymentLinkPill
-    studyId={studyId}
-    deploymentID={media.deploymentID}
-    locationName={media.locationName}
-    locationID={media.locationID}
-    interactive={!deploymentID}
-    onNavigate={onClose}
-  />
-)}
+{
+  media.deploymentID && (
+    <DeploymentLinkPill
+      studyId={studyId}
+      deploymentID={media.deploymentID}
+      locationName={media.locationName}
+      locationID={media.locationID}
+      interactive={!deploymentID}
+      onNavigate={onClose}
+    />
+  )
+}
 ```
 
 The footer's flex row already exists; the new element sits opposite the
