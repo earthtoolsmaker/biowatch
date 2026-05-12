@@ -152,7 +152,7 @@ function ExportProgressModal({ isOpen, onCancel, progress }) {
 
           {/* Error count */}
           {errorCount > 0 && (
-            <div className="flex items-center gap-2 text-amber-600 bg-amber-50 rounded-lg p-3 dark:text-amber-300">
+            <div className="flex items-center gap-2 text-amber-600 bg-amber-50 rounded-lg p-3 dark:text-amber-300 dark:bg-amber-500/10">
               <AlertCircle size={16} />
               <span className="text-sm">
                 {errorCount} {errorCount === 1 ? 'file' : 'files'} failed to export

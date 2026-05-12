@@ -89,7 +89,7 @@ export default function StudySettings({ studyId, studyName }) {
             </div>
             <button
               onClick={() => setIsDeleteModalOpen(true)}
-              className="cursor-pointer flex items-center justify-center px-4 py-2 text-sm font-medium text-red-600 bg-card border border-red-300 rounded-md hover:bg-red-50 transition-colors w-full sm:w-auto dark:text-red-400"
+              className="cursor-pointer flex items-center justify-center px-4 py-2 text-sm font-medium text-red-600 bg-card border border-red-300 rounded-md hover:bg-red-50 transition-colors w-full sm:w-auto dark:text-red-400 dark:border-red-500/30 dark:hover:bg-red-500/10"
             >
               Delete
             </button>

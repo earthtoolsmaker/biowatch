@@ -157,7 +157,7 @@ export default function ModelCard({
                 e.stopPropagation()
                 handleDelete()
               }}
-              className="text-xs px-3 py-1 rounded-md border border-border bg-card text-red-600 hover:bg-red-50 hover:border-red-200 inline-flex items-center gap-1.5 shadow-xs dark:text-red-400"
+              className="text-xs px-3 py-1 rounded-md border border-border bg-card text-red-600 hover:bg-red-50 hover:border-red-200 inline-flex items-center gap-1.5 shadow-xs dark:text-red-400 dark:hover:bg-red-500/15 dark:hover:border-red-500/30"
             >
               <Trash2 size={12} />
               Delete

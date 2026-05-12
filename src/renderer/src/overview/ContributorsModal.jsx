@@ -200,7 +200,7 @@ export default function ContributorsModal({ open, onClose, studyId, studyData })
                   <button
                     type="button"
                     onClick={() => setDeletingIndex(i)}
-                    className="p-1 hover:bg-red-50 rounded text-red-600 dark:text-red-400"
+                    className="p-1 hover:bg-red-50 dark:hover:bg-red-500/15 rounded text-red-600 dark:text-red-400"
                     title="Delete"
                   >
                     <Trash2 size={14} />
