@@ -84,10 +84,8 @@ const Sparkline = memo(function Sparkline({
           return (
             <div
               key={i}
-              className="flex-1 rounded-sm"
-              style={{
-                background: period.count > 0 ? palette[idx] : 'var(--color-muted)'
-              }}
+              className={`flex-1 rounded-sm ${period.count === 0 ? 'bg-gray-50 dark:bg-muted' : ''}`}
+              style={period.count > 0 ? { background: palette[idx] } : undefined}
             />
           )
         })}
