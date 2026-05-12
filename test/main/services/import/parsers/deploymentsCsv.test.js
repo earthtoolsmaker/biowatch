@@ -87,3 +87,118 @@ describe('parseDeploymentsCsv — happy path', () => {
     })
   })
 })
+
+describe('parseDeploymentsCsv — per-cell validation', () => {
+  test('latitude > 90 → warning', async () => {
+    const csv = 'deploymentID,latitude\nCAM_001,91.5\n'
+    await withTempCsv(csv, async (file) => {
+      const r = await parseDeploymentsCsv(file, dbRows)
+      assert.equal(r.rows[0].columns.latitude.state, 'warning')
+      assert.match(r.rows[0].columns.latitude.warning, /outside \[-90, 90\]/)
+      assert.equal(r.cellWarningCount, 1)
+      assert.equal(r.applyCount, 0)
+    })
+  })
+
+  test('longitude < -180 → warning', async () => {
+    const csv = 'deploymentID,longitude\nCAM_001,-181\n'
+    await withTempCsv(csv, async (file) => {
+      const r = await parseDeploymentsCsv(file, dbRows)
+      assert.equal(r.rows[0].columns.longitude.state, 'warning')
+    })
+  })
+
+  test('non-numeric latitude → warning', async () => {
+    const csv = 'deploymentID,latitude\nCAM_001,abc\n'
+    await withTempCsv(csv, async (file) => {
+      const r = await parseDeploymentsCsv(file, dbRows)
+      assert.equal(r.rows[0].columns.latitude.state, 'warning')
+      assert.match(r.rows[0].columns.latitude.warning, /not a valid number/)
+    })
+  })
+
+  test('locationID mismatch → warning', async () => {
+    const csv =
+      'deploymentID,locationID,locationName,latitude,longitude\nCAM_001,LOC_X,Ridge,45.234,6.812\n'
+    await withTempCsv(csv, async (file) => {
+      const r = await parseDeploymentsCsv(file, dbRows)
+      assert.equal(r.rows[0].columns.locationID.state, 'warning')
+      assert.match(r.rows[0].columns.locationID.warning, /read-only/)
+    })
+  })
+
+  test('unknown deploymentID → row skipped', async () => {
+    const csv = 'deploymentID,latitude\nCAM_NEW,45.0\n'
+    await withTempCsv(csv, async (file) => {
+      const r = await parseDeploymentsCsv(file, dbRows)
+      assert.equal(r.rows[0].rowState, 'skipped')
+      assert.match(r.rows[0].rowWarning, /No deployment with this ID/)
+      assert.equal(r.rowSkipCount, 1)
+      assert.equal(r.applyCount, 0)
+    })
+  })
+
+  test('valid change → state=change, applyCount=1', async () => {
+    const csv = 'deploymentID,latitude\nCAM_001,45.5\n'
+    await withTempCsv(csv, async (file) => {
+      const r = await parseDeploymentsCsv(file, dbRows)
+      assert.equal(r.rows[0].columns.latitude.state, 'change')
+      assert.equal(r.rows[0].columns.latitude.appliedValue, 45.5)
+      assert.equal(r.applyCount, 1)
+    })
+  })
+})
+
+describe('parseDeploymentsCsv — duplicates & name conflicts', () => {
+  const dbRowsDup = [
+    {
+      deploymentID: 'CAM_001',
+      locationID: 'LOC_A',
+      locationName: 'Ridge',
+      latitude: 45.0,
+      longitude: 6.0
+    },
+    {
+      deploymentID: 'CAM_002',
+      locationID: 'LOC_A',
+      locationName: 'Ridge',
+      latitude: 45.0,
+      longitude: 6.0
+    }
+  ]
+
+  test('duplicate deploymentID rows in CSV → last wins, earlier change cells become warning', async () => {
+    const csv = 'deploymentID,latitude\nCAM_001,45.10\nCAM_001,45.20\n'
+    await withTempCsv(csv, async (file) => {
+      const r = await parseDeploymentsCsv(file, dbRowsDup)
+      assert.equal(r.rows[0].columns.latitude.state, 'warning')
+      assert.match(r.rows[0].columns.latitude.warning, /Overridden by row 2 below/)
+      assert.equal(r.rows[1].columns.latitude.state, 'change')
+      assert.equal(r.rows[1].columns.latitude.appliedValue, 45.2)
+      assert.equal(r.applyCount, 1)
+    })
+  })
+
+  test('intra-locationID name conflict → last wins, earlier name cells become warning', async () => {
+    const csv =
+      'deploymentID,locationID,locationName\nCAM_001,LOC_A,Ridge South\nCAM_002,LOC_A,Ridge North\n'
+    await withTempCsv(csv, async (file) => {
+      const r = await parseDeploymentsCsv(file, dbRowsDup)
+      assert.equal(r.rows[0].columns.locationName.state, 'warning')
+      assert.match(r.rows[0].columns.locationName.warning, /Conflicting names for LOC_A/)
+      assert.equal(r.rows[1].columns.locationName.state, 'change')
+      assert.equal(r.applyCount, 1)
+    })
+  })
+
+  test('intra-locationID names that agree → both rows count as change', async () => {
+    const csv =
+      'deploymentID,locationID,locationName\nCAM_001,LOC_A,Ridge X\nCAM_002,LOC_A,Ridge X\n'
+    await withTempCsv(csv, async (file) => {
+      const r = await parseDeploymentsCsv(file, dbRowsDup)
+      assert.equal(r.rows[0].columns.locationName.state, 'change')
+      assert.equal(r.rows[1].columns.locationName.state, 'change')
+      assert.equal(r.applyCount, 2)
+    })
+  })
+})

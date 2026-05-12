@@ -158,6 +158,59 @@ export async function parseDeploymentsCsv(filePath, dbDeployments) {
     }
   })
 
+  // --- Post-pass 1: duplicate deploymentID rows in CSV → last wins ---
+  const lastIndexByDeploymentID = new Map()
+  previewRows.forEach((row, i) => {
+    if (row.rowState !== 'normal') return
+    lastIndexByDeploymentID.set(row.deploymentID, i)
+  })
+  previewRows.forEach((row, i) => {
+    if (row.rowState !== 'normal') return
+    const lastIndex = lastIndexByDeploymentID.get(row.deploymentID)
+    if (lastIndex === i) return
+    for (const key of ['locationName', 'latitude', 'longitude']) {
+      const col = row.columns[key]
+      if (col.state === 'change') {
+        row.columns[key] = {
+          state: 'warning',
+          csvValue: col.csvValue,
+          dbValue: col.dbValue,
+          warning: `Overridden by row ${lastIndex + 1} below.`
+        }
+      }
+    }
+  })
+
+  // --- Post-pass 2: intra-locationID name conflicts → last-row-wins ---
+  // Group rows by their DB locationID (CSV locationID is readonly).
+  const nameWinnerByLocationID = new Map()
+  previewRows.forEach((row, i) => {
+    if (row.rowState !== 'normal') return
+    const col = row.columns.locationName
+    if (col.state !== 'change') return
+    const locID = row.columns.locationID.dbValue
+    if (!locID) return
+    nameWinnerByLocationID.set(locID, { rowIndex: i, appliedValue: col.appliedValue })
+  })
+
+  previewRows.forEach((row, i) => {
+    if (row.rowState !== 'normal') return
+    const col = row.columns.locationName
+    if (col.state !== 'change') return
+    const locID = row.columns.locationID.dbValue
+    if (!locID) return
+    const winner = nameWinnerByLocationID.get(locID)
+    if (!winner) return
+    if (winner.rowIndex === i) return
+    if (winner.appliedValue === col.appliedValue) return
+    row.columns.locationName = {
+      state: 'warning',
+      csvValue: col.csvValue,
+      dbValue: col.dbValue,
+      warning: `Conflicting names for ${locID}; row ${winner.rowIndex + 1} below wins.`
+    }
+  })
+
   let applyCount = 0
   let cellWarningCount = 0
   let rowSkipCount = 0
