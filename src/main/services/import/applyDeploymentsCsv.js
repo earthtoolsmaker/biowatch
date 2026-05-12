@@ -7,23 +7,24 @@ import log from '../logger.js'
  * Defensive re-validation: out-of-range coords are silently dropped so a
  * tampered plan can't bypass the preview's validation.
  *
- * Note: better-sqlite3 transactions are synchronous, so the callback runs
- * synchronously and uses `.run()` / `.all()` for explicit execution.
+ * Not `async` — better-sqlite3 transactions are synchronous, so the callback
+ * runs synchronously and uses `.run()` / `.all()` for explicit execution.
+ * The IPC handler awaits this anyway; a Promise here would be misleading.
  *
  * @param {object} db - Drizzle `better-sqlite3` instance for the study.
- * @param {Array<{deploymentID: string, fields: object} | {__forceFailure: true}>} applyPlan
- * @returns {Promise<{ deploymentsUpdated: number, locationsNamed: number }>}
+ * @param {Array<{deploymentID: string, fields: { latitude?, longitude?, locationName? }}>} applyPlan
+ * @returns {{ deploymentsUpdated: number, locationsNamed: number }}
+ *   `deploymentsUpdated` counts plan rows whose coord and/or name changes
+ *   reached the DB. `locationsNamed` counts **distinct** `locationID`s
+ *   renamed — so a CSV renaming 28 deployments that share one location
+ *   reports `locationsNamed: 1`, not 28.
  */
-export async function applyDeploymentsCsv(db, applyPlan) {
+export function applyDeploymentsCsv(db, applyPlan) {
   let deploymentsUpdated = 0
-  let locationsNamed = 0
+  const namedLocations = new Set()
 
   db.transaction((tx) => {
     for (const row of applyPlan) {
-      if (row.__forceFailure) {
-        throw new Error('forced rollback')
-      }
-
       const { deploymentID, fields } = row
       if (!deploymentID || !fields) continue
 
@@ -58,21 +59,26 @@ export async function applyDeploymentsCsv(db, applyPlan) {
               .set({ locationName: trimmed })
               .where(eq(deployments.locationID, locationID))
               .run()
+            namedLocations.add(locationID)
           } else {
             tx.update(deployments)
               .set({ locationName: trimmed })
               .where(eq(deployments.deploymentID, deploymentID))
               .run()
+            // No locationID on this row; track by deploymentID so the
+            // count is non-zero even though no group propagation
+            // happened.
+            namedLocations.add(`__no_loc:${deploymentID}`)
           }
-          locationsNamed++
           if (!coordUpdateApplied) deploymentsUpdated++
         }
       }
     }
   })
 
+  const locationsNamed = namedLocations.size
   log.info(
-    `applyDeploymentsCsv: ${deploymentsUpdated} deployments updated, ${locationsNamed} location names propagated`
+    `applyDeploymentsCsv: ${deploymentsUpdated} deployments updated, ${locationsNamed} distinct locations renamed`
   )
   return { deploymentsUpdated, locationsNamed }
 }

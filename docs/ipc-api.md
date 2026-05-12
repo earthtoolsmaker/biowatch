@@ -117,14 +117,23 @@ Runs in the sequences worker thread (off the main process). Threatened species a
 
 #### Deployments CSV import/export
 
-| Method                                            | Channel                             | Parameters             | Returns                                                                                |
-| ------------------------------------------------- | ----------------------------------- | ---------------------- | -------------------------------------------------------------------------------------- |
-| `exportDeploymentsCsv(studyId)`                   | `deployments:export-csv`            | studyId                | `{ success, filePath, rowCount }` \| `{ cancelled: true }` \| `{ error }`              |
-| `pickDeploymentsCsvFile()`                        | `deployments:pick-csv-file`         | —                      | `{ filePath }` \| `{ cancelled: true }`                                                |
-| `parseDeploymentsCsvForImport(studyId, filePath)` | `deployments:parse-csv-for-import`  | studyId, filePath      | `{ data: PreviewPayload }` \| `{ error }`                                              |
-| `applyDeploymentsCsvImport(studyId, applyPlan)`   | `deployments:apply-csv-import`      | studyId, applyPlan     | `{ success, summary: { deploymentsUpdated, locationsNamed } }` \| `{ error }`          |
+| Method                                            | Channel                            | Parameters         | Returns                                                                       |
+| ------------------------------------------------- | ---------------------------------- | ------------------ | ----------------------------------------------------------------------------- |
+| `getDeploymentsCsvPreview(studyId)`               | `deployments:get-csv-preview`      | studyId            | `{ data: DeploymentRow[] }` \| `{ error }`                                    |
+| `exportDeploymentsCsv(studyId)`                   | `deployments:export-csv`           | studyId            | `{ success, filePath, rowCount }` \| `{ cancelled: true }` \| `{ error }`     |
+| `pickDeploymentsCsvFile()`                        | `deployments:pick-csv-file`        | —                  | `{ filePath }` \| `{ cancelled: true }`                                       |
+| `parseDeploymentsCsvForImport(studyId, filePath)` | `deployments:parse-csv-for-import` | studyId, filePath  | `{ data: PreviewPayload }` \| `{ error }`                                     |
+| `applyDeploymentsCsvImport(studyId, applyPlan)`   | `deployments:apply-csv-import`     | studyId, applyPlan | `{ success, summary: { deploymentsUpdated, locationsNamed } }` \| `{ error }` |
 
-**Flow:** Renderer calls `exportDeploymentsCsv` (opens save dialog) to write a CSV with one row per deployment. To import, the renderer picks a file via `pickDeploymentsCsvFile`, hands the path to `parseDeploymentsCsvForImport` (which validates against the current DB and returns a per-cell preview payload), then on user confirmation passes the derived `applyPlan` to `applyDeploymentsCsvImport` (single SQLite transaction).
+There is also one preload-only helper (not an IPC channel):
+
+| Method                  | Purpose                                                                                                                                                                                                                                          |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `getDroppedFilePath(file)` | Wraps `electron.webUtils.getPathForFile(file)`. Electron 32+ removed `File.path` from the renderer; this preload-exposed helper resolves a dropped `File` to an absolute path. Used by the import-picker modal's drag-and-drop handler.        |
+
+**Flow:** For export, the renderer first calls `getDeploymentsCsvPreview` to fetch the rows shown in the export-preview modal (no file dialog, no write). On user confirmation, it calls `exportDeploymentsCsv`, which re-fetches, opens the save dialog, and writes. For import, the renderer either calls `pickDeploymentsCsvFile` (system file picker) or resolves a dropped file via `getDroppedFilePath`, then hands the path to `parseDeploymentsCsvForImport` (validates against the current DB; returns a per-cell preview payload). On user confirmation, the derived `applyPlan` is passed to `applyDeploymentsCsvImport` (single SQLite transaction).
+
+`locationsNamed` in the apply summary counts **distinct** `locationID`s renamed — a CSV that renames 28 deployments sharing one location reports `locationsNamed: 1`, not 28.
 
 **`PreviewPayload` shape:**
 

@@ -295,6 +295,8 @@ Round-trip format used by the Deployments-tab **Export CSV** / **Import CSV** bu
 
 **Encoding:** UTF-8 with RFC-4180 quoting (`escapeCSV` shares the implementation with the CamtrapDP export). Unknown columns are silently ignored. Missing the `deploymentID` header is a hard parse error.
 
+**Decimal separator:** `latitude` and `longitude` must use `.` (period) as the decimal separator. European-style `45,234` is parsed as `45` plus a stray field by `csv-parser` and will fail the numeric check. Use Excel's "Save As → CSV UTF-8 (comma delimited)" or set your locale before saving.
+
 **Export ordering:** `deploymentID` ASC using `Intl.Collator({ numeric: true })` so numeric IDs come out as `1, 2, …, 10, 11` rather than lexicographic. Alphanumeric IDs (`CAM_001, CAM_002, CAM_010`) sort by prefix then numeric tail; UUID IDs get a deterministic but arbitrary ordering.
 
 **Synthesized `biowatch-geo:` `locationID` prefixes** are preserved on export so the round-trip is byte-stable. This differs from the CamtrapDP exporter, which strips them for spec compliance.

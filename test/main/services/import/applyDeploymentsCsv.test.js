@@ -126,18 +126,46 @@ describe('applyDeploymentsCsv', () => {
     assert.equal(summary.locationsNamed, 0)
   })
 
-  test('rolls back on synthetic failure mid-transaction', async () => {
+  test('rolls back on a real exception thrown mid-transaction', async () => {
     await seed()
     const db = await getDrizzleDb(testStudyId, testDbPath)
 
-    await assert.rejects(
+    // First row succeeds; second row throws when its `latitude` getter
+    // is accessed — a real exception path (no test sentinels in
+    // production code).
+    const explodingRow = {
+      deploymentID: 'CAM_002',
+      fields: {
+        get latitude() {
+          throw new Error('boom')
+        }
+      }
+    }
+
+    assert.throws(() =>
       applyDeploymentsCsv(db, [
         { deploymentID: 'CAM_001', fields: { latitude: 45.5 } },
-        { __forceFailure: true }
+        explodingRow
       ])
     )
 
     const row = await db.select().from(deployments).where(eq(deployments.deploymentID, 'CAM_001'))
-    assert.equal(row[0].latitude, null)
+    assert.equal(row[0].latitude, null, 'first row update must be rolled back')
+  })
+
+  test('locationsNamed counts distinct locations, not plan rows', async () => {
+    await seed()
+    const db = await getDrizzleDb(testStudyId, testDbPath)
+
+    // Both CAM_001 and CAM_002 are at LOC_A; CAM_003 is at LOC_B.
+    // Even though the plan touches three rows, only two distinct
+    // locations end up renamed.
+    const summary = applyDeploymentsCsv(db, [
+      { deploymentID: 'CAM_001', fields: { locationName: 'Ridge South' } },
+      { deploymentID: 'CAM_002', fields: { locationName: 'Ridge South' } },
+      { deploymentID: 'CAM_003', fields: { locationName: 'Slope South' } }
+    ])
+
+    assert.equal(summary.locationsNamed, 2)
   })
 })
