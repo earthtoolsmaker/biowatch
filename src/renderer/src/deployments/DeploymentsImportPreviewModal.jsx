@@ -258,7 +258,7 @@ export default function DeploymentsImportPreviewModal({
 
         {/* Header row (matches body grid columns) */}
         <div
-          className={`${GRID_COLUMNS} gap-2 bg-muted text-muted-foreground text-xs px-3 py-1.5 border-b border-border flex-shrink-0`}
+          className={`${GRID_COLUMNS} gap-2 bg-muted text-muted-foreground text-xs px-3 py-1.5 border-b border-border flex-shrink-0 cursor-default`}
         >
           <div>#</div>
           {FIELDS.map((key) => (
@@ -289,7 +289,7 @@ export default function DeploymentsImportPreviewModal({
                       height: `${vi.size}px`,
                       transform: `translateY(${vi.start}px)`
                     }}
-                    className={`${GRID_COLUMNS} gap-2 items-center px-3 text-xs border-b border-border ${rowBackgroundClass(row)}`}
+                    className={`${GRID_COLUMNS} gap-2 items-center px-3 text-xs border-b border-border cursor-default ${rowBackgroundClass(row)}`}
                   >
                     <div className="text-muted-foreground">
                       {row.rowState === 'skipped' ? (
