@@ -418,11 +418,7 @@ const SpeciesMap = ({
 
   return (
     <>
-      <MapContainer
-        bounds={bounds}
-        boundsOptions={boundsOptions}
-        className="rounded w-full h-full"
-      >
+      <MapContainer bounds={bounds} boundsOptions={boundsOptions} className="rounded w-full h-full">
         <HideLeafletAttribution />
         <MapContextMenuController onContextMenu={setContextMenu} mapRef={mapRef} />
         <LayersControl position="topright">
