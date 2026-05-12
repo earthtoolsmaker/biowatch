@@ -1,20 +1,9 @@
 import { X, Download, Info, Pencil } from 'lucide-react'
-import { useEffect, useRef } from 'react'
-import { useVirtualizer } from '@tanstack/react-virtual'
-
-const FIELDS = ['deploymentID', 'locationID', 'locationName', 'latitude', 'longitude']
-
-const GRID_COLUMNS =
-  'grid grid-cols-[40px_minmax(140px,1.2fr)_minmax(80px,0.9fr)_minmax(140px,1.5fr)_minmax(120px,1fr)_minmax(120px,1fr)]'
-
-const ROW_HEIGHT = 36
+import { useEffect } from 'react'
+import DeploymentsPreviewTable from './DeploymentsPreviewTable'
+import { formatCellValue } from './deploymentsPreviewHelpers'
 
 const EDITABLE_KEYS = new Set(['locationName', 'latitude', 'longitude'])
-
-function formatCellValue(value) {
-  if (value === null || value === undefined || value === '') return '—'
-  return String(value)
-}
 
 /**
  * Read-only preview of the rows that will be written to the export CSV.
@@ -27,8 +16,6 @@ export default function DeploymentsExportPreviewModal({
   onSave,
   isSaving = false
 }) {
-  const scrollRef = useRef(null)
-
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === 'Escape' && !isSaving) onCancel()
@@ -36,13 +23,6 @@ export default function DeploymentsExportPreviewModal({
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [onCancel, isSaving])
-
-  const rowVirtualizer = useVirtualizer({
-    count: rows?.length ?? 0,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => ROW_HEIGHT,
-    overscan: 10
-  })
 
   if (!rows) return null
 
@@ -91,13 +71,11 @@ export default function DeploymentsExportPreviewModal({
           </div>
         </div>
 
-        {/* Header row */}
-        <div
-          className={`${GRID_COLUMNS} gap-2 bg-muted/60 dark:bg-muted text-muted-foreground text-[10px] uppercase tracking-wider font-semibold px-3 py-2 border-b border-border flex-shrink-0 cursor-default`}
-        >
-          <div>#</div>
-          {FIELDS.map((key) => (
-            <div key={key} className="truncate flex items-center gap-1">
+        <DeploymentsPreviewTable
+          rows={rows}
+          emptyMessage="No deployments to export."
+          renderHeaderCell={(key) => (
+            <>
               <span className="truncate">{key}</span>
               {EDITABLE_KEYS.has(key) && (
                 <Pencil
@@ -106,58 +84,21 @@ export default function DeploymentsExportPreviewModal({
                   aria-label="Editable on re-import"
                 />
               )}
-            </div>
-          ))}
-        </div>
-
-        {/* Virtualized body */}
-        <div ref={scrollRef} className="flex-1 overflow-auto">
-          {rows.length === 0 ? (
-            <div className="px-4 py-6 text-center text-xs text-muted-foreground">
-              No deployments to export.
-            </div>
-          ) : (
-            <div
-              style={{ height: rowVirtualizer.getTotalSize(), position: 'relative', width: '100%' }}
-            >
-              {rowVirtualizer.getVirtualItems().map((vi) => {
-                const row = rows[vi.index]
-                return (
-                  <div
-                    key={row.deploymentID ?? vi.index}
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      width: '100%',
-                      height: `${vi.size}px`,
-                      transform: `translateY(${vi.start}px)`
-                    }}
-                    className={`${GRID_COLUMNS} gap-2 items-center px-3 text-xs border-b border-border/60 cursor-default transition-colors hover:bg-accent/40`}
-                  >
-                    <div className="text-muted-foreground/70 tabular-nums text-[11px]">
-                      {vi.index + 1}
-                    </div>
-                    {FIELDS.map((key) => (
-                      <div key={key} className="min-w-0 overflow-hidden">
-                        <span
-                          title={formatCellValue(row[key])}
-                          className={
-                            EDITABLE_KEYS.has(key)
-                              ? 'text-foreground tabular-nums truncate block'
-                              : 'text-muted-foreground tabular-nums truncate block'
-                          }
-                        >
-                          {formatCellValue(row[key])}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )
-              })}
-            </div>
+            </>
           )}
-        </div>
+          renderCell={({ row, key }) => (
+            <span
+              title={formatCellValue(row[key])}
+              className={
+                EDITABLE_KEYS.has(key)
+                  ? 'text-foreground tabular-nums truncate block'
+                  : 'text-muted-foreground tabular-nums truncate block'
+              }
+            >
+              {formatCellValue(row[key])}
+            </span>
+          )}
+        />
 
         {/* Footer */}
         <div className="flex items-center justify-between px-4 py-3 border-t border-border">

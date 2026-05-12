@@ -1,23 +1,9 @@
 import { X, AlertTriangle, Ban, ArrowRight, ArrowLeftRight } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useVirtualizer } from '@tanstack/react-virtual'
-
-const FIELDS = ['deploymentID', 'locationID', 'locationName', 'latitude', 'longitude']
+import { useEffect, useMemo, useState } from 'react'
+import DeploymentsPreviewTable from './DeploymentsPreviewTable'
+import { formatCellValue } from './deploymentsPreviewHelpers'
 
 const EDITABLE_KEYS = ['locationName', 'latitude', 'longitude']
-
-// 40px gutter for row number + 5 data columns. Columns share remaining
-// space with weighting that favours locationName (long strings) and
-// gives lat/lon comfortable numeric widths.
-const GRID_COLUMNS =
-  'grid grid-cols-[40px_minmax(140px,1.2fr)_minmax(80px,0.9fr)_minmax(140px,1.5fr)_minmax(120px,1fr)_minmax(120px,1fr)]'
-
-const ROW_HEIGHT = 36
-
-function formatCellValue(value) {
-  if (value === null || value === undefined || value === '') return '—'
-  return String(value)
-}
 
 function CellContent({ col }) {
   if (col.state === 'warning') {
@@ -77,6 +63,19 @@ function rowBackgroundClass(row) {
   return ''
 }
 
+function renderGutter(row) {
+  if (row.rowState === 'skipped') {
+    return (
+      <div className="text-muted-foreground/70 tabular-nums text-[11px]">
+        <span title={row.rowWarning} className="inline-flex items-center gap-1">
+          <Ban size={12} /> {row.rowIndex}
+        </span>
+      </div>
+    )
+  }
+  return <div className="text-muted-foreground/70 tabular-nums text-[11px]">{row.rowIndex}</div>
+}
+
 /**
  * Preview-table modal for the deployments CSV import flow.
  * Stateless rendering of the preview payload produced by the main process.
@@ -91,7 +90,6 @@ export default function DeploymentsImportPreviewModal({
 }) {
   const [filter, setFilter] = useState('all')
   const toggleFilter = (next) => setFilter((prev) => (prev === next ? 'all' : next))
-  const scrollRef = useRef(null)
 
   useEffect(() => {
     const onKey = (e) => {
@@ -153,19 +151,6 @@ export default function DeploymentsImportPreviewModal({
     }
     return n
   }, [preview])
-
-  const rowVirtualizer = useVirtualizer({
-    count: filteredRows.length,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => ROW_HEIGHT,
-    overscan: 10
-  })
-
-  // Reset scroll position when the filter changes so the new view starts
-  // at the top rather than wherever the previous list was scrolled to.
-  useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = 0
-  }, [filter])
 
   if (!preview) return null
 
@@ -270,63 +255,15 @@ export default function DeploymentsImportPreviewModal({
           </div>
         )}
 
-        {/* Header row (matches body grid columns) */}
-        <div
-          className={`${GRID_COLUMNS} gap-2 bg-muted/60 dark:bg-muted text-muted-foreground text-[10px] uppercase tracking-wider font-semibold px-3 py-2 border-b border-border flex-shrink-0 cursor-default`}
-        >
-          <div>#</div>
-          {FIELDS.map((key) => (
-            <div key={key} className="truncate">
-              {key}
-            </div>
-          ))}
-        </div>
-
-        {/* Virtualized body */}
-        <div ref={scrollRef} className="flex-1 overflow-auto">
-          {filteredRows.length === 0 ? (
-            <div className="px-4 py-6 text-center text-xs text-muted-foreground">
-              No rows match the current filter.
-            </div>
-          ) : (
-            <div
-              style={{ height: rowVirtualizer.getTotalSize(), position: 'relative', width: '100%' }}
-            >
-              {rowVirtualizer.getVirtualItems().map((vi) => {
-                const row = filteredRows[vi.index]
-                return (
-                  <div
-                    key={row.rowIndex}
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      width: '100%',
-                      height: `${vi.size}px`,
-                      transform: `translateY(${vi.start}px)`
-                    }}
-                    className={`${GRID_COLUMNS} gap-2 items-center px-3 text-xs border-b border-border/60 cursor-default transition-colors hover:bg-accent/40 ${rowBackgroundClass(row)}`}
-                  >
-                    <div className="text-muted-foreground/70 tabular-nums text-[11px]">
-                      {row.rowState === 'skipped' ? (
-                        <span title={row.rowWarning} className="inline-flex items-center gap-1">
-                          <Ban size={12} /> {row.rowIndex}
-                        </span>
-                      ) : (
-                        row.rowIndex
-                      )}
-                    </div>
-                    {FIELDS.map((key) => (
-                      <div key={key} className="min-w-0 overflow-hidden">
-                        <CellContent col={row.columns[key]} />
-                      </div>
-                    ))}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
+        <DeploymentsPreviewTable
+          rows={filteredRows}
+          resetScrollKey={filter}
+          emptyMessage="No rows match the current filter."
+          getRowKey={(row) => row.rowIndex}
+          rowClassName={rowBackgroundClass}
+          renderGutter={renderGutter}
+          renderCell={({ row, key }) => <CellContent col={row.columns[key]} />}
+        />
 
         {/* Footer */}
         <div className="flex items-center justify-between px-4 py-3 border-t border-border">
