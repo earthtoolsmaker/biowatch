@@ -251,6 +251,22 @@ const api = {
       locationName
     )
   },
+  exportDeploymentsCsv: async (studyId) => {
+    return await electronAPI.ipcRenderer.invoke('deployments:export-csv', studyId)
+  },
+  pickDeploymentsCsvFile: async () => {
+    return await electronAPI.ipcRenderer.invoke('deployments:pick-csv-file')
+  },
+  parseDeploymentsCsvForImport: async (studyId, filePath) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'deployments:parse-csv-for-import',
+      studyId,
+      filePath
+    )
+  },
+  applyDeploymentsCsvImport: async (studyId, applyPlan) => {
+    return await electronAPI.ipcRenderer.invoke('deployments:apply-csv-import', studyId, applyPlan)
+  },
   setMediaTimestamp: async (studyId, mediaID, timestamp) => {
     return await electronAPI.ipcRenderer.invoke('media:set-timestamp', studyId, mediaID, timestamp)
   },

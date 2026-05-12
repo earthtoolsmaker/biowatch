@@ -39,10 +39,7 @@ export async function applyDeploymentsCsv(db, applyPlan) {
 
       let coordUpdateApplied = false
       if (Object.keys(updates).length > 0) {
-        tx.update(deployments)
-          .set(updates)
-          .where(eq(deployments.deploymentID, deploymentID))
-          .run()
+        tx.update(deployments).set(updates).where(eq(deployments.deploymentID, deploymentID)).run()
         deploymentsUpdated++
         coordUpdateApplied = true
       }
