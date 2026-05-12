@@ -200,7 +200,7 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1.5">Model</label>
             {modelLocked ? (
-              <div className="flex items-center gap-2 px-3 py-2 border border-border rounded-md bg-muted text-sm text-foreground">
+              <div className="flex items-center gap-2 px-3 py-2 border border-gray-200 dark:border-border rounded-md bg-gray-50 dark:bg-muted text-sm text-gray-700 dark:text-foreground">
                 <Lock size={12} className="text-muted-foreground" />
                 <span>
                   {pickedModel
@@ -304,7 +304,7 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
             <label className="block text-xs font-medium text-muted-foreground mb-1.5">Folder</label>
             <div className="flex gap-2">
               <div
-                className="flex-1 px-3 py-2 border border-border rounded-md bg-muted text-xs font-mono text-muted-foreground truncate"
+                className="flex-1 px-3 py-2 border border-gray-200 dark:border-border rounded-md bg-gray-50 dark:bg-muted text-xs font-mono text-gray-600 dark:text-muted-foreground truncate"
                 style={folder ? { direction: 'rtl', textAlign: 'left' } : undefined}
                 title={folder || ''}
               >
@@ -334,7 +334,7 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
           )}
         </div>
 
-        <footer className="flex justify-end gap-2 px-5 py-3 border-t border-border bg-muted">
+        <footer className="flex justify-end gap-2 px-5 py-3 border-t border-gray-200 dark:border-border bg-gray-50 dark:bg-muted">
           <Button variant="outline" size="sm" onClick={onClose} disabled={submitting}>
             Cancel
           </Button>
