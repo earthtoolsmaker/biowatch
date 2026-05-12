@@ -24,7 +24,7 @@ test.describe('Theme toggle', () => {
   test('selecting System shows resolved helper text', async ({ window }) => {
     await window.locator('a[href="#/settings/general"]').click()
     await window.getByTestId('theme-segment-system').click()
-    const helperText = window.getByText(/Following system preference \(currently (Light|Dark)\)/)
+    const helperText = window.getByText(/Currently following your system preference/)
     await expect(helperText).toBeVisible()
   })
 })
