@@ -244,7 +244,7 @@ function ImageViewerModal({
           </div>
 
           {/* Footer */}
-          <div className="px-4 py-2.5 bg-muted flex-shrink-0 border-t border-border">
+          <div className="px-4 py-2.5 bg-gray-50 dark:bg-muted flex-shrink-0 border-t border-gray-200 dark:border-border">
             <div className="flex items-center gap-3 min-w-0">
               {media.fileName && (
                 <span className="font-mono text-[11px] text-muted-foreground truncate min-w-0 flex-1">
@@ -561,7 +561,7 @@ function VideoViewerModal({
           </div>
 
           {/* Footer */}
-          <div className="px-4 py-2.5 bg-muted flex-shrink-0 border-t border-border">
+          <div className="px-4 py-2.5 bg-gray-50 dark:bg-muted flex-shrink-0 border-t border-gray-200 dark:border-border">
             <div className="flex items-center gap-3 min-w-0">
               {media.fileName && (
                 <span className="font-mono text-[11px] text-muted-foreground truncate min-w-0 flex-1">
