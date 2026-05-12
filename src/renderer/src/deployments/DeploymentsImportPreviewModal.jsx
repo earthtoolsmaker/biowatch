@@ -1,5 +1,5 @@
 import { X, AlertTriangle, Ban, ArrowRight, ArrowLeftRight } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 
 const FIELD_LABELS = {
   deploymentID: 'deploymentID',
@@ -87,10 +87,15 @@ export default function DeploymentsImportPreviewModal({
   errorMessage = null
 }) {
   // Row filter — 'all' (default) | 'updated' | 'skipped'. The summary tiles
-  // act as toggles: click an active filter to clear it.
+  // act as toggles: click an active filter to clear it. Wrapped in
+  // useTransition so the button click stays responsive even when the
+  // resulting re-render touches thousands of table rows.
   const [filter, setFilter] = useState('all')
+  const [isFilterPending, startFilterTransition] = useTransition()
 
-  const toggleFilter = (next) => setFilter((prev) => (prev === next ? 'all' : next))
+  const applyFilter = (next) => startFilterTransition(() => setFilter(next))
+  const toggleFilter = (next) =>
+    startFilterTransition(() => setFilter((prev) => (prev === next ? 'all' : next)))
 
   useEffect(() => {
     const onKey = (e) => {
@@ -201,12 +206,17 @@ export default function DeploymentsImportPreviewModal({
           </button>
           {filter !== 'all' && (
             <button
-              onClick={() => setFilter('all')}
+              onClick={() => applyFilter('all')}
               className="ml-1 inline-flex items-center gap-1 px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent rounded"
               title="Clear filter"
             >
               Show all
             </button>
+          )}
+          {isFilterPending && (
+            <span className="ml-1 text-[11px] text-muted-foreground animate-pulse">
+              Filtering…
+            </span>
           )}
         </div>
 
