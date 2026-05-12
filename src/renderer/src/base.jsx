@@ -416,10 +416,10 @@ function AppContent() {
                 <NavLink
                   to={`/study/${study.id}`}
                   className={({ isActive }) =>
-                    `w-full flex items-center gap-2 px-3 py-2.5 text-sm transition-colors group mb-1 rounded-lg ${
+                    `w-full flex items-center gap-2 px-3 py-2.5 text-sm transition-all group mb-1 rounded-lg ${
                       isActive
                         ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300'
-                        : 'text-gray-700 dark:text-zinc-400 hover:bg-gray-100 dark:hover:bg-accent/40 hover:text-foreground'
+                        : 'text-gray-700 hover:bg-gray-100 dark:text-zinc-400 dark:hover:bg-accent/40 dark:hover:text-foreground'
                     }`
                   }
                 >
