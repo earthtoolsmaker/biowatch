@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Navigate, Route, Routes, useNavigate } from 'react-router'
 import { ErrorBoundary } from 'react-error-boundary'
 import { useQuery } from '@tanstack/react-query'
-import { BrainCircuit, Info, Loader2, Palette, Settings2 } from 'lucide-react'
+import { BrainCircuit, Info, Loader2, Settings, Settings2 } from 'lucide-react'
 import MlZoo from './models'
 import { modelZoo } from '../../shared/mlmodels'
 import { Tab } from './ui/Tab'
@@ -123,11 +123,11 @@ export default function SettingsPage() {
           >
             AI Models
           </Tab>
+          <Tab to="/settings/general" icon={Settings}>
+            General
+          </Tab>
           <Tab to="/settings/info" icon={Info}>
             Info
-          </Tab>
-          <Tab to="/settings/appearance" icon={Palette}>
-            Appearance
           </Tab>
           {showAdvanced && (
             <Tab to="/settings/advanced" icon={Settings2}>
@@ -139,9 +139,9 @@ export default function SettingsPage() {
       <div className="flex-1 overflow-y-auto pb-4">
         <Routes>
           <Route
-            path="appearance"
+            path="general"
             element={
-              <ErrorBoundary FallbackComponent={ErrorFallback} key={'appearance'}>
+              <ErrorBoundary FallbackComponent={ErrorFallback} key={'general'}>
                 <div className="min-h-full flex flex-col">
                   <Appearance />
                   <SettingsFooter className="mt-auto" onRevealAdvanced={handleRevealAdvanced} />

@@ -10,19 +10,19 @@ test.describe('Theme toggle', () => {
 
   test('selecting Dark adds dark class to html', async ({ window }) => {
     await window.locator('a[href="#/settings/ml_zoo"]').click()
-    await window.locator('a[href="#/settings/appearance"]').click()
+    await window.locator('a[href="#/settings/general"]').click()
     await window.getByTestId('theme-segment-dark').click()
     await expect(window.locator('html')).toHaveClass(/dark/)
   })
 
   test('selecting Light removes dark class', async ({ window }) => {
-    await window.locator('a[href="#/settings/appearance"]').click()
+    await window.locator('a[href="#/settings/general"]').click()
     await window.getByTestId('theme-segment-light').click()
     await expect(window.locator('html')).not.toHaveClass(/dark/)
   })
 
   test('selecting System shows resolved helper text', async ({ window }) => {
-    await window.locator('a[href="#/settings/appearance"]').click()
+    await window.locator('a[href="#/settings/general"]').click()
     await window.getByTestId('theme-segment-system').click()
     const helperText = window.getByText(/Following system preference \(currently (Light|Dark)\)/)
     await expect(helperText).toBeVisible()
