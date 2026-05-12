@@ -1212,8 +1212,11 @@ export default function Deployments({ studyId }) {
             <Panel defaultSize={38} minSize={20} className="flex flex-col">
               {/* Cap the map at a comfortable max-height so on tall windows
                   it doesn't stretch to the full panel — the list timeline
-                  can use the room productively, the map can't. */}
-              <div className="max-h-[500px] h-full">
+                  can use the room productively, the map can't. The pt-3
+                  pushes the map (and visually the resize handle next to it)
+                  below the tab-nav border, while the left-side CSV strip
+                  stays flush. */}
+              <div className="max-h-[500px] h-full pt-3">
                 {deploymentsList && (
                   <LocationMap
                     locations={deploymentsList}
