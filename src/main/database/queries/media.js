@@ -176,12 +176,17 @@ export async function checkMediaHaveBboxes(dbPath, mediaIDs) {
 }
 
 /**
- * Check if the study has any bboxes anywhere — study-wide existence check.
- * Used to decide whether to render the "show boxes" toggle in the Media tab's
- * right-pane display strip. Coarser than checkMediaHaveBboxes (which is
- * scoped to a list of media IDs).
+ * Check if the study has any drawable bboxes anywhere — study-wide existence
+ * check used to decide whether to render the "show boxes" toggle in the
+ * Media tab's right-pane display strip.
+ *
+ * Requires bboxWidth AND bboxHeight to be non-null, not just bboxX. Some
+ * CamtrapDP datasets record an animal's position as a point (X/Y only, no
+ * width/height) — those aren't drawable boxes so the toggle would be
+ * meaningless. Coarser than checkMediaHaveBboxes (which is scoped to a list
+ * of media IDs) but with the same drawability requirement.
  * @param {string} dbPath - Path to the SQLite database
- * @returns {Promise<boolean>} - True if any observation in the study has a bbox
+ * @returns {Promise<boolean>} - True if any observation has a drawable bbox
  */
 export async function studyHasAnyBboxes(dbPath) {
   const startTime = Date.now()
@@ -192,7 +197,7 @@ export async function studyHasAnyBboxes(dbPath) {
     const result = await db
       .select({ exists: sql`1` })
       .from(observations)
-      .where(isNotNull(observations.bboxX))
+      .where(and(isNotNull(observations.bboxWidth), isNotNull(observations.bboxHeight)))
       .limit(1)
 
     const hasBboxes = result.length > 0
