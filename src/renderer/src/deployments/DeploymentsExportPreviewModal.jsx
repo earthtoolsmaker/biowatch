@@ -1,4 +1,4 @@
-import { X, Download, Info } from 'lucide-react'
+import { X, Download, Info, Pencil } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 
@@ -93,14 +93,13 @@ export default function DeploymentsExportPreviewModal({
           <div>#</div>
           {FIELDS.map((key) => (
             <div key={key} className="truncate flex items-center gap-1">
-              {key}
+              <span className="truncate">{key}</span>
               {EDITABLE_KEYS.has(key) && (
-                <span
-                  title="Editable on re-import"
-                  className="text-green-700 dark:text-green-400 normal-case font-normal"
-                >
-                  ·
-                </span>
+                <Pencil
+                  size={10}
+                  className="flex-shrink-0 text-green-600 dark:text-green-400"
+                  aria-label="Editable on re-import"
+                />
               )}
             </div>
           ))}
@@ -157,8 +156,9 @@ export default function DeploymentsExportPreviewModal({
 
         {/* Footer */}
         <div className="flex items-center justify-between px-4 py-3 border-t border-border">
-          <div className="text-[11px] text-muted-foreground">
-            Read-only columns shown in muted color; editable columns in foreground.
+          <div className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <Pencil size={10} className="text-green-600 dark:text-green-400" />
+            <span>marks columns that are editable on re-import.</span>
           </div>
           <div className="flex items-center gap-2">
             <button
