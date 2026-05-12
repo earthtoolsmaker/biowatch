@@ -415,13 +415,11 @@ function AppContent() {
               const navLink = (
                 <NavLink
                   to={`/study/${study.id}`}
-                  className={({ isActive }) =>
-                    `w-full flex items-center gap-2 px-3 py-2.5 text-sm transition-all group mb-1 rounded-lg ${
-                      isActive
-                        ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300'
-                        : 'text-neutral-700 hover:bg-gray-100 dark:text-zinc-400 dark:hover:bg-accent/40 dark:hover:text-foreground'
-                    }`
-                  }
+                  className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm transition-all group mb-1 rounded-lg ${
+                    isCurrentStudy
+                      ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300'
+                      : 'text-neutral-700 hover:bg-gray-100 dark:text-zinc-400 dark:hover:bg-accent/40 dark:hover:text-foreground'
+                  }`}
                 >
                   <span className="flex-1 text-left truncate">{study.name}</span>
                   <ChevronRight
