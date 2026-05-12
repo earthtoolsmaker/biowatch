@@ -15,6 +15,7 @@ import HideLeafletAttribution from './ui/HideLeafletAttribution'
 import MarkerHoverCard from './ui/MarkerHoverCard'
 import { useTheme } from './hooks/useTheme'
 import PlaceholderMap from './ui/PlaceholderMap'
+import { SequenceGapSlider } from './ui/SequenceGapSlider'
 import SpeciesDistribution from './ui/speciesDistribution'
 import TimelineChart from './ui/timeseries'
 import { useImportStatus } from './hooks/import'
@@ -576,7 +577,7 @@ export default function Activity({ studyData, studyId }) {
   const [fullExtent, setFullExtent] = useState([null, null])
   const [timeRange, setTimeRange] = useState({ start: 0, end: 24 })
   const { importStatus } = useImportStatus(actualStudyId, 5000)
-  const { sequenceGap } = useSequenceGap(actualStudyId)
+  const { sequenceGap, setSequenceGap } = useSequenceGap(actualStudyId)
 
   // Lightweight deduped deployment-location query (shared cache with the
   // Overview tab). Used to paint the skeleton map immediately while the
@@ -843,16 +844,28 @@ export default function Activity({ studyData, studyId }) {
                 />
               )}
             </div>
-            <div className="h-full overflow-auto w-xs">
+            <div className="h-full w-xs flex flex-col gap-2 min-h-0">
+              {speciesInitialized && sequenceGap !== undefined && (
+                <div className="flex items-center gap-2 px-2 py-1.5">
+                  <SequenceGapSlider
+                    value={sequenceGap}
+                    onChange={setSequenceGap}
+                    variant="compact"
+                  />
+                </div>
+              )}
               {speciesDistributionData && (
-                <SpeciesDistribution
-                  data={speciesDistributionData}
-                  taxonomicData={taxonomicData}
-                  selectedSpecies={selectedSpecies}
-                  onSpeciesChange={handleSpeciesChange}
-                  palette={palette}
-                  studyId={actualStudyId}
-                />
+                <div className="flex-1 min-h-0">
+                  <SpeciesDistribution
+                    data={speciesDistributionData}
+                    taxonomicData={taxonomicData}
+                    selectedSpecies={selectedSpecies}
+                    onSpeciesChange={handleSpeciesChange}
+                    palette={palette}
+                    studyId={actualStudyId}
+                    showHeader={false}
+                  />
+                </div>
               )}
             </div>
           </div>
