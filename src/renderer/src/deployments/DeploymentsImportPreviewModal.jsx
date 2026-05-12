@@ -1,15 +1,18 @@
 import { X, AlertTriangle, Ban, ArrowRight, ArrowLeftRight } from 'lucide-react'
-import { useEffect, useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 
-const FIELD_LABELS = {
-  deploymentID: 'deploymentID',
-  locationID: 'locationID',
-  locationName: 'locationName',
-  latitude: 'latitude',
-  longitude: 'longitude'
-}
+const FIELDS = ['deploymentID', 'locationID', 'locationName', 'latitude', 'longitude']
 
 const EDITABLE_KEYS = ['locationName', 'latitude', 'longitude']
+
+// 40px gutter for row number + 5 data columns. Columns share remaining
+// space with weighting that favours locationName (long strings) and
+// gives lat/lon comfortable numeric widths.
+const GRID_COLUMNS =
+  'grid grid-cols-[40px_minmax(140px,1.2fr)_minmax(80px,0.9fr)_minmax(140px,1.5fr)_minmax(120px,1fr)_minmax(120px,1fr)]'
+
+const ROW_HEIGHT = 32
 
 function formatCellValue(value) {
   if (value === null || value === undefined || value === '') return '—'
@@ -18,12 +21,10 @@ function formatCellValue(value) {
 
 function CellContent({ col }) {
   if (col.state === 'warning') {
-    // Cell was rejected; DB value stays, CSV value shown crossed-out so user
-    // sees what they tried to set and what will be kept.
     return (
       <span
         title={col.warning}
-        className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-300"
+        className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-300 truncate"
       >
         <AlertTriangle size={12} className="flex-shrink-0" />
         <span className="tabular-nums">{formatCellValue(col.dbValue)}</span>
@@ -36,7 +37,7 @@ function CellContent({ col }) {
   }
   if (col.state === 'change') {
     return (
-      <span className="inline-flex items-center gap-1 font-medium text-green-700 dark:text-green-300">
+      <span className="inline-flex items-center gap-1 font-medium text-green-700 dark:text-green-300 truncate">
         <span className="tabular-nums line-through opacity-70 text-muted-foreground font-normal">
           {formatCellValue(col.dbValue)}
         </span>
@@ -50,8 +51,8 @@ function CellContent({ col }) {
     <span
       className={
         col.state === 'readonly'
-          ? 'text-muted-foreground italic tabular-nums'
-          : 'text-foreground tabular-nums'
+          ? 'text-muted-foreground italic tabular-nums truncate block'
+          : 'text-foreground tabular-nums truncate block'
       }
     >
       {String(display)}
@@ -63,21 +64,17 @@ function rowBackgroundClass(row) {
   if (row.rowState === 'skipped') {
     return 'bg-muted/40 dark:bg-muted/30 opacity-60'
   }
-  const editableKeys = ['locationName', 'latitude', 'longitude']
-  const hasChange = editableKeys.some((k) => row.columns[k]?.state === 'change')
-  if (hasChange) {
-    return 'bg-green-50 dark:bg-green-500/10'
-  }
-  const hasWarning = editableKeys.some((k) => row.columns[k]?.state === 'warning')
-  if (hasWarning) {
-    return 'bg-amber-50 dark:bg-amber-500/5'
-  }
+  const hasChange = EDITABLE_KEYS.some((k) => row.columns[k]?.state === 'change')
+  if (hasChange) return 'bg-green-50 dark:bg-green-500/10'
+  const hasWarning = EDITABLE_KEYS.some((k) => row.columns[k]?.state === 'warning')
+  if (hasWarning) return 'bg-amber-50 dark:bg-amber-500/5'
   return ''
 }
 
 /**
  * Preview-table modal for the deployments CSV import flow.
  * Stateless rendering of the preview payload produced by the main process.
+ * Body rows are virtualized so filter toggles stay snappy on large studies.
  */
 export default function DeploymentsImportPreviewModal({
   preview,
@@ -86,16 +83,9 @@ export default function DeploymentsImportPreviewModal({
   isApplying = false,
   errorMessage = null
 }) {
-  // Row filter — 'all' (default) | 'updated' | 'skipped'. The summary tiles
-  // act as toggles: click an active filter to clear it. Wrapped in
-  // useTransition so the button click stays responsive even when the
-  // resulting re-render touches thousands of table rows.
   const [filter, setFilter] = useState('all')
-  const [isFilterPending, startFilterTransition] = useTransition()
-
-  const applyFilter = (next) => startFilterTransition(() => setFilter(next))
-  const toggleFilter = (next) =>
-    startFilterTransition(() => setFilter((prev) => (prev === next ? 'all' : next)))
+  const toggleFilter = (next) => setFilter((prev) => (prev === next ? 'all' : next))
+  const scrollRef = useRef(null)
 
   useEffect(() => {
     const onKey = (e) => {
@@ -138,6 +128,19 @@ export default function DeploymentsImportPreviewModal({
     }
     return preview.rows
   }, [preview, filter])
+
+  const rowVirtualizer = useVirtualizer({
+    count: filteredRows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: 10
+  })
+
+  // Reset scroll position when the filter changes so the new view starts
+  // at the top rather than wherever the previous list was scrolled to.
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = 0
+  }, [filter])
 
   if (!preview) return null
 
@@ -206,17 +209,12 @@ export default function DeploymentsImportPreviewModal({
           </button>
           {filter !== 'all' && (
             <button
-              onClick={() => applyFilter('all')}
+              onClick={() => setFilter('all')}
               className="ml-1 inline-flex items-center gap-1 px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent rounded"
               title="Clear filter"
             >
               Show all
             </button>
-          )}
-          {isFilterPending && (
-            <span className="ml-1 text-[11px] text-muted-foreground animate-pulse">
-              Filtering…
-            </span>
           )}
         </div>
 
@@ -226,53 +224,60 @@ export default function DeploymentsImportPreviewModal({
           </div>
         )}
 
-        {/* Table */}
-        <div className="flex-1 overflow-auto">
-          <table className="w-full text-xs">
-            <thead className="sticky top-0 bg-muted text-muted-foreground">
-              <tr>
-                <th className="px-2 py-1.5 text-left w-10">#</th>
-                {Object.keys(FIELD_LABELS).map((key) => (
-                  <th key={key} className="px-2 py-1.5 text-left">
-                    {FIELD_LABELS[key]}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRows.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={Object.keys(FIELD_LABELS).length + 1}
-                    className="px-2 py-6 text-center text-muted-foreground"
+        {/* Header row (matches body grid columns) */}
+        <div
+          className={`${GRID_COLUMNS} gap-2 bg-muted text-muted-foreground text-xs px-3 py-1.5 border-b border-border flex-shrink-0`}
+        >
+          <div>#</div>
+          {FIELDS.map((key) => (
+            <div key={key}>{key}</div>
+          ))}
+        </div>
+
+        {/* Virtualized body */}
+        <div ref={scrollRef} className="flex-1 overflow-auto">
+          {filteredRows.length === 0 ? (
+            <div className="px-4 py-6 text-center text-xs text-muted-foreground">
+              No rows match the current filter.
+            </div>
+          ) : (
+            <div
+              style={{ height: rowVirtualizer.getTotalSize(), position: 'relative', width: '100%' }}
+            >
+              {rowVirtualizer.getVirtualItems().map((vi) => {
+                const row = filteredRows[vi.index]
+                return (
+                  <div
+                    key={row.rowIndex}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      height: `${vi.size}px`,
+                      transform: `translateY(${vi.start}px)`
+                    }}
+                    className={`${GRID_COLUMNS} gap-2 items-center px-3 text-xs border-b border-border ${rowBackgroundClass(row)}`}
                   >
-                    No rows match the current filter.
-                  </td>
-                </tr>
-              )}
-              {filteredRows.map((row) => (
-                <tr
-                  key={row.rowIndex}
-                  className={`border-t border-border ${rowBackgroundClass(row)}`}
-                >
-                  <td className="px-2 py-1.5 text-muted-foreground">
-                    {row.rowState === 'skipped' ? (
-                      <span title={row.rowWarning} className="inline-flex items-center gap-1">
-                        <Ban size={12} /> {row.rowIndex}
-                      </span>
-                    ) : (
-                      row.rowIndex
-                    )}
-                  </td>
-                  {Object.keys(FIELD_LABELS).map((key) => (
-                    <td key={key} className="px-2 py-1.5">
-                      <CellContent col={row.columns[key]} />
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    <div className="text-muted-foreground">
+                      {row.rowState === 'skipped' ? (
+                        <span title={row.rowWarning} className="inline-flex items-center gap-1">
+                          <Ban size={12} /> {row.rowIndex}
+                        </span>
+                      ) : (
+                        row.rowIndex
+                      )}
+                    </div>
+                    {FIELDS.map((key) => (
+                      <div key={key} className="min-w-0">
+                        <CellContent col={row.columns[key]} />
+                      </div>
+                    ))}
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
 
         {/* Footer */}
