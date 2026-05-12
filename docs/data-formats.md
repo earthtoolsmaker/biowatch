@@ -279,6 +279,26 @@ Combined media + observations in one file:
 
 ---
 
+## Deployments CSV (locations + names)
+
+Round-trip format used by the Deployments-tab **Export CSV** / **Import CSV** buttons for bulk-editing coordinates and location names. See [import-export.md](./import-export.md#deployments-csv-locations--names) for the full flow.
+
+### Columns
+
+| Column         | Required on import? | Editable on import? | Notes                                                                                          |
+| -------------- | ------------------- | ------------------- | ---------------------------------------------------------------------------------------------- |
+| `deploymentID` | Yes (row key)       | No                  | Rows whose ID is missing from the DB are skipped with a warning.                               |
+| `locationID`   | No                  | No                  | Treated as read-only context. A CSV value differing from the DB raises a per-cell warning.     |
+| `locationName` | No                  | Yes                 | Empty = leave existing value. Propagates to every deployment sharing the resolved locationID. |
+| `latitude`     | No                  | Yes                 | Decimal degrees. Must be in `[-90, 90]` when non-empty. Empty = leave existing value.          |
+| `longitude`    | No                  | Yes                 | Decimal degrees. Must be in `[-180, 180]` when non-empty. Empty = leave existing value.        |
+
+**Encoding:** UTF-8 with RFC-4180 quoting (`escapeCSV` shares the implementation with the CamtrapDP export). Unknown columns are silently ignored. Missing the `deploymentID` header is a hard parse error.
+
+**Export ordering:** `deploymentID` ASC using `Intl.Collator({ numeric: true })` so numeric IDs come out as `1, 2, …, 10, 11` rather than lexicographic. Alphanumeric IDs (`CAM_001, CAM_002, CAM_010`) sort by prefix then numeric tail; UUID IDs get a deterministic but arbitrary ordering.
+
+**Synthesized `biowatch-geo:` `locationID` prefixes** are preserved on export so the round-trip is byte-stable. This differs from the CamtrapDP exporter, which strips them for spec compliance.
+
 ## DeepFaune CSV
 
 Export format from [DeepFaune](https://www.deepfaune.cnrs.fr/) desktop application.
