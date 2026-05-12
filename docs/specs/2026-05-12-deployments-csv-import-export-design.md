@@ -1,19 +1,19 @@
 # Deployments CSV import/export
 
 **Date:** 2026-05-12
-**Status:** Design — pending approval
+**Status:** Design — approved
 **Issue:** [#497](https://github.com/earthtoolsmaker/biowatch/issues/497)
-**Area:** renderer (new `DeploymentsCsvMenu.jsx`, new `DeploymentsImportPreviewModal.jsx`, edits to `deployments.jsx`); main (new parser, applier, exporter, IPC module)
+**Area:** renderer (new `DeploymentsCsvActions.jsx`, new `DeploymentsImportPreviewModal.jsx`, edits to `deployments.jsx`); main (new parser, applier, exporter, IPC module)
 
 ## Summary
 
 Export the current deployments table as a CSV, edit it externally (Excel,
 Google Sheets, vim), and re-import to bulk-update `latitude`, `longitude`,
-and `locationName` across many deployments at once. Entry point: a new `⋮`
-menu in the timeline header of the Deployments tab, next to
-`SparklineToggle`. Import shows a preview-table modal with cell-level
-error highlighting before any DB write; apply is a single SQLite
-transaction.
+and `locationName` across many deployments at once. Entry point: two flat
+buttons (**Export CSV** / **Import CSV**) in a new always-visible header
+strip above the conditional timeline header in the Deployments tab.
+Import shows a preview-table modal with cell-level error highlighting
+before any DB write; apply is a single SQLite transaction.
 
 ## Motivation
 
@@ -34,9 +34,12 @@ generic location names. That round-trip is in scope.
 
 ## Goals
 
-- New `⋮` button in the Deployments-tab timeline toolbar, beside
-  `SparklineToggle`. Menu items: **Export deployments CSV** and **Import
-  deployments CSV…**.
+- New always-visible header strip in the Deployments-tab list panel,
+  rendered above the conditional timeline header. Hosts two right-aligned
+  flat buttons: **Export CSV** and **Import CSV**. Stays visible for
+  studies where `hasTimestamps === false` (no timeline rendered) — which
+  are the studies most likely to need CSV import in the first place
+  (fresh LILA/COCO imports with null coords).
 - Export writes all deployments to a CSV with exactly the columns the
   import accepts.
 - Import shows a preview-table modal classifying every cell as
@@ -93,25 +96,34 @@ fires" (see [Asymmetry](#coordnames-asymmetry-intentional) below).
 
 ### Entry point
 
-A new `DeploymentsCsvMenu` component renders to the right of
-`SparklineToggle` in the timeline header (`deployments.jsx:779`):
+A new always-visible header strip in the Deployments list panel sits
+above the conditional timeline header (`deployments.jsx:751`). The
+strip itself is rendered in `deployments.jsx`; it embeds a new
+`DeploymentsCsvActions` component that provides the two buttons.
 
 ```
+With timeline (hasTimestamps === true):
 ┌───────────────────────────────────────────────────┐
-│ Locations …          [Bars][Line][Heatmap] [⋮]    │
-└───────────────────────────────────────────────────┘
-                                              │
-                  ┌───────────────────────────┴─┐
-                  │ ↓ Export deployments CSV…   │
-                  │ ↑ Import deployments CSV…   │
-                  └─────────────────────────────┘
+│                          [↓ Export CSV] [↑ Import CSV] │  ← always-visible strip
+├───────────────────────────────────────────────────┤
+│ ─── dates ───              [Bars][Line][Heatmap]  │  ← existing timeline header
+├───────────────────────────────────────────────────┤
+│ list rows…                                        │
+
+Without timeline (hasTimestamps === false):
+┌───────────────────────────────────────────────────┐
+│                          [↓ Export CSV] [↑ Import CSV] │  ← strip remains
+├───────────────────────────────────────────────────┤
+│ list rows… (no date markers, no sparklines)       │
 ```
 
-Button is a `lucide` `MoreVertical` 14px icon. Same hover/active
-treatment as the SparklineToggle children (`bg-accent`, `text-foreground`).
-Dropdown styling matches existing popovers
-(`absolute right-0 top-full mt-1 … rounded-lg shadow-lg z-[1100]`).
-Outside-click closes; Esc closes.
+Buttons use `lucide` `Download` / `Upload` 12px icons + text label.
+Hover treatment matches the existing toolbar idiom
+(`text-muted-foreground hover:text-foreground hover:bg-accent`). The
+strip itself has `bg-card border-b border-border px-3 py-1.5
+flex items-center justify-end gap-1`. Buttons are right-aligned;
+the left side is intentionally empty so future tab-level context
+(count pills, filter chips) has a home without rearrangement.
 
 ### Export
 
@@ -431,29 +443,34 @@ fall through `update().where()` as no-ops. Cost is one extra walk over
 | `src/main/services/import/applyDeploymentsCsv.js` | Single transactional apply. Re-validates, runs the transaction, returns summary. |
 | `src/main/services/export/deploymentsCsv.js` | Export: query all deployments, render to CSV with `toCSV`, prompt save dialog, write file. |
 | `src/main/ipc/deploymentsCsv.js` | Three IPC handlers: `deployments:export-csv`, `deployments:parse-csv-for-import`, `deployments:apply-csv-import`. |
-| `src/renderer/src/deployments/DeploymentsCsvMenu.jsx` | The `⋮` button + menu. Owns the flow's transient state: file path, preview payload, modal open/close. |
+| `src/renderer/src/deployments/DeploymentsCsvActions.jsx` | Two flat Export / Import buttons + import-flow state owner (preview payload, isParsing, isApplying, applyError). Returns a Fragment so the parent owns the strip layout. |
 | `src/renderer/src/deployments/DeploymentsImportPreviewModal.jsx` | The preview table modal. Stateless wrt validation — renders the preview payload it receives. |
 
 ### Modified files
 
 | Path | Change |
 | --- | --- |
-| `src/renderer/src/deployments.jsx` | Mount `<DeploymentsCsvMenu studyId={studyId} />` next to `<SparklineToggle />` in the header (`deployments.jsx:778–780`). Wire cache invalidation callbacks. |
+| `src/renderer/src/deployments.jsx` | Add a new always-visible header strip above the conditional timeline header. Mount `<DeploymentsCsvActions studyId={studyId} onApplied={…} />` inside it. Wire cache invalidation callbacks. |
 | `src/preload/index.js` | Expose `exportDeploymentsCsv(studyId)`, `parseDeploymentsCsvForImport(studyId, filePath)`, `applyDeploymentsCsvImport(studyId, applyPlan)`, and a helper `selectCsvFile()` that wraps `dialog.showOpenDialog`. |
 | `src/main/ipc/index.js` | Register the new IPC handler module. |
 | `docs/ipc-api.md` | Document the three new handlers. |
 | `docs/import-export.md` | Add a "Deployments CSV (locations + names)" section. |
 | `docs/data-formats.md` | Document the deployments-CSV column shape. |
 
-### Why a dedicated `DeploymentsCsvMenu`
+### Why a dedicated `DeploymentsCsvActions`
 
 `deployments.jsx` is ~1,200 lines and already orchestrates the map,
 the virtualized list, the URL state, and the sparkline header. Putting
-the menu + modal flow state inline would push it well past readable
-size. Same rationale used for `DeploymentSettingsPopover` in
+the import flow state (preview payload, parse/apply lifecycle, modal
+open/close) inline would push it well past readable size. The strip
+markup itself stays in `deployments.jsx` so the layout decisions live
+near the timeline header they sit above; only the buttons + their
+flow state moves out.
+
+Same rationale used for `DeploymentSettingsPopover` in
 [the deployment settings popover spec](./2026-05-06-deployment-settings-popover-design.md).
 
-### Why the modal is a separate component from the menu
+### Why the modal is a separate component from the actions
 
 The modal carries the heaviest UI (virtualized table, per-cell tooltip
 rendering, cell highlighting). Isolating it lets each be tested
@@ -533,7 +550,7 @@ src/main/services/export/deploymentsCsv.js           (new)
 src/main/ipc/deploymentsCsv.js                       (new)
 src/main/ipc/index.js                                (register module)
 src/preload/index.js                                 (expose 4 IPC methods)
-src/renderer/src/deployments/DeploymentsCsvMenu.jsx              (new)
+src/renderer/src/deployments/DeploymentsCsvActions.jsx           (new)
 src/renderer/src/deployments/DeploymentsImportPreviewModal.jsx   (new)
 src/renderer/src/deployments.jsx                                 (mount menu)
 docs/ipc-api.md                                                  (document handlers)
