@@ -74,12 +74,17 @@ export default function DeploymentsImportPickerModal({ onCancel, onFilePicked })
     [onFilePicked]
   )
 
+  const handleBackdropMouseDown = (e) => {
+    if (e.target === e.currentTarget) onCancel()
+  }
+
   return (
     <div
       className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/40"
       role="dialog"
       aria-modal="true"
       aria-label="Import deployments CSV"
+      onMouseDown={handleBackdropMouseDown}
     >
       <div className="bg-card border border-border rounded-lg shadow-2xl w-[90vw] max-w-[560px] flex flex-col">
         {/* Header */}

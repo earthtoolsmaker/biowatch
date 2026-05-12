@@ -46,12 +46,17 @@ export default function DeploymentsExportPreviewModal({
 
   if (!rows) return null
 
+  const handleBackdropMouseDown = (e) => {
+    if (e.target === e.currentTarget && !isSaving) onCancel()
+  }
+
   return (
     <div
       className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/40"
       role="dialog"
       aria-modal="true"
       aria-label="Export deployments CSV preview"
+      onMouseDown={handleBackdropMouseDown}
     >
       <div className="bg-card border border-border rounded-lg shadow-2xl w-[90vw] max-w-[1100px] h-[85vh] flex flex-col">
         {/* Header */}
