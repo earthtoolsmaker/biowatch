@@ -118,8 +118,8 @@ avoids special-casing the chip path on the backend.
 ## Interaction rules
 
 - **Click a chip with no chip currently selected**: that chip becomes
-  active; if the drag-arc is at anything other than full day, the arc
-  resets to full day (clears the implicit drag selection). Polar shows
+  active. The drag-arc state is preserved (not reset) but the arc and
+  handles are no longer rendered while chips are active. Polar shows
   one highlighted arc for that chip.
 - **Click another chip while one is selected**: toggles that chip on
   (additive). Polar shows two arcs.
