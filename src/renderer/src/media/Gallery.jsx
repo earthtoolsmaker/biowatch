@@ -2181,8 +2181,7 @@ function Gallery({
       JSON.stringify(species),
       dateRange[0]?.toISOString(),
       dateRange[1]?.toISOString(),
-      timeRange.start,
-      timeRange.end,
+      JSON.stringify(timeRange.ranges ?? [{ start: timeRange.start, end: timeRange.end }]),
       includeNullTimestamps
     ],
     queryFn: async ({ pageParam = null }) => {

@@ -10,7 +10,16 @@ import { useParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import ActivityMapContextMenu from './ui/ActivityMapContextMenu'
-import CircularTimeFilter, { DailyActivityRadar } from './ui/clock'
+import CircularTimeFilter, { DailyActivityRadar, DailyActivityLine } from './ui/clock'
+import DayPeriodChips from './ui/dayPeriodChips'
+import ChartShapeToggle from './ui/chartShapeToggle'
+import {
+  ALL_CHIPS_SELECTED,
+  arcToRanges,
+  chipsToRanges,
+  DAY_PERIOD_ORDER,
+  mergeChipRanges
+} from './utils/dayPeriods'
 import HideLeafletAttribution from './ui/HideLeafletAttribution'
 import MarkerHoverCard from './ui/MarkerHoverCard'
 import { useTheme } from './hooks/useTheme'
@@ -577,7 +586,28 @@ export default function Activity({ studyData, studyId }) {
   const [speciesInitialized, setSpeciesInitialized] = useState(false)
   const [dateRange, setDateRange] = useState([null, null])
   const [fullExtent, setFullExtent] = useState([null, null])
-  const [timeRange, setTimeRange] = useState({ start: 0, end: 24 })
+  const [chipSelection, setChipSelection] = useState(() => new Set(ALL_CHIPS_SELECTED))
+  const [arc, setArc] = useState({ start: 0, end: 24 })
+  const [chartShape, setChartShape] = useState('polar')
+
+  // All four chips (the default) is treated as "no filter" — null-timestamp
+  // media still flows through, mirroring the timeline's default behavior.
+  const timeRange = useMemo(() => {
+    if (chipSelection.size === DAY_PERIOD_ORDER.length) return { ranges: [] }
+    const ranges = chipSelection.size > 0 ? chipsToRanges(chipSelection) : arcToRanges(arc)
+    return { ranges }
+  }, [chipSelection, arc])
+
+  // Merged ranges for VISUAL highlighting (collapses contiguous chip
+  // selections into single arcs/bands; all four → one full-day sweep).
+  // With no chips, mirror the freeform drag-arc selection into the x-y
+  // view too — same underlying filter.
+  const visualRanges = useMemo(() => {
+    if (chipSelection.size > 0) return mergeChipRanges(chipsToRanges(chipSelection))
+    return arcToRanges(arc)
+  }, [chipSelection, arc])
+
+  const isFiltering = useMemo(() => timeRange.ranges.length > 0, [timeRange])
   const { importStatus } = useImportStatus(actualStudyId, 5000)
   const { sequenceGap, setSequenceGap } = useSequenceGap(actualStudyId)
   const { showFilterCharts } = useShowFilterCharts(actualStudyId)
@@ -647,8 +677,7 @@ export default function Activity({ studyData, studyId }) {
     selectedSpecies.map((s) => s.scientificName).join(',') +
     (dateRange[0]?.toISOString() || '') +
     (dateRange[1]?.toISOString() || '') +
-    timeRange.start +
-    timeRange.end
+    JSON.stringify(timeRange.ranges)
 
   // Fetch sequence-aware timeseries data
   // sequenceGap in queryKey ensures refetch when slider changes (backend fetches from metadata)
@@ -722,8 +751,7 @@ export default function Activity({ studyData, studyId }) {
       [...speciesNames].sort(),
       dateRange[0]?.toISOString(),
       dateRange[1]?.toISOString(),
-      timeRange.start,
-      timeRange.end,
+      JSON.stringify(timeRange.ranges),
       isFullRange,
       sequenceGap
     ],
@@ -733,8 +761,7 @@ export default function Activity({ studyData, studyId }) {
         speciesNames,
         dateRange[0]?.toISOString(),
         dateRange[1]?.toISOString(),
-        timeRange.start,
-        timeRange.end,
+        timeRange,
         isFullRange
       )
       if (response.error) throw new Error(response.error)
@@ -788,9 +815,8 @@ export default function Activity({ studyData, studyId }) {
     staleTime: Infinity
   })
 
-  // Handle time range changes
-  const handleTimeRangeChange = useCallback((newTimeRange) => {
-    setTimeRange(newTimeRange)
+  const handleArcChange = useCallback((newArc) => {
+    setArc(newArc)
   }, [])
 
   // Handle species selection changes
@@ -862,6 +888,7 @@ export default function Activity({ studyData, studyId }) {
                       // once we've confirmed the study has no timestamps
                       // (ENA24, Biome Health Project, etc).
                       hasTemporalData={hasTemporalData || timeseriesQueryData === undefined}
+                      isFiltering={isFiltering}
                     />
                   </div>
                 </div>
@@ -893,25 +920,54 @@ export default function Activity({ studyData, studyId }) {
           <div
             className={`w-full flex-shrink-0 overflow-hidden transition-all duration-300 ease-in-out ${
               showFilterCharts && hasTemporalData
-                ? 'h-[130px] opacity-100 mt-4'
+                ? 'h-[180px] opacity-100 mt-4'
                 : 'h-0 opacity-0 mt-0'
             }`}
             aria-hidden={!(showFilterCharts && hasTemporalData)}
           >
             {speciesInitialized && sequenceGap !== undefined && (
-              <div className="w-full flex h-[130px] gap-3">
-                <div className="w-[140px] h-full rounded border border-border flex items-center justify-center relative">
-                  <DailyActivityRadar
-                    activityData={dailyActivityData}
-                    selectedSpecies={selectedSpecies}
-                    palette={palette}
-                  />
-                  <div className="absolute w-full h-full flex items-center justify-center">
-                    <CircularTimeFilter
-                      onChange={handleTimeRangeChange}
-                      startTime={timeRange.start}
-                      endTime={timeRange.end}
-                    />
+              <div className="w-full flex h-[180px] gap-3">
+                <div className="w-[180px] h-full rounded border border-border flex flex-col relative">
+                  {chartShape === 'polar' ? (
+                    <>
+                      <div className="absolute top-1.5 right-2 z-10">
+                        <ChartShapeToggle value={chartShape} onChange={setChartShape} />
+                      </div>
+                      <div className="flex-1 relative">
+                        <DailyActivityRadar
+                          activityData={dailyActivityData}
+                          selectedSpecies={selectedSpecies}
+                          palette={palette}
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <CircularTimeFilter
+                            onChange={handleArcChange}
+                            startTime={arc.start}
+                            endTime={arc.end}
+                            mode={chipSelection.size > 0 ? 'chips' : 'drag'}
+                            chipSectors={visualRanges}
+                          />
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex justify-end px-2 pt-1.5">
+                        <ChartShapeToggle value={chartShape} onChange={setChartShape} />
+                      </div>
+                      <div className="flex-1 relative">
+                        <DailyActivityLine
+                          activityData={dailyActivityData}
+                          selectedSpecies={selectedSpecies}
+                          palette={palette}
+                          selectedRanges={visualRanges}
+                          onArcChange={chipSelection.size === 0 ? handleArcChange : undefined}
+                        />
+                      </div>
+                    </>
+                  )}
+                  <div className="flex justify-center px-2 pb-1.5">
+                    <DayPeriodChips selection={chipSelection} onChange={setChipSelection} />
                   </div>
                 </div>
                 <div className="flex-grow rounded px-2 border border-border">

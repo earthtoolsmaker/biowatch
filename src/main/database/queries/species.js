@@ -22,6 +22,7 @@ import {
 import log from 'electron-log'
 import { getStudyIdFromPath } from './utils.js'
 import { BLANK_SENTINEL } from '../../../shared/constants.js'
+import { normalizeTimeRange } from './sequences.js'
 
 /**
  * Get species distribution from the database using Drizzle ORM
@@ -550,8 +551,7 @@ export async function getSpeciesHeatmapDataByMedia(
   species,
   startDate,
   endDate,
-  startHour = 0,
-  endHour = 24,
+  timeRange = {},
   includeNullTimestamps = false
 ) {
   const startTime = Date.now()
@@ -584,23 +584,24 @@ export async function getSpeciesHeatmapDataByMedia(
       baseConditions.push(lte(media.timestamp, endDate))
     }
 
-    // Add time-of-day condition using sql template for SQLite strftime
-    // When includeNullTimestamps=true, also allow null timestamps through
+    // Add time-of-day condition using sql template for SQLite strftime.
+    // When includeNullTimestamps=true, allow null timestamps through.
+    // Empty ranges array means no time filter.
     const hourColumn = sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER)`
-    if (startHour < endHour) {
-      // Simple range (e.g., 8:00 to 17:00)
-      const timeCondition = and(sql`${hourColumn} >= ${startHour}`, sql`${hourColumn} < ${endHour}`)
-      baseConditions.push(
-        includeNullTimestamps ? or(isNull(media.timestamp), timeCondition) : timeCondition
-      )
-    } else if (startHour > endHour) {
-      // Wrapping range (e.g., 22:00 to 6:00)
-      const timeCondition = or(sql`${hourColumn} >= ${startHour}`, sql`${hourColumn} < ${endHour}`)
-      baseConditions.push(
-        includeNullTimestamps ? or(isNull(media.timestamp), timeCondition) : timeCondition
-      )
+    const ranges = normalizeTimeRange(timeRange)
+    const rangeConditions = ranges
+      .map((r) => {
+        if (r.start === r.end) return null
+        if (r.start < r.end) {
+          return and(sql`${hourColumn} >= ${r.start}`, sql`${hourColumn} < ${r.end}`)
+        }
+        return or(sql`${hourColumn} >= ${r.start}`, sql`${hourColumn} < ${r.end}`)
+      })
+      .filter(Boolean)
+    if (rangeConditions.length > 0) {
+      const unioned = rangeConditions.length === 1 ? rangeConditions[0] : or(...rangeConditions)
+      baseConditions.push(includeNullTimestamps ? or(isNull(media.timestamp), unioned) : unioned)
     }
-    // If startHour equals endHour, we include all hours (full day)
 
     const results = await db
       .select({
@@ -688,8 +689,7 @@ export async function getSequenceAwareHeatmapSQL(
   speciesNames = [],
   startDate,
   endDate,
-  startHour = 0,
-  endHour = 24,
+  timeRange = {},
   includeNullTimestamps = false,
   gapSeconds
 ) {
@@ -714,6 +714,7 @@ export async function getSequenceAwareHeatmapSQL(
   // Date + hour filters. Non-window paths evaluate the predicate inline; the
   // window path pushes it into media_info (and needs a parallel null-ts
   // branch when includeNullTimestamps).
+  const hourRanges = normalizeTimeRange(timeRange)
   const buildDateHourFilter = (tsCol) => {
     const conds = []
     const params = []
@@ -729,14 +730,17 @@ export async function getSequenceAwareHeatmapSQL(
       }
     }
     const hourExpr = `CAST(strftime('%H', ${tsCol}) AS INTEGER)`
-    if (startHour < endHour) {
-      const hc = `(${hourExpr} >= ${startHour} AND ${hourExpr} < ${endHour})`
-      conds.push(includeNullTimestamps ? `(${tsCol} IS NULL OR ${hc})` : hc)
-    } else if (startHour > endHour) {
-      const hc = `(${hourExpr} >= ${startHour} OR ${hourExpr} < ${endHour})`
-      conds.push(includeNullTimestamps ? `(${tsCol} IS NULL OR ${hc})` : hc)
+    const hourClauses = hourRanges
+      .map(({ start, end }) => {
+        if (start === end) return null
+        if (start < end) return `(${hourExpr} >= ${start} AND ${hourExpr} < ${end})`
+        return `(${hourExpr} >= ${start} OR ${hourExpr} < ${end})`
+      })
+      .filter(Boolean)
+    if (hourClauses.length > 0) {
+      const unioned = hourClauses.length === 1 ? hourClauses[0] : `(${hourClauses.join(' OR ')})`
+      conds.push(includeNullTimestamps ? `(${tsCol} IS NULL OR ${unioned})` : unioned)
     }
-    // startHour === endHour → full day, no filter
     return { where: conds.length > 0 ? 'AND ' + conds.join(' AND ') : '', params }
   }
 

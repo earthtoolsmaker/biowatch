@@ -1,0 +1,61 @@
+import { ChartPie, ChartLine } from 'lucide-react'
+import * as Tooltip from '@radix-ui/react-tooltip'
+
+/**
+ * Two-button group that switches the daily-activity chart between the
+ * polar radar and the x-y line. Sits in the top-right of the clock card.
+ *
+ * Props:
+ *   value: 'polar' | 'xy'
+ *   onChange: (next) => void
+ */
+const SHAPES = [
+  { key: 'polar', label: 'Polar', Icon: ChartPie },
+  { key: 'xy', label: 'X–Y line', Icon: ChartLine }
+]
+
+export default function ChartShapeToggle({ value, onChange }) {
+  return (
+    <div
+      className="inline-flex items-stretch rounded-md border border-border bg-background overflow-hidden"
+      role="radiogroup"
+      aria-label="Chart shape"
+    >
+      {SHAPES.map(({ key, label, Icon }, idx) => {
+        const active = value === key
+        const isFirst = idx === 0
+        return (
+          <Tooltip.Root key={key}>
+            <Tooltip.Trigger asChild>
+              <button
+                onClick={() => onChange(key)}
+                className={`px-1.5 py-0.5 flex items-center justify-center transition-colors ${
+                  isFirst ? '' : 'border-l border-border'
+                } ${
+                  active
+                    ? 'bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400'
+                    : 'text-muted-foreground hover:bg-accent'
+                }`}
+                aria-label={label}
+                aria-pressed={active}
+                role="radio"
+                aria-checked={active}
+              >
+                <Icon size={12} />
+              </button>
+            </Tooltip.Trigger>
+            <Tooltip.Portal>
+              <Tooltip.Content
+                side="top"
+                sideOffset={6}
+                className="z-[10000] px-2 py-1 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md"
+              >
+                {label}
+              </Tooltip.Content>
+            </Tooltip.Portal>
+          </Tooltip.Root>
+        )
+      })}
+    </div>
+  )
+}

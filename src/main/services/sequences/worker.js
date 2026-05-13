@@ -45,8 +45,7 @@ async function run() {
     speciesNames,
     startDate,
     endDate,
-    startHour,
-    endHour,
+    timeRange,
     includeNullTimestamps
   } = workerData
 
@@ -97,8 +96,7 @@ async function run() {
         speciesNames,
         startDate,
         endDate,
-        startHour,
-        endHour,
+        timeRange,
         includeNullTimestamps,
         effectiveGapSeconds
       )
@@ -108,8 +106,7 @@ async function run() {
         speciesNames,
         startDate,
         endDate,
-        startHour,
-        endHour,
+        timeRange,
         includeNullTimestamps
       )
       return calculateSequenceAwareHeatmap(rawData, effectiveGapSeconds)

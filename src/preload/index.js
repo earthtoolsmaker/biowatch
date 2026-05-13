@@ -119,8 +119,7 @@ const api = {
     speciesNames,
     startDate,
     endDate,
-    startHour,
-    endHour,
+    timeRange,
     includeNullTimestamps
   ) => {
     return await electronAPI.ipcRenderer.invoke(
@@ -129,8 +128,7 @@ const api = {
       speciesNames,
       startDate,
       endDate,
-      startHour,
-      endHour,
+      timeRange,
       includeNullTimestamps
     )
   },
