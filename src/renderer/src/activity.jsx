@@ -899,16 +899,15 @@ export default function Activity({ studyData, studyId }) {
           <div
             className={`w-full flex-shrink-0 overflow-hidden transition-all duration-300 ease-in-out ${
               showFilterCharts && hasTemporalData
-                ? 'h-[130px] opacity-100 mt-4'
+                ? 'h-[180px] opacity-100 mt-4'
                 : 'h-0 opacity-0 mt-0'
             }`}
             aria-hidden={!(showFilterCharts && hasTemporalData)}
           >
             {speciesInitialized && sequenceGap !== undefined && (
-              <div className="w-full flex h-[130px] gap-3">
+              <div className="w-full flex h-[180px] gap-3">
                 <div className="w-[180px] h-full rounded border border-border flex flex-col relative">
-                  <div className="flex items-center justify-between px-2 pt-1.5">
-                    <DayPeriodChips selection={chipSelection} onChange={setChipSelection} />
+                  <div className="flex justify-end px-2 pt-1.5">
                     <ChartShapeToggle value={chartShape} onChange={setChartShape} />
                   </div>
                   <div className="flex-1 relative">
@@ -937,6 +936,9 @@ export default function Activity({ studyData, studyId }) {
                         selectedRanges={timeRange.ranges}
                       />
                     )}
+                  </div>
+                  <div className="flex justify-center px-2 pb-1.5">
+                    <DayPeriodChips selection={chipSelection} onChange={setChipSelection} />
                   </div>
                 </div>
                 <div className="flex-grow rounded px-2 border border-border">

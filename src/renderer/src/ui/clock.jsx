@@ -291,20 +291,24 @@ const DailyActivityRadar = ({ activityData, selectedSpecies, palette }) => {
   const formattedData = formatData(activityData)
 
   return (
-    <>
-      <div className="relative w-full h-full" ref={chartRef}>
-        {/* Hour labels with hardcoded positions */}
-        <div className="absolute w-full h-full pointer-events-none">
-          <div className="absolute top-0.5 left-1/2 transform -translate-x-1/2  text-[10px] text-muted-foreground">
+    <div
+      className="relative w-full h-full flex items-center justify-center"
+      ref={chartRef}
+    >
+      {/* Inner square anchors the hour labels to the radar's actual edges,
+          not the (potentially wider-than-tall) parent. */}
+      <div className="relative h-full aspect-square">
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-0.5 left-1/2 -translate-x-1/2 text-[10px] text-muted-foreground">
             0h
           </div>
-          <div className="absolute top-1/2 right-1 transform -translate-y-1/2 text-[10px] text-muted-foreground">
+          <div className="absolute top-1/2 right-0.5 -translate-y-1/2 text-[10px] text-muted-foreground">
             6h
           </div>
-          <div className="absolute bottom-0.5 left-1/2 transform -translate-x-1/2 text-[10px] text-muted-foreground">
+          <div className="absolute bottom-0.5 left-1/2 -translate-x-1/2 text-[10px] text-muted-foreground">
             12h
           </div>
-          <div className="absolute top-1/2 left-0.5 transform  -translate-y-1/2 text-[10px] text-muted-foreground">
+          <div className="absolute top-1/2 left-0.5 -translate-y-1/2 text-[10px] text-muted-foreground">
             18h
           </div>
         </div>
@@ -335,7 +339,7 @@ const DailyActivityRadar = ({ activityData, selectedSpecies, palette }) => {
           </RadarChart>
         </ResponsiveContainer>
       </div>
-    </>
+    </div>
   )
 }
 
