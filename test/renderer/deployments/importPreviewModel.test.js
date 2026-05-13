@@ -3,7 +3,8 @@ import assert from 'node:assert/strict'
 
 import {
   buildDeploymentsCsvApplyPlan,
-  countRowsBlockedByWarnings
+  countRowsBlockedByWarnings,
+  getDeploymentsCsvImportRowClassName
 } from '../../../src/renderer/src/deployments/deploymentsImportPreviewModel.js'
 
 describe('buildDeploymentsCsvApplyPlan', () => {
@@ -52,6 +53,31 @@ describe('buildDeploymentsCsvApplyPlan', () => {
         }
       }
     ])
+  })
+})
+
+describe('getDeploymentsCsvImportRowClassName', () => {
+  test('uses red highlighting for normal rows blocked by warnings', () => {
+    const className = getDeploymentsCsvImportRowClassName({
+      rowState: 'normal',
+      columns: {
+        locationID: { state: 'warning' },
+        latitude: { state: 'change' }
+      }
+    })
+
+    assert.match(className, /bg-red/)
+  })
+
+  test('keeps green highlighting for clean rows that will update', () => {
+    const className = getDeploymentsCsvImportRowClassName({
+      rowState: 'normal',
+      columns: {
+        latitude: { state: 'change' }
+      }
+    })
+
+    assert.match(className, /bg-green/)
   })
 })
 

@@ -5,7 +5,8 @@ import { formatCellValue } from './deploymentsPreviewHelpers'
 import {
   buildDeploymentsCsvApplyPlan,
   countRowsBlockedByWarnings,
-  EDITABLE_DEPLOYMENT_IMPORT_KEYS
+  EDITABLE_DEPLOYMENT_IMPORT_KEYS,
+  getDeploymentsCsvImportRowClassName
 } from './deploymentsImportPreviewModel'
 
 const EDITABLE_KEYS = EDITABLE_DEPLOYMENT_IMPORT_KEYS
@@ -56,16 +57,7 @@ function CellContent({ col }) {
 }
 
 function rowBackgroundClass(row) {
-  if (row.rowState === 'skipped') {
-    return 'bg-muted/40 dark:bg-muted/30 opacity-60'
-  }
-  const hasChange = EDITABLE_KEYS.some((k) => row.columns[k]?.state === 'change')
-  if (hasChange) return 'bg-green-50 dark:bg-green-500/10'
-  // Any column with a warning counts — including readonly mismatches on
-  // locationID — so the visual matches what the warnings filter selects.
-  const hasWarning = Object.values(row.columns).some((c) => c?.state === 'warning')
-  if (hasWarning) return 'bg-amber-50 dark:bg-amber-500/5'
-  return ''
+  return getDeploymentsCsvImportRowClassName(row)
 }
 
 function renderGutter(row) {
