@@ -1,23 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import * as HoverCard from '@radix-ui/react-hover-card'
-import {
-  sortSpeciesHumansLast,
-  isBlank,
-  isVehicle,
-  BLANK_SENTINEL,
-  VEHICLE_SENTINEL
-} from '../utils/speciesUtils'
+import { sortSpeciesHumansLast, BLANK_SENTINEL, VEHICLE_SENTINEL } from '../utils/speciesUtils'
 import SpeciesTooltipContent from './SpeciesTooltipContent'
+import PseudoSpeciesTooltipContent from './PseudoSpeciesTooltipContent'
 import { buildScientificToCommonMap, useCommonName } from '../utils/commonNames'
 import { formatScientificName } from '../utils/scientificName'
 import { resolveSpeciesInfo } from '../../../shared/speciesInfo/index.js'
+import { getPseudoSpeciesEntry } from '../../../shared/pseudoSpecies.js'
 
 function SpeciesRow({
   species,
   index,
-  isBlankEntry,
-  isVehicleEntry,
+  pseudoEntry,
   isFirstPseudo,
   storedCommonName,
   selectedSpecies,
@@ -28,7 +23,7 @@ function SpeciesRow({
   onToggle,
   scrollSignal
 }) {
-  const isPseudoEntry = isBlankEntry || isVehicleEntry
+  const isPseudoEntry = !!pseudoEntry
   const [hoverOpen, setHoverOpen] = useState(false)
   // Close any open card when the parent list scrolls — Radix HoverCard tracks
   // its trigger, so without this the card "rides along" with the row, which
@@ -40,11 +35,9 @@ function SpeciesRow({
   const resolved = useCommonName(isPseudoEntry ? null : species.scientificName, {
     storedCommonName
   })
-  const displayName = isBlankEntry
-    ? 'Blank'
-    : isVehicleEntry
-      ? 'Vehicle'
-      : resolved || formatScientificName(species.scientificName)
+  const displayName = isPseudoEntry
+    ? pseudoEntry.label
+    : resolved || formatScientificName(species.scientificName)
 
   const isSelected = selectedSpecies.some((s) => s.scientificName === species.scientificName)
   const colorIndex = selectedSpecies.findIndex((s) => s.scientificName === species.scientificName)
@@ -59,7 +52,7 @@ function SpeciesRow({
   const studyImage = isPseudoEntry ? null : speciesImageMap[species.scientificName]
   const tooltipImageData =
     studyImage || (info?.imageUrl ? { scientificName: species.scientificName } : null)
-  const enableTooltip = studyId && !!tooltipImageData
+  const enableSpeciesTooltip = !isPseudoEntry && studyId && !!tooltipImageData
 
   const rowContent = (
     <div
@@ -77,7 +70,7 @@ function SpeciesRow({
           <span
             className={`text-sm truncate ${
               isPseudoEntry
-                ? 'text-muted-foreground italic'
+                ? 'text-foreground'
                 : showScientificInItalic
                   ? 'text-foreground capitalize'
                   : 'text-foreground italic'
@@ -107,7 +100,7 @@ function SpeciesRow({
     </div>
   )
 
-  if (enableTooltip) {
+  if (isPseudoEntry || enableSpeciesTooltip) {
     return (
       <HoverCard.Root
         key={species.scientificName || index}
@@ -126,7 +119,11 @@ function SpeciesRow({
             collisionPadding={16}
             className="z-[10000]"
           >
-            <SpeciesTooltipContent imageData={tooltipImageData} studyId={studyId} />
+            {isPseudoEntry ? (
+              <PseudoSpeciesTooltipContent entry={pseudoEntry} />
+            ) : (
+              <SpeciesTooltipContent imageData={tooltipImageData} studyId={studyId} />
+            )}
           </HoverCard.Content>
         </HoverCard.Portal>
       </HoverCard.Root>
@@ -145,10 +142,22 @@ function SpeciesDistribution({
   blankCount = 0,
   vehicleCount = 0,
   studyId = null,
-  showHeader = true
+  showHeader = true,
+  hidePseudoSpecies = false
 }) {
-  // Append pseudo-species rows (Blank, Vehicle) when their counts are > 0.
+  // Real-species view of the upstream data — strips out literal pseudo
+  // labels like "Vehicle" or "blurred" that ride along in scientificName.
+  // Used both for the bar-normalization denominator and as the rendered
+  // list when the caller opts out of pseudo rows (Activity tab).
+  const realSpeciesData = useMemo(
+    () => data.filter((d) => !getPseudoSpeciesEntry(d.scientificName)),
+    [data]
+  )
+
+  // Append pseudo-species rows (Blank, Vehicle) when their counts are > 0
+  // and the caller hasn't opted out.
   const displayData = useMemo(() => {
+    if (hidePseudoSpecies) return realSpeciesData
     let result = data
     if (vehicleCount > 0) {
       result = [...result, { scientificName: VEHICLE_SENTINEL, count: vehicleCount }]
@@ -157,14 +166,12 @@ function SpeciesDistribution({
       result = [...result, { scientificName: BLANK_SENTINEL, count: blankCount }]
     }
     return result
-  }, [data, blankCount, vehicleCount])
+  }, [data, realSpeciesData, blankCount, vehicleCount, hidePseudoSpecies])
 
   // Normalize bar widths against species-only counts so the bars match
-  // between the Media and Activity tabs. Media adds pseudo-rows for
-  // Blank/Vehicle which would otherwise inflate the denominator and shrink
-  // the species bars relative to Activity. Pseudo-rows render no bar (see
-  // SpeciesRow), so they don't need to participate in this sum.
-  const totalCount = data.reduce((sum, item) => sum + item.count, 0)
+  // between the Media and Activity tabs. Pseudo rows (Blank/Vehicle/
+  // processing labels) render no bar — they don't participate in this sum.
+  const totalCount = realSpeciesData.reduce((sum, item) => sum + item.count, 0)
 
   // Fetch best image per species for hover tooltips (only when studyId is provided)
   const { data: bestImagesData } = useQuery({
@@ -240,16 +247,17 @@ function SpeciesDistribution({
         <div>
           {(() => {
             const sorted = sortSpeciesHumansLast(displayData)
+            // Pre-resolve pseudo-species entries once per row so we can also
+            // compute the divider position (first pseudo row) in the same pass.
+            const pseudoEntries = sorted.map((s) => getPseudoSpeciesEntry(s.scientificName))
             // Index of the first pseudo-row in the sorted list; used to render a
-            // divider between real species and Blank/Vehicle. Only show the
-            // divider when there's at least one real species above it.
-            const firstPseudoIndex = sorted.findIndex(
-              (s) => isBlank(s.scientificName) || isVehicle(s.scientificName)
-            )
+            // divider between real species and pseudo entries (Blank, Vehicle,
+            // processing labels). Only show the divider when there's at least
+            // one real species above it.
+            const firstPseudoIndex = pseudoEntries.findIndex((e) => e !== null)
             return sorted.map((species, index) => {
-              const isBlankEntry = isBlank(species.scientificName)
-              const isVehicleEntry = isVehicle(species.scientificName)
-              const isPseudo = isBlankEntry || isVehicleEntry
+              const pseudoEntry = pseudoEntries[index]
+              const isPseudo = !!pseudoEntry
               const isFirstPseudo = isPseudo && index === firstPseudoIndex && index > 0
               const storedCommonName = isPseudo
                 ? null
@@ -259,8 +267,7 @@ function SpeciesDistribution({
                   key={species.scientificName || index}
                   species={species}
                   index={index}
-                  isBlankEntry={isBlankEntry}
-                  isVehicleEntry={isVehicleEntry}
+                  pseudoEntry={pseudoEntry}
                   isFirstPseudo={isFirstPseudo}
                   scrollSignal={scrollSignal}
                   storedCommonName={storedCommonName}
