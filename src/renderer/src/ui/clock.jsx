@@ -145,8 +145,10 @@ const CircularTimeFilter = ({
   const endCoord = angleToCoordinates(timeToAngle(end))
 
   const createArc = (startAngle, endAngle) => {
-    if (isFullDayRange()) {
-      // For full day range, create a complete circle
+    // Full-day check based on the PASSED angles (not closure state) so this
+    // helper works correctly for both the drag arc and chip-driven sectors.
+    const sweep = (((endAngle - startAngle) % 360) + 360) % 360
+    if (startAngle === endAngle || sweep >= 358.5) {
       return `M ${center.x} ${center.y}
               L ${center.x} ${center.y - radius}
               A ${radius} ${radius} 0 1 1 ${center.x - 0.1} ${center.y - radius}
