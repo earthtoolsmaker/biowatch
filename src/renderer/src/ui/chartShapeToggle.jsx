@@ -40,7 +40,6 @@ export default function ChartShapeToggle({ value, onChange }) {
                 className="z-[10000] px-2 py-1 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md"
               >
                 {label}
-                <Tooltip.Arrow className="fill-popover" />
               </Tooltip.Content>
             </Tooltip.Portal>
           </Tooltip.Root>

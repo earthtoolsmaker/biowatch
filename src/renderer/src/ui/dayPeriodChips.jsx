@@ -62,7 +62,6 @@ export default function DayPeriodChips({ selection, onChange }) {
                   </span>
                 </div>
                 <p className="text-muted-foreground leading-snug">{preset.description}</p>
-                <Tooltip.Arrow className="fill-popover" />
               </Tooltip.Content>
             </Tooltip.Portal>
           </Tooltip.Root>
