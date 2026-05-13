@@ -394,8 +394,8 @@ const DailyActivityLine = ({ activityData, selectedSpecies, palette, selectedRan
           <XAxis
             dataKey="hour"
             type="number"
-            domain={[0, 23]}
-            ticks={[0, 6, 12, 18, 23]}
+            domain={[0, 24]}
+            ticks={[0, 6, 12, 18, 24]}
             tick={{ fontSize: 9, fill: 'var(--color-muted-foreground)' }}
             axisLine={false}
             tickLine={false}
