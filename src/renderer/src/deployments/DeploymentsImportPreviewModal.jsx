@@ -250,8 +250,12 @@ export default function DeploymentsImportPreviewModal({
               will update
             </span>
             <span className="inline-flex items-center gap-1">
+              <span className="inline-block w-3 h-3 rounded-sm bg-red-50 dark:bg-red-500/10 border border-red-300/60 dark:border-red-500/30" />
+              row blocked by warning
+            </span>
+            <span className="inline-flex items-center gap-1">
               <span className="inline-block w-3 h-3 rounded-sm bg-amber-50 dark:bg-amber-500/5 border border-amber-300/60 dark:border-amber-500/30" />
-              warning row blocked
+              cell warning
             </span>
             <span className="inline-flex items-center gap-1">
               <span className="inline-block w-3 h-3 rounded-sm bg-muted/40 dark:bg-muted/30 border border-border" />
@@ -271,7 +275,7 @@ export default function DeploymentsImportPreviewModal({
               disabled={!canApply}
               className="px-3 py-1.5 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded disabled:opacity-50 disabled:hover:bg-blue-500"
             >
-              {isApplying ? 'Applying…' : `Apply (${preview.applyCount})`}
+              {isApplying ? 'Applying…' : `Apply (${applyCount})`}
             </button>
           </div>
         </div>
