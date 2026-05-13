@@ -8,10 +8,42 @@
  */
 
 export const DAY_PERIOD_PRESETS = {
-  dawn: { key: 'dawn', label: 'Dawn', range: { start: 5, end: 8 } },
-  day: { key: 'day', label: 'Day', range: { start: 8, end: 18 } },
-  dusk: { key: 'dusk', label: 'Dusk', range: { start: 18, end: 21 } },
-  night: { key: 'night', label: 'Night', range: { start: 21, end: 5 } }
+  dawn: {
+    key: 'dawn',
+    label: 'Dawn',
+    range: { start: 5, end: 8 },
+    description:
+      'Sunrise window — peak activity for many mammals as day-active species emerge and night-active species return to cover.'
+  },
+  day: {
+    key: 'day',
+    label: 'Day',
+    range: { start: 8, end: 18 },
+    description:
+      'Daytime hours — when diurnal species are active (squirrels, most birds, deer in open habitats).'
+  },
+  dusk: {
+    key: 'dusk',
+    label: 'Dusk',
+    range: { start: 18, end: 21 },
+    description:
+      'Sunset window — second daily activity peak. Mirrors dawn for many crepuscular species.'
+  },
+  night: {
+    key: 'night',
+    label: 'Night',
+    range: { start: 21, end: 5 },
+    description:
+      'Nocturnal hours — when night-active species are out (owls, bats, badgers, many cats and small mammals).'
+  }
+}
+
+/**
+ * Format a {start, end} hour range as "HH:00 → HH:00".
+ */
+export function formatRange({ start, end }) {
+  const fmt = (h) => `${String(h).padStart(2, '0')}:00`
+  return `${fmt(start)} → ${fmt(end)}`
 }
 
 // Canonical render order: chronological, dawn first.
