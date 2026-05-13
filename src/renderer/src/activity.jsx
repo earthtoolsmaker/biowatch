@@ -600,10 +600,14 @@ export default function Activity({ studyData, studyId }) {
 
   // Merged ranges for VISUAL highlighting (collapses contiguous chip
   // selections into single arcs/bands; all four → one full-day sweep).
-  const visualRanges = useMemo(
-    () => (chipSelection.size > 0 ? mergeChipRanges(chipsToRanges(chipSelection)) : []),
-    [chipSelection]
-  )
+  // With no chips, mirror the freeform drag-arc selection into the x-y
+  // view too — same underlying filter.
+  const visualRanges = useMemo(() => {
+    if (chipSelection.size > 0) return mergeChipRanges(chipsToRanges(chipSelection))
+    return arcToRanges(arc)
+  }, [chipSelection, arc])
+
+  const isFiltering = useMemo(() => timeRange.ranges.length > 0, [timeRange])
   const { importStatus } = useImportStatus(actualStudyId, 5000)
   const { sequenceGap, setSequenceGap } = useSequenceGap(actualStudyId)
   const { showFilterCharts } = useShowFilterCharts(actualStudyId)
@@ -884,6 +888,7 @@ export default function Activity({ studyData, studyId }) {
                       // once we've confirmed the study has no timestamps
                       // (ENA24, Biome Health Project, etc).
                       hasTemporalData={hasTemporalData || timeseriesQueryData === undefined}
+                      isFiltering={isFiltering}
                     />
                   </div>
                 </div>

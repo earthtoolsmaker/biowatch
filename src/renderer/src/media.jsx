@@ -57,12 +57,18 @@ export default function Activity({ studyData, studyId }) {
     return { ranges }
   }, [chipSelection, arc])
 
-  // Merged ranges for VISUAL highlighting in the polar/x-y chart. All four
-  // chips collapses to a single full-day arc.
-  const visualRanges = useMemo(
-    () => (chipSelection.size > 0 ? mergeChipRanges(chipsToRanges(chipSelection)) : []),
-    [chipSelection]
-  )
+  // Merged ranges for VISUAL highlighting in the polar/x-y chart. Chips
+  // collapse to merged contiguous arcs; with no chips, the freeform
+  // drag-arc selection is mirrored into the x-y view too (same underlying
+  // filter). All four chips collapses to a single full-day arc.
+  const visualRanges = useMemo(() => {
+    if (chipSelection.size > 0) return mergeChipRanges(chipsToRanges(chipSelection))
+    return arcToRanges(arc)
+  }, [chipSelection, arc])
+
+  // Indicator dot on the filter-charts toggle: true when any time-of-day
+  // filter is active (chips or partial drag-arc).
+  const isFiltering = useMemo(() => timeRange.ranges.length > 0, [timeRange])
   const { importStatus } = useImportStatus(actualStudyId, 5000)
 
   // Sequence gap - uses React Query for sync across components
@@ -294,6 +300,7 @@ export default function Activity({ studyData, studyId }) {
                   // for studies that DO have timestamps; only hide it once
                   // we've confirmed the study has none.
                   hasTemporalData={hasTemporalData || timeseriesQueryData === undefined}
+                  isFiltering={isFiltering}
                 />
               )}
               {speciesDistributionData && (

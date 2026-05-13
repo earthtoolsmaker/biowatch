@@ -16,7 +16,11 @@ import { useShowFilterCharts } from '../hooks/useShowFilterCharts'
  * Visual treatment mirrors the bbox toggle in GalleryDisplayStrip so the
  * two icons read as a coherent set in the gap-slider strip.
  */
-export default function FilterChartsToggle({ studyId, hasTemporalData = true }) {
+export default function FilterChartsToggle({
+  studyId,
+  hasTemporalData = true,
+  isFiltering = false
+}) {
   const { showFilterCharts, setShowFilterCharts } = useShowFilterCharts(studyId)
 
   if (!hasTemporalData) return null
@@ -26,7 +30,7 @@ export default function FilterChartsToggle({ studyId, hasTemporalData = true }) 
       <Tooltip.Trigger asChild>
         <button
           onClick={() => setShowFilterCharts((prev) => !prev)}
-          className={`w-7 h-7 rounded-md flex items-center justify-center transition-colors ${
+          className={`w-7 h-7 rounded-md flex items-center justify-center transition-colors relative ${
             showFilterCharts
               ? 'text-blue-600 bg-blue-50 hover:bg-blue-100 dark:text-blue-400 dark:bg-blue-500/15 dark:hover:bg-blue-500/25'
               : 'text-muted-foreground hover:bg-accent'
@@ -34,6 +38,12 @@ export default function FilterChartsToggle({ studyId, hasTemporalData = true }) 
           aria-label={showFilterCharts ? 'Hide filter charts' : 'Show filter charts'}
         >
           <SlidersHorizontal size={16} />
+          {isFiltering && (
+            <span
+              className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-blue-500 ring-1 ring-background"
+              aria-label="Filters active"
+            />
+          )}
         </button>
       </Tooltip.Trigger>
       <Tooltip.Portal>
