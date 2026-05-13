@@ -112,8 +112,8 @@ export function registerSequencesIPCHandlers() {
    * @param {Array<string>} speciesNames - Species to include in heatmap
    * @param {string|null} startDate - Start date filter (ISO string)
    * @param {string|null} endDate - End date filter (ISO string)
-   * @param {number} startHour - Start hour filter (0-24)
-   * @param {number} endHour - End hour filter (0-24)
+   * @param {Object} timeRange - Time-of-day filter, either { ranges: [{start, end}, ...] }
+   *   or legacy { start, end }; empty/missing means no filter
    * @param {boolean} includeNullTimestamps - Whether to include media without timestamps
    * @param {number|null} [gapSeconds] - Optional gap threshold; fetched from metadata if not provided
    */
@@ -125,8 +125,7 @@ export function registerSequencesIPCHandlers() {
       speciesNames,
       startDate,
       endDate,
-      startHour,
-      endHour,
+      timeRange,
       includeNullTimestamps,
       gapSeconds
     ) => {
@@ -150,8 +149,7 @@ export function registerSequencesIPCHandlers() {
           speciesNames: stripped,
           startDate,
           endDate,
-          startHour,
-          endHour,
+          timeRange,
           includeNullTimestamps
         })
         return { data }
