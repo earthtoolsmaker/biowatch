@@ -33,7 +33,7 @@ export function useShowFilterCharts(studyId) {
     queryFn: () => readFromStorage(studyId),
     enabled: !!studyId,
     staleTime: Infinity,
-    placeholderData: false
+    initialData: () => (studyId ? readFromStorage(studyId) : false)
   })
 
   const showFilterCharts = data ?? false

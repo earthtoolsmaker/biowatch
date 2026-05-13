@@ -107,6 +107,12 @@ export default function Activity({ studyData, studyId }) {
   const { sequenceGap } = useSequenceGap(actualStudyId)
   const { showFilterCharts } = useShowFilterCharts(actualStudyId)
 
+  // Suppress the filter-row's open/close transition until species + temporal
+  // guards have settled. On tab navigation the wrapper otherwise flips
+  // h-0 → h-[180px] when the async timeseries query resolves, which fires
+  // the CSS ease-in animation even though no user toggle happened.
+  const [filterRowTransitionsEnabled, setFilterRowTransitionsEnabled] = useState(false)
+
   const taxonomicData = studyData?.taxonomic || null
 
   // Fetch sequence-aware species distribution data
@@ -250,6 +256,10 @@ export default function Activity({ studyData, studyId }) {
     return startMatch && endMatch
   }, [hasTemporalData, fullExtent, dateRange])
 
+  useEffect(() => {
+    if (speciesInitialized && hasTemporalData) setFilterRowTransitionsEnabled(true)
+  }, [speciesInitialized, hasTemporalData])
+
   // Fetch sequence-aware daily activity data.
   // Effective dateRange falls back to fullExtent so the radar can render
   // before the user has brushed a custom range. Gallery keeps its
@@ -363,7 +373,9 @@ export default function Activity({ studyData, studyId }) {
               during initial load. Default OFF; when off, the row collapses
               and the gallery reclaims the 130px. */}
           <div
-            className={`w-full flex-shrink-0 overflow-hidden transition-all duration-300 ease-in-out ${
+            className={`w-full flex-shrink-0 overflow-hidden ${
+              filterRowTransitionsEnabled ? 'transition-all duration-300 ease-in-out' : ''
+            } ${
               showFilterCharts && hasTemporalData
                 ? 'h-[180px] opacity-100 mt-4'
                 : 'h-0 opacity-0 mt-0'
