@@ -6,6 +6,7 @@ import SpeciesDistribution from './ui/speciesDistribution'
 import TimelineChart from './ui/timeseries'
 import { getTopNonHumanSpecies } from './utils/speciesUtils'
 import { useSequenceGap } from './hooks/useSequenceGap'
+import { useShowFilterCharts } from './hooks/useShowFilterCharts'
 import { useImportStatus } from './hooks/import'
 import Gallery from './media/Gallery'
 import GalleryDisplayStrip from './media/GalleryDisplayStrip'
@@ -38,6 +39,7 @@ export default function Activity({ studyData, studyId }) {
 
   // Sequence gap - uses React Query for sync across components
   const { sequenceGap } = useSequenceGap(actualStudyId)
+  const { showFilterCharts } = useShowFilterCharts(actualStudyId)
 
   const taxonomicData = studyData?.taxonomic || null
 
@@ -239,7 +241,7 @@ export default function Activity({ studyData, studyId }) {
           Error: {speciesDistributionError.message}
         </div>
       ) : (
-        <div className="flex flex-col h-full gap-4">
+        <div className="flex flex-col h-full">
           {/* First row - takes remaining space */}
           <div className="flex flex-row gap-4 flex-1 min-h-0">
             {/* Species Distribution - left side */}
@@ -258,7 +260,14 @@ export default function Activity({ studyData, studyId }) {
             </div>
             <div className="h-full w-xs flex flex-col gap-2 min-h-0">
               {speciesInitialized && sequenceGap !== undefined && (
-                <GalleryDisplayStrip studyId={actualStudyId} />
+                <GalleryDisplayStrip
+                  studyId={actualStudyId}
+                  // Stay optimistic while the timeseries query is still in
+                  // flight so the toggle doesn't briefly disappear on mount
+                  // for studies that DO have timestamps; only hide it once
+                  // we've confirmed the study has none.
+                  hasTemporalData={hasTemporalData || timeseriesQueryData === undefined}
+                />
               )}
               {speciesDistributionData && (
                 <div className="flex-1 min-h-0">
@@ -278,36 +287,48 @@ export default function Activity({ studyData, studyId }) {
             </div>
           </div>
 
-          {/* Second row - fixed height with timeline and clock.
-              Hidden entirely until species + sequenceGap are settled so the
-              bordered containers don't appear empty during the initial load. */}
-          {speciesInitialized && sequenceGap !== undefined && (
-            <div className="w-full flex h-[130px] flex-shrink-0 gap-3">
-              <div className="w-[140px] h-full rounded border border-border flex items-center justify-center relative">
-                <DailyActivityRadar
-                  activityData={dailyActivityData}
-                  selectedSpecies={selectedSpecies}
-                  palette={palette}
-                />
-                <div className="absolute w-full h-full flex items-center justify-center">
-                  <CircularTimeFilter
-                    onChange={handleTimeRangeChange}
-                    startTime={timeRange.start}
-                    endTime={timeRange.end}
+          {/* Second row - timeline + clock. Wrapper is always mounted so
+              the height/opacity/margin transition can run in both directions
+              when the filter-charts toggle flips. Inner contents still gated
+              on species + sequenceGap so the bordered boxes don't flash empty
+              during initial load. Default OFF; when off, the row collapses
+              and the gallery reclaims the 130px. */}
+          <div
+            className={`w-full flex-shrink-0 overflow-hidden transition-all duration-300 ease-in-out ${
+              showFilterCharts && hasTemporalData
+                ? 'h-[130px] opacity-100 mt-4'
+                : 'h-0 opacity-0 mt-0'
+            }`}
+            aria-hidden={!(showFilterCharts && hasTemporalData)}
+          >
+            {speciesInitialized && sequenceGap !== undefined && (
+              <div className="w-full flex h-[130px] gap-3">
+                <div className="w-[140px] h-full rounded border border-border flex items-center justify-center relative">
+                  <DailyActivityRadar
+                    activityData={dailyActivityData}
+                    selectedSpecies={selectedSpecies}
+                    palette={palette}
+                  />
+                  <div className="absolute w-full h-full flex items-center justify-center">
+                    <CircularTimeFilter
+                      onChange={handleTimeRangeChange}
+                      startTime={timeRange.start}
+                      endTime={timeRange.end}
+                    />
+                  </div>
+                </div>
+                <div className="flex-grow rounded px-2 border border-border">
+                  <TimelineChart
+                    timeseriesData={timeseriesData}
+                    selectedSpecies={selectedSpecies}
+                    dateRange={[dateRange[0] ?? fullExtent[0], dateRange[1] ?? fullExtent[1]]}
+                    setDateRange={setDateRange}
+                    palette={palette}
                   />
                 </div>
               </div>
-              <div className="flex-grow rounded px-2 border border-border">
-                <TimelineChart
-                  timeseriesData={timeseriesData}
-                  selectedSpecies={selectedSpecies}
-                  dateRange={[dateRange[0] ?? fullExtent[0], dateRange[1] ?? fullExtent[1]]}
-                  setDateRange={setDateRange}
-                  palette={palette}
-                />
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
     </div>
