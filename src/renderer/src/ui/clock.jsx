@@ -28,9 +28,10 @@ const CircularTimeFilter = ({
   const [lastDragPosition, setLastDragPosition] = useState(null)
   const svgRef = useRef(null)
   const radius = 47
-  const padding = 8 // Add padding to prevent elements from being cut off
+  const padding = 16 // Padding leaves room for hour labels outside the circle
   const svgSize = radius * 2 + padding * 2 // Increase SVG size to accommodate padding
   const center = { x: radius + padding, y: radius + padding } // Adjust center coordinates
+  const labelOffset = 9 // Distance from circle edge to label center
 
   // Sync local state when parent updates the bounds externally (e.g. tab
   // switch). Does NOT fire onChange continuously — that happens only on
@@ -196,6 +197,48 @@ const CircularTimeFilter = ({
           strokeWidth="2"
         />
 
+        {/* Hour labels at the four cardinal points, just outside the circle */}
+        <text
+          x={center.x}
+          y={center.y - radius - labelOffset}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fontSize="9"
+          fill="var(--color-muted-foreground)"
+        >
+          0h
+        </text>
+        <text
+          x={center.x + radius + labelOffset}
+          y={center.y}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fontSize="9"
+          fill="var(--color-muted-foreground)"
+        >
+          6h
+        </text>
+        <text
+          x={center.x}
+          y={center.y + radius + labelOffset}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fontSize="9"
+          fill="var(--color-muted-foreground)"
+        >
+          12h
+        </text>
+        <text
+          x={center.x - radius - labelOffset}
+          y={center.y}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fontSize="9"
+          fill="var(--color-muted-foreground)"
+        >
+          18h
+        </text>
+
         {Array.from({ length: 24 }).map((_, i) => {
           const angle = timeToAngle(i)
           const coord = angleToCoordinates(angle)
@@ -307,28 +350,9 @@ const DailyActivityRadar = ({ activityData, selectedSpecies, palette }) => {
 
   return (
     <div className="relative w-full h-full flex items-center justify-center" ref={chartRef}>
-      {/* Inner square anchors the hour labels to the radar's actual edges,
-          not the (potentially wider-than-tall) parent. Labels sit at the
-          edges of this square; the radar inside has a margin so its circle
-          sits well clear of them. */}
       <div className="relative h-full aspect-square">
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 text-[9px] text-muted-foreground leading-none">
-            0h
-          </div>
-          <div className="absolute top-1/2 right-0 -translate-y-1/2 text-[9px] text-muted-foreground leading-none">
-            6h
-          </div>
-          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-[9px] text-muted-foreground leading-none">
-            12h
-          </div>
-          <div className="absolute top-1/2 -left-1 -translate-y-1/2 text-[9px] text-muted-foreground leading-none">
-            18h
-          </div>
-        </div>
-
         <ResponsiveContainer width="100%" height="100%">
-          <RadarChart data={formattedData} margin={{ top: 22, right: 22, bottom: 22, left: 22 }}>
+          <RadarChart data={formattedData} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
             <PolarGrid radialLines={false} polarRadius={[]} strokeWidth={1} />
             <PolarAngleAxis dataKey="name" tick={false} />
             {/* <PolarRadiusAxis

@@ -334,7 +334,7 @@ export default function Activity({ studyData, studyId }) {
                   <div className="flex justify-end px-2 pt-1.5">
                     <ChartShapeToggle value={chartShape} onChange={setChartShape} />
                   </div>
-                  <div className="flex-1 relative pb-2">
+                  <div className="flex-1 relative pb-4">
                     {chartShape === 'polar' ? (
                       <>
                         <DailyActivityRadar
@@ -342,7 +342,7 @@ export default function Activity({ studyData, studyId }) {
                           selectedSpecies={selectedSpecies}
                           palette={palette}
                         />
-                        <div className="absolute inset-0 flex items-center justify-center pb-2">
+                        <div className="absolute inset-0 flex items-center justify-center pb-4">
                           <CircularTimeFilter
                             onChange={handleArcChange}
                             startTime={arc.start}
