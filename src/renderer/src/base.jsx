@@ -336,15 +336,15 @@ function AppContent() {
               <Tooltip.Portal>
                 <Tooltip.Content
                   side="bottom"
-                  sideOffset={8}
+                  sideOffset={10}
                   align="end"
-                  className="z-[10000] max-w-xs px-3 py-2 bg-gray-900 text-white text-xs rounded-md shadow-lg"
+                  className="z-[10000] max-w-[16rem] px-3 py-2 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md"
                 >
-                  <p className="font-medium mb-1">Add Study</p>
-                  <p className="text-muted-foreground">
+                  <p className="font-medium leading-snug mb-1">Add Study</p>
+                  <p className="text-muted-foreground leading-relaxed">
                     Create a new study by importing camera trap images.
                   </p>
-                  <Tooltip.Arrow className="fill-gray-900" />
+                  <Tooltip.Arrow className="fill-popover" />
                 </Tooltip.Content>
               </Tooltip.Portal>
             </Tooltip.Root>
