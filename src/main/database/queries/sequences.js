@@ -26,6 +26,24 @@ import { getStudyIdFromPath } from './utils.js'
 import { BLANK_SENTINEL, VEHICLE_SENTINEL } from '../../../shared/constants.js'
 
 /**
+ * Normalize the timeRange filter into an array of {start, end} ranges.
+ * Accepts:
+ *   - undefined / null / {} → no filter, returns []
+ *   - { start, end }        → legacy single-range shape, returns [{start, end}]
+ *   - { ranges: [...] }     → new multi-range shape, passed through
+ *
+ * Empty ranges means "no time-of-day filter".
+ */
+export function normalizeTimeRange(timeRange) {
+  if (!timeRange) return []
+  if (Array.isArray(timeRange.ranges)) return timeRange.ranges
+  if (timeRange.start !== undefined && timeRange.end !== undefined) {
+    return [{ start: timeRange.start, end: timeRange.end }]
+  }
+  return []
+}
+
+/**
  * Get media for sequence pagination with cursor support.
  * Returns media ordered by timestamp DESC, filtered by species/date/time.
  *
