@@ -63,9 +63,11 @@ function SpeciesRow({
 
   const rowContent = (
     <div
-      className={`cursor-pointer group hover:bg-blue-50 transition-colors py-2 -mx-3 px-3 first:pt-3 last:pb-3 dark:hover:bg-blue-500/15 ${
-        isFirstPseudo ? 'border-t border-border mt-1 pt-3' : ''
-      }`}
+      className={`cursor-pointer group transition-colors py-2 -mx-3 px-3 first:pt-3 last:pb-3 ${
+        isSelected
+          ? 'bg-blue-50 hover:bg-blue-100 dark:bg-blue-500/15 dark:hover:bg-blue-500/25'
+          : 'hover:bg-blue-50 dark:hover:bg-blue-500/15'
+      } ${isFirstPseudo ? 'border-t border-border mt-1 pt-3' : ''}`}
       onClick={() => onToggle(species)}
     >
       <div className="flex justify-between mb-1 items-center cursor-pointer gap-2">
@@ -75,7 +77,7 @@ function SpeciesRow({
             style={{ backgroundColor: isSelected ? color : null }}
           ></div>
           <span
-            className={`text-sm truncate ${
+            className={`text-sm truncate pr-1 ${
               isPseudoEntry
                 ? 'text-muted-foreground italic'
                 : showScientificInItalic
