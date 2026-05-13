@@ -54,13 +54,17 @@ const TimelineChart = ({ timeseriesData, selectedSpecies, dateRange, setDateRang
     return [new Date(data[0].date), new Date(data[data.length - 1].date)]
   }, [data])
 
-  // `domain` is the date space the chart's XAxis is showing — used to
-  // convert cursor-x to dates. In Task 2 the XAxis is still pinned to the
-  // full data extent, so this must be fullExtent (otherwise dragging a
-  // handle outward would clamp the cursor inside the narrowed dateRange
-  // and the handle couldn't widen). Task 3 will switch this (and the
-  // XAxis) to follow dateRange.
-  const domain = fullExtent
+  // `domain` is the date space the chart's XAxis is showing. Must always
+  // match what XAxis renders so cursor-x → date conversions stay correct.
+  // Unified viewport == filter: when dateRange is set, the chart zooms to
+  // it; when cleared, the chart shows the full data extent. Widening past
+  // the current viewport is via scroll wheel (see Task 4), not via
+  // dragging a handle past the chart edge.
+  const domain = useMemo(() => {
+    if (!fullExtent) return null
+    if (dateRange[0] && dateRange[1]) return [dateRange[0], dateRange[1]]
+    return fullExtent
+  }, [dateRange, fullExtent])
 
   const cleared = !dateRange[0] || !dateRange[1]
 
@@ -295,7 +299,8 @@ const TimelineChart = ({ timeseriesData, selectedSpecies, dateRange, setDateRang
             dataKey="date"
             type="number"
             scale="time"
-            domain={['dataMin', 'dataMax']}
+            domain={domain ? [domain[0].getTime(), domain[1].getTime()] : ['dataMin', 'dataMax']}
+            allowDataOverflow
             tick={{ fontSize: 10 }}
             tickFormatter={(ms) =>
               new Date(ms).toLocaleDateString(undefined, {
