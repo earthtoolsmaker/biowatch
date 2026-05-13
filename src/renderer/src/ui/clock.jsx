@@ -422,9 +422,13 @@ const DailyActivityLine = ({
   const [dragState, setDragState] = useState(null)
   // dragState shape:
   //   { mode: 'end',    liveStart, liveEnd }
+  //   { mode: 'start',  liveStart, liveEnd }
   //   { mode: 'pan',    liveStart, liveEnd, panOffset, panWidth }
   //   { mode: 'create', liveStart, liveEnd }
   const isDragging = dragState !== null
+  // Tracks what the cursor is hovering OVER (when not dragging) so we can
+  // preview the action that a click would trigger: 'pan' | 'edge' | null.
+  const [hoverAction, setHoverAction] = useState(null)
 
   const clamp = (v) => Math.max(0, Math.min(24, v))
 
@@ -458,9 +462,29 @@ const DailyActivityLine = ({
     }
   }
 
+  // Compute what action a click at `cursor` would trigger (used for both
+  // hover-cursor previewing and the actual mousedown branch).
+  const actionAt = (cursor) => {
+    if (!hasSingleBand) return 'create'
+    const { start, end } = selectedRanges[0]
+    const width = isWrapBand ? 24 - start + end : end - start
+    const edgeTol = Math.min(1.5, width / 3)
+    if (!isWrapBand && cursor >= end - edgeTol && cursor <= end + edgeTol) return 'edge'
+    if (!isWrapBand && cursor >= start - edgeTol && cursor <= start + edgeTol) return 'edge'
+    if (isInsideBand(cursor, { start, end })) return 'pan'
+    return 'create'
+  }
+
   const handleMouseMove = (e) => {
-    if (!isDragging || !e || e.activeLabel === undefined || e.activeLabel === null) return
+    if (!e || e.activeLabel === undefined || e.activeLabel === null) {
+      if (!isDragging) setHoverAction(null)
+      return
+    }
     const cursor = clamp(e.activeLabel)
+    if (!isDragging) {
+      if (dragEnabled) setHoverAction(actionAt(cursor))
+      return
+    }
     setDragState((prev) => {
       if (!prev) return prev
       if (prev.mode === 'pan') {
@@ -487,7 +511,10 @@ const DailyActivityLine = ({
     }
     setDragState(null)
   }
-  const handleMouseLeave = () => setDragState(null)
+  const handleMouseLeave = () => {
+    setDragState(null)
+    setHoverAction(null)
+  }
   const formatData = (data) => {
     if (!data || !data.length) {
       return Array(24)
@@ -552,8 +579,18 @@ const DailyActivityLine = ({
     return null
   })()
 
+  // Dynamic cursor: previews the action when idle, reflects it during drag.
+  const cursorClass = (() => {
+    if (!dragEnabled) return ''
+    const action = isDragging ? dragState.mode : hoverAction
+    if (action === 'pan') return 'cursor-move'
+    if (action === 'end' || action === 'start' || action === 'edge') return 'cursor-ew-resize'
+    if (action === 'create') return 'cursor-crosshair'
+    return 'cursor-default'
+  })()
+
   return (
-    <div className={`relative w-full h-full ${dragEnabled ? 'cursor-ew-resize' : ''}`}>
+    <div className={`relative w-full h-full ${cursorClass}`}>
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart
           data={formattedData}
