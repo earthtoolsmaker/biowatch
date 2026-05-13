@@ -44,6 +44,28 @@ export function normalizeTimeRange(timeRange) {
 }
 
 /**
+ * Build a SQL condition for a single {start, end} hour range against
+ * media.timestamp. Half-open [start, end). Returns null when start === end
+ * (zero-width range, no rows match — caller should drop it).
+ *
+ * Wrap-around (start > end) is OR'd: hour >= start OR hour < end.
+ */
+export function buildHourRangeCondition(range) {
+  const { start, end } = range
+  if (start === end) return null
+  if (start < end) {
+    return and(
+      sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) >= ${start}`,
+      sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) < ${end}`
+    )
+  }
+  return or(
+    sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) >= ${start}`,
+    sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) < ${end}`
+  )
+}
+
+/**
  * Get media for sequence pagination with cursor support.
  * Returns media ordered by timestamp DESC, filtered by species/date/time.
  *
@@ -96,8 +118,10 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
       log.info(`[Sequences] Date range: ${startDate} to ${endDate}`)
     }
 
-    // Time of day filter (only applies to timestamped media)
-    const hasTimeFilter = timeRange.start !== undefined && timeRange.end !== undefined
+    // Time of day filter (only applies to timestamped media). Empty array
+    // means no filter; multiple ranges are unioned with OR.
+    const timeRanges = normalizeTimeRange(timeRange)
+    const hasTimeFilter = timeRanges.length > 0
 
     // Pick one observation's eventID for a media via correlated subquery —
     // needed by sequence grouping when the dataset uses eventID-based
@@ -277,23 +301,13 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
         timestampedConditions.push(lte(media.timestamp, endDate))
       }
 
-      // Apply time of day filter
+      // Apply time of day filter — OR of per-range conditions.
       if (hasTimeFilter) {
-        if (timeRange.start < timeRange.end) {
-          timestampedConditions.push(
-            and(
-              sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) >= ${timeRange.start}`,
-              sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) < ${timeRange.end}`
-            )
-          )
-        } else if (timeRange.start > timeRange.end) {
-          // Wraps around midnight
-          timestampedConditions.push(
-            or(
-              sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) >= ${timeRange.start}`,
-              sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) < ${timeRange.end}`
-            )
-          )
+        const rangeConditions = timeRanges.map(buildHourRangeCondition).filter(Boolean)
+        if (rangeConditions.length === 1) {
+          timestampedConditions.push(rangeConditions[0])
+        } else if (rangeConditions.length > 1) {
+          timestampedConditions.push(or(...rangeConditions))
         }
       }
 
