@@ -60,7 +60,7 @@ function SpeciesRow({
         isSelected
           ? 'bg-blue-50 hover:bg-blue-100 dark:bg-blue-500/15 dark:hover:bg-blue-500/25'
           : 'hover:bg-blue-50 dark:hover:bg-blue-500/15'
-      } ${isFirstPseudo ? 'border-t border-border mt-1 pt-3' : ''}`}
+      } ${isFirstPseudo ? 'border-t border-border pt-4' : ''}`}
       onClick={() => onToggle(species)}
     >
       <div className="flex justify-between mb-1 items-center cursor-pointer gap-2">
