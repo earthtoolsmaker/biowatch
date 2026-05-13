@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { PolarAngleAxis, PolarGrid, Radar, RadarChart, ResponsiveContainer } from 'recharts'
 
-const CircularTimeFilter = ({ onChange, startTime = 6, endTime = 18 }) => {
+const CircularTimeFilter = ({
+  onChange,
+  startTime = 6,
+  endTime = 18,
+  mode = 'drag',
+  chipSectors = []
+}) => {
   const [isDraggingStart, setIsDraggingStart] = useState(false)
   const [isDraggingEnd, setIsDraggingEnd] = useState(false)
   const [isDraggingArc, setIsDraggingArc] = useState(false)
@@ -203,32 +209,47 @@ const CircularTimeFilter = ({ onChange, startTime = 6, endTime = 18 }) => {
           )
         })}
 
-        <path
-          d={createArc(timeToAngle(start), timeToAngle(end))}
-          fill="rgb(59 130 246 / 0.15)"
-          stroke="rgb(59 130 246 / 0.8)"
-          strokeWidth="2"
-          cursor="pointer"
-          onMouseDown={handleMouseDown('arc')}
-        />
+        {mode === 'chips' ? (
+          chipSectors.map((sector, i) => (
+            <path
+              key={i}
+              d={createArc(timeToAngle(sector.start), timeToAngle(sector.end))}
+              fill="rgb(59 130 246 / 0.15)"
+              stroke="rgb(59 130 246 / 0.8)"
+              strokeWidth="2"
+              pointerEvents="none"
+            />
+          ))
+        ) : (
+          <>
+            <path
+              d={createArc(timeToAngle(start), timeToAngle(end))}
+              fill="rgb(59 130 246 / 0.15)"
+              stroke="rgb(59 130 246 / 0.8)"
+              strokeWidth="2"
+              cursor="pointer"
+              onMouseDown={handleMouseDown('arc')}
+            />
 
-        <circle
-          cx={startCoord.x}
-          cy={startCoord.y}
-          r="4"
-          fill="rgb(59 130 246)"
-          cursor="pointer"
-          onMouseDown={handleMouseDown('start')}
-        />
+            <circle
+              cx={startCoord.x}
+              cy={startCoord.y}
+              r="4"
+              fill="rgb(59 130 246)"
+              cursor="pointer"
+              onMouseDown={handleMouseDown('start')}
+            />
 
-        <circle
-          cx={endCoord.x}
-          cy={endCoord.y}
-          r="4"
-          fill="rgb(59 130 246)"
-          cursor="pointer"
-          onMouseDown={handleMouseDown('end')}
-        />
+            <circle
+              cx={endCoord.x}
+              cy={endCoord.y}
+              r="4"
+              fill="rgb(59 130 246)"
+              cursor="pointer"
+              onMouseDown={handleMouseDown('end')}
+            />
+          </>
+        )}
       </svg>
     </div>
   )
