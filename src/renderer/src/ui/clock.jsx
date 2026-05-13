@@ -417,7 +417,7 @@ const DailyActivityLine = ({ activityData, selectedSpecies, palette, selectedRan
   return (
     <div className="relative w-full h-full">
       <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={formattedData} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+        <ComposedChart data={formattedData} margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
           <CartesianGrid strokeOpacity={0} />
           <XAxis
             dataKey="hour"
