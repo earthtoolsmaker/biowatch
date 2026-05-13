@@ -419,6 +419,7 @@ const DailyActivityLine = ({
   const dragEnabled =
     typeof onArcChange === 'function' && (hasSingleBand || selectedRanges.length === 0)
 
+  const containerRef = useRef(null)
   const [dragState, setDragState] = useState(null)
   // dragState shape:
   //   { mode: 'end',    liveStart, liveEnd }
@@ -427,39 +428,28 @@ const DailyActivityLine = ({
   //   { mode: 'create', liveStart, liveEnd }
   const isDragging = dragState !== null
   // Tracks what the cursor is hovering OVER (when not dragging) so we can
-  // preview the action that a click would trigger: 'pan' | 'edge' | null.
+  // preview the action that a click would trigger.
   const [hoverAction, setHoverAction] = useState(null)
 
-  const clamp = (v) => Math.max(0, Math.min(24, v))
+  // Convert a native pointer event to a chart-x hour value, accounting for
+  // the ComposedChart's left/right margin so the hover preview matches what
+  // a click would actually hit.
+  const eventToHour = (e) => {
+    if (!containerRef.current) return null
+    const rect = containerRef.current.getBoundingClientRect()
+    const marginLeft = 8
+    const marginRight = 8
+    const innerWidth = rect.width - marginLeft - marginRight
+    if (innerWidth <= 0) return null
+    const xPx = e.clientX - rect.left - marginLeft
+    const ratio = Math.max(0, Math.min(1, xPx / innerWidth))
+    return ratio * 24
+  }
 
   // Whether `cursor` is inside the (possibly wrap-around) band.
   const isInsideBand = (cursor, band) => {
     if (band.start < band.end) return cursor > band.start && cursor < band.end
     return cursor > band.start || cursor < band.end
-  }
-
-  const handleMouseDown = (e) => {
-    if (!dragEnabled || !e || e.activeLabel === undefined || e.activeLabel === null) return
-    const cursor = clamp(e.activeLabel)
-    if (!hasSingleBand) {
-      setDragState({ mode: 'create', liveStart: cursor, liveEnd: cursor })
-      return
-    }
-    const { start, end } = selectedRanges[0]
-    const width = isWrapBand ? 24 - start + end : end - start
-    const edgeTol = Math.min(1.5, width / 3)
-    if (!isWrapBand && cursor >= end - edgeTol && cursor <= end + edgeTol) {
-      // slide end: pivot = start, moving = end
-      setDragState({ mode: 'end', liveStart: start, liveEnd: cursor })
-    } else if (!isWrapBand && cursor >= start - edgeTol && cursor <= start + edgeTol) {
-      // slide start: pivot = end, moving = start
-      setDragState({ mode: 'start', liveStart: cursor, liveEnd: end })
-    } else if (isInsideBand(cursor, { start, end })) {
-      const panOffset = isWrapBand && cursor < end ? cursor + 24 - start : cursor - start
-      setDragState({ mode: 'pan', liveStart: start, liveEnd: end, panOffset, panWidth: width })
-    } else {
-      setDragState({ mode: 'create', liveStart: cursor, liveEnd: cursor })
-    }
   }
 
   // Compute what action a click at `cursor` would trigger (used for both
@@ -475,29 +465,6 @@ const DailyActivityLine = ({
     return 'create'
   }
 
-  const handleMouseMove = (e) => {
-    if (!e || e.activeLabel === undefined || e.activeLabel === null) {
-      if (!isDragging) setHoverAction(null)
-      return
-    }
-    const cursor = clamp(e.activeLabel)
-    if (!isDragging) {
-      if (dragEnabled) setHoverAction(actionAt(cursor))
-      return
-    }
-    setDragState((prev) => {
-      if (!prev) return prev
-      if (prev.mode === 'pan') {
-        const newStart = (((cursor - prev.panOffset) % 24) + 24) % 24
-        const newEnd = (newStart + prev.panWidth) % 24
-        return { ...prev, liveStart: newStart, liveEnd: newEnd }
-      }
-      if (prev.mode === 'start') return { ...prev, liveStart: cursor }
-      // end / create
-      return { ...prev, liveEnd: cursor }
-    })
-  }
-
   const handleMouseUp = () => {
     if (isDragging) {
       const { mode, liveStart, liveEnd } = dragState
@@ -510,10 +477,6 @@ const DailyActivityLine = ({
       }
     }
     setDragState(null)
-  }
-  const handleMouseLeave = () => {
-    setDragState(null)
-    setHoverAction(null)
   }
   const formatData = (data) => {
     if (!data || !data.length) {
@@ -589,17 +552,66 @@ const DailyActivityLine = ({
     return 'cursor-default'
   })()
 
+  // Native mouse handlers on the wrapping div — these fire reliably for
+  // every pixel inside the chart, unlike Recharts' chart-level events
+  // which only fire near data points.
+  const handleNativeMove = (e) => {
+    const cursor = eventToHour(e)
+    if (cursor === null) return
+    if (isDragging) {
+      setDragState((prev) => {
+        if (!prev) return prev
+        if (prev.mode === 'pan') {
+          const newStart = (((cursor - prev.panOffset) % 24) + 24) % 24
+          const newEnd = (newStart + prev.panWidth) % 24
+          return { ...prev, liveStart: newStart, liveEnd: newEnd }
+        }
+        if (prev.mode === 'start') return { ...prev, liveStart: cursor }
+        return { ...prev, liveEnd: cursor }
+      })
+    } else if (dragEnabled) {
+      setHoverAction(actionAt(cursor))
+    }
+  }
+  const handleNativeDown = (e) => {
+    if (!dragEnabled) return
+    const cursor = eventToHour(e)
+    if (cursor === null) return
+    if (!hasSingleBand) {
+      setDragState({ mode: 'create', liveStart: cursor, liveEnd: cursor })
+      return
+    }
+    const { start, end } = selectedRanges[0]
+    const width = isWrapBand ? 24 - start + end : end - start
+    const edgeTol = Math.min(1.5, width / 3)
+    if (!isWrapBand && cursor >= end - edgeTol && cursor <= end + edgeTol) {
+      setDragState({ mode: 'end', liveStart: start, liveEnd: cursor })
+    } else if (!isWrapBand && cursor >= start - edgeTol && cursor <= start + edgeTol) {
+      setDragState({ mode: 'start', liveStart: cursor, liveEnd: end })
+    } else if (isInsideBand(cursor, { start, end })) {
+      const panOffset = isWrapBand && cursor < end ? cursor + 24 - start : cursor - start
+      setDragState({ mode: 'pan', liveStart: start, liveEnd: end, panOffset, panWidth: width })
+    } else {
+      setDragState({ mode: 'create', liveStart: cursor, liveEnd: cursor })
+    }
+  }
+  const handleNativeUp = () => handleMouseUp()
+  const handleNativeLeave = () => {
+    setDragState(null)
+    setHoverAction(null)
+  }
+
   return (
-    <div className={`relative w-full h-full ${cursorClass}`}>
+    <div
+      ref={containerRef}
+      className={`relative w-full h-full ${cursorClass}`}
+      onMouseDown={handleNativeDown}
+      onMouseMove={handleNativeMove}
+      onMouseUp={handleNativeUp}
+      onMouseLeave={handleNativeLeave}
+    >
       <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart
-          data={formattedData}
-          margin={{ top: 4, right: 8, bottom: 0, left: 8 }}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseLeave}
-        >
+        <ComposedChart data={formattedData} margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
           <CartesianGrid strokeOpacity={0} />
           <XAxis
             dataKey="hour"
