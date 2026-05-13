@@ -292,14 +292,19 @@ const CircularTimeFilter = ({
           )
         ) : (
           <>
-            <path
-              d={createArc(timeToAngle(start), timeToAngle(end))}
-              fill="rgb(59 130 246 / 0.15)"
-              stroke="rgb(59 130 246 / 0.8)"
-              strokeWidth="2"
-              cursor="pointer"
-              onMouseDown={handleMouseDown('arc')}
-            />
+            {/* Suppress the highlight arc when the drag selection is full-day —
+                otherwise "no filter" looks identical to "everything selected".
+                Handles stay visible (overlap at top) so the user can still drag. */}
+            {!isFullDayRange() && (
+              <path
+                d={createArc(timeToAngle(start), timeToAngle(end))}
+                fill="rgb(59 130 246 / 0.15)"
+                stroke="rgb(59 130 246 / 0.8)"
+                strokeWidth="2"
+                cursor="pointer"
+                onMouseDown={handleMouseDown('arc')}
+              />
+            )}
 
             <circle
               cx={startCoord.x}
