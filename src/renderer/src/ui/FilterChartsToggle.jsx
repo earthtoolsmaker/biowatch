@@ -19,7 +19,10 @@ import { useShowFilterCharts } from '../hooks/useShowFilterCharts'
 export default function FilterChartsToggle({
   studyId,
   hasTemporalData = true,
-  isFiltering = false
+  isFiltering = false,
+  dayFilterLabel = null,
+  dateFilterLabel = null,
+  onResetFilters = null
 }) {
   const { showFilterCharts, setShowFilterCharts } = useShowFilterCharts(studyId)
 
@@ -51,19 +54,48 @@ export default function FilterChartsToggle({
           side="bottom"
           sideOffset={10}
           align="end"
-          className="z-[10000] max-w-[16rem] px-3 py-2 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md"
+          className="z-[10000] max-w-[18rem] px-3.5 py-3 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md"
         >
-          <p className="font-medium mb-1">
-            {showFilterCharts ? 'Hide filter charts' : 'Show filter charts'}
-          </p>
-          <p className="text-muted-foreground leading-snug">
+          <div className="flex items-start justify-between gap-4 mb-2">
+            <p className="font-medium leading-snug">
+              {showFilterCharts ? 'Hide filter charts' : 'Show filter charts'}
+            </p>
+            {isFiltering && (
+              <p className="text-blue-600 dark:text-blue-400 whitespace-nowrap leading-snug">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500 mr-1 align-middle" />
+                Active
+              </p>
+            )}
+          </div>
+          <p className="text-muted-foreground leading-relaxed">
             Daily-activity clock and timeline filters.
           </p>
-          {isFiltering && (
-            <p className="mt-1.5 text-blue-600 dark:text-blue-400 leading-snug">
-              <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500 mr-1 align-middle" />
-              Filters active
-            </p>
+          {isFiltering && (dayFilterLabel || dateFilterLabel) && (
+            <ul className="mt-3 pt-3 border-t border-border space-y-1.5 text-popover-foreground/90 leading-snug">
+              {dayFilterLabel && (
+                <li className="flex gap-2">
+                  <span className="text-muted-foreground shrink-0">Time of day</span>
+                  <span className="flex-1">{dayFilterLabel}</span>
+                </li>
+              )}
+              {dateFilterLabel && (
+                <li className="flex gap-2">
+                  <span className="text-muted-foreground shrink-0">Date range</span>
+                  <span className="flex-1">{dateFilterLabel}</span>
+                </li>
+              )}
+            </ul>
+          )}
+          {isFiltering && onResetFilters && (
+            <div className="mt-3 flex justify-end">
+              <button
+                type="button"
+                onClick={onResetFilters}
+                className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+              >
+                Reset filters
+              </button>
+            </div>
           )}
           <Tooltip.Arrow className="fill-popover" />
         </Tooltip.Content>

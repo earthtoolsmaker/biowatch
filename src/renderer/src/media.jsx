@@ -9,6 +9,7 @@ import {
   arcToRanges,
   chipsToRanges,
   DAY_PERIOD_ORDER,
+  DAY_PERIOD_PRESETS,
   mergeChipRanges
 } from './utils/dayPeriods'
 import SpeciesDistribution from './ui/speciesDistribution'
@@ -16,6 +17,7 @@ import TimelineChart from './ui/timeseries'
 import { getTopNonHumanSpecies } from './utils/speciesUtils'
 import { useSequenceGap } from './hooks/useSequenceGap'
 import { useShowFilterCharts } from './hooks/useShowFilterCharts'
+import { useDateRange } from './hooks/useDateRange'
 import { useImportStatus } from './hooks/import'
 import Gallery from './media/Gallery'
 import GalleryDisplayStrip from './media/GalleryDisplayStrip'
@@ -41,7 +43,7 @@ export default function Activity({ studyData, studyId }) {
   // Timeline, Radar) only mount once their queryKey inputs are stable
   // rather than fetching on every cascading state update.
   const [speciesInitialized, setSpeciesInitialized] = useState(false)
-  const [dateRange, setDateRange] = useState([null, null])
+  const { dateRange, setDateRange } = useDateRange(actualStudyId)
   const [fullExtent, setFullExtent] = useState([null, null])
   const [chipSelection, setChipSelection] = useState(() => new Set(ALL_CHIPS_SELECTED))
   const [arc, setArc] = useState({ start: 0, end: 24 })
@@ -67,8 +69,38 @@ export default function Activity({ studyData, studyId }) {
   }, [chipSelection, arc])
 
   // Indicator dot on the filter-charts toggle: true when any time-of-day
-  // filter is active (chips or partial drag-arc).
-  const isFiltering = useMemo(() => timeRange.ranges.length > 0, [timeRange])
+  // filter is active (chips or partial drag-arc) OR a date-range filter
+  // is set (timeline brush narrowed below the full extent).
+  const hasDateFilter = useMemo(() => !!(dateRange[0] && dateRange[1]), [dateRange])
+  const isFiltering = useMemo(
+    () => timeRange.ranges.length > 0 || hasDateFilter,
+    [timeRange, hasDateFilter]
+  )
+
+  // Human-readable labels for the filter-toggle tooltip. Day filter is
+  // either chip names (e.g. "Dawn, Dusk") or an hour range from the
+  // freeform drag-arc ("18:00 → 21:00"). Date filter is the calendar range.
+  const dayFilterLabel = useMemo(() => {
+    if (timeRange.ranges.length === 0) return null
+    if (chipSelection.size > 0) {
+      return DAY_PERIOD_ORDER.filter((k) => chipSelection.has(k))
+        .map((k) => DAY_PERIOD_PRESETS[k].label)
+        .join(', ')
+    }
+    const fmt = (h) => `${String(Math.floor(h)).padStart(2, '0')}:00`
+    return `${fmt(arc.start)} → ${fmt(arc.end)}`
+  }, [timeRange, chipSelection, arc])
+  const dateFilterLabel = useMemo(() => {
+    if (!hasDateFilter) return null
+    const fmt = (d) =>
+      d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+    return `${fmt(dateRange[0])} → ${fmt(dateRange[1])}`
+  }, [hasDateFilter, dateRange])
+  const handleResetFilters = useCallback(() => {
+    setChipSelection(new Set(ALL_CHIPS_SELECTED))
+    setArc({ start: 0, end: 24 })
+    setDateRange([null, null])
+  }, [setDateRange])
   const { importStatus } = useImportStatus(actualStudyId, 5000)
 
   // Sequence gap - uses React Query for sync across components
@@ -301,6 +333,9 @@ export default function Activity({ studyData, studyId }) {
                   // we've confirmed the study has none.
                   hasTemporalData={hasTemporalData || timeseriesQueryData === undefined}
                   isFiltering={isFiltering}
+                  dayFilterLabel={dayFilterLabel}
+                  dateFilterLabel={dateFilterLabel}
+                  onResetFilters={handleResetFilters}
                 />
               )}
               {speciesDistributionData && (
@@ -377,7 +412,7 @@ export default function Activity({ studyData, studyId }) {
                   <TimelineChart
                     timeseriesData={timeseriesData}
                     selectedSpecies={selectedSpecies}
-                    dateRange={[dateRange[0] ?? fullExtent[0], dateRange[1] ?? fullExtent[1]]}
+                    dateRange={dateRange}
                     setDateRange={setDateRange}
                     palette={palette}
                   />

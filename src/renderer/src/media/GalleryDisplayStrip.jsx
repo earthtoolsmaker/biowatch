@@ -15,7 +15,14 @@ import { useShowThumbnailBboxes } from '../hooks/useShowThumbnailBboxes'
  * `hasTemporalData` is forwarded to {@link FilterChartsToggle} so studies
  * without media timestamps don't show a toggle that can't do anything.
  */
-export default function GalleryDisplayStrip({ studyId, hasTemporalData, isFiltering = false }) {
+export default function GalleryDisplayStrip({
+  studyId,
+  hasTemporalData,
+  isFiltering = false,
+  dayFilterLabel = null,
+  dateFilterLabel = null,
+  onResetFilters = null
+}) {
   const { sequenceGap, setSequenceGap } = useSequenceGap(studyId)
   const { showThumbnailBboxes, setShowThumbnailBboxes } = useShowThumbnailBboxes(studyId)
 
@@ -76,6 +83,9 @@ export default function GalleryDisplayStrip({ studyId, hasTemporalData, isFilter
           studyId={studyId}
           hasTemporalData={hasTemporalData}
           isFiltering={isFiltering}
+          dayFilterLabel={dayFilterLabel}
+          dateFilterLabel={dateFilterLabel}
+          onResetFilters={onResetFilters}
         />
       </div>
     </div>
