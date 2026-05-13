@@ -22,7 +22,10 @@ function SpeciesRow({
   scrollSignal
 }) {
   const commonName = useCommonName(species.scientificName, { storedCommonName })
-  const displayName = commonName || formatScientificName(species.scientificName)
+  const rawDisplayName = commonName || formatScientificName(species.scientificName)
+  const displayName = rawDisplayName
+    ? rawDisplayName.charAt(0).toUpperCase() + rawDisplayName.slice(1)
+    : rawDisplayName
   const showScientific =
     species.scientificName && commonName && commonName !== species.scientificName
   const info = resolveSpeciesInfo(species.scientificName)
@@ -54,7 +57,7 @@ function SpeciesRow({
           <div className="flex items-center gap-3 flex-shrink-0">
             <div className="w-80 flex-shrink-0">
               <span
-                className={`text-sm text-foreground font-medium ${showScientific ? 'capitalize' : 'italic'}`}
+                className={`text-sm text-foreground font-medium ${showScientific ? 'capitalize' : ''}`}
               >
                 {displayName}
               </span>
