@@ -363,39 +363,18 @@ const DailyActivityLine = ({ activityData, selectedSpecies, palette, selectedRan
   }
   const formattedData = formatData(activityData)
 
-  // Build off-period bands: 24h minus the union of selectedRanges.
-  // For wrap-around ranges (start > end), split into two pieces first.
-  const flattened = []
+  // Highlight the SELECTED ranges (consistent with the polar's blue arc).
+  // Wrap-around ranges (start > end) split into two pieces.
+  const selectedBands = []
   for (const r of selectedRanges) {
     if (r.start === r.end) continue
     if (r.start < r.end) {
-      flattened.push([r.start, r.end])
+      selectedBands.push([r.start, r.end])
     } else {
-      flattened.push([r.start, 24])
-      flattened.push([0, r.end])
+      selectedBands.push([r.start, 24])
+      selectedBands.push([0, r.end])
     }
   }
-  flattened.sort((a, b) => a[0] - b[0])
-
-  // Merge overlapping covered intervals.
-  const covered = []
-  for (const [s, e] of flattened) {
-    if (covered.length && s <= covered[covered.length - 1][1]) {
-      covered[covered.length - 1][1] = Math.max(covered[covered.length - 1][1], e)
-    } else {
-      covered.push([s, e])
-    }
-  }
-
-  // Off-bands = complement of covered within [0, 24].
-  const offBands = []
-  let cursor = 0
-  for (const [s, e] of covered) {
-    if (s > cursor) offBands.push([cursor, s])
-    cursor = e
-  }
-  if (cursor < 24) offBands.push([cursor, 24])
-  const showShading = covered.length > 0
 
   return (
     <div className="relative w-full h-full">
@@ -412,17 +391,18 @@ const DailyActivityLine = ({ activityData, selectedSpecies, palette, selectedRan
             tickLine={false}
           />
           <YAxis hide domain={[0, 'auto']} />
-          {showShading &&
-            offBands.map(([s, e], i) => (
-              <ReferenceArea
-                key={i}
-                x1={s}
-                x2={e}
-                fill="var(--color-muted)"
-                fillOpacity={0.5}
-                strokeOpacity={0}
-              />
-            ))}
+          {selectedBands.map(([s, e], i) => (
+            <ReferenceArea
+              key={i}
+              x1={s}
+              x2={e}
+              fill="rgb(59 130 246)"
+              fillOpacity={0.15}
+              stroke="rgb(59 130 246)"
+              strokeOpacity={0.5}
+              strokeWidth={1}
+            />
+          ))}
           {selectedSpecies.map((species, index) => (
             <Line
               key={species.scientificName}
