@@ -1,5 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
-import { PolarAngleAxis, PolarGrid, Radar, RadarChart, ResponsiveContainer } from 'recharts'
+import {
+  CartesianGrid,
+  ComposedChart,
+  Line,
+  PolarAngleAxis,
+  PolarGrid,
+  Radar,
+  RadarChart,
+  ReferenceArea,
+  ResponsiveContainer,
+  XAxis,
+  YAxis
+} from 'recharts'
 
 const CircularTimeFilter = ({
   onChange,
@@ -327,5 +339,102 @@ const DailyActivityRadar = ({ activityData, selectedSpecies, palette }) => {
   )
 }
 
-// Export both components
-export { DailyActivityRadar, CircularTimeFilter as default }
+/**
+ * X–Y twin of DailyActivityRadar. Renders the same hourly-bin data as a
+ * line per species across a 24-hour x-axis. Off-period bands (the inverse
+ * of `selectedRanges`) are shaded; with no selection, no shading.
+ *
+ * Props mirror DailyActivityRadar plus:
+ *   selectedRanges: Array<{start, end}> — hour ranges currently in the
+ *     filter. Used to shade the *complement* of these as off-period bands.
+ */
+const DailyActivityLine = ({ activityData, selectedSpecies, palette, selectedRanges = [] }) => {
+  const formatData = (data) => {
+    if (!data || !data.length) {
+      return Array(24)
+        .fill()
+        .map((_, i) => ({ hour: i }))
+    }
+    return data.map((d) => ({ ...d, hour: d.hour }))
+  }
+  const formattedData = formatData(activityData)
+
+  // Build off-period bands: 24h minus the union of selectedRanges.
+  // For wrap-around ranges (start > end), split into two pieces first.
+  const flattened = []
+  for (const r of selectedRanges) {
+    if (r.start === r.end) continue
+    if (r.start < r.end) {
+      flattened.push([r.start, r.end])
+    } else {
+      flattened.push([r.start, 24])
+      flattened.push([0, r.end])
+    }
+  }
+  flattened.sort((a, b) => a[0] - b[0])
+
+  // Merge overlapping covered intervals.
+  const covered = []
+  for (const [s, e] of flattened) {
+    if (covered.length && s <= covered[covered.length - 1][1]) {
+      covered[covered.length - 1][1] = Math.max(covered[covered.length - 1][1], e)
+    } else {
+      covered.push([s, e])
+    }
+  }
+
+  // Off-bands = complement of covered within [0, 24].
+  const offBands = []
+  let cursor = 0
+  for (const [s, e] of covered) {
+    if (s > cursor) offBands.push([cursor, s])
+    cursor = e
+  }
+  if (cursor < 24) offBands.push([cursor, 24])
+  const showShading = covered.length > 0
+
+  return (
+    <div className="relative w-full h-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <ComposedChart data={formattedData} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+          <CartesianGrid strokeOpacity={0} />
+          <XAxis
+            dataKey="hour"
+            type="number"
+            domain={[0, 23]}
+            ticks={[0, 6, 12, 18, 23]}
+            tick={{ fontSize: 9, fill: 'var(--color-muted-foreground)' }}
+            axisLine={false}
+            tickLine={false}
+          />
+          <YAxis hide domain={[0, 'auto']} />
+          {showShading &&
+            offBands.map(([s, e], i) => (
+              <ReferenceArea
+                key={i}
+                x1={s}
+                x2={e}
+                fill="var(--color-muted)"
+                fillOpacity={0.5}
+                strokeOpacity={0}
+              />
+            ))}
+          {selectedSpecies.map((species, index) => (
+            <Line
+              key={species.scientificName}
+              type="monotone"
+              dataKey={species.scientificName}
+              stroke={palette[index % palette.length]}
+              strokeWidth={1.5}
+              dot={false}
+              isAnimationActive={false}
+            />
+          ))}
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}
+
+// Export all components
+export { DailyActivityRadar, DailyActivityLine, CircularTimeFilter as default }
