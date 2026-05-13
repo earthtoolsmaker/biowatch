@@ -8,6 +8,7 @@ import {
   Radar,
   RadarChart,
   ReferenceArea,
+  ReferenceLine,
   ResponsiveContainer,
   XAxis,
   YAxis
@@ -394,9 +395,11 @@ const DailyActivityRadar = ({ activityData, selectedSpecies, palette }) => {
  * Props mirror DailyActivityRadar plus:
  *   selectedRanges: Array<{start, end}> — hour ranges currently in the
  *     filter. Rendered as shaded bands.
- *   onArcChange: optional ({start, end}) => void — when provided, the
- *     chart accepts click-and-drag to set a custom hour range. Pass undefined
- *     (e.g. while chips are driving selection) to disable drag.
+ *   onArcChange: optional ({start, end}) => void — when provided AND there
+ *     is exactly one (non-wrap-around) selected range, the chart shows a
+ *     draggable end-line that the user can slide to extend/contract the
+ *     range. Pass undefined (e.g. while chips are driving selection) to
+ *     disable.
  */
 const DailyActivityLine = ({
   activityData,
@@ -405,32 +408,46 @@ const DailyActivityLine = ({
   selectedRanges = [],
   onArcChange
 }) => {
-  const [dragStart, setDragStart] = useState(null)
+  // Drag is enabled when:
+  //   - a single non-wrap-around range exists → slide its end edge
+  //   - OR no range exists (custom selection is empty) → drag-to-create
+  // Multi-range or wrap-around selections aren't draggable on the x-y view.
+  const hasSingleBand =
+    selectedRanges.length === 1 && selectedRanges[0].start < selectedRanges[0].end
+  const dragEnabled =
+    typeof onArcChange === 'function' && (hasSingleBand || selectedRanges.length === 0)
+  const committedStart = hasSingleBand ? selectedRanges[0].start : null
+  const committedEnd = hasSingleBand ? selectedRanges[0].end : null
+
+  // Pivot is the fixed edge during a drag — the band's existing start when
+  // sliding, the cursor down-position when creating a new range.
+  const [dragPivot, setDragPivot] = useState(null)
   const [dragEnd, setDragEnd] = useState(null)
-  const isDragging = dragStart !== null && dragEnd !== null
-  const dragEnabled = typeof onArcChange === 'function'
+  const isDragging = dragPivot !== null && dragEnd !== null
+
+  const clamp = (v) => Math.max(0, Math.min(24, v))
 
   const handleMouseDown = (e) => {
     if (!dragEnabled || !e || e.activeLabel === undefined || e.activeLabel === null) return
-    setDragStart(e.activeLabel)
-    setDragEnd(e.activeLabel)
+    const cursor = clamp(e.activeLabel)
+    setDragPivot(hasSingleBand ? committedStart : cursor)
+    setDragEnd(cursor)
   }
   const handleMouseMove = (e) => {
-    if (!dragEnabled || dragStart === null) return
-    if (!e || e.activeLabel === undefined || e.activeLabel === null) return
-    setDragEnd(e.activeLabel)
+    if (!isDragging || !e || e.activeLabel === undefined || e.activeLabel === null) return
+    setDragEnd(clamp(e.activeLabel))
   }
   const handleMouseUp = () => {
-    if (dragEnabled && dragStart !== null && dragEnd !== null && dragStart !== dragEnd) {
-      const start = Math.max(0, Math.min(dragStart, dragEnd))
-      const end = Math.min(24, Math.max(dragStart, dragEnd))
+    if (isDragging && dragEnd !== dragPivot) {
+      const start = Math.min(dragPivot, dragEnd)
+      const end = Math.max(dragPivot, dragEnd)
       onArcChange({ start, end })
     }
-    setDragStart(null)
+    setDragPivot(null)
     setDragEnd(null)
   }
   const handleMouseLeave = () => {
-    if (dragStart !== null) setDragStart(null)
+    setDragPivot(null)
     setDragEnd(null)
   }
   const formatData = (data) => {
@@ -456,16 +473,16 @@ const DailyActivityLine = ({
     }
   }
 
-  // Transient band shown live while the user is dragging.
-  const dragBand =
-    isDragging && dragStart !== dragEnd
-      ? [Math.max(0, Math.min(dragStart, dragEnd)), Math.min(24, Math.max(dragStart, dragEnd))]
-      : null
+  // Live band while dragging — covers from pivot to current cursor.
+  const liveBand = isDragging
+    ? [Math.min(dragPivot, dragEnd), Math.max(dragPivot, dragEnd)]
+    : null
+  // Where to draw the end-line + handle. While dragging, follow the cursor;
+  // otherwise pin to the committed band end (only when a band exists).
+  const endLineX = isDragging ? dragEnd : committedEnd
 
   return (
-    <div
-      className={`relative w-full h-full ${dragEnabled ? 'cursor-crosshair' : ''}`}
-    >
+    <div className={`relative w-full h-full ${dragEnabled ? 'cursor-ew-resize' : ''}`}>
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart
           data={formattedData}
@@ -486,9 +503,19 @@ const DailyActivityLine = ({
             tickLine={false}
           />
           <YAxis hide domain={[0, 'auto']} />
-          {/* Committed selection bands — hide while a fresh drag is in
-              progress so the transient drag band is the only highlight. */}
-          {!isDragging &&
+          {/* While sliding the end edge, show only the live band so the
+              user sees the in-progress range. Otherwise show committed bands. */}
+          {isDragging && liveBand ? (
+            <ReferenceArea
+              x1={liveBand[0]}
+              x2={liveBand[1]}
+              fill="rgb(59 130 246)"
+              fillOpacity={0.2}
+              stroke="rgb(59 130 246)"
+              strokeOpacity={0.7}
+              strokeWidth={1}
+            />
+          ) : (
             selectedBands.map(([s, e], i) => (
               <ReferenceArea
                 key={i}
@@ -500,16 +527,30 @@ const DailyActivityLine = ({
                 strokeOpacity={0.5}
                 strokeWidth={1}
               />
-            ))}
-          {dragBand && (
-            <ReferenceArea
-              x1={dragBand[0]}
-              x2={dragBand[1]}
-              fill="rgb(59 130 246)"
-              fillOpacity={0.2}
+            ))
+          )}
+          {/* Draggable end-line with a small handle dot at the top. */}
+          {dragEnabled && endLineX !== null && (
+            <ReferenceLine
+              x={endLineX}
               stroke="rgb(59 130 246)"
-              strokeOpacity={0.7}
-              strokeWidth={1}
+              strokeWidth={2}
+              isFront
+              label={{
+                value: '',
+                position: 'top',
+                content: ({ viewBox }) =>
+                  viewBox && viewBox.x !== undefined ? (
+                    <circle
+                      cx={viewBox.x}
+                      cy={viewBox.y + 6}
+                      r={4}
+                      fill="rgb(59 130 246)"
+                      stroke="white"
+                      strokeWidth={1}
+                    />
+                  ) : null
+              }}
             />
           )}
           {selectedSpecies.map((species, index) => (

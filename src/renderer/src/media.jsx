@@ -338,12 +338,12 @@ export default function Activity({ studyData, studyId }) {
             {speciesInitialized && sequenceGap !== undefined && (
               <div className="w-full flex h-[180px] gap-3">
                 <div className="w-[180px] h-full rounded border border-border flex flex-col relative">
-                  {chartShape === 'polar' ? (
-                    <>
-                      <div className="absolute top-1.5 right-2 z-10">
-                        <ChartShapeToggle value={chartShape} onChange={setChartShape} />
-                      </div>
-                      <div className="flex-1 relative">
+                  <div className="absolute top-1.5 right-2 z-10">
+                    <ChartShapeToggle value={chartShape} onChange={setChartShape} />
+                  </div>
+                  <div className="flex-1 relative">
+                    {chartShape === 'polar' ? (
+                      <>
                         <DailyActivityRadar
                           activityData={dailyActivityData}
                           selectedSpecies={selectedSpecies}
@@ -358,26 +358,17 @@ export default function Activity({ studyData, studyId }) {
                             chipSectors={visualRanges}
                           />
                         </div>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex justify-end px-2 pt-1.5">
-                        <ChartShapeToggle value={chartShape} onChange={setChartShape} />
-                      </div>
-                      <div className="flex-1 relative">
-                        <DailyActivityLine
-                          activityData={dailyActivityData}
-                          selectedSpecies={selectedSpecies}
-                          palette={palette}
-                          selectedRanges={visualRanges}
-                          onArcChange={
-                            chipSelection.size === 0 ? handleArcChange : undefined
-                          }
-                        />
-                      </div>
-                    </>
-                  )}
+                      </>
+                    ) : (
+                      <DailyActivityLine
+                        activityData={dailyActivityData}
+                        selectedSpecies={selectedSpecies}
+                        palette={palette}
+                        selectedRanges={visualRanges}
+                        onArcChange={chipSelection.size === 0 ? handleArcChange : undefined}
+                      />
+                    )}
+                  </div>
                   <div className="flex justify-center px-2 pb-1.5">
                     <DayPeriodChips selection={chipSelection} onChange={setChipSelection} />
                   </div>

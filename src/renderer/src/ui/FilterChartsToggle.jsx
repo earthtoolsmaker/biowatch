@@ -59,6 +59,12 @@ export default function FilterChartsToggle({
           <p className="text-muted-foreground leading-snug">
             Daily-activity clock and timeline filters.
           </p>
+          {isFiltering && (
+            <p className="mt-1.5 text-blue-600 dark:text-blue-400 leading-snug">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500 mr-1 align-middle" />
+              Filters active
+            </p>
+          )}
           <Tooltip.Arrow className="fill-popover" />
         </Tooltip.Content>
       </Tooltip.Portal>

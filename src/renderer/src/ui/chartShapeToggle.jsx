@@ -17,7 +17,7 @@ const SHAPES = [
 export default function ChartShapeToggle({ value, onChange }) {
   return (
     <div
-      className="inline-flex items-stretch rounded-md border border-border overflow-hidden"
+      className="inline-flex items-stretch rounded-md border border-border bg-background overflow-hidden"
       role="radiogroup"
       aria-label="Chart shape"
     >
