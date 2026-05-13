@@ -469,17 +469,22 @@ const DailyActivityLine = ({
   }
 
   const handleMouseUp = () => {
-    if (isDragging) {
-      const { mode, liveStart, liveEnd } = dragState
-      if (mode === 'pan') {
-        onArcChange({ start: liveStart, end: liveEnd })
-      } else if (liveStart !== liveEnd) {
-        const start = Math.min(liveStart, liveEnd)
-        const end = Math.max(liveStart, liveEnd)
-        onArcChange({ start, end })
+    // Use functional setState so we read the LATEST drag state (the
+    // document-level listener was registered with a stale closure
+    // otherwise — committed band would lag the cursor).
+    setDragState((prev) => {
+      if (prev) {
+        const { mode, liveStart, liveEnd } = prev
+        if (mode === 'pan') {
+          onArcChange({ start: liveStart, end: liveEnd })
+        } else if (liveStart !== liveEnd) {
+          const start = Math.min(liveStart, liveEnd)
+          const end = Math.max(liveStart, liveEnd)
+          onArcChange({ start, end })
+        }
       }
-    }
-    setDragState(null)
+      return null
+    })
   }
   const formatData = (data) => {
     if (!data || !data.length) {
@@ -596,6 +601,8 @@ const DailyActivityLine = ({
   }
   const handleNativeDown = (e) => {
     if (!dragEnabled) return
+    // Stop the native drag-selects-text behavior the moment we start handling.
+    e.preventDefault()
     const cursor = eventToHour(e)
     if (cursor === null) return
     if (!hasSingleBand) {
@@ -625,7 +632,7 @@ const DailyActivityLine = ({
   return (
     <div
       ref={containerRef}
-      className={`relative w-full h-full ${cursorClass}`}
+      className={`relative w-full h-full select-none ${cursorClass}`}
       onMouseDown={handleNativeDown}
       onMouseMove={handleNativeMove}
       onMouseLeave={handleNativeLeave}
