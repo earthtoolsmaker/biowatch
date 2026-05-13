@@ -35,9 +35,12 @@ function SpeciesRow({
   const resolved = useCommonName(isPseudoEntry ? null : species.scientificName, {
     storedCommonName
   })
-  const displayName = isPseudoEntry
+  const rawDisplayName = isPseudoEntry
     ? pseudoEntry.label
     : resolved || formatScientificName(species.scientificName)
+  const displayName = rawDisplayName
+    ? rawDisplayName.charAt(0).toUpperCase() + rawDisplayName.slice(1)
+    : rawDisplayName
 
   const isSelected = selectedSpecies.some((s) => s.scientificName === species.scientificName)
   const colorIndex = selectedSpecies.findIndex((s) => s.scientificName === species.scientificName)
@@ -60,7 +63,7 @@ function SpeciesRow({
         isSelected
           ? 'bg-blue-50 hover:bg-blue-100 dark:bg-blue-500/15 dark:hover:bg-blue-500/25'
           : 'hover:bg-blue-50 dark:hover:bg-blue-500/15'
-      } ${isFirstPseudo ? 'border-t border-border mt-1 pt-3' : ''}`}
+      } ${isFirstPseudo ? 'border-t border-border pt-4' : ''}`}
       onClick={() => onToggle(species)}
     >
       <div className="flex justify-between mb-1 items-center cursor-pointer gap-2">
@@ -70,12 +73,8 @@ function SpeciesRow({
             style={{ backgroundColor: isSelected ? color : null }}
           ></div>
           <span
-            className={`text-sm truncate pr-1 ${
-              isPseudoEntry
-                ? 'text-foreground'
-                : showScientificInItalic
-                  ? 'text-foreground capitalize'
-                  : 'text-foreground italic'
+            className={`text-sm truncate pr-1 text-foreground ${
+              !isPseudoEntry && showScientificInItalic ? 'capitalize' : ''
             }`}
           >
             {displayName}

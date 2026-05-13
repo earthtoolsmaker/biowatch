@@ -32,9 +32,7 @@ function ExportRow({ icon: Icon, title, description, onClick, isFirst, isLast })
       <button
         onClick={handleClick}
         disabled={isExporting}
-        className={`cursor-pointer transition-colors flex justify-center items-center gap-2 border border-border px-4 h-9 text-sm shadow-sm rounded-md hover:bg-accent w-full sm:w-auto ${
-          isExporting ? 'opacity-70' : ''
-        }`}
+        className="flex items-center justify-center gap-2 h-9 px-4 text-sm font-medium text-foreground bg-card border border-border rounded-md hover:bg-gray-50 dark:hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors w-full sm:w-auto"
       >
         {isExporting ? <span className="animate-pulse">Exporting...</span> : 'Export'}
       </button>

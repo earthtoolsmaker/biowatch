@@ -34,24 +34,24 @@ export default function StudySettings({ studyId, studyName }) {
               <Tooltip.Portal>
                 <Tooltip.Content
                   side="right"
-                  sideOffset={8}
-                  className="z-[10000] max-w-xs px-3 py-2 bg-gray-900 text-white text-xs rounded-md shadow-lg"
+                  sideOffset={10}
+                  className="z-[10000] max-w-[18rem] px-3.5 py-3 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md"
                 >
-                  <p className="text-muted-foreground mb-1.5">
+                  <p className="text-muted-foreground leading-relaxed mb-3">
                     Groups nearby photos/videos into sequences based on time gaps for easier
                     browsing and analysis.
                   </p>
-                  <ul className="text-muted-foreground space-y-0.5">
+                  <ul className="text-muted-foreground leading-relaxed space-y-1.5">
                     <li>
-                      <span className="text-white font-medium">Off:</span> Preserves original event
-                      groupings from import
+                      <span className="text-popover-foreground font-medium">Off:</span> Preserves
+                      original event groupings from import
                     </li>
                     <li>
-                      <span className="text-white font-medium">On:</span> Groups media taken within
-                      the specified time gap
+                      <span className="text-popover-foreground font-medium">On:</span> Groups media
+                      taken within the specified time gap
                     </li>
                   </ul>
-                  <Tooltip.Arrow className="fill-gray-900" />
+                  <Tooltip.Arrow className="fill-popover" />
                 </Tooltip.Content>
               </Tooltip.Portal>
             </Tooltip.Root>
@@ -89,7 +89,7 @@ export default function StudySettings({ studyId, studyName }) {
             </div>
             <button
               onClick={() => setIsDeleteModalOpen(true)}
-              className="cursor-pointer flex items-center justify-center px-4 py-2 text-sm font-medium text-red-600 bg-card border border-red-300 rounded-md hover:bg-red-50 transition-colors w-full sm:w-auto dark:text-red-400 dark:border-red-500/30 dark:hover:bg-red-500/10"
+              className="flex items-center justify-center gap-2 h-9 px-4 text-sm font-medium text-red-600 bg-card border border-red-300 rounded-md hover:bg-red-50 transition-colors w-full sm:w-auto dark:text-red-400 dark:border-red-500/30 dark:hover:bg-red-500/10"
             >
               Delete
             </button>

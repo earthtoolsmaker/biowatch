@@ -33,7 +33,7 @@ function SpeciesHeading({ scientificName, tone = 'light' }) {
   const common = useCommonName(scientificName)
   const sciClass =
     tone === 'dark'
-      ? 'italic text-muted-foreground font-normal'
+      ? 'italic text-white/70 font-normal'
       : 'italic text-muted-foreground font-normal'
   if (!scientificName) return <>Blank</>
   if (common && common !== scientificName) {

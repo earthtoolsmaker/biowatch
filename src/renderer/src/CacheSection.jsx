@@ -61,7 +61,7 @@ export default function CacheSection({ studyId }) {
           <button
             onClick={handleClear}
             disabled={isLoading || isEmpty || clearing}
-            className="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-foreground bg-card border border-border rounded-md hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="flex items-center justify-center gap-2 h-9 px-4 text-sm font-medium text-foreground bg-card border border-border rounded-md hover:bg-gray-50 dark:hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {clearing ? (
               <>

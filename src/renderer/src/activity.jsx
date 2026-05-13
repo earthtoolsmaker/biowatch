@@ -640,6 +640,12 @@ export default function Activity({ studyData, studyId }) {
   const { sequenceGap, setSequenceGap } = useSequenceGap(actualStudyId)
   const { showFilterCharts } = useShowFilterCharts(actualStudyId)
 
+  // Suppress the filter-row's open/close transition until species + temporal
+  // guards have settled. On tab navigation the wrapper otherwise flips
+  // h-0 → h-[180px] when the async timeseries query resolves, which fires
+  // the CSS ease-in animation even though no user toggle happened.
+  const [filterRowTransitionsEnabled, setFilterRowTransitionsEnabled] = useState(false)
+
   // Lightweight deduped deployment-location query (shared cache with the
   // Overview tab). Used to paint the skeleton map immediately while the
   // heavy sequence-aware heatmap SQL runs in the worker.
@@ -752,6 +758,10 @@ export default function Activity({ studyData, studyId }) {
     const endMatch = Math.abs(fullExtent[1].getTime() - dateRange[1].getTime()) < tolerance
     return startMatch && endMatch
   }, [hasTemporalData, fullExtent, dateRange])
+
+  useEffect(() => {
+    if (speciesInitialized && hasTemporalData) setFilterRowTransitionsEnabled(true)
+  }, [speciesInitialized, hasTemporalData])
 
   // For backend queries, fall back to fullExtent when the user hasn't set
   // a date filter. dateRange itself stays [null, null] in the parent so
@@ -947,7 +957,9 @@ export default function Activity({ studyData, studyId }) {
               daily-activity queries as queryKey inputs stabilize. Default
               OFF; when off, the map above grows to reclaim the 130px. */}
           <div
-            className={`w-full flex-shrink-0 overflow-hidden transition-all duration-300 ease-in-out ${
+            className={`w-full flex-shrink-0 overflow-hidden ${
+              filterRowTransitionsEnabled ? 'transition-all duration-300 ease-in-out' : ''
+            } ${
               showFilterCharts && hasTemporalData
                 ? 'h-[180px] opacity-100 mt-4'
                 : 'h-0 opacity-0 mt-0'
