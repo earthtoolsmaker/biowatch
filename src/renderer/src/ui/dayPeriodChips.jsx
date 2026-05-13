@@ -51,7 +51,7 @@ export default function DayPeriodChips({ selection, onChange }) {
             </Tooltip.Trigger>
             <Tooltip.Portal>
               <Tooltip.Content
-                side="bottom"
+                side="top"
                 sideOffset={8}
                 className="z-[10000] max-w-[16rem] px-3 py-2 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md"
               >
