@@ -16,6 +16,7 @@ import MarkerHoverCard from './ui/MarkerHoverCard'
 import { useTheme } from './hooks/useTheme'
 import PlaceholderMap from './ui/PlaceholderMap'
 import { SequenceGapSlider } from './ui/SequenceGapSlider'
+import FilterChartsToggle from './ui/FilterChartsToggle'
 import SpeciesDistribution from './ui/speciesDistribution'
 import TimelineChart from './ui/timeseries'
 import { useImportStatus } from './hooks/import'
@@ -23,6 +24,7 @@ import { buildScientificToCommonMap, getMapDisplayName } from './utils/commonNam
 import { formatScientificName } from './utils/scientificName'
 import { getTopNonHumanSpecies } from './utils/speciesUtils'
 import { useSequenceGap } from './hooks/useSequenceGap'
+import { useShowFilterCharts } from './hooks/useShowFilterCharts'
 
 // Inject the keyframes used by the skeleton markers once per page load.
 // Guarded by an id check so HMR / multiple SpeciesMap mounts don't re-append
@@ -578,6 +580,7 @@ export default function Activity({ studyData, studyId }) {
   const [timeRange, setTimeRange] = useState({ start: 0, end: 24 })
   const { importStatus } = useImportStatus(actualStudyId, 5000)
   const { sequenceGap, setSequenceGap } = useSequenceGap(actualStudyId)
+  const { showFilterCharts } = useShowFilterCharts(actualStudyId)
 
   // Lightweight deduped deployment-location query (shared cache with the
   // Overview tab). Used to paint the skeleton map immediately while the
@@ -806,7 +809,7 @@ export default function Activity({ studyData, studyId }) {
           Error: {speciesDistributionError.message}
         </div>
       ) : (
-        <div className="flex flex-col h-full gap-4">
+        <div className="flex flex-col h-full">
           {/* First row - takes remaining space */}
           <div className="flex flex-row gap-4 flex-1 min-h-0">
             {/* Species Distribution - left side */}
@@ -852,6 +855,15 @@ export default function Activity({ studyData, studyId }) {
                     onChange={setSequenceGap}
                     variant="compact"
                   />
+                  <div className="ml-auto flex items-center gap-1">
+                    <FilterChartsToggle
+                      studyId={actualStudyId}
+                      // Optimistic while timeseries is loading — hide only
+                      // once we've confirmed the study has no timestamps
+                      // (ENA24, Biome Health Project, etc).
+                      hasTemporalData={hasTemporalData || timeseriesQueryData === undefined}
+                    />
+                  </div>
                 </div>
               )}
               {speciesDistributionData && (
@@ -870,16 +882,23 @@ export default function Activity({ studyData, studyId }) {
             </div>
           </div>
 
-          {/* Second row — always reserves 130px of layout space so the map
-              row above doesn't snap smaller when the filters finally mount.
-              The borders + children only render once inputs have settled
-              (speciesInitialized && sequenceGap !== undefined), which
-              prevents the empty bordered flash and the double-fire of
-              timeseries / daily-activity as queryKey inputs stabilize
-              (mirrors media.jsx's b5c4dca guard). */}
-          <div className="w-full h-[130px] flex-shrink-0">
+          {/* Second row — wrapper is always mounted so the height/opacity/
+              margin transition can run in both directions when the filter-
+              charts toggle flips. Inner contents stay gated on
+              speciesInitialized && sequenceGap !== undefined to prevent the
+              empty-bordered flash and the double-fire of timeseries /
+              daily-activity queries as queryKey inputs stabilize. Default
+              OFF; when off, the map above grows to reclaim the 130px. */}
+          <div
+            className={`w-full flex-shrink-0 overflow-hidden transition-all duration-300 ease-in-out ${
+              showFilterCharts && hasTemporalData
+                ? 'h-[130px] opacity-100 mt-4'
+                : 'h-0 opacity-0 mt-0'
+            }`}
+            aria-hidden={!(showFilterCharts && hasTemporalData)}
+          >
             {speciesInitialized && sequenceGap !== undefined && (
-              <div className="w-full flex h-full gap-3">
+              <div className="w-full flex h-[130px] gap-3">
                 <div className="w-[140px] h-full rounded border border-border flex items-center justify-center relative">
                   <DailyActivityRadar
                     activityData={dailyActivityData}
