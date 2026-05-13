@@ -306,25 +306,27 @@ const DailyActivityRadar = ({ activityData, selectedSpecies, palette }) => {
   return (
     <div className="relative w-full h-full flex items-center justify-center" ref={chartRef}>
       {/* Inner square anchors the hour labels to the radar's actual edges,
-          not the (potentially wider-than-tall) parent. */}
+          not the (potentially wider-than-tall) parent. Labels sit at the
+          edges of this square; the radar inside has a margin so its circle
+          sits well clear of them. */}
       <div className="relative h-full aspect-square">
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-0.5 left-1/2 -translate-x-1/2 text-[10px] text-muted-foreground">
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 text-[9px] text-muted-foreground leading-none">
             0h
           </div>
-          <div className="absolute top-1/2 right-0.5 -translate-y-1/2 text-[10px] text-muted-foreground">
+          <div className="absolute top-1/2 right-0 -translate-y-1/2 text-[9px] text-muted-foreground leading-none">
             6h
           </div>
-          <div className="absolute bottom-0.5 left-1/2 -translate-x-1/2 text-[10px] text-muted-foreground">
+          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-[9px] text-muted-foreground leading-none">
             12h
           </div>
-          <div className="absolute top-1/2 left-0.5 -translate-y-1/2 text-[10px] text-muted-foreground">
+          <div className="absolute top-1/2 left-0 -translate-y-1/2 text-[9px] text-muted-foreground leading-none">
             18h
           </div>
         </div>
 
         <ResponsiveContainer width="100%" height="100%">
-          <RadarChart data={formattedData} margin={{ top: 16, right: 16, bottom: 16, left: 16 }}>
+          <RadarChart data={formattedData} margin={{ top: 22, right: 22, bottom: 22, left: 22 }}>
             <PolarGrid radialLines={false} polarRadius={[]} strokeWidth={1} />
             <PolarAngleAxis dataKey="name" tick={false} />
             {/* <PolarRadiusAxis
