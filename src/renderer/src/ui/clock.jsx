@@ -433,8 +433,10 @@ const DailyActivityLine = ({
 
   // Convert a native pointer event to a chart-x hour value, accounting for
   // the ComposedChart's left/right margin so the hover preview matches what
-  // a click would actually hit.
-  const eventToHour = (e) => {
+  // a click would actually hit. When `clamp01` is false the result can fall
+  // outside [0, 24] — used during pan so the band keeps wrapping past the
+  // chart's edge.
+  const eventToHour = (e, { clamp01 = true } = {}) => {
     if (!containerRef.current) return null
     const rect = containerRef.current.getBoundingClientRect()
     const marginLeft = 8
@@ -442,7 +444,8 @@ const DailyActivityLine = ({
     const innerWidth = rect.width - marginLeft - marginRight
     if (innerWidth <= 0) return null
     const xPx = e.clientX - rect.left - marginLeft
-    const ratio = Math.max(0, Math.min(1, xPx / innerWidth))
+    const rawRatio = xPx / innerWidth
+    const ratio = clamp01 ? Math.max(0, Math.min(1, rawRatio)) : rawRatio
     return ratio * 24
   }
 
@@ -552,15 +555,17 @@ const DailyActivityLine = ({
     return 'cursor-default'
   })()
 
-  // Native mouse handlers on the wrapping div — these fire reliably for
-  // every pixel inside the chart, unlike Recharts' chart-level events
-  // which only fire near data points.
-  const handleNativeMove = (e) => {
-    const cursor = eventToHour(e)
-    if (cursor === null) return
-    if (isDragging) {
+  // While a drag is in progress, listen on the document so the user can
+  // move the cursor outside the chart and the drag keeps tracking. For
+  // pan mode the cursor is intentionally NOT clamped so the band keeps
+  // wrapping past midnight as the user drags further left/right.
+  useEffect(() => {
+    if (!isDragging) return
+    const onDocMove = (e) => {
       setDragState((prev) => {
         if (!prev) return prev
+        const cursor = eventToHour(e, { clamp01: prev.mode !== 'pan' })
+        if (cursor === null) return prev
         if (prev.mode === 'pan') {
           const newStart = (((cursor - prev.panOffset) % 24) + 24) % 24
           const newEnd = (newStart + prev.panWidth) % 24
@@ -569,9 +574,25 @@ const DailyActivityLine = ({
         if (prev.mode === 'start') return { ...prev, liveStart: cursor }
         return { ...prev, liveEnd: cursor }
       })
-    } else if (dragEnabled) {
-      setHoverAction(actionAt(cursor))
     }
+    const onDocUp = () => handleMouseUp()
+    document.addEventListener('mousemove', onDocMove)
+    document.addEventListener('mouseup', onDocUp)
+    return () => {
+      document.removeEventListener('mousemove', onDocMove)
+      document.removeEventListener('mouseup', onDocUp)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDragging])
+
+  // Native mouse handlers on the wrapping div for hover-preview only;
+  // mousedown still starts the drag but mousemove/mouseup are taken over
+  // by the document-level listeners above.
+  const handleNativeMove = (e) => {
+    if (isDragging || !dragEnabled) return
+    const cursor = eventToHour(e)
+    if (cursor === null) return
+    setHoverAction(actionAt(cursor))
   }
   const handleNativeDown = (e) => {
     if (!dragEnabled) return
@@ -595,10 +616,10 @@ const DailyActivityLine = ({
       setDragState({ mode: 'create', liveStart: cursor, liveEnd: cursor })
     }
   }
-  const handleNativeUp = () => handleMouseUp()
+  // Only clear hover preview on leave; never cancel an in-progress drag
+  // (the document-level listeners handle move/up while dragging).
   const handleNativeLeave = () => {
-    setDragState(null)
-    setHoverAction(null)
+    if (!isDragging) setHoverAction(null)
   }
 
   return (
@@ -607,7 +628,6 @@ const DailyActivityLine = ({
       className={`relative w-full h-full ${cursorClass}`}
       onMouseDown={handleNativeDown}
       onMouseMove={handleNativeMove}
-      onMouseUp={handleNativeUp}
       onMouseLeave={handleNativeLeave}
     >
       <ResponsiveContainer width="100%" height="100%">
