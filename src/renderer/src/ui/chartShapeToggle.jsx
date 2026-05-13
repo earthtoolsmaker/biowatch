@@ -16,26 +16,37 @@ const SHAPES = [
 
 export default function ChartShapeToggle({ value, onChange }) {
   return (
-    <div className="flex gap-0.5">
-      {SHAPES.map(({ key, label, Icon }) => {
+    <div
+      className="inline-flex items-stretch rounded-md border border-border overflow-hidden"
+      role="radiogroup"
+      aria-label="Chart shape"
+    >
+      {SHAPES.map(({ key, label, Icon }, idx) => {
         const active = value === key
+        const isFirst = idx === 0
         return (
           <Tooltip.Root key={key}>
             <Tooltip.Trigger asChild>
               <button
                 onClick={() => onChange(key)}
-                className={`w-5 h-5 rounded flex items-center justify-center transition-colors ${
-                  active ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-accent'
+                className={`px-1.5 py-0.5 flex items-center justify-center transition-colors ${
+                  isFirst ? '' : 'border-l border-border'
+                } ${
+                  active
+                    ? 'bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400'
+                    : 'text-muted-foreground hover:bg-accent'
                 }`}
                 aria-label={label}
                 aria-pressed={active}
+                role="radio"
+                aria-checked={active}
               >
                 <Icon size={12} />
               </button>
             </Tooltip.Trigger>
             <Tooltip.Portal>
               <Tooltip.Content
-                side="bottom"
+                side="top"
                 sideOffset={6}
                 className="z-[10000] px-2 py-1 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md"
               >
