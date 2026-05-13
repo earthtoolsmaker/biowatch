@@ -456,14 +456,18 @@ const DailyActivityLine = ({
   }
 
   // Compute what action a click at `cursor` would trigger (used for both
-  // hover-cursor previewing and the actual mousedown branch).
+  // hover-cursor previewing and the actual mousedown branch). Edge zones
+  // are at least 1h wide so they're easy to target on short bands;
+  // capped at 2h so they don't take over wide bands.
+  const edgeTolFor = (width) => Math.max(1, Math.min(2, width / 3))
   const actionAt = (cursor) => {
     if (!hasSingleBand) return 'create'
     const { start, end } = selectedRanges[0]
     const width = isWrapBand ? 24 - start + end : end - start
-    const edgeTol = Math.min(1.5, width / 3)
-    if (!isWrapBand && cursor >= end - edgeTol && cursor <= end + edgeTol) return 'edge'
-    if (!isWrapBand && cursor >= start - edgeTol && cursor <= start + edgeTol) return 'edge'
+    const edgeTol = edgeTolFor(width)
+    if (!isWrapBand && cursor >= end - edgeTol && cursor <= end + edgeTol) return 'edge-end'
+    if (!isWrapBand && cursor >= start - edgeTol && cursor <= start + edgeTol)
+      return 'edge-start'
     if (isInsideBand(cursor, { start, end })) return 'pan'
     return 'create'
   }
@@ -551,14 +555,24 @@ const DailyActivityLine = ({
   })()
 
   // Dynamic cursor: previews the action when idle, reflects it during drag.
-  const cursorClass = (() => {
-    if (!dragEnabled) return ''
+  // Use an inline style + child selector so Recharts' SVG elements don't
+  // override the cursor with their own defaults.
+  const cursorStyle = (() => {
+    if (!dragEnabled) return undefined
     const action = isDragging ? dragState.mode : hoverAction
-    if (action === 'pan') return 'cursor-move'
-    if (action === 'end' || action === 'start' || action === 'edge') return 'cursor-ew-resize'
-    if (action === 'create') return 'cursor-crosshair'
-    return 'cursor-default'
+    if (action === 'pan') return 'move'
+    if (action === 'end' || action === 'start' || action === 'edge-start' || action === 'edge-end')
+      return 'ew-resize'
+    if (action === 'create') return 'crosshair'
+    return 'default'
   })()
+  // Which edge (if any) is currently being hovered — used to make the
+  // corresponding handle dot pop visually.
+  const hoveredEdge = hoverAction === 'edge-start' || (isDragging && dragState.mode === 'start')
+    ? 'start'
+    : hoverAction === 'edge-end' || (isDragging && dragState.mode === 'end')
+      ? 'end'
+      : null
 
   // While a drag is in progress, listen on the document so the user can
   // move the cursor outside the chart and the drag keeps tracking. For
@@ -611,7 +625,7 @@ const DailyActivityLine = ({
     }
     const { start, end } = selectedRanges[0]
     const width = isWrapBand ? 24 - start + end : end - start
-    const edgeTol = Math.min(1.5, width / 3)
+    const edgeTol = edgeTolFor(width)
     if (!isWrapBand && cursor >= end - edgeTol && cursor <= end + edgeTol) {
       setDragState({ mode: 'end', liveStart: start, liveEnd: cursor })
     } else if (!isWrapBand && cursor >= start - edgeTol && cursor <= start + edgeTol) {
@@ -632,7 +646,8 @@ const DailyActivityLine = ({
   return (
     <div
       ref={containerRef}
-      className={`relative w-full h-full select-none ${cursorClass}`}
+      className="relative w-full h-full select-none [&_*]:!cursor-[inherit]"
+      style={cursorStyle ? { cursor: cursorStyle } : undefined}
       onMouseDown={handleNativeDown}
       onMouseMove={handleNativeMove}
       onMouseLeave={handleNativeLeave}
@@ -676,26 +691,29 @@ const DailyActivityLine = ({
                   strokeWidth={1}
                 />
               ))}
-          {/* Draggable start-line handle. */}
+          {/* Draggable start-line handle (dot centered vertically on the line). */}
           {dragEnabled && handleStartX !== null && (
             <ReferenceLine
               x={handleStartX}
               stroke="rgb(59 130 246)"
-              strokeWidth={2}
+              strokeWidth={hoveredEdge === 'start' ? 3 : 2}
               isFront
               label={{
-                position: 'top',
-                content: ({ viewBox }) =>
-                  viewBox && viewBox.x !== undefined ? (
+                position: 'center',
+                content: ({ viewBox }) => {
+                  if (!viewBox || viewBox.x === undefined) return null
+                  const cy = viewBox.y + (viewBox.height ?? 0) / 2
+                  return (
                     <circle
                       cx={viewBox.x}
-                      cy={viewBox.y + 6}
-                      r={4}
+                      cy={cy}
+                      r={hoveredEdge === 'start' ? 6 : 4}
                       fill="rgb(59 130 246)"
                       stroke="white"
                       strokeWidth={1}
                     />
-                  ) : null
+                  )
+                }
               }}
             />
           )}
@@ -704,21 +722,24 @@ const DailyActivityLine = ({
             <ReferenceLine
               x={handleEndX}
               stroke="rgb(59 130 246)"
-              strokeWidth={2}
+              strokeWidth={hoveredEdge === 'end' ? 3 : 2}
               isFront
               label={{
-                position: 'top',
-                content: ({ viewBox }) =>
-                  viewBox && viewBox.x !== undefined ? (
+                position: 'center',
+                content: ({ viewBox }) => {
+                  if (!viewBox || viewBox.x === undefined) return null
+                  const cy = viewBox.y + (viewBox.height ?? 0) / 2
+                  return (
                     <circle
                       cx={viewBox.x}
-                      cy={viewBox.y + 6}
-                      r={4}
+                      cy={cy}
+                      r={hoveredEdge === 'end' ? 6 : 4}
                       fill="rgb(59 130 246)"
                       stroke="white"
                       strokeWidth={1}
                     />
-                  ) : null
+                  )
+                }
               }}
             />
           )}
