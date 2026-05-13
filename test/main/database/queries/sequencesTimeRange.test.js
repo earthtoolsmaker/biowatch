@@ -122,9 +122,7 @@ describe('getMediaForSequencePagination — timeRange filter', () => {
       species: ['Sus scrofa'],
       timeRange: { start: 8, end: 18 }
     })
-    const hours = result.media
-      .map((m) => new Date(m.timestamp).getUTCHours())
-      .sort((a, b) => a - b)
+    const hours = result.media.map((m) => new Date(m.timestamp).getUTCHours()).sort((a, b) => a - b)
     assert.deepEqual(hours, [8, 9, 10, 11, 12, 13, 14, 15, 16, 17])
   })
 
@@ -134,9 +132,7 @@ describe('getMediaForSequencePagination — timeRange filter', () => {
       species: ['Sus scrofa'],
       timeRange: { ranges: [{ start: 8, end: 18 }] }
     })
-    const hours = result.media
-      .map((m) => new Date(m.timestamp).getUTCHours())
-      .sort((a, b) => a - b)
+    const hours = result.media.map((m) => new Date(m.timestamp).getUTCHours()).sort((a, b) => a - b)
     assert.deepEqual(hours, [8, 9, 10, 11, 12, 13, 14, 15, 16, 17])
   })
 
@@ -151,9 +147,7 @@ describe('getMediaForSequencePagination — timeRange filter', () => {
         ]
       }
     })
-    const hours = result.media
-      .map((m) => new Date(m.timestamp).getUTCHours())
-      .sort((a, b) => a - b)
+    const hours = result.media.map((m) => new Date(m.timestamp).getUTCHours()).sort((a, b) => a - b)
     assert.deepEqual(hours, [5, 6, 7, 18, 19, 20])
   })
 
@@ -163,9 +157,7 @@ describe('getMediaForSequencePagination — timeRange filter', () => {
       species: ['Sus scrofa'],
       timeRange: { ranges: [{ start: 21, end: 5 }] }
     })
-    const hours = result.media
-      .map((m) => new Date(m.timestamp).getUTCHours())
-      .sort((a, b) => a - b)
+    const hours = result.media.map((m) => new Date(m.timestamp).getUTCHours()).sort((a, b) => a - b)
     assert.deepEqual(hours, [0, 1, 2, 3, 4, 21, 22, 23])
   })
 
@@ -198,10 +190,9 @@ async function seedSingleHourMedia(hour) {
     [`${id}.jpg`]: {
       mediaID: id,
       deploymentID: 'd1',
-      timestamp: DateTime.fromISO(
-        `2024-06-01T${String(hour).padStart(2, '0')}:30:00`,
-        { zone: 'utc' }
-      ),
+      timestamp: DateTime.fromISO(`2024-06-01T${String(hour).padStart(2, '0')}:30:00`, {
+        zone: 'utc'
+      }),
       filePath: `/${id}.jpg`,
       fileName: `${id}.jpg`
     }

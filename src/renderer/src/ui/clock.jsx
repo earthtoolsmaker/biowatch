@@ -466,8 +466,7 @@ const DailyActivityLine = ({
     const width = isWrapBand ? 24 - start + end : end - start
     const edgeTol = edgeTolFor(width)
     if (!isWrapBand && cursor >= end - edgeTol && cursor <= end + edgeTol) return 'edge-end'
-    if (!isWrapBand && cursor >= start - edgeTol && cursor <= start + edgeTol)
-      return 'edge-start'
+    if (!isWrapBand && cursor >= start - edgeTol && cursor <= start + edgeTol) return 'edge-start'
     if (isInsideBand(cursor, { start, end })) return 'pan'
     return 'create'
   }
@@ -568,11 +567,12 @@ const DailyActivityLine = ({
   })()
   // Which edge (if any) is currently being hovered — used to make the
   // corresponding handle dot pop visually.
-  const hoveredEdge = hoverAction === 'edge-start' || (isDragging && dragState.mode === 'start')
-    ? 'start'
-    : hoverAction === 'edge-end' || (isDragging && dragState.mode === 'end')
-      ? 'end'
-      : null
+  const hoveredEdge =
+    hoverAction === 'edge-start' || (isDragging && dragState.mode === 'start')
+      ? 'start'
+      : hoverAction === 'edge-end' || (isDragging && dragState.mode === 'end')
+        ? 'end'
+        : null
 
   // While a drag is in progress, listen on the document so the user can
   // move the cursor outside the chart and the drag keeps tracking. For
