@@ -130,7 +130,8 @@ export default function DeploymentsImportPreviewModal({
 
   if (!preview) return null
 
-  const canApply = preview.applyCount > 0 && !isApplying
+  const applyCount = applyPlan.length
+  const canApply = applyCount > 0 && !isApplying
 
   const handleBackdropMouseDown = (e) => {
     if (e.target === e.currentTarget && !isApplying) onCancel()
@@ -165,7 +166,7 @@ export default function DeploymentsImportPreviewModal({
         <div className="flex items-center gap-2 px-4 py-2 border-b border-border text-xs">
           <button
             onClick={() => toggleFilter('updated')}
-            disabled={preview.applyCount === 0}
+            disabled={applyCount === 0}
             title={
               filter === 'updated'
                 ? 'Click to show all rows'
@@ -177,8 +178,8 @@ export default function DeploymentsImportPreviewModal({
                 : 'border-transparent hover:bg-accent text-green-700 dark:text-green-300'
             }`}
           >
-            <ArrowLeftRight size={12} /> {preview.applyCount}{' '}
-            {preview.applyCount === 1 ? 'row' : 'rows'} will update
+            <ArrowLeftRight size={12} /> {applyCount} {applyCount === 1 ? 'row' : 'rows'} will
+            update
           </button>
           <button
             onClick={() => toggleFilter('warnings')}
