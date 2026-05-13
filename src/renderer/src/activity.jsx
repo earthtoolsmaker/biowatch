@@ -961,6 +961,9 @@ export default function Activity({ studyData, studyId }) {
                           selectedSpecies={selectedSpecies}
                           palette={palette}
                           selectedRanges={visualRanges}
+                          onArcChange={
+                            chipSelection.size === 0 ? handleArcChange : undefined
+                          }
                         />
                       </div>
                     </>

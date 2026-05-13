@@ -388,14 +388,51 @@ const DailyActivityRadar = ({ activityData, selectedSpecies, palette }) => {
 
 /**
  * X–Y twin of DailyActivityRadar. Renders the same hourly-bin data as a
- * line per species across a 24-hour x-axis. Off-period bands (the inverse
- * of `selectedRanges`) are shaded; with no selection, no shading.
+ * line per species across a 24-hour x-axis. Selected ranges are shaded
+ * with the same blue used by the polar arc.
  *
  * Props mirror DailyActivityRadar plus:
  *   selectedRanges: Array<{start, end}> — hour ranges currently in the
- *     filter. Used to shade the *complement* of these as off-period bands.
+ *     filter. Rendered as shaded bands.
+ *   onArcChange: optional ({start, end}) => void — when provided, the
+ *     chart accepts click-and-drag to set a custom hour range. Pass undefined
+ *     (e.g. while chips are driving selection) to disable drag.
  */
-const DailyActivityLine = ({ activityData, selectedSpecies, palette, selectedRanges = [] }) => {
+const DailyActivityLine = ({
+  activityData,
+  selectedSpecies,
+  palette,
+  selectedRanges = [],
+  onArcChange
+}) => {
+  const [dragStart, setDragStart] = useState(null)
+  const [dragEnd, setDragEnd] = useState(null)
+  const isDragging = dragStart !== null && dragEnd !== null
+  const dragEnabled = typeof onArcChange === 'function'
+
+  const handleMouseDown = (e) => {
+    if (!dragEnabled || !e || e.activeLabel === undefined || e.activeLabel === null) return
+    setDragStart(e.activeLabel)
+    setDragEnd(e.activeLabel)
+  }
+  const handleMouseMove = (e) => {
+    if (!dragEnabled || dragStart === null) return
+    if (!e || e.activeLabel === undefined || e.activeLabel === null) return
+    setDragEnd(e.activeLabel)
+  }
+  const handleMouseUp = () => {
+    if (dragEnabled && dragStart !== null && dragEnd !== null && dragStart !== dragEnd) {
+      const start = Math.max(0, Math.min(dragStart, dragEnd))
+      const end = Math.min(24, Math.max(dragStart, dragEnd))
+      onArcChange({ start, end })
+    }
+    setDragStart(null)
+    setDragEnd(null)
+  }
+  const handleMouseLeave = () => {
+    if (dragStart !== null) setDragStart(null)
+    setDragEnd(null)
+  }
   const formatData = (data) => {
     if (!data || !data.length) {
       return Array(24)
@@ -419,10 +456,25 @@ const DailyActivityLine = ({ activityData, selectedSpecies, palette, selectedRan
     }
   }
 
+  // Transient band shown live while the user is dragging.
+  const dragBand =
+    isDragging && dragStart !== dragEnd
+      ? [Math.max(0, Math.min(dragStart, dragEnd)), Math.min(24, Math.max(dragStart, dragEnd))]
+      : null
+
   return (
-    <div className="relative w-full h-full">
+    <div
+      className={`relative w-full h-full ${dragEnabled ? 'cursor-crosshair' : ''}`}
+    >
       <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={formattedData} margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
+        <ComposedChart
+          data={formattedData}
+          margin={{ top: 4, right: 8, bottom: 0, left: 8 }}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseLeave}
+        >
           <CartesianGrid strokeOpacity={0} />
           <XAxis
             dataKey="hour"
@@ -434,18 +486,32 @@ const DailyActivityLine = ({ activityData, selectedSpecies, palette, selectedRan
             tickLine={false}
           />
           <YAxis hide domain={[0, 'auto']} />
-          {selectedBands.map(([s, e], i) => (
+          {/* Committed selection bands — hide while a fresh drag is in
+              progress so the transient drag band is the only highlight. */}
+          {!isDragging &&
+            selectedBands.map(([s, e], i) => (
+              <ReferenceArea
+                key={i}
+                x1={s}
+                x2={e}
+                fill="rgb(59 130 246)"
+                fillOpacity={0.15}
+                stroke="rgb(59 130 246)"
+                strokeOpacity={0.5}
+                strokeWidth={1}
+              />
+            ))}
+          {dragBand && (
             <ReferenceArea
-              key={i}
-              x1={s}
-              x2={e}
+              x1={dragBand[0]}
+              x2={dragBand[1]}
               fill="rgb(59 130 246)"
-              fillOpacity={0.15}
+              fillOpacity={0.2}
               stroke="rgb(59 130 246)"
-              strokeOpacity={0.5}
+              strokeOpacity={0.7}
               strokeWidth={1}
             />
-          ))}
+          )}
           {selectedSpecies.map((species, index) => (
             <Line
               key={species.scientificName}
