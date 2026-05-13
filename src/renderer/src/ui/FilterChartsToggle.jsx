@@ -54,10 +54,10 @@ export default function FilterChartsToggle({
           side="bottom"
           sideOffset={10}
           align="end"
-          className="z-[10000] max-w-[16rem] px-3 py-2 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md"
+          className="z-[10000] max-w-[18rem] px-3.5 py-3 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md"
         >
-          <div className="flex items-start justify-between gap-3 mb-1">
-            <p className="font-medium">
+          <div className="flex items-start justify-between gap-4 mb-2">
+            <p className="font-medium leading-snug">
               {showFilterCharts ? 'Hide filter charts' : 'Show filter charts'}
             </p>
             {isFiltering && (
@@ -67,27 +67,27 @@ export default function FilterChartsToggle({
               </p>
             )}
           </div>
-          <p className="text-muted-foreground leading-snug">
+          <p className="text-muted-foreground leading-relaxed">
             Daily-activity clock and timeline filters.
           </p>
           {isFiltering && (dayFilterLabel || dateFilterLabel) && (
-            <ul className="mt-1.5 space-y-0.5 text-popover-foreground/90">
+            <ul className="mt-3 pt-3 border-t border-border space-y-1.5 text-popover-foreground/90 leading-snug">
               {dayFilterLabel && (
-                <li>
-                  <span className="text-muted-foreground">Time of day: </span>
-                  {dayFilterLabel}
+                <li className="flex gap-2">
+                  <span className="text-muted-foreground shrink-0">Time of day</span>
+                  <span className="flex-1">{dayFilterLabel}</span>
                 </li>
               )}
               {dateFilterLabel && (
-                <li>
-                  <span className="text-muted-foreground">Date range: </span>
-                  {dateFilterLabel}
+                <li className="flex gap-2">
+                  <span className="text-muted-foreground shrink-0">Date range</span>
+                  <span className="flex-1">{dateFilterLabel}</span>
                 </li>
               )}
             </ul>
           )}
           {isFiltering && onResetFilters && (
-            <div className="mt-2 flex justify-end">
+            <div className="mt-3 flex justify-end">
               <button
                 type="button"
                 onClick={onResetFilters}
