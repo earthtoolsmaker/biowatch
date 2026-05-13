@@ -160,10 +160,7 @@ describe('shouldClearToFullExtent', () => {
   })
 
   test('null range → false', () => {
-    assert.equal(
-      shouldClearToFullExtent({ range: [null, null], fullExtent: FULL_EXTENT }),
-      false
-    )
+    assert.equal(shouldClearToFullExtent({ range: [null, null], fullExtent: FULL_EXTENT }), false)
   })
 })
 

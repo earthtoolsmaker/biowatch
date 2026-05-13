@@ -9,6 +9,7 @@ import {
   XAxis,
   YAxis
 } from 'recharts'
+import { X } from 'lucide-react'
 
 import {
   clientXToDate,
@@ -17,11 +18,15 @@ import {
   resolveAction,
   shouldClearToFullExtent,
   pxToDateMs,
+  zoomAroundAnchor,
   EDGE_PX_TOLERANCE,
   MIN_RANGE_MS
 } from '../utils/timelineZoom.js'
 
 const MARGIN_X = 4 // matches the LineChart margin used below
+
+const formatPillDate = (d) =>
+  d ? d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : ''
 
 /**
  * TimelineChart — date-range brush over a per-day species time-series.
@@ -37,6 +42,8 @@ const TimelineChart = ({ timeseriesData, selectedSpecies, dateRange, setDateRang
   const [dragState, setDragState] = useState(null)
   const isDragging = dragState !== null
   const [hoverAction, setHoverAction] = useState(null)
+  const wheelRafRef = useRef(null)
+  const wheelPendingRef = useRef(null)
 
   const data = useMemo(() => {
     if (!timeseriesData) return []
@@ -136,24 +143,30 @@ const TimelineChart = ({ timeseriesData, selectedSpecies, dateRange, setDateRang
     if (!isDragging) return
     const onDocMove = (e) => {
       setDragState((prev) => {
-        if (!prev) return prev
+        if (!prev || !fullExtent) return prev
+        if (prev.mode === 'pan') {
+          const rect = containerRef.current.getBoundingClientRect()
+          const innerWidth = rect.width - MARGIN_X * 2
+          if (innerWidth <= 0) return prev
+          const initialDomainMs = prev.panInitialEnd.getTime() - prev.panInitialStart.getTime()
+          const deltaPx = e.clientX - prev.panStartClientX
+          const deltaMs = deltaPx * (initialDomainMs / innerWidth)
+          const newStartMs = prev.panInitialStart.getTime() + deltaMs
+          const [panStart, panEnd] = clampPanToBounds({
+            start: new Date(newStartMs),
+            end: new Date(newStartMs + initialDomainMs),
+            fullExtent
+          })
+          return { ...prev, liveStart: panStart, liveEnd: panEnd }
+        }
         const cursor = clientXToDate({
           clientX: e.clientX,
           rect: containerRef.current.getBoundingClientRect(),
           marginX: MARGIN_X,
           domain,
-          clamp: prev.mode !== 'pan'
+          clamp: true
         })
-        if (!cursor || !fullExtent) return prev
-        if (prev.mode === 'pan') {
-          const newStartMs = cursor.getTime() - prev.panOffsetMs
-          const [s, e] = clampPanToBounds({
-            start: new Date(newStartMs),
-            end: new Date(newStartMs + prev.panWidthMs),
-            fullExtent
-          })
-          return { ...prev, liveStart: s, liveEnd: e }
-        }
+        if (!cursor) return prev
         if (prev.mode === 'edge-start') {
           const [s, e] = clampMinRange({
             start: cursor,
@@ -192,12 +205,17 @@ const TimelineChart = ({ timeseriesData, selectedSpecies, dateRange, setDateRang
     if (action === 'pan') {
       const start = dateRange[0]
       const end = dateRange[1]
+      // Pan uses pixel-delta math against a frozen domain so the chart
+      // can live-update its XAxis to liveStart/liveEnd without creating a
+      // feedback loop (cursor→date based on a moving domain would zero
+      // out the delta).
       setDragState({
         mode: 'pan',
         liveStart: start,
         liveEnd: end,
-        panOffsetMs: cursor.getTime() - start.getTime(),
-        panWidthMs: end.getTime() - start.getTime()
+        panStartClientX: e.clientX,
+        panInitialStart: start,
+        panInitialEnd: end
       })
       return
     }
@@ -225,6 +243,59 @@ const TimelineChart = ({ timeseriesData, selectedSpecies, dateRange, setDateRang
     if (!isDragging) setHoverAction(null)
   }
 
+  const handleWheel = (e) => {
+    if (!fullExtent || !domain) return
+    e.preventDefault()
+    const cursor = eventToDate(e)
+    if (!cursor) return
+    // deltaY<0 (scroll up / two-finger up) → factor<1 → zoom in
+    const factor = Math.exp(e.deltaY * 0.0015)
+    const [zoomed0, zoomed1] = zoomAroundAnchor({
+      start: domain[0],
+      end: domain[1],
+      anchor: cursor,
+      factor
+    })
+    let nextStartMs = zoomed0.getTime()
+    let nextEndMs = zoomed1.getTime()
+    // Clamp to full extent on zoom-out.
+    if (nextStartMs < fullExtent[0].getTime()) nextStartMs = fullExtent[0].getTime()
+    if (nextEndMs > fullExtent[1].getTime()) nextEndMs = fullExtent[1].getTime()
+    // Clamp to min range on zoom-in.
+    if (nextEndMs - nextStartMs < MIN_RANGE_MS) {
+      const anchorMs = cursor.getTime()
+      nextStartMs = anchorMs - MIN_RANGE_MS / 2
+      nextEndMs = anchorMs + MIN_RANGE_MS / 2
+      if (nextStartMs < fullExtent[0].getTime()) {
+        nextStartMs = fullExtent[0].getTime()
+        nextEndMs = nextStartMs + MIN_RANGE_MS
+      }
+      if (nextEndMs > fullExtent[1].getTime()) {
+        nextEndMs = fullExtent[1].getTime()
+        nextStartMs = nextEndMs - MIN_RANGE_MS
+      }
+    }
+    const candidate = [new Date(nextStartMs), new Date(nextEndMs)]
+    wheelPendingRef.current = shouldClearToFullExtent({ range: candidate, fullExtent })
+      ? [null, null]
+      : candidate
+    if (wheelRafRef.current !== null) return
+    wheelRafRef.current = requestAnimationFrame(() => {
+      wheelRafRef.current = null
+      if (wheelPendingRef.current) {
+        setDateRange(wheelPendingRef.current)
+        wheelPendingRef.current = null
+      }
+    })
+  }
+
+  useEffect(
+    () => () => {
+      if (wheelRafRef.current !== null) cancelAnimationFrame(wheelRafRef.current)
+    },
+    []
+  )
+
   const handleStart = (() => {
     if (isDragging) return dragState.liveStart
     if (!cleared) return dateRange[0]
@@ -240,27 +311,6 @@ const TimelineChart = ({ timeseriesData, selectedSpecies, dateRange, setDateRang
     if (!isDragging || dragState.mode !== 'create') return null
     const s = dragState.liveStart < dragState.liveEnd ? dragState.liveStart : dragState.liveEnd
     const e = dragState.liveStart < dragState.liveEnd ? dragState.liveEnd : dragState.liveStart
-    return { x1: s.getTime(), x2: e.getTime() }
-  })()
-
-  // Filled band between the two handles, communicating "this is the
-  // active filter." Shown when dateRange is set (handles narrowed) or
-  // during an edge/pan drag. Suppressed during create (live preview
-  // takes over) and when cleared (no filter to highlight).
-  const selectedBand = (() => {
-    if (livePreview) return null
-    if (
-      isDragging &&
-      dragState.mode !== 'pan' &&
-      dragState.mode !== 'edge-start' &&
-      dragState.mode !== 'edge-end'
-    )
-      return null
-    if (!handleStart || !handleEnd) return null
-    const s = handleStart < handleEnd ? handleStart : handleEnd
-    const e = handleStart < handleEnd ? handleEnd : handleStart
-    if (s.getTime() === e.getTime()) return null
-    if (cleared && !isDragging) return null
     return { x1: s.getTime(), x2: e.getTime() }
   })()
 
@@ -283,128 +333,200 @@ const TimelineChart = ({ timeseriesData, selectedSpecies, dateRange, setDateRang
     return 'default'
   })()
 
+  // During pan we override the chart's visible domain so the line data
+  // pans live under the cursor. Other modes keep the committed domain
+  // (chart stays still; only handles slide).
+  const displayedDomain = useMemo(
+    () =>
+      isDragging && dragState?.mode === 'pan' ? [dragState.liveStart, dragState.liveEnd] : domain,
+    [isDragging, dragState?.mode, dragState?.liveStart, dragState?.liveEnd, domain]
+  )
+
+  // Handle color reflects the zoom/filter state: muted slate when the
+  // chart is at full extent (no filter), saturated blue when zoomed in.
+  // During a drag (edge/create) we use the saturated blue regardless,
+  // since the user is actively narrowing.
+  const handleColor = cleared && !isDragging ? 'rgb(148 163 184)' : 'rgb(59 130 246)'
+
+  // Explicit ticks across the visible domain. Recharts' default tick
+  // generation (with `interval="preserveStartEnd"` and a numeric XAxis)
+  // pins the first and last ticks to the underlying data array's
+  // extremes, which ignores our zoom domain. Generating ticks ourselves
+  // guarantees the labels reflect what the user actually sees.
+  const xAxisTicks = useMemo(() => {
+    if (!displayedDomain) return undefined
+    const startMs = displayedDomain[0].getTime()
+    const endMs = displayedDomain[1].getTime()
+    if (endMs <= startMs) return [startMs]
+    const tickCount = 5
+    const step = (endMs - startMs) / (tickCount - 1)
+    return Array.from({ length: tickCount }, (_, i) => Math.round(startMs + i * step))
+  }, [displayedDomain])
+
+  // Custom tick renderer: anchors the leftmost label at start, rightmost
+  // at end, so the dates of the zoom (first and last) stay visible at
+  // the chart edges instead of being culled by Recharts' default
+  // middle-anchored layout.
+  const renderTick = ({ x, y, payload, index }) => {
+    let textAnchor = 'middle'
+    if (index === 0) textAnchor = 'start'
+    else if (xAxisTicks && index === xAxisTicks.length - 1) textAnchor = 'end'
+    return (
+      <text
+        x={x}
+        y={y + 10}
+        textAnchor={textAnchor}
+        fontSize={10}
+        fill="var(--color-muted-foreground)"
+      >
+        {new Date(payload.value).toLocaleDateString(undefined, {
+          month: 'short',
+          day: 'numeric',
+          year: '2-digit'
+        })}
+      </text>
+    )
+  }
+
   return (
-    <div
-      ref={containerRef}
-      className="w-full h-full select-none [&_*]:!cursor-[inherit]"
-      style={{ cursor: cursorStyle }}
-      onMouseDown={handleNativeDown}
-      onMouseMove={handleNativeMove}
-      onMouseLeave={handleNativeLeave}
-    >
-      <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={data} margin={{ top: 0, right: MARGIN_X, bottom: 0, left: MARGIN_X }}>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} />
-          <XAxis
-            dataKey="date"
-            type="number"
-            scale="time"
-            domain={domain ? [domain[0].getTime(), domain[1].getTime()] : ['dataMin', 'dataMax']}
-            allowDataOverflow
-            tick={{ fontSize: 10 }}
-            tickFormatter={(ms) =>
-              new Date(ms).toLocaleDateString(undefined, {
-                month: 'short',
-                day: 'numeric',
-                year: '2-digit'
-              })
-            }
-            interval="preserveStartEnd"
-            minTickGap={50}
-            height={25}
-          />
-          <YAxis hide domain={[0, 'auto']} />
+    <div className="relative w-full h-full">
+      <div
+        ref={containerRef}
+        className="absolute inset-0 select-none [&_*]:!cursor-[inherit]"
+        style={{ cursor: cursorStyle }}
+        onMouseDown={handleNativeDown}
+        onMouseMove={handleNativeMove}
+        onMouseLeave={handleNativeLeave}
+        onWheel={handleWheel}
+      >
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart
+            data={data}
+            margin={{ top: 0, right: MARGIN_X, bottom: 0, left: MARGIN_X }}
+          >
+            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+            <XAxis
+              dataKey="date"
+              type="number"
+              scale="time"
+              domain={
+                displayedDomain
+                  ? [displayedDomain[0].getTime(), displayedDomain[1].getTime()]
+                  : ['dataMin', 'dataMax']
+              }
+              allowDataOverflow
+              ticks={xAxisTicks}
+              tick={renderTick}
+              minTickGap={10}
+              height={25}
+            />
+            <YAxis hide domain={[0, 'auto']} />
 
-          {selectedBand && (
-            <ReferenceArea
-              x1={selectedBand.x1}
-              x2={selectedBand.x2}
-              fill="rgb(59 130 246)"
-              fillOpacity={0.15}
-              stroke="rgb(59 130 246)"
-              strokeOpacity={0.5}
-              strokeWidth={1}
-            />
-          )}
-          {livePreview && (
-            <ReferenceArea
-              x1={livePreview.x1}
-              x2={livePreview.x2}
-              fill="rgb(59 130 246)"
-              fillOpacity={0.2}
-              stroke="rgb(59 130 246)"
-              strokeOpacity={0.7}
-              strokeWidth={1}
-            />
-          )}
+            {livePreview && (
+              <ReferenceArea
+                x1={livePreview.x1}
+                x2={livePreview.x2}
+                fill="rgb(59 130 246)"
+                fillOpacity={0.2}
+                stroke="rgb(59 130 246)"
+                strokeOpacity={0.7}
+                strokeWidth={1}
+              />
+            )}
 
-          {handleStart && (
-            <ReferenceLine
-              x={handleStart.getTime()}
-              stroke="rgb(59 130 246)"
-              strokeWidth={hoveredEdge === 'start' ? 3 : 2}
-              isFront
-              label={{
-                position: 'center',
-                content: ({ viewBox }) => {
-                  if (!viewBox || viewBox.x === undefined) return null
-                  const cy = viewBox.y + (viewBox.height ?? 0) / 2
-                  return (
-                    <circle
-                      cx={viewBox.x}
-                      cy={cy}
-                      r={hoveredEdge === 'start' ? 6 : 4}
-                      fill="rgb(59 130 246)"
-                      stroke="white"
-                      strokeWidth={1}
-                    />
-                  )
-                }
-              }}
-            />
-          )}
-          {handleEnd && handleEnd.getTime() !== handleStart?.getTime() && (
-            <ReferenceLine
-              x={handleEnd.getTime()}
-              stroke="rgb(59 130 246)"
-              strokeWidth={hoveredEdge === 'end' ? 3 : 2}
-              isFront
-              label={{
-                position: 'center',
-                content: ({ viewBox }) => {
-                  if (!viewBox || viewBox.x === undefined) return null
-                  const cy = viewBox.y + (viewBox.height ?? 0) / 2
-                  return (
-                    <circle
-                      cx={viewBox.x}
-                      cy={cy}
-                      r={hoveredEdge === 'end' ? 6 : 4}
-                      fill="rgb(59 130 246)"
-                      stroke="white"
-                      strokeWidth={1}
-                    />
-                  )
-                }
-              }}
-            />
-          )}
+            {handleStart && (
+              <ReferenceLine
+                x={handleStart.getTime()}
+                stroke={handleColor}
+                strokeWidth={hoveredEdge === 'start' ? 3 : 2}
+                isFront
+                label={{
+                  position: 'center',
+                  content: ({ viewBox }) => {
+                    if (!viewBox || viewBox.x === undefined) return null
+                    const cy = viewBox.y + (viewBox.height ?? 0) / 2
+                    return (
+                      <circle
+                        cx={viewBox.x}
+                        cy={cy}
+                        r={hoveredEdge === 'start' ? 6 : 4}
+                        fill={handleColor}
+                        stroke="white"
+                        strokeWidth={1}
+                      />
+                    )
+                  }
+                }}
+              />
+            )}
+            {handleEnd && handleEnd.getTime() !== handleStart?.getTime() && (
+              <ReferenceLine
+                x={handleEnd.getTime()}
+                stroke={handleColor}
+                strokeWidth={hoveredEdge === 'end' ? 3 : 2}
+                isFront
+                label={{
+                  position: 'center',
+                  content: ({ viewBox }) => {
+                    if (!viewBox || viewBox.x === undefined) return null
+                    const cy = viewBox.y + (viewBox.height ?? 0) / 2
+                    return (
+                      <circle
+                        cx={viewBox.x}
+                        cy={cy}
+                        r={hoveredEdge === 'end' ? 6 : 4}
+                        fill={handleColor}
+                        stroke="white"
+                        strokeWidth={1}
+                      />
+                    )
+                  }
+                }}
+              />
+            )}
 
-          {selectedSpecies.map((species, index) => (
-            <Line
-              key={species.scientificName}
-              type="monotone"
-              dataKey={species.scientificName}
-              stroke={palette[index % palette.length]}
-              dot={false}
-              activeDot={{ r: 5 }}
-              name={species.scientificName}
-              fillOpacity={0.2}
-              fill={palette[index % palette.length]}
-              isAnimationActive={false}
-            />
-          ))}
-        </ComposedChart>
-      </ResponsiveContainer>
+            {selectedSpecies.map((species, index) => (
+              <Line
+                key={species.scientificName}
+                type="monotone"
+                dataKey={species.scientificName}
+                stroke={palette[index % palette.length]}
+                dot={false}
+                activeDot={{ r: 5 }}
+                name={species.scientificName}
+                fillOpacity={0.2}
+                fill={palette[index % palette.length]}
+                isAnimationActive={false}
+              />
+            ))}
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+      {!cleared && (
+        <div
+          className="absolute top-1 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 pl-2 pr-1 py-0.5 rounded-full text-[10px] font-medium text-blue-700 dark:text-blue-300 bg-blue-50/90 dark:bg-blue-500/15 border border-blue-200/70 dark:border-blue-500/30 pointer-events-none"
+          aria-label="Date filter range"
+        >
+          <span>
+            {formatPillDate(displayedDomain?.[0])}
+            {' → '}
+            {formatPillDate(displayedDomain?.[1])}
+          </span>
+          <button
+            type="button"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation()
+              setDateRange([null, null])
+            }}
+            className="pointer-events-auto cursor-pointer inline-flex items-center justify-center w-3.5 h-3.5 rounded-full hover:bg-blue-200/70 dark:hover:bg-blue-500/30 transition-colors"
+            aria-label="Clear date filter"
+            title="Clear date filter"
+          >
+            <X size={10} strokeWidth={2.5} />
+          </button>
+        </div>
+      )}
     </div>
   )
 }

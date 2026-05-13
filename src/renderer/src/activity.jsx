@@ -18,6 +18,7 @@ import {
   arcToRanges,
   chipsToRanges,
   DAY_PERIOD_ORDER,
+  DAY_PERIOD_PRESETS,
   mergeChipRanges
 } from './utils/dayPeriods'
 import HideLeafletAttribution from './ui/HideLeafletAttribution'
@@ -34,6 +35,7 @@ import { formatScientificName } from './utils/scientificName'
 import { getTopNonHumanSpecies } from './utils/speciesUtils'
 import { useSequenceGap } from './hooks/useSequenceGap'
 import { useShowFilterCharts } from './hooks/useShowFilterCharts'
+import { useDateRange } from './hooks/useDateRange'
 
 // Inject the keyframes used by the skeleton markers once per page load.
 // Guarded by an id check so HMR / multiple SpeciesMap mounts don't re-append
@@ -584,7 +586,7 @@ export default function Activity({ studyData, studyId }) {
 
   const [selectedSpecies, setSelectedSpecies] = useState([])
   const [speciesInitialized, setSpeciesInitialized] = useState(false)
-  const [dateRange, setDateRange] = useState([null, null])
+  const { dateRange, setDateRange } = useDateRange(actualStudyId)
   const [fullExtent, setFullExtent] = useState([null, null])
   const [chipSelection, setChipSelection] = useState(() => new Set(ALL_CHIPS_SELECTED))
   const [arc, setArc] = useState({ start: 0, end: 24 })
@@ -607,7 +609,33 @@ export default function Activity({ studyData, studyId }) {
     return arcToRanges(arc)
   }, [chipSelection, arc])
 
-  const isFiltering = useMemo(() => timeRange.ranges.length > 0, [timeRange])
+  const hasDateFilter = useMemo(() => !!(dateRange[0] && dateRange[1]), [dateRange])
+  const isFiltering = useMemo(
+    () => timeRange.ranges.length > 0 || hasDateFilter,
+    [timeRange, hasDateFilter]
+  )
+
+  const dayFilterLabel = useMemo(() => {
+    if (timeRange.ranges.length === 0) return null
+    if (chipSelection.size > 0) {
+      return DAY_PERIOD_ORDER.filter((k) => chipSelection.has(k))
+        .map((k) => DAY_PERIOD_PRESETS[k].label)
+        .join(', ')
+    }
+    const fmt = (h) => `${String(Math.floor(h)).padStart(2, '0')}:00`
+    return `${fmt(arc.start)} → ${fmt(arc.end)}`
+  }, [timeRange, chipSelection, arc])
+  const dateFilterLabel = useMemo(() => {
+    if (!hasDateFilter) return null
+    const fmt = (d) =>
+      d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+    return `${fmt(dateRange[0])} → ${fmt(dateRange[1])}`
+  }, [hasDateFilter, dateRange])
+  const handleResetFilters = useCallback(() => {
+    setChipSelection(new Set(ALL_CHIPS_SELECTED))
+    setArc({ start: 0, end: 24 })
+    setDateRange([null, null])
+  }, [setDateRange])
   const { importStatus } = useImportStatus(actualStudyId, 5000)
   const { sequenceGap, setSequenceGap } = useSequenceGap(actualStudyId)
   const { showFilterCharts } = useShowFilterCharts(actualStudyId)
@@ -699,58 +727,52 @@ export default function Activity({ studyData, studyId }) {
     return timeseriesData && timeseriesData.length > 0
   }, [timeseriesData])
 
-  // Initialize dateRange and fullExtent from timeseries data (side effect, keep as useEffect)
+  // Set fullExtent from the timeseries data so downstream `isFullRange`
+  // and components can reason about the data's outer bounds. dateRange
+  // itself is NOT auto-initialised — [null, null] is the "no filter"
+  // sentinel in the unified model, and a persisted range (if any) is
+  // already restored by useDateRange.
   useEffect(() => {
-    if (hasTemporalData && dateRange[0] === null && dateRange[1] === null) {
-      const startIndex = 0
-      const endIndex = timeseriesData.length - 1
+    if (!hasTemporalData) return
+    const startDate = new Date(timeseriesData[0].date)
+    const endDate = new Date(timeseriesData[timeseriesData.length - 1].date)
+    setFullExtent([startDate, endDate])
+  }, [hasTemporalData, timeseriesData])
 
-      const startDate = new Date(timeseriesData[startIndex].date)
-      const endDate = new Date(timeseriesData[endIndex].date)
-
-      setDateRange([startDate, endDate])
-      setFullExtent([startDate, endDate])
-    }
-  }, [hasTemporalData, timeseriesData, dateRange])
-
-  // Compute if user has selected full temporal range (with 1 day tolerance)
-  // Also true when dataset has no temporal data (to include all null-timestamp media)
+  // Compute if user has selected full temporal range (with 1 day tolerance).
+  // True when dataset has no temporal data (to include all null-timestamp
+  // media) AND when dateRange is [null, null] — the "no filter" sentinel
+  // semantically means "include everything" (matches media.jsx).
   const isFullRange = useMemo(() => {
     if (!hasTemporalData) return true
-    if (!fullExtent[0] || !fullExtent[1] || !dateRange[0] || !dateRange[1]) {
-      return false
-    }
+    if (!dateRange[0] || !dateRange[1]) return true
+    if (!fullExtent[0] || !fullExtent[1]) return false
     const tolerance = 86400000 // 1 day in milliseconds
     const startMatch = Math.abs(fullExtent[0].getTime() - dateRange[0].getTime()) < tolerance
     const endMatch = Math.abs(fullExtent[1].getTime() - dateRange[1].getTime()) < tolerance
     return startMatch && endMatch
   }, [hasTemporalData, fullExtent, dateRange])
 
-  // Fetch sequence-aware heatmap data.
-  //
-  // The `enabled` gate defers the fetch until every queryKey input has
-  // settled, so the expensive (~11s on gmu8_leuven) heatmap query fires
-  // exactly once instead of twice:
-  //
-  //   1. sequenceGap undefined → skip (useSequenceGap still resolving).
-  //   2. timeseriesQueryData undefined → skip. Without this, the heatmap
-  //      would fire once with dateRange=[null,null] (because isFullRange
-  //      defaults to true when hasTemporalData=false), and then again
-  //      when the timeseries useEffect fills in dateRange — two 11s
-  //      hits of the worker for the same semantic query.
-  //   3. Datasets WITH temporal data: require dateRange to be populated
-  //      (via the useEffect that runs one tick after timeseries resolves).
-  //   4. Datasets WITHOUT temporal data: dateRange stays [null, null] and
-  //      we fire with isFullRange=true (includeNullTimestamps semantics).
-  //
-  // Mirrors media.jsx's b5c4dca "defer mounting until inputs stable" guard.
+  // For backend queries, fall back to fullExtent when the user hasn't set
+  // a date filter. dateRange itself stays [null, null] in the parent so
+  // TimelineChart can render its cleared/zoomed visual state correctly;
+  // this fallback is local to the query calls. Mirrors media.jsx.
+  const effectiveStart = dateRange[0] ?? fullExtent[0]
+  const effectiveEnd = dateRange[1] ?? fullExtent[1]
+
+  // Fetch sequence-aware heatmap data. The `enabled` gate defers the
+  // fetch until every queryKey input has settled (sequenceGap resolved,
+  // timeseriesQueryData loaded), so the expensive (~11s on gmu8_leuven)
+  // heatmap query fires once. dateRange=[null,null] is the "no filter"
+  // sentinel — the backend treats it as "include everything," so we
+  // don't need to gate on dateRange being populated.
   const { data: heatmapData, isLoading: isHeatmapLoading } = useQuery({
     queryKey: [
       'sequenceAwareHeatmap',
       actualStudyId,
       [...speciesNames].sort(),
-      dateRange[0]?.toISOString(),
-      dateRange[1]?.toISOString(),
+      effectiveStart?.toISOString(),
+      effectiveEnd?.toISOString(),
       JSON.stringify(timeRange.ranges),
       isFullRange,
       sequenceGap
@@ -759,8 +781,8 @@ export default function Activity({ studyData, studyId }) {
       const response = await window.api.getSequenceAwareHeatmap(
         actualStudyId,
         speciesNames,
-        dateRange[0]?.toISOString(),
-        dateRange[1]?.toISOString(),
+        effectiveStart?.toISOString(),
+        effectiveEnd?.toISOString(),
         timeRange,
         isFullRange
       )
@@ -772,7 +794,11 @@ export default function Activity({ studyData, studyId }) {
       speciesNames.length > 0 &&
       sequenceGap !== undefined &&
       timeseriesQueryData !== undefined &&
-      (!hasTemporalData || (!!dateRange[0] && !!dateRange[1])),
+      // Studies without temporal data (e.g. ENA24): fullExtent stays
+      // [null, null] forever; fire anyway and let the backend's
+      // noDateFilter path return all media (heatmap is keyed by
+      // species/lat/lng, not by timestamp).
+      (!hasTemporalData || (!!effectiveStart && !!effectiveEnd)),
     placeholderData: (prev) => prev,
     staleTime: Infinity
   })
@@ -791,16 +817,16 @@ export default function Activity({ studyData, studyId }) {
       'sequenceAwareDailyActivity',
       actualStudyId,
       [...speciesNames].sort(),
-      dateRange[0]?.toISOString(),
-      dateRange[1]?.toISOString(),
+      effectiveStart?.toISOString(),
+      effectiveEnd?.toISOString(),
       sequenceGap
     ],
     queryFn: async () => {
       const response = await window.api.getSequenceAwareDailyActivity(
         actualStudyId,
         speciesNames,
-        dateRange[0]?.toISOString(),
-        dateRange[1]?.toISOString()
+        effectiveStart?.toISOString(),
+        effectiveEnd?.toISOString()
       )
       if (response.error) throw new Error(response.error)
       return response.data
@@ -808,9 +834,9 @@ export default function Activity({ studyData, studyId }) {
     enabled:
       !!actualStudyId &&
       speciesNames.length > 0 &&
-      !!dateRange[0] &&
-      !!dateRange[1] &&
-      sequenceGap !== undefined,
+      sequenceGap !== undefined &&
+      !!effectiveStart &&
+      !!effectiveEnd,
     placeholderData: (prev) => prev,
     staleTime: Infinity
   })
@@ -889,6 +915,9 @@ export default function Activity({ studyData, studyId }) {
                       // (ENA24, Biome Health Project, etc).
                       hasTemporalData={hasTemporalData || timeseriesQueryData === undefined}
                       isFiltering={isFiltering}
+                      dayFilterLabel={dayFilterLabel}
+                      dateFilterLabel={dateFilterLabel}
+                      onResetFilters={handleResetFilters}
                     />
                   </div>
                 </div>

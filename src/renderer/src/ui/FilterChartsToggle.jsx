@@ -19,7 +19,10 @@ import { useShowFilterCharts } from '../hooks/useShowFilterCharts'
 export default function FilterChartsToggle({
   studyId,
   hasTemporalData = true,
-  isFiltering = false
+  isFiltering = false,
+  dayFilterLabel = null,
+  dateFilterLabel = null,
+  onResetFilters = null
 }) {
   const { showFilterCharts, setShowFilterCharts } = useShowFilterCharts(studyId)
 
@@ -53,17 +56,46 @@ export default function FilterChartsToggle({
           align="end"
           className="z-[10000] max-w-[16rem] px-3 py-2 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md"
         >
-          <p className="font-medium mb-1">
-            {showFilterCharts ? 'Hide filter charts' : 'Show filter charts'}
-          </p>
+          <div className="flex items-start justify-between gap-3 mb-1">
+            <p className="font-medium">
+              {showFilterCharts ? 'Hide filter charts' : 'Show filter charts'}
+            </p>
+            {isFiltering && (
+              <p className="text-blue-600 dark:text-blue-400 whitespace-nowrap leading-snug">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500 mr-1 align-middle" />
+                Active
+              </p>
+            )}
+          </div>
           <p className="text-muted-foreground leading-snug">
             Daily-activity clock and timeline filters.
           </p>
-          {isFiltering && (
-            <p className="mt-1.5 text-blue-600 dark:text-blue-400 leading-snug">
-              <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500 mr-1 align-middle" />
-              Filters active
-            </p>
+          {isFiltering && (dayFilterLabel || dateFilterLabel) && (
+            <ul className="mt-1.5 space-y-0.5 text-popover-foreground/90">
+              {dayFilterLabel && (
+                <li>
+                  <span className="text-muted-foreground">Time of day: </span>
+                  {dayFilterLabel}
+                </li>
+              )}
+              {dateFilterLabel && (
+                <li>
+                  <span className="text-muted-foreground">Date range: </span>
+                  {dateFilterLabel}
+                </li>
+              )}
+            </ul>
+          )}
+          {isFiltering && onResetFilters && (
+            <div className="mt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={onResetFilters}
+                className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+              >
+                Reset filters
+              </button>
+            </div>
           )}
           <Tooltip.Arrow className="fill-popover" />
         </Tooltip.Content>

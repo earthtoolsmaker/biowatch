@@ -38,11 +38,7 @@ export function zoomAroundAnchor({ start, end, anchor, factor }) {
   ]
 }
 
-export function shouldClearToFullExtent({
-  range,
-  fullExtent,
-  toleranceMs = CLEAR_TOLERANCE_MS
-}) {
+export function shouldClearToFullExtent({ range, fullExtent, toleranceMs = CLEAR_TOLERANCE_MS }) {
   if (!range[0] || !range[1] || !fullExtent[0] || !fullExtent[1]) return false
   const startDiff = range[0].getTime() - fullExtent[0].getTime()
   const endDiff = fullExtent[1].getTime() - range[1].getTime()
