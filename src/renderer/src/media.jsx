@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useParams, useSearchParams } from 'react-router'
-import CircularTimeFilter, { DailyActivityRadar } from './ui/clock'
+import CircularTimeFilter, { DailyActivityRadar, DailyActivityLine } from './ui/clock'
+import DayPeriodChips from './ui/dayPeriodChips'
+import ChartShapeToggle from './ui/chartShapeToggle'
+import { chipsToRanges, arcToRanges } from './utils/dayPeriods'
 import SpeciesDistribution from './ui/speciesDistribution'
 import TimelineChart from './ui/timeseries'
 import { getTopNonHumanSpecies } from './utils/speciesUtils'
@@ -34,7 +37,16 @@ export default function Activity({ studyData, studyId }) {
   const [speciesInitialized, setSpeciesInitialized] = useState(false)
   const [dateRange, setDateRange] = useState([null, null])
   const [fullExtent, setFullExtent] = useState([null, null])
-  const [timeRange, setTimeRange] = useState({ start: 0, end: 24 })
+  const [chipSelection, setChipSelection] = useState(() => new Set())
+  const [arc, setArc] = useState({ start: 0, end: 24 })
+  const [chartShape, setChartShape] = useState('polar')
+
+  // Derive the timeRange payload sent to the backend. Chips win; with no
+  // chips, the freeform drag-arc supplies the (zero or one) range.
+  const timeRange = useMemo(() => {
+    const ranges = chipSelection.size > 0 ? chipsToRanges(chipSelection) : arcToRanges(arc)
+    return { ranges }
+  }, [chipSelection, arc])
   const { importStatus } = useImportStatus(actualStudyId, 5000)
 
   // Sequence gap - uses React Query for sync across components
@@ -220,9 +232,8 @@ export default function Activity({ studyData, studyId }) {
     refetchInterval: importStatus?.isRunning ? 5000 : false
   })
 
-  // Handle time range changes
-  const handleTimeRangeChange = useCallback((newTimeRange) => {
-    setTimeRange(newTimeRange)
+  const handleArcChange = useCallback((newArc) => {
+    setArc(newArc)
   }, [])
 
   // Handle species selection changes
@@ -303,18 +314,37 @@ export default function Activity({ studyData, studyId }) {
           >
             {speciesInitialized && sequenceGap !== undefined && (
               <div className="w-full flex h-[130px] gap-3">
-                <div className="w-[140px] h-full rounded border border-border flex items-center justify-center relative">
-                  <DailyActivityRadar
-                    activityData={dailyActivityData}
-                    selectedSpecies={selectedSpecies}
-                    palette={palette}
-                  />
-                  <div className="absolute w-full h-full flex items-center justify-center">
-                    <CircularTimeFilter
-                      onChange={handleTimeRangeChange}
-                      startTime={timeRange.start}
-                      endTime={timeRange.end}
-                    />
+                <div className="w-[180px] h-full rounded border border-border flex flex-col relative">
+                  <div className="flex items-center justify-between px-2 pt-1.5">
+                    <DayPeriodChips selection={chipSelection} onChange={setChipSelection} />
+                    <ChartShapeToggle value={chartShape} onChange={setChartShape} />
+                  </div>
+                  <div className="flex-1 relative">
+                    {chartShape === 'polar' ? (
+                      <>
+                        <DailyActivityRadar
+                          activityData={dailyActivityData}
+                          selectedSpecies={selectedSpecies}
+                          palette={palette}
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <CircularTimeFilter
+                            onChange={handleArcChange}
+                            startTime={arc.start}
+                            endTime={arc.end}
+                            mode={chipSelection.size > 0 ? 'chips' : 'drag'}
+                            chipSectors={chipsToRanges(chipSelection)}
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <DailyActivityLine
+                        activityData={dailyActivityData}
+                        selectedSpecies={selectedSpecies}
+                        palette={palette}
+                        selectedRanges={timeRange.ranges}
+                      />
+                    )}
                   </div>
                 </div>
                 <div className="flex-grow rounded px-2 border border-border">
