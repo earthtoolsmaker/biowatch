@@ -1,284 +1,388 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   CartesianGrid,
-  Customized,
+  ComposedChart,
   Line,
-  LineChart,
-  Rectangle,
+  ReferenceArea,
+  ReferenceLine,
   ResponsiveContainer,
   XAxis,
   YAxis
 } from 'recharts'
 
-// TimelineChart component using Recharts.
-//
-// dragDateRange is local state for the visual brush position during a drag;
-// setDateRange (the parent prop) is only called on pointer release, so the
-// downstream sequence-aware queries don't refetch once per mousemove.
+import {
+  clientXToDate,
+  clampMinRange,
+  clampPanToBounds,
+  resolveAction,
+  shouldClearToFullExtent,
+  pxToDateMs,
+  EDGE_PX_TOLERANCE,
+  MIN_RANGE_MS
+} from '../utils/timelineZoom.js'
+
+const MARGIN_X = 4 // matches the LineChart margin used below
+
+/**
+ * TimelineChart — date-range brush over a per-day species time-series.
+ *
+ * The brush range, the chart's visible x-axis, and the parent's date
+ * filter are the same state (`dateRange`). When dateRange is [null, null]
+ * the chart shows the full data extent and no filter is applied.
+ *
+ * Gesture model — see docs/specs/2026-05-13-timeline-zoom-design.md.
+ */
 const TimelineChart = ({ timeseriesData, selectedSpecies, dateRange, setDateRange, palette }) => {
-  const draggingRef = useRef(false)
-  const resizingRef = useRef(null) // null, 'left', or 'right'
-  const dragStartXRef = useRef(null)
-  const initialRangeRef = useRef(null)
-  const chartRef = useRef(null)
+  const containerRef = useRef(null)
+  const [dragState, setDragState] = useState(null)
+  const isDragging = dragState !== null
+  const [hoverAction, setHoverAction] = useState(null)
 
-  const [dragDateRange, setDragDateRange] = useState(dateRange)
-  // Mirror dragDateRange into a ref so handleMouseUp (a long-lived
-  // document event listener) can read the latest without the useCallback
-  // being recreated mid-drag and leaking a stale listener reference.
-  const dragDateRangeRef = useRef(dateRange)
-  useEffect(() => {
-    dragDateRangeRef.current = dragDateRange
-  }, [dragDateRange])
-  useEffect(() => {
-    // Sync from prop only when not actively dragging, so external updates
-    // don't clobber in-flight drag state.
-    if (!draggingRef.current && resizingRef.current === null) {
-      setDragDateRange(dateRange)
-    }
-  }, [dateRange])
-
-  // Format data for Recharts
-  const formatData = useCallback(() => {
+  const data = useMemo(() => {
     if (!timeseriesData) return []
-
     return timeseriesData.map((day) => {
-      const item = {
-        date: new Date(day.date),
-        displayDate: new Date(day.date).toLocaleDateString(undefined, {
-          month: 'short',
-          day: 'numeric',
-          year: '2-digit'
-        })
-      }
-
-      // Add data for each selected species
+      const item = { date: new Date(day.date).getTime() }
       selectedSpecies.forEach((species) => {
         item[species.scientificName] = day[species.scientificName] || 0
       })
-
       return item
     })
   }, [timeseriesData, selectedSpecies])
 
-  const data = formatData()
+  const fullExtent = useMemo(() => {
+    if (!data.length) return null
+    return [new Date(data[0].date), new Date(data[data.length - 1].date)]
+  }, [data])
 
-  // Custom component for the selection rectangle
-  const SelectionRangeRectangle = (props) => {
-    const { height, margin, xAxisMap } = props
+  // `domain` is the date space the chart's XAxis is showing — used to
+  // convert cursor-x to dates. In Task 2 the XAxis is still pinned to the
+  // full data extent, so this must be fullExtent (otherwise dragging a
+  // handle outward would clamp the cursor inside the narrowed dateRange
+  // and the handle couldn't widen). Task 3 will switch this (and the
+  // XAxis) to follow dateRange.
+  const domain = fullExtent
 
-    if (!dragDateRange[0] || !dragDateRange[1] || !data || data.length === 0 || !xAxisMap) {
-      return null
-    }
+  const cleared = !dateRange[0] || !dateRange[1]
 
-    // Use the xAxisMap scale function directly with actual Date objects
-    const scale = xAxisMap ? xAxisMap[0].scale : null
-
-    if (!scale) {
-      return null
-    }
-
-    // Get the x positions using the scale function from xAxisMap with actual Date objects
-    const x1 = scale(dragDateRange[0])
-    const x2 = scale(dragDateRange[1])
-
-    // Handle edge cases
-    if (isNaN(x1) || isNaN(x2)) {
-      console.log('Invalid x positions')
-      return null
-    }
-
-    // Calculate width and get available height
-    const rectWidth = Math.abs(x2 - x1)
-    const rectHeight = height - margin.top - margin.bottom
-
-    const handleMouseDown = (e, type) => {
-      e.stopPropagation()
-      e.preventDefault()
-
-      if (type === 'move') {
-        draggingRef.current = true
-      } else {
-        resizingRef.current = type
-      }
-
-      dragStartXRef.current = e.clientX
-      initialRangeRef.current = [...dragDateRange]
-
-      // Add global event listeners
-      document.addEventListener('mousemove', handleMouseMove)
-      document.addEventListener('mouseup', handleMouseUp)
-    }
-
-    return (
-      <g>
-        {/* Main selection rectangle */}
-        <Rectangle
-          x={x1}
-          y={margin.top}
-          width={rectWidth}
-          height={rectHeight}
-          fill="rgb(59 130 246 / 0.15)"
-          stroke="rgb(59 130 246 / 0.6)"
-          onMouseDown={(e) => handleMouseDown(e, 'move')}
-          style={{ cursor: 'move' }}
-        />
-
-        {/* Left resize handle */}
-        <Rectangle
-          x={x1}
-          y={margin.top}
-          width={5}
-          height={rectHeight}
-          fill="rgb(59 130 246 / 0.3)"
-          stroke="rgb(59 130 246 / 0.8)"
-          onMouseDown={(e) => handleMouseDown(e, 'left')}
-          style={{ cursor: 'ew-resize' }}
-        />
-
-        {/* Right resize handle */}
-        <Rectangle
-          x={x1 + rectWidth - 5}
-          y={margin.top}
-          width={5}
-          height={rectHeight}
-          fill="rgb(59 130 246 / 0.3)"
-          stroke="rgb(59 130 246 / 0.8)"
-          onMouseDown={(e) => handleMouseDown(e, 'right')}
-          style={{ cursor: 'ew-resize' }}
-        />
-      </g>
-    )
-  }
-
-  const handleMouseMove = useCallback(
-    (e) => {
-      if (!draggingRef.current && !resizingRef.current) return
-      if (!initialRangeRef.current || dragStartXRef.current === null || !chartRef.current) return
-
-      const chartElement = chartRef.current
-      if (!chartElement) return
-
-      const chartRect = chartElement.getBoundingClientRect()
-      const deltaX = e.clientX - dragStartXRef.current
-      const percentDelta = deltaX / chartRect.width
-
-      // Calculate how many days that represents
-      const timeRange = data[data.length - 1].date.getTime() - data[0].date.getTime()
-      const daysDelta = Math.round((percentDelta * timeRange) / (24 * 60 * 60 * 1000))
-
-      let newStartDate, newEndDate
-
-      if (draggingRef.current) {
-        // Move the entire selection
-        newStartDate = new Date(
-          initialRangeRef.current[0].getTime() + daysDelta * 24 * 60 * 60 * 1000
-        )
-        newEndDate = new Date(
-          initialRangeRef.current[1].getTime() + daysDelta * 24 * 60 * 60 * 1000
-        )
-
-        console.log('NEW START', newStartDate)
-        console.log('NEW END', newEndDate)
-
-        // Make sure we don't go out of bounds
-        if (newStartDate < data[0].date) {
-          const adjustment = data[0].date.getTime() - newStartDate.getTime()
-          newStartDate = new Date(data[0].date)
-          newEndDate = new Date(newEndDate.getTime() + adjustment)
-        }
-
-        if (newEndDate > data[data.length - 1].date) {
-          const adjustment = newEndDate.getTime() - data[data.length - 1].date.getTime()
-          newEndDate = new Date(data[data.length - 1].date)
-          newStartDate = new Date(newStartDate.getTime() - adjustment)
-        }
-      } else if (resizingRef.current === 'left') {
-        // Resize from the left side
-        newStartDate = new Date(
-          initialRangeRef.current[0].getTime() + daysDelta * 24 * 60 * 60 * 1000
-        )
-        newEndDate = initialRangeRef.current[1]
-
-        // Make sure start doesn't go beyond end or start of data
-        newStartDate = new Date(
-          Math.max(
-            data[0].date.getTime(),
-            Math.min(
-              newStartDate.getTime(),
-              initialRangeRef.current[1].getTime() - 24 * 60 * 60 * 1000
-            )
-          )
-        )
-      } else if (resizingRef.current === 'right') {
-        // Resize from the right side
-        newStartDate = initialRangeRef.current[0]
-        newEndDate = new Date(
-          initialRangeRef.current[1].getTime() + daysDelta * 24 * 60 * 60 * 1000
-        )
-
-        // Make sure end doesn't go before start or beyond end of data
-        newEndDate = new Date(
-          Math.min(
-            data[data.length - 1].date.getTime(),
-            Math.max(
-              newEndDate.getTime(),
-              initialRangeRef.current[0].getTime() + 24 * 60 * 60 * 1000
-            )
-          )
-        )
-      }
-
-      // Update only the local brush state during drag — parent's
-      // setDateRange is deferred to mouseup so queries don't refetch
-      // once per mousemove.
-      setDragDateRange([newStartDate, newEndDate])
+  const eventToDate = useCallback(
+    (e, { clamp = true } = {}) => {
+      if (!containerRef.current || !domain) return null
+      const rect = containerRef.current.getBoundingClientRect()
+      return clientXToDate({
+        clientX: e.clientX,
+        rect,
+        marginX: MARGIN_X,
+        domain,
+        clamp
+      })
     },
-    [data]
+    [domain]
   )
 
-  const handleMouseUp = useCallback(() => {
-    const wasDragging = draggingRef.current || resizingRef.current !== null
-    draggingRef.current = false
-    resizingRef.current = null
-    dragStartXRef.current = null
-    initialRangeRef.current = null
+  const edgeTolMs = useMemo(() => {
+    if (!containerRef.current || !domain) return 0
+    const rect = containerRef.current.getBoundingClientRect()
+    return pxToDateMs({ px: EDGE_PX_TOLERANCE, rect, marginX: MARGIN_X, domain })
+  }, [domain])
 
-    // Remove global event listeners
-    document.removeEventListener('mousemove', handleMouseMove)
-    document.removeEventListener('mouseup', handleMouseUp)
+  const actionAt = useCallback(
+    (cursorDate) => {
+      if (!fullExtent) return null
+      return resolveAction({
+        cursorDate,
+        range: dateRange,
+        fullExtent,
+        edgeTolMs
+      })
+    },
+    [dateRange, fullExtent, edgeTolMs]
+  )
 
-    // Commit-on-release: fire setDateRange once with the final range,
-    // unless the drag was effectively a no-op.
-    if (wasDragging) {
-      setDateRange(dragDateRangeRef.current)
+  const commitDragOnRelease = useCallback(() => {
+    setDragState((prev) => {
+      if (!prev || !fullExtent) return null
+      const { mode, liveStart, liveEnd } = prev
+      let candidate
+      if (mode === 'pan') {
+        candidate = clampPanToBounds({
+          start: liveStart,
+          end: liveEnd,
+          fullExtent
+        })
+      } else if (mode === 'create') {
+        if (Math.abs(liveEnd.getTime() - liveStart.getTime()) < MIN_RANGE_MS) {
+          return null
+        }
+        const s = liveStart < liveEnd ? liveStart : liveEnd
+        const e = liveStart < liveEnd ? liveEnd : liveStart
+        candidate = [s, e]
+      } else {
+        candidate = [liveStart, liveEnd]
+      }
+      if (shouldClearToFullExtent({ range: candidate, fullExtent })) {
+        setDateRange([null, null])
+      } else {
+        setDateRange(candidate)
+      }
+      return null
+    })
+  }, [fullExtent, setDateRange])
+
+  useEffect(() => {
+    if (!isDragging) return
+    const onDocMove = (e) => {
+      setDragState((prev) => {
+        if (!prev) return prev
+        const cursor = clientXToDate({
+          clientX: e.clientX,
+          rect: containerRef.current.getBoundingClientRect(),
+          marginX: MARGIN_X,
+          domain,
+          clamp: prev.mode !== 'pan'
+        })
+        if (!cursor || !fullExtent) return prev
+        if (prev.mode === 'pan') {
+          const newStartMs = cursor.getTime() - prev.panOffsetMs
+          const [s, e] = clampPanToBounds({
+            start: new Date(newStartMs),
+            end: new Date(newStartMs + prev.panWidthMs),
+            fullExtent
+          })
+          return { ...prev, liveStart: s, liveEnd: e }
+        }
+        if (prev.mode === 'edge-start') {
+          const [s, e] = clampMinRange({
+            start: cursor,
+            end: prev.liveEnd,
+            anchorSide: 'end'
+          })
+          return { ...prev, liveStart: s, liveEnd: e }
+        }
+        if (prev.mode === 'edge-end') {
+          const [s, e] = clampMinRange({
+            start: prev.liveStart,
+            end: cursor,
+            anchorSide: 'start'
+          })
+          return { ...prev, liveStart: s, liveEnd: e }
+        }
+        return { ...prev, liveEnd: cursor }
+      })
     }
-  }, [handleMouseMove, setDateRange])
+    const onDocUp = () => commitDragOnRelease()
+    document.addEventListener('mousemove', onDocMove)
+    document.addEventListener('mouseup', onDocUp)
+    return () => {
+      document.removeEventListener('mousemove', onDocMove)
+      document.removeEventListener('mouseup', onDocUp)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDragging, domain, fullExtent])
+
+  const handleNativeDown = (e) => {
+    if (!fullExtent) return
+    e.preventDefault()
+    const cursor = eventToDate(e)
+    if (!cursor) return
+    const action = actionAt(cursor)
+    if (action === 'pan') {
+      const start = dateRange[0]
+      const end = dateRange[1]
+      setDragState({
+        mode: 'pan',
+        liveStart: start,
+        liveEnd: end,
+        panOffsetMs: cursor.getTime() - start.getTime(),
+        panWidthMs: end.getTime() - start.getTime()
+      })
+      return
+    }
+    if (action === 'edge-start') {
+      const end = cleared ? fullExtent[1] : dateRange[1]
+      setDragState({ mode: 'edge-start', liveStart: cursor, liveEnd: end })
+      return
+    }
+    if (action === 'edge-end') {
+      const start = cleared ? fullExtent[0] : dateRange[0]
+      setDragState({ mode: 'edge-end', liveStart: start, liveEnd: cursor })
+      return
+    }
+    setDragState({ mode: 'create', liveStart: cursor, liveEnd: cursor })
+  }
+
+  const handleNativeMove = (e) => {
+    if (isDragging) return
+    const cursor = eventToDate(e)
+    if (!cursor) return
+    setHoverAction(actionAt(cursor))
+  }
+
+  const handleNativeLeave = () => {
+    if (!isDragging) setHoverAction(null)
+  }
+
+  const handleStart = (() => {
+    if (isDragging) return dragState.liveStart
+    if (!cleared) return dateRange[0]
+    return fullExtent ? fullExtent[0] : null
+  })()
+  const handleEnd = (() => {
+    if (isDragging) return dragState.liveEnd
+    if (!cleared) return dateRange[1]
+    return fullExtent ? fullExtent[1] : null
+  })()
+
+  const livePreview = (() => {
+    if (!isDragging || dragState.mode !== 'create') return null
+    const s = dragState.liveStart < dragState.liveEnd ? dragState.liveStart : dragState.liveEnd
+    const e = dragState.liveStart < dragState.liveEnd ? dragState.liveEnd : dragState.liveStart
+    return { x1: s.getTime(), x2: e.getTime() }
+  })()
+
+  // Filled band between the two handles, communicating "this is the
+  // active filter." Shown when dateRange is set (handles narrowed) or
+  // during an edge/pan drag. Suppressed during create (live preview
+  // takes over) and when cleared (no filter to highlight).
+  const selectedBand = (() => {
+    if (livePreview) return null
+    if (
+      isDragging &&
+      dragState.mode !== 'pan' &&
+      dragState.mode !== 'edge-start' &&
+      dragState.mode !== 'edge-end'
+    )
+      return null
+    if (!handleStart || !handleEnd) return null
+    const s = handleStart < handleEnd ? handleStart : handleEnd
+    const e = handleStart < handleEnd ? handleEnd : handleStart
+    if (s.getTime() === e.getTime()) return null
+    if (cleared && !isDragging) return null
+    return { x1: s.getTime(), x2: e.getTime() }
+  })()
+
+  const hoveredEdge = (() => {
+    if (isDragging) {
+      if (dragState.mode === 'edge-start') return 'start'
+      if (dragState.mode === 'edge-end') return 'end'
+      return null
+    }
+    if (hoverAction === 'edge-start') return 'start'
+    if (hoverAction === 'edge-end') return 'end'
+    return null
+  })()
+
+  const cursorStyle = (() => {
+    const action = isDragging ? dragState.mode : hoverAction
+    if (action === 'pan') return 'move'
+    if (action === 'edge-start' || action === 'edge-end') return 'ew-resize'
+    if (action === 'create') return 'crosshair'
+    return 'default'
+  })()
 
   return (
-    <div className="w-full h-full">
-      <ResponsiveContainer width="100%" height="100%" ref={chartRef}>
-        <LineChart data={data} margin={{ top: 0, right: 4, bottom: 0, left: 4 }}>
+    <div
+      ref={containerRef}
+      className="w-full h-full select-none [&_*]:!cursor-[inherit]"
+      style={{ cursor: cursorStyle }}
+      onMouseDown={handleNativeDown}
+      onMouseMove={handleNativeMove}
+      onMouseLeave={handleNativeLeave}
+    >
+      <ResponsiveContainer width="100%" height="100%">
+        <ComposedChart data={data} margin={{ top: 0, right: MARGIN_X, bottom: 0, left: MARGIN_X }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} />
           <XAxis
             dataKey="date"
-            type="category"
+            type="number"
             scale="time"
             domain={['dataMin', 'dataMax']}
             tick={{ fontSize: 10 }}
-            tickFormatter={(date) => {
-              return date.toLocaleDateString(undefined, {
+            tickFormatter={(ms) =>
+              new Date(ms).toLocaleDateString(undefined, {
                 month: 'short',
                 day: 'numeric',
                 year: '2-digit'
               })
-            }}
+            }
             interval="preserveStartEnd"
             minTickGap={50}
             height={25}
           />
-          <YAxis hide={true} />
-          {/* <Tooltip content={<CustomTooltip />} /> */}
+          <YAxis hide domain={[0, 'auto']} />
+
+          {selectedBand && (
+            <ReferenceArea
+              x1={selectedBand.x1}
+              x2={selectedBand.x2}
+              fill="rgb(59 130 246)"
+              fillOpacity={0.15}
+              stroke="rgb(59 130 246)"
+              strokeOpacity={0.5}
+              strokeWidth={1}
+            />
+          )}
+          {livePreview && (
+            <ReferenceArea
+              x1={livePreview.x1}
+              x2={livePreview.x2}
+              fill="rgb(59 130 246)"
+              fillOpacity={0.2}
+              stroke="rgb(59 130 246)"
+              strokeOpacity={0.7}
+              strokeWidth={1}
+            />
+          )}
+
+          {handleStart && (
+            <ReferenceLine
+              x={handleStart.getTime()}
+              stroke="rgb(59 130 246)"
+              strokeWidth={hoveredEdge === 'start' ? 3 : 2}
+              isFront
+              label={{
+                position: 'center',
+                content: ({ viewBox }) => {
+                  if (!viewBox || viewBox.x === undefined) return null
+                  const cy = viewBox.y + (viewBox.height ?? 0) / 2
+                  return (
+                    <circle
+                      cx={viewBox.x}
+                      cy={cy}
+                      r={hoveredEdge === 'start' ? 6 : 4}
+                      fill="rgb(59 130 246)"
+                      stroke="white"
+                      strokeWidth={1}
+                    />
+                  )
+                }
+              }}
+            />
+          )}
+          {handleEnd && handleEnd.getTime() !== handleStart?.getTime() && (
+            <ReferenceLine
+              x={handleEnd.getTime()}
+              stroke="rgb(59 130 246)"
+              strokeWidth={hoveredEdge === 'end' ? 3 : 2}
+              isFront
+              label={{
+                position: 'center',
+                content: ({ viewBox }) => {
+                  if (!viewBox || viewBox.x === undefined) return null
+                  const cy = viewBox.y + (viewBox.height ?? 0) / 2
+                  return (
+                    <circle
+                      cx={viewBox.x}
+                      cy={cy}
+                      r={hoveredEdge === 'end' ? 6 : 4}
+                      fill="rgb(59 130 246)"
+                      stroke="white"
+                      strokeWidth={1}
+                    />
+                  )
+                }
+              }}
+            />
+          )}
 
           {selectedSpecies.map((species, index) => (
             <Line
@@ -291,11 +395,10 @@ const TimelineChart = ({ timeseriesData, selectedSpecies, dateRange, setDateRang
               name={species.scientificName}
               fillOpacity={0.2}
               fill={palette[index % palette.length]}
+              isAnimationActive={false}
             />
           ))}
-
-          <Customized component={SelectionRangeRectangle} />
-        </LineChart>
+        </ComposedChart>
       </ResponsiveContainer>
     </div>
   )
