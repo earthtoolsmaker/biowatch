@@ -2,8 +2,12 @@ import { X, AlertTriangle, Ban, ArrowRight, ArrowLeftRight } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import DeploymentsPreviewTable from './DeploymentsPreviewTable'
 import { formatCellValue } from './deploymentsPreviewHelpers'
+import {
+  buildDeploymentsCsvApplyPlan,
+  EDITABLE_DEPLOYMENT_IMPORT_KEYS
+} from './deploymentsImportPreviewModel'
 
-const EDITABLE_KEYS = ['locationName', 'latitude', 'longitude']
+const EDITABLE_KEYS = EDITABLE_DEPLOYMENT_IMPORT_KEYS
 
 function CellContent({ col }) {
   if (col.state === 'warning') {
@@ -100,22 +104,7 @@ export default function DeploymentsImportPreviewModal({
   }, [onCancel, isApplying])
 
   const applyPlan = useMemo(() => {
-    if (!preview) return []
-    const plan = []
-    for (const row of preview.rows) {
-      if (row.rowState !== 'normal') continue
-      const fields = {}
-      for (const key of EDITABLE_KEYS) {
-        const col = row.columns[key]
-        if (col.state === 'change') {
-          fields[key] = col.appliedValue
-        }
-      }
-      if (Object.keys(fields).length > 0) {
-        plan.push({ deploymentID: row.deploymentID, fields })
-      }
-    }
-    return plan
+    return buildDeploymentsCsvApplyPlan(preview)
   }, [preview])
 
   const filteredRows = useMemo(() => {
