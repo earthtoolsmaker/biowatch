@@ -320,7 +320,7 @@ const DailyActivityRadar = ({ activityData, selectedSpecies, palette }) => {
           <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-[9px] text-muted-foreground leading-none">
             12h
           </div>
-          <div className="absolute top-1/2 left-0 -translate-y-1/2 text-[9px] text-muted-foreground leading-none">
+          <div className="absolute top-1/2 -left-1 -translate-y-1/2 text-[9px] text-muted-foreground leading-none">
             18h
           </div>
         </div>
