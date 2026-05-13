@@ -179,9 +179,67 @@ describe('getMediaForSequencePagination — timeRange filter', () => {
   })
 })
 
+async function seedSingleHourMedia(hour) {
+  const manager = await createImageDirectoryDatabase(testDbPath)
+  await insertDeployments(manager, {
+    d1: {
+      deploymentID: 'd1',
+      locationID: 'loc1',
+      locationName: 'Site A',
+      deploymentStart: DateTime.fromISO('2024-01-01T00:00:00Z'),
+      deploymentEnd: DateTime.fromISO('2024-12-31T23:59:59Z'),
+      latitude: 1,
+      longitude: 1,
+      cameraID: 'cam1'
+    }
+  })
+  const id = `m-only-${hour}`
+  await insertMedia(manager, {
+    [`${id}.jpg`]: {
+      mediaID: id,
+      deploymentID: 'd1',
+      timestamp: DateTime.fromISO(
+        `2024-06-01T${String(hour).padStart(2, '0')}:30:00`,
+        { zone: 'utc' }
+      ),
+      filePath: `/${id}.jpg`,
+      fileName: `${id}.jpg`
+    }
+  })
+  await insertObservations(manager, [
+    {
+      observationID: `obs-${id}`,
+      mediaID: id,
+      deploymentID: 'd1',
+      eventID: `ev-${id}`,
+      observationType: 'animal',
+      scientificName: 'Sus scrofa'
+    }
+  ])
+  return manager
+}
+
 describe('hasTimestampedMedia — timeRange filter', () => {
-  test('returns true when ranges union covers a populated hour', async () => {
-    await seedHourlyMedia()
+  test('returns true when single range covers the only populated hour', async () => {
+    await seedSingleHourMedia(10)
+    const result = await hasTimestampedMedia(testDbPath, {
+      species: ['Sus scrofa'],
+      timeRange: { ranges: [{ start: 8, end: 18 }] }
+    })
+    assert.equal(result, true)
+  })
+
+  test('returns false when the only range excludes the populated hour', async () => {
+    await seedSingleHourMedia(10)
+    const result = await hasTimestampedMedia(testDbPath, {
+      species: ['Sus scrofa'],
+      timeRange: { ranges: [{ start: 21, end: 5 }] }
+    })
+    assert.equal(result, false)
+  })
+
+  test('returns true when one of multiple ranges covers the populated hour', async () => {
+    await seedSingleHourMedia(7)
     const result = await hasTimestampedMedia(testDbPath, {
       species: ['Sus scrofa'],
       timeRange: {
@@ -194,11 +252,34 @@ describe('hasTimestampedMedia — timeRange filter', () => {
     assert.equal(result, true)
   })
 
+  test('returns false when no range covers the populated hour', async () => {
+    await seedSingleHourMedia(15)
+    const result = await hasTimestampedMedia(testDbPath, {
+      species: ['Sus scrofa'],
+      timeRange: {
+        ranges: [
+          { start: 5, end: 8 },
+          { start: 18, end: 21 }
+        ]
+      }
+    })
+    assert.equal(result, false)
+  })
+
   test('returns true when ranges array is empty (no filter)', async () => {
-    await seedHourlyMedia()
+    await seedSingleHourMedia(10)
     const result = await hasTimestampedMedia(testDbPath, {
       species: ['Sus scrofa'],
       timeRange: { ranges: [] }
+    })
+    assert.equal(result, true)
+  })
+
+  test('legacy {start, end} shape continues to work', async () => {
+    await seedSingleHourMedia(10)
+    const result = await hasTimestampedMedia(testDbPath, {
+      species: ['Sus scrofa'],
+      timeRange: { start: 8, end: 18 }
     })
     assert.equal(result, true)
   })

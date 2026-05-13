@@ -618,22 +618,14 @@ export async function hasTimestampedMedia(dbPath, options = {}) {
       conditions.push(lte(media.timestamp, endDate))
     }
 
-    // Apply time range
-    if (timeRange.start !== undefined && timeRange.end !== undefined) {
-      if (timeRange.start < timeRange.end) {
-        conditions.push(
-          and(
-            sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) >= ${timeRange.start}`,
-            sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) < ${timeRange.end}`
-          )
-        )
-      } else if (timeRange.start > timeRange.end) {
-        conditions.push(
-          or(
-            sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) >= ${timeRange.start}`,
-            sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) < ${timeRange.end}`
-          )
-        )
+    // Apply time range — same OR-of-ranges semantics as the paginated query.
+    const timeRanges = normalizeTimeRange(timeRange)
+    if (timeRanges.length > 0) {
+      const rangeConditions = timeRanges.map(buildHourRangeCondition).filter(Boolean)
+      if (rangeConditions.length === 1) {
+        conditions.push(rangeConditions[0])
+      } else if (rangeConditions.length > 1) {
+        conditions.push(or(...rangeConditions))
       }
     }
 
