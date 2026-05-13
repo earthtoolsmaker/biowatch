@@ -137,7 +137,7 @@ These endpoints perform sequence grouping and counting in the main thread, retur
 | --------------------------------------------------------------------------------------------------------------- | ------------------------------------ | --------------------------------------------- | ------------------------------------- |
 | `getSequenceAwareSpeciesDistribution(studyId)`                                                                  | `sequences:get-species-distribution` | studyId                                       | `{ data: [{scientificName, count}] }` |
 | `getSequenceAwareTimeseries(studyId, speciesNames)`                                                             | `sequences:get-timeseries`           | studyId, species[]                            | `{ data: {timeseries, allSpecies} }`  |
-| `getSequenceAwareHeatmap(studyId, speciesNames, startDate, endDate, startHour, endHour, includeNullTimestamps)` | `sequences:get-heatmap`              | studyId, species[], dates, hours, includeNull | `{ data: {species -> locations[]} }`  |
+| `getSequenceAwareHeatmap(studyId, speciesNames, startDate, endDate, timeRange, includeNullTimestamps)`          | `sequences:get-heatmap`              | studyId, species[], dates, timeRange, includeNull | `{ data: {species -> locations[]} }`  |
 | `getSequenceAwareDailyActivity(studyId, speciesNames, startDate, endDate)`                                      | `sequences:get-daily-activity`       | studyId, species[], dates                     | `{ data: [24 hourly objects] }`       |
 
 **Parameters:**
@@ -168,7 +168,7 @@ Returns pre-grouped sequences with cursor-based pagination for the media gallery
   filters: {
     species: string[],        // Species to filter by
     dateRange: { start, end }, // Date range filter
-    timeRange: { start, end }, // Time of day range (hours 0-23)
+    timeRange: { ranges: [{ start, end }, ...] } | { start, end }, // Time of day filter — multi-range (preferred) or legacy single-range; empty/missing = no filter
     deploymentID?: string     // If set, only media for this deploymentID
   }
 }
