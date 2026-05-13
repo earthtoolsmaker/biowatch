@@ -86,7 +86,9 @@ export function SequenceGapSlider({
               onTouchEnd={commit}
               onBlur={commit}
               disabled={disabled}
-              className="flex-1 min-w-0 h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className={`flex-1 min-w-0 h-2 bg-muted rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                dragValue !== null ? 'accent-blue-500' : 'accent-gray-400 dark:accent-gray-500'
+              }`}
               aria-label={`Sequence grouping: ${formatGapValue(dragValue)}`}
             />
           </Tooltip.Trigger>
@@ -148,7 +150,9 @@ export function SequenceGapSlider({
         onTouchEnd={commit}
         onBlur={commit}
         disabled={disabled}
-        className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+        className={`w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+          dragValue !== null ? 'accent-blue-500' : 'accent-gray-400 dark:accent-gray-500'
+        }`}
         aria-label={`Sequence grouping: ${formatGapValue(dragValue)}`}
       />
       {showDescription && (
