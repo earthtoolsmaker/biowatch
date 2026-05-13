@@ -4,6 +4,7 @@ import DeploymentsPreviewTable from './DeploymentsPreviewTable'
 import { formatCellValue } from './deploymentsPreviewHelpers'
 import {
   buildDeploymentsCsvApplyPlan,
+  countRowsBlockedByWarnings,
   EDITABLE_DEPLOYMENT_IMPORT_KEYS
 } from './deploymentsImportPreviewModel'
 
@@ -132,13 +133,7 @@ export default function DeploymentsImportPreviewModal({
   // warnings-filter tile when there's nothing to show, and to label it
   // honestly: cellWarningCount is per-cell, this is per-row.
   const rowsWithWarningCount = useMemo(() => {
-    if (!preview) return 0
-    let n = 0
-    for (const row of preview.rows) {
-      if (row.rowState !== 'normal') continue
-      if (Object.values(row.columns).some((c) => c?.state === 'warning')) n++
-    }
-    return n
+    return countRowsBlockedByWarnings(preview)
   }, [preview])
 
   if (!preview) return null
@@ -199,7 +194,7 @@ export default function DeploymentsImportPreviewModal({
             title={
               filter === 'warnings'
                 ? 'Click to show all rows'
-                : 'Click to show only rows with cell warnings'
+                : 'Click to show only rows blocked by warnings'
             }
             className={`inline-flex items-center gap-1 px-2 py-1 rounded border transition-colors disabled:cursor-default disabled:opacity-60 ${
               filter === 'warnings'
@@ -207,8 +202,8 @@ export default function DeploymentsImportPreviewModal({
                 : 'border-transparent hover:bg-accent text-amber-700 dark:text-amber-300'
             }`}
           >
-            <AlertTriangle size={12} /> {preview.cellWarningCount}{' '}
-            {preview.cellWarningCount === 1 ? 'cell' : 'cells'} skipped
+            <AlertTriangle size={12} /> {rowsWithWarningCount}{' '}
+            {rowsWithWarningCount === 1 ? 'row' : 'rows'} blocked by warnings
           </button>
           <button
             onClick={() => toggleFilter('skipped')}
@@ -263,7 +258,7 @@ export default function DeploymentsImportPreviewModal({
             </span>
             <span className="inline-flex items-center gap-1">
               <span className="inline-block w-3 h-3 rounded-sm bg-amber-50 dark:bg-amber-500/5 border border-amber-300/60 dark:border-amber-500/30" />
-              cell warning
+              warning row blocked
             </span>
             <span className="inline-flex items-center gap-1">
               <span className="inline-block w-3 h-3 rounded-sm bg-muted/40 dark:bg-muted/30 border border-border" />

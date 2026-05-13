@@ -4,6 +4,16 @@ export function rowHasWarning(row) {
   return Object.values(row?.columns || {}).some((col) => col?.state === 'warning')
 }
 
+export function countRowsBlockedByWarnings(preview) {
+  if (!preview) return 0
+  let count = 0
+  for (const row of preview.rows || []) {
+    if (row.rowState !== 'normal') continue
+    if (rowHasWarning(row)) count++
+  }
+  return count
+}
+
 export function buildDeploymentsCsvApplyPlan(preview) {
   if (!preview) return []
 

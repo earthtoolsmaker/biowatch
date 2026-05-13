@@ -1,7 +1,10 @@
 import { describe, test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { buildDeploymentsCsvApplyPlan } from '../../../src/renderer/src/deployments/deploymentsImportPreviewModel.js'
+import {
+  buildDeploymentsCsvApplyPlan,
+  countRowsBlockedByWarnings
+} from '../../../src/renderer/src/deployments/deploymentsImportPreviewModel.js'
 
 describe('buildDeploymentsCsvApplyPlan', () => {
   test('blocks all editable changes in rows that have any warning cell', () => {
@@ -49,5 +52,41 @@ describe('buildDeploymentsCsvApplyPlan', () => {
         }
       }
     ])
+  })
+})
+
+describe('countRowsBlockedByWarnings', () => {
+  test('counts normal rows with warning cells, not warning cells', () => {
+    const preview = {
+      rows: [
+        {
+          rowState: 'normal',
+          columns: {
+            locationID: { state: 'warning' },
+            latitude: { state: 'warning' }
+          }
+        },
+        {
+          rowState: 'normal',
+          columns: {
+            latitude: { state: 'warning' }
+          }
+        },
+        {
+          rowState: 'skipped',
+          columns: {
+            deploymentID: { state: 'readonly' }
+          }
+        },
+        {
+          rowState: 'normal',
+          columns: {
+            latitude: { state: 'change' }
+          }
+        }
+      ]
+    }
+
+    assert.equal(countRowsBlockedByWarnings(preview), 2)
   })
 })
