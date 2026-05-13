@@ -310,8 +310,9 @@ const DailyActivityRadar = ({ activityData, selectedSpecies, palette }) => {
       {/* Inner square anchors the hour labels to the radar's actual edges,
           not the (potentially wider-than-tall) parent. Labels sit at the
           edges of this square; the radar inside has a margin so its circle
-          sits well clear of them. */}
-      <div className="relative h-full aspect-square">
+          sits well clear of them. The slight upward translate balances the
+          visual weight of the chips row below. */}
+      <div className="relative h-full aspect-square -translate-y-1.5">
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-0 left-1/2 -translate-x-1/2 text-[9px] text-muted-foreground leading-none">
             0h
