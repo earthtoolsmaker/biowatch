@@ -1,4 +1,4 @@
-import { Sunrise, Sun, Sunset, Moon } from 'lucide-react'
+import { Sunrise, Sun, Sunset, MoonStar } from 'lucide-react'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import { DAY_PERIOD_ORDER, DAY_PERIOD_PRESETS, formatRange } from '../utils/dayPeriods'
 
@@ -6,7 +6,7 @@ const ICONS = {
   dawn: Sunrise,
   day: Sun,
   dusk: Sunset,
-  night: Moon
+  night: MoonStar
 }
 
 /**
