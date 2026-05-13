@@ -408,48 +408,86 @@ const DailyActivityLine = ({
   selectedRanges = [],
   onArcChange
 }) => {
-  // Drag is enabled when:
-  //   - a single non-wrap-around range exists → slide its end edge
-  //   - OR no range exists (custom selection is empty) → drag-to-create
-  // Multi-range or wrap-around selections aren't draggable on the x-y view.
-  const hasSingleBand =
-    selectedRanges.length === 1 && selectedRanges[0].start < selectedRanges[0].end
+  // Drag interactions on the x-y chart:
+  //   - click NEAR the end edge of an existing band  → slide the end edge
+  //   - click INSIDE the band (not near edge)         → pan the whole band
+  //                                                     (wraps at midnight)
+  //   - click OUTSIDE any band, or no band at all     → drag-to-create
+  // Wrap-around selections are panned but not edge-slid.
+  const hasSingleBand = selectedRanges.length === 1
+  const isWrapBand = hasSingleBand && selectedRanges[0].start >= selectedRanges[0].end
   const dragEnabled =
     typeof onArcChange === 'function' && (hasSingleBand || selectedRanges.length === 0)
-  const committedStart = hasSingleBand ? selectedRanges[0].start : null
-  const committedEnd = hasSingleBand ? selectedRanges[0].end : null
 
-  // Pivot is the fixed edge during a drag — the band's existing start when
-  // sliding, the cursor down-position when creating a new range.
-  const [dragPivot, setDragPivot] = useState(null)
-  const [dragEnd, setDragEnd] = useState(null)
-  const isDragging = dragPivot !== null && dragEnd !== null
+  const [dragState, setDragState] = useState(null)
+  // dragState shape:
+  //   { mode: 'end',    liveStart, liveEnd }
+  //   { mode: 'pan',    liveStart, liveEnd, panOffset, panWidth }
+  //   { mode: 'create', liveStart, liveEnd }
+  const isDragging = dragState !== null
 
   const clamp = (v) => Math.max(0, Math.min(24, v))
+
+  // Whether `cursor` is inside the (possibly wrap-around) band.
+  const isInsideBand = (cursor, band) => {
+    if (band.start < band.end) return cursor > band.start && cursor < band.end
+    return cursor > band.start || cursor < band.end
+  }
 
   const handleMouseDown = (e) => {
     if (!dragEnabled || !e || e.activeLabel === undefined || e.activeLabel === null) return
     const cursor = clamp(e.activeLabel)
-    setDragPivot(hasSingleBand ? committedStart : cursor)
-    setDragEnd(cursor)
+    if (!hasSingleBand) {
+      setDragState({ mode: 'create', liveStart: cursor, liveEnd: cursor })
+      return
+    }
+    const { start, end } = selectedRanges[0]
+    const width = isWrapBand ? 24 - start + end : end - start
+    const edgeTol = Math.min(1.5, width / 3)
+    if (!isWrapBand && cursor >= end - edgeTol && cursor <= end + edgeTol) {
+      // slide end: pivot = start, moving = end
+      setDragState({ mode: 'end', liveStart: start, liveEnd: cursor })
+    } else if (!isWrapBand && cursor >= start - edgeTol && cursor <= start + edgeTol) {
+      // slide start: pivot = end, moving = start
+      setDragState({ mode: 'start', liveStart: cursor, liveEnd: end })
+    } else if (isInsideBand(cursor, { start, end })) {
+      const panOffset = isWrapBand && cursor < end ? cursor + 24 - start : cursor - start
+      setDragState({ mode: 'pan', liveStart: start, liveEnd: end, panOffset, panWidth: width })
+    } else {
+      setDragState({ mode: 'create', liveStart: cursor, liveEnd: cursor })
+    }
   }
+
   const handleMouseMove = (e) => {
     if (!isDragging || !e || e.activeLabel === undefined || e.activeLabel === null) return
-    setDragEnd(clamp(e.activeLabel))
+    const cursor = clamp(e.activeLabel)
+    setDragState((prev) => {
+      if (!prev) return prev
+      if (prev.mode === 'pan') {
+        const newStart = (((cursor - prev.panOffset) % 24) + 24) % 24
+        const newEnd = (newStart + prev.panWidth) % 24
+        return { ...prev, liveStart: newStart, liveEnd: newEnd }
+      }
+      if (prev.mode === 'start') return { ...prev, liveStart: cursor }
+      // end / create
+      return { ...prev, liveEnd: cursor }
+    })
   }
+
   const handleMouseUp = () => {
-    if (isDragging && dragEnd !== dragPivot) {
-      const start = Math.min(dragPivot, dragEnd)
-      const end = Math.max(dragPivot, dragEnd)
-      onArcChange({ start, end })
+    if (isDragging) {
+      const { mode, liveStart, liveEnd } = dragState
+      if (mode === 'pan') {
+        onArcChange({ start: liveStart, end: liveEnd })
+      } else if (liveStart !== liveEnd) {
+        const start = Math.min(liveStart, liveEnd)
+        const end = Math.max(liveStart, liveEnd)
+        onArcChange({ start, end })
+      }
     }
-    setDragPivot(null)
-    setDragEnd(null)
+    setDragState(null)
   }
-  const handleMouseLeave = () => {
-    setDragPivot(null)
-    setDragEnd(null)
-  }
+  const handleMouseLeave = () => setDragState(null)
   const formatData = (data) => {
     if (!data || !data.length) {
       return Array(24)
@@ -473,13 +511,46 @@ const DailyActivityLine = ({
     }
   }
 
-  // Live band while dragging — covers from pivot to current cursor.
-  const liveBand = isDragging
-    ? [Math.min(dragPivot, dragEnd), Math.max(dragPivot, dragEnd)]
-    : null
-  // Where to draw the end-line + handle. While dragging, follow the cursor;
-  // otherwise pin to the committed band end (only when a band exists).
-  const endLineX = isDragging ? dragEnd : committedEnd
+  // Convert a (possibly wrap-around) {start, end} band into one or two
+  // ReferenceArea-friendly [s, e] segments.
+  const bandToSegments = (band) => {
+    if (band.start === band.end) return []
+    if (band.start < band.end) return [[band.start, band.end]]
+    return [
+      [band.start, 24],
+      [0, band.end]
+    ]
+  }
+  // Live band while dragging — for pan it can wrap around midnight.
+  const liveBand = (() => {
+    if (!isDragging) return null
+    const { mode, liveStart, liveEnd } = dragState
+    if (mode === 'pan') return { start: liveStart, end: liveEnd }
+    return { start: Math.min(liveStart, liveEnd), end: Math.max(liveStart, liveEnd) }
+  })()
+  const liveSegments = liveBand ? bandToSegments(liveBand) : []
+
+  // Edge-line positions for the visible handles.
+  const handleStartX = (() => {
+    if (isDragging) {
+      const { mode, liveStart, liveEnd } = dragState
+      if (mode === 'pan') return liveStart
+      if (mode === 'create') return Math.min(liveStart, liveEnd)
+      return Math.min(liveStart, liveEnd)
+    }
+    if (hasSingleBand && !isWrapBand) return selectedRanges[0].start
+    return null
+  })()
+  const handleEndX = (() => {
+    if (isDragging) {
+      const { mode, liveStart, liveEnd } = dragState
+      if (mode === 'pan') return liveEnd
+      if (mode === 'create') return Math.max(liveStart, liveEnd)
+      return Math.max(liveStart, liveEnd)
+    }
+    if (hasSingleBand && !isWrapBand) return selectedRanges[0].end
+    return null
+  })()
 
   return (
     <div className={`relative w-full h-full ${dragEnabled ? 'cursor-ew-resize' : ''}`}>
@@ -503,41 +574,63 @@ const DailyActivityLine = ({
             tickLine={false}
           />
           <YAxis hide domain={[0, 'auto']} />
-          {/* While sliding the end edge, show only the live band so the
-              user sees the in-progress range. Otherwise show committed bands. */}
-          {isDragging && liveBand ? (
-            <ReferenceArea
-              x1={liveBand[0]}
-              x2={liveBand[1]}
-              fill="rgb(59 130 246)"
-              fillOpacity={0.2}
-              stroke="rgb(59 130 246)"
-              strokeOpacity={0.7}
-              strokeWidth={1}
-            />
-          ) : (
-            selectedBands.map(([s, e], i) => (
-              <ReferenceArea
-                key={i}
-                x1={s}
-                x2={e}
-                fill="rgb(59 130 246)"
-                fillOpacity={0.15}
-                stroke="rgb(59 130 246)"
-                strokeOpacity={0.5}
-                strokeWidth={1}
-              />
-            ))
-          )}
-          {/* Draggable end-line with a small handle dot at the top. */}
-          {dragEnabled && endLineX !== null && (
+          {/* While dragging, show only the live band; otherwise the committed bands. */}
+          {isDragging
+            ? liveSegments.map(([s, e], i) => (
+                <ReferenceArea
+                  key={i}
+                  x1={s}
+                  x2={e}
+                  fill="rgb(59 130 246)"
+                  fillOpacity={0.2}
+                  stroke="rgb(59 130 246)"
+                  strokeOpacity={0.7}
+                  strokeWidth={1}
+                />
+              ))
+            : selectedBands.map(([s, e], i) => (
+                <ReferenceArea
+                  key={i}
+                  x1={s}
+                  x2={e}
+                  fill="rgb(59 130 246)"
+                  fillOpacity={0.15}
+                  stroke="rgb(59 130 246)"
+                  strokeOpacity={0.5}
+                  strokeWidth={1}
+                />
+              ))}
+          {/* Draggable start-line handle. */}
+          {dragEnabled && handleStartX !== null && (
             <ReferenceLine
-              x={endLineX}
+              x={handleStartX}
               stroke="rgb(59 130 246)"
               strokeWidth={2}
               isFront
               label={{
-                value: '',
+                position: 'top',
+                content: ({ viewBox }) =>
+                  viewBox && viewBox.x !== undefined ? (
+                    <circle
+                      cx={viewBox.x}
+                      cy={viewBox.y + 6}
+                      r={4}
+                      fill="rgb(59 130 246)"
+                      stroke="white"
+                      strokeWidth={1}
+                    />
+                  ) : null
+              }}
+            />
+          )}
+          {/* Draggable end-line handle. */}
+          {dragEnabled && handleEndX !== null && handleEndX !== handleStartX && (
+            <ReferenceLine
+              x={handleEndX}
+              stroke="rgb(59 130 246)"
+              strokeWidth={2}
+              isFront
+              label={{
                 position: 'top',
                 content: ({ viewBox }) =>
                   viewBox && viewBox.x !== undefined ? (
