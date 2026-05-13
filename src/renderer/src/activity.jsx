@@ -876,6 +876,7 @@ export default function Activity({ studyData, studyId }) {
                     palette={palette}
                     studyId={actualStudyId}
                     showHeader={false}
+                    hidePseudoSpecies
                   />
                 </div>
               )}
