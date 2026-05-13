@@ -50,6 +50,13 @@ export function formatRange({ start, end }) {
 export const DAY_PERIOD_ORDER = ['dawn', 'day', 'dusk', 'night']
 
 /**
+ * The default chip selection — all four chips active, equivalent to
+ * "no filter" but visually expressing "full day selected" (mirrors the
+ * timeline filter, which defaults to the full date range).
+ */
+export const ALL_CHIPS_SELECTED = new Set(DAY_PERIOD_ORDER)
+
+/**
  * Convert a chip selection (Set<string>) into an ordered ranges array.
  * Unknown keys are ignored.
  */
@@ -77,4 +84,48 @@ export function isFullDayArc(arc) {
 export function arcToRanges(arc) {
   if (isFullDayArc(arc)) return []
   return [{ start: arc.start, end: arc.end }]
+}
+
+/**
+ * Merge contiguous integer-hour ranges (handles wrap-around at midnight).
+ * Used to convert chip selections into the smallest set of arcs/bands the
+ * UI should draw — so {dawn, day} renders as a single 5→18 arc instead of
+ * two abutting arcs, and {dawn, day, dusk, night} renders as a single
+ * full-day sweep instead of four pie slices.
+ *
+ * Output uses half-open [start, end) hour ranges; full-day collapses to
+ * a single [{start: 0, end: 24}] sector.
+ */
+export function mergeChipRanges(ranges) {
+  if (ranges.length === 0) return []
+  const covered = new Array(24).fill(false)
+  for (const { start, end } of ranges) {
+    if (start === end) continue
+    if (start < end) {
+      for (let h = start; h < end; h++) covered[h] = true
+    } else {
+      for (let h = start; h < 24; h++) covered[h] = true
+      for (let h = 0; h < end; h++) covered[h] = true
+    }
+  }
+  if (covered.every(Boolean)) return [{ start: 0, end: 24 }]
+
+  const runs = []
+  let i = 0
+  while (i < 24) {
+    if (covered[i]) {
+      const start = i
+      while (i < 24 && covered[i]) i++
+      runs.push({ start, end: i })
+    } else {
+      i++
+    }
+  }
+  // Wrap-around: first run touches 0 and last run touches 24 → merge
+  // into one wrap-around range (start > end).
+  if (runs.length >= 2 && runs[0].start === 0 && runs[runs.length - 1].end === 24) {
+    const last = runs.pop()
+    runs[0] = { start: last.start, end: runs[0].end }
+  }
+  return runs
 }

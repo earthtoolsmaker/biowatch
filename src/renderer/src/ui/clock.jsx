@@ -222,16 +222,29 @@ const CircularTimeFilter = ({
         })}
 
         {mode === 'chips' ? (
-          chipSectors.map((sector, i) => (
-            <path
-              key={i}
-              d={createArc(timeToAngle(sector.start), timeToAngle(sector.end))}
-              fill="rgb(59 130 246 / 0.15)"
-              stroke="rgb(59 130 246 / 0.8)"
-              strokeWidth="2"
-              pointerEvents="none"
-            />
-          ))
+          chipSectors.map((sector, i) =>
+            sector.start === 0 && sector.end === 24 ? (
+              <circle
+                key={i}
+                cx={center.x}
+                cy={center.y}
+                r={radius}
+                fill="rgb(59 130 246 / 0.15)"
+                stroke="rgb(59 130 246 / 0.8)"
+                strokeWidth="2"
+                pointerEvents="none"
+              />
+            ) : (
+              <path
+                key={i}
+                d={createArc(timeToAngle(sector.start), timeToAngle(sector.end))}
+                fill="rgb(59 130 246 / 0.15)"
+                stroke="rgb(59 130 246 / 0.8)"
+                strokeWidth="2"
+                pointerEvents="none"
+              />
+            )
+          )
         ) : (
           <>
             <path
@@ -291,10 +304,7 @@ const DailyActivityRadar = ({ activityData, selectedSpecies, palette }) => {
   const formattedData = formatData(activityData)
 
   return (
-    <div
-      className="relative w-full h-full flex items-center justify-center"
-      ref={chartRef}
-    >
+    <div className="relative w-full h-full flex items-center justify-center" ref={chartRef}>
       {/* Inner square anchors the hour labels to the radar's actual edges,
           not the (potentially wider-than-tall) parent. */}
       <div className="relative h-full aspect-square">
@@ -314,7 +324,7 @@ const DailyActivityRadar = ({ activityData, selectedSpecies, palette }) => {
         </div>
 
         <ResponsiveContainer width="100%" height="100%">
-          <RadarChart data={formattedData} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+          <RadarChart data={formattedData} margin={{ top: 16, right: 16, bottom: 16, left: 16 }}>
             <PolarGrid radialLines={false} polarRadius={[]} strokeWidth={1} />
             <PolarAngleAxis dataKey="name" tick={false} />
             {/* <PolarRadiusAxis

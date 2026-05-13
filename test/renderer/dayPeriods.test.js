@@ -2,11 +2,13 @@ import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
-  DAY_PERIOD_PRESETS,
-  DAY_PERIOD_ORDER,
-  chipsToRanges,
+  ALL_CHIPS_SELECTED,
   arcToRanges,
-  isFullDayArc
+  chipsToRanges,
+  DAY_PERIOD_ORDER,
+  DAY_PERIOD_PRESETS,
+  isFullDayArc,
+  mergeChipRanges
 } from '../../src/renderer/src/utils/dayPeriods.js'
 
 describe('DAY_PERIOD_PRESETS', () => {
@@ -83,5 +85,77 @@ describe('arcToRanges', () => {
 
   test('wrap-around arc returns single range', () => {
     assert.deepEqual(arcToRanges({ start: 21, end: 5 }), [{ start: 21, end: 5 }])
+  })
+})
+
+describe('ALL_CHIPS_SELECTED', () => {
+  test('contains every chip', () => {
+    assert.deepEqual([...ALL_CHIPS_SELECTED].sort(), ['dawn', 'day', 'dusk', 'night'])
+  })
+})
+
+describe('mergeChipRanges', () => {
+  test('empty input returns empty', () => {
+    assert.deepEqual(mergeChipRanges([]), [])
+  })
+
+  test('single range passes through unchanged', () => {
+    assert.deepEqual(mergeChipRanges([{ start: 8, end: 18 }]), [{ start: 8, end: 18 }])
+  })
+
+  test('two contiguous ranges merge into one', () => {
+    assert.deepEqual(
+      mergeChipRanges([
+        { start: 5, end: 8 },
+        { start: 8, end: 18 }
+      ]),
+      [{ start: 5, end: 18 }]
+    )
+  })
+
+  test('non-contiguous ranges stay separate (Dawn + Dusk)', () => {
+    assert.deepEqual(
+      mergeChipRanges([
+        { start: 5, end: 8 },
+        { start: 18, end: 21 }
+      ]),
+      [
+        { start: 5, end: 8 },
+        { start: 18, end: 21 }
+      ]
+    )
+  })
+
+  test('night + dawn merges across midnight (wrap-around)', () => {
+    assert.deepEqual(
+      mergeChipRanges([
+        { start: 5, end: 8 },
+        { start: 21, end: 5 }
+      ]),
+      [{ start: 21, end: 8 }]
+    )
+  })
+
+  test('all four chips merge to a single full-day sector', () => {
+    assert.deepEqual(
+      mergeChipRanges([
+        { start: 5, end: 8 },
+        { start: 8, end: 18 },
+        { start: 18, end: 21 },
+        { start: 21, end: 5 }
+      ]),
+      [{ start: 0, end: 24 }]
+    )
+  })
+
+  test('three contiguous chips merge into one wide range (dawn + day + dusk)', () => {
+    assert.deepEqual(
+      mergeChipRanges([
+        { start: 5, end: 8 },
+        { start: 8, end: 18 },
+        { start: 18, end: 21 }
+      ]),
+      [{ start: 5, end: 21 }]
+    )
   })
 })

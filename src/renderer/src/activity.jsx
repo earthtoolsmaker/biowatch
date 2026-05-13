@@ -13,7 +13,13 @@ import ActivityMapContextMenu from './ui/ActivityMapContextMenu'
 import CircularTimeFilter, { DailyActivityRadar, DailyActivityLine } from './ui/clock'
 import DayPeriodChips from './ui/dayPeriodChips'
 import ChartShapeToggle from './ui/chartShapeToggle'
-import { chipsToRanges, arcToRanges } from './utils/dayPeriods'
+import {
+  ALL_CHIPS_SELECTED,
+  arcToRanges,
+  chipsToRanges,
+  DAY_PERIOD_ORDER,
+  mergeChipRanges
+} from './utils/dayPeriods'
 import HideLeafletAttribution from './ui/HideLeafletAttribution'
 import MarkerHoverCard from './ui/MarkerHoverCard'
 import { useTheme } from './hooks/useTheme'
@@ -580,14 +586,24 @@ export default function Activity({ studyData, studyId }) {
   const [speciesInitialized, setSpeciesInitialized] = useState(false)
   const [dateRange, setDateRange] = useState([null, null])
   const [fullExtent, setFullExtent] = useState([null, null])
-  const [chipSelection, setChipSelection] = useState(() => new Set())
+  const [chipSelection, setChipSelection] = useState(() => new Set(ALL_CHIPS_SELECTED))
   const [arc, setArc] = useState({ start: 0, end: 24 })
   const [chartShape, setChartShape] = useState('polar')
 
+  // All four chips (the default) is treated as "no filter" — null-timestamp
+  // media still flows through, mirroring the timeline's default behavior.
   const timeRange = useMemo(() => {
+    if (chipSelection.size === DAY_PERIOD_ORDER.length) return { ranges: [] }
     const ranges = chipSelection.size > 0 ? chipsToRanges(chipSelection) : arcToRanges(arc)
     return { ranges }
   }, [chipSelection, arc])
+
+  // Merged ranges for VISUAL highlighting (collapses contiguous chip
+  // selections into single arcs/bands; all four → one full-day sweep).
+  const visualRanges = useMemo(
+    () => (chipSelection.size > 0 ? mergeChipRanges(chipsToRanges(chipSelection)) : []),
+    [chipSelection]
+  )
   const { importStatus } = useImportStatus(actualStudyId, 5000)
   const { sequenceGap, setSequenceGap } = useSequenceGap(actualStudyId)
   const { showFilterCharts } = useShowFilterCharts(actualStudyId)
@@ -924,7 +940,7 @@ export default function Activity({ studyData, studyId }) {
                             startTime={arc.start}
                             endTime={arc.end}
                             mode={chipSelection.size > 0 ? 'chips' : 'drag'}
-                            chipSectors={chipsToRanges(chipSelection)}
+                            chipSectors={visualRanges}
                           />
                         </div>
                       </>
@@ -933,7 +949,7 @@ export default function Activity({ studyData, studyId }) {
                         activityData={dailyActivityData}
                         selectedSpecies={selectedSpecies}
                         palette={palette}
-                        selectedRanges={timeRange.ranges}
+                        selectedRanges={visualRanges}
                       />
                     )}
                   </div>
