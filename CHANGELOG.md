@@ -5,6 +5,66 @@ All notable changes to Biowatch will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.0] - 2026-05-13
+
+### Added
+
+- **Sources tab** (renamed from Files tab): rebuilt around a per-source view with image/video/observation/deployment counts, last model used, in-flight progress bars, deployment sub-rows, host-server line for remote sources, and a skeleton loader; tab is always visible
+- **"Add images directory" modal** with model/country/folder picker, enabled for all study types (including CamTrap-DP and LILA); locked-model warnings and an empty-state CTA when no models are installed
+- **Dark theme** with a new Appearance settings tab (System / Light / Dark); `useTheme` hook syncs `<html class="dark">` from a preload script, leaflet dark tiles, sonner toast theming, `matchMedia` fallback for Linux when `nativeTheme` lags, and a persisted preferences store backed by a JSON file
+- **Day-period preset chips** (Dawn / Day / Dusk / Night) on Media and Activity tabs with rich tooltips, contiguous-arc merging, and full-day default; backed by a multi-range `timeRange` filter in `getSequenceAwareHeatmap`, `getMediaForSequencePagination`, and `hasTimestampedMedia`
+- **DailyActivityLine**: x-y twin of the polar clock chart, switchable via a segmented `ChartShapeToggle`; drag-to-select custom hour range when chips are inactive, pan-the-band that wraps midnight, draggable start/end edges, dynamic cursor (move / ew-resize / crosshair), drag continues outside the chart area
+- **Timeline brush + zoom** on the Deployments tab: scroll-wheel zoom, live pan, line+dot handles with filled band, native-event gesture model, a filter pill summarising the active date range, and per-study persistence
+- **Best-captures modal redesign**: species overlay, deployment link pill, and modal chrome aligned with the media modal
+- **Media-modal → deployment link** via a shared `DeploymentLinkPill` (also used in the best-captures modal); `sequences:get-paginated`, `getBestMediaForSpecies` and `getFavoriteBestMedia` now return `locationID` / `locationName`
+- **Deployment settings popover** in the Deployments pane header showing media + observation counts (`deployments:get-stats` IPC, `getMediaCountForDeployment` / `getObservationCountForDeployment` queries)
+- **Study settings → Cache section** with per-study cache stats and a Clear-cache action (`study:get-cache-stats`, `study:clear-cache` IPC)
+- **Filter-charts row toggle** on Media and Activity tabs (from the gap-slider strip), with active-filter blue dot indicator and the strip mirrored across both tabs
+- **Activity tab**: export species-distribution map as PNG
+- Pseudo-species (Blank, Vehicle) styled with hover-card descriptions in the species list
+- Year included in the media grid-cell timestamp overlay
+
+### Changed
+
+- Files tab → Sources tab; `getFilesData` removed and `getSourcesData` runs in a worker thread, rewritten to avoid `COUNT(DISTINCT)` over joins, on a readonly DB connection, with model rows aggregated by `(folder, run)`
+- Sources rows merge transient duplicate deployments by label, sort alphabetically, render basename + full path, and show `activeRun` so in-flight model runs surface a progress bar
+- Sources: videos classified by file extension (fixes LILA studies that lacked `fileMediatype`); deployment label coalesces to `(unknown)` when all rows are null; max width bounded and counts wrap below the name on narrow windows
+- Demo + GBIF imports extract into the persistent study directory instead of `/tmp` so media keeps resolving after restart
+- CamTrap-DP import: more resilient to spec deviations; `media.importFolder` set to the package directory (LILA import sets it to the dataset name)
+- Overview KPI band becomes a horizontal carousel on narrow viewports; `getBestImagePerSpecies` moved to the sequences worker
+- Sequence filter helpers: new `normalizeTimeRange` util; `getMediaForSequencePagination` and `hasTimestampedMedia` accept multi-range `timeRange`
+- `getSequenceAwareHeatmap` arg shape switched from positional `startHour` / `endHour` to a `timeRange` object
+- Leaflet attribution prefix hidden on all maps
+- GBIF picker: "Forest First Mammals" dataset hidden
+- Study settings: Export / Clear cache / Delete buttons unified to `h-9`, flat, with sources-style hover and default cursor
+
+### Fixed
+
+- Species distribution bar widths match across Media and Activity tabs; selected row clarified and italic-clip avoided
+- Species list hover / active background reaches the pseudo-species divider; pseudo-species hover styling aligned
+- Filter row: mount-time ease-in suppressed when navigating between Media and Activity tabs
+- Sequence-gap slider thumb dimmed when the slider is off
+- Activity-line: cursor styled inline, recharts cursor inheritance forced, latest drag state committed on release, text selection suppressed during drag
+- Polar clock: chart-shape toggle floats absolutely, hour labels move inside the SVG for predictable spacing, drag-arc suppressed at full-day, contiguous chip arcs merge correctly
+- Chart-shape toggle: segmented control with a theme-blue active state
+- Filter chip tooltips: rich time-range + wildlife description, anchored above the chip, no arrow chevron
+- Best-media modal: scientific name readable on the dark heading pill; species-row scientific-only fallback no longer italic and first letter capitalised
+- Add-study and sequence-grouping tooltips use the shared theme-aware popover style
+- Gallery: `timeRange.ranges` included in the React Query key so chip changes invalidate the cache
+- Import: status polling fires unconditionally so the global progress bar catches new imports; import-status polling scoped and modal invalidates queries on Import
+- Deployments tab lists deployments without timestamps (LILA Biome Health support)
+- Sources: when a study's locked model has been uninstalled, Import is blocked with a warning; country pre-selection skipped when the study has no prior run
+- Many dark-theme polish fixes: sidebar contrast and breathing room, AI Models species panel, annotation rail, media modal top/bottom bars, deployments hover + sparkline empty period, AddSourceModal, species hovercard, sex/life-stage pill text, activity-map pie marker hovercard contrast
+
+### Removed
+
+- `getFilesData` query (replaced by `getSourcesData`)
+- `selectMoreImagesDirectory` IPC (replaced by `importer:add-folder`)
+
+### Chore
+
+- Documentation updates across architecture, IPC API, troubleshooting, development, and import/export for the dark theme, Sources tab, and new IPC handlers (`importer:add-folder`, `study:get-latest-model-options`, `deployments:get-stats`, `study:get-cache-stats`, `study:clear-cache`)
+
 ## [1.8.7] - 2026-05-05
 
 ### Added
@@ -565,6 +625,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Activity heatmaps
 - Overview statistics
 
+[1.9.0]: https://github.com/earthtoolsmaker/biowatch/compare/v1.8.7...v1.9.0
 [1.8.7]: https://github.com/earthtoolsmaker/biowatch/compare/v1.8.6...v1.8.7
 [1.8.6]: https://github.com/earthtoolsmaker/biowatch/compare/v1.8.5...v1.8.6
 [1.8.5]: https://github.com/earthtoolsmaker/biowatch/compare/v1.8.4...v1.8.5
