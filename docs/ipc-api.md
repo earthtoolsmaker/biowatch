@@ -115,6 +115,59 @@ Runs in the sequences worker thread (off the main process). Threatened species a
 
 **Note on `setDeploymentLocationName`:** This updates the `locationName` for ALL deployments with the given `locationID`. When deployments share a `locationID` (grouped deployments), renaming any one updates the entire group.
 
+#### Deployments CSV import/export
+
+| Method                                            | Channel                            | Parameters         | Returns                                                                       |
+| ------------------------------------------------- | ---------------------------------- | ------------------ | ----------------------------------------------------------------------------- |
+| `getDeploymentsCsvPreview(studyId)`               | `deployments:get-csv-preview`      | studyId            | `{ data: DeploymentRow[] }` \| `{ error }`                                    |
+| `exportDeploymentsCsv(studyId)`                   | `deployments:export-csv`           | studyId            | `{ success, filePath, rowCount }` \| `{ cancelled: true }` \| `{ error }`     |
+| `pickDeploymentsCsvFile()`                        | `deployments:pick-csv-file`        | —                  | `{ filePath }` \| `{ cancelled: true }`                                       |
+| `parseDeploymentsCsvForImport(studyId, filePath)` | `deployments:parse-csv-for-import` | studyId, filePath  | `{ data: PreviewPayload }` \| `{ error }`                                     |
+| `applyDeploymentsCsvImport(studyId, applyPlan)`   | `deployments:apply-csv-import`     | studyId, applyPlan | `{ success, summary: { deploymentsUpdated, locationsNamed } }` \| `{ error }` |
+
+There is also one preload-only helper (not an IPC channel):
+
+| Method                  | Purpose                                                                                                                                                                                                                                          |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `getDroppedFilePath(file)` | Wraps `electron.webUtils.getPathForFile(file)`. Electron 32+ removed `File.path` from the renderer; this preload-exposed helper resolves a dropped `File` to an absolute path. Used by the import-picker modal's drag-and-drop handler.        |
+
+**Flow:** For export, the renderer first calls `getDeploymentsCsvPreview` to fetch the rows shown in the export-preview modal (no file dialog, no write). On user confirmation, it calls `exportDeploymentsCsv`, which re-fetches, opens the save dialog, and writes. For import, the renderer either calls `pickDeploymentsCsvFile` (system file picker) or resolves a dropped file via `getDroppedFilePath`, then hands the path to `parseDeploymentsCsvForImport` (validates against the current DB; returns a per-cell preview payload). On user confirmation, the derived `applyPlan` is passed to `applyDeploymentsCsvImport` (single SQLite transaction).
+
+`locationsNamed` in the apply summary counts **distinct** `locationID`s renamed — a CSV that renames 28 deployments sharing one location reports `locationsNamed: 1`, not 28.
+
+**`PreviewPayload` shape:**
+
+```ts
+{
+  filePath: string
+  fileName: string
+  totalRows: number
+  applyCount: number              // rows that will actually update:
+                                  //   normal + ≥1 'change' cell + no 'warning' cells
+  rowsBlockedByWarningCount: number // normal rows with ≥1 'warning' cell (blocked from apply)
+  rowSkipCount: number            // total 'skipped' rows (empty/unknown deploymentID)
+  rows: Array<{
+    rowIndex: number       // 1-based
+    deploymentID: string
+    rowState: 'normal' | 'skipped'
+    rowWarning: string | null
+    columns: {
+      [column: string]: {
+        state: 'unchanged' | 'change' | 'warning' | 'readonly'
+        csvValue: string
+        dbValue: string | number | null
+        appliedValue?: any   // present when state === 'change'
+        warning?: string     // present when state === 'warning'
+      }
+    }
+  }>
+}
+```
+
+**`applyPlan` shape:** `Array<{ deploymentID: string, fields: { latitude?, longitude?, locationName? } }>`. The applier re-validates each value defensively (out-of-range coords are silently dropped) and propagates `locationName` to every deployment sharing the resolved `locationID`, matching `setDeploymentLocationName` semantics.
+
+**Sort order on export:** Rows are sorted by `deploymentID` using `Intl.Collator({ numeric: true })` so numeric IDs come out in human order (`1, 2, …, 10, 11`) rather than lexicographic (`1, 10, 11, 2`). Alphanumeric IDs like `CAM_001, CAM_002, CAM_010` are also handled correctly; UUID IDs receive a deterministic but arbitrary ordering (UUIDs have no human-meaningful order).
+
 ### Locations
 
 | Method                          | Channel                  | Parameters | Returns                |

@@ -9,6 +9,7 @@ import log from 'electron-log'
 
 import { registerSpeciesIPCHandlers } from './species.js'
 import { registerDeploymentsIPCHandlers } from './deployments.js'
+import { registerDeploymentsCsvIPCHandlers } from './deploymentsCsv.js'
 import { registerMediaIPCHandlers } from './media.js'
 import { registerObservationsIPCHandlers } from './observations.js'
 import { registerActivityIPCHandlers } from './activity.js'
@@ -35,6 +36,7 @@ export function registerAllIPCHandlers() {
   // Register all domain-specific handlers
   registerSpeciesIPCHandlers()
   registerDeploymentsIPCHandlers()
+  registerDeploymentsCsvIPCHandlers()
   registerMediaIPCHandlers()
   registerObservationsIPCHandlers()
   registerActivityIPCHandlers()
@@ -58,6 +60,7 @@ export function registerAllIPCHandlers() {
 export {
   registerSpeciesIPCHandlers,
   registerDeploymentsIPCHandlers,
+  registerDeploymentsCsvIPCHandlers,
   registerMediaIPCHandlers,
   registerObservationsIPCHandlers,
   registerActivityIPCHandlers,
