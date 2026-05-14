@@ -4,8 +4,9 @@ import DeploymentsPreviewTable from './DeploymentsPreviewTable'
 import { formatCellValue } from './deploymentsPreviewHelpers'
 import {
   buildDeploymentsCsvApplyPlan,
-  EDITABLE_DEPLOYMENT_IMPORT_KEYS as EDITABLE_KEYS,
-  getDeploymentsCsvImportRowClassName
+  getDeploymentsCsvImportRowClassName,
+  rowHasEditableChange,
+  rowHasWarning
 } from './deploymentsImportPreviewModel'
 
 function CellContent({ col }) {
@@ -97,16 +98,15 @@ export default function DeploymentsImportPreviewModal({
     if (!preview) return []
     if (filter === 'all') return preview.rows
     if (filter === 'updated') {
-      return preview.rows.filter((row) => {
-        if (row.rowState !== 'normal') return false
-        return EDITABLE_KEYS.some((k) => row.columns[k]?.state === 'change')
-      })
+      // Mirror the parser's applyCount predicate: normal, not warning-blocked,
+      // and has at least one editable change cell. Anything in the result
+      // here is also in the apply plan.
+      return preview.rows.filter(
+        (row) => row.rowState === 'normal' && !rowHasWarning(row) && rowHasEditableChange(row)
+      )
     }
     if (filter === 'warnings') {
-      return preview.rows.filter((row) => {
-        if (row.rowState !== 'normal') return false
-        return Object.values(row.columns).some((c) => c?.state === 'warning')
-      })
+      return preview.rows.filter((row) => row.rowState === 'normal' && rowHasWarning(row))
     }
     if (filter === 'skipped') {
       return preview.rows.filter((row) => row.rowState === 'skipped')

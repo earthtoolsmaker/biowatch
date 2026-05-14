@@ -535,7 +535,9 @@ byte-stable.
    classifies every cell into one of `unchanged | change | warning |
 readonly`. Returns a `PreviewPayload` (see
    [ipc-api.md](./ipc-api.md#deployments-csv-importexport)) plus
-   aggregate counts (`applyCount`, `cellWarningCount`, `rowSkipCount`).
+   aggregate counts (`applyCount`, `rowsBlockedByWarningCount`,
+   `rowSkipCount`). A row with any `warning` cell is blocked from apply
+   entirely — partial-row application is not supported.
    Required column is `deploymentID`; missing it returns
    `{ error: "Required column 'deploymentID' not found in CSV." }`
    before the modal opens.
