@@ -5,6 +5,22 @@ All notable changes to Biowatch will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.1] - 2026-05-14
+
+### Added
+
+- **Deployments CSV import/export** on the Deployments tab: always-visible header strip with segmented Export / Import actions, visible even when a study has no timestamps (LILA, COCO — the studies that most need this). Export opens a preview modal (read-only table + editable-column hints) then writes a CSV. Import opens a drag-and-drop picker modal → virtualised diff-preview modal (`old → new` cells, row-level highlighting, cell tooltips, clickable summary tiles that filter rows) → single-transaction apply. Edits `latitude`, `longitude`, and `locationName`; `locationName` propagates across `locationID`. Backed by a pure parser/validator + Drizzle transactional applier with 24 unit/integration tests. (#519)
+
+### Changed
+
+- CSV import gating switched from cell-level skipping to row-level blocking: any row with a warning is excluded from apply. Preview counts, row highlighting, legend, and `Apply (N)` button reflect the row-level model; parser exposes `applyCount` + `rowsBlockedByWarningCount` as the single source of truth. (#524, #532)
+- Study-page tabs: tighter vertical padding; map-only top padding on the Deployments tab
+- Deployments actions strip aligned with the timeline header (padding, right edge to the sparkline toggle)
+
+### Fixed
+
+- Study layout `gap-4` restored after deployments-specific offsets had been over-reverted
+
 ## [1.9.0] - 2026-05-13
 
 ### Added
@@ -625,6 +641,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Activity heatmaps
 - Overview statistics
 
+[1.9.1]: https://github.com/earthtoolsmaker/biowatch/compare/v1.9.0...v1.9.1
 [1.9.0]: https://github.com/earthtoolsmaker/biowatch/compare/v1.8.7...v1.9.0
 [1.8.7]: https://github.com/earthtoolsmaker/biowatch/compare/v1.8.6...v1.8.7
 [1.8.6]: https://github.com/earthtoolsmaker/biowatch/compare/v1.8.5...v1.8.6
