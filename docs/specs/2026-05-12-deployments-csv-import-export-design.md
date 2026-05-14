@@ -12,8 +12,9 @@ Google Sheets, vim), and re-import to bulk-update `latitude`, `longitude`,
 and `locationName` across many deployments at once. Entry point: two flat
 buttons (**Export CSV** / **Import CSV**) in a new always-visible header
 strip above the conditional timeline header in the Deployments tab.
-Import shows a preview-table modal with cell-level error highlighting
-before any DB write; apply is a single SQLite transaction.
+Import shows a preview-table modal classifying every cell against the
+DB and every row against the apply gate before any write; apply is a
+single SQLite transaction.
 
 ## Motivation
 
@@ -47,8 +48,9 @@ generic location names. That round-trip is in scope.
   each warning. Apply commits in one SQLite transaction.
 - `latitude`, `longitude`, `locationName` are editable. Everything else
   is read-only context (or ignored on import).
-- Out-of-range coords are skipped per-cell with a warning; the rest of
-  the row still applies.
+- Out-of-range coords (and any other cell warning) block the **entire
+  row** from being applied. Partial-row application is not supported:
+  if any cell on a row warns, no field on that row is written.
 - Unknown `deploymentID` rows are skipped per-row with a warning.
 
 ## Non-goals
@@ -171,7 +173,7 @@ A blocking modal occupying ~80% of the viewport. Layout:
 ┌──────────────────────────────────────────────────────────────────────────┐
 │ Import deployments CSV — sample-edits.csv                            ×  │
 │                                                                          │
-│  ✔ 23 rows will update     ⚠ 2 cells skipped     ⊝ 1 row unknown ID     │
+│  ✔ 21 rows will update     ⚠ 2 rows blocked by warnings     ⊝ 1 row unknown ID │
 │                                                                          │
 │  ┌────────────────────────────────────────────────────────────────────┐  │
 │  │ # │ deploymentID │ locationID │ locationName │ latitude │ longitude│  │
@@ -182,9 +184,9 @@ A blocking modal occupying ~80% of the viewport. Layout:
 │  │ 4 │ ⊝ CAM_NEW    │            │              │  45.0    │  6.0    │  │
 │  └────────────────────────────────────────────────────────────────────┘  │
 │                                                                          │
-│  Legend:  ← change   ⚠ warning (cell skipped)   ⊝ row skipped           │
+│  Legend:  ← change   ⚠ warning (blocks row)   ⊝ row unknown ID          │
 │                                                                          │
-│                                          [ Cancel ]   [ Apply (23) ]    │
+│                                          [ Cancel ]   [ Apply (21) ]    │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -194,14 +196,15 @@ A blocking modal occupying ~80% of the viewport. Layout:
 | --- | --- | --- | --- |
 | `unchanged` | default text color | CSV value equals current DB value | n/a |
 | `change` | bold + `←` glyph + green tint (`text-green-700` light / `text-green-300` dark) | CSV value differs and will overwrite | yes |
-| `warning` | amber tint (`text-amber-700` / `amber-300`) + `⚠` glyph | parse or validation failure; tooltip on hover | **no — cell skipped, rest of row applies** |
-| `readonly` | gray italic | `deploymentID` / `locationID` cells; not editable | n/a (mismatches surfaced as row warning, see below) |
+| `warning` | amber tint (`text-amber-700` / `amber-300`) + `⚠` glyph; row tinted red | parse or validation failure; tooltip on hover | **no — and the entire row is blocked from apply** |
+| `readonly` | gray italic | `deploymentID` / `locationID` cells; not editable | n/a (a `locationID` mismatch is a cell warning, which blocks its row) |
 
 #### Row states
 
 | State | Visual | Meaning | Applied? |
 | --- | --- | --- | --- |
-| Normal | — | row will participate in update | yes (for `change` cells only) |
+| Normal, clean | green row tint (only if at least one `change` cell) | row has no warning cells | yes (for `change` cells only) |
+| Normal, blocked | red row tint | at least one cell on the row is `warning` | **no — entire row blocked from apply** |
 | `skipped` | row dimmed (50% opacity), `⊝` in the `#` column | `deploymentID` empty or not found in DB | **no — entire row skipped** |
 
 Skipped rows still render in the table so the user can see what was
@@ -210,21 +213,28 @@ for empty: `deploymentID is required.`
 
 #### Hover tooltips
 
-Each warning cell has a tooltip:
+Each warning cell has a tooltip. Any warning on a row blocks the
+**whole row** from apply (not just the offending cell).
 
-- Out-of-range latitude: `Latitude 91.5 is outside [-90, 90]. Cell skipped; other cells in this row still apply.`
-- Out-of-range longitude: `Longitude 999.0 is outside [-180, 180]. Cell skipped; other cells in this row still apply.`
-- Non-numeric: `'abc' is not a valid number. Cell skipped; other cells in this row still apply.`
-- `locationID` mismatch (CSV value differs from DB): `locationID is read-only. Existing value 'LOC_A' will be kept; CSV value 'LOC_B' ignored.`
+- Out-of-range latitude: `Latitude 91.5 is outside [-90, 90].`
+- Out-of-range longitude: `Longitude 999.0 is outside [-180, 180].`
+- Non-numeric: `'abc' is not a valid number.`
+- `locationID` mismatch (CSV value differs from DB): `locationID is read-only. Existing value will be kept; CSV value ignored.`
 - Duplicate `deploymentID` in CSV: `Overridden by row N below.` (on the earlier row's changed cells)
+- Intra-locationID name conflict: `Conflicting names for LOC_A; row N below wins.`
 
 #### Summary banner
 
 Three counts above the table:
 
-- `✔ N rows will update` — number of rows with at least one `change` cell.
-- `⚠ W cells skipped` — count of `warning` cells across all rows.
+- `✔ N rows will update` — number of normal rows with at least one
+  `change` cell **and no warning cells** (this is also `[Apply (N)]`).
+- `⚠ W rows blocked by warnings` — number of normal rows with at
+  least one `warning` cell. These rows contribute zero to apply.
 - `⊝ M rows unknown ID` — count of `skipped` rows.
+
+Each tile doubles as a filter toggle (click to show only those rows;
+click again or click "Show all" to clear).
 
 `[Apply (N)]` is disabled when `N == 0`. Apply count matches "rows will update."
 
@@ -317,9 +327,10 @@ The main process returns this shape from `deployments:parse-csv-for-import`:
   filePath: '/abs/path/to/sample.csv',
   fileName: 'sample.csv',
   totalRows: 26,                  // CSV data rows (excludes header)
-  applyCount: 23,                 // rows with at least one 'change' cell
-  cellWarningCount: 2,            // total warning cells
-  rowSkipCount: 1,                // total skipped rows
+  applyCount: 21,                 // rows that will actually update:
+                                  //   normal + has 'change' cell + no warning cells
+  rowsBlockedByWarningCount: 2,   // normal rows with >=1 warning cell (blocked from apply)
+  rowSkipCount: 1,                // total skipped rows (empty/unknown deploymentID)
   rows: [
     {
       rowIndex: 1,                // 1-based, matches what the user sees in the table
@@ -340,16 +351,22 @@ The main process returns this shape from `deployments:parse-csv-for-import`:
 ```
 
 The renderer is stateless re-validation; it only reads this structure
-and renders. The `applyCount`, `cellWarningCount`, `rowSkipCount`
-fields drive the summary banner directly.
+and renders. The `applyCount`, `rowsBlockedByWarningCount`, `rowSkipCount`
+fields drive the summary banner directly. The renderer rebuilds the
+apply plan locally (see "Apply phase") and the resulting plan length is
+guaranteed to equal `applyCount` — both apply the same row-level
+predicate (`rowState === 'normal'` AND no warning cells AND at least
+one `change` cell).
 
 ## Apply phase
 
 After the user clicks **Apply**:
 
-1. Renderer extracts the **apply plan** from the preview payload — an
-   array of `{ deploymentID, fields }` where `fields` contains only the
-   keys whose cell state is `change`:
+1. Renderer extracts the **apply plan** from the preview payload via
+   `buildDeploymentsCsvApplyPlan` — an array of `{ deploymentID, fields }`
+   where `fields` contains only the keys whose cell state is `change`.
+   Rows in the `skipped` state and rows with any `warning` cell are
+   excluded from the plan entirely.
 
    ```js
    [

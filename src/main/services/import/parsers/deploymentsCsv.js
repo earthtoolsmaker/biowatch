@@ -3,6 +3,10 @@ import csv from 'csv-parser'
 
 const COORD_EPSILON = 1e-9
 
+// The three columns the import flow may write back to the deployments table.
+// Kept in sync with the renderer-side EDITABLE_DEPLOYMENT_IMPORT_KEYS.
+const EDITABLE_KEYS = ['locationName', 'latitude', 'longitude']
+
 function readonlyEqual(csvValue, dbValue) {
   if (csvValue === '' || csvValue == null) return true
   return String(csvValue) === String(dbValue ?? '')
@@ -80,6 +84,11 @@ async function readCsvRows(filePath) {
 /**
  * Parse a deployments CSV and classify every cell against the current DB
  * state. Pure: reads the CSV, never writes.
+ *
+ * Validation is row-level: any warning cell in a normal row blocks the
+ * whole row from being applied. `applyCount` reflects this — it counts
+ * rows that will actually update (no warning cells + at least one change
+ * cell). `rowsBlockedByWarningCount` is the row-level complement.
  *
  * @param {string} filePath - absolute path to the .csv file.
  * @param {Array} dbDeployments - current rows from the deployments table.
@@ -168,7 +177,7 @@ export async function parseDeploymentsCsv(filePath, dbDeployments) {
     if (row.rowState !== 'normal') return
     const lastIndex = lastIndexByDeploymentID.get(row.deploymentID)
     if (lastIndex === i) return
-    for (const key of ['locationName', 'latitude', 'longitude']) {
+    for (const key of EDITABLE_KEYS) {
       const col = row.columns[key]
       if (col.state === 'change') {
         row.columns[key] = {
@@ -211,21 +220,23 @@ export async function parseDeploymentsCsv(filePath, dbDeployments) {
     }
   })
 
+  // Row-level counting: a row with any warning cell is blocked from apply
+  // entirely — partial-row application is not supported (see spec).
   let applyCount = 0
-  let cellWarningCount = 0
+  let rowsBlockedByWarningCount = 0
   let rowSkipCount = 0
   for (const row of previewRows) {
     if (row.rowState === 'skipped') {
       rowSkipCount++
       continue
     }
-    const hasChange = ['locationName', 'latitude', 'longitude'].some(
-      (k) => row.columns[k].state === 'change'
-    )
-    if (hasChange) applyCount++
-    for (const k of Object.keys(row.columns)) {
-      if (row.columns[k].state === 'warning') cellWarningCount++
+    const hasWarning = Object.values(row.columns).some((c) => c.state === 'warning')
+    if (hasWarning) {
+      rowsBlockedByWarningCount++
+      continue
     }
+    const hasChange = EDITABLE_KEYS.some((k) => row.columns[k].state === 'change')
+    if (hasChange) applyCount++
   }
 
   return {
@@ -233,7 +244,7 @@ export async function parseDeploymentsCsv(filePath, dbDeployments) {
     fileName: filePath.split(/[/\\]/).pop(),
     totalRows: rows.length,
     applyCount,
-    cellWarningCount,
+    rowsBlockedByWarningCount,
     rowSkipCount,
     rows: previewRows
   }

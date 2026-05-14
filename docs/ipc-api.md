@@ -142,9 +142,10 @@ There is also one preload-only helper (not an IPC channel):
   filePath: string
   fileName: string
   totalRows: number
-  applyCount: number       // rows with at least one 'change' cell
-  cellWarningCount: number // total 'warning' cells
-  rowSkipCount: number     // total 'skipped' rows
+  applyCount: number              // rows that will actually update:
+                                  //   normal + ≥1 'change' cell + no 'warning' cells
+  rowsBlockedByWarningCount: number // normal rows with ≥1 'warning' cell (blocked from apply)
+  rowSkipCount: number            // total 'skipped' rows (empty/unknown deploymentID)
   rows: Array<{
     rowIndex: number       // 1-based
     deploymentID: string
