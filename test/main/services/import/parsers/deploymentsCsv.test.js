@@ -61,7 +61,7 @@ describe('parseDeploymentsCsv — happy path', () => {
       const result = await parseDeploymentsCsv(file, dbRows)
       assert.equal(result.totalRows, 2)
       assert.equal(result.applyCount, 0)
-      assert.equal(result.cellWarningCount, 0)
+      assert.equal(result.rowsBlockedByWarningCount, 0)
       assert.equal(result.rowSkipCount, 0)
       assert.equal(result.rows[0].columns.latitude.state, 'unchanged')
       assert.equal(result.rows[0].columns.locationName.state, 'unchanged')
@@ -95,7 +95,7 @@ describe('parseDeploymentsCsv — per-cell validation', () => {
       const r = await parseDeploymentsCsv(file, dbRows)
       assert.equal(r.rows[0].columns.latitude.state, 'warning')
       assert.match(r.rows[0].columns.latitude.warning, /outside \[-90, 90\]/)
-      assert.equal(r.cellWarningCount, 1)
+      assert.equal(r.rowsBlockedByWarningCount, 1)
       assert.equal(r.applyCount, 0)
     })
   })
@@ -145,6 +145,23 @@ describe('parseDeploymentsCsv — per-cell validation', () => {
       assert.equal(r.rows[0].columns.latitude.state, 'change')
       assert.equal(r.rows[0].columns.latitude.appliedValue, 45.5)
       assert.equal(r.applyCount, 1)
+    })
+  })
+
+  test('row with a warning cell blocks the whole row even when other cells would change', async () => {
+    // locationID mismatch (warning) + valid latitude change in the same row.
+    // Under row-level semantics the whole row is blocked: applyCount stays
+    // at 0, and the row counts toward rowsBlockedByWarningCount.
+    const csv =
+      'deploymentID,locationID,latitude,longitude\n' +
+      'CAM_001,LOC_X,45.5,6.812\n' +
+      'CAM_002,LOC_A,45.241,6.812\n'
+    await withTempCsv(csv, async (file) => {
+      const r = await parseDeploymentsCsv(file, dbRows)
+      assert.equal(r.rows[0].columns.locationID.state, 'warning')
+      assert.equal(r.rows[0].columns.latitude.state, 'change')
+      assert.equal(r.applyCount, 0)
+      assert.equal(r.rowsBlockedByWarningCount, 1)
     })
   })
 })

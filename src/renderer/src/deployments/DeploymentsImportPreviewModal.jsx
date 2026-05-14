@@ -4,12 +4,9 @@ import DeploymentsPreviewTable from './DeploymentsPreviewTable'
 import { formatCellValue } from './deploymentsPreviewHelpers'
 import {
   buildDeploymentsCsvApplyPlan,
-  countRowsBlockedByWarnings,
-  EDITABLE_DEPLOYMENT_IMPORT_KEYS,
+  EDITABLE_DEPLOYMENT_IMPORT_KEYS as EDITABLE_KEYS,
   getDeploymentsCsvImportRowClassName
 } from './deploymentsImportPreviewModel'
-
-const EDITABLE_KEYS = EDITABLE_DEPLOYMENT_IMPORT_KEYS
 
 function CellContent({ col }) {
   if (col.state === 'warning') {
@@ -54,10 +51,6 @@ function CellContent({ col }) {
       {String(display)}
     </span>
   )
-}
-
-function rowBackgroundClass(row) {
-  return getDeploymentsCsvImportRowClassName(row)
 }
 
 function renderGutter(row) {
@@ -121,16 +114,10 @@ export default function DeploymentsImportPreviewModal({
     return preview.rows
   }, [preview, filter])
 
-  // Rows (not cells) with at least one warning. Used to disable the
-  // warnings-filter tile when there's nothing to show, and to label it
-  // honestly: cellWarningCount is per-cell, this is per-row.
-  const rowsWithWarningCount = useMemo(() => {
-    return countRowsBlockedByWarnings(preview)
-  }, [preview])
-
   if (!preview) return null
 
-  const applyCount = applyPlan.length
+  const applyCount = preview.applyCount
+  const rowsBlockedByWarningCount = preview.rowsBlockedByWarningCount
   const canApply = applyCount > 0 && !isApplying
 
   const handleBackdropMouseDown = (e) => {
@@ -183,7 +170,7 @@ export default function DeploymentsImportPreviewModal({
           </button>
           <button
             onClick={() => toggleFilter('warnings')}
-            disabled={rowsWithWarningCount === 0}
+            disabled={rowsBlockedByWarningCount === 0}
             title={
               filter === 'warnings'
                 ? 'Click to show all rows'
@@ -195,8 +182,8 @@ export default function DeploymentsImportPreviewModal({
                 : 'border-transparent hover:bg-accent text-amber-700 dark:text-amber-300'
             }`}
           >
-            <AlertTriangle size={12} /> {rowsWithWarningCount}{' '}
-            {rowsWithWarningCount === 1 ? 'row' : 'rows'} blocked by warnings
+            <AlertTriangle size={12} /> {rowsBlockedByWarningCount}{' '}
+            {rowsBlockedByWarningCount === 1 ? 'row' : 'rows'} blocked by warnings
           </button>
           <button
             onClick={() => toggleFilter('skipped')}
@@ -237,7 +224,7 @@ export default function DeploymentsImportPreviewModal({
           resetScrollKey={filter}
           emptyMessage="No rows match the current filter."
           getRowKey={(row) => row.rowIndex}
-          rowClassName={rowBackgroundClass}
+          rowClassName={getDeploymentsCsvImportRowClassName}
           renderGutter={renderGutter}
           renderCell={({ row, key }) => <CellContent col={row.columns[key]} />}
         />
@@ -252,10 +239,6 @@ export default function DeploymentsImportPreviewModal({
             <span className="inline-flex items-center gap-1">
               <span className="inline-block w-3 h-3 rounded-sm bg-red-50 dark:bg-red-500/10 border border-red-300/60 dark:border-red-500/30" />
               row blocked by warning
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="inline-block w-3 h-3 rounded-sm bg-amber-50 dark:bg-amber-500/5 border border-amber-300/60 dark:border-amber-500/30" />
-              cell warning
             </span>
             <span className="inline-flex items-center gap-1">
               <span className="inline-block w-3 h-3 rounded-sm bg-muted/40 dark:bg-muted/30 border border-border" />
