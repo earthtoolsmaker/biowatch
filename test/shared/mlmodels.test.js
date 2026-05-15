@@ -168,11 +168,11 @@ describe('ML Model Management Tests', () => {
 
   describe('findModel', () => {
     test('should find existing model', () => {
-      const result = findModel({ id: 'speciesnet', version: '4.0.1a' })
+      const result = findModel({ id: 'speciesnet', version: '4.0.2a' })
 
       assert(result, 'Should find the model')
       assert.equal(result.reference.id, 'speciesnet', 'Should have correct id')
-      assert.equal(result.reference.version, '4.0.1a', 'Should have correct version')
+      assert.equal(result.reference.version, '4.0.2a', 'Should have correct version')
       assert(result.downloadURL, 'Should have download URL')
     })
 
