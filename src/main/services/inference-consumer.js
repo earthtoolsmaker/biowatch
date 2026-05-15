@@ -88,6 +88,24 @@ export class InferenceConsumer extends QueueConsumer {
       const videoPredictionsMap = new Map() // filepath -> predictions[]
 
       for await (const prediction of getPredictions(filePaths, this.port, batchAbort.signal)) {
+        // Skip failed predictions (corrupt images, model-side load errors).
+        // The media row stays without an observation, so it surfaces in the
+        // blank section of the media tab via notExists(realObservations).
+        // We mark the job complete (not failed) — corrupt files aren't retriable.
+        if (prediction.prediction === 'error' || prediction.failures) {
+          log.warn(
+            `[InferenceConsumer] Failed prediction for ${prediction.filepath}: ${
+              prediction.error || JSON.stringify(prediction.failures)
+            }`
+          )
+          const job = jobByPath.get(prediction.filepath)
+          if (job) {
+            complete(this.manager, job.id)
+            completedPaths.add(prediction.filepath)
+          }
+          continue
+        }
+
         const isVideoFrame = prediction.frame_number !== undefined
 
         if (isVideoFrame) {
