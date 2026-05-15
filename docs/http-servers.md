@@ -284,12 +284,12 @@ All models are defined in `src/shared/mlmodels.js`. Each model entry has the fol
 
 ```javascript
 {
-  reference: { id: 'speciesnet', version: '4.0.1a' },
+  reference: { id: 'speciesnet', version: '4.0.2a' },
   pythonEnvironment: { id: 'common', version: '0.1.3' },
   name: 'SpeciesNet',
   size_in_MB: 468,
   files: 6,
-  downloadURL: 'https://huggingface.co/earthtoolsmaker/speciesnet/resolve/main/4.0.1a.tar.gz?download=true',
+  downloadURL: 'https://huggingface.co/earthtoolsmaker/speciesnet/resolve/main/4.0.2a.tar.gz?download=true',
   description: "Google's SpeciesNet is an open-source AI model...",
   website: 'https://github.com/google/cameratrapai',
   logo: 'google',
@@ -605,7 +605,7 @@ Returns server and model metadata.
   "model": {
     "name": "speciesnet",
     "type": "speciesnet",
-    "version": "4.0.1a"
+    "version": "4.0.2a"
   },
   "server": {
     "devices": [["cuda:0"]],
