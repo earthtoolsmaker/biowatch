@@ -83,16 +83,20 @@ export default function Import({ studiesCount = 0 }) {
     }
   }, [navigate, queryClient])
 
-  // 3s minimum display before any auto-close fires. User-initiated dismiss
-  // (X / backdrop / footer button / ESC) still works immediately.
+  // 3s minimum display before any auto-close fires. The timer starts once
+  // the study ID is known (i.e. once the progress panel has real data to
+  // show), not when the modal first appears — otherwise a slow
+  // selectImagesDirectoryWithModel call eats the whole window and the user
+  // never sees the live counts. User-initiated dismiss (X / backdrop /
+  // footer button / ESC) still works immediately.
   useEffect(() => {
-    if (!startingFolder) {
+    if (!startingFolder || !pendingStudyId) {
       setMinDisplayElapsed(false)
       return
     }
     const id = setTimeout(() => setMinDisplayElapsed(true), 3000)
     return () => clearTimeout(id)
-  }, [startingFolder])
+  }, [startingFolder, pendingStudyId])
 
   // Auto-close once the first job for the new study lands. New studies
   // start at done=0, so no snapshot is needed.
