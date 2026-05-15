@@ -923,6 +923,7 @@ export default function Import({ studiesCount = 0 }) {
       <StartingImportModal
         isOpen={!!startingFolder}
         folderPath={startingFolder}
+        importStatus={pendingStudyStatus}
         dismissEnabled={!!pendingStudyId}
         dismissLabel="Open study"
         onDismiss={finishStartingImport}

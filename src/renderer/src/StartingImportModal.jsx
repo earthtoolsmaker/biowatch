@@ -4,9 +4,9 @@ import { Button } from './ui/button.jsx'
 
 /**
  * Transitional "Starting import…" modal shown right after the user kicks
- * off an import. Tells them what is happening now and where to look for
- * ongoing progress, so by the time it closes they know to expect the
- * (subtle) header progress UI and media appearing on the page.
+ * off an import. Surfaces live progress (bar + counts + speed + ETA) so
+ * the user has concrete evidence work is happening before the modal
+ * closes.
  *
  * The parent is responsible for deciding when the modal opens / closes;
  * this component just renders the shell and forwards dismiss events.
@@ -14,6 +14,7 @@ import { Button } from './ui/button.jsx'
 export default function StartingImportModal({
   isOpen,
   folderPath,
+  importStatus,
   onDismiss,
   dismissLabel = 'Continue in background',
   dismissEnabled = true
@@ -28,6 +29,28 @@ export default function StartingImportModal({
   }, [isOpen, dismissEnabled, onDismiss])
 
   if (!isOpen) return null
+
+  const total = importStatus?.total ?? 0
+  const done = importStatus?.done ?? 0
+  const speed = importStatus?.speed ?? 0
+  const etaMinutes = importStatus?.estimatedMinutesRemaining
+  const hasData = total > 0
+  const progress = hasData ? (done / total) * 100 : 0
+
+  const finishTime =
+    hasData && etaMinutes != null && etaMinutes > 0
+      ? new Date(
+          // eslint-disable-next-line react-hooks/purity -- intentional: import polls re-render every second, refreshing the wall-clock finish time
+          Date.now() + etaMinutes * 60_000
+        ).toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit'
+        })
+      : null
+
+  const infoLineParts = []
+  if (hasData && speed > 0) infoLineParts.push(`${speed} media/min`)
+  if (finishTime) infoLineParts.push(`finishes ≈ ${finishTime}`)
 
   return (
     <div
@@ -67,13 +90,29 @@ export default function StartingImportModal({
             </div>
           </div>
 
-          <div className="rounded-md border border-border bg-muted/50 dark:bg-muted px-3 py-3">
-            <p className="text-xs font-medium text-foreground mb-2">What happens next</p>
-            <ul className="text-xs text-muted-foreground space-y-1.5 leading-relaxed list-disc list-inside">
-              <li>A progress bar appears in the top-right header — pause or resume from there.</li>
-              <li>Images appear in the Media tab as they get classified. No need to refresh.</li>
-              <li>You can keep using the app while this runs in the background.</li>
-            </ul>
+          <div className="rounded-md border border-border bg-muted/50 dark:bg-muted px-3 py-3 space-y-2">
+            <div className="flex items-baseline justify-between">
+              <p className="text-xs font-medium text-foreground">Progress</p>
+              <p className="text-xs text-muted-foreground tabular-nums">
+                {hasData ? `${Math.round(progress)}%` : ''}
+              </p>
+            </div>
+            <div className="w-full bg-background dark:bg-muted-foreground/10 rounded-full h-2 overflow-hidden">
+              <div
+                className="h-full bg-blue-600 dark:bg-blue-500 transition-all duration-500 ease-in-out rounded-full"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground tabular-nums">
+              {hasData
+                ? `${done.toLocaleString()} of ${total.toLocaleString()} media`
+                : 'Queueing…'}
+            </p>
+            {infoLineParts.length > 0 && (
+              <p className="text-xs text-muted-foreground tabular-nums">
+                {infoLineParts.join(' · ')}
+              </p>
+            )}
           </div>
         </div>
 
