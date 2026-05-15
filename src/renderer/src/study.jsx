@@ -97,7 +97,7 @@ function ImportStatus({ studyId, importerName }) {
           : `~${Math.round(etaMinutes)} min`
 
   const finishTime =
-    etaMinutes != null && etaMinutes > 0
+    importStatus.isRunning && etaMinutes != null && etaMinutes > 0
       ? new Date(
           // eslint-disable-next-line react-hooks/purity -- intentional: import polls re-render every second, refreshing the wall-clock finish time
           Date.now() + etaMinutes * 60_000
@@ -191,7 +191,7 @@ function ImportStatus({ studyId, importerName }) {
                   {importStatus.done.toLocaleString()} of {importStatus.total.toLocaleString()}
                 </span>
               </li>
-              {importStatus.speed > 0 && (
+              {importStatus.isRunning && importStatus.speed > 0 && (
                 <li className="flex gap-3">
                   <span className="text-muted-foreground w-16">Speed</span>
                   <span>{importStatus.speed} media/min</span>
