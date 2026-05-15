@@ -158,6 +158,43 @@ class VideoCapableLitAPI(ABC):
         """
         pass
 
+    @staticmethod
+    def _normalize_failed_predictions(result: dict, fallback_filepath: str) -> dict:
+        """Convert partial-failure predictions to the standard error format.
+
+        Some models (notably SpeciesNet) swallow image-loading errors internally
+        and return a prediction dict with a `failures` field but no `prediction`
+        field. Downstream JS validation expects every prediction to carry the
+        required fields, so a partial-failure record fails validation and
+        aborts the whole batch. Rewrite those records into the same shape that
+        the `except` handler emits so consumers see uniform output.
+
+        Args:
+            result: Dict returned by `_predict_single_image` (or a frame thereof).
+            fallback_filepath: Filepath to use if the prediction omits one.
+
+        Returns:
+            New dict with the same shape as `result`, with any partial-failure
+            predictions replaced by standard error predictions.
+        """
+        normalized = []
+        for pred in result.get("predictions", []):
+            if pred.get("prediction") is None:
+                normalized.append(
+                    {
+                        "filepath": pred.get("filepath", str(fallback_filepath)),
+                        "prediction": "error",
+                        "prediction_score": 0.0,
+                        "error": f"Inference failed: {pred.get('failures', ['unknown'])}",
+                        "classifications": {},
+                        "detections": [],
+                        "model_version": pred.get("model_version", "unknown"),
+                    }
+                )
+            else:
+                normalized.append(pred)
+        return {"predictions": normalized}
+
     def predict_with_video_support(self, x, **kwargs):
         """
         Main predict method with automatic video support.
@@ -185,10 +222,11 @@ class VideoCapableLitAPI(ABC):
 
             try:
                 if is_video_file(filepath):
-                    yield from self._predict_video(filepath, sample_fps, **kwargs)
+                    for frame_result in self._predict_video(filepath, sample_fps, **kwargs):
+                        yield self._normalize_failed_predictions(frame_result, filepath)
                 else:
-                    # For images, just pass through to single image prediction
-                    yield self._predict_single_image(filepath, **kwargs)
+                    result = self._predict_single_image(filepath, **kwargs)
+                    yield self._normalize_failed_predictions(result, filepath)
             except Exception as e:
                 logger.error(f"Skipping file due to error: {filepath!r} - {e}")
                 yield {
@@ -200,6 +238,7 @@ class VideoCapableLitAPI(ABC):
                             "error": str(e),
                             "classifications": {},
                             "detections": [],
+                            "model_version": "unknown",
                         }
                     ]
                 }
