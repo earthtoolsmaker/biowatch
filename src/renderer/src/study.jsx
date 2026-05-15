@@ -4,14 +4,16 @@ import {
   ChartBar,
   Image,
   NotebookText,
-  Download,
+  Play,
   Pause,
+  Loader2,
   FolderOpen,
   Settings
 } from 'lucide-react'
 import { Route, Routes, useParams } from 'react-router'
 import { ErrorBoundary } from 'react-error-boundary'
 import { useQuery } from '@tanstack/react-query'
+import * as Tooltip from '@radix-ui/react-tooltip'
 import Deployments from './deployments'
 import Overview from './overview'
 import Activity from './activity'
@@ -72,7 +74,6 @@ function ImportStatus({ studyId, importerName }) {
 
   console.log('ImportStatus', importStatus)
 
-  // Calculate progress for display
   const progress =
     importStatus && importStatus.total > 0 ? (importStatus.done / importStatus.total) * 100 : 0
   const showImportStatus =
@@ -85,50 +86,128 @@ function ImportStatus({ studyId, importerName }) {
     return null
   }
 
-  // Calculate width based on number of digits in total (accounting for both done and total)
-  const totalDigits = importStatus.total.toString().length
-  const spanWidth = `${totalDigits * 2 + 2}ch` // Minimum width with scaling
+  const etaMinutes = importStatus.estimatedMinutesRemaining
+  const etaShort =
+    !importStatus.isRunning || etaMinutes == null
+      ? ''
+      : etaMinutes < 1
+        ? '<1 min'
+        : etaMinutes >= 60
+          ? `~${Math.round(etaMinutes / 60)}h`
+          : `~${Math.round(etaMinutes)} min`
+
+  const finishTime =
+    importStatus.isRunning && etaMinutes != null && etaMinutes > 0
+      ? new Date(
+          // eslint-disable-next-line react-hooks/purity -- intentional: import polls re-render every second, refreshing the wall-clock finish time
+          Date.now() + etaMinutes * 60_000
+        ).toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit'
+        })
+      : null
+
+  const isStarting = importStatus.isRunning && importStatus.pausedCount + 1 > importStatus.done
 
   return (
     <div className="flex items-center gap-3 px-4 ml-auto">
-      <button
-        onClick={importStatus.isRunning ? pauseImport : resumeImport}
-        className="px-2 py-0.5 bg-card hover:bg-accent border border-border rounded text-sm font-medium text-foreground transition-colors flex items-center gap-1"
-        title={importStatus.isRunning ? 'Pause import' : 'Resume import'}
-      >
-        {importStatus.isRunning ? (
-          <Pause size={14} color="black" />
-        ) : (
-          <Download size={14} color="black" />
-        )}
-        {importStatus.isRunning
-          ? importStatus.pausedCount + 1 > importStatus.done
-            ? 'Starting'
-            : 'Pause'
-          : 'Resume'}
-      </button>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <button
+            onClick={importStatus.isRunning ? pauseImport : resumeImport}
+            className={`w-7 h-7 rounded-md border flex items-center justify-center transition-colors ${
+              importStatus.isRunning
+                ? 'bg-card hover:bg-accent border-border text-foreground'
+                : 'bg-blue-50 hover:bg-blue-100 border-blue-300 text-blue-700 dark:bg-blue-500/15 dark:hover:bg-blue-500/25 dark:border-blue-500/40 dark:text-blue-300'
+            }`}
+            aria-label={
+              isStarting
+                ? 'Starting import'
+                : importStatus.isRunning
+                  ? 'Pause import'
+                  : 'Resume import'
+            }
+          >
+            {isStarting ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : importStatus.isRunning ? (
+              <Pause size={14} />
+            ) : (
+              <Play size={14} />
+            )}
+          </button>
+        </Tooltip.Trigger>
+        <Tooltip.Portal>
+          <Tooltip.Content
+            side="bottom"
+            sideOffset={8}
+            align="start"
+            className="z-[10000] max-w-[16rem] px-3 py-2 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md"
+          >
+            <p className="font-medium mb-1 leading-snug">
+              {isStarting ? 'Starting…' : importStatus.isRunning ? 'Pause import' : 'Resume import'}
+            </p>
+            <p className="text-muted-foreground leading-relaxed">
+              {isStarting
+                ? 'Waiting for the queue to pick up the next batch.'
+                : importStatus.isRunning
+                  ? 'Stop processing new media. Already-imported items are kept — click again to resume.'
+                  : 'Continue processing from where it left off.'}
+            </p>
+            <Tooltip.Arrow className="fill-popover" />
+          </Tooltip.Content>
+        </Tooltip.Portal>
+      </Tooltip.Root>
 
-      <span className="text-muted-foreground tabular-nums text-xs" style={{ width: spanWidth }}>
-        {importStatus.done} / {importStatus.total}
-      </span>
-
-      <div className={`w-20 bg-muted rounded-full h-2`}>
-        <div
-          className={`h-full bg-blue-600 dark:bg-blue-500 transition-all duration-500 ease-in-out rounded-full`}
-          style={{ width: `${progress}%` }}
-        />
-      </div>
-
-      <span
-        className="text-xs text-muted-foreground text-right"
-        title={`${importStatus.speed} media/minute`}
-      >
-        {importStatus.estimatedMinutesRemaining
-          ? importStatus.estimatedMinutesRemaining > 60
-            ? `${Math.round(importStatus.estimatedMinutesRemaining / 60)} hrs remaining`
-            : `${Math.round(importStatus.estimatedMinutesRemaining)} mins remaining`
-          : ''}
-      </span>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <div className="flex items-center gap-2 cursor-default">
+            <div className="w-28 bg-muted rounded-full h-2">
+              <div
+                className="h-full bg-blue-600 dark:bg-blue-500 transition-all duration-500 ease-in-out rounded-full"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap min-w-[3.5rem]">
+              {etaShort}
+            </span>
+          </div>
+        </Tooltip.Trigger>
+        <Tooltip.Portal>
+          <Tooltip.Content
+            side="bottom"
+            sideOffset={8}
+            align="end"
+            className="z-[10000] px-3 py-2 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md"
+          >
+            <ul className="space-y-1 tabular-nums leading-snug">
+              <li className="flex gap-3">
+                <span className="text-muted-foreground w-16">Progress</span>
+                <span>{Math.round(progress)}%</span>
+              </li>
+              <li className="flex gap-3">
+                <span className="text-muted-foreground w-16">Media</span>
+                <span>
+                  {importStatus.done.toLocaleString()} of {importStatus.total.toLocaleString()}
+                </span>
+              </li>
+              {importStatus.isRunning && importStatus.speed > 0 && (
+                <li className="flex gap-3">
+                  <span className="text-muted-foreground w-16">Speed</span>
+                  <span>{importStatus.speed} media/min</span>
+                </li>
+              )}
+              {finishTime && (
+                <li className="flex gap-3">
+                  <span className="text-muted-foreground w-16">Finishes</span>
+                  <span>≈ {finishTime}</span>
+                </li>
+              )}
+            </ul>
+            <Tooltip.Arrow className="fill-popover" />
+          </Tooltip.Content>
+        </Tooltip.Portal>
+      </Tooltip.Root>
     </div>
   )
 }
