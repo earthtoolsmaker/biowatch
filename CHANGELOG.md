@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Notes
 
 - If you continue importing media into an existing 4.0.1a study, new predictions are tagged `4.0.2a`. Geofence verdicts may differ between rows in the same study (e.g. bears in the UK are now blocked) — this is expected upstream behavior.
+- If you have a SpeciesNet import in progress when you upgrade, let it finish (or cancel it) before updating the app. Resumed 4.0.1a jobs can't find their model after the upgrade.
 
 ## [1.9.1] - 2026-05-14
 

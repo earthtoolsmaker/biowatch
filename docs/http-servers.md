@@ -285,7 +285,7 @@ All models are defined in `src/shared/mlmodels.js`. Each model entry has the fol
 ```javascript
 {
   reference: { id: 'speciesnet', version: '4.0.2a' },
-  pythonEnvironment: { id: 'common', version: '0.1.3' },
+  pythonEnvironment: { id: 'common', version: '0.1.4' },
   name: 'SpeciesNet',
   size_in_MB: 468,
   files: 6,

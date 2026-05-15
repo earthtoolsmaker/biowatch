@@ -20,9 +20,9 @@ Outputs JSON in the shape consumed by scripts/lib/aliases.js:
 
 Usage:
     python3 scripts/extract-speciesnet-labels.py \\
-        --labels-file /tmp/speciesnet-401/4.0.1a/always_crop_99710272_22x8_v12_epoch_00148.labels.txt \\
-        --version 4.0.1a \\
-        --source-name 4.0.1a/always_crop_99710272_22x8_v12_epoch_00148.labels.txt \\
+        --labels-file /tmp/speciesnet-402/4.0.2a/always_crop_99710272_22x8_v12_epoch_00148.labels.20251208.txt \\
+        --version 4.0.2a \\
+        --source-name 4.0.2a/always_crop_99710272_22x8_v12_epoch_00148.labels.20251208.txt \\
         --output src/shared/commonNames/sources/speciesnet.json
 """
 

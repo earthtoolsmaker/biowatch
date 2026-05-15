@@ -45,7 +45,7 @@ Load the SpeciesNet Model from a folder and start the server:
 ```bash
 uv run python run_speciesnet_server.py \
   --port 8000 \
-  --model "v4.0.1a/"
+  --model "v4.0.2a/"
 ```
 
 ### Deepfaune
