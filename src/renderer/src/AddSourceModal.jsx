@@ -30,6 +30,7 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
   const [folder, setFolder] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [waitingForFirstBatch, setWaitingForFirstBatch] = useState(false)
+  const [minDisplayElapsed, setMinDisplayElapsed] = useState(false)
   const doneAtStartRef = useRef(0)
   const [error, setError] = useState(null)
   const [installedModels, setInstalledModels] = useState([])
@@ -102,16 +103,30 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
     return () => window.removeEventListener('keydown', onKey)
   }, [isOpen, submitting, onClose])
 
+  // Minimum display time. Guarantees the user sees the transitional view
+  // long enough to read the "what happens next" copy before any auto-close
+  // can fire. Explicit dismiss (Continue in background / ESC / ✕ /
+  // backdrop) still works immediately.
+  useEffect(() => {
+    if (!waitingForFirstBatch) {
+      setMinDisplayElapsed(false)
+      return
+    }
+    const id = setTimeout(() => setMinDisplayElapsed(true), 3000)
+    return () => clearTimeout(id)
+  }, [waitingForFirstBatch])
+
   // Auto-close once a new job completes. importStatus.done is study-wide
   // and may already be non-zero from prior runs, so we compare against
-  // the snapshot captured when we entered the transitional state.
+  // the snapshot captured when we entered the transitional state. Gated
+  // on minDisplayElapsed so the modal is visible long enough to register.
   useEffect(() => {
-    if (!waitingForFirstBatch) return
+    if (!waitingForFirstBatch || !minDisplayElapsed) return
     if ((importStatus?.done ?? 0) > doneAtStartRef.current) {
       onImported?.()
       onClose()
     }
-  }, [waitingForFirstBatch, importStatus?.done, onImported, onClose])
+  }, [waitingForFirstBatch, minDisplayElapsed, importStatus?.done, onImported, onClose])
 
   // Failsafe: if no job completes within 15s, dismiss the modal anyway.
   // The import is genuinely running by this point (addFolder resolved),
