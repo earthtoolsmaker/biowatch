@@ -84,7 +84,7 @@ export function detectModelType(prediction) {
   // Check model_version format to determine model type
   const version = prediction.model_version || ''
 
-  // SpeciesNet versions typically look like "4.0.1a", "4.0.0a"
+  // SpeciesNet versions typically look like "4.0.2a", "4.0.1a"
   if (version.match(/^\d+\.\d+\.\d+[a-z]?$/)) {
     return 'speciesnet'
   }

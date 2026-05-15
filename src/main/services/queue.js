@@ -15,7 +15,7 @@ import log from './logger.js'
  * @param {import('../database/manager.js').StudyDatabaseManager} manager
  * @param {Object} opts
  * @param {string} opts.kind - Job category ('ml-inference', 'ocr', etc.)
- * @param {string} [opts.topic] - Sub-grouping ('speciesnet:4.0.1a', etc.)
+ * @param {string} [opts.topic] - Sub-grouping ('speciesnet:4.0.2a', etc.)
  * @param {Object} opts.payload - Job-specific data
  * @param {number} [opts.maxAttempts=3]
  * @returns {Object} The inserted job

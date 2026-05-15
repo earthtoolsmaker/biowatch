@@ -156,13 +156,13 @@ export const modelZoo = [
    * a description of the model, and a link to the model's website.
    */
   {
-    reference: { id: 'speciesnet', version: '4.0.1a' },
+    reference: { id: 'speciesnet', version: '4.0.2a' },
     pythonEnvironment: { id: 'common', version: '0.1.4' },
     name: 'SpeciesNet',
     size_in_MB: 468,
     files: 6,
     downloadURL:
-      'https://huggingface.co/earthtoolsmaker/speciesnet/resolve/main/4.0.1a.tar.gz?download=true',
+      'https://huggingface.co/earthtoolsmaker/speciesnet/resolve/main/4.0.2a.tar.gz?download=true',
     description:
       "Google's SpeciesNet is an open-source AI model launched in 2025, specifically designed for identifying animal species from images captured by camera traps. It boasts the capability to classify images into over 2,000 species labels, greatly enhancing the efficiency of wildlife data analysis for conservation initiatives.",
     website: 'https://github.com/google/cameratrapai',

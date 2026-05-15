@@ -16,7 +16,7 @@ from huggingface_hub import hf_hub_download
 MODELS = {
     "speciesnet": {
         "repo_id": "earthtoolsmaker/speciesnet",
-        "filename": "4.0.1a.tar.gz",
+        "filename": "4.0.2a.tar.gz",
     },
     "deepfaune": {
         "repo_id": "earthtoolsmaker/deepfaune",

@@ -1,7 +1,7 @@
 {
   "modelId": "speciesnet",
-  "modelVersion": "4.0.1a",
-  "source": "4.0.1a/always_crop_99710272_22x8_v12_epoch_00148.labels.txt (earthtoolsmaker/speciesnet HF repo)",
+  "modelVersion": "4.0.2a",
+  "source": "4.0.2a/always_crop_99710272_22x8_v12_epoch_00148.labels.20251208.txt (earthtoolsmaker/speciesnet HF repo)",
   "entries": [
     {
       "scientificName": "saguinus melanoleucus",
@@ -2335,8 +2335,8 @@
     },
     {
       "scientificName": null,
-      "label": "even-toed ungulate",
-      "commonName": "even-toed ungulate"
+      "label": "artiodactyla order",
+      "commonName": "artiodactyla order"
     },
     {
       "scientificName": null,
@@ -5765,8 +5765,8 @@
     },
     {
       "scientificName": null,
-      "label": "coati family",
-      "commonName": "coati family"
+      "label": "procyonidae family",
+      "commonName": "procyonidae family"
     },
     {
       "scientificName": "pseudocheirus peregrinus",
@@ -6117,6 +6117,11 @@
       "scientificName": "pedetes capensis",
       "label": null,
       "commonName": "spring hare"
+    },
+    {
+      "scientificName": "copsychus malabaricus",
+      "label": null,
+      "commonName": "white-rumped shama"
     },
     {
       "scientificName": null,
@@ -9800,8 +9805,8 @@
     },
     {
       "scientificName": null,
-      "label": "cetartiodactyla order",
-      "commonName": "cetartiodactyla order"
+      "label": "artiodactyla order",
+      "commonName": "artiodactyla order"
     },
     {
       "scientificName": "bleda notatus",
@@ -10874,7 +10879,7 @@
       "commonName": "brown-capped weaver"
     },
     {
-      "scientificName": "emys marmorata",
+      "scientificName": "actinemys marmorata",
       "label": null,
       "commonName": "western pond turtle"
     },
@@ -11829,9 +11834,9 @@
       "commonName": "philander species"
     },
     {
-      "scientificName": "ardea albus",
+      "scientificName": "ardea alba",
       "label": null,
-      "commonName": "great egret"
+      "commonName": "great white egret"
     },
     {
       "scientificName": null,

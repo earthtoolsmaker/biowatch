@@ -360,7 +360,7 @@ Persistent job queue for async work (ML inference, OCR, etc.). Jobs are self-con
 | ------------- | ------- | --------------------------- | ----------------------------------------------------------- |
 | `id`          | TEXT    | PRIMARY KEY                 | UUID                                                        |
 | `kind`        | TEXT    | NOT NULL                    | Job category (`ml-inference`, `ocr`, etc.)                  |
-| `topic`       | TEXT    |                             | Sub-grouping (`speciesnet:4.0.1a`, `deepfaune:1.2`, etc.)   |
+| `topic`       | TEXT    |                             | Sub-grouping (`speciesnet:4.0.2a`, `deepfaune:1.2`, etc.)   |
 | `status`      | TEXT    | NOT NULL, DEFAULT 'pending' | `pending`, `processing`, `completed`, `failed`, `cancelled` |
 | `payload`     | TEXT    | NOT NULL, JSON              | Job-specific data (mediaId, filePath, etc.)                 |
 | `error`       | TEXT    |                             | Error message on failure                                    |
@@ -443,7 +443,7 @@ export const jobs = sqliteTable('jobs', {
           "bbox": [0.1, 0.2, 0.5, 0.6]
         }
       ],
-      "model_version": "4.0.1a"
+      "model_version": "4.0.2a"
     }
   ]
 }

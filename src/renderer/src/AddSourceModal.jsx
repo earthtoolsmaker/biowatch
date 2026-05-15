@@ -26,7 +26,7 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
   const { importStatus } = useImportStatus(studyId)
   const [latestModel, setLatestModel] = useState(null) // {id, version} | null
   const [latestCountry, setLatestCountry] = useState(null) // string | null
-  const [pickedModelKey, setPickedModelKey] = useState('') // 'speciesnet-4.0.1a'
+  const [pickedModelKey, setPickedModelKey] = useState('') // 'speciesnet-4.0.2a'
   const [pickedCountry, setPickedCountry] = useState('')
   const [folder, setFolder] = useState('')
   const [submitting, setSubmitting] = useState(false)

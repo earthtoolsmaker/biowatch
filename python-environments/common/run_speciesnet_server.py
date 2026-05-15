@@ -25,7 +25,7 @@ Load the SpeciesNet model from a folder and start the server:
 ```
 run_speciesnet_server.py \
   --port 8000 \
-  --model "v4.0.1a/"
+  --model "v4.0.2a/"
 ```
 
 A Swagger API documentation is served at localhost:${port}/docs

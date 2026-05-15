@@ -284,18 +284,38 @@ All models are defined in `src/shared/mlmodels.js`. Each model entry has the fol
 
 ```javascript
 {
-  reference: { id: 'speciesnet', version: '4.0.1a' },
-  pythonEnvironment: { id: 'common', version: '0.1.3' },
+  reference: { id: 'speciesnet', version: '4.0.2a' },
+  pythonEnvironment: { id: 'common', version: '0.1.4' },
   name: 'SpeciesNet',
   size_in_MB: 468,
   files: 6,
-  downloadURL: 'https://huggingface.co/earthtoolsmaker/speciesnet/resolve/main/4.0.1a.tar.gz?download=true',
+  downloadURL: 'https://huggingface.co/earthtoolsmaker/speciesnet/resolve/main/4.0.2a.tar.gz?download=true',
   description: "Google's SpeciesNet is an open-source AI model...",
   website: 'https://github.com/google/cameratrapai',
   logo: 'google',
   detectionConfidenceThreshold: 0.5
 }
 ```
+
+## Packaging Model Tarballs
+
+Model `downloadURL`s in the zoo point at tarballs we host on Hugging Face. For SpeciesNet, the tarball is built from the public Kaggle archive plus a bundled copy of MegaDetector (so the model runs fully offline after first download).
+
+To produce a new SpeciesNet tarball ready for upload:
+
+```sh
+python3 scripts/build-speciesnet-tarball.py --version 4.0.2a
+# → dist/4.0.2a.tar.gz, with size + SHA256 printed at the end
+```
+
+The script:
+
+- pulls `kaggle:google/speciesnet/pyTorch/v<version>/1` from Kaggle's public download endpoint (no auth needed),
+- downloads `md_v5a.0.0.pt` from the MegaDetector v5.0 GitHub release and verifies its SHA256,
+- rewrites `info.json`'s `detector` field from a URL to the bundled local filename,
+- tar-gzips the layout into `dist/<version>.tar.gz`.
+
+Upload the resulting file to `huggingface.co/earthtoolsmaker/speciesnet` (manual step — needs HF credentials), then bump `mlmodels.js` to reference the new `downloadURL`, `size_in_MB`, and `version`.
 
 ## Adding a New ML Model
 
@@ -585,7 +605,7 @@ Returns server and model metadata.
   "model": {
     "name": "speciesnet",
     "type": "speciesnet",
-    "version": "4.0.1a"
+    "version": "4.0.2a"
   },
   "server": {
     "devices": [["cuda:0"]],

@@ -473,7 +473,7 @@ Stored in `model_outputs.rawOutput` (JSON column):
           "bbox": [0.1, 0.2, 0.5, 0.6]
         }
       ],
-      "model_version": "4.0.1a"
+      "model_version": "4.0.2a"
     }
   ]
 }
