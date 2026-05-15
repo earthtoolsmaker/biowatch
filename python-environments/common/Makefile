@@ -21,7 +21,7 @@ format-check:
 	uv run ruff format --check .
 
 # Environment variables for test model paths
-export SPECIESNET_MODEL_PATH=/tmp/models/speciesnet/4.0.1a
+export SPECIESNET_MODEL_PATH=/tmp/models/speciesnet/4.0.2a
 export DEEPFAUNE_DETECTOR_WEIGHTS=/tmp/models/deepfaune/1.3/MDV6-yolov10x.pt
 export DEEPFAUNE_CLASSIFIER_WEIGHTS=/tmp/models/deepfaune/1.3/deepfaune-vit_large_patch14_dinov2.lvd142m.v3.pt
 export MANAS_DETECTOR_WEIGHTS=/tmp/models/manas/1.0/MDV6-yolov10x.pt
