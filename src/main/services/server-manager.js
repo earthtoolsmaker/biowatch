@@ -16,7 +16,7 @@ class ServerManager {
 
   /**
    * Ensure a server is running for the given topic.
-   * @param {string} topic - e.g. 'speciesnet:4.0.1a'
+   * @param {string} topic - e.g. 'speciesnet:4.0.2a'
    * @param {string|null} [country] - Country code for geofencing
    * @returns {Promise<{port: number, model: Object}>}
    */

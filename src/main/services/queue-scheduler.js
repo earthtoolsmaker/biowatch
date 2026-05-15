@@ -25,7 +25,7 @@ class QueueScheduler {
    * If another study is active, stops it first.
    * @param {string} studyId
    * @param {Object} opts
-   * @param {string} opts.topic - e.g. 'speciesnet:4.0.1a'
+   * @param {string} opts.topic - e.g. 'speciesnet:4.0.2a'
    * @param {string|null} [opts.country]
    */
   async startStudy(studyId, { topic, country = null, importPath = null }) {

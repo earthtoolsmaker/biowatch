@@ -118,7 +118,7 @@ async function insertMedia(db, fullPath, importFolder) {
 //   prediction: '5a565886-156e-4b19-a017-6a5bbae4df0f;mammalia;lagomorpha;leporidae;oryctolagus;cuniculus;european rabbit',
 //   prediction_score: 0.9893904328346252,
 //   prediction_source: 'classifier',
-//   model_version: '4.0.1a'
+//   model_version: '4.0.2a'
 // }
 
 /**

@@ -6,7 +6,7 @@ export const jobs = sqliteTable(
   {
     id: text('id').primaryKey(),
     kind: text('kind').notNull(), // 'ml-inference', 'ocr', etc.
-    topic: text('topic'), // Sub-grouping: 'speciesnet:4.0.1a', 'deepfaune:1.2', etc.
+    topic: text('topic'), // Sub-grouping: 'speciesnet:4.0.2a', 'deepfaune:1.2', etc.
     status: text('status').notNull().default('pending'), // pending, processing, completed, failed, cancelled
     payload: text('payload', { mode: 'json' }).notNull(), // Job-specific data (mediaId, filePath, etc.)
     error: text('error'), // Error message on failure
@@ -85,7 +85,7 @@ export const modelRuns = sqliteTable(
   {
     id: text('id').primaryKey(), // UUID via crypto.randomUUID()
     modelID: text('modelID').notNull(), // 'speciesnet', 'deepfaune'
-    modelVersion: text('modelVersion').notNull(), // '4.0.1a', '1.3'
+    modelVersion: text('modelVersion').notNull(), // '4.0.2a', '1.3'
     startedAt: text('startedAt').notNull(), // ISO timestamp
     status: text('status').default('running'), // 'running', 'completed', 'failed'
     importPath: text('importPath'), // Directory path for this run
@@ -142,7 +142,7 @@ export const observations = sqliteTable(
     modelOutputID: text('modelOutputID').references(() => modelOutputs.id),
     // Camtrap DP classification fields (all nullable)
     classificationMethod: text('classificationMethod'), // 'machine' | 'human'
-    classifiedBy: text('classifiedBy'), // 'SpeciesNet 4.0.1a' or 'John Doe'
+    classifiedBy: text('classifiedBy'), // 'SpeciesNet 4.0.2a' or 'John Doe'
     classificationTimestamp: text('classificationTimestamp') // ISO 8601 with timezone
   },
   (table) => [

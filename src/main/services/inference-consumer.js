@@ -25,7 +25,7 @@ export class InferenceConsumer extends QueueConsumer {
   /**
    * @param {import('../database/manager.js').StudyDatabaseManager} manager
    * @param {Object} opts
-   * @param {string} opts.topic - e.g. 'speciesnet:4.0.1a'
+   * @param {string} opts.topic - e.g. 'speciesnet:4.0.2a'
    * @param {string|null} [opts.country] - Country code for geofencing
    * @param {string} opts.studyId
    * @param {number} [opts.batchSize=5]
