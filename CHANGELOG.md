@@ -5,6 +5,16 @@ All notable changes to Biowatch will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **SpeciesNet upgraded to 4.0.2a**. Same classifier weights as 4.0.1a — only geofencing rules and taxonomy were updated upstream (e.g. `cetartiodactyla` → `artiodactyla`, `coati family` → `procyonidae family`, `emys marmorata` → `actinemys marmorata`). New imports use 4.0.2a; existing 4.0.1a predictions remain tagged historically and continue to display correctly.
+
+### Notes
+
+- If you continue importing media into an existing 4.0.1a study, new predictions are tagged `4.0.2a`. Geofence verdicts may differ between rows in the same study (e.g. bears in the UK are now blocked) — this is expected upstream behavior.
+
 ## [1.9.1] - 2026-05-14
 
 ### Added
