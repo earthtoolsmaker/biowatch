@@ -297,6 +297,26 @@ All models are defined in `src/shared/mlmodels.js`. Each model entry has the fol
 }
 ```
 
+## Packaging Model Tarballs
+
+Model `downloadURL`s in the zoo point at tarballs we host on Hugging Face. For SpeciesNet, the tarball is built from the public Kaggle archive plus a bundled copy of MegaDetector (so the model runs fully offline after first download).
+
+To produce a new SpeciesNet tarball ready for upload:
+
+```sh
+python3 scripts/build-speciesnet-tarball.py --version 4.0.2a
+# → dist/4.0.2a.tar.gz, with size + SHA256 printed at the end
+```
+
+The script:
+
+- pulls `kaggle:google/speciesnet/pyTorch/v<version>/1` from Kaggle's public download endpoint (no auth needed),
+- downloads `md_v5a.0.0.pt` from the MegaDetector v5.0 GitHub release and verifies its SHA256,
+- rewrites `info.json`'s `detector` field from a URL to the bundled local filename,
+- tar-gzips the layout into `dist/<version>.tar.gz`.
+
+Upload the resulting file to `huggingface.co/earthtoolsmaker/speciesnet` (manual step — needs HF credentials), then bump `mlmodels.js` to reference the new `downloadURL`, `size_in_MB`, and `version`.
+
 ## Adding a New ML Model
 
 Follow these steps to add a new ML model to Biowatch.

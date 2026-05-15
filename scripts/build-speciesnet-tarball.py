@@ -22,12 +22,8 @@ import tempfile
 import urllib.request
 from pathlib import Path
 
-KAGGLE_URL_TEMPLATE = (
-    "https://www.kaggle.com/api/v1/models/google/speciesnet/pyTorch/v{version}/1/download"
-)
-MEGADETECTOR_URL = (
-    "https://github.com/agentmorris/MegaDetector/releases/download/v5.0/md_v5a.0.0.pt"
-)
+KAGGLE_URL_TEMPLATE = "https://www.kaggle.com/api/v1/models/google/speciesnet/pyTorch/v{version}/1/download"
+MEGADETECTOR_URL = "https://github.com/agentmorris/MegaDetector/releases/download/v5.0/md_v5a.0.0.pt"
 MEGADETECTOR_FILENAME = "md_v5a.0.0.pt"
 MEGADETECTOR_SHA256 = "94e88fe97c8050f2e3d0cc4cb4f64729d639d74312dcbe2f74f8eecd3b01b276"
 
@@ -110,10 +106,8 @@ def build(version: str, output_dir: Path, work_dir: Path) -> Path:
 
     actual_hash = sha256_of(detector_path)
     if actual_hash != MEGADETECTOR_SHA256:
-        raise RuntimeError(
-            f"MegaDetector SHA256 mismatch:\n  expected {MEGADETECTOR_SHA256}\n  got      {actual_hash}"
-        )
-    print(f"[verify] MegaDetector SHA256 ✓")
+        raise RuntimeError(f"MegaDetector SHA256 mismatch:\n  expected {MEGADETECTOR_SHA256}\n  got      {actual_hash}")
+    print("[verify] MegaDetector SHA256 ✓")
 
     rewrite_info_json(model_dir / "info.json")
 
@@ -151,7 +145,7 @@ def main() -> None:
     print(f"  Tarball:  {tarball}")
     print(f"  Size:     {size_mb:.1f} MB")
     print(f"  SHA256:   {digest}")
-    print(f"  Contents:")
+    print("  Contents:")
     for name in members:
         print(f"    {name}")
     print("=" * 60)
