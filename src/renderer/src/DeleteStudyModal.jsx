@@ -76,7 +76,7 @@ function DeleteStudyModal({ isOpen, onConfirm, onCancel, studyName }) {
             You are about to permanently delete the study{' '}
             <span className="font-semibold text-foreground">&ldquo;{studyName}&rdquo;</span> from
             Biowatch. This removes its imported metadata, deployments, observations, ML predictions,
-            and any cached files.
+            and cached files.
           </p>
 
           <p className="text-sm text-foreground mb-4">
@@ -85,7 +85,7 @@ function DeleteStudyModal({ isOpen, onConfirm, onCancel, studyName }) {
 
           <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-md p-3 mb-4 dark:bg-red-500/15">
             <p className="text-sm text-red-800 dark:text-red-300">
-              This action cannot be undone. Biowatch data for this study will be permanently lost.
+              Biowatch data for this study will be <strong>permanently lost</strong>.
             </p>
           </div>
 
