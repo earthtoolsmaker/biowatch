@@ -1,3 +1,4 @@
+import * as SelectPrimitive from '@radix-ui/react-select'
 import { useNavigate } from 'react-router'
 import { CheckCircle2, AlertTriangle, Settings, ArrowRight } from 'lucide-react'
 import { modelZoo } from '../../../shared/mlmodels.js'
@@ -7,7 +8,6 @@ import {
   Select,
   SelectContent,
   SelectGroup,
-  SelectItem,
   SelectSeparator,
   SelectTrigger,
   SelectValue
@@ -143,24 +143,33 @@ export default function ModelSelect({
           {modelZoo.map((model) => {
             const status = getModelInstallStatus(model, installedModels, installedEnvironments)
             return (
-              <SelectItem
+              <SelectPrimitive.Item
                 key={`${model.reference.id}-${model.reference.version}`}
                 value={`${model.reference.id}-${model.reference.version}`}
-                className="items-start [&>span:last-child]:hidden cursor-pointer py-2"
+                className="focus:bg-accent focus:text-accent-foreground relative flex w-full cursor-pointer items-start gap-2 rounded-sm py-2 px-2 text-sm outline-none select-none"
               >
+                <SelectPrimitive.ItemText className="sr-only">
+                  {`${model.name} v${model.reference.version}`}
+                </SelectPrimitive.ItemText>
                 <ModelRow model={model} status={status} />
-              </SelectItem>
+              </SelectPrimitive.Item>
             )
           })}
         </SelectGroup>
         <SelectSeparator />
-        <SelectItem value={FOOTER_VALUE} className="cursor-pointer text-sm text-muted-foreground">
+        <SelectPrimitive.Item
+          value={FOOTER_VALUE}
+          className="focus:bg-accent focus:text-accent-foreground relative flex w-full cursor-pointer items-center gap-2 rounded-sm py-1.5 px-2 text-sm text-muted-foreground outline-none select-none"
+        >
+          <SelectPrimitive.ItemText className="sr-only">
+            Manage models in Settings
+          </SelectPrimitive.ItemText>
           <span className="inline-flex items-center gap-2">
             <Settings size={12} />
             Manage models in Settings
             <ArrowRight size={12} />
           </span>
-        </SelectItem>
+        </SelectPrimitive.Item>
       </SelectContent>
     </Select>
   )
