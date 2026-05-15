@@ -84,7 +84,9 @@ export default function StudySettings({ studyId, studyName }) {
             <div className="min-w-0">
               <h3 className="text-sm font-medium text-foreground">Delete this study</h3>
               <p className="text-sm text-muted-foreground mt-1">
-                Once deleted, all data associated with this study will be permanently removed.
+                Permanently removes this study from Biowatch — its imported metadata, deployments,
+                observations, ML predictions, and cached files. Your original image and video files
+                on disk are not affected.
               </p>
             </div>
             <button
