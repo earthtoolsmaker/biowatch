@@ -1,10 +1,12 @@
 import 'leaflet/dist/leaflet.css'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router'
 import { modelZoo } from '../../shared/mlmodels.js'
 import { getGbifTitle, isGbifAvailable } from '../../shared/gbifTitles.js'
 import { useQueryClient } from '@tanstack/react-query'
 import CountryPickerModal from './CountryPickerModal.jsx'
+import StartingImportModal from './StartingImportModal.jsx'
+import { useImportStatus } from './hooks/import'
 import GbifImportProgress from './GbifImportProgress.jsx'
 import DemoImportProgress from './DemoImportProgress.jsx'
 import LilaImportProgress from './LilaImportProgress.jsx'
@@ -55,6 +57,67 @@ export default function Import({ studiesCount = 0 }) {
   const [pendingDirectoryPath, setPendingDirectoryPath] = useState(null)
   const [showMoreFormats, setShowMoreFormats] = useState(false)
   const queryClient = useQueryClient()
+
+  // Local-folder import: transitional modal shown from the moment the user
+  // commits a folder until the new study is ready and the first job has
+  // landed (or a few safety nets fire). Without this, the renderer
+  // navigates straight to the empty study page and the customer reports
+  // it feels stuck.
+  const [startingFolder, setStartingFolder] = useState(null) // string | null
+  const [pendingStudyId, setPendingStudyId] = useState(null) // string | null
+  const [minDisplayElapsed, setMinDisplayElapsed] = useState(false)
+  const navigateTargetRef = useRef(null)
+
+  const { importStatus: pendingStudyStatus } = useImportStatus(pendingStudyId)
+
+  // Single place that closes the modal and (if we have a study ID) navigates.
+  const finishStartingImport = useCallback(() => {
+    const target = navigateTargetRef.current
+    setStartingFolder(null)
+    setPendingStudyId(null)
+    setMinDisplayElapsed(false)
+    navigateTargetRef.current = null
+    if (target) {
+      queryClient.invalidateQueries({ queryKey: ['studies'] })
+      navigate(`/study/${target}`)
+    }
+  }, [navigate, queryClient])
+
+  // 3s minimum display before any auto-close fires. User-initiated dismiss
+  // (X / backdrop / footer button / ESC) still works immediately.
+  useEffect(() => {
+    if (!startingFolder) {
+      setMinDisplayElapsed(false)
+      return
+    }
+    const id = setTimeout(() => setMinDisplayElapsed(true), 3000)
+    return () => clearTimeout(id)
+  }, [startingFolder])
+
+  // Auto-close once the first job for the new study lands. New studies
+  // start at done=0, so no snapshot is needed.
+  useEffect(() => {
+    if (!startingFolder || !minDisplayElapsed) return
+    if (!pendingStudyId) return
+    if ((pendingStudyStatus?.done ?? 0) > 0) {
+      finishStartingImport()
+    }
+  }, [
+    startingFolder,
+    minDisplayElapsed,
+    pendingStudyId,
+    pendingStudyStatus?.done,
+    finishStartingImport
+  ])
+
+  // Failsafe: if 15s pass after the study ID is known with no first
+  // completion, dismiss anyway. The import is queued — trapping the user
+  // here would be worse than continuing.
+  useEffect(() => {
+    if (!startingFolder || !pendingStudyId) return
+    const id = setTimeout(() => finishStartingImport(), 15000)
+    return () => clearTimeout(id)
+  }, [startingFolder, pendingStudyId, finishStartingImport])
 
   // GBIF import progress state
   const [gbifImportProgress, setGbifImportProgress] = useState(null)
@@ -352,36 +415,42 @@ export default function Import({ studiesCount = 0 }) {
       setShowCountryPicker(true)
     } else {
       // For DeepFaune and other models, import directly with model (no country needed)
-      const { id } = await window.api.selectImagesDirectoryWithModel(
+      setStartingFolder(result.directoryPath)
+      const res = await window.api.selectImagesDirectoryWithModel(
         result.directoryPath,
         selectedModel,
         null // no country needed
       )
       // Errors (e.g., ML server failed to start) are handled via IPC event in base.jsx
-      if (!id) return
-      await queryClient.invalidateQueries({ queryKey: ['studies'] })
-      navigate(`/study/${id}`)
+      if (!res?.id) {
+        setStartingFolder(null)
+        return
+      }
+      navigateTargetRef.current = res.id
+      setPendingStudyId(res.id)
     }
   }
 
   const handleCountrySelected = async (countryCode) => {
     if (!pendingDirectoryPath) return
 
-    // Close modal immediately - don't wait for server startup
     const directoryPath = pendingDirectoryPath
     setShowCountryPicker(false)
     setPendingDirectoryPath(null)
+    setStartingFolder(directoryPath)
 
-    const { id } = await window.api.selectImagesDirectoryWithModel(
+    const res = await window.api.selectImagesDirectoryWithModel(
       directoryPath,
       selectedModel,
       countryCode
     )
     // Errors (e.g., ML server failed to start) are handled via IPC event in base.jsx
-    if (!id) return
-
-    await queryClient.invalidateQueries({ queryKey: ['studies'] })
-    navigate(`/study/${id}`)
+    if (!res?.id) {
+      setStartingFolder(null)
+      return
+    }
+    navigateTargetRef.current = res.id
+    setPendingStudyId(res.id)
   }
 
   const handleCountryPickerCancel = () => {
@@ -849,6 +918,14 @@ export default function Import({ studiesCount = 0 }) {
         isOpen={showCountryPicker}
         onConfirm={handleCountrySelected}
         onCancel={handleCountryPickerCancel}
+      />
+
+      <StartingImportModal
+        isOpen={!!startingFolder}
+        folderPath={startingFolder}
+        dismissEnabled={!!pendingStudyId}
+        dismissLabel="Open study"
+        onDismiss={finishStartingImport}
       />
 
       <GbifImportProgress
