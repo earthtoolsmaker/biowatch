@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { Lock, FolderOpen, X } from 'lucide-react'
+import { useImportStatus } from './hooks/import'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 import { Button } from './ui/button.jsx'
 import { modelZoo } from '../../shared/mlmodels.js'
 import { countries } from '../../shared/countries.js'
+import StartingImportModal from './StartingImportModal.jsx'
 
 /**
  * One modal for adding a folder to an existing study.
@@ -21,12 +23,16 @@ import { countries } from '../../shared/countries.js'
 export default function AddSourceModal({ isOpen, studyId, onClose, onImported }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { importStatus } = useImportStatus(studyId)
   const [latestModel, setLatestModel] = useState(null) // {id, version} | null
   const [latestCountry, setLatestCountry] = useState(null) // string | null
   const [pickedModelKey, setPickedModelKey] = useState('') // 'speciesnet-4.0.1a'
   const [pickedCountry, setPickedCountry] = useState('')
   const [folder, setFolder] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [waitingForFirstBatch, setWaitingForFirstBatch] = useState(false)
+  const [minDisplayElapsed, setMinDisplayElapsed] = useState(false)
+  const doneAtStartRef = useRef(0)
   const [error, setError] = useState(null)
   const [installedModels, setInstalledModels] = useState([])
   const [installedEnvironments, setInstalledEnvironments] = useState([])
@@ -84,6 +90,7 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
       setFolder('')
       setError(null)
       setSubmitting(false)
+      setWaitingForFirstBatch(false)
     }
   }, [isOpen])
 
@@ -96,6 +103,43 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [isOpen, submitting, onClose])
+
+  // Minimum display time. Guarantees the user sees the transitional view
+  // long enough to read the "what happens next" copy before any auto-close
+  // can fire. Explicit dismiss (Continue in background / ESC / ✕ /
+  // backdrop) still works immediately.
+  useEffect(() => {
+    if (!waitingForFirstBatch) {
+      setMinDisplayElapsed(false)
+      return
+    }
+    const id = setTimeout(() => setMinDisplayElapsed(true), 3000)
+    return () => clearTimeout(id)
+  }, [waitingForFirstBatch])
+
+  // Auto-close once a new job completes. importStatus.done is study-wide
+  // and may already be non-zero from prior runs, so we compare against
+  // the snapshot captured when we entered the transitional state. Gated
+  // on minDisplayElapsed so the modal is visible long enough to register.
+  useEffect(() => {
+    if (!waitingForFirstBatch || !minDisplayElapsed) return
+    if ((importStatus?.done ?? 0) > doneAtStartRef.current) {
+      onImported?.()
+      onClose()
+    }
+  }, [waitingForFirstBatch, minDisplayElapsed, importStatus?.done, onImported, onClose])
+
+  // Failsafe: if no job completes within 15s, dismiss the modal anyway.
+  // The import is genuinely running by this point (addFolder resolved),
+  // so trapping the user behind the spinner would be worse than closing.
+  useEffect(() => {
+    if (!waitingForFirstBatch) return
+    const id = setTimeout(() => {
+      onImported?.()
+      onClose()
+    }, 15000)
+    return () => clearTimeout(id)
+  }, [waitingForFirstBatch, onImported, onClose])
 
   const modelLocked = !!latestModel
   const pickedModel = useMemo(() => {
@@ -141,8 +185,12 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
           isRunning: true
         }))
         queryClient.invalidateQueries({ queryKey: ['importStatus', studyId] })
-        onImported?.()
-        onClose()
+        // Read from the cache, not the closure: `importStatus` here is
+        // captured from the render before this handler was invoked, so it
+        // misses any polls that landed during `await addFolder(...)`.
+        doneAtStartRef.current = queryClient.getQueryData(['importStatus', studyId])?.done ?? 0
+        setWaitingForFirstBatch(true)
+        setSubmitting(false)
       } else {
         setError(res?.error || res?.message || 'Import failed')
         setSubmitting(false)
@@ -154,6 +202,17 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
   }
 
   if (!isOpen) return null
+
+  if (waitingForFirstBatch) {
+    return (
+      <StartingImportModal
+        isOpen
+        folderPath={folder}
+        importStatus={importStatus}
+        onDismiss={onClose}
+      />
+    )
+  }
 
   return (
     <div
