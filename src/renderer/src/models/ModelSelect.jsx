@@ -148,9 +148,6 @@ export default function ModelSelect({
                 value={`${model.reference.id}-${model.reference.version}`}
                 className="focus:bg-accent focus:text-accent-foreground relative flex w-full cursor-pointer items-start gap-2 rounded-sm py-2 px-2 text-sm outline-none select-none"
               >
-                <SelectPrimitive.ItemText className="sr-only">
-                  {`${model.name} v${model.reference.version}`}
-                </SelectPrimitive.ItemText>
                 <ModelRow model={model} status={status} />
               </SelectPrimitive.Item>
             )
@@ -161,9 +158,6 @@ export default function ModelSelect({
           value={FOOTER_VALUE}
           className="focus:bg-accent focus:text-accent-foreground relative flex w-full cursor-pointer items-center gap-2 rounded-sm py-1.5 px-2 text-sm text-muted-foreground outline-none select-none"
         >
-          <SelectPrimitive.ItemText className="sr-only">
-            Manage models in Settings
-          </SelectPrimitive.ItemText>
           <span className="inline-flex items-center gap-2">
             <Settings size={12} />
             Manage models in Settings
