@@ -29,9 +29,21 @@ The file is ~350 lines and already does a few things (form, validation, browse, 
 
 - [ ] **Step 1: Add imports**
 
-Add the import status hook and the spinner icon. Replace the existing icon-import line and add the hook import after the existing `useNavigate`/`useQueryClient` imports.
+Add `useRef` to the React import, the spinner icon, and the import status hook.
 
-In `src/renderer/src/AddSourceModal.jsx`, change:
+In `src/renderer/src/AddSourceModal.jsx`, change the first import:
+
+```jsx
+import { useEffect, useMemo, useState } from 'react'
+```
+
+to:
+
+```jsx
+import { useEffect, useMemo, useRef, useState } from 'react'
+```
+
+Change the lucide import:
 
 ```jsx
 import { Lock, FolderOpen, X } from 'lucide-react'
@@ -49,14 +61,17 @@ And add this import below the existing `@tanstack/react-query` import:
 import { useImportStatus } from './hooks/import'
 ```
 
-- [ ] **Step 2: Add `waitingForFirstBatch` state**
+- [ ] **Step 2: Add `waitingForFirstBatch` state and the done-snapshot ref**
 
-Add a new piece of state next to the existing `submitting` declaration (`AddSourceModal.jsx:29`):
+Add a new piece of state next to the existing `submitting` declaration (`AddSourceModal.jsx:29`), and a ref to snapshot `importStatus.done` at the moment we enter the transitional state:
 
 ```jsx
 const [submitting, setSubmitting] = useState(false)
 const [waitingForFirstBatch, setWaitingForFirstBatch] = useState(false)
+const doneAtStartRef = useRef(0)
 ```
+
+**Why the ref?** `importStatus.done` is study-wide. A study that already has completed imports (e.g. a previously-paused run, or a prior session) has `done > 0` the instant we flip `waitingForFirstBatch=true`. Without the snapshot, the auto-close in Task 2 would fire immediately. The ref captures the baseline so we can wait for a *new* completion.
 
 - [ ] **Step 3: Subscribe to the import status hook**
 
@@ -151,21 +166,25 @@ if (res?.success) {
     isRunning: true
   }))
   queryClient.invalidateQueries({ queryKey: ['importStatus', studyId] })
+  doneAtStartRef.current = importStatus?.done ?? 0
   setWaitingForFirstBatch(true)
   setSubmitting(false)
 } else {
 ```
 
-- [ ] **Step 2: Auto-close when the first job completes**
+- [ ] **Step 2: Auto-close when the first new job completes**
 
-Add a new effect below the ESC handler (after `AddSourceModal.jsx:98`):
+Add a new effect below the ESC handler (after `AddSourceModal.jsx:98`). Compare against the snapshotted `done` so we close on the first *new* completion, not on any pre-existing progress for this study:
 
 ```jsx
-// Auto-close once the first job completes — gives the user concrete
+// Auto-close once a new job completes — gives the user concrete
 // evidence the import is making progress before dismissing the modal.
+// Compares against the snapshot taken when we entered the transitional
+// state, because importStatus.done is study-wide and may already be
+// non-zero from prior runs.
 useEffect(() => {
   if (!waitingForFirstBatch) return
-  if ((importStatus?.done ?? 0) > 0) {
+  if ((importStatus?.done ?? 0) > doneAtStartRef.current) {
     onImported?.()
     onClose()
   }

@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
-import { Lock, FolderOpen, X } from 'lucide-react'
+import { Lock, FolderOpen, X, Loader2 } from 'lucide-react'
+import { useImportStatus } from './hooks/import'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 import { Button } from './ui/button.jsx'
 import { modelZoo } from '../../shared/mlmodels.js'
@@ -21,12 +22,15 @@ import { countries } from '../../shared/countries.js'
 export default function AddSourceModal({ isOpen, studyId, onClose, onImported }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { importStatus } = useImportStatus(studyId)
   const [latestModel, setLatestModel] = useState(null) // {id, version} | null
   const [latestCountry, setLatestCountry] = useState(null) // string | null
   const [pickedModelKey, setPickedModelKey] = useState('') // 'speciesnet-4.0.1a'
   const [pickedCountry, setPickedCountry] = useState('')
   const [folder, setFolder] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [waitingForFirstBatch, setWaitingForFirstBatch] = useState(false)
+  const doneAtStartRef = useRef(0)
   const [error, setError] = useState(null)
   const [installedModels, setInstalledModels] = useState([])
   const [installedEnvironments, setInstalledEnvironments] = useState([])
@@ -84,6 +88,7 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
       setFolder('')
       setError(null)
       setSubmitting(false)
+      setWaitingForFirstBatch(false)
     }
   }, [isOpen])
 
@@ -96,6 +101,29 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [isOpen, submitting, onClose])
+
+  // Auto-close once a new job completes. importStatus.done is study-wide
+  // and may already be non-zero from prior runs, so we compare against
+  // the snapshot captured when we entered the transitional state.
+  useEffect(() => {
+    if (!waitingForFirstBatch) return
+    if ((importStatus?.done ?? 0) > doneAtStartRef.current) {
+      onImported?.()
+      onClose()
+    }
+  }, [waitingForFirstBatch, importStatus?.done, onImported, onClose])
+
+  // Failsafe: if no job completes within 15s, dismiss the modal anyway.
+  // The import is genuinely running by this point (addFolder resolved),
+  // so trapping the user behind the spinner would be worse than closing.
+  useEffect(() => {
+    if (!waitingForFirstBatch) return
+    const id = setTimeout(() => {
+      onImported?.()
+      onClose()
+    }, 15000)
+    return () => clearTimeout(id)
+  }, [waitingForFirstBatch, onImported, onClose])
 
   const modelLocked = !!latestModel
   const pickedModel = useMemo(() => {
@@ -141,8 +169,9 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
           isRunning: true
         }))
         queryClient.invalidateQueries({ queryKey: ['importStatus', studyId] })
-        onImported?.()
-        onClose()
+        doneAtStartRef.current = importStatus?.done ?? 0
+        setWaitingForFirstBatch(true)
+        setSubmitting(false)
       } else {
         setError(res?.error || res?.message || 'Import failed')
         setSubmitting(false)
@@ -165,7 +194,9 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
         onClick={(e) => e.stopPropagation()}
       >
         <header className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <h3 className="text-base font-medium text-foreground">Add images directory</h3>
+          <h3 className="text-base font-medium text-foreground">
+            {waitingForFirstBatch ? 'Starting import…' : 'Add images directory'}
+          </h3>
           <button
             onClick={onClose}
             disabled={submitting}
@@ -175,84 +206,44 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
           </button>
         </header>
 
-        <div className="px-5 py-4 space-y-4">
-          {/* No-models-installed CTA: dead-end for users with a fresh install */}
-          {!modelLocked && !hasAnyInstalledModel && (
-            <div className="border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 rounded-md p-3 text-sm text-amber-900 dark:text-amber-200">
-              <p className="font-medium mb-1">No models installed</p>
-              <p className="text-amber-800 dark:text-amber-300 mb-2 text-xs">
-                Install at least one model before adding images for analysis.
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  onClose()
-                  navigate('/settings/ml_zoo')
-                }}
-              >
-                Open Models settings
-              </Button>
-            </div>
-          )}
-
-          {/* Model */}
-          <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Model</label>
-            {modelLocked ? (
-              <div className="flex items-center gap-2 px-3 py-2 border border-gray-200 dark:border-border rounded-md bg-gray-50 dark:bg-muted text-sm text-gray-700 dark:text-foreground">
-                <Lock size={12} className="text-muted-foreground" />
-                <span>
-                  {pickedModel
-                    ? `${pickedModel.name} v${pickedModel.reference.version}`
-                    : `${latestModel.id} v${latestModel.version}`}
-                </span>
+        {waitingForFirstBatch ? (
+          <div className="px-5 py-6 space-y-4">
+            <div className="flex items-start gap-3">
+              <Loader2
+                size={20}
+                className="animate-spin text-blue-600 dark:text-blue-400 mt-0.5 shrink-0"
+              />
+              <div className="min-w-0">
+                <p className="text-sm text-foreground font-medium">Queueing images for analysis</p>
+                <p
+                  className="text-xs font-mono text-muted-foreground truncate mt-0.5"
+                  style={folder ? { direction: 'rtl', textAlign: 'left' } : undefined}
+                  title={folder || ''}
+                >
+                  {folder ? `‎${folder}` : ''}
+                </p>
               </div>
-            ) : (
-              <Select
-                value={pickedModelKey}
-                onValueChange={(value) => {
-                  const [id, ...rest] = value.split('-')
-                  const version = rest.join('-')
-                  const model = modelZoo.find(
-                    (m) => m.reference.id === id && m.reference.version === version
-                  )
-                  if (model && isModelCompletelyInstalled(model)) {
-                    setPickedModelKey(value)
-                  }
-                }}
-              >
-                <SelectTrigger className="w-full bg-card border-border">
-                  <SelectValue placeholder="Select a model" />
-                </SelectTrigger>
-                <SelectContent>
-                  {modelZoo.map((m) => {
-                    const installed = isModelCompletelyInstalled(m)
-                    const modelOk = installedModels.some(
-                      (im) => im.id === m.reference.id && im.version === m.reference.version
-                    )
-                    let suffix = ''
-                    if (!modelOk) suffix = ' (not installed)'
-                    else if (!installed) suffix = ' (environment missing)'
-                    return (
-                      <SelectItem
-                        key={`${m.reference.id}-${m.reference.version}`}
-                        value={`${m.reference.id}-${m.reference.version}`}
-                        disabled={!installed}
-                        className={!installed ? 'opacity-50 cursor-not-allowed' : ''}
-                      >
-                        {m.name} v{m.reference.version}
-                        {suffix}
-                      </SelectItem>
-                    )
-                  })}
-                </SelectContent>
-              </Select>
-            )}
-            {modelLocked && pickedModel && !isModelCompletelyInstalled(pickedModel) && (
-              <div className="mt-1.5 flex items-center gap-2">
-                <p className="text-xs text-amber-700 dark:text-amber-300">
-                  This model is no longer installed. Reinstall it to add a new directory.
+            </div>
+
+            <div className="rounded-md border border-border bg-muted/50 dark:bg-muted px-3 py-3">
+              <p className="text-xs font-medium text-foreground mb-2">What happens next</p>
+              <ul className="text-xs text-muted-foreground space-y-1.5 leading-relaxed list-disc list-inside">
+                <li>
+                  A progress bar appears in the top-right header — pause or resume from there.
+                </li>
+                <li>Images appear in the Media tab as they get classified. No need to refresh.</li>
+                <li>You can keep using the app while this runs in the background.</li>
+              </ul>
+            </div>
+          </div>
+        ) : (
+          <div className="px-5 py-4 space-y-4">
+            {/* No-models-installed CTA: dead-end for users with a fresh install */}
+            {!modelLocked && !hasAnyInstalledModel && (
+              <div className="border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 rounded-md p-3 text-sm text-amber-900 dark:text-amber-200">
+                <p className="font-medium mb-1">No models installed</p>
+                <p className="text-amber-800 dark:text-amber-300 mb-2 text-xs">
+                  Install at least one model before adding images for analysis.
                 </p>
                 <Button
                   variant="outline"
@@ -262,85 +253,169 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
                     navigate('/settings/ml_zoo')
                   }}
                 >
-                  Open Models
+                  Open Models settings
                 </Button>
               </div>
             )}
-            {modelLocked && (!pickedModel || isModelCompletelyInstalled(pickedModel)) && (
-              <p className="text-xs text-muted-foreground mt-1.5">
-                Same model as the previous run for this study.
-              </p>
-            )}
-          </div>
 
-          {/* Country (only when model uses geofencing) */}
-          {needsCountry && (
+            {/* Model */}
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-                Country <span className="text-muted-foreground font-normal">(geofencing)</span>
+                Model
               </label>
-              <Select value={pickedCountry} onValueChange={setPickedCountry}>
-                <SelectTrigger className="w-full bg-card border-border">
-                  <SelectValue placeholder="Select a country" />
-                </SelectTrigger>
-                <SelectContent className="max-h-72">
-                  {countries.map((c) => (
-                    <SelectItem key={c.code} value={c.code}>
-                      {c.name} ({c.code})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {latestCountry && (
+              {modelLocked ? (
+                <div className="flex items-center gap-2 px-3 py-2 border border-gray-200 dark:border-border rounded-md bg-gray-50 dark:bg-muted text-sm text-gray-700 dark:text-foreground">
+                  <Lock size={12} className="text-muted-foreground" />
+                  <span>
+                    {pickedModel
+                      ? `${pickedModel.name} v${pickedModel.reference.version}`
+                      : `${latestModel.id} v${latestModel.version}`}
+                  </span>
+                </div>
+              ) : (
+                <Select
+                  value={pickedModelKey}
+                  onValueChange={(value) => {
+                    const [id, ...rest] = value.split('-')
+                    const version = rest.join('-')
+                    const model = modelZoo.find(
+                      (m) => m.reference.id === id && m.reference.version === version
+                    )
+                    if (model && isModelCompletelyInstalled(model)) {
+                      setPickedModelKey(value)
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-full bg-card border-border">
+                    <SelectValue placeholder="Select a model" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {modelZoo.map((m) => {
+                      const installed = isModelCompletelyInstalled(m)
+                      const modelOk = installedModels.some(
+                        (im) => im.id === m.reference.id && im.version === m.reference.version
+                      )
+                      let suffix = ''
+                      if (!modelOk) suffix = ' (not installed)'
+                      else if (!installed) suffix = ' (environment missing)'
+                      return (
+                        <SelectItem
+                          key={`${m.reference.id}-${m.reference.version}`}
+                          value={`${m.reference.id}-${m.reference.version}`}
+                          disabled={!installed}
+                          className={!installed ? 'opacity-50 cursor-not-allowed' : ''}
+                        >
+                          {m.name} v{m.reference.version}
+                          {suffix}
+                        </SelectItem>
+                      )
+                    })}
+                  </SelectContent>
+                </Select>
+              )}
+              {modelLocked && pickedModel && !isModelCompletelyInstalled(pickedModel) && (
+                <div className="mt-1.5 flex items-center gap-2">
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                    This model is no longer installed. Reinstall it to add a new directory.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      onClose()
+                      navigate('/settings/ml_zoo')
+                    }}
+                  >
+                    Open Models
+                  </Button>
+                </div>
+              )}
+              {modelLocked && (!pickedModel || isModelCompletelyInstalled(pickedModel)) && (
                 <p className="text-xs text-muted-foreground mt-1.5">
-                  Pre-filled from the previous run; change it for this folder if needed.
+                  Same model as the previous run for this study.
                 </p>
               )}
             </div>
-          )}
 
-          {/* Folder */}
-          <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Folder</label>
-            <div className="flex gap-2">
-              <div
-                className="flex-1 px-3 py-2 border border-gray-200 dark:border-border rounded-md bg-gray-50 dark:bg-muted text-xs font-mono text-gray-600 dark:text-muted-foreground truncate"
-                style={folder ? { direction: 'rtl', textAlign: 'left' } : undefined}
-                title={folder || ''}
-              >
-                {folder ? (
-                  `‎${folder}`
-                ) : (
-                  <span className="text-muted-foreground font-sans">No folder selected</span>
+            {/* Country (only when model uses geofencing) */}
+            {needsCountry && (
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                  Country <span className="text-muted-foreground font-normal">(geofencing)</span>
+                </label>
+                <Select value={pickedCountry} onValueChange={setPickedCountry}>
+                  <SelectTrigger className="w-full bg-card border-border">
+                    <SelectValue placeholder="Select a country" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72">
+                    {countries.map((c) => (
+                      <SelectItem key={c.code} value={c.code}>
+                        {c.name} ({c.code})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {latestCountry && (
+                  <p className="text-xs text-muted-foreground mt-1.5">
+                    Pre-filled from the previous run; change it for this folder if needed.
+                  </p>
                 )}
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleBrowse}
-                disabled={submitting}
-                className="gap-1.5"
-              >
-                <FolderOpen size={14} />
-                {folder ? 'Change' : 'Browse'}
-              </Button>
-            </div>
-          </div>
+            )}
 
-          {error && (
-            <div className="text-sm text-red-600 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-md px-3 py-2 dark:text-red-400 dark:bg-red-500/15">
-              {error}
+            {/* Folder */}
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                Folder
+              </label>
+              <div className="flex gap-2">
+                <div
+                  className="flex-1 px-3 py-2 border border-gray-200 dark:border-border rounded-md bg-gray-50 dark:bg-muted text-xs font-mono text-gray-600 dark:text-muted-foreground truncate"
+                  style={folder ? { direction: 'rtl', textAlign: 'left' } : undefined}
+                  title={folder || ''}
+                >
+                  {folder ? (
+                    `‎${folder}`
+                  ) : (
+                    <span className="text-muted-foreground font-sans">No folder selected</span>
+                  )}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleBrowse}
+                  disabled={submitting}
+                  className="gap-1.5"
+                >
+                  <FolderOpen size={14} />
+                  {folder ? 'Change' : 'Browse'}
+                </Button>
+              </div>
             </div>
-          )}
-        </div>
+
+            {error && (
+              <div className="text-sm text-red-600 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-md px-3 py-2 dark:text-red-400 dark:bg-red-500/15">
+                {error}
+              </div>
+            )}
+          </div>
+        )}
 
         <footer className="flex justify-end gap-2 px-5 py-3 border-t border-gray-200 dark:border-border bg-gray-50 dark:bg-muted">
-          <Button variant="outline" size="sm" onClick={onClose} disabled={submitting}>
-            Cancel
-          </Button>
-          <Button size="sm" onClick={handleImport} disabled={!canImport || submitting}>
-            {submitting ? 'Starting…' : 'Import'}
-          </Button>
+          {waitingForFirstBatch ? (
+            <Button size="sm" onClick={onClose}>
+              Continue in background
+            </Button>
+          ) : (
+            <>
+              <Button variant="outline" size="sm" onClick={onClose} disabled={submitting}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleImport} disabled={!canImport || submitting}>
+                {submitting ? 'Starting…' : 'Import'}
+              </Button>
+            </>
+          )}
         </footer>
       </div>
     </div>
