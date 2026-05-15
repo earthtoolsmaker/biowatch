@@ -185,7 +185,10 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
           isRunning: true
         }))
         queryClient.invalidateQueries({ queryKey: ['importStatus', studyId] })
-        doneAtStartRef.current = importStatus?.done ?? 0
+        // Read from the cache, not the closure: `importStatus` here is
+        // captured from the render before this handler was invoked, so it
+        // misses any polls that landed during `await addFolder(...)`.
+        doneAtStartRef.current = queryClient.getQueryData(['importStatus', studyId])?.done ?? 0
         setWaitingForFirstBatch(true)
         setSubmitting(false)
       } else {
