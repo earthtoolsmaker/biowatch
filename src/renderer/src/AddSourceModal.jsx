@@ -8,6 +8,8 @@ import { Button } from './ui/button.jsx'
 import { modelZoo } from '../../shared/mlmodels.js'
 import { countries } from '../../shared/countries.js'
 import StartingImportModal from './StartingImportModal.jsx'
+import ModelSelect from './models/ModelSelect.jsx'
+import { getModelInstallStatus } from './models/installStatus.js'
 
 /**
  * One modal for adding a folder to an existing study.
@@ -54,15 +56,8 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
     }
   }, [isOpen])
 
-  const isModelCompletelyInstalled = (model) => {
-    const modelOk = installedModels.some(
-      (m) => m.id === model.reference.id && m.version === model.reference.version
-    )
-    const envOk = installedEnvironments.some(
-      (e) => e.id === model.pythonEnvironment.id && e.version === model.pythonEnvironment.version
-    )
-    return modelOk && envOk
-  }
+  const isModelCompletelyInstalled = (model) =>
+    getModelInstallStatus(model, installedModels, installedEnvironments) === 'installed'
 
   // Fetch the study's latest model run when the modal opens.
   useEffect(() => {
@@ -150,7 +145,6 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
   }, [pickedModelKey])
 
   const needsCountry = pickedModel?.reference?.id === 'speciesnet'
-  const hasAnyInstalledModel = modelZoo.some(isModelCompletelyInstalled)
   const canImport =
     !!pickedModel &&
     !!folder &&
@@ -235,26 +229,6 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
         </header>
 
         <div className="px-5 py-4 space-y-4">
-          {/* No-models-installed CTA: dead-end for users with a fresh install */}
-          {!modelLocked && !hasAnyInstalledModel && (
-            <div className="border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 rounded-md p-3 text-sm text-amber-900 dark:text-amber-200">
-              <p className="font-medium mb-1">No models installed</p>
-              <p className="text-amber-800 dark:text-amber-300 mb-2 text-xs">
-                Install at least one model before adding images for analysis.
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  onClose()
-                  navigate('/settings/ml_zoo')
-                }}
-              >
-                Open Models settings
-              </Button>
-            </div>
-          )}
-
           {/* Model */}
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1.5">Model</label>
@@ -268,45 +242,21 @@ export default function AddSourceModal({ isOpen, studyId, onClose, onImported })
                 </span>
               </div>
             ) : (
-              <Select
-                value={pickedModelKey}
-                onValueChange={(value) => {
-                  const [id, ...rest] = value.split('-')
-                  const version = rest.join('-')
-                  const model = modelZoo.find(
-                    (m) => m.reference.id === id && m.reference.version === version
-                  )
-                  if (model && isModelCompletelyInstalled(model)) {
-                    setPickedModelKey(value)
-                  }
-                }}
-              >
-                <SelectTrigger className="w-full bg-card border-border">
-                  <SelectValue placeholder="Select a model" />
-                </SelectTrigger>
-                <SelectContent>
-                  {modelZoo.map((m) => {
-                    const installed = isModelCompletelyInstalled(m)
-                    const modelOk = installedModels.some(
-                      (im) => im.id === m.reference.id && im.version === m.reference.version
-                    )
-                    let suffix = ''
-                    if (!modelOk) suffix = ' (not installed)'
-                    else if (!installed) suffix = ' (environment missing)'
-                    return (
-                      <SelectItem
-                        key={`${m.reference.id}-${m.reference.version}`}
-                        value={`${m.reference.id}-${m.reference.version}`}
-                        disabled={!installed}
-                        className={!installed ? 'opacity-50 cursor-not-allowed' : ''}
-                      >
-                        {m.name} v{m.reference.version}
-                        {suffix}
-                      </SelectItem>
-                    )
-                  })}
-                </SelectContent>
-              </Select>
+              <ModelSelect
+                value={
+                  pickedModelKey
+                    ? (() => {
+                        const [id, ...rest] = pickedModelKey.split('-')
+                        return { id, version: rest.join('-') }
+                      })()
+                    : null
+                }
+                onChange={(ref) => setPickedModelKey(`${ref.id}-${ref.version}`)}
+                installedModels={installedModels}
+                installedEnvironments={installedEnvironments}
+                onBeforeNavigate={onClose}
+                triggerClassName="w-full bg-card border-border"
+              />
             )}
             {modelLocked && pickedModel && !isModelCompletelyInstalled(pickedModel) && (
               <div className="mt-1.5 flex items-center gap-2">
