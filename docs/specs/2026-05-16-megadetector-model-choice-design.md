@@ -65,14 +65,16 @@ The MD server emits one prediction object per image, matching the shape `inferen
 
 The three MD labels are stored as if they were species:
 
-| `prediction` field | Treated as scientific name | Common name |
-|---|---|---|
-| `animal` | `animal` | `Animal` |
-| `person` | `person` | `Person` |
-| `vehicle` | `vehicle` | `Vehicle` |
-| `blank` | `blank` | (existing blank handling) |
+| `prediction` field        | Treated as scientific name | Common name              |
+|---------------------------|----------------------------|--------------------------|
+| `animal`                  | `animal`                   | `Animal`                 |
+| `homo sapiens` (mapped from MD's `person` label) | `homo sapiens` | `Human` |
+| `vehicle`                 | `vehicle`                  | `Vehicle`                |
+| `blank`                   | `blank`                    | (existing blank handling) |
 
-A new common-names source file resolves these:
+The `person` label is the only MD category that is genuinely a species; the Python server translates `person → homo sapiens` for the top-level `prediction` field so it integrates with Biowatch's species tooltips and IUCN lookups. Per-bbox `detections[].label` stays raw (`"person"`). `animal` and `vehicle` are not species and stay as plain labels.
+
+A new common-names source file resolves these (schema matches `manas.json`):
 
 `src/shared/commonNames/sources/megadetector.json`:
 
@@ -82,14 +84,16 @@ A new common-names source file resolves these:
   "modelVersion": "6.0",
   "source": "MegaDetector v6 categories (animal / person / vehicle)",
   "entries": [
-    { "scientific": "animal",  "common": "Animal" },
-    { "scientific": "person",  "common": "Person" },
-    { "scientific": "vehicle", "common": "Vehicle" }
+    { "scientificName": null,            "label": "animal",  "commonName": "Animal" },
+    { "scientificName": "homo sapiens",  "label": "person",  "commonName": "Human"  },
+    { "scientificName": null,            "label": "vehicle", "commonName": "Vehicle" }
   ]
 }
 ```
 
-User-facing consequence: in the Media tab the user filters `species = animal`, finds the non-blank frames, opens each one, and assigns the real species via the existing annotation UI. The MD prediction stays as the model's raw output in `model_outputs`; the user's annotation lives on the observation, same as any model.
+The `person` entry has a non-null `scientificName` so the dict-build pipeline (a) registers `homo sapiens → human` in `dictionary.json` and (b) registers `person → homo sapiens` in `labelAliases.json`. The Python server emits `homo sapiens` directly for human detections; the alias map exists for downstream consistency with the LILA-style file importers that translate label → binomial at insert time.
+
+User-facing consequence: in the Media tab the user filters `species = animal`, finds the non-blank frames, opens each one, and assigns the real species via the existing annotation UI. Human frames already land with `scientificName = "homo sapiens"` so the species tooltip fires the same way it would for any other Homo-sapiens prediction in the system. The raw MD output stays in `model_outputs`; the user's annotation lives on the observation, same as any model.
 
 ## Code changes
 

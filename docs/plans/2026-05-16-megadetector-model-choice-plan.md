@@ -252,9 +252,9 @@ git commit -m "tools(megadetector): script to build MD v6 tarball for HF upload"
       "commonName": "Animal"
     },
     {
-      "scientificName": null,
+      "scientificName": "homo sapiens",
       "label": "person",
-      "commonName": "Person"
+      "commonName": "Human"
     },
     {
       "scientificName": null,
@@ -265,7 +265,7 @@ git commit -m "tools(megadetector): script to build MD v6 tarball for HF upload"
 }
 ```
 
-This matches the manas.json schema exactly: `scientificName: null` for non-binomial labels.
+Schema matches `manas.json`: `scientificName: null` for non-binomial labels (`animal`, `vehicle`); a real binomial (`"homo sapiens"`) for `person` so the dict-build pipeline produces a `homo sapiens → human` dictionary entry plus a `person → homo sapiens` alias.
 
 - [ ] **Step 2: Add the source to the dictionary-build pipeline**
 
@@ -296,15 +296,22 @@ export function buildAliasMap() {
 
 (`megadetectorSource` entries have `scientificName: null`, so the alias loop skips them per the existing `if (!entry.scientificName || !entry.label) continue` guard — adding it to the list is a no-op for aliases but keeps the imports symmetric with the dict builder.)
 
-- [ ] **Step 4: Add the failing resolver test**
+- [ ] **Step 4: Add the failing resolver tests**
 
 Append to `test/shared/commonNames/resolver.test.js`:
 
 ```js
-test('resolveCommonName returns Animal / Person / Vehicle for MegaDetector labels', () => {
+test('resolves MegaDetector pseudo-species labels (animal/vehicle)', () => {
   assert.equal(resolveCommonName('animal'), 'animal')
-  assert.equal(resolveCommonName('person'), 'person')
   assert.equal(resolveCommonName('vehicle'), 'vehicle')
+})
+
+test("resolves MegaDetector's 'person' label and its 'homo sapiens' binomial to 'human'", () => {
+  // MD's raw label is 'person', but the Python server emits 'homo sapiens'
+  // as the prediction. Both keys resolve to the same common name so either
+  // route (alias-translated or directly emitted) renders consistently.
+  assert.equal(resolveCommonName('person'), 'human')
+  assert.equal(resolveCommonName('homo sapiens'), 'human')
 })
 ```
 
@@ -611,7 +618,7 @@ class TestMegaDetectorServer:
         assert "xywhn" in pred["detections"][0]
 
     def test_predict_human_image(self, megadetector_server, test_images):
-        """A human image should produce prediction='person'."""
+        """A human image should produce prediction='homo sapiens' (translated from MD's 'person' label)."""
         payload = {"instances": [{"filepath": str(test_images["human"])}]}
         with httpx.stream(
             "POST",
@@ -621,7 +628,10 @@ class TestMegaDetectorServer:
         ) as resp:
             results = parse_streaming_response(resp)
         pred = results[0]["output"]["predictions"][0]
-        assert pred["prediction"] == "person"
+        assert pred["prediction"] == "homo sapiens"
+        # Raw bbox labels stay 'person' so MD's native output is preserved per-bbox.
+        person_dets = [d for d in pred["detections"] if d["label"] == "person"]
+        assert len(person_dets) >= 1, "raw 'person' label must be preserved per-detection"
 
     def test_predict_empty_image(self, megadetector_server, test_images):
         """An empty (no subject) image should produce prediction='blank'."""
@@ -748,6 +758,15 @@ logger = logging.getLogger(__name__)
 
 MODEL_VERSION = "6.0"
 
+# Map MegaDetector detection labels to Biowatch-canonical scientific names
+# for the top-level `prediction` field. Per-bbox `detections[].label` stays raw.
+# `person` is genuinely a species — emit the binomial so it integrates with
+# Biowatch's species tooltips and IUCN lookups. `animal` and `vehicle` are not
+# species and pass through unchanged.
+LABEL_TO_PREDICTION = {
+    "person": "homo sapiens",
+}
+
 _PORT = flags.DEFINE_integer("port", 8000, "Port to run the server on.")
 _API_PATH = flags.DEFINE_string("api_path", "/predict", "URL path for the server endpoint.")
 _WORKERS_PER_DEVICE = flags.DEFINE_integer("workers_per_device", 1, "Number of server replicas per device.")
@@ -826,13 +845,14 @@ def predict_one(
         }
 
     top = max(above, key=lambda d: d["conf"])
+    prediction_label = LABEL_TO_PREDICTION.get(top["label"], top["label"])
     return {
         "predictions": [
             {
                 "filepath": str(filepath),
                 "classifications": {},
                 "detections": detection_records,
-                "prediction": top["label"],
+                "prediction": prediction_label,
                 "prediction_score": top["conf"],
                 "model_version": model_version,
             }
