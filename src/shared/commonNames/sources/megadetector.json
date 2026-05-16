@@ -9,9 +9,9 @@
       "commonName": "Animal"
     },
     {
-      "scientificName": null,
+      "scientificName": "homo sapiens",
       "label": "person",
-      "commonName": "Person"
+      "commonName": "Human"
     },
     {
       "scientificName": null,
