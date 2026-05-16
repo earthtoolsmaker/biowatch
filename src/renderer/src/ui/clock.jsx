@@ -14,6 +14,11 @@ import {
   YAxis
 } from 'recharts'
 
+// Outer-ring radius (in px) shared by the visible 24-hour circle and the
+// radar chart underneath it. Keeping them equal makes the busiest species'
+// peaks land exactly on the ring instead of overflowing it.
+const CLOCK_OUTER_RADIUS_PX = 47
+
 const CircularTimeFilter = ({
   onChange,
   startTime = 6,
@@ -28,7 +33,7 @@ const CircularTimeFilter = ({
   const [end, setEnd] = useState(endTime)
   const [lastDragPosition, setLastDragPosition] = useState(null)
   const svgRef = useRef(null)
-  const radius = 47
+  const radius = CLOCK_OUTER_RADIUS_PX
   const padding = 16 // Padding leaves room for hour labels outside the circle
   const svgSize = radius * 2 + padding * 2 // Increase SVG size to accommodate padding
   const center = { x: radius + padding, y: radius + padding } // Adjust center coordinates
@@ -358,16 +363,13 @@ const DailyActivityRadar = ({ activityData, selectedSpecies, palette }) => {
     <div className="relative w-full h-full flex items-center justify-center" ref={chartRef}>
       <div className="relative h-full aspect-square">
         <ResponsiveContainer width="100%" height="100%">
-          <RadarChart data={formattedData} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+          <RadarChart
+            data={formattedData}
+            margin={{ top: 8, right: 8, bottom: 8, left: 8 }}
+            outerRadius={CLOCK_OUTER_RADIUS_PX}
+          >
             <PolarGrid radialLines={false} polarRadius={[]} strokeWidth={1} />
             <PolarAngleAxis dataKey="name" tick={false} />
-            {/* <PolarRadiusAxis
-              angle={30}
-              domain={[0, 'auto']}
-              tick={false}
-              axisLine={false}
-              tickCount={5}
-            /> */}
             {selectedSpecies.map((species, index) => (
               <Radar
                 key={species.scientificName}
