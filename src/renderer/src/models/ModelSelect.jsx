@@ -146,7 +146,7 @@ export default function ModelSelect({
               <SelectPrimitive.Item
                 key={`${model.reference.id}-${model.reference.version}`}
                 value={`${model.reference.id}-${model.reference.version}`}
-                className="focus:bg-accent focus:text-accent-foreground relative flex w-full cursor-pointer items-start gap-2 rounded-sm py-2 px-2 text-sm outline-none select-none"
+                className="data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground relative flex w-full cursor-pointer items-start gap-2 rounded-sm py-2 px-2 text-sm outline-none select-none"
               >
                 <ModelRow model={model} status={status} />
               </SelectPrimitive.Item>
@@ -156,7 +156,7 @@ export default function ModelSelect({
         <SelectSeparator />
         <SelectPrimitive.Item
           value={FOOTER_VALUE}
-          className="focus:bg-accent focus:text-accent-foreground relative flex w-full cursor-pointer items-center gap-2 rounded-sm py-1.5 px-2 text-sm text-muted-foreground outline-none select-none"
+          className="data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground relative flex w-full cursor-pointer items-center gap-2 rounded-sm py-1.5 px-2 text-sm text-muted-foreground outline-none select-none"
         >
           <span className="inline-flex items-center gap-2">
             <Settings size={12} />
