@@ -16,8 +16,7 @@ export function getModelInstallStatus(model, installedModels, installedEnvironme
   if (!modelOk) return 'not-installed'
 
   const envOk = installedEnvironments.some(
-    (e) =>
-      e.id === model.pythonEnvironment.id && e.version === model.pythonEnvironment.version
+    (e) => e.id === model.pythonEnvironment.id && e.version === model.pythonEnvironment.version
   )
   return envOk ? 'installed' : 'env-missing'
 }
