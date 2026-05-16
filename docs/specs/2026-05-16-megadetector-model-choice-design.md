@@ -6,11 +6,11 @@ Biowatch currently offers three model choices in the AI Models tab: SpeciesNet (
 
 [MegaDetector](https://github.com/agentmorris/MegaDetector) is Microsoft AI for Earth's open-source detector for camera trap images. It locates animals, people, and vehicles in any image worldwide, with **no species classification**. Inside Biowatch it would fill a different role: a fast blank-filter that lets a user separate frames with subjects from empty frames, then manually annotate species on the non-blank frames using Biowatch's existing annotation UI.
 
-MegaDetector v6 (`MDV6-yolov10x.pt`) is already bundled inside the DeepFaune and Manas tarballs and loaded via `ultralytics.YOLO` in `run_deepfaune_server.py`. The Python loading code is therefore already proven inside our `common` conda environment.
+MegaDetector v6 weights are loaded via `ultralytics.YOLO` in `run_deepfaune_server.py` (the DeepFaune tarball bundles an earlier MDv6 build, `MDV6-yolov10x.pt`). The Python loading code is therefore already proven inside our `common` conda environment. The standalone MD model entry ships the current upstream variant **`MDV6-yolov10-e`** — best accuracy in the MDv6 lineup (82.8% animal recall, 92.8% mAP50) at ~30 MB.
 
 ## Goals
 
-1. Ship MegaDetector v6 (YOLOv10x) as a standalone model choice in the AI Models tab.
+1. Ship MegaDetector v6 (`MDV6-yolov10-e`) as a standalone model choice in the AI Models tab.
 2. Match the established model-integration pattern (one Python server script, one `switch` case in `server.ts`, one HF tarball, one `mlmodels.js` entry).
 3. Map MD's detector labels (`animal`/`person`/`vehicle` + implicit `blank`) into Biowatch's species-centric data model with **zero changes** to the observation/annotation/export pipelines — by treating the three labels as pseudo-species.
 4. Suppress UI affordances that only make sense for true species classifiers (the "View species" panel) via an opt-out flag, not a special-case in every consumer.
@@ -20,22 +20,22 @@ MegaDetector v6 (`MDV6-yolov10x.pt`) is already bundled inside the DeepFaune and
 - No conda env bump. MD reuses `common/0.1.4` — `ultralytics` and `torch` are already pinned for DeepFaune/Manas.
 - No detector-weight sharing across models. MegaDetector ships its own tarball; the copy bundled inside DeepFaune/Manas is untouched. The marginal ~110 MB is acceptable in exchange for the model-isolation property the codebase keeps today.
 - No "MD-then-classifier" workflow primitive. MD is a standalone model; chaining is out of scope.
-- No MDv5a packaging. Only MDv6 (YOLOv10x) ships. If a user needs v5 for reproducibility, that becomes a separate model entry later.
+- No MDv5a packaging. Only MDv6 (`MDV6-yolov10-e`) ships. If a user needs another MDv6 variant or MDv5 for reproducibility, that becomes a separate model entry later.
+- License compatibility (MDv6 is AGPL-3.0; Biowatch is CC BY-NC 4.0) is acknowledged but out of scope for this change. Prior art: DeepFaune and Manas tarballs already bundle an MDv6 build.
 - No automated reclassification of existing observations.
 
 ## Source-of-truth artifact
 
-Upstream weights: `https://github.com/agentmorris/MegaDetector/releases/download/v6.0/MDV6-yolov10x.pt`.
+Upstream weights: `MDV6-yolov10-e-1280.pt` from the MegaDetector v6 model zoo. Downloaded from Zenodo at `https://zenodo.org/records/15398270/files/MDV6-yolov10-e-1280.pt?download=1` (the canonical hosting location linked from `https://microsoft.github.io/Biodiversity/model_zoo/megadetector/`). The `-1280` suffix denotes the model's input image size. The build script (see `scripts/build-megadetector-tarball.py` below) downloads from this URL and verifies the SHA256.
 
-We rehost this single file on `huggingface.co/earthtoolsmaker/megadetector` (repo already created by the maintainer), as a tarball `6.0.tar.gz` containing a top-level `6.0/` directory with `MDV6-yolov10x.pt` inside it. This matches the layout convention of the other three model tarballs and gives us a stable, offline-deterministic download URL.
-
-Re-hosting is permitted: MegaDetector is MIT-licensed.
+We rehost this single file on `huggingface.co/earthtoolsmaker/megadetector` (repo already created by the maintainer), as a tarball `6.0.tar.gz` containing a top-level `6.0/` directory with the weights file inside it. This matches the layout convention of the other three model tarballs and gives us a stable, offline-deterministic download URL. The upstream `LICENSE` (AGPL-3.0) is included in the tarball next to the weights so AGPL attribution travels with the binary.
 
 ## Tarball layout
 
 ```
 6.0/
-  MDV6-yolov10x.pt
+  MDV6-yolov10-e-1280.pt
+  LICENSE
 ```
 
 Top-level directory name (`6.0/`) matches the model version. No `README.md` shipped (consistent with how `build-speciesnet-tarball.py` strips Kaggle's README).
@@ -137,7 +137,7 @@ Add a new `case 'megadetector'` in the `switch` inside `startMLModelHTTPServer()
 case 'megadetector': {
   const port = await resolveServerPort(is.dev ? 8003 : null)
   const localInstallPath = getMLModelLocalInstallPath({ ...modelReference })
-  const detectorWeightsFilepath = join(localInstallPath, 'MDV6-yolov10x.pt')
+  const detectorWeightsFilepath = join(localInstallPath, 'MDV6-yolov10-e-1280.pt')
   const model = findModel({ ...modelReference })
   const { process: pythonProcess, shutdownApiKey } = await startMegaDetectorHTTPServer({
     port,
@@ -216,17 +216,18 @@ Add `src/renderer/src/assets/logos/megadetector.png` (maintainer provides). The 
 
 `scripts/build-megadetector-tarball.py` — same shape as `build-speciesnet-tarball.py`, using only the Python standard library:
 
-1. Download `MDV6-yolov10x.pt` from `https://github.com/agentmorris/MegaDetector/releases/download/v6.0/MDV6-yolov10x.pt`.
-2. Verify SHA256 against the hash of the copy already shipped in the DeepFaune tarball (locked at build time after first run — encoded as a constant in the script the same way `MEGADETECTOR_SHA256` is in `build-speciesnet-tarball.py`).
-3. Place the weights at `6.0/MDV6-yolov10x.pt`.
-4. `tar -czf dist/6.0.tar.gz 6.0/`.
-5. Print final size + SHA256 + file list for the `mlmodels.js` update.
+1. Download `MDV6-yolov10-e-1280.pt` from the MegaDetector v6 release page on GitHub (exact URL filled in once the script's author confirms it from the upstream release manifest).
+2. Verify SHA256 against a constant encoded in the script (locked after the first successful build), matching the pattern `MEGADETECTOR_SHA256` follows in `build-speciesnet-tarball.py`.
+3. Download `LICENSE` (AGPL-3.0) from the MegaDetector repo at the same release tag so the attribution travels with the weights.
+4. Place both files at `6.0/MDV6-yolov10-e-1280.pt` and `6.0/LICENSE`.
+5. `tar -czf dist/6.0.tar.gz 6.0/`.
+6. Print final size + SHA256 + file list for the `mlmodels.js` update.
 
 The upload step (`huggingface-cli upload …` to `earthtoolsmaker/megadetector`) stays manual — credentials are user-scoped. Maintainer (Arthur) uploads.
 
 ## Verification
 
-1. **Build script self-check**: tarball contains exactly one file at `6.0/MDV6-yolov10x.pt`; SHA256 of inner file matches the hash also shipped in the DeepFaune tarball.
+1. **Build script self-check**: tarball contains exactly two files at `6.0/MDV6-yolov10-e-1280.pt` and `6.0/LICENSE`; SHA256 of the weights file matches the constant locked into the build script.
 2. **`npm test`**: covers `mlmodels.test.js` (new entry valid), `bbox.test.js` (new megadetector case routes to xywhn), `downloadState.test.js`, common-names resolver tests (megadetector source loads).
 3. **`cd python-environments/common && make lint && make format && make test`**: includes a new `tests/test_megadetector_server.py`. Test cases:
    - Start the server with the bundled weights.
@@ -241,7 +242,7 @@ User-facing changelog should call out:
 
 1. **New model: MegaDetector v6.** Worldwide animal/person/vehicle detector. Useful as a fast blank-filter before manual species annotation.
 2. MegaDetector does not identify species — it only detects whether a frame contains an animal, a person, or a vehicle. Use it to triage large folders, then annotate species manually inside Biowatch.
-3. ~110 MB download. Reuses the existing `common` Python environment, so no extra environment install if you already have SpeciesNet/DeepFaune/Manas.
+3. ~30 MB download. Reuses the existing `common` Python environment, so no extra environment install if you already have SpeciesNet/DeepFaune/Manas.
 
 ## Documentation updates
 

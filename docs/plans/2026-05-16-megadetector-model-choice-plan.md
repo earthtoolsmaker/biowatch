@@ -51,9 +51,9 @@
 - [ ] **Step 1: Verify the upstream weights URL**
 
 ```bash
-curl -I -L "https://github.com/agentmorris/MegaDetector/releases/download/v6.0/MDV6-yolov10-e.pt"
+curl -sI -L "https://zenodo.org/records/15398270/files/MDV6-yolov10-e-1280.pt?download=1" | head -3
 ```
-Expected: HTTP 200/302 (release exists). If the filename differs in the release manifest, use the actual filename returned by `gh release view v6.0 --repo agentmorris/MegaDetector --json assets` instead, and update every occurrence of `MDV6-yolov10-e.pt` in this plan to match.
+Expected: HTTP 200 (Zenodo serves the file). The canonical source for MDv6 weights is Zenodo record `15398270`, linked from `https://microsoft.github.io/Biodiversity/model_zoo/megadetector/`. If Zenodo is down or the record id has changed, fall back to the model zoo page to find the current direct-download URL.
 
 - [ ] **Step 2: Write the build script**
 
@@ -81,10 +81,10 @@ import tempfile
 import urllib.request
 from pathlib import Path
 
-WEIGHTS_URL = "https://github.com/agentmorris/MegaDetector/releases/download/v6.0/MDV6-yolov10-e.pt"
-WEIGHTS_FILENAME = "MDV6-yolov10-e.pt"
+WEIGHTS_URL = "https://zenodo.org/records/15398270/files/MDV6-yolov10-e-1280.pt?download=1"
+WEIGHTS_FILENAME = "MDV6-yolov10-e-1280.pt"
 WEIGHTS_SHA256 = "TBD_LOCK_ON_FIRST_RUN"   # paste actual hash printed at end of first run
-LICENSE_URL = "https://raw.githubusercontent.com/agentmorris/MegaDetector/main/LICENSE"
+LICENSE_URL = "https://raw.githubusercontent.com/microsoft/MegaDetector/main/LICENSE"
 LICENSE_FILENAME = "LICENSE"
 
 
@@ -200,13 +200,13 @@ Expected output (last 8 lines):
   SHA256:   <64 hex chars>
   Contents:
     6.0/LICENSE
-    6.0/MDV6-yolov10-e.pt
+    6.0/MDV6-yolov10-e-1280.pt
 ============================================================
 ```
 
 - [ ] **Step 4: Lock the SHA256**
 
-Replace the `WEIGHTS_SHA256 = "TBD_LOCK_ON_FIRST_RUN"` line with the actual hash printed by Step 3 (the per-file hash of `MDV6-yolov10-e.pt`, not the tarball hash — re-run the script if you only kept the tarball hash; the per-file hash is printed on the line starting with `[verify]`).
+Replace the `WEIGHTS_SHA256 = "TBD_LOCK_ON_FIRST_RUN"` line with the actual hash printed by Step 3 (the per-file hash of `MDV6-yolov10-e-1280.pt`, not the tarball hash — re-run the script if you only kept the tarball hash; the per-file hash is printed on the line starting with `[verify]`).
 
 - [ ] **Step 5: Run it again to confirm SHA verification passes**
 
@@ -691,7 +691,7 @@ Start the server:
 ```
 run_megadetector_server.py \
   --port 8000 \
-  --filepath-detector-weights ./path/to/MDV6-yolov10-e.pt \
+  --filepath-detector-weights ./path/to/MDV6-yolov10-e-1280.pt \
   --detection-confidence-threshold 0.2
 ```
 
@@ -938,7 +938,7 @@ Skip if the HF upload hasn't landed yet — the tests `pytest.skipif` themselves
 cd python-environments/common
 # Once the tarball is on HF, this will work (the env var is set by the make target
 # added in Task 9, but you can also export it manually for this one-shot run):
-export MEGADETECTOR_DETECTOR_WEIGHTS=/tmp/models/megadetector/6.0/MDV6-yolov10-e.pt
+export MEGADETECTOR_DETECTOR_WEIGHTS=/tmp/models/megadetector/6.0/MDV6-yolov10-e-1280.pt
 make test
 ```
 Expected: the new `TestMegaDetectorServer` class runs and passes all assertions. If `MEGADETECTOR_DETECTOR_WEIGHTS` is unset, the class is skipped — that's acceptable for landing the PR, with a follow-up to wire up Task 9 after the upload.
@@ -1052,7 +1052,7 @@ case 'megadetector': {
   const port = await resolveServerPort(is.dev ? 8003 : null)
   const localInstallPath = getMLModelLocalInstallPath({ ...modelReference })
   log.info(`Local ML Model install path ${localInstallPath}`)
-  const detectorWeightsFilepath = join(localInstallPath, 'MDV6-yolov10-e.pt')
+  const detectorWeightsFilepath = join(localInstallPath, 'MDV6-yolov10-e-1280.pt')
   const model = findModel({ ...modelReference })
   const { process: pythonProcess, shutdownApiKey } = await startMegaDetectorHTTPServer({
     port,
@@ -1265,7 +1265,7 @@ help="Model to download (speciesnet, deepfaune, manas, megadetector)",
 In `python-environments/common/Makefile`, add a new env var after the existing exports:
 
 ```makefile
-export MEGADETECTOR_DETECTOR_WEIGHTS=/tmp/models/megadetector/6.0/MDV6-yolov10-e.pt
+export MEGADETECTOR_DETECTOR_WEIGHTS=/tmp/models/megadetector/6.0/MDV6-yolov10-e-1280.pt
 ```
 
 Append a new line to the `download-models:` target:
@@ -1287,7 +1287,7 @@ make download-models
 Expected: prints "Downloading megadetector from earthtoolsmaker/megadetector..." then "Done! Model extracted to /tmp/models/megadetector". Verify the weights file lands at the expected path:
 
 ```bash
-ls -la /tmp/models/megadetector/6.0/MDV6-yolov10-e.pt
+ls -la /tmp/models/megadetector/6.0/MDV6-yolov10-e-1280.pt
 ```
 Expected: file exists, size matches Task 1's tarball-content size.
 
