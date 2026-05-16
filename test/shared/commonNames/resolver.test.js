@@ -32,4 +32,10 @@ describe('resolveCommonName', () => {
   test('returns null for unknown scientific name', () => {
     assert.equal(resolveCommonName('Foobar nonexistentium'), null)
   })
+
+  test('resolves MegaDetector pseudo-species labels (animal/person/vehicle)', () => {
+    assert.equal(resolveCommonName('animal'), 'animal')
+    assert.equal(resolveCommonName('person'), 'person')
+    assert.equal(resolveCommonName('vehicle'), 'vehicle')
+  })
 })
