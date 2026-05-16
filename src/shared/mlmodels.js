@@ -205,6 +205,23 @@ export const modelZoo = [
     region: 'himalayas',
     species_count: 11,
     species_data: 'manas'
+  },
+  {
+    reference: { id: 'megadetector', version: '6.0' },
+    pythonEnvironment: { id: 'common', version: '0.1.4' },
+    name: 'MegaDetector',
+    size_in_MB: 118, // tarball ~117.8 MB, weights file ~128 MB — replace with exact size once HF upload lands
+    files: 2,
+    downloadURL:
+      'https://huggingface.co/earthtoolsmaker/megadetector/resolve/main/6.0.tar.gz?download=true',
+    description:
+      "MegaDetector is Microsoft AI for Earth's open-source detector for camera trap images. It locates animals, people, and vehicles in any image worldwide, without identifying species. Useful as a fast blank-filter before manual species annotation.",
+    website: 'https://github.com/microsoft/MegaDetector',
+    logo: 'megadetector',
+    detectionConfidenceThreshold: 0.2,
+    region: 'worldwide',
+    species_count: 3,
+    detectionOnly: true
   }
 ]
 

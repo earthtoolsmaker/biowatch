@@ -187,6 +187,18 @@ describe('ML Model Management Tests', () => {
 
       assert.equal(result, null, 'Should return null for wrong version')
     })
+
+    test('should find megadetector entry with detectionOnly flag', () => {
+      const md = findModel({ id: 'megadetector', version: '6.0' })
+      assert(md, 'megadetector entry should exist')
+      assert.equal(md.detectionOnly, true, 'megadetector should be marked detectionOnly')
+      assert.equal(md.region, 'worldwide', 'megadetector should be worldwide')
+      assert.equal(md.species_count, 3, 'megadetector should report 3 categories')
+      assert(
+        md.downloadURL.includes('earthtoolsmaker/megadetector'),
+        'should download from ETM HF repo'
+      )
+    })
   })
 
   describe('platformToKey', () => {
