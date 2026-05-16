@@ -25,6 +25,12 @@ import {
 
 const MARGIN_X = 4 // matches the LineChart margin used below
 
+// Min horizontal space each x-axis date label needs so labels like
+// "May 29, 18" don't crowd each other at small chart widths.
+const TICK_MIN_SPACING_PX = 110
+const TICK_MIN = 2
+const TICK_MAX = 8
+
 const formatPillDate = (d) =>
   d ? d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : ''
 
@@ -44,6 +50,18 @@ const TimelineChart = ({ timeseriesData, selectedSpecies, dateRange, setDateRang
   const [hoverAction, setHoverAction] = useState(null)
   const wheelRafRef = useRef(null)
   const wheelPendingRef = useRef(null)
+  const [containerWidth, setContainerWidth] = useState(0)
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width ?? el.getBoundingClientRect().width
+      setContainerWidth(w)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   const data = useMemo(() => {
     if (!timeseriesData) return []
@@ -353,15 +371,21 @@ const TimelineChart = ({ timeseriesData, selectedSpecies, dateRange, setDateRang
   // pins the first and last ticks to the underlying data array's
   // extremes, which ignores our zoom domain. Generating ticks ourselves
   // guarantees the labels reflect what the user actually sees.
+  // Tick count scales with chart width so labels stay readable from
+  // narrow side-panels up to full-screen layouts.
   const xAxisTicks = useMemo(() => {
     if (!displayedDomain) return undefined
     const startMs = displayedDomain[0].getTime()
     const endMs = displayedDomain[1].getTime()
     if (endMs <= startMs) return [startMs]
-    const tickCount = 5
+    const innerWidth = Math.max(0, containerWidth - MARGIN_X * 2)
+    const tickCount = Math.max(
+      TICK_MIN,
+      Math.min(TICK_MAX, Math.floor(innerWidth / TICK_MIN_SPACING_PX))
+    )
     const step = (endMs - startMs) / (tickCount - 1)
     return Array.from({ length: tickCount }, (_, i) => Math.round(startMs + i * step))
-  }, [displayedDomain])
+  }, [displayedDomain, containerWidth])
 
   // Custom tick renderer: anchors the leftmost label at start, rightmost
   // at end, so the dates of the zoom (first and last) stay visible at
@@ -417,7 +441,8 @@ const TimelineChart = ({ timeseriesData, selectedSpecies, dateRange, setDateRang
               allowDataOverflow
               ticks={xAxisTicks}
               tick={renderTick}
-              minTickGap={10}
+              interval={0}
+              minTickGap={-1}
               height={25}
             />
             <YAxis hide domain={[0, 'auto']} />
