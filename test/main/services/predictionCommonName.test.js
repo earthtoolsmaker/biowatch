@@ -167,4 +167,65 @@ describe('insertPrediction populates commonName via dictionary', () => {
     assert.equal(insertedRows[0].scientificName, null)
     assert.equal(insertedRows[0].commonName, null)
   })
+
+  test('MegaDetector classificationProbability is per-detection (not the top-level prediction_score)', async () => {
+    // MD has no classifier — every bbox is a separate detection. Each
+    // observation row must carry that detection's own confidence, not the
+    // top-level prediction_score copied across all rows. Regression test for
+    // the production bug where 6 detections all showed conf=0.70 in the UI.
+    const { db, insertedRows } = makeFakeDb({ mediaRecord: baseMedia() })
+    const prediction = {
+      filepath: '/fake/img.jpg',
+      prediction: 'animal',
+      prediction_score: 0.699,
+      detections: [
+        { class: 0, label: 'animal', conf: 0.699, xywhn: [0.1, 0.5, 0.1, 0.2], xyxy: [0, 0, 0, 0] },
+        { class: 0, label: 'animal', conf: 0.446, xywhn: [0.2, 0.6, 0.1, 0.1], xyxy: [0, 0, 0, 0] },
+        { class: 0, label: 'animal', conf: 0.293, xywhn: [0.3, 0.7, 0.1, 0.1], xyxy: [0, 0, 0, 0] }
+      ]
+    }
+
+    await insertPrediction(db, prediction, {
+      modelID: 'megadetector',
+      detectionConfidenceThreshold: 0.2
+    })
+
+    assert.equal(insertedRows.length, 3)
+    // Sorted by conf desc per insertPrediction's existing behavior
+    assert.equal(insertedRows[0].classificationProbability, 0.699)
+    assert.equal(insertedRows[1].classificationProbability, 0.446)
+    assert.equal(insertedRows[2].classificationProbability, 0.293)
+    // detectionConfidence must match — for MD they are the same value.
+    assert.equal(insertedRows[0].detectionConfidence, 0.699)
+    assert.equal(insertedRows[1].detectionConfidence, 0.446)
+    assert.equal(insertedRows[2].detectionConfidence, 0.293)
+  })
+
+  test('SpeciesNet classificationProbability remains the top-level prediction_score across detections', async () => {
+    // For a true classifier model the classification probability IS the
+    // whole-image classifier output — same across all bboxes by design.
+    // Locks the existing behavior so the MD-specific change doesn't regress it.
+    const { db, insertedRows } = makeFakeDb({ mediaRecord: baseMedia() })
+    const prediction = {
+      filepath: '/fake/img.jpg',
+      prediction: '00000000-0000-0000-0000-000000000001;mammalia;rodentia;sciuridae;sciurus;vulgaris;eurasian red squirrel',
+      prediction_score: 0.95,
+      detections: [
+        { category: '1', label: 'animal', conf: 0.99, bbox: [0.1, 0.1, 0.1, 0.1] },
+        { category: '1', label: 'animal', conf: 0.7, bbox: [0.3, 0.3, 0.1, 0.1] }
+      ]
+    }
+
+    await insertPrediction(db, prediction, {
+      modelID: 'speciesnet',
+      detectionConfidenceThreshold: 0.5
+    })
+
+    assert.equal(insertedRows.length, 2)
+    assert.equal(insertedRows[0].classificationProbability, 0.95)
+    assert.equal(insertedRows[1].classificationProbability, 0.95)
+    // detectionConfidence remains per-bbox
+    assert.equal(insertedRows[0].detectionConfidence, 0.99)
+    assert.equal(insertedRows[1].detectionConfidence, 0.7)
+  })
 })

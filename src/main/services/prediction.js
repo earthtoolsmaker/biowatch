@@ -329,7 +329,12 @@ export async function insertPrediction(db, prediction, modelInfo = {}) {
     // Combine: best + filtered additional
     const validDetections = [bestDetection, ...additionalDetections]
 
-    // Create one observation per valid detection
+    // Create one observation per valid detection. For detection-only models
+    // (MegaDetector) there is no whole-image classifier, so each bbox's
+    // detection confidence IS the classification probability — write it
+    // per-row instead of copying the top-level prediction_score across all
+    // rows (which would render as the same number on every box in the UI).
+    const isDetectionOnly = modelType === 'megadetector'
     for (const detection of validDetections) {
       const bbox = transformBboxToCamtrapDP(detection, modelType)
       const observationData = {
@@ -339,7 +344,8 @@ export async function insertPrediction(db, prediction, modelInfo = {}) {
         bboxY: bbox?.bboxY ?? null,
         bboxWidth: bbox?.bboxWidth ?? null,
         bboxHeight: bbox?.bboxHeight ?? null,
-        detectionConfidence: detection.conf
+        detectionConfidence: detection.conf,
+        ...(isDetectionOnly && { classificationProbability: detection.conf })
       }
       await db.insert(observations).values(observationData)
     }
