@@ -11,7 +11,7 @@ Today the Sources tab of a study has one action: **"+ Add images directory"**, w
 1. **Images directory** — unchanged from today's flow.
 2. **Another study** — pick a study from the local list and merge its data (deployments, media, observations, model runs) into the current study, with metadata (description, contributors, date range) merged on a single review screen.
 
-Merge is **in-place** (target study A absorbs source study B's data; B stays untouched), **forward-only** in v1 (no un-merge), and **one study at a time**. Image files from B are physically copied into A's directory so A is self-contained.
+Merge is **in-place** (target study A absorbs source study B's data; B stays untouched), **forward-only** in v1 (no un-merge), and **one study at a time**. Image files from B are physically copied into A's directory **only when biowatch owns them** (files that live inside `<biowatch-data>/studies/<B-uuid>/`). External files (user folders, external drives, HTTP URLs) are referenced in place — biowatch doesn't duplicate files it never owned.
 
 ## Goals & non-goals
 
@@ -38,8 +38,8 @@ The Sources tab's `+ Add images directory` button (`src/renderer/src/sources.jsx
 
 **Step 2 — Study picker.** Searchable list of all local studies from `listStudies()` except A itself. Each row shows title, importer-type icon (Folder / Package / Globe), deployment count, media count, and date range. Studies already merged into A appear in the list but are disabled with a small "Already merged" badge.
 
-**Step 3 — Review.** A brief spinner runs while pre-flight checks complete (file-size sum, disk-space query). Then the pre-filled defaults render:
-- Summary card: from / into / counts being added (deployments, media, observations) / **disk: "Adding ~X · ~Y free"** (color-coded green when sufficient, red when not).
+**Step 3 — Review.** A brief spinner runs while pre-flight checks complete (file-size sum, disk-space query, copy-vs-reference partition). Then the pre-filled defaults render:
+- Summary card: from / into / counts being added (deployments, media, observations) / **disk: "Will copy ~X (~Y free)" plus "Will reference Z files in their current location"** (color-coded green when sufficient, red when not). The copy line is omitted when nothing needs copying.
 - Description (textarea, editable). Default = A's description + `"\n\n---\n\n## Merged from <B-title>\n\n"` + B's description.
 - Contributors checklist. Default = union of A's and B's contributors deduped by email, all checked. Each row shows the contributor's name, role, and a small badge: "A + B", "A only", "B only". Unchecking removes from the resulting list.
 - Date range preview: `min(A.startDate, B.startDate) → max(A.endDate, B.endDate)`, with a note showing the previous range.
@@ -55,8 +55,8 @@ A new source row appears, grouped by `media.importFolder = <A-dir>/merged/<B-uui
 
 **No new tables. No new columns.** All required provenance is encoded in two places:
 
-1. `media.importFolder = <A-dir>/merged/<B-uuid>` for every merged media row — naturally fits the existing Sources-tab grouping (which already keys on `importFolder`).
-2. `<A-dir>/merged/<B-uuid>/_merge-info.json` written alongside the auto-copied files:
+1. `media.importFolder = <A-dir>/merged/<B-uuid>` for every merged media row (whether the file was copied or referenced) — naturally fits the existing Sources-tab grouping (which already keys on `importFolder`).
+2. `<A-dir>/merged/<B-uuid>/_merge-info.json` written regardless of whether any files were copied:
    ```json
    {
      "sourceStudyId": "b7f2a1c3-…",
@@ -73,17 +73,29 @@ PK collision safety: every `deploymentID`, `mediaID`, and `observationID` from B
 
 ## Data flow
 
-`mergeStudy(targetStudyId, sourceStudyId, reviewed)` runs the following. A separate pre-flight IPC, `mergePreflight(targetStudyId, sourceStudyId)`, runs during the wizard's Step 2 → Step 3 transition and returns `{ totalBytes, freeBytes, missingFileCount, renameCount }` for the review screen — it does not mutate anything. The Merge button is disabled if `totalBytes * 1.05 > freeBytes`.
+`mergeStudy(targetStudyId, sourceStudyId, reviewed)` runs the following. A separate pre-flight IPC, `mergePreflight(targetStudyId, sourceStudyId)`, runs during the wizard's Step 2 → Step 3 transition and returns `{ copyBytes, copyCount, referenceCount, freeBytes, missingFileCount, renameCount, alreadyMerged }` for the review screen — it does not mutate anything. The Merge button is disabled if `copyBytes * 1.05 > freeBytes`.
 
-1. **Resolve & validate.** Both studies exist locally. Refuse self-merge. Detect prior merge by `SELECT 1 FROM media WHERE importFolder LIKE '<A-dir>/merged/<B-uuid>/%' LIMIT 1` — if found, return `{ alreadyMerged: true }` (UI shows toast, modal closes, no-op). Re-check free disk space (pre-flight value may be stale); abort with a clear error if insufficient.
+### Copy-vs-reference rule
 
-2. **Copy files.** Open B's DB read-only. Gather distinct directories from `media.filePath` values. For each file: if the source file does not exist on disk, record it in a `missingMediaIDs` set (its media + observation rows will be skipped in step 4) and continue. Otherwise copy to `<A-dir>/merged/<B-uuid>/<basename-of-source-dir>/<filename>`, preserving subfolder structure (the EXIF/parentFolder deployment heuristic in `prediction.js:600` needs subfolder layout intact). Concurrency cap ~8 in-flight copies. Skip-if-destination-exists for idempotency on retry. Track bytes for the progress event.
+Apply per B media row, using the existing `isRemoteUrl` helper (`src/main/services/export/exporter.js:94`):
 
-3. **Build a path map.** For each B media row, compute `newFilePath`. Build the single prefix `PREFIX = "study:<B-uuid-short>:"`.
+- `filePath` starts with `http://` or `https://` → **REFERENCE** (URL stays as-is).
+- `filePath` is inside `<biowatch-data>/studies/<B-uuid>/` → **COPY** (biowatch owns the file; it would vanish on B deletion).
+- Otherwise → **REFERENCE** (external volume / user folder; biowatch never owned it, file survives B independently).
+
+`media.importFolder` is set to `<A-dir>/merged/<B-uuid>` for **all** merged rows regardless of decision, so the Sources tab still groups them as one source. Only `filePath` differs between COPY (rewritten to the new in-A location) and REFERENCE (unchanged).
+
+### Steps
+
+1. **Resolve & validate.** Both studies exist locally. Refuse self-merge. Detect prior merge by `SELECT 1 FROM media WHERE importFolder LIKE '<A-dir>/merged/<B-uuid>/%' LIMIT 1` — if found, return `{ alreadyMerged: true }` (UI shows toast, modal closes, no-op). Re-check free disk space against `copyBytes` (pre-flight value may be stale); abort with a clear error if insufficient.
+
+2. **Copy files (COPY set only).** Open B's DB read-only. For each media row in the COPY set: if the source file does not exist on disk, record it in `missingMediaIDs` (its media + observation rows will be skipped in step 4) and continue. Otherwise copy to `<A-dir>/merged/<B-uuid>/<basename-of-source-dir>/<filename>`, preserving subfolder structure (the EXIF/parentFolder deployment heuristic in `prediction.js:600` needs subfolder layout intact). Concurrency cap ~8 in-flight copies. Skip-if-destination-exists for idempotency on retry. Track bytes for the progress event. Rows in the REFERENCE set are not file-touched here — but their existence on disk is still checked (URLs skip the disk check); missing referenced files also feed `missingMediaIDs`.
+
+3. **Build a path map.** For COPY rows, compute the new `filePath` (`<A-dir>/merged/<B-uuid>/<basename-of-source-dir>/<rel>`). For REFERENCE rows, the new `filePath` equals the old `filePath`. Build the single prefix `PREFIX = "study:<B-uuid-short>:"`.
 
 4. **Read B, write to A — one SQLite transaction on A's DB.** Rows whose `mediaID` is in `missingMediaIDs` (from step 2) are skipped, along with any `modelOutputs` and `observations` that reference them. Order matters for FK constraints:
    - INSERT deployments with prefixed `deploymentID` (other fields copied as-is, including `locationID`).
-   - INSERT media with prefixed `mediaID`, prefixed `deploymentID`, `filePath` from path map, `importFolder = <A-dir>/merged/<B-uuid>`. Skip media in `missingMediaIDs`.
+   - INSERT media with prefixed `mediaID`, prefixed `deploymentID`, `filePath` from path map (rewritten for COPY rows, unchanged for REFERENCE rows), `importFolder = <A-dir>/merged/<B-uuid>` for all rows. Skip media in `missingMediaIDs`.
    - INSERT modelRuns as-is. Rewrite `modelRuns.importPath = <A-dir>/merged/<B-uuid>` so the multi-source spec's in-flight-run join still works (per `docs/specs/2026-04-29-sources-tab-multi-source-design.md:76`).
    - INSERT modelOutputs as-is, rewriting `mediaID` FK. Skip rows referencing missing media.
    - INSERT observations with prefixed `observationID`, `mediaID`, `deploymentID` (modelOutputID is a UUID, unchanged). Skip rows referencing missing media.
@@ -133,9 +145,11 @@ This also resolves a pre-existing quirk: today's tab shows the study-wide icon o
 // preload
 window.api.mergePreflight(targetStudyId, sourceStudyId)
 // → {
-//     totalBytes: number,        // sum of file sizes for B's media
+//     copyBytes: number,         // sum of file sizes for B's media in the COPY set
+//     copyCount: number,         // number of files that will be copied
+//     referenceCount: number,    // number of files that will be referenced in place (incl. URLs)
 //     freeBytes: number,         // available bytes on A's volume
-//     missingFileCount: number,  // B media whose file is missing on disk
+//     missingFileCount: number,  // B media whose local file is missing on disk (URLs not checked)
 //     renameCount: number,       // deployment IDs that will be prefixed
 //     alreadyMerged: boolean
 //   }
@@ -166,8 +180,9 @@ window.api.mergeStudy(targetStudyId, sourceStudyId, reviewed)
 | Case | Behavior |
 |---|---|
 | B's DB unreadable / corrupt | Abort before file copy. Toast: error details. |
-| Insufficient disk space at pre-flight | Merge button disabled with inline error "Adding ~3.2 GB needs ~3.4 GB free; only 1.4 GB available." User frees space or cancels. |
-| Some of B's media files missing on disk | Counted at pre-flight (`missingFileCount` shown on review screen). At copy time, those files are skipped and their media/observation rows are not written. Completion toast: "N files were missing and skipped." |
+| Insufficient disk space at pre-flight | Merge button disabled with inline error "Will copy ~3.2 GB; needs ~3.4 GB free; only 1.4 GB available." User frees space or cancels. |
+| Some of B's media files missing on disk | Counted at pre-flight (`missingFileCount` shown on review screen). At copy time, those files are skipped (whether they were in the COPY set or the REFERENCE set) and their media/observation rows are not written. Completion toast: "N files were missing and skipped." URLs are not disk-checked at pre-flight; broken URLs surface as render failures, not merge errors. |
+| Referenced files later become unreachable (external drive unmounted, user moved files) | Same fragility as today's folder imports — biowatch only stores the path. The merged source row still renders; media that can't be opened fail at view time. The user can re-mount or restore the original location to recover. Not a merge failure. |
 | Disk full during copy (race with other writers) | Failsafe path — pre-flight should have caught it, but if it didn't: stop copies; transaction never begins, A's DB unchanged. Partial copies remain (idempotent retry). Toast with current free bytes. |
 | Transaction failure | SQLite rolls back. Copied files remain on disk; retry is safe. Toast with failure reason. |
 | App closed mid-merge | Files copied so far remain; DB unchanged (transaction not yet committed). User retries on next launch. |
@@ -181,11 +196,14 @@ window.api.mergeStudy(targetStudyId, sourceStudyId, reviewed)
 - `transformFilePath(oldPath, sourceDirs, destRoot)` — path-mapping helper. Table tests for typical EXIF folder layouts and CamtrapDP package layouts.
 - `prefixRow(row, prefix, fkFields)` — PK + FK rewrite helper.
 - `getSourcesData` row-augmentation: pattern recognition for `merged/<uuid>/`, manifest read, manifest-missing fallback, no-merge passthrough.
-- `mergePreflight` correctness: totalBytes sums match the test-fixture sizes; missingFileCount counts dangling rows; `alreadyMerged` flips after a successful merge.
+- `mergePreflight` correctness: `copyBytes` sums match the test-fixture sizes for files inside `<biowatch-data>/studies/<B-uuid>/`; external paths and URLs land in `referenceCount` not `copyBytes`; `missingFileCount` counts dangling rows; `alreadyMerged` flips after a successful merge.
+- Copy-vs-reference classifier: table tests for inside-biowatch paths, external absolute paths, `http://` / `https://` URLs, and edge cases like symlinks resolving to inside biowatch-data.
 
 **Integration (existing biowatch test setup, isolated SQLite DB per test):**
-- Folder→folder merge: counts add up; UUIDs don't trigger visible renames; PK prefix still applied uniformly.
-- CamtrapDP→folder merge: PKs prefixed; FKs consistent; A's pre-existing data untouched.
+- Folder→folder merge: counts add up; UUIDs don't trigger visible renames; PK prefix still applied uniformly. **All B media REFERENCED** (filePaths unchanged); zero files copied.
+- CamtrapDP-on-external-drive → folder merge: PKs prefixed; FKs consistent; A's pre-existing data untouched. **All B media REFERENCED**; the `<A-dir>/merged/<B-uuid>/` directory contains only the manifest, no copied files.
+- CamtrapDP-downloaded-into-biowatch → folder merge: B's filePaths inside `<biowatch-data>/studies/<B-uuid>/` → **COPIED** to `<A-dir>/merged/<B-uuid>/...`; A's filePaths now point to the copies; B remains intact.
+- LILA→folder merge: B's filePaths are URLs → REFERENCED; merged source row reports as Remote.
 - Already-merged detection: second merge of same B is a no-op (`alreadyMerged: true`).
 - Metadata merge: description concatenation, contributor union by email (case-insensitive), date-range extension.
 - File-copy idempotency: pre-existing copied files are skipped without error; retry-after-crash equivalent.
