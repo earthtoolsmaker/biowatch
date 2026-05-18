@@ -269,8 +269,18 @@ export default function Sources({ studyId, importerName, studyName }) {
   const canAddSource = !!importerName
 
   const handleImported = () => {
-    queryClient.invalidateQueries({ queryKey: ['importStatus', actualStudyId] })
-    queryClient.invalidateQueries({ queryKey: ['sourcesData', actualStudyId] })
+    // Invalidate every query scoped to this study so all tabs (Overview,
+    // Species, Deployments, Media, Sources) pick up the new data. This covers
+    // both the folder-import path and the merge-another-study path; merges
+    // can change deployment/media/observation counts and metadata (description,
+    // contributors, date range) study-wide.
+    queryClient.invalidateQueries({
+      predicate: (query) => query.queryKey.some((k) => k === actualStudyId)
+    })
+    // The study listing itself (sidebar) reads from a separate query that
+    // doesn't include the studyId — merge updates the study's metadata so
+    // invalidate that too.
+    queryClient.invalidateQueries({ queryKey: ['studies'] })
   }
 
   return (
