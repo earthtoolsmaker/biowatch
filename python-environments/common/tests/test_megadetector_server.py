@@ -92,7 +92,11 @@ class TestMegaDetectorServer:
         assert len(person_dets) >= 1, "raw 'person' label must be preserved per-detection"
 
     def test_predict_empty_image(self, megadetector_server, test_images):
-        """An empty (no subject) image should produce prediction='blank'."""
+        """An empty (no subject) image should produce prediction='blank' with no prediction_score key.
+
+        The JS-side Zod validator accepts an absent prediction_score but rejects null,
+        so the server omits the key entirely on blanks (matches DeepFaune's behavior).
+        """
         payload = {"instances": [{"filepath": str(test_images["empty"])}]}
         with httpx.stream(
             "POST",
@@ -103,7 +107,7 @@ class TestMegaDetectorServer:
             results = parse_streaming_response(resp)
         pred = results[0]["output"]["predictions"][0]
         assert pred["prediction"] == "blank"
-        assert pred["prediction_score"] is None
+        assert "prediction_score" not in pred, "blank predictions must omit prediction_score, not emit null"
 
     def test_predict_streaming(self, megadetector_server, test_images):
         """Streaming returns one chunk per image, all classifications empty."""

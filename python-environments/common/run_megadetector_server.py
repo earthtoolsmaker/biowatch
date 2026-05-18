@@ -125,8 +125,10 @@ def predict_one(
 
     The 'prediction' field is the label of the highest-confidence detection
     whose conf >= confidence_threshold, translated via LABEL_TO_PREDICTION.
-    When no detection passes the threshold, prediction is 'blank' and
-    prediction_score is None.
+    When no detection passes the threshold, 'prediction' is 'blank' and
+    the 'prediction_score' key is omitted entirely (matches DeepFaune's
+    behavior and the JS-side Zod schema, which accepts an absent
+    prediction_score but rejects null).
     """
     imagecv = safe_imread(filepath)
     ultralytics_results = detector(imagecv, verbose=False)
@@ -163,7 +165,6 @@ def predict_one(
                     "classifications": {},
                     "detections": detection_records,
                     "prediction": "blank",
-                    "prediction_score": None,
                     "model_version": model_version,
                 }
             ],
