@@ -5,7 +5,7 @@ import { join } from 'path'
 import { tmpdir } from 'os'
 import Database from 'better-sqlite3'
 
-import { getAtRiskMergeBreaks } from '../../../../src/main/services/merge/bDeletion.js'
+import { getAtRiskMergeBreaks } from '../../../../src/main/services/merge/mergeDependents.js'
 
 let root
 let studiesDir

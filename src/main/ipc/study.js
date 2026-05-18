@@ -17,7 +17,7 @@ import {
   updateMetadata,
   getDrizzleDb
 } from '../database/index.js'
-import { getAtRiskMergeBreaks } from '../services/merge/bDeletion.js'
+import { getAtRiskMergeBreaks } from '../services/merge/mergeDependents.js'
 import { listMergedSourceIds } from '../services/merge/mergedSources.js'
 import { createMergeRegistry } from '../services/merge/registry.js'
 
