@@ -142,17 +142,6 @@ export default function ReviewStep({
                 </p>
               )}
 
-              {preflight.renameCount > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  {preflight.renameCount} deployment ID
-                  {preflight.renameCount === 1 ? '' : 's'} from the source will be renamed (e.g.{' '}
-                  <code className="font-mono text-[10px]">
-                    CAM_01 → study:{(sourceStudy.id || '').slice(0, 8)}:CAM_01
-                  </code>
-                  ) to avoid collisions. Informational — IDs are internal.
-                </p>
-              )}
-
               {preflight.missingFileCount > 0 && (
                 <p className="text-xs text-muted-foreground">
                   {preflight.missingFileCount} media file
