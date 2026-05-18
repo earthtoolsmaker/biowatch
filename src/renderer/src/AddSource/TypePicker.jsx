@@ -30,8 +30,8 @@ export default function TypePicker({ isOpen, onPick, onCancel }) {
       >
         <div className="px-6 py-4 border-b border-border flex justify-between items-start">
           <div className="flex items-start gap-3">
-            <div className="p-2 bg-primary/10 rounded-full">
-              <Plus size={20} className="text-primary" />
+            <div className="p-2 bg-blue-100 dark:bg-blue-500/20 rounded-full">
+              <Plus size={20} className="text-blue-600 dark:text-blue-300" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-foreground">Add source</h2>

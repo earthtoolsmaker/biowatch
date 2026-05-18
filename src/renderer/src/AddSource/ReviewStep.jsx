@@ -97,8 +97,8 @@ export default function ReviewStep({
       >
         <div className="px-6 py-4 border-b border-border flex justify-between items-start">
           <div className="flex items-start gap-3">
-            <div className="p-2 bg-primary/10 rounded-full">
-              <Layers size={20} className="text-primary" />
+            <div className="p-2 bg-blue-100 dark:bg-blue-500/20 rounded-full">
+              <Layers size={20} className="text-blue-600 dark:text-blue-300" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-foreground">Review merge</h2>
@@ -120,7 +120,7 @@ export default function ReviewStep({
         <div className="px-6 py-5 space-y-4 max-h-[60vh] overflow-y-auto">
           {preflight && (
             <>
-              <div className="bg-muted rounded-md p-3 text-sm space-y-1">
+              <div className="rounded-lg border border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10 p-4 text-sm space-y-1.5">
                 <SummaryRow label="From" value={sourceStudy.name || sourceStudy.id} />
                 <SummaryRow
                   label="Into"
