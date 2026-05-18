@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { X, Layers } from 'lucide-react'
+import { X, Layers, Camera, Image as ImageIcon, Eye } from 'lucide-react'
 import { Button } from '../ui/button.jsx'
 
 /**
@@ -120,16 +120,22 @@ export default function ReviewStep({
         <div className="px-6 py-5 space-y-4 max-h-[60vh] overflow-y-auto">
           {preflight && (
             <>
-              <div className="rounded-lg border border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10 p-4 text-sm space-y-1.5">
+              <div className="rounded-lg border border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10 p-4 text-sm space-y-3">
                 <SummaryRow label="From" value={sourceStudy.name || sourceStudy.id} />
                 <SummaryRow
                   label="Into"
                   value={targetMeta?.title || targetMeta?.name || targetStudyId}
                 />
-                <SummaryRow
-                  label="Adding"
-                  value={`${preflight.deploymentCount} deployments · ${preflight.mediaCount} media · ${preflight.observationCount} observations`}
-                />
+                <div className="pt-2 border-t border-blue-200/60 dark:border-blue-500/20">
+                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-2">
+                    Adding
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <Stat icon={<Camera size={14} />} count={preflight.deploymentCount} label="deployments" />
+                    <Stat icon={<ImageIcon size={14} />} count={preflight.mediaCount} label="media" />
+                    <Stat icon={<Eye size={14} />} count={preflight.observationCount} label="observations" />
+                  </div>
+                </div>
               </div>
 
               {preflight.alreadyMerged && (
@@ -241,9 +247,25 @@ export default function ReviewStep({
 
 function SummaryRow({ label, value }) {
   return (
-    <div className="flex justify-between gap-3">
+    <div className="flex justify-between gap-3 items-baseline">
       <span className="text-muted-foreground flex-shrink-0">{label}</span>
-      <span className="font-medium text-right truncate">{value}</span>
+      <span className="font-medium text-right truncate" title={String(value)}>
+        {value}
+      </span>
+    </div>
+  )
+}
+
+function Stat({ icon, count, label }) {
+  return (
+    <div className="flex flex-col items-start gap-0.5">
+      <div className="flex items-center gap-1.5 text-muted-foreground">
+        <span className="text-blue-600 dark:text-blue-300">{icon}</span>
+        <span className="text-[10px] uppercase tracking-wide">{label}</span>
+      </div>
+      <div className="text-base font-semibold text-foreground tabular-nums">
+        {Number(count || 0).toLocaleString()}
+      </div>
     </div>
   )
 }
