@@ -131,10 +131,10 @@ export default function StudyPicker({ isOpen, currentStudyId, onBack, onCancel, 
                       ${
                         merged
                           ? 'opacity-50 cursor-not-allowed bg-muted/30'
-                          : 'cursor-pointer hover:bg-primary/15 group'
+                          : 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-500/15 group'
                       }`}
                   >
-                    <div className="p-1.5 rounded-md bg-muted text-muted-foreground flex-shrink-0 transition-colors group-hover:bg-primary/25 group-hover:text-primary">
+                    <div className="p-1.5 rounded-md bg-muted text-muted-foreground flex-shrink-0 transition-colors group-hover:bg-blue-100 group-hover:text-blue-600 dark:group-hover:bg-blue-500/25 dark:group-hover:text-blue-300">
                       <Icon size={16} />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -153,7 +153,7 @@ export default function StudyPicker({ isOpen, currentStudyId, onBack, onCancel, 
                     ) : (
                       <ChevronRight
                         size={16}
-                        className="text-muted-foreground/40 group-hover:text-primary transition-colors flex-shrink-0"
+                        className="text-muted-foreground/40 group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors flex-shrink-0"
                       />
                     )}
                   </button>
