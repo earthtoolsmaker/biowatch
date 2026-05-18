@@ -27,6 +27,7 @@ export DEEPFAUNE_CLASSIFIER_WEIGHTS=/tmp/models/deepfaune/1.3/deepfaune-vit_larg
 export MANAS_DETECTOR_WEIGHTS=/tmp/models/manas/1.0/MDV6-yolov10x.pt
 export MANAS_CLASSIFIER_WEIGHTS=/tmp/models/manas/1.0/best_model_Fri_Sep__1_18_50_55_2023.pt
 export MANAS_CLASSES=/tmp/models/manas/1.0/classes_Fri_Sep__1_18_50_55_2023.pickle
+export MEGADETECTOR_DETECTOR_WEIGHTS=/tmp/models/megadetector/6.0/MDV6-yolov10-e-1280.pt
 
 # Run all e2e tests (downloads models if not present)
 test: download-models
@@ -41,3 +42,4 @@ download-models:
 	uv run python scripts/download_model.py --model speciesnet --output /tmp/models/speciesnet
 	uv run python scripts/download_model.py --model deepfaune --output /tmp/models/deepfaune
 	uv run python scripts/download_model.py --model manas --output /tmp/models/manas
+	uv run python scripts/download_model.py --model megadetector --output /tmp/models/megadetector
