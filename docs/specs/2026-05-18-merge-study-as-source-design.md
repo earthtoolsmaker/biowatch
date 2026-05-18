@@ -70,22 +70,24 @@ The merge is **rows only — no files are touched, copied, or moved.** All opera
 
 ### Steps
 
-1. **Resolve & validate.** Both studies exist locally. Refuse self-merge. Detect prior merge by `SELECT 1 FROM media WHERE importFolder = 'merge:<B-uuid>' LIMIT 1` — if found, return `{ alreadyMerged: true }` (UI shows toast, modal closes, no-op).
+The merge runs in a **Node worker thread** (`src/main/services/merge/worker.js`, registered as a separate rollup input). Main spawns the worker, pipes its `progress` / `result` / `error` messages, and tracks it via the `createMergeRegistry` factory scoped to the IPC handlers. Running off-main keeps the UI responsive on multi-million-row merges and lets `worker.terminate()` serve as the cancel primitive — SQLite WAL recovery rolls back any uncommitted transaction on next DB open.
 
-2. **Build the prefix and the missing-file set.** `PREFIX = "study:<B-uuid-short>:"`. Open B's DB read-only. For each B media row whose `filePath` is a local path (not a URL), `fs.access` it; missing ones go into `missingMediaIDs` and their dependent rows are dropped in step 3.
+1. **Resolve & validate.** Both studies exist locally. Refuse self-merge. Detect prior merge by `SELECT 1 FROM media WHERE importFolder = 'merge:<B-uuid>' LIMIT 1` OR `SELECT 1 FROM deployments WHERE deploymentID LIKE 'study:<B-uuid-short>:%' LIMIT 1` — if either matches, return `{ alreadyMerged: true }`. The deployment-prefix fallback catches the edge case where every media row had a broken filePath and only deployments landed in a previous attempt.
 
-3. **Read B, write to A — one SQLite transaction on A's DB.** Rows whose `mediaID` is in `missingMediaIDs` are skipped along with their dependent `modelOutputs` and `observations`. Order matters for FK constraints:
+2. **Scan for missing files.** `PREFIX = "study:<B-uuid-short>:"`. Stream B's media via `iterate()`; for each local path (not a URL), check existence on disk. Count `missingFileCount` for informational reporting. Emit `progress` ticks every ~2,000 rows with `phase: 'scanning'`. **No filtering** — missing files are a pre-existing condition of B (GBIF temp dirs cleaned up post-import, unmounted external drives, etc.) and copying their rows is correct; the renderer's "file unavailable" path handles them at view time.
+
+3. **Read B, write to A — one SQLite transaction on A's DB.** Order matters for FK constraints. Each table is streamed via `iterate()`, normalized through a canonical column projection, and inserted via prepared statements with named bindings. Progress ticks emit every ~2,000 rows with `phase: 'inserting'`:
    - INSERT deployments with prefixed `deploymentID` (other fields copied as-is, including `locationID`).
-   - INSERT media with prefixed `mediaID`, prefixed `deploymentID`, **`filePath` unchanged** from B, `importFolder = "merge:<B-uuid>"`. Skip media in `missingMediaIDs`.
+   - INSERT media with prefixed `mediaID`, prefixed `deploymentID`, **`filePath` unchanged** from B, `importFolder = "merge:<B-uuid>"`.
    - INSERT modelRuns as-is. Rewrite `modelRuns.importPath = "merge:<B-uuid>"` so the multi-source spec's in-flight-run join continues to work (per `docs/specs/2026-04-29-sources-tab-multi-source-design.md:76`).
-   - INSERT modelOutputs as-is, rewriting `mediaID` FK. Skip rows referencing missing media.
-   - INSERT observations with prefixed `observationID`, `mediaID`, `deploymentID` (modelOutputID is a UUID, unchanged). Skip rows referencing missing media.
-   - UPDATE `metadata` with reviewed values: `description` from textarea, `contributors` from checklist, `startDate = min(A,B)`, `endDate = max(A,B)`, `updatedAt = now`. `title` and `importerName` unchanged.
+   - INSERT modelOutputs as-is, rewriting `mediaID` FK (id is a UUID, kept as-is — observations.modelOutputID points at it unchanged).
+   - INSERT observations with prefixed `observationID`, `mediaID`, `deploymentID` (modelOutputID is a UUID, unchanged).
+   - UPDATE `metadata` with reviewed values: `description` from textarea, `contributors` reconciled by `mergeContributors` (union deduped by email, filtered to `reviewed.contributorEmails`), `startDate = min(A,B)`, `endDate = max(A,B)`, `updatedAt = now`. `title` and `importerName` unchanged. An empty `contributorEmails: []` is treated as explicit "drop everyone"; pass `null`/`undefined` to keep the full union.
    - The `jobs` table is **not** copied — B's queue is transient processing state.
 
 4. **Emit `merge:complete`** so the Sources tab re-queries; resolve.
 
-If step 3 fails, SQLite rolls back. Nothing was written to disk in any previous step (no file copies), so there's no filesystem cleanup to consider.
+If step 3 fails, SQLite rolls back. Nothing was written to disk in any previous step (no file copies), so there's no filesystem cleanup to consider. If the user clicks Cancel mid-flight, `worker.terminate()` kills the worker; SQLite WAL recovery rolls back the partial transaction on next open.
 
 ### Idempotency & repeat behavior
 
@@ -177,7 +179,8 @@ window.api.mergeStudy(targetStudyId, sourceStudyId, reviewed)
 
 **New event.**
 
-- `merge:complete` `{ studyId }` — Sources tab re-queries on receipt. (No `merge:progress` — the merge is fast since no files are copied.)
+- `merge:progress` `{ phase: 'scanning' | 'inserting', done, total }` — emitted every ~2,000 rows during the merge. The review modal subscribes to render a progress bar.
+- `merge:complete` `{ studyId }` — Sources tab re-queries on receipt; a `sonner` toast is shown.
 
 ## Error handling & edge cases
 
@@ -241,8 +244,12 @@ The follow-up adds `deployments.importFolder` (column + index + migration with b
 - `src/renderer/src/AddSourceModal.jsx` — restructured as wizard; new step components.
 - New: `src/renderer/src/MergeStudyWizard/StudyPicker.jsx`, `ReviewStep.jsx`.
 - `src/main/services/merge.js` — new module owning the merge orchestration (DB-only; no file logic).
-- `src/main/ipc/study.js` — `study:merge` and `study:merge-preflight` handlers, `merge:complete` event; `study:delete-database` updated to check for dependents and surface a confirmation.
-- `src/preload/index.js` — expose `window.api.mergeStudy` and `window.api.mergePreflight`.
+- `src/main/services/merge/worker.js` + `preflightWorker.js` — worker entry points (declared as rollup inputs in `electron.vite.config.mjs`).
+- `src/main/services/merge/registry.js` — `createMergeRegistry()` factory holding the in-flight worker map (scoped to `registerStudyIPCHandlers` closure, no module-level state).
+- `src/main/services/merge/mergeDependents.js` — `getAtRiskMergeBreaks` for the B-deletion warning.
+- `src/main/services/merge/mergedSources.js` — `listMergedSourceIds` for the StudyPicker's "Already merged" detection.
+- `src/main/ipc/study.js` — `study:merge`, `study:merge-preflight`, `study:merge-cancel`, `study:list-merged-source-ids`, `study:get-metadata` handlers, plus the progress/complete events. `study:delete-database` updated to check for dependents.
+- `src/preload/index.js` — expose `window.api.mergeStudy`, `mergePreflight`, `cancelMerge`, `onMergeProgress`, `onMergeComplete`, `listMergedSourceIds`, `getStudyMetadata`.
 - `src/main/ipc/files.js` (`getSourcesData`) — per-row `importerName` and `displayLabel` augmentation via live B lookup.
 - Tests: matching layout under `src/main/services/merge.test.js` + integration suite.
 - Docs: update `architecture.md`, `data-formats.md`, `database-schema.md` (note on merged-source convention: `importFolder = 'merge:<uuid>'`), `import-export.md`, `ipc-api.md`.
