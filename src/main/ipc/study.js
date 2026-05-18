@@ -90,6 +90,8 @@ export function registerStudyIPCHandlers() {
   })
 
   ipcMain.handle('study:merge-preflight', async (_event, targetStudyId, sourceStudyId) => {
+    log.info(`merge-preflight: target=${targetStudyId} source=${sourceStudyId} — spawning worker`)
+    const startedAt = Date.now()
     return new Promise((resolve) => {
       const workerPath = join(__dirname, 'merge-preflight-worker.js')
       const worker = new Worker(workerPath, {
@@ -106,8 +108,15 @@ export function registerStudyIPCHandlers() {
         resolve(value)
       }
       worker.on('message', (msg) => {
-        if (msg.type === 'result') finish(msg.result)
-        else if (msg.type === 'error') {
+        if (msg.type === 'result') {
+          log.info(
+            `merge-preflight: target=${targetStudyId} source=${sourceStudyId} — ` +
+              `done in ${Date.now() - startedAt}ms: ` +
+              `media=${msg.result?.mediaCount} owned=${msg.result?.ownedByBiowatchCount} ` +
+              `missing=${msg.result?.missingFileCount} alreadyMerged=${msg.result?.alreadyMerged}`
+          )
+          finish(msg.result)
+        } else if (msg.type === 'error') {
           log.error('Pre-flight worker error:', msg.error)
           finish({ error: msg.error })
         }
@@ -124,8 +133,13 @@ export function registerStudyIPCHandlers() {
 
   ipcMain.handle('study:merge', async (event, targetStudyId, sourceStudyId, reviewed) => {
     if (mergeRegistry.has(targetStudyId)) {
+      log.warn(
+        `merge: refused — already in progress for target=${targetStudyId} (attempted source=${sourceStudyId})`
+      )
       return { success: false, error: 'A merge is already in progress for this study' }
     }
+    log.info(`merge: target=${targetStudyId} source=${sourceStudyId} — spawning worker`)
+    const startedAt = Date.now()
     try {
       // Close any open handle on the target so the worker's connection has
       // exclusive write access. SQLite WAL would let the worker proceed
@@ -166,6 +180,12 @@ export function registerStudyIPCHandlers() {
               w.webContents.send('merge:complete', { studyId: targetStudyId })
             )
           }
+          log.info(
+            `merge: target=${targetStudyId} source=${sourceStudyId} — ` +
+              `done in ${Date.now() - startedAt}ms: ` +
+              `success=${msg.result?.success} alreadyMerged=${!!msg.result?.alreadyMerged} ` +
+              `missingFileCount=${msg.result?.missingFileCount ?? '-'}`
+          )
           finish(msg.result)
         } else if (msg.type === 'error') {
           log.error('Merge worker reported error:', msg.error)
@@ -179,14 +199,23 @@ export function registerStudyIPCHandlers() {
       worker.on('exit', (code) => {
         // Non-zero exit usually means terminate() — the cancel handler hit it,
         // or the worker crashed before posting a message.
-        if (!settled) finish({ success: true, cancelled: true, exitCode: code })
+        if (!settled) {
+          log.info(
+            `merge: target=${targetStudyId} source=${sourceStudyId} — ` +
+              `worker exited with code ${code} after ${Date.now() - startedAt}ms (treated as cancelled)`
+          )
+          finish({ success: true, cancelled: true, exitCode: code })
+        }
       })
     })
   })
 
   ipcMain.handle('study:merge-cancel', async (_event, targetStudyId) => {
+    log.info(`merge-cancel: target=${targetStudyId}`)
     try {
-      return await mergeRegistry.cancel(targetStudyId)
+      const result = await mergeRegistry.cancel(targetStudyId)
+      log.info(`merge-cancel: target=${targetStudyId} — cancelled=${result.cancelled}`)
+      return result
     } catch (error) {
       log.error('Error cancelling merge:', error)
       return { cancelled: false, error: error.message }
