@@ -118,9 +118,6 @@ export default function ReviewStep({
         </div>
 
         <div className="px-6 py-5 space-y-4 max-h-[60vh] overflow-y-auto">
-          {!preflight && !error && (
-            <p className="text-sm text-muted-foreground">Computing pre-flight…</p>
-          )}
           {preflight && (
             <>
               <div className="bg-muted rounded-md p-3 text-sm space-y-1">
