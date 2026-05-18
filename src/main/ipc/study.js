@@ -17,7 +17,6 @@ import {
   updateMetadata,
   getDrizzleDb
 } from '../database/index.js'
-import { mergePreflight } from '../services/merge/preflight.js'
 import { getAtRiskMergeBreaks } from '../services/merge/bDeletion.js'
 import { listMergedSourceIds } from '../services/merge/mergedSources.js'
 import { createMergeRegistry } from '../services/merge/registry.js'
@@ -91,16 +90,36 @@ export function registerStudyIPCHandlers() {
   })
 
   ipcMain.handle('study:merge-preflight', async (_event, targetStudyId, sourceStudyId) => {
-    try {
-      return mergePreflight({
-        biowatchDataPath: getBiowatchDataPath(),
-        targetStudyId,
-        sourceStudyId
+    return new Promise((resolve) => {
+      const workerPath = join(__dirname, 'merge-preflight-worker.js')
+      const worker = new Worker(workerPath, {
+        workerData: {
+          biowatchDataPath: getBiowatchDataPath(),
+          targetStudyId,
+          sourceStudyId
+        }
       })
-    } catch (error) {
-      log.error('Error in study:merge-preflight:', error)
-      return { error: error.message }
-    }
+      let settled = false
+      const finish = (value) => {
+        if (settled) return
+        settled = true
+        resolve(value)
+      }
+      worker.on('message', (msg) => {
+        if (msg.type === 'result') finish(msg.result)
+        else if (msg.type === 'error') {
+          log.error('Pre-flight worker error:', msg.error)
+          finish({ error: msg.error })
+        }
+      })
+      worker.on('error', (err) => {
+        log.error('Pre-flight worker error event:', err)
+        finish({ error: err.message })
+      })
+      worker.on('exit', (code) => {
+        if (!settled) finish({ error: `pre-flight worker exited with code ${code}` })
+      })
+    })
   })
 
   ipcMain.handle('study:merge', async (event, targetStudyId, sourceStudyId, reviewed) => {
