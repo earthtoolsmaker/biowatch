@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Folder, Package, Globe, X, Layers, ChevronRight, Check } from 'lucide-react'
 import { Button } from '../ui/button.jsx'
+import StudyHoverCard from '../ui/StudyHoverCard.jsx'
 
 const ICON = {
   'camtrap/datapackage': Package,
@@ -117,9 +118,8 @@ export default function StudyPicker({ isOpen, currentStudyId, onBack, onCancel, 
               visible.map((s) => {
                 const Icon = ICON[s.importerName] || Folder
                 const merged = mergedSet.has(s.id)
-                return (
+                const row = (
                   <button
-                    key={s.id}
                     type="button"
                     disabled={merged}
                     onClick={() => !merged && onPicked(s)}
@@ -153,6 +153,11 @@ export default function StudyPicker({ isOpen, currentStudyId, onBack, onCancel, 
                       />
                     )}
                   </button>
+                )
+                return (
+                  <StudyHoverCard key={s.id} study={s} scrollSignal={0}>
+                    {row}
+                  </StudyHoverCard>
                 )
               })
             )}
