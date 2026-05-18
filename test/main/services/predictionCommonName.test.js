@@ -208,7 +208,8 @@ describe('insertPrediction populates commonName via dictionary', () => {
     const { db, insertedRows } = makeFakeDb({ mediaRecord: baseMedia() })
     const prediction = {
       filepath: '/fake/img.jpg',
-      prediction: '00000000-0000-0000-0000-000000000001;mammalia;rodentia;sciuridae;sciurus;vulgaris;eurasian red squirrel',
+      prediction:
+        '00000000-0000-0000-0000-000000000001;mammalia;rodentia;sciuridae;sciurus;vulgaris;eurasian red squirrel',
       prediction_score: 0.95,
       detections: [
         { category: '1', label: 'animal', conf: 0.99, bbox: [0.1, 0.1, 0.1, 0.1] },

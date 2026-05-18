@@ -182,21 +182,20 @@ describe('selectVideoClassificationWinner with weightedVote=true (mean-confidenc
     // animal detections are noisy (avg 0.36) while the person detections are
     // unambiguous (avg 0.83). Weighted vote correctly picks "person".
     const speciesMap = new Map([
-      [
-        'homo sapiens',
-        { frames: [0, 1], scores: [0.945, 0.708], firstFrame: 0, lastFrame: 1 }
-      ],
+      ['homo sapiens', { frames: [0, 1], scores: [0.945, 0.708], firstFrame: 0, lastFrame: 1 }],
       [
         'animal',
         {
           frames: [2, 3, 4, 5, 6, 8, 9],
-          scores: [0.492, 0.301, 0.350, 0.360, 0.323, 0.374, 0.319],
+          scores: [0.492, 0.301, 0.35, 0.36, 0.323, 0.374, 0.319],
           firstFrame: 2,
           lastFrame: 9
         }
       ]
     ])
-    const { winner, winnerData } = selectVideoClassificationWinner(speciesMap, { weightedVote: true })
+    const { winner, winnerData } = selectVideoClassificationWinner(speciesMap, {
+      weightedVote: true
+    })
     assert.equal(winner, 'homo sapiens')
     assert.ok(Math.abs(winnerData.avgConfidence - 0.8265) < 0.001)
   })
@@ -209,7 +208,7 @@ describe('selectVideoClassificationWinner with weightedVote=true (mean-confidenc
         'animal',
         {
           frames: [2, 3, 4, 5, 6, 8, 9],
-          scores: [0.492, 0.301, 0.350, 0.360, 0.323, 0.374, 0.319],
+          scores: [0.492, 0.301, 0.35, 0.36, 0.323, 0.374, 0.319],
           firstFrame: 2,
           lastFrame: 9
         }
