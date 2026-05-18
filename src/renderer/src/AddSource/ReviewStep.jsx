@@ -118,6 +118,7 @@ export default function ReviewStep({
         </div>
 
         <div className="px-6 py-5 space-y-4 max-h-[60vh] overflow-y-auto">
+          {!preflight && !error && <PreflightSkeleton />}
           {preflight && (
             <>
               <div className="rounded-lg border border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10 p-4 text-sm space-y-3">
@@ -239,6 +240,50 @@ export default function ReviewStep({
               {submitting ? 'Merging…' : 'Merge'}
             </Button>
           </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PreflightSkeleton() {
+  return (
+    <div className="space-y-4 animate-pulse">
+      {/* Summary card placeholder */}
+      <div className="rounded-lg border border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10 p-4 space-y-3">
+        <div className="flex justify-between items-baseline gap-3">
+          <div className="h-3 w-12 rounded bg-blue-200/60 dark:bg-blue-500/30" />
+          <div className="h-3 w-40 rounded bg-blue-200/60 dark:bg-blue-500/30" />
+        </div>
+        <div className="flex justify-between items-baseline gap-3">
+          <div className="h-3 w-10 rounded bg-blue-200/60 dark:bg-blue-500/30" />
+          <div className="h-3 w-28 rounded bg-blue-200/60 dark:bg-blue-500/30" />
+        </div>
+        <div className="pt-3 border-t border-blue-200/60 dark:border-blue-500/20">
+          <div className="h-2 w-14 rounded bg-blue-200/60 dark:bg-blue-500/30 mb-3" />
+          <div className="grid grid-cols-3 gap-3">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="flex flex-col items-start gap-1">
+                <div className="h-3 w-20 rounded bg-blue-200/60 dark:bg-blue-500/30" />
+                <div className="h-4 w-16 rounded bg-blue-200/60 dark:bg-blue-500/30 ml-[22px]" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Description block placeholder */}
+      <div>
+        <div className="h-2 w-20 rounded bg-muted mb-2" />
+        <div className="h-28 w-full rounded-md bg-muted/70 border border-border/40" />
+      </div>
+
+      {/* Contributors block placeholder */}
+      <div>
+        <div className="h-2 w-20 rounded bg-muted mb-2" />
+        <div className="space-y-2">
+          <div className="h-7 w-full rounded bg-muted/70" />
+          <div className="h-7 w-full rounded bg-muted/70" />
         </div>
       </div>
     </div>
