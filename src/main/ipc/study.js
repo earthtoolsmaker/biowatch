@@ -98,7 +98,7 @@ export function registerStudyIPCHandlers() {
     }
   })
 
-  ipcMain.handle('study:merge', async (_event, targetStudyId, sourceStudyId, reviewed) => {
+  ipcMain.handle('study:merge', async (event, targetStudyId, sourceStudyId, reviewed) => {
     try {
       // Close any open handle on the target so the merge can write through a fresh connection.
       await closeStudyDatabase(targetStudyId)
@@ -106,7 +106,13 @@ export function registerStudyIPCHandlers() {
         biowatchDataPath: getBiowatchDataPath(),
         targetStudyId,
         sourceStudyId,
-        reviewed: reviewed || { description: '', contributorEmails: [] }
+        reviewed: reviewed || { description: '', contributorEmails: [] },
+        onProgress: (payload) => {
+          // Send progress only to the renderer that invoked the merge.
+          // event.sender is non-blocking; safe to call from inside the
+          // synchronous merge loop.
+          if (!event.sender.isDestroyed()) event.sender.send('merge:progress', payload)
+        }
       })
       BrowserWindow.getAllWindows().forEach((w) =>
         w.webContents.send('merge:complete', { studyId: targetStudyId })

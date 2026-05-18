@@ -19,6 +19,7 @@ export default function ReviewStep({
   const [contributors, setContributors] = useState([])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
+  const [progress, setProgress] = useState(null) // { phase, done, total }
 
   // ESC closes.
   useEffect(() => {
@@ -61,6 +62,18 @@ export default function ReviewStep({
       cancelled = true
     }
   }, [isOpen, targetStudyId, sourceStudy.id, sourceStudy.name])
+
+  // Subscribe to merge progress while the merge is in flight. The IPC channel
+  // delivers `{ phase, done, total }` snapshots every couple thousand rows.
+  useEffect(() => {
+    if (!submitting) {
+      setProgress(null)
+      return
+    }
+    if (!window.api.onMergeProgress) return
+    const unsub = window.api.onMergeProgress((payload) => setProgress(payload))
+    return unsub
+  }, [submitting])
 
   const canMerge = !!preflight && !preflight.alreadyMerged && !submitting
 
@@ -220,6 +233,32 @@ export default function ReviewStep({
                     </div>
                   )
                 })()}
+
+              {submitting && progress && (
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>
+                      {progress.phase === 'scanning' ? 'Checking files…' : 'Copying rows…'}
+                    </span>
+                    <span className="tabular-nums">
+                      {Number(progress.done).toLocaleString()} /{' '}
+                      {Number(progress.total).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-blue-500 dark:bg-blue-400 rounded-full transition-all duration-150"
+                      style={{
+                        width: `${
+                          progress.total > 0
+                            ? Math.min(100, Math.round((progress.done / progress.total) * 100))
+                            : 0
+                        }%`
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
 
               {error && (
                 <div className="text-sm text-red-600 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-md px-3 py-2 dark:text-red-400">

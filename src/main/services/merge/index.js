@@ -93,7 +93,13 @@ function project(row, table) {
  * Streams every row through `iterate()` and uses prepared INSERTs so it scales
  * to multi-million-row studies without blowing up V8's heap.
  */
-export function mergeStudy({ biowatchDataPath, targetStudyId, sourceStudyId, reviewed }) {
+export function mergeStudy({
+  biowatchDataPath,
+  targetStudyId,
+  sourceStudyId,
+  reviewed,
+  onProgress
+}) {
   if (targetStudyId === sourceStudyId) {
     throw new Error('Cannot self-merge a study with itself')
   }
@@ -102,6 +108,13 @@ export function mergeStudy({ biowatchDataPath, targetStudyId, sourceStudyId, rev
 
   const aDb = new Database(studyDbPath(biowatchDataPath, targetStudyId))
   const bDb = new Database(studyDbPath(biowatchDataPath, sourceStudyId), { readonly: true })
+
+  // Throttle: emit progress every N rows. The IPC pipe is async but emitting
+  // a million events per phase is still wasteful.
+  const TICK = 2000
+  const notify = (phase, done, total) => {
+    if (onProgress) onProgress({ phase, done, total })
+  }
 
   try {
     // Already-merged check.
@@ -113,16 +126,39 @@ export function mergeStudy({ biowatchDataPath, targetStudyId, sourceStudyId, rev
       .get(`${prefix}%`)
     if (existsMedia || existsDeployment) return { success: true, alreadyMerged: true }
 
+    // Counts up-front so the renderer can show a real percentage. These are
+    // cheap indexed COUNTs on B — single-digit ms even on multi-million-row
+    // studies.
+    const counts = {
+      media: bDb.prepare('SELECT COUNT(*) AS n FROM media').get().n,
+      deployments: bDb.prepare('SELECT COUNT(*) AS n FROM deployments').get().n,
+      modelRuns: bDb.prepare('SELECT COUNT(*) AS n FROM model_runs').get().n,
+      modelOutputs: bDb.prepare('SELECT COUNT(*) AS n FROM model_outputs').get().n,
+      observations: bDb.prepare('SELECT COUNT(*) AS n FROM observations').get().n
+    }
+    const insertTotal =
+      counts.deployments +
+      counts.media +
+      counts.modelRuns +
+      counts.modelOutputs +
+      counts.observations
+
     // Pass 1: stream B's media to identify missing local files. Keeping only
     // the missing-ID set means memory scales with the number of *missing*
     // files, not the total. A study with all-present files keeps the set empty.
+    notify('scanning', 0, counts.media)
     const missingMediaIDs = new Set()
+    let scanned = 0
     for (const { mediaID, filePath } of bDb
       .prepare('SELECT mediaID, filePath FROM media')
       .iterate()) {
-      if (!filePath || URL_RE.test(filePath)) continue
-      if (!existsSync(filePath)) missingMediaIDs.add(mediaID)
+      if (filePath && !URL_RE.test(filePath) && !existsSync(filePath)) {
+        missingMediaIDs.add(mediaID)
+      }
+      scanned++
+      if (scanned % TICK === 0) notify('scanning', scanned, counts.media)
     }
+    notify('scanning', scanned, counts.media)
 
     // Read metadata once — single rows, tiny.
     const aMeta = aDb.prepare('SELECT * FROM metadata').get()
@@ -137,34 +173,53 @@ export function mergeStudy({ biowatchDataPath, targetStudyId, sourceStudyId, rev
     const insertObservation = makeInsert(aDb, 'observations')
 
     // Pass 2: stream rows from B into A inside a single transaction on A.
+    notify('inserting', 0, insertTotal)
+    let inserted = 0
+    const bump = () => {
+      inserted++
+      if (inserted % TICK === 0) notify('inserting', inserted, insertTotal)
+    }
     const txn = aDb.transaction(() => {
       for (const row of bDb.prepare('SELECT * FROM deployments').iterate()) {
         const out = prefixRow(row, prefix, { pk: 'deploymentID', fks: [] })
         insertDeployment.run(project(out, 'deployments'))
+        bump()
       }
       for (const row of bDb.prepare('SELECT * FROM media').iterate()) {
-        if (missingMediaIDs.has(row.mediaID)) continue
+        if (missingMediaIDs.has(row.mediaID)) {
+          bump()
+          continue
+        }
         const out = prefixRow(row, prefix, { pk: 'mediaID', fks: ['deploymentID'] })
         out.importFolder = mergeKey
         insertMedia.run(project(out, 'media'))
+        bump()
       }
       for (const row of bDb.prepare('SELECT * FROM model_runs').iterate()) {
         insertModelRun.run(project({ ...row, importPath: mergeKey }, 'model_runs'))
+        bump()
       }
-      // model_outputs: id is a UUID, no PK prefix. Only rewrite the mediaID FK.
       for (const row of bDb.prepare('SELECT * FROM model_outputs').iterate()) {
-        if (missingMediaIDs.has(row.mediaID)) continue
+        if (missingMediaIDs.has(row.mediaID)) {
+          bump()
+          continue
+        }
         insertModelOutput.run(
           project({ ...row, mediaID: `${prefix}${row.mediaID}` }, 'model_outputs')
         )
+        bump()
       }
       for (const row of bDb.prepare('SELECT * FROM observations').iterate()) {
-        if (missingMediaIDs.has(row.mediaID)) continue
+        if (missingMediaIDs.has(row.mediaID)) {
+          bump()
+          continue
+        }
         const out = prefixRow(row, prefix, {
           pk: 'observationID',
           fks: ['mediaID', 'deploymentID']
         })
         insertObservation.run(project(out, 'observations'))
+        bump()
       }
 
       const newContribs = mergeContributors(
@@ -190,6 +245,7 @@ export function mergeStudy({ biowatchDataPath, targetStudyId, sourceStudyId, rev
         )
     })
     txn()
+    notify('inserting', insertTotal, insertTotal)
 
     return { success: true, missingFileCount: missingMediaIDs.size }
   } finally {

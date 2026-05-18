@@ -76,6 +76,11 @@ const api = {
       reviewed
     )
   },
+  onMergeProgress: (callback) => {
+    const handler = (_e, payload) => callback(payload)
+    electronAPI.ipcRenderer.on('merge:progress', handler)
+    return () => electronAPI.ipcRenderer.off('merge:progress', handler)
+  },
   onMergeComplete: (callback) => {
     const handler = (_e, payload) => callback(payload)
     electronAPI.ipcRenderer.on('merge:complete', handler)
