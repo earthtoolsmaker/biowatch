@@ -5,6 +5,7 @@ Usage:
     uv run python scripts/download_model.py --model speciesnet --output /tmp/models/speciesnet
     uv run python scripts/download_model.py --model deepfaune --output /tmp/models/deepfaune
     uv run python scripts/download_model.py --model manas --output /tmp/models/manas
+    uv run python scripts/download_model.py --model megadetector --output /tmp/models/megadetector
 """
 
 import argparse
@@ -25,6 +26,10 @@ MODELS = {
     "manas": {
         "repo_id": "earthtoolsmaker/manas",
         "filename": "1.0.tar.gz",
+    },
+    "megadetector": {
+        "repo_id": "earthtoolsmaker/megadetector",
+        "filename": "6.0.tar.gz",
     },
 }
 
@@ -57,7 +62,7 @@ def main():
         "--model",
         required=True,
         choices=list(MODELS.keys()),
-        help="Model to download (speciesnet, deepfaune, manas)",
+        help="Model to download (speciesnet, deepfaune, manas, megadetector)",
     )
     parser.add_argument(
         "--output",

@@ -61,7 +61,11 @@ function ModelRow({ model, status }) {
       </div>
       <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
         <RegionPill regionId={model.region} />
-        <span>{model.species_count} species</span>
+        <span>
+          {model.detectionOnly
+            ? `Detection only · ${model.species_count} categories`
+            : `${model.species_count} species`}
+        </span>
       </div>
       <p className="text-xs text-muted-foreground leading-snug line-clamp-2">{model.description}</p>
     </div>

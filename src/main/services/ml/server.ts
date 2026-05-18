@@ -14,6 +14,7 @@ import crypto from 'crypto'
 import os from 'node:os'
 
 import { getMLModelLocalInstallPath, getMLModelEnvironmentLocalInstallPath } from './paths.js'
+import { findModel } from '../../../shared/mlmodels.js'
 
 // ============================================================================
 // Active Server Registry
@@ -509,6 +510,75 @@ export async function startManasHTTPServer({
   return { process: pythonProcess, shutdownApiKey }
 }
 
+interface MegaDetectorServerOptions {
+  port: number
+  detectorWeightsFilepath: string
+  detectionConfidenceThreshold: number
+  timeout: number
+  pythonEnvironment: {
+    reference: { id: string; version: string }
+  }
+}
+
+/**
+ * Starts the MegaDetector HTTP server using a specified Python environment and configuration.
+ *
+ * @async
+ * @param {MegaDetectorServerOptions} options
+ * @returns {Promise<{process: ChildProcess, shutdownApiKey: string}>}
+ */
+export async function startMegaDetectorHTTPServer({
+  port,
+  detectorWeightsFilepath,
+  detectionConfidenceThreshold,
+  timeout,
+  pythonEnvironment
+}: MegaDetectorServerOptions): Promise<{ process: ChildProcess; shutdownApiKey: string }> {
+  log.info('startMegaDetectorHTTPServer initiated')
+  log.info(pythonEnvironment)
+  const localInstalRootDirPythonEnvironment = join(
+    getMLModelEnvironmentLocalInstallPath({
+      ...pythonEnvironment.reference
+    }),
+    pythonEnvironment.reference.id
+  )
+  log.info('Local Python Environment root dir is', localInstalRootDirPythonEnvironment)
+  const scriptPath = is.dev
+    ? join(__dirname, '../../python-environments/common/run_megadetector_server.py')
+    : join(process.resourcesPath, 'python-environments', 'common', 'run_megadetector_server.py')
+  const pythonInterpreter = is.dev
+    ? join(__dirname, '../../python-environments/common/.venv/bin/python')
+    : os.platform() === 'win32'
+      ? join(localInstalRootDirPythonEnvironment, 'python.exe')
+      : join(localInstalRootDirPythonEnvironment, 'bin', 'python')
+  log.info('Python Interpreter found in', pythonInterpreter)
+  log.info('Script path is', scriptPath)
+  const scriptArgs = [
+    '--port',
+    String(port),
+    '--filepath-detector-weights',
+    detectorWeightsFilepath,
+    '--detection-confidence-threshold',
+    String(detectionConfidenceThreshold),
+    '--timeout',
+    String(timeout)
+  ]
+  log.info('Script args: ', scriptArgs)
+
+  const shutdownApiKey = crypto.randomUUID()
+  log.info('Generated shutdown API key for MegaDetector server')
+
+  const pythonProcess = await startAndWaitTillServerHealty({
+    pythonInterpreter,
+    scriptPath,
+    scriptArgs,
+    healthEndpoint: `http://localhost:${port}/health`,
+    env: { LIT_SHUTDOWN_API_KEY: shutdownApiKey }
+  })
+
+  return { process: pythonProcess, shutdownApiKey }
+}
+
 // ============================================================================
 // Server Lifecycle Management
 // ============================================================================
@@ -699,6 +769,28 @@ export async function startMLModelHTTPServer({
         classifierWeightsFilepath: classifierWeightsFilepath,
         classesFilepath: classesFilepath,
         detectorWeightsFilepath: detectorWeightsFilepath,
+        timeout: 30,
+        pythonEnvironment: pythonEnvironment
+      })
+      log.info(`pythonProcess: ${JSON.stringify(pythonProcess)}`)
+      registerActiveServer({
+        pid: pythonProcess.pid as number,
+        port,
+        shutdownApiKey,
+        modelId: modelReference.id
+      })
+      return { port: port, process: pythonProcess, shutdownApiKey }
+    }
+    case 'megadetector': {
+      const port = await resolveServerPort(is.dev ? 8003 : null)
+      const localInstallPath = getMLModelLocalInstallPath({ ...modelReference })
+      log.info(`Local ML Model install path ${localInstallPath}`)
+      const detectorWeightsFilepath = join(localInstallPath, 'MDV6-yolov10-e-1280.pt')
+      const model = findModel({ ...modelReference })
+      const { process: pythonProcess, shutdownApiKey } = await startMegaDetectorHTTPServer({
+        port,
+        detectorWeightsFilepath,
+        detectionConfidenceThreshold: model?.detectionConfidenceThreshold ?? 0.2,
         timeout: 30,
         pythonEnvironment: pythonEnvironment
       })

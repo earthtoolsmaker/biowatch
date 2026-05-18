@@ -179,7 +179,11 @@ export default function ModelCard({
 
       <div className="text-xs text-muted-foreground mb-1.5">
         v{model.reference.version} · {formatSize(model.size_in_MB)} ·{' '}
-        <span className="text-foreground font-medium">{model.species_count} species</span>
+        <span className="text-foreground font-medium">
+          {model.detectionOnly
+            ? `Detection only · ${model.species_count} categories`
+            : `${model.species_count} species`}
+        </span>
       </div>
 
       {!isDownloading && (
@@ -200,17 +204,21 @@ export default function ModelCard({
         </div>
       )}
 
-      <div
-        className="mt-3 text-xs text-blue-600 hover:underline cursor-pointer select-none dark:text-blue-400"
-        onClick={(e) => {
-          e.stopPropagation()
-          onToggleSpecies?.(model.reference.id)
-        }}
-      >
-        {speciesOpen ? '▾ Hide species' : `▸ View ${model.species_count} species`}
-      </div>
+      {!model.detectionOnly && (
+        <>
+          <div
+            className="mt-3 text-xs text-blue-600 hover:underline cursor-pointer select-none dark:text-blue-400"
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggleSpecies?.(model.reference.id)
+            }}
+          >
+            {speciesOpen ? '▾ Hide species' : `▸ View ${model.species_count} species`}
+          </div>
 
-      {speciesOpen && speciesPanel}
+          {speciesOpen && speciesPanel}
+        </>
+      )}
     </div>
   )
 }

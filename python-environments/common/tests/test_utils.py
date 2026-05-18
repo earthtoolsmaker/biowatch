@@ -1,6 +1,10 @@
 """Unit tests for shared ML server utilities."""
 
-from utils import VideoCapableLitAPI
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from utils import VideoCapableLitAPI, get_video_metadata
 
 
 class TestNormalizeFailedPredictions:
@@ -96,3 +100,86 @@ class TestNormalizeFailedPredictions:
         result = {}
         normalized = VideoCapableLitAPI._normalize_failed_predictions(result, "/x.jpg")
         assert normalized == {"predictions": []}
+
+
+class TestGetVideoMetadataSanity:
+    """Tests that get_video_metadata rejects corrupt-file metadata.
+
+    OpenCV can return huge negative frame_count values on broken containers
+    (uint64 underflow cast to int), producing absurd durations and letting a
+    single garbage frame slip into inference. The metadata helper rejects
+    these so the consumer's error-handling pipeline can flag the file.
+    """
+
+    def _mocked_capture(self, fps, frame_count, opened=True):
+        cap = MagicMock()
+        cap.isOpened.return_value = opened
+        cap.get.side_effect = lambda prop: {
+            5: fps,  # cv2.CAP_PROP_FPS
+            7: frame_count,  # cv2.CAP_PROP_FRAME_COUNT
+        }.get(prop, 0)
+        return cap
+
+    def test_rejects_negative_frame_count(self):
+        """A corrupt MP4 with negative frame_count must raise, not return junk."""
+        with (
+            patch(
+                "utils.cv2.VideoCapture",
+                return_value=self._mocked_capture(fps=30, frame_count=-922337203685477),
+            ),
+            pytest.raises(ValueError, match="Invalid video metadata"),
+        ):
+            get_video_metadata("/corrupt.mp4")
+
+    def test_rejects_zero_frame_count(self):
+        """A file that reports zero frames is not a usable video."""
+        with (
+            patch(
+                "utils.cv2.VideoCapture",
+                return_value=self._mocked_capture(fps=30, frame_count=0),
+            ),
+            pytest.raises(ValueError, match="Invalid video metadata"),
+        ):
+            get_video_metadata("/empty.mp4")
+
+    def test_rejects_zero_fps(self):
+        """fps=0 means duration is meaningless."""
+        with (
+            patch(
+                "utils.cv2.VideoCapture",
+                return_value=self._mocked_capture(fps=0, frame_count=100),
+            ),
+            pytest.raises(ValueError, match="Invalid video metadata"),
+        ):
+            get_video_metadata("/no-fps.mp4")
+
+    def test_rejects_excessive_duration(self):
+        """Duration above the 24h sanity ceiling is rejected."""
+        # 30 fps × 30 hours of frames → 30h duration → over the 24h limit.
+        excessive_frame_count = 30 * 60 * 60 * 30
+        with (
+            patch(
+                "utils.cv2.VideoCapture",
+                return_value=self._mocked_capture(fps=30, frame_count=excessive_frame_count),
+            ),
+            pytest.raises(ValueError, match="Invalid video metadata"),
+        ):
+            get_video_metadata("/huge.mp4")
+
+    def test_rejects_unopenable_video(self):
+        """Cannot open returns the existing 'Cannot open video' error."""
+        with (
+            patch(
+                "utils.cv2.VideoCapture",
+                return_value=self._mocked_capture(fps=30, frame_count=100, opened=False),
+            ),
+            pytest.raises(ValueError, match="Cannot open video"),
+        ):
+            get_video_metadata("/missing.mp4")
+
+    def test_accepts_normal_video(self):
+        """Sane metadata round-trips through."""
+        with patch("utils.cv2.VideoCapture", return_value=self._mocked_capture(fps=30, frame_count=300)):
+            metadata = get_video_metadata("/ok.mp4")
+        assert metadata["fps"] == 30
+        assert metadata["duration"] == pytest.approx(10.0)  # 300 frames / 30 fps

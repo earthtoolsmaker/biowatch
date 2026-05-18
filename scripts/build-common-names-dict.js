@@ -94,7 +94,7 @@ function main() {
   const dictionary = {}
   const labelAliases = {}
 
-  const order = ['speciesnet.json', 'deepfaune.json', 'manas.json']
+  const order = ['speciesnet.json', 'deepfaune.json', 'manas.json', 'megadetector.json']
   for (const filename of order) {
     const snapshot = loadJson(path.join(SOURCES_DIR, filename))
     mergeEntries(dictionary, snapshot.entries)

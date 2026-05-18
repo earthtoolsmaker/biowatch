@@ -226,12 +226,14 @@ export async function getMedia(db, filepath) {
 /**
  * Parse scientific name from prediction based on model type
  * @param {Object} prediction - Model prediction output
- * @param {string} modelType - 'speciesnet' | 'deepfaune' | 'manas'
+ * @param {string} modelType - 'speciesnet' | 'deepfaune' | 'manas' | 'megadetector'
  * @returns {string|null} Scientific name or null for blank predictions
  */
 function parseScientificName(prediction, modelType) {
-  if (modelType === 'deepfaune' || modelType === 'manas') {
-    // DeepFaune/Manas: Simple label like "chamois", "panthera_uncia", "blank", "empty", "vide"
+  if (modelType === 'deepfaune' || modelType === 'manas' || modelType === 'megadetector') {
+    // DeepFaune/Manas/MegaDetector: Simple label like "chamois", "panthera_uncia",
+    // "animal", "vehicle", "homo sapiens" (MD's translation of "person"), or
+    // "blank"/"empty"/"vide"/"error" for no-detection cases.
     const label = prediction.prediction
     if (!label || label === 'blank' || label === 'empty' || label === 'vide' || label === 'error') {
       return null
@@ -327,7 +329,12 @@ export async function insertPrediction(db, prediction, modelInfo = {}) {
     // Combine: best + filtered additional
     const validDetections = [bestDetection, ...additionalDetections]
 
-    // Create one observation per valid detection
+    // Create one observation per valid detection. For detection-only models
+    // (MegaDetector) there is no whole-image classifier, so each bbox's
+    // detection confidence IS the classification probability — write it
+    // per-row instead of copying the top-level prediction_score across all
+    // rows (which would render as the same number on every box in the UI).
+    const isDetectionOnly = modelType === 'megadetector'
     for (const detection of validDetections) {
       const bbox = transformBboxToCamtrapDP(detection, modelType)
       const observationData = {
@@ -337,7 +344,8 @@ export async function insertPrediction(db, prediction, modelInfo = {}) {
         bboxY: bbox?.bboxY ?? null,
         bboxWidth: bbox?.bboxWidth ?? null,
         bboxHeight: bbox?.bboxHeight ?? null,
-        detectionConfidence: detection.conf
+        detectionConfidence: detection.conf,
+        ...(isDetectionOnly && { classificationProbability: detection.conf })
       }
       await db.insert(observations).values(observationData)
     }
@@ -451,8 +459,12 @@ export async function insertVideoPredictions(db, predictions, mediaRecord, model
     entry.lastFrame = Math.max(entry.lastFrame, pred.frame_number)
   }
 
-  // 4. Select winner using majority voting with average confidence tiebreaker
-  const { winner, winnerData } = selectVideoClassificationWinner(speciesMap)
+  // 4. Select winner. Detection-only models (MegaDetector) use mean-confidence
+  // voting so a noisy stream of low-conf "animal" frames can't drown out a
+  // few high-conf "person" frames. Classifiers keep the frame-count-primary
+  // majority vote, which suits per-frame classification of the same scene.
+  const weightedVote = modelType === 'megadetector'
+  const { winner, winnerData } = selectVideoClassificationWinner(speciesMap, { weightedVote })
 
   // 5. Create exactly ONE observation (winner or blank)
   const fps = mediaRecord.exifData?.fps || 1

@@ -1,6 +1,7 @@
 import speciesnetSource from '../../src/shared/commonNames/sources/speciesnet.json' with { type: 'json' }
 import deepfauneSource from '../../src/shared/commonNames/sources/deepfaune.json' with { type: 'json' }
 import manasSource from '../../src/shared/commonNames/sources/manas.json' with { type: 'json' }
+import megadetectorSource from '../../src/shared/commonNames/sources/megadetector.json' with { type: 'json' }
 import extras from '../../src/shared/commonNames/extras.json' with { type: 'json' }
 import { normalizeScientificName } from '../../src/shared/commonNames/normalize.js'
 
@@ -14,7 +15,7 @@ import { normalizeScientificName } from '../../src/shared/commonNames/normalize.
  */
 export function buildAliasMap() {
   const aliases = new Map()
-  const sources = [speciesnetSource, deepfauneSource, manasSource, extras]
+  const sources = [speciesnetSource, deepfauneSource, manasSource, megadetectorSource, extras]
   for (const src of sources) {
     for (const entry of src.entries || []) {
       if (!entry.scientificName || !entry.label) continue

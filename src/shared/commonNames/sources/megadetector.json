@@ -1,0 +1,22 @@
+{
+  "modelId": "megadetector",
+  "modelVersion": "6.0",
+  "source": "MegaDetector v6 categories (animal / person / vehicle)",
+  "entries": [
+    {
+      "scientificName": null,
+      "label": "animal",
+      "commonName": "Animal"
+    },
+    {
+      "scientificName": "homo sapiens",
+      "label": "person",
+      "commonName": "Human"
+    },
+    {
+      "scientificName": null,
+      "label": "vehicle",
+      "commonName": "Vehicle"
+    }
+  ]
+}

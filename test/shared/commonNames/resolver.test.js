@@ -32,4 +32,17 @@ describe('resolveCommonName', () => {
   test('returns null for unknown scientific name', () => {
     assert.equal(resolveCommonName('Foobar nonexistentium'), null)
   })
+
+  test('resolves MegaDetector pseudo-species labels (animal/vehicle)', () => {
+    assert.equal(resolveCommonName('animal'), 'animal')
+    assert.equal(resolveCommonName('vehicle'), 'vehicle')
+  })
+
+  test("resolves MegaDetector's 'person' label and its 'homo sapiens' binomial to 'human'", () => {
+    // MD's raw label is 'person', but the Python server emits 'homo sapiens'
+    // as the prediction. Both keys resolve to the same common name so either
+    // route (alias-translated or directly emitted) renders consistently.
+    assert.equal(resolveCommonName('person'), 'human')
+    assert.equal(resolveCommonName('homo sapiens'), 'human')
+  })
 })
