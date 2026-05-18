@@ -92,10 +92,25 @@ export default function ReviewStep({
       if (!result || result.success !== true) {
         throw new Error(result?.error || 'Merge failed')
       }
+      if (result.cancelled) {
+        // User cancelled — main rolled the transaction back. Just close.
+        onCancel?.()
+        return
+      }
       onMerged?.()
     } catch (e) {
       setError(e.message)
       setSubmitting(false)
+    }
+  }
+
+  const handleCancelMerge = async () => {
+    if (!submitting || !window.api.cancelMerge) return
+    try {
+      await window.api.cancelMerge(targetStudyId)
+    } catch (e) {
+      // Swallow — worker may have already exited.
+      console.warn('cancelMerge failed:', e?.message)
     }
   }
 
@@ -281,13 +296,29 @@ export default function ReviewStep({
             ← Back
           </Button>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={onCancel}>
-              {submitting ? 'Continue in background' : 'Cancel'}
-            </Button>
-            {!submitting && (
-              <Button size="sm" onClick={handleMerge} disabled={!canMerge}>
-                Merge
-              </Button>
+            {submitting ? (
+              <>
+                <Button variant="outline" size="sm" onClick={onCancel}>
+                  Continue in background
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
+                  onClick={handleCancelMerge}
+                >
+                  Cancel merge
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="outline" size="sm" onClick={onCancel}>
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={handleMerge} disabled={!canMerge}>
+                  Merge
+                </Button>
+              </>
             )}
           </div>
         </div>

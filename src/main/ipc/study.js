@@ -6,6 +6,7 @@ import { app, BrowserWindow, ipcMain } from 'electron'
 import log from 'electron-log'
 import { existsSync, rmSync } from 'fs'
 import { join } from 'path'
+import { Worker } from 'worker_threads'
 import { getStudyDatabasePath, getStudyPath } from '../services/paths.js'
 import { listStudies, updateStudy } from '../services/study.js'
 import { getStudyCacheStats, clearStudyCache } from '../services/cache/study.js'
@@ -17,9 +18,9 @@ import {
   getDrizzleDb
 } from '../database/index.js'
 import { mergePreflight } from '../services/merge/preflight.js'
-import { mergeStudy } from '../services/merge/index.js'
 import { getAtRiskMergeBreaks } from '../services/merge/bDeletion.js'
 import { listMergedSourceIds } from '../services/merge/mergedSources.js'
+import { createMergeRegistry } from '../services/merge/registry.js'
 
 function getBiowatchDataPath() {
   return join(app.getPath('userData'), 'biowatch-data')
@@ -29,6 +30,10 @@ function getBiowatchDataPath() {
  * Register all study-related IPC handlers
  */
 export function registerStudyIPCHandlers() {
+  // In-flight merge worker registry — scoped to this registration call so
+  // state stays inside the closure (no module-level mutability).
+  const mergeRegistry = createMergeRegistry()
+
   ipcMain.handle('studies:list', async () => {
     return await listStudies()
   })
@@ -99,28 +104,73 @@ export function registerStudyIPCHandlers() {
   })
 
   ipcMain.handle('study:merge', async (event, targetStudyId, sourceStudyId, reviewed) => {
+    if (mergeRegistry.has(targetStudyId)) {
+      return { success: false, error: 'A merge is already in progress for this study' }
+    }
     try {
-      // Close any open handle on the target so the merge can write through a fresh connection.
+      // Close any open handle on the target so the worker's connection has
+      // exclusive write access. SQLite WAL would let the worker proceed
+      // either way, but closing first keeps things tidy.
       await closeStudyDatabase(targetStudyId)
-      const result = mergeStudy({
-        biowatchDataPath: getBiowatchDataPath(),
-        targetStudyId,
-        sourceStudyId,
-        reviewed: reviewed || { description: '', contributorEmails: [] },
-        onProgress: (payload) => {
-          // Send progress only to the renderer that invoked the merge.
-          // event.sender is non-blocking; safe to call from inside the
-          // synchronous merge loop.
-          if (!event.sender.isDestroyed()) event.sender.send('merge:progress', payload)
+    } catch (error) {
+      log.warn('closeStudyDatabase before merge worker spawn failed:', error.message)
+    }
+
+    return new Promise((resolve) => {
+      // The merge worker is registered as a separate rollup input in
+      // electron.vite.config.mjs and lands beside the main bundle.
+      const workerPath = join(__dirname, 'merge-worker.js')
+      const worker = new Worker(workerPath, {
+        workerData: {
+          biowatchDataPath: getBiowatchDataPath(),
+          targetStudyId,
+          sourceStudyId,
+          reviewed: reviewed || { description: '', contributorEmails: [] }
         }
       })
-      BrowserWindow.getAllWindows().forEach((w) =>
-        w.webContents.send('merge:complete', { studyId: targetStudyId })
-      )
-      return result
+      const release = mergeRegistry.register(targetStudyId, worker)
+
+      let settled = false
+      const finish = (result) => {
+        if (settled) return
+        settled = true
+        release()
+        resolve(result)
+      }
+
+      worker.on('message', (msg) => {
+        if (msg.type === 'progress') {
+          if (!event.sender.isDestroyed()) event.sender.send('merge:progress', msg.payload)
+        } else if (msg.type === 'result') {
+          if (msg.result?.success && !msg.result?.alreadyMerged) {
+            BrowserWindow.getAllWindows().forEach((w) =>
+              w.webContents.send('merge:complete', { studyId: targetStudyId })
+            )
+          }
+          finish(msg.result)
+        } else if (msg.type === 'error') {
+          log.error('Merge worker reported error:', msg.error)
+          finish({ success: false, error: msg.error })
+        }
+      })
+      worker.on('error', (err) => {
+        log.error('Merge worker error event:', err)
+        finish({ success: false, error: err.message })
+      })
+      worker.on('exit', (code) => {
+        // Non-zero exit usually means terminate() — the cancel handler hit it,
+        // or the worker crashed before posting a message.
+        if (!settled) finish({ success: true, cancelled: true, exitCode: code })
+      })
+    })
+  })
+
+  ipcMain.handle('study:merge-cancel', async (_event, targetStudyId) => {
+    try {
+      return await mergeRegistry.cancel(targetStudyId)
     } catch (error) {
-      log.error('Error in study:merge:', error)
-      return { success: false, error: error.message }
+      log.error('Error cancelling merge:', error)
+      return { cancelled: false, error: error.message }
     }
   })
 

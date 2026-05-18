@@ -76,6 +76,9 @@ const api = {
       reviewed
     )
   },
+  cancelMerge: async (targetStudyId) => {
+    return await electronAPI.ipcRenderer.invoke('study:merge-cancel', targetStudyId)
+  },
   onMergeProgress: (callback) => {
     const handler = (_e, payload) => callback(payload)
     electronAPI.ipcRenderer.on('merge:progress', handler)
