@@ -99,19 +99,28 @@ Merging the same B into A a second time is a **safe no-op**, not an update.
 
 ### B-deletion warning
 
-When the user attempts to delete a study B that has been merged into other studies, the delete-study handler scans all local studies' `media` tables for `importFolder = 'merge:<B-uuid>'`. If matches are found, it returns a confirmation payload to the renderer:
+The warning fires only when deleting B would **actually break files** in another study — not just when B has been merged somewhere. The two conditions:
+
+1. Some local study has `media WHERE importFolder = 'merge:<B-uuid>'` (B has been merged into it).
+2. **Some of those media rows have `filePath LIKE '<biowatch-data>/studies/<B-uuid>/%'`** — i.e., they point at files inside B's own directory that `rmSync` would delete.
+
+Concretely, this means **B is a CamtrapDP package downloaded into biowatch's own storage** (the only origin that places files inside `<biowatch-data>/studies/<B-uuid>/`). Local folder imports, external CamtrapDP packages, and LILA datasets do not trigger the warning because deleting B doesn't touch their files.
+
+When both conditions hold, the delete-study handler returns a confirmation payload instead of deleting:
 
 ```
 {
   needsConfirm: true,
-  message: "Yosemite 2023 has been merged into 2 other studies:
-            • Site A 2023 — 12,481 media will become unavailable
-            • Sierra Pilot — 850 media will become unavailable
-            Delete anyway?"
+  dependentBreaks: [
+    { studyId: "aaa-…", title: "Site A 2023", brokenMediaCount: 12481 },
+    { studyId: "ccc-…", title: "Sierra Pilot",  brokenMediaCount: 850 }
+  ]
 }
 ```
 
-The user can confirm and proceed, or cancel. If they confirm, B is deleted as today (the merged sources in A and Sierra Pilot remain rows in their DBs but with broken `filePath` values — same UX as a "file unavailable" state today). This warning is the safety valve for the no-copy design.
+The renderer surfaces a confirmation modal. A subsequent call with `{ force: true }` proceeds with the original `rmSync`. After deletion the merged source rows in A and Sierra Pilot keep their DB rows but their `filePath` values now point at deleted files — same UX as a "file unavailable" state today.
+
+**Secondary effect (no warning needed).** Even when files survive (the three non-warning cases), A's merged-source row loses live-lookup of B's title and falls back to "Merged source" + Folder icon. This is label degradation only, not a data issue — not worth a dialog. The user can deduce what happened.
 
 ## Sources tab rendering changes
 
@@ -164,7 +173,7 @@ window.api.mergeStudy(targetStudyId, sourceStudyId, reviewed)
 **Updated handlers.**
 
 - `getSourcesData(studyId)` — augment each returned row with a per-row `importerName` (per the resolution above) and a per-row `displayLabel` for merged rows.
-- `study:delete-database` (`src/main/ipc/study.js:31`) — before deletion, scan all local studies for `media WHERE importFolder = 'merge:<B-uuid>'`. If any hits, return `{ needsConfirm: true, dependents: [...] }` instead of deleting. The renderer surfaces a confirmation modal; a confirmed second call (with a `force: true` flag) proceeds with the original deletion.
+- `study:delete-database` (`src/main/ipc/study.js:31`) — before deletion, scan local studies for `media WHERE importFolder = 'merge:<B-uuid>' AND filePath LIKE '<biowatch-data>/studies/<B-uuid>/%'`. If any hits, return `{ needsConfirm: true, dependentBreaks: [...] }` instead of deleting. The renderer surfaces a confirmation modal; a confirmed second call with `{ force: true }` proceeds with the original deletion. Note the dual predicate: existence of merge-dependents alone is **not** enough to warn — files must actually be at risk.
 
 **New event.**
 
@@ -180,8 +189,8 @@ window.api.mergeStudy(targetStudyId, sourceStudyId, reviewed)
 | Transaction failure | SQLite rolls back. Nothing written to disk, no cleanup needed. Toast with failure reason. |
 | App closed mid-merge | Transaction not yet committed → nothing persisted. User retries on next launch. |
 | Double-submit | Modal `submitting` state disables the button — same pattern as today's `AddSourceModal`. |
-| B deleted after merge — with no biowatch-owned files | A is unaffected; the merged source row's label gracefully falls back to "Merged source" + Folder icon. |
-| B deleted after merge — with biowatch-owned files | The delete-time warning fires first (see *B-deletion warning*). If the user confirms, B's files are gone; A's merged media rows for those files now have broken `filePath` values and show as "unavailable" in views. |
+| B deleted after merge — files survive (folder import, external CamtrapDP, LILA) | Silent delete; no warning. A's merged source row's label falls back to "Merged source" + Folder icon. Data intact. |
+| B deleted after merge — B owns files (CamtrapDP downloaded into biowatch) | Delete-time warning fires (see *B-deletion warning*) listing affected studies and counts. If user confirms with `force: true`, B's files are gone; A's affected merged media rows have broken `filePath` values and show as "unavailable" in views. |
 | A deleted after merge | `rmSync(studyPath, { recursive: true, force: true })` in `src/main/ipc/study.js:38` wipes A's whole dir. B untouched. |
 
 ## Testing strategy
@@ -190,7 +199,7 @@ window.api.mergeStudy(targetStudyId, sourceStudyId, reviewed)
 - `prefixRow(row, prefix, fkFields)` — PK + FK rewrite helper.
 - `getSourcesData` row-augmentation: `merge:` prefix detection, B live-lookup, B-missing fallback, no-merge passthrough.
 - `mergePreflight` correctness: counts match fixture sizes; `ownedByBiowatchCount` counts only B media with `filePath` inside `<biowatch-data>/studies/<B-uuid>/`; `missingFileCount` counts dangling local files (not URLs); `alreadyMerged` flips after a successful merge.
-- B-deletion dependents scan: returns the studies and counts that would break.
+- B-deletion at-risk-file scan: returns dependents only when `filePath LIKE '<biowatch-data>/studies/<B-uuid>/%'` matches at least one row. Pure label-degradation cases (dependents exist but no owned files) yield an empty list.
 
 **Integration (existing biowatch test setup, isolated SQLite DB per test):**
 - Folder→folder merge: counts add up; PK prefix applied uniformly; B media filePaths unchanged in A; `ownedByBiowatchCount` is 0.
@@ -200,7 +209,8 @@ window.api.mergeStudy(targetStudyId, sourceStudyId, reviewed)
 - Already-merged detection: second merge of same B is a no-op (`alreadyMerged: true`).
 - Metadata merge: description concatenation, contributor union by email (case-insensitive), date-range extension.
 - Forced transaction failure: A's DB unchanged.
-- B-deletion with dependents: delete handler returns `needsConfirm: true` + dependent list; deletion succeeds on `force: true` retry.
+- B-deletion with at-risk files (B is CamtrapDP-downloaded-into-biowatch and has been merged into A): delete handler returns `needsConfirm: true` with the `dependentBreaks` array populated; deletion succeeds on `force: true` retry.
+- B-deletion with dependents but no at-risk files (B is folder import / external CamtrapDP / LILA and has been merged into A): delete handler proceeds silently — no confirmation prompt.
 
 **Manual / E2E:**
 - Full wizard flow for both paths.
