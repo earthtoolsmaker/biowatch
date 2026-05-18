@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Folder, Package, Globe, X, Layers, ChevronRight, Check } from 'lucide-react'
 import { Button } from '../ui/button.jsx'
 import StudyHoverCard from '../ui/StudyHoverCard.jsx'
+import { importerLabel } from '../../../shared/importerLabel.js'
 
 const ICON = {
   'camtrap/datapackage': Package,
@@ -151,7 +152,7 @@ export default function StudyPicker({ isOpen, currentStudyId, onBack, onCancel, 
                         {s.name || s.id}
                       </div>
                       <div className="text-xs text-muted-foreground truncate mt-0.5">
-                        {s.importerName}
+                        {importerLabel(s.importerName)}
                       </div>
                     </div>
                     {merged ? (
