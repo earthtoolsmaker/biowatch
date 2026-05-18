@@ -118,4 +118,53 @@ describe('insertPrediction populates commonName via dictionary', () => {
     assert.equal(insertedRows[0].scientificName, null)
     assert.equal(insertedRows[0].commonName, null)
   })
+
+  test('MegaDetector "animal" label stores as simple label with resolved common name', async () => {
+    const { db, insertedRows } = makeFakeDb({ mediaRecord: baseMedia() })
+    const prediction = {
+      filepath: '/fake/img.jpg',
+      prediction: 'animal',
+      prediction_score: 0.7,
+      detections: []
+    }
+
+    await insertPrediction(db, prediction, { modelID: 'megadetector' })
+
+    assert.equal(insertedRows.length, 1)
+    // Must NOT be parsed as a SpeciesNet binomial — that produced "undefined undefined" in production.
+    assert.equal(insertedRows[0].scientificName, 'animal')
+    assert.equal(insertedRows[0].commonName, 'animal')
+  })
+
+  test('MegaDetector "homo sapiens" translation lands with Human common name', async () => {
+    const { db, insertedRows } = makeFakeDb({ mediaRecord: baseMedia() })
+    const prediction = {
+      filepath: '/fake/img.jpg',
+      prediction: 'homo sapiens',
+      prediction_score: 0.93,
+      detections: []
+    }
+
+    await insertPrediction(db, prediction, { modelID: 'megadetector' })
+
+    assert.equal(insertedRows.length, 1)
+    assert.equal(insertedRows[0].scientificName, 'homo sapiens')
+    assert.equal(insertedRows[0].commonName, 'human')
+  })
+
+  test('MegaDetector blank prediction leaves both scientificName and commonName null', async () => {
+    const { db, insertedRows } = makeFakeDb({ mediaRecord: baseMedia() })
+    const prediction = {
+      filepath: '/fake/img.jpg',
+      prediction: 'blank',
+      // prediction_score deliberately omitted — server omits it for blanks
+      detections: []
+    }
+
+    await insertPrediction(db, prediction, { modelID: 'megadetector' })
+
+    assert.equal(insertedRows.length, 1)
+    assert.equal(insertedRows[0].scientificName, null)
+    assert.equal(insertedRows[0].commonName, null)
+  })
 })

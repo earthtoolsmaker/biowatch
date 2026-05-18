@@ -226,12 +226,14 @@ export async function getMedia(db, filepath) {
 /**
  * Parse scientific name from prediction based on model type
  * @param {Object} prediction - Model prediction output
- * @param {string} modelType - 'speciesnet' | 'deepfaune' | 'manas'
+ * @param {string} modelType - 'speciesnet' | 'deepfaune' | 'manas' | 'megadetector'
  * @returns {string|null} Scientific name or null for blank predictions
  */
 function parseScientificName(prediction, modelType) {
-  if (modelType === 'deepfaune' || modelType === 'manas') {
-    // DeepFaune/Manas: Simple label like "chamois", "panthera_uncia", "blank", "empty", "vide"
+  if (modelType === 'deepfaune' || modelType === 'manas' || modelType === 'megadetector') {
+    // DeepFaune/Manas/MegaDetector: Simple label like "chamois", "panthera_uncia",
+    // "animal", "vehicle", "homo sapiens" (MD's translation of "person"), or
+    // "blank"/"empty"/"vide"/"error" for no-detection cases.
     const label = prediction.prediction
     if (!label || label === 'blank' || label === 'empty' || label === 'vide' || label === 'error') {
       return null
