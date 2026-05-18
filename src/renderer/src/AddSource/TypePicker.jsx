@@ -79,7 +79,7 @@ function OptionCard({ icon, title, subtitle, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="group w-full flex items-start gap-3 px-4 py-3.5 rounded-lg border border-border bg-card text-left transition-all hover:border-primary hover:bg-primary/10"
+      className="group w-full flex items-start gap-3 px-4 py-3.5 rounded-lg border border-border bg-card text-left transition-all hover:border-primary hover:bg-primary/15 hover:shadow-sm"
     >
       <div className="p-2 rounded-md flex-shrink-0 bg-muted text-muted-foreground transition-colors group-hover:bg-primary/15 group-hover:text-primary">
         {icon}

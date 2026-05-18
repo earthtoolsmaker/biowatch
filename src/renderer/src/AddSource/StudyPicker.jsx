@@ -19,6 +19,7 @@ export default function StudyPicker({ isOpen, currentStudyId, onBack, onCancel, 
   const [search, setSearch] = useState('')
   const [mergedSet, setMergedSet] = useState(new Set())
   const [loading, setLoading] = useState(true)
+  const [scrollSignal, setScrollSignal] = useState(0)
 
   useEffect(() => {
     if (!isOpen) return
@@ -105,7 +106,10 @@ export default function StudyPicker({ isOpen, currentStudyId, onBack, onCancel, 
               autoFocus
             />
           )}
-          <div className="border border-border rounded-lg overflow-hidden max-h-80 overflow-y-auto">
+          <div
+            className="border border-border rounded-lg overflow-hidden max-h-80 overflow-y-auto"
+            onScroll={() => setScrollSignal((s) => s + 1)}
+          >
             {loading ? (
               <div className="px-3 py-8 text-sm text-muted-foreground text-center">Loading…</div>
             ) : visible.length === 0 ? (
@@ -127,10 +131,10 @@ export default function StudyPicker({ isOpen, currentStudyId, onBack, onCancel, 
                       ${
                         merged
                           ? 'opacity-50 cursor-not-allowed bg-muted/30'
-                          : 'cursor-pointer hover:bg-primary/5 group'
+                          : 'cursor-pointer hover:bg-primary/15 group'
                       }`}
                   >
-                    <div className="p-1.5 rounded-md bg-muted text-muted-foreground flex-shrink-0 transition-colors group-hover:bg-primary/15 group-hover:text-primary">
+                    <div className="p-1.5 rounded-md bg-muted text-muted-foreground flex-shrink-0 transition-colors group-hover:bg-primary/25 group-hover:text-primary">
                       <Icon size={16} />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -155,7 +159,7 @@ export default function StudyPicker({ isOpen, currentStudyId, onBack, onCancel, 
                   </button>
                 )
                 return (
-                  <StudyHoverCard key={s.id} study={s} scrollSignal={0}>
+                  <StudyHoverCard key={s.id} study={s} scrollSignal={scrollSignal}>
                     {row}
                   </StudyHoverCard>
                 )

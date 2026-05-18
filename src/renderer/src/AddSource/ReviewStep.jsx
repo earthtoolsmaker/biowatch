@@ -180,7 +180,7 @@ export default function ReviewStep({
                     {contributors.map((c, i) => (
                       <label
                         key={c.email + i}
-                        className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-primary/5"
+                        className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-primary/15"
                       >
                         <input
                           type="checkbox"
