@@ -6,7 +6,7 @@ import { resolveSourceDisplay } from '../../src/shared/sourceImporterResolver.js
 const studies = [
   {
     id: 'b7f2a1c3-2222-4222-9222-222222222222',
-    title: 'Yosemite 2023',
+    name: 'Yosemite 2023',
     importerName: 'camtrap/datapackage'
   }
 ]

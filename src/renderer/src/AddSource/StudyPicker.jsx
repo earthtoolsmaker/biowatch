@@ -67,9 +67,12 @@ export default function StudyPicker({ isOpen, currentStudyId, onBack, onCancel, 
 
   if (!isOpen) return null
 
-  const visible = studies.filter((s) =>
-    (s.title || s.id || '').toLowerCase().includes(search.toLowerCase())
-  )
+  const showSearch = studies.length > 5
+  const visible = showSearch
+    ? studies.filter((s) =>
+        (s.name || s.id || '').toLowerCase().includes(search.toLowerCase())
+      )
+    : studies
 
   return (
     <div
@@ -90,13 +93,15 @@ export default function StudyPicker({ isOpen, currentStudyId, onBack, onCancel, 
         </header>
 
         <div className="px-5 py-4 space-y-2">
-          <input
-            className="w-full px-3 py-1.5 rounded-md bg-muted border border-border text-sm text-foreground"
-            placeholder="Search studies by title…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            autoFocus
-          />
+          {showSearch && (
+            <input
+              className="w-full px-3 py-1.5 rounded-md bg-muted border border-border text-sm text-foreground"
+              placeholder="Search studies by name…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              autoFocus
+            />
+          )}
           <div className="border border-border rounded-md max-h-72 overflow-y-auto">
             {loading ? (
               <div className="px-3 py-4 text-sm text-muted-foreground text-center">Loading…</div>
@@ -124,7 +129,7 @@ export default function StudyPicker({ isOpen, currentStudyId, onBack, onCancel, 
                     <Icon size={16} className="text-muted-foreground flex-shrink-0" />
                     <span className="flex-1 min-w-0">
                       <span className="block text-sm font-medium text-foreground truncate">
-                        {s.title || s.id}
+                        {s.name || s.id}
                       </span>
                       <span className="block text-xs text-muted-foreground truncate">
                         {s.importerName}

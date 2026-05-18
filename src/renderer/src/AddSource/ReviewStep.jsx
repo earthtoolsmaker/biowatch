@@ -45,7 +45,7 @@ export default function ReviewStep({
         setTargetMeta(a)
         const aDesc = a?.description || ''
         const bDesc = b?.description || ''
-        const title = sourceStudy.title || sourceStudy.id
+        const title = sourceStudy.name || sourceStudy.id
         const merged =
           aDesc.length || bDesc.length
             ? `${aDesc}\n\n---\n\n## Merged from ${title}\n\n${bDesc}`.trim()
@@ -60,7 +60,7 @@ export default function ReviewStep({
     return () => {
       cancelled = true
     }
-  }, [isOpen, targetStudyId, sourceStudy.id, sourceStudy.title])
+  }, [isOpen, targetStudyId, sourceStudy.id, sourceStudy.name])
 
   const canMerge = !!preflight && !preflight.alreadyMerged && !submitting
 
@@ -117,9 +117,9 @@ export default function ReviewStep({
               <div className="bg-muted rounded-md p-3 text-sm space-y-1">
                 <SummaryRow
                   label="From"
-                  value={sourceStudy.title || sourceStudy.id}
+                  value={sourceStudy.name || sourceStudy.id}
                 />
-                <SummaryRow label="Into" value={targetMeta?.title || targetStudyId} />
+                <SummaryRow label="Into" value={targetMeta?.title || targetMeta?.name || targetStudyId} />
                 <SummaryRow
                   label="Adding"
                   value={`${preflight.deploymentCount} deployments · ${preflight.mediaCount} media · ${preflight.observationCount} observations`}
@@ -136,7 +136,7 @@ export default function ReviewStep({
                 <p className="text-xs text-amber-700 dark:text-amber-300">
                   {preflight.ownedByBiowatchCount} file
                   {preflight.ownedByBiowatchCount === 1 ? '' : 's'} in{' '}
-                  {sourceStudy.title || 'this study'} live inside biowatch's own storage. They will
+                  {sourceStudy.name || 'this study'} live inside biowatch's own storage. They will
                   remain available after the merge, but deleting the source study later will make
                   them unavailable here. You'll be warned at delete time.
                 </p>
