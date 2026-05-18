@@ -92,7 +92,7 @@ Media file metadata.
 | `timestamp`     | TEXT    |                  | Capture timestamp (ISO 8601)                                                                                                                                   |
 | `filePath`      | TEXT    |                  | Absolute path or HTTP URL                                                                                                                                      |
 | `fileName`      | TEXT    |                  | Original file name                                                                                                                                             |
-| `importFolder`  | TEXT    |                  | Source import folder. For local imports: absolute folder path. For LILA: dataset name. For CamtrapDP: package directory. The Sources tab groups by this field. |
+| `importFolder`  | TEXT    |                  | Source import folder. For local imports: absolute folder path. For LILA: dataset name. For CamtrapDP: package directory. For merged-from-another-study sources: the synthetic string `merge:<source-study-uuid>` (no real path). The Sources tab groups by this field. |
 | `folderName`    | TEXT    |                  | Subfolder name within import                                                                                                                                   |
 | `fileMediatype` | TEXT    |                  | IANA media type (e.g., `image/jpeg`, `video/mp4`)                                                                                                              |
 | `exifData`      | TEXT    | JSON             | EXIF/metadata as JSON (see below)                                                                                                                              |
@@ -395,6 +395,16 @@ export const jobs = sqliteTable('jobs', {
 **Queue service:** `src/main/services/queue.js` — `enqueue`, `enqueueBatch`, `claimBatch`, `complete`, `fail`, `cancel`, `retryFailed`, `recoverStale`, `getStatus`, `getJobs`.
 
 ---
+
+## Merged sources (cross-study)
+
+When study **A** merges study **B** in via the Sources tab, B's rows are copied into A's DB with no filesystem footprint:
+
+- Every merged `media.importFolder` is set to `"merge:<B-uuid>"` — a synthetic value, not a path. The Sources tab special-cases this prefix to render B's icon and title.
+- `deploymentID`, `mediaID`, and `observationID` from B are prefixed with `"study:<B-uuid-short>:"` (first 8 chars of B's UUID) when inserted into A — e.g., `CAM_01` from B becomes `study:b7f2a1c3:CAM_01` in A. Foreign keys (`media.deploymentID`, `observations.{mediaID,deploymentID}`, `model_outputs.mediaID`) are rewritten consistently.
+- `model_runs.importPath` is rewritten to `"merge:<B-uuid>"` so the multi-source spec's in-flight-run join still works.
+- `media.filePath` is **unchanged** from B — A points at the same files B did. If B owned its files (CamtrapDP-downloaded-into-biowatch), deleting B will break A's references; the delete handler warns when that risk applies.
+- No new tables. No filesystem manifest. The `"merge:"` prefix in `importFolder` is the only durable artifact.
 
 ## JSON Field Formats
 

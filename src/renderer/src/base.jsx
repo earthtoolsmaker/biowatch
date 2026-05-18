@@ -8,6 +8,7 @@ import Import from './import'
 import Study from './study'
 import SettingsPage from './settings'
 import DeleteStudyModal from './DeleteStudyModal'
+import { deleteStudyWithConfirm } from './utils/deleteStudyWithConfirm.js'
 import StudyHoverCard from './ui/StudyHoverCard'
 import { useEffect, useState, useRef } from 'react'
 import { useTheme } from './hooks/useTheme'
@@ -298,7 +299,7 @@ function AppContent() {
 
   const confirmDelete = async () => {
     if (deleteModalStudy) {
-      await window.api.deleteStudyDatabase(deleteModalStudy.id)
+      await deleteStudyWithConfirm(deleteModalStudy.id, deleteModalStudy.name)
       setDeleteModalStudy(null)
     }
   }

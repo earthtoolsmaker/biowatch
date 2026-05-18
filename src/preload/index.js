@@ -45,8 +45,49 @@ const api = {
   getDeploymentStats: async (studyId, deploymentID) => {
     return await electronAPI.ipcRenderer.invoke('deployments:get-stats', studyId, deploymentID)
   },
-  deleteStudyDatabase: async (studyId) => {
-    return await electronAPI.ipcRenderer.invoke('study:delete-database', studyId)
+  deleteStudyDatabase: async (studyId, options) => {
+    return await electronAPI.ipcRenderer.invoke('study:delete-database', studyId, options)
+  },
+  getStudyMetadata: async (studyId) => {
+    const response = await electronAPI.ipcRenderer.invoke('study:get-metadata', studyId)
+    if (response.error) throw new Error(response.error)
+    return response.data
+  },
+  listMergedSourceIds: async (targetStudyId) => {
+    const response = await electronAPI.ipcRenderer.invoke(
+      'study:list-merged-source-ids',
+      targetStudyId
+    )
+    if (response.error) throw new Error(response.error)
+    return response.data
+  },
+  mergePreflight: async (targetStudyId, sourceStudyId) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'study:merge-preflight',
+      targetStudyId,
+      sourceStudyId
+    )
+  },
+  mergeStudy: async (targetStudyId, sourceStudyId, reviewed) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'study:merge',
+      targetStudyId,
+      sourceStudyId,
+      reviewed
+    )
+  },
+  cancelMerge: async (targetStudyId) => {
+    return await electronAPI.ipcRenderer.invoke('study:merge-cancel', targetStudyId)
+  },
+  onMergeProgress: (callback) => {
+    const handler = (_e, payload) => callback(payload)
+    electronAPI.ipcRenderer.on('merge:progress', handler)
+    return () => electronAPI.ipcRenderer.removeListener('merge:progress', handler)
+  },
+  onMergeComplete: (callback) => {
+    const handler = (_e, payload) => callback(payload)
+    electronAPI.ipcRenderer.on('merge:complete', handler)
+    return () => electronAPI.ipcRenderer.removeListener('merge:complete', handler)
   },
   checkStudyHasEventIDs: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('study:has-event-ids', studyId)

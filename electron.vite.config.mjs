@@ -13,7 +13,9 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve('src/main/index.js'),
-          'sequences-worker': resolve('src/main/services/sequences/worker.js')
+          'sequences-worker': resolve('src/main/services/sequences/worker.js'),
+          'merge-worker': resolve('src/main/services/merge/worker.js'),
+          'merge-preflight-worker': resolve('src/main/services/merge/preflightWorker.js')
         },
         external: [
           'drizzle-orm',

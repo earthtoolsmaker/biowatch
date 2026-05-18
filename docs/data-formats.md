@@ -580,6 +580,15 @@ export/
 
 **Key file:** `src/main/services/export/exporter.js`
 
+## Merged sources
+
+Studies imported via the **Sources tab → + Add source → Another study** wizard produce **biowatch-internal** rows in the target study's DB. Two conventions are stamped onto the merged rows:
+
+- `media.importFolder = "merge:<source-study-uuid>"` — a synthetic marker (not a path). The Sources tab special-cases this prefix to render the merged source's icon and title.
+- `deploymentID`, `mediaID`, `observationID` are prefixed with `"study:<source-uuid-first-8>:"` to avoid PK collisions with the target's own rows.
+
+These conventions are **not part of Camtrap DP or any standard interchange format**. On export, the synthetic `"merge:"` `importFolder` values and `"study:"` PK prefixes never leave the local SQLite DB — the exporter writes Camtrap DP-compliant CSVs from the rows as-is, with no special handling for merged data.
+
 ## Species reference data (`src/shared/speciesInfo/data.json`)
 
 A bundled, build-time-generated JSON used by the species hover tooltip in the overview tab. Provides per-species IUCN status, a short Wikipedia blurb, and a fallback image URL when the study has no best-media image.

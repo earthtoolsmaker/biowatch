@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import { useParams } from 'react-router'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { useImportStatus } from '@renderer/hooks/import'
@@ -144,14 +145,17 @@ function SourceRow({ source, importerName, studyName, expanded, onToggle }) {
   // has no separator and renders unchanged on a single line.
   const isPathLike =
     hasImportFolder &&
+    !source.importFolder.startsWith('merge:') &&
     (source.importFolder.startsWith('/') ||
       source.importFolder.startsWith('http') ||
       source.importFolder.includes('\\'))
-  const label = !hasImportFolder
-    ? studyName || 'Imported dataset'
-    : isPathLike
-      ? basenameOf(source.importFolder) || source.importFolder
-      : source.importFolder
+  const label = source.displayLabel
+    ? source.displayLabel
+    : !hasImportFolder
+      ? studyName || 'Imported dataset'
+      : isPathLike
+        ? basenameOf(source.importFolder) || source.importFolder
+        : source.importFolder
   const remoteHost = source.isRemote ? hostOf(source.sampleRemoteUrl) : ''
   // For remote sources we show the server host below the name (parallel to the
   // local-path row); for local sources we show the importFolder path.
@@ -167,7 +171,7 @@ function SourceRow({ source, importerName, studyName, expanded, onToggle }) {
           {canExpand ? expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} /> : null}
         </div>
         <div className="w-[22px] flex justify-center flex-shrink-0">
-          <SourceIcon importerName={importerName} />
+          <SourceIcon importerName={source.importerName || importerName} />
         </div>
         <div className="flex-1 min-w-[180px]">
           <div className="flex items-center gap-2 text-sm font-medium text-foreground">
@@ -251,6 +255,23 @@ export default function Sources({ studyId, importerName, studyName }) {
     enabled: !!actualStudyId
   })
 
+  // Listen for merge completion globally, so query caches are refreshed even
+  // when the user closed the review modal mid-merge. Also surface a toast so
+  // they know it landed. Must run before any early return below to keep hooks
+  // order stable.
+  useEffect(() => {
+    if (!actualStudyId || !window.api.onMergeComplete) return
+    const unsub = window.api.onMergeComplete((payload) => {
+      if (payload?.studyId !== actualStudyId) return
+      queryClient.invalidateQueries({
+        predicate: (query) => query.queryKey.some((k) => k === actualStudyId)
+      })
+      queryClient.invalidateQueries({ queryKey: ['studies'] })
+      toast.success('Merge complete')
+    })
+    return unsub
+  }, [actualStudyId, queryClient])
+
   if (error) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -266,8 +287,18 @@ export default function Sources({ studyId, importerName, studyName }) {
   const canAddSource = !!importerName
 
   const handleImported = () => {
-    queryClient.invalidateQueries({ queryKey: ['importStatus', actualStudyId] })
-    queryClient.invalidateQueries({ queryKey: ['sourcesData', actualStudyId] })
+    // Invalidate every query scoped to this study so all tabs (Overview,
+    // Species, Deployments, Media, Sources) pick up the new data. This covers
+    // both the folder-import path and the merge-another-study path; merges
+    // can change deployment/media/observation counts and metadata (description,
+    // contributors, date range) study-wide.
+    queryClient.invalidateQueries({
+      predicate: (query) => query.queryKey.some((k) => k === actualStudyId)
+    })
+    // The study listing itself (sidebar) reads from a separate query that
+    // doesn't include the studyId — merge updates the study's metadata so
+    // invalidate that too.
+    queryClient.invalidateQueries({ queryKey: ['studies'] })
   }
 
   return (
@@ -291,7 +322,7 @@ export default function Sources({ studyId, importerName, studyName }) {
                     : 'opacity-50 cursor-not-allowed'
                 }`}
               >
-                + Add images directory
+                + Add source
               </button>
             </header>
             {sources.length === 0 ? (

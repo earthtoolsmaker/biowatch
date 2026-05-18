@@ -402,6 +402,27 @@ function transformDeepFauneBbox(bbox) {
 
 ---
 
+## Merging another study as a source
+
+The Sources tab's **+ Add source** wizard offers two paths:
+
+1. **Images directory** — today's folder-scan import, unchanged.
+2. **Another study** — copy another local study's rows (deployments, media, observations, model runs) into the current study.
+
+The merge is **rows only — no files are copied or moved.** Implementation:
+
+1. Pre-flight (`study:merge-preflight`) opens both DBs read-only, counts rows, walks `media.filePath` to count missing local files, and detects whether B is already merged into A.
+2. The merge (`study:merge`) runs one SQLite transaction on A's DB:
+   - Insert B's deployments / media / model_runs / model_outputs / observations, prefixing every primary key with `"study:<B-uuid-short>:"` so they don't collide with A's own rows. FKs are rewritten consistently.
+   - Stamp every inserted media row with `importFolder = "merge:<B-uuid>"`. This is the only durable trace of the merge — no filesystem manifest, no new table.
+   - Update A's `metadata` with the user-reviewed description and contributor list (union of A's and B's, deduped by email), and extend the date range (`min` of starts, `max` of ends).
+3. Rows whose source `filePath` is a local path missing from disk are skipped (along with their dependent observations).
+4. Re-merging the same study is a safe no-op.
+
+The merge convention is **biowatch-internal and not exported** to Camtrap DP. On export the synthetic `"merge:"` `importFolder` values and `"study:"` PK prefixes are not part of the package — they exist only in A's local SQLite DB.
+
+**Deleting study B after a merge.** The delete handler scans local studies for `media WHERE importFolder = 'merge:<B-uuid>' AND filePath LIKE '<biowatch-data>/studies/<B-uuid>/%'`. If matches are found, the handler returns `{ needsConfirm: true, dependentBreaks: [...] }` and the renderer surfaces a confirmation modal before proceeding with `{ force: true }`.
+
 ## Export Pipeline Overview
 
 ```
