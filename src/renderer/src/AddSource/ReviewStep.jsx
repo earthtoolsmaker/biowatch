@@ -128,9 +128,7 @@ export default function ReviewStep({
                   value={targetMeta?.title || targetMeta?.name || targetStudyId}
                 />
                 <div className="pt-3 border-t border-blue-200/60 dark:border-blue-500/20">
-                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-2">
-                    Adding
-                  </div>
+                  <div className="text-muted-foreground mb-2">Adding</div>
                   <div className="flex items-center justify-center gap-x-5 gap-y-2 flex-wrap">
                     <Stat icon={<Camera size={14} />} count={preflight.deploymentCount} label="deployments" />
                     <Stat icon={<ImageIcon size={14} />} count={preflight.mediaCount} label="media" />
@@ -269,7 +267,7 @@ function PreflightSkeleton() {
           <div className="h-3 w-28 rounded bg-blue-200/60 dark:bg-blue-500/30" />
         </div>
         <div className="pt-3 border-t border-blue-200/60 dark:border-blue-500/20">
-          <div className="h-2 w-14 rounded bg-blue-200/60 dark:bg-blue-500/30 mb-2" />
+          <div className="h-3 w-14 rounded bg-blue-200/60 dark:bg-blue-500/30 mb-2" />
           <div className="flex items-center justify-center gap-x-5 gap-y-2 flex-wrap">
             {[0, 1, 2].map((i) => (
               <div key={i} className="h-4 w-28 rounded bg-blue-200/60 dark:bg-blue-500/30" />
