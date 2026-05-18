@@ -207,7 +207,9 @@ export default function ReviewStep({
                             />
                             <span className="flex-1">
                               {c.title || c.email}
-                              {c.role && <span className="text-muted-foreground"> · {c.role}</span>}
+                              {c.role && (
+                                <span className="text-muted-foreground"> · {formatRole(c.role)}</span>
+                              )}
                             </span>
                             {showOriginBadge && (
                               <span className="text-[10px] uppercase text-muted-foreground">
@@ -322,6 +324,20 @@ function Stat({ icon, count, label }) {
       </div>
     </div>
   )
+}
+
+/**
+ * Convert a Camtrap DP camelCase role to a human-readable label.
+ * `principalInvestigator` → `Principal investigator`
+ * `rightsHolder` → `Rights holder`
+ * `contact` → `Contact`
+ */
+function formatRole(role) {
+  if (!role) return ''
+  return role
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .toLowerCase()
+    .replace(/^./, (c) => c.toUpperCase())
 }
 
 function buildContributors(aJson, bJson) {
