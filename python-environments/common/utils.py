@@ -70,6 +70,13 @@ def get_video_metadata(video_path: str) -> dict[str, float]:
 
     Returns:
         Dictionary with 'fps' and 'duration' keys
+
+    Raises:
+        ValueError: if the video cannot be opened, or if OpenCV reports
+            implausible metadata (corrupt files often surface as a hugely
+            negative frame_count from a uint64 underflow, which yields a
+            nonsense duration and would otherwise let a single garbage
+            frame leak through to inference).
     """
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
@@ -79,6 +86,14 @@ def get_video_metadata(video_path: str) -> dict[str, float]:
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     duration = frame_count / fps if fps > 0 else 0
     cap.release()
+
+    # 24h ceiling is well above any realistic camera-trap clip but well below
+    # the absurd values OpenCV surfaces on corrupt containers.
+    MAX_REASONABLE_DURATION_S = 24 * 60 * 60
+    if fps <= 0 or frame_count <= 0 or not (0 < duration <= MAX_REASONABLE_DURATION_S):
+        raise ValueError(
+            f"Invalid video metadata (fps={fps}, frame_count={frame_count}, duration={duration}): {video_path}"
+        )
 
     return {"fps": fps, "duration": duration}
 
