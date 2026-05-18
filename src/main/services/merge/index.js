@@ -10,14 +10,88 @@ function studyDbPath(biowatchDataPath, studyId) {
   return join(biowatchDataPath, 'studies', studyId, 'study.db')
 }
 
+// Hardcoded column lists per table, matching src/main/database/models.js.
+// We build prepared INSERT statements once per table and reuse for every row,
+// so the merge stays flat in memory and fast for million-row studies.
+const COLS = {
+  deployments: [
+    'deploymentID',
+    'locationID',
+    'locationName',
+    'deploymentStart',
+    'deploymentEnd',
+    'latitude',
+    'longitude',
+    'cameraModel',
+    'cameraID',
+    'coordinateUncertainty'
+  ],
+  media: [
+    'mediaID',
+    'deploymentID',
+    'timestamp',
+    'filePath',
+    'fileName',
+    'importFolder',
+    'folderName',
+    'fileMediatype',
+    'exifData',
+    'favorite'
+  ],
+  model_runs: ['id', 'modelID', 'modelVersion', 'startedAt', 'status', 'importPath', 'options'],
+  model_outputs: ['id', 'mediaID', 'runID', 'rawOutput'],
+  observations: [
+    'observationID',
+    'mediaID',
+    'deploymentID',
+    'eventID',
+    'eventStart',
+    'eventEnd',
+    'scientificName',
+    'observationType',
+    'commonName',
+    'classificationProbability',
+    'count',
+    'lifeStage',
+    'age',
+    'sex',
+    'behavior',
+    'bboxX',
+    'bboxY',
+    'bboxWidth',
+    'bboxHeight',
+    'detectionConfidence',
+    'modelOutputID',
+    'classificationMethod',
+    'classifiedBy',
+    'classificationTimestamp'
+  ]
+}
+
+function makeInsert(db, table) {
+  const cols = COLS[table]
+  const colList = cols.join(', ')
+  const placeholders = cols.map((c) => `@${c}`).join(', ')
+  return db.prepare(`INSERT INTO ${table} (${colList}) VALUES (${placeholders})`)
+}
+
+// Normalize a row so its keys match the table's column list. better-sqlite3
+// throws on extra keys (`SqliteError: too many parameter values`) and on
+// missing keys when using named bindings. Schemas may evolve slightly across
+// migrations, so we project to the canonical column list here.
+function project(row, table) {
+  const out = {}
+  for (const c of COLS[table]) {
+    out[c] = c in row ? row[c] : null
+  }
+  return out
+}
+
 /**
  * Merge source study `B` into target study `A`. Rows only — no file operations.
  *
- * @param {object} args
- * @param {string} args.biowatchDataPath
- * @param {string} args.targetStudyId
- * @param {string} args.sourceStudyId
- * @param {{ description: string, contributorEmails: string[] }} args.reviewed
+ * Streams every row through `iterate()` and uses prepared INSERTs so it scales
+ * to multi-million-row studies without blowing up V8's heap.
  */
 export function mergeStudy({ biowatchDataPath, targetStudyId, sourceStudyId, reviewed }) {
   if (targetStudyId === sourceStudyId) {
@@ -30,6 +104,7 @@ export function mergeStudy({ biowatchDataPath, targetStudyId, sourceStudyId, rev
   const bDb = new Database(studyDbPath(biowatchDataPath, sourceStudyId), { readonly: true })
 
   try {
+    // Already-merged check.
     const existsMedia = aDb
       .prepare('SELECT 1 FROM media WHERE importFolder = ? LIMIT 1')
       .get(mergeKey)
@@ -38,45 +113,58 @@ export function mergeStudy({ biowatchDataPath, targetStudyId, sourceStudyId, rev
       .get(`${prefix}%`)
     if (existsMedia || existsDeployment) return { success: true, alreadyMerged: true }
 
+    // Pass 1: stream B's media to identify missing local files. Keeping only
+    // the missing-ID set means memory scales with the number of *missing*
+    // files, not the total. A study with all-present files keeps the set empty.
     const missingMediaIDs = new Set()
-    for (const { mediaID, filePath } of bDb.prepare('SELECT mediaID, filePath FROM media').all()) {
+    for (const { mediaID, filePath } of bDb
+      .prepare('SELECT mediaID, filePath FROM media')
+      .iterate()) {
       if (!filePath || URL_RE.test(filePath)) continue
       if (!existsSync(filePath)) missingMediaIDs.add(mediaID)
     }
 
-    const bDeployments = bDb.prepare('SELECT * FROM deployments').all()
-    const bMedia = bDb.prepare('SELECT * FROM media').all()
-    const bModelRuns = bDb.prepare('SELECT * FROM model_runs').all()
-    const bModelOutputs = bDb.prepare('SELECT * FROM model_outputs').all()
-    const bObservations = bDb.prepare('SELECT * FROM observations').all()
-    const bMeta = bDb.prepare('SELECT * FROM metadata').get()
+    // Read metadata once — single rows, tiny.
     const aMeta = aDb.prepare('SELECT * FROM metadata').get()
+    const bMeta = bDb.prepare('SELECT * FROM metadata').get()
 
+    // Prepare insert statements once on A's DB. Better-sqlite3 reuses them
+    // efficiently across millions of `.run()` calls.
+    const insertDeployment = makeInsert(aDb, 'deployments')
+    const insertMedia = makeInsert(aDb, 'media')
+    const insertModelRun = makeInsert(aDb, 'model_runs')
+    const insertModelOutput = makeInsert(aDb, 'model_outputs')
+    const insertObservation = makeInsert(aDb, 'observations')
+
+    // Pass 2: stream rows from B into A inside a single transaction on A.
     const txn = aDb.transaction(() => {
-      for (const d of bDeployments) {
-        insertRow(aDb, 'deployments', prefixRow(d, prefix, { pk: 'deploymentID', fks: [] }))
+      for (const row of bDb.prepare('SELECT * FROM deployments').iterate()) {
+        const out = prefixRow(row, prefix, { pk: 'deploymentID', fks: [] })
+        insertDeployment.run(project(out, 'deployments'))
       }
-      for (const m of bMedia) {
-        if (missingMediaIDs.has(m.mediaID)) continue
-        const row = prefixRow(m, prefix, { pk: 'mediaID', fks: ['deploymentID'] })
-        row.importFolder = mergeKey
-        insertRow(aDb, 'media', row)
+      for (const row of bDb.prepare('SELECT * FROM media').iterate()) {
+        if (missingMediaIDs.has(row.mediaID)) continue
+        const out = prefixRow(row, prefix, { pk: 'mediaID', fks: ['deploymentID'] })
+        out.importFolder = mergeKey
+        insertMedia.run(project(out, 'media'))
       }
-      for (const r of bModelRuns) {
-        insertRow(aDb, 'model_runs', { ...r, importPath: mergeKey })
+      for (const row of bDb.prepare('SELECT * FROM model_runs').iterate()) {
+        insertModelRun.run(project({ ...row, importPath: mergeKey }, 'model_runs'))
       }
-      // model_outputs: id is a UUID (no prefix); only rewrite the mediaID FK.
-      for (const o of bModelOutputs) {
-        if (missingMediaIDs.has(o.mediaID)) continue
-        insertRow(aDb, 'model_outputs', { ...o, mediaID: `${prefix}${o.mediaID}` })
+      // model_outputs: id is a UUID, no PK prefix. Only rewrite the mediaID FK.
+      for (const row of bDb.prepare('SELECT * FROM model_outputs').iterate()) {
+        if (missingMediaIDs.has(row.mediaID)) continue
+        insertModelOutput.run(
+          project({ ...row, mediaID: `${prefix}${row.mediaID}` }, 'model_outputs')
+        )
       }
-      for (const obs of bObservations) {
-        if (missingMediaIDs.has(obs.mediaID)) continue
-        const row = prefixRow(obs, prefix, {
+      for (const row of bDb.prepare('SELECT * FROM observations').iterate()) {
+        if (missingMediaIDs.has(row.mediaID)) continue
+        const out = prefixRow(row, prefix, {
           pk: 'observationID',
           fks: ['mediaID', 'deploymentID']
         })
-        insertRow(aDb, 'observations', row)
+        insertObservation.run(project(out, 'observations'))
       }
 
       const newContribs = mergeContributors(
@@ -108,13 +196,6 @@ export function mergeStudy({ biowatchDataPath, targetStudyId, sourceStudyId, rev
     aDb.close()
     bDb.close()
   }
-}
-
-function insertRow(db, table, row) {
-  const cols = Object.keys(row)
-  const placeholders = cols.map(() => '?').join(', ')
-  const values = cols.map((c) => row[c])
-  db.prepare(`INSERT INTO ${table} (${cols.join(', ')}) VALUES (${placeholders})`).run(...values)
 }
 
 function safeParseArray(v) {
