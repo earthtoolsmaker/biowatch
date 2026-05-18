@@ -5,11 +5,32 @@ All notable changes to Biowatch will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.9.2] - 2026-05-18
+
+### Added
+
+- **MegaDetector v6** as a detection-only model choice: LitServe HTTP server, main-process launcher, bbox routing via a new `detectModelType` branch, MD v6 entry in the model zoo with `detectionOnly` flag, MD card hides the species panel and shows a "detection only" label, model picker dropdown labels MD with "detection only", and `person` labels are mapped to the `Homo sapiens` binomial. Common-name source for `animal` / `person` / `vehicle` labels added. Downloader entry + Makefile env var, HF tarball build script, and e2e tests included.
+- **Rich-card model picker dropdown** (`ModelSelect`): used across the Import and Add-source flows, with install-status helper (unit-tested), highlight-on-mount for a target model from route state, and synchronous hover via Radix `data-[highlighted]`. The standalone "Install AI Models" CTA in the import flow is replaced by the dropdown.
+- **"Starting import…" modal** in the new-study flow: keeps the modal open with a transitional view until the first job lands, shows a live progress bar with counts and ETA, and guarantees a 3 s minimum display before auto-close.
+- Import status header in the study bar redesigned with behavior tooltips.
 
 ### Changed
 
 - **SpeciesNet upgraded to 4.0.2a**. Same classifier weights as 4.0.1a — only geofencing rules and taxonomy were updated upstream (e.g. `cetartiodactyla` → `artiodactyla`, `coati family` → `procyonidae family`, `emys marmorata` → `actinemys marmorata`). New imports use 4.0.2a; existing 4.0.1a predictions remain tagged historically and continue to display correctly.
+- MegaDetector positioned second in the model zoo.
+- Delete-study modal: tighter red danger box, clarified that original media files on disk are not deleted, duplicate phrasing dropped.
+- Daily-activity radar clipped to stay inside the visible clock ring.
+- Timeline x-axis tick count scales with chart width.
+- AI Models tab: "Get in touch" button moved to the top-right of the custom model card.
+
+### Fixed
+
+- MegaDetector: per-detection `classificationProbability` (no classifier path), mean-confidence weighted vote for video winner selection, `parseScientificName` branch for MD simple labels, `prediction_score` omitted on blank predictions (was `null` and rejected by Zod), MD pseudo-species map to the correct Camtrap DP `observationType` on export.
+- ML inference: handle corrupt-image partial-failure predictions gracefully.
+- ML server: reject corrupt video metadata so false-positive `animal` tags don't slip through.
+- Model picker dropdown: drop the `ItemText` element that rendered a duplicate model name; use Radix `Select.Item` directly so rich-card content renders.
+- Import-status tooltip: hide stale Speed / Finishes while paused.
+- Add-source: read live cache for the done snapshot instead of a stale closure; min-display timer starts when the study ID is known (not on modal open).
 
 ### Notes
 
@@ -652,6 +673,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Activity heatmaps
 - Overview statistics
 
+[1.9.2]: https://github.com/earthtoolsmaker/biowatch/compare/v1.9.1...v1.9.2
 [1.9.1]: https://github.com/earthtoolsmaker/biowatch/compare/v1.9.0...v1.9.1
 [1.9.0]: https://github.com/earthtoolsmaker/biowatch/compare/v1.8.7...v1.9.0
 [1.8.7]: https://github.com/earthtoolsmaker/biowatch/compare/v1.8.6...v1.8.7
