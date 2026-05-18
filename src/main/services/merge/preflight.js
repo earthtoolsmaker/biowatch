@@ -2,7 +2,7 @@ import { existsSync } from 'fs'
 import { join } from 'path'
 import Database from 'better-sqlite3'
 
-import { getMergeImportFolder } from './helpers.js'
+import { getMergeImportFolder, getMergePrefix } from './helpers.js'
 
 const URL_RE = /^https?:\/\//i
 
@@ -23,9 +23,14 @@ export function mergePreflight({ biowatchDataPath, targetStudyId, sourceStudyId 
   const bDb = new Database(studyDbPath(biowatchDataPath, sourceStudyId), { readonly: true })
   try {
     const mergeKey = getMergeImportFolder(sourceStudyId)
-    const alreadyMerged = !!aDb
+    const prefix = getMergePrefix(sourceStudyId)
+    const alreadyMergedMedia = !!aDb
       .prepare('SELECT 1 FROM media WHERE importFolder = ? LIMIT 1')
       .get(mergeKey)
+    const alreadyMergedDeployment = !!aDb
+      .prepare('SELECT 1 FROM deployments WHERE deploymentID LIKE ? LIMIT 1')
+      .get(`${prefix}%`)
+    const alreadyMerged = alreadyMergedMedia || alreadyMergedDeployment
 
     const deploymentCount = bDb.prepare('SELECT COUNT(*) AS n FROM deployments').get().n
     const mediaCount = bDb.prepare('SELECT COUNT(*) AS n FROM media').get().n
