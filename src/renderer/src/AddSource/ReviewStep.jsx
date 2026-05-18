@@ -150,18 +150,24 @@ export default function ReviewStep({
                 </p>
               )}
 
-              <label className="block">
+              <div>
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                   Description
                 </span>
-                <textarea
-                  className="w-full mt-1.5 px-3 py-2 rounded-md bg-muted border border-border text-sm font-mono text-foreground"
-                  rows={6}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  disabled={submitting}
-                />
-              </label>
+                {description.trim() === '' ? (
+                  <p className="mt-1.5 text-xs text-muted-foreground italic">
+                    No description to merge.
+                  </p>
+                ) : (
+                  <textarea
+                    className="w-full mt-1.5 px-3 py-2 rounded-md bg-muted border border-border text-sm font-mono text-foreground"
+                    rows={6}
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    disabled={submitting}
+                  />
+                )}
+              </div>
 
               <div>
                 <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
