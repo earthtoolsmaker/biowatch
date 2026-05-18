@@ -187,7 +187,7 @@ export default function ReviewStep({
                       <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
                         Contributors
                       </div>
-                      <div className="border border-border/50 rounded-md divide-y divide-border/40">
+                      <div className="border border-border/50 rounded-md divide-y divide-border/40 max-h-56 overflow-y-auto">
                         {contributors.map((c, i) => (
                           <label
                             key={c.email + i}
