@@ -17,33 +17,24 @@ import ReviewStep from './AddSource/ReviewStep.jsx'
  */
 export default function AddSourceModal({ isOpen, studyId, onClose, onImported }) {
   const [step, setStep] = useState('type')
-  const [type, setType] = useState(null)
   const [pickedStudy, setPickedStudy] = useState(null)
 
   // Reset wizard state every time the modal closes.
   useEffect(() => {
     if (!isOpen) {
       setStep('type')
-      setType(null)
       setPickedStudy(null)
     }
   }, [isOpen])
 
   if (!isOpen) return null
 
-  const handleNextFromType = () => {
-    if (type === 'folder') setStep('folder')
-    else if (type === 'merge') setStep('study-pick')
-  }
-
   if (step === 'type') {
     return (
       <TypePicker
         isOpen
-        selected={type}
-        onSelect={setType}
+        onPick={(type) => setStep(type === 'folder' ? 'folder' : 'study-pick')}
         onCancel={onClose}
-        onNext={handleNextFromType}
       />
     )
   }

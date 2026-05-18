@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { X } from 'lucide-react'
+import { X, Layers } from 'lucide-react'
 import { Button } from '../ui/button.jsx'
 
 /**
@@ -88,27 +88,36 @@ export default function ReviewStep({
 
   return (
     <div
-      className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000]"
       onClick={() => !submitting && onCancel()}
     >
       <div
         className="bg-card rounded-lg shadow-xl w-[520px] max-w-[92vw] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <header className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <h3 className="text-base font-medium text-foreground">
-            Add source <span className="text-muted-foreground text-sm">— Review merge</span>
-          </h3>
+        <div className="px-6 py-4 border-b border-border flex justify-between items-start">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-primary/10 rounded-full">
+              <Layers size={20} className="text-primary" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Review merge</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Confirm what will be added to this study.
+              </p>
+            </div>
+          </div>
           <button
             onClick={onCancel}
             disabled={submitting}
-            className="text-muted-foreground hover:text-foreground disabled:opacity-50"
+            className="p-1 hover:bg-accent rounded text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+            aria-label="Close"
           >
-            <X size={18} />
+            <X size={20} />
           </button>
-        </header>
+        </div>
 
-        <div className="px-5 py-4 space-y-4 max-h-[60vh] overflow-y-auto">
+        <div className="px-6 py-5 space-y-4 max-h-[60vh] overflow-y-auto">
           {!preflight && !error && (
             <p className="text-sm text-muted-foreground">Computing pre-flight…</p>
           )}
@@ -174,7 +183,7 @@ export default function ReviewStep({
                     {contributors.map((c, i) => (
                       <label
                         key={c.email + i}
-                        className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-accent"
+                        className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-primary/5"
                       >
                         <input
                           type="checkbox"
@@ -215,7 +224,7 @@ export default function ReviewStep({
           )}
         </div>
 
-        <footer className="flex justify-between items-center px-5 py-3 border-t border-border bg-muted">
+        <div className="px-6 py-4 border-t border-border flex justify-between items-center">
           <Button variant="ghost" size="sm" onClick={onBack} disabled={submitting}>
             ← Back
           </Button>
@@ -227,7 +236,7 @@ export default function ReviewStep({
               {submitting ? 'Merging…' : 'Merge'}
             </Button>
           </div>
-        </footer>
+        </div>
       </div>
     </div>
   )

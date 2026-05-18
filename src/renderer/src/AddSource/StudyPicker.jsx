@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Folder, Package, Globe, X } from 'lucide-react'
+import { Folder, Package, Globe, X, Layers, ChevronRight, Check } from 'lucide-react'
 import { Button } from '../ui/button.jsx'
 
 const ICON = {
@@ -10,17 +10,15 @@ const ICON = {
 /**
  * Step 2 of the merge wizard — pick a local study to merge into the current one.
  *
- * Already-merged studies are shown disabled. Detection runs in parallel against
- * every candidate via `mergePreflight` (lightweight: counts only, no writes).
+ * Clicking a row advances immediately (no separate Next click). Already-merged
+ * studies are shown disabled. Detection is one cheap IPC call on open.
  */
 export default function StudyPicker({ isOpen, currentStudyId, onBack, onCancel, onPicked }) {
   const [studies, setStudies] = useState([])
   const [search, setSearch] = useState('')
-  const [selected, setSelected] = useState(null)
   const [mergedSet, setMergedSet] = useState(new Set())
   const [loading, setLoading] = useState(true)
 
-  // ESC closes.
   useEffect(() => {
     if (!isOpen) return
     const onKey = (e) => {
@@ -30,10 +28,6 @@ export default function StudyPicker({ isOpen, currentStudyId, onBack, onCancel, 
     return () => window.removeEventListener('keydown', onKey)
   }, [isOpen, onCancel])
 
-  // Load studies and already-merged set in parallel, once on open.
-  // One IPC call returns the set of merged source IDs for `currentStudyId`,
-  // which is much cheaper than running N preflights (each opens 2 DBs and
-  // walks media for missing-file detection).
   useEffect(() => {
     if (!isOpen) return
     let cancelled = false
@@ -44,10 +38,6 @@ export default function StudyPicker({ isOpen, currentStudyId, onBack, onCancel, 
     ]).then(([list, mergedIds]) => {
       if (cancelled) return
       setStudies((list || []).filter((s) => s.id !== currentStudyId))
-      // mergedIds contains both full UUIDs (from media.importFolder = merge:<uuid>)
-      // and short-prefix sentinels (from deployment prefixes). We expand the short
-      // sentinels against the candidate list so the picker can flag rows whose
-      // first 8 chars match.
       const set = new Set()
       const shortPrefixes = []
       for (const id of mergedIds) {
@@ -76,37 +66,49 @@ export default function StudyPicker({ isOpen, currentStudyId, onBack, onCancel, 
 
   return (
     <div
-      className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000]"
       onClick={onCancel}
     >
       <div
-        className="bg-card rounded-lg shadow-xl w-[480px] max-w-[92vw] flex flex-col"
+        className="bg-card rounded-lg shadow-xl max-w-md w-full mx-4 flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <header className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <h3 className="text-base font-medium text-foreground">
-            Add source <span className="text-muted-foreground text-sm">— Pick a study</span>
-          </h3>
-          <button onClick={onCancel} className="text-muted-foreground hover:text-foreground">
-            <X size={18} />
+        <div className="px-6 py-4 border-b border-border flex justify-between items-start">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-primary/10 rounded-full">
+              <Layers size={20} className="text-primary" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Merge another study</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Pick a local study to merge into this one.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onCancel}
+            className="p-1 hover:bg-accent rounded text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Close"
+          >
+            <X size={20} />
           </button>
-        </header>
+        </div>
 
-        <div className="px-5 py-4 space-y-2">
+        <div className="px-6 py-4 space-y-3">
           {showSearch && (
             <input
-              className="w-full px-3 py-1.5 rounded-md bg-muted border border-border text-sm text-foreground"
+              className="w-full px-3 py-2 rounded-md bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
               placeholder="Search studies by name…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               autoFocus
             />
           )}
-          <div className="border border-border rounded-md max-h-72 overflow-y-auto">
+          <div className="border border-border rounded-lg overflow-hidden max-h-80 overflow-y-auto">
             {loading ? (
-              <div className="px-3 py-4 text-sm text-muted-foreground text-center">Loading…</div>
+              <div className="px-3 py-8 text-sm text-muted-foreground text-center">Loading…</div>
             ) : visible.length === 0 ? (
-              <div className="px-3 py-4 text-sm text-muted-foreground text-center">
+              <div className="px-3 py-8 text-sm text-muted-foreground text-center">
                 {studies.length === 0
                   ? 'No other local studies to merge from.'
                   : 'No studies match your search.'}
@@ -115,30 +117,40 @@ export default function StudyPicker({ isOpen, currentStudyId, onBack, onCancel, 
               visible.map((s) => {
                 const Icon = ICON[s.importerName] || Folder
                 const merged = mergedSet.has(s.id)
-                const isSelected = selected?.id === s.id
                 return (
                   <button
                     key={s.id}
                     type="button"
                     disabled={merged}
-                    onClick={() => setSelected(s)}
-                    className={`w-full flex items-center gap-3 px-3 py-2 text-left border-b border-border last:border-none transition-colors
-                      ${isSelected ? 'bg-primary/10' : 'hover:bg-accent dark:hover:bg-accent'}
-                      ${merged ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    onClick={() => !merged && onPicked(s)}
+                    className={`w-full flex items-center gap-3 px-4 py-3 text-left border-b border-border last:border-none transition-colors
+                      ${
+                        merged
+                          ? 'opacity-50 cursor-not-allowed bg-muted/30'
+                          : 'cursor-pointer hover:bg-primary/5 group'
+                      }`}
                   >
-                    <Icon size={16} className="text-muted-foreground flex-shrink-0" />
-                    <span className="flex-1 min-w-0">
-                      <span className="block text-sm font-medium text-foreground truncate">
+                    <div className="p-1.5 rounded-md bg-muted text-muted-foreground flex-shrink-0 transition-colors group-hover:bg-primary/15 group-hover:text-primary">
+                      <Icon size={16} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-foreground truncate">
                         {s.name || s.id}
-                      </span>
-                      <span className="block text-xs text-muted-foreground truncate">
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate mt-0.5">
                         {s.importerName}
+                      </div>
+                    </div>
+                    {merged ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] uppercase text-muted-foreground tracking-wide flex-shrink-0">
+                        <Check size={11} />
+                        Merged
                       </span>
-                    </span>
-                    {merged && (
-                      <span className="text-[10px] uppercase text-muted-foreground flex-shrink-0">
-                        Already merged
-                      </span>
+                    ) : (
+                      <ChevronRight
+                        size={16}
+                        className="text-muted-foreground/40 group-hover:text-primary transition-colors flex-shrink-0"
+                      />
                     )}
                   </button>
                 )
@@ -147,19 +159,14 @@ export default function StudyPicker({ isOpen, currentStudyId, onBack, onCancel, 
           </div>
         </div>
 
-        <footer className="flex justify-between items-center px-5 py-3 border-t border-border bg-muted">
+        <div className="px-6 py-4 border-t border-border flex justify-between items-center">
           <Button variant="ghost" size="sm" onClick={onBack}>
             ← Back
           </Button>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={onCancel}>
-              Cancel
-            </Button>
-            <Button size="sm" disabled={!selected} onClick={() => onPicked(selected)}>
-              Next →
-            </Button>
-          </div>
-        </footer>
+          <Button variant="outline" size="sm" onClick={onCancel}>
+            Cancel
+          </Button>
+        </div>
       </div>
     </div>
   )

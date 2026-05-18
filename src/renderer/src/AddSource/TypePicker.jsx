@@ -1,12 +1,13 @@
 import { useEffect } from 'react'
-import { FolderOpen, Layers, X } from 'lucide-react'
+import { FolderOpen, Layers, X, Plus } from 'lucide-react'
 import { Button } from '../ui/button.jsx'
 
 /**
  * Step 1 of the Add Source wizard — pick the source type.
+ *
+ * Selecting a card advances immediately (no separate Next click).
  */
-export default function TypePicker({ isOpen, selected, onSelect, onCancel, onNext }) {
-  // ESC closes.
+export default function TypePicker({ isOpen, onPick, onCancel }) {
   useEffect(() => {
     if (!isOpen) return
     const onKey = (e) => {
@@ -20,67 +21,73 @@ export default function TypePicker({ isOpen, selected, onSelect, onCancel, onNex
 
   return (
     <div
-      className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000]"
       onClick={onCancel}
     >
       <div
-        className="bg-card rounded-lg shadow-xl w-[480px] max-w-[92vw] flex flex-col"
+        className="bg-card rounded-lg shadow-xl max-w-md w-full mx-4 flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <header className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <h3 className="text-base font-medium text-foreground">Add source</h3>
-          <button onClick={onCancel} className="text-muted-foreground hover:text-foreground">
-            <X size={18} />
+        <div className="px-6 py-4 border-b border-border flex justify-between items-start">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-primary/10 rounded-full">
+              <Plus size={20} className="text-primary" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Add source</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Choose where the new data should come from.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onCancel}
+            className="p-1 hover:bg-accent rounded text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Close"
+          >
+            <X size={20} />
           </button>
-        </header>
+        </div>
 
-        <div className="px-5 py-4 space-y-3">
-          <p className="text-sm text-muted-foreground">What would you like to add?</p>
-          <Card
-            icon={<FolderOpen size={20} />}
+        <div className="px-6 py-5 space-y-3">
+          <OptionCard
+            icon={<FolderOpen size={22} />}
             title="Images directory"
             subtitle="Scan a local folder of images with an AI model"
-            active={selected === 'folder'}
-            onClick={() => onSelect('folder')}
+            onClick={() => onPick('folder')}
           />
-          <Card
-            icon={<Layers size={20} />}
+          <OptionCard
+            icon={<Layers size={22} />}
             title="Another study"
-            subtitle="Merge data from a study already in this app"
-            active={selected === 'merge'}
-            onClick={() => onSelect('merge')}
+            subtitle="Merge data from a study already in Biowatch"
+            onClick={() => onPick('merge')}
           />
         </div>
 
-        <footer className="flex justify-end gap-2 px-5 py-3 border-t border-border bg-muted">
+        <div className="px-6 py-4 border-t border-border flex justify-end">
           <Button variant="outline" size="sm" onClick={onCancel}>
             Cancel
           </Button>
-          <Button size="sm" onClick={onNext} disabled={!selected}>
-            Next →
-          </Button>
-        </footer>
+        </div>
       </div>
     </div>
   )
 }
 
-function Card({ icon, title, subtitle, active, onClick }) {
+function OptionCard({ icon, title, subtitle, onClick }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-3 py-3 rounded-md border text-left transition-colors ${
-        active
-          ? 'border-primary bg-primary/10'
-          : 'border-border bg-card hover:bg-accent dark:hover:bg-accent'
-      }`}
+      className="group w-full flex items-start gap-3 px-4 py-3.5 rounded-lg border border-border bg-card text-left transition-all hover:border-primary hover:bg-primary/10"
     >
-      <span className="text-muted-foreground flex-shrink-0">{icon}</span>
-      <span className="flex-1">
-        <span className="block text-sm font-medium text-foreground">{title}</span>
-        <span className="block text-xs text-muted-foreground mt-0.5">{subtitle}</span>
-      </span>
+      <div className="p-2 rounded-md flex-shrink-0 bg-muted text-muted-foreground transition-colors group-hover:bg-primary/15 group-hover:text-primary">
+        {icon}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-semibold text-foreground">{title}</div>
+        <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{subtitle}</div>
+      </div>
     </button>
   )
 }
