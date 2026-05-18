@@ -21,17 +21,16 @@ export default function ReviewStep({
   const [error, setError] = useState(null)
   const [progress, setProgress] = useState(null) // { phase, done, total }
 
-  // ESC closes — and during submit, that's "continue in background": the
-  // main-process merge is one atomic SQLite transaction, we can't interrupt
-  // it, but the user can stop watching it.
+  // ESC closes — but not during submit. While the merge runs, the only
+  // way out is the explicit Cancel merge button.
   useEffect(() => {
     if (!isOpen) return
     const onKey = (e) => {
-      if (e.key === 'Escape') onCancel()
+      if (e.key === 'Escape' && !submitting) onCancel()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [isOpen, onCancel])
+  }, [isOpen, onCancel, submitting])
 
   // Load preflight + both metadata records once on open.
   useEffect(() => {
@@ -119,7 +118,7 @@ export default function ReviewStep({
   return (
     <div
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000]"
-      onClick={onCancel}
+      onClick={() => !submitting && onCancel()}
     >
       <div
         className="bg-card rounded-lg shadow-xl w-[560px] max-w-[92vw] flex flex-col"
@@ -139,9 +138,9 @@ export default function ReviewStep({
           </div>
           <button
             onClick={onCancel}
-            className="p-1 hover:bg-accent rounded text-muted-foreground hover:text-foreground transition-colors"
-            aria-label={submitting ? 'Continue in background' : 'Close'}
-            title={submitting ? 'Continue in background' : 'Close'}
+            disabled={submitting}
+            className="p-1 hover:bg-accent rounded text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="Close"
           >
             <X size={20} />
           </button>
@@ -297,19 +296,14 @@ export default function ReviewStep({
           </Button>
           <div className="flex gap-2">
             {submitting ? (
-              <>
-                <Button variant="outline" size="sm" onClick={onCancel}>
-                  Continue in background
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
-                  onClick={handleCancelMerge}
-                >
-                  Cancel merge
-                </Button>
-              </>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
+                onClick={handleCancelMerge}
+              >
+                Cancel merge
+              </Button>
             ) : (
               <>
                 <Button variant="outline" size="sm" onClick={onCancel}>
