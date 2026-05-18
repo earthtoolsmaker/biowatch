@@ -168,7 +168,7 @@ export default function ReviewStep({
                     Description
                   </span>
                   <textarea
-                    className="w-full mt-1.5 px-3 py-2 rounded-md bg-muted border border-border text-sm font-mono text-foreground"
+                    className="w-full mt-1.5 px-3 py-2 rounded-md bg-card border border-border/60 text-sm text-foreground leading-relaxed focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400"
                     rows={6}
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
