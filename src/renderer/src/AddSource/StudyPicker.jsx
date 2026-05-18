@@ -107,7 +107,7 @@ export default function StudyPicker({ isOpen, currentStudyId, onBack, onCancel, 
             />
           )}
           <div
-            className="border border-border rounded-lg overflow-hidden max-h-80 overflow-y-auto"
+            className="border border-border/50 rounded-lg overflow-hidden max-h-80 overflow-y-auto"
             onScroll={() => setScrollSignal((s) => s + 1)}
           >
             {loading ? (
@@ -127,7 +127,7 @@ export default function StudyPicker({ isOpen, currentStudyId, onBack, onCancel, 
                     type="button"
                     disabled={merged}
                     onClick={() => !merged && onPicked(s)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 text-left border-b border-border last:border-none transition-colors
+                    className={`w-full flex items-center gap-3 px-4 py-3 text-left border-b border-border/40 last:border-none transition-colors
                       ${
                         merged
                           ? 'opacity-50 cursor-not-allowed bg-muted/30'
