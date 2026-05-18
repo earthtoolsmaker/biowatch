@@ -258,12 +258,14 @@ function SummaryRow({ label, value }) {
 
 function Stat({ icon, count, label }) {
   return (
-    <div className="flex flex-col items-start gap-0.5">
-      <div className="flex items-center gap-1.5 text-muted-foreground">
-        <span className="text-blue-600 dark:text-blue-300">{icon}</span>
-        <span className="text-[10px] uppercase tracking-wide">{label}</span>
+    <div className="flex flex-col items-start gap-1">
+      <div className="flex items-center gap-1.5 text-muted-foreground h-4">
+        <span className="text-blue-600 dark:text-blue-300 flex items-center justify-center w-4 h-4 flex-shrink-0">
+          {icon}
+        </span>
+        <span className="text-[10px] uppercase tracking-wide leading-none">{label}</span>
       </div>
-      <div className="text-sm font-semibold text-foreground tabular-nums leading-tight break-all">
+      <div className="text-sm font-semibold text-foreground tabular-nums leading-tight break-all pl-[22px]">
         {Number(count || 0).toLocaleString()}
       </div>
     </div>
