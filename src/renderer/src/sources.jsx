@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import { useParams } from 'react-router'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { useImportStatus } from '@renderer/hooks/import'
@@ -267,6 +268,22 @@ export default function Sources({ studyId, importerName, studyName }) {
   // result may legitimately mix remote (e.g. LILA-imported) and local media —
   // that's a feature of the multi-source Sources tab, not a bug.
   const canAddSource = !!importerName
+
+  // Listen for merge completion globally, so query caches are refreshed even
+  // when the user closed the review modal mid-merge ("Continue in background").
+  // Also surface a toast so they know it landed.
+  useEffect(() => {
+    if (!actualStudyId || !window.api.onMergeComplete) return
+    const unsub = window.api.onMergeComplete((payload) => {
+      if (payload?.studyId !== actualStudyId) return
+      queryClient.invalidateQueries({
+        predicate: (query) => query.queryKey.some((k) => k === actualStudyId)
+      })
+      queryClient.invalidateQueries({ queryKey: ['studies'] })
+      toast.success('Merge complete')
+    })
+    return unsub
+  }, [actualStudyId, queryClient])
 
   const handleImported = () => {
     // Invalidate every query scoped to this study so all tabs (Overview,

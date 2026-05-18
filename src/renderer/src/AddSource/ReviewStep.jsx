@@ -21,15 +21,17 @@ export default function ReviewStep({
   const [error, setError] = useState(null)
   const [progress, setProgress] = useState(null) // { phase, done, total }
 
-  // ESC closes.
+  // ESC closes — and during submit, that's "continue in background": the
+  // main-process merge is one atomic SQLite transaction, we can't interrupt
+  // it, but the user can stop watching it.
   useEffect(() => {
     if (!isOpen) return
     const onKey = (e) => {
-      if (e.key === 'Escape' && !submitting) onCancel()
+      if (e.key === 'Escape') onCancel()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [isOpen, onCancel, submitting])
+  }, [isOpen, onCancel])
 
   // Load preflight + both metadata records once on open.
   useEffect(() => {
@@ -102,7 +104,7 @@ export default function ReviewStep({
   return (
     <div
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000]"
-      onClick={() => !submitting && onCancel()}
+      onClick={onCancel}
     >
       <div
         className="bg-card rounded-lg shadow-xl w-[560px] max-w-[92vw] flex flex-col"
@@ -122,9 +124,9 @@ export default function ReviewStep({
           </div>
           <button
             onClick={onCancel}
-            disabled={submitting}
-            className="p-1 hover:bg-accent rounded text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-            aria-label="Close"
+            className="p-1 hover:bg-accent rounded text-muted-foreground hover:text-foreground transition-colors"
+            aria-label={submitting ? 'Continue in background' : 'Close'}
+            title={submitting ? 'Continue in background' : 'Close'}
           >
             <X size={20} />
           </button>
@@ -279,12 +281,14 @@ export default function ReviewStep({
             ← Back
           </Button>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={onCancel} disabled={submitting}>
-              Cancel
+            <Button variant="outline" size="sm" onClick={onCancel}>
+              {submitting ? 'Continue in background' : 'Cancel'}
             </Button>
-            <Button size="sm" onClick={handleMerge} disabled={!canMerge}>
-              {submitting ? 'Merging…' : 'Merge'}
-            </Button>
+            {!submitting && (
+              <Button size="sm" onClick={handleMerge} disabled={!canMerge}>
+                Merge
+              </Button>
+            )}
           </div>
         </div>
       </div>
