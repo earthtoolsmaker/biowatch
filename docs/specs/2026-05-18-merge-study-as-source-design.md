@@ -11,15 +11,15 @@ Today the Sources tab of a study has one action: **"+ Add images directory"**, w
 1. **Images directory** — unchanged from today's flow.
 2. **Another study** — pick a study from the local list and merge its data (deployments, media, observations, model runs) into the current study, with metadata (description, contributors, date range) merged on a single review screen.
 
-Merge is **in-place** (target study A absorbs source study B's data; B stays untouched), **forward-only** in v1 (no un-merge), and **one study at a time**. Image files from B are physically copied into A's directory **only when biowatch owns them** (files that live inside `<biowatch-data>/studies/<B-uuid>/`). External files (user folders, external drives, HTTP URLs) are referenced in place — biowatch doesn't duplicate files it never owned.
+Merge is **in-place** (target study A absorbs source study B's rows; B stays untouched), **forward-only** in v1 (no un-merge), and **one study at a time**. **No files are copied** — A's media rows reference B's original `filePath` values exactly as they were. The trade-off: deleting B after merging will make any of B's biowatch-owned files unavailable in A. A delete-time warning surfaces this when relevant.
 
 ## Goals & non-goals
 
 **Goals**
 - Surface a new "Merge another study" path as a peer of "Add images directory".
-- Make merging safe by default: no PK collisions, no surprise metadata changes, predictable file storage.
+- Make merging safe by default: no PK collisions, no surprise metadata changes.
 - Preserve provenance so the merged data is visible as its own source row in the Sources tab.
-- Keep the implementation contained: no schema changes; no DB tables added.
+- Keep the implementation contained: no schema changes, no new DB tables, no new filesystem artifacts.
 
 **Non-goals**
 - Un-merge / "remove this source" — out of scope.
@@ -38,104 +38,98 @@ The Sources tab's `+ Add images directory` button (`src/renderer/src/sources.jsx
 
 **Step 2 — Study picker.** Searchable list of all local studies from `listStudies()` except A itself. Each row shows title, importer-type icon (Folder / Package / Globe), deployment count, media count, and date range. Studies already merged into A appear in the list but are disabled with a small "Already merged" badge.
 
-**Step 3 — Review.** A brief spinner runs while pre-flight checks complete (file-size sum, disk-space query, copy-vs-reference partition). Then the pre-filled defaults render:
-- Summary card: from / into / counts being added (deployments, media, observations) / **disk: "Will copy ~X (~Y free)" plus "Will reference Z files in their current location"** (color-coded green when sufficient, red when not). The copy line is omitted when nothing needs copying.
+**Step 3 — Review.** A brief spinner runs while pre-flight checks complete (count of B's media files, count of B-owned files that would break on B-delete). Then the pre-filled defaults render:
+- Summary card: from / into / counts being added (deployments, media, observations).
 - Description (textarea, editable). Default = A's description + `"\n\n---\n\n## Merged from <B-title>\n\n"` + B's description.
 - Contributors checklist. Default = union of A's and B's contributors deduped by email, all checked. Each row shows the contributor's name, role, and a small badge: "A + B", "A only", "B only". Unchecking removes from the resulting list.
 - Date range preview: `min(A.startDate, B.startDate) → max(A.endDate, B.endDate)`, with a note showing the previous range.
+- A heads-up note when B owns its media files: *"N files in this study live inside biowatch's own storage. They will remain available in A after this merge, but deleting B later will make them unavailable in A. You'll be warned at delete time."* Suppressed when the count is zero (folder imports, external CamTrap DP, LILA).
 - A heads-up note if any IDs were renamed (e.g., "3 deployment IDs from B will be renamed to avoid collision"). Informational only — IDs are internal.
 
-The Merge button is **disabled with an inline error** when pre-flight checks fail (e.g., insufficient disk). Confirming triggers the merge IPC. Modal shows a copy-progress indicator, then a brief "writing rows" step, then auto-closes (same pattern as today's import completion).
+Confirming triggers the merge IPC. The merge is fast — DB-only — so the modal goes through a brief "writing rows" indicator and auto-closes.
 
 ### Sources tab after merge
 
-A new source row appears, grouped by `media.importFolder = <A-dir>/merged/<B-uuid>`. Its title is **B's current title** looked up from `getStudies()` at render time (e.g., "Yosemite 2023"), with a small "merged" indicator. If B was deleted, the title comes from a `_merge-info.json` manifest snapshot (see below); if both are gone, fall back to "Merged source". The icon is **B's `importerName`** (so a merged CamtrapDP shows the Package icon, a merged folder shows the Folder icon), not A's.
+A new source row appears, grouped by `media.importFolder = "merge:<B-uuid>"`. Its title is **B's current title** looked up from `getStudies()` at render time (e.g., "Yosemite 2023"), with a small "merged" indicator. The icon is **B's `importerName`** (so a merged CamtrapDP shows the Package icon, a merged folder shows the Folder icon), not A's. If B was deleted, both fall back to a generic "Merged source" label and Folder icon — see *Known limitations*.
 
 ## Data model
 
-**No new tables. No new columns.** All required provenance is encoded in two places:
+**No new tables. No new columns. No filesystem artifacts.** All required provenance is encoded in one place:
 
-1. `media.importFolder = <A-dir>/merged/<B-uuid>` for every merged media row (whether the file was copied or referenced) — naturally fits the existing Sources-tab grouping (which already keys on `importFolder`).
-2. `<A-dir>/merged/<B-uuid>/_merge-info.json` written regardless of whether any files were copied:
-   ```json
-   {
-     "sourceStudyId": "b7f2a1c3-…",
-     "sourceStudyTitle": "Yosemite 2023",
-     "sourceImporterName": "camtrap/datapackage",
-     "mergedAt": "2026-05-18T10:23:00Z"
-   }
-   ```
-   Survives B being deleted. Read by `getSourcesData` to label and icon the row.
+- `media.importFolder = "merge:<B-uuid>"` for every merged media row — a synthetic value, not a path. The Sources tab already groups by `importFolder` so no grouping change is needed; only the rendering layer learns about the `merge:` prefix.
 
-PK collision safety: every `deploymentID`, `mediaID`, and `observationID` from B is prefixed with `"study:<B-uuid-short>:"` when copied into A — where `<B-uuid-short>` is the **first 8 characters** of B's UUID (e.g., `"study:b7f2a1c3:CAM_01"`). The directory path uses the **full** UUID (`<A-dir>/merged/b7f2a1c3-…/`); the short prefix is only used in PK strings to keep them compact. Foreign keys (`media.deploymentID`, `observations.mediaID`, `observations.deploymentID`, `modelOutputs.mediaID`) are rewritten consistently. UUID-based PKs in `modelRuns` and `modelOutputs` don't need rewriting; only their FKs to renamed media. The prefix is purely local to A's DB — it's not part of any export.
+PK collision safety: every `deploymentID`, `mediaID`, and `observationID` from B is prefixed with `"study:<B-uuid-short>:"` (e.g., `"study:b7f2a1c3:CAM_01"`), where `<B-uuid-short>` is the **first 8 characters** of B's UUID. Foreign keys (`media.deploymentID`, `observations.mediaID`, `observations.deploymentID`, `modelOutputs.mediaID`) are rewritten consistently. UUID-based PKs in `modelRuns` and `modelOutputs` don't need rewriting; only their FKs to renamed media. The prefix is purely local to A's DB — it's not part of any export.
 
-**Flattening of nested provenance.** If B itself contains previously-merged sources (B was once a target of a merge), those inner `importFolder` values are **overwritten** to `<A-dir>/merged/<B-uuid>` during step 4 below. B's nested source structure collapses into a single source row in A. This is a deliberate v1 simplification — a merged study reads as one source from A's perspective. B's own Sources tab is unaffected because B is untouched.
+**Flattening of nested provenance.** If B itself contains previously-merged sources (B was once a target of a merge), those inner `importFolder` values are **overwritten** to `"merge:<B-uuid>"` during step 3 below. B's nested source structure collapses into a single source row in A. This is a deliberate v1 simplification — a merged study reads as one source from A's perspective. B's own Sources tab is unaffected because B is untouched.
 
 ## Data flow
 
-`mergeStudy(targetStudyId, sourceStudyId, reviewed)` runs the following. A separate pre-flight IPC, `mergePreflight(targetStudyId, sourceStudyId)`, runs during the wizard's Step 2 → Step 3 transition and returns `{ copyBytes, copyCount, referenceCount, freeBytes, missingFileCount, renameCount, alreadyMerged }` for the review screen — it does not mutate anything. The Merge button is disabled if `copyBytes * 1.05 > freeBytes`.
+`mergeStudy(targetStudyId, sourceStudyId, reviewed)` runs the following. A separate pre-flight IPC, `mergePreflight(targetStudyId, sourceStudyId)`, runs during the wizard's Step 2 → Step 3 transition and returns `{ deploymentCount, mediaCount, observationCount, ownedByBiowatchCount, missingFileCount, renameCount, alreadyMerged }` for the review screen — it does not mutate anything.
 
-### Copy-vs-reference rule
-
-Apply per B media row, using the existing `isRemoteUrl` helper (`src/main/services/export/exporter.js:94`):
-
-- `filePath` starts with `http://` or `https://` → **REFERENCE** (URL stays as-is).
-- `filePath` is inside `<biowatch-data>/studies/<B-uuid>/` → **COPY** (biowatch owns the file; it would vanish on B deletion).
-- Otherwise → **REFERENCE** (external volume / user folder; biowatch never owned it, file survives B independently).
-
-`media.importFolder` is set to `<A-dir>/merged/<B-uuid>` for **all** merged rows regardless of decision, so the Sources tab still groups them as one source. Only `filePath` differs between COPY (rewritten to the new in-A location) and REFERENCE (unchanged).
+The merge is **rows only — no files are touched, copied, or moved.** All operations happen inside a single SQLite transaction on A's DB.
 
 ### Steps
 
-1. **Resolve & validate.** Both studies exist locally. Refuse self-merge. Detect prior merge by `SELECT 1 FROM media WHERE importFolder LIKE '<A-dir>/merged/<B-uuid>/%' LIMIT 1` — if found, return `{ alreadyMerged: true }` (UI shows toast, modal closes, no-op). Re-check free disk space against `copyBytes` (pre-flight value may be stale); abort with a clear error if insufficient.
+1. **Resolve & validate.** Both studies exist locally. Refuse self-merge. Detect prior merge by `SELECT 1 FROM media WHERE importFolder = 'merge:<B-uuid>' LIMIT 1` — if found, return `{ alreadyMerged: true }` (UI shows toast, modal closes, no-op).
 
-2. **Copy files (COPY set only).** Open B's DB read-only. For each media row in the COPY set: if the source file does not exist on disk, record it in `missingMediaIDs` (its media + observation rows will be skipped in step 4) and continue. Otherwise copy to `<A-dir>/merged/<B-uuid>/<basename-of-source-dir>/<filename>`, preserving subfolder structure (the EXIF/parentFolder deployment heuristic in `prediction.js:600` needs subfolder layout intact). Concurrency cap ~8 in-flight copies. Skip-if-destination-exists for idempotency on retry. Track bytes for the progress event. Rows in the REFERENCE set are not file-touched here — but their existence on disk is still checked (URLs skip the disk check); missing referenced files also feed `missingMediaIDs`.
+2. **Build the prefix and the missing-file set.** `PREFIX = "study:<B-uuid-short>:"`. Open B's DB read-only. For each B media row whose `filePath` is a local path (not a URL), `fs.access` it; missing ones go into `missingMediaIDs` and their dependent rows are dropped in step 3.
 
-3. **Build a path map.** For COPY rows, compute the new `filePath` (`<A-dir>/merged/<B-uuid>/<basename-of-source-dir>/<rel>`). For REFERENCE rows, the new `filePath` equals the old `filePath`. Build the single prefix `PREFIX = "study:<B-uuid-short>:"`.
-
-4. **Read B, write to A — one SQLite transaction on A's DB.** Rows whose `mediaID` is in `missingMediaIDs` (from step 2) are skipped, along with any `modelOutputs` and `observations` that reference them. Order matters for FK constraints:
+3. **Read B, write to A — one SQLite transaction on A's DB.** Rows whose `mediaID` is in `missingMediaIDs` are skipped along with their dependent `modelOutputs` and `observations`. Order matters for FK constraints:
    - INSERT deployments with prefixed `deploymentID` (other fields copied as-is, including `locationID`).
-   - INSERT media with prefixed `mediaID`, prefixed `deploymentID`, `filePath` from path map (rewritten for COPY rows, unchanged for REFERENCE rows), `importFolder = <A-dir>/merged/<B-uuid>` for all rows. Skip media in `missingMediaIDs`.
-   - INSERT modelRuns as-is. Rewrite `modelRuns.importPath = <A-dir>/merged/<B-uuid>` so the multi-source spec's in-flight-run join still works (per `docs/specs/2026-04-29-sources-tab-multi-source-design.md:76`).
+   - INSERT media with prefixed `mediaID`, prefixed `deploymentID`, **`filePath` unchanged** from B, `importFolder = "merge:<B-uuid>"`. Skip media in `missingMediaIDs`.
+   - INSERT modelRuns as-is. Rewrite `modelRuns.importPath = "merge:<B-uuid>"` so the multi-source spec's in-flight-run join continues to work (per `docs/specs/2026-04-29-sources-tab-multi-source-design.md:76`).
    - INSERT modelOutputs as-is, rewriting `mediaID` FK. Skip rows referencing missing media.
    - INSERT observations with prefixed `observationID`, `mediaID`, `deploymentID` (modelOutputID is a UUID, unchanged). Skip rows referencing missing media.
    - UPDATE `metadata` with reviewed values: `description` from textarea, `contributors` from checklist, `startDate = min(A,B)`, `endDate = max(A,B)`, `updatedAt = now`. `title` and `importerName` unchanged.
    - The `jobs` table is **not** copied — B's queue is transient processing state.
 
-5. **Write `_merge-info.json`** inside `<A-dir>/merged/<B-uuid>/`.
+4. **Emit `merge:complete`** so the Sources tab re-queries; resolve.
 
-6. **Emit `merge:complete`** so the Sources tab re-queries; resolve with the new `importFolder` value.
-
-If step 4 fails, SQLite rolls back. Files already copied in step 2 remain on disk; the skip-if-exists rule makes retry idempotent.
+If step 3 fails, SQLite rolls back. Nothing was written to disk in any previous step (no file copies), so there's no filesystem cleanup to consider.
 
 ### Idempotency & repeat behavior
 
 Merging the same B into A a second time is a **safe no-op**, not an update.
 
 - **UI path.** Step 2's study picker disables B's row with the "Already merged" badge; the user can't select it.
-- **Backend path.** Step 1's prior-merge check returns `{ alreadyMerged: true }` immediately — no file copy, no DB writes.
-- **Recovery after crash.**
-  - If the previous attempt crashed *before* step 4 committed, no media rows from B exist yet; the next attempt proceeds normally and reuses already-copied files (skip-if-exists).
-  - If step 4 committed but step 5 (manifest write) failed, media rows exist and the merge is correctly detected as complete. The Sources-tab label falls back to live-lookup of B until the manifest is recreated. Manifest is a UX hint, not a correctness requirement.
+- **Backend path.** Step 1's prior-merge check returns `{ alreadyMerged: true }` immediately — no DB writes.
+- **Recovery after crash.** SQLite transactions are atomic: either everything in step 3 committed or nothing did. If a previous attempt crashed mid-transaction, no rows from B exist yet, and the next attempt proceeds normally.
 
 **Re-merge does not pick up B's changes** (newly added images, corrected classifications, etc.). Merge is a one-time snapshot in v1. The upcoming **resync** feature is the right vehicle for "B has changed; update A". For now the workaround would be to remove and re-merge — but "Remove source" is itself a deferred follow-up (see *Known limitations*).
+
+### B-deletion warning
+
+When the user attempts to delete a study B that has been merged into other studies, the delete-study handler scans all local studies' `media` tables for `importFolder = 'merge:<B-uuid>'`. If matches are found, it returns a confirmation payload to the renderer:
+
+```
+{
+  needsConfirm: true,
+  message: "Yosemite 2023 has been merged into 2 other studies:
+            • Site A 2023 — 12,481 media will become unavailable
+            • Sierra Pilot — 850 media will become unavailable
+            Delete anyway?"
+}
+```
+
+The user can confirm and proceed, or cancel. If they confirm, B is deleted as today (the merged sources in A and Sierra Pilot remain rows in their DBs but with broken `filePath` values — same UX as a "file unavailable" state today). This warning is the safety valve for the no-copy design.
 
 ## Sources tab rendering changes
 
 The current `SourceIcon` in `sources.jsx:9-13` takes `importerName` as a study-level prop. After this change, it takes a per-row `importerName` resolved as follows in `getSourcesData`:
 
 ```
-if importFolder starts with "http://" or "https://" → "lila/coco"
-else if importFolder matches "<A-dir>/merged/<B-uuid>/":
-    read _merge-info.json once (cached); use sourceImporterName
-    if file missing, look up B via getStudies(); use B's importerName
-    if both missing, fall back to study A's importerName
+if importFolder starts with "merge:":
+    extract B's UUID; look up B via getStudies()
+    use B's importerName and title
+    if B not found, fall back to "lila/coco" if media filePaths are URLs,
+      else Folder icon + "Merged source" label
+else if media filePaths in this source start with "http://" or "https://" → "lila/coco"
 else → study A's importerName
 ```
 
-The row label for merged sources comes from the same lookup (`sourceStudyTitle` from the manifest, or B's current title, or "Merged source" as final fallback). Label fallback is independent from icon fallback.
-
 This also resolves a pre-existing quirk: today's tab shows the study-wide icon on every row, so adding a local folder to a CamtrapDP-imported study shows the Package icon. Per-row resolution fixes that case too.
+
+`sources.jsx`'s existing path-detection check at line 147 (`startsWith('/')`) handles real paths; the renderer learns to also recognize `startsWith('merge:')` and renders such rows with the resolved label rather than treating the literal string as a path.
 
 ## IPC contract
 
@@ -145,12 +139,13 @@ This also resolves a pre-existing quirk: today's tab shows the study-wide icon o
 // preload
 window.api.mergePreflight(targetStudyId, sourceStudyId)
 // → {
-//     copyBytes: number,         // sum of file sizes for B's media in the COPY set
-//     copyCount: number,         // number of files that will be copied
-//     referenceCount: number,    // number of files that will be referenced in place (incl. URLs)
-//     freeBytes: number,         // available bytes on A's volume
-//     missingFileCount: number,  // B media whose local file is missing on disk (URLs not checked)
-//     renameCount: number,       // deployment IDs that will be prefixed
+//     deploymentCount: number,
+//     mediaCount: number,
+//     observationCount: number,
+//     ownedByBiowatchCount: number, // B media whose filePath is inside <biowatch-data>/studies/<B-uuid>/
+//                                   // — these become unavailable if B is later deleted
+//     missingFileCount: number,     // B media whose local file is missing on disk (URLs not checked)
+//     renameCount: number,          // deployment IDs that will be prefixed
 //     alreadyMerged: boolean
 //   }
 // Pure check; no mutations.
@@ -161,7 +156,7 @@ window.api.mergeStudy(targetStudyId, sourceStudyId, reviewed)
 //   contributorEmails: string[]  // emails surviving the checklist
 // }
 // →
-//   { success: true, mergedImportFolder: string, missingFileCount: number }
+//   { success: true, missingFileCount: number }
 //   | { success: true, alreadyMerged: true }
 //   | { success: false, error: string }
 ```
@@ -169,51 +164,50 @@ window.api.mergeStudy(targetStudyId, sourceStudyId, reviewed)
 **Updated handlers.**
 
 - `getSourcesData(studyId)` — augment each returned row with a per-row `importerName` (per the resolution above) and a per-row `displayLabel` for merged rows.
+- `study:delete-database` (`src/main/ipc/study.js:31`) — before deletion, scan all local studies for `media WHERE importFolder = 'merge:<B-uuid>'`. If any hits, return `{ needsConfirm: true, dependents: [...] }` instead of deleting. The renderer surfaces a confirmation modal; a confirmed second call (with a `force: true` flag) proceeds with the original deletion.
 
 **New event.**
 
-- `merge:progress` `{ phase: 'copying-files'|'writing-rows', done: number, total: number }` — the modal subscribes during the merge.
-- `merge:complete` `{ studyId }` — already-existing convention (mirrors the `import:complete` pattern); Sources tab re-queries on receipt.
+- `merge:complete` `{ studyId }` — Sources tab re-queries on receipt. (No `merge:progress` — the merge is fast since no files are copied.)
 
 ## Error handling & edge cases
 
 | Case | Behavior |
 |---|---|
-| B's DB unreadable / corrupt | Abort before file copy. Toast: error details. |
-| Insufficient disk space at pre-flight | Merge button disabled with inline error "Will copy ~3.2 GB; needs ~3.4 GB free; only 1.4 GB available." User frees space or cancels. |
-| Some of B's media files missing on disk | Counted at pre-flight (`missingFileCount` shown on review screen). At copy time, those files are skipped (whether they were in the COPY set or the REFERENCE set) and their media/observation rows are not written. Completion toast: "N files were missing and skipped." URLs are not disk-checked at pre-flight; broken URLs surface as render failures, not merge errors. |
-| Referenced files later become unreachable (external drive unmounted, user moved files) | Same fragility as today's folder imports — biowatch only stores the path. The merged source row still renders; media that can't be opened fail at view time. The user can re-mount or restore the original location to recover. Not a merge failure. |
-| Disk full during copy (race with other writers) | Failsafe path — pre-flight should have caught it, but if it didn't: stop copies; transaction never begins, A's DB unchanged. Partial copies remain (idempotent retry). Toast with current free bytes. |
-| Transaction failure | SQLite rolls back. Copied files remain on disk; retry is safe. Toast with failure reason. |
-| App closed mid-merge | Files copied so far remain; DB unchanged (transaction not yet committed). User retries on next launch. |
+| B's DB unreadable / corrupt | Abort before any writes. Toast with error details. |
+| Some of B's media files missing on disk | Counted at pre-flight (`missingFileCount` on review screen). Those rows (and their dependent observations) are skipped during the transaction. Completion toast: "N files were missing and skipped." URLs aren't disk-checked at pre-flight; broken URLs surface as render failures, not merge errors. |
+| External drive unmounted / user moved referenced files | Same fragility as today's folder imports — biowatch only stores the path. The merged source row still renders; individual media that can't be opened fail at view time. Not a merge failure. |
+| Transaction failure | SQLite rolls back. Nothing written to disk, no cleanup needed. Toast with failure reason. |
+| App closed mid-merge | Transaction not yet committed → nothing persisted. User retries on next launch. |
 | Double-submit | Modal `submitting` state disables the button — same pattern as today's `AddSourceModal`. |
-| B deleted after merge | A self-contained; manifest covers label/icon. Sources tab keeps working. |
-| A deleted after merge | `rmSync(studyPath, { recursive: true, force: true })` in `src/main/ipc/study.js:38` wipes A's whole dir, including auto-copied B files. B untouched. |
+| B deleted after merge — with no biowatch-owned files | A is unaffected; the merged source row's label gracefully falls back to "Merged source" + Folder icon. |
+| B deleted after merge — with biowatch-owned files | The delete-time warning fires first (see *B-deletion warning*). If the user confirms, B's files are gone; A's merged media rows for those files now have broken `filePath` values and show as "unavailable" in views. |
+| A deleted after merge | `rmSync(studyPath, { recursive: true, force: true })` in `src/main/ipc/study.js:38` wipes A's whole dir. B untouched. |
 
 ## Testing strategy
 
 **Unit:**
-- `transformFilePath(oldPath, sourceDirs, destRoot)` — path-mapping helper. Table tests for typical EXIF folder layouts and CamtrapDP package layouts.
 - `prefixRow(row, prefix, fkFields)` — PK + FK rewrite helper.
-- `getSourcesData` row-augmentation: pattern recognition for `merged/<uuid>/`, manifest read, manifest-missing fallback, no-merge passthrough.
-- `mergePreflight` correctness: `copyBytes` sums match the test-fixture sizes for files inside `<biowatch-data>/studies/<B-uuid>/`; external paths and URLs land in `referenceCount` not `copyBytes`; `missingFileCount` counts dangling rows; `alreadyMerged` flips after a successful merge.
-- Copy-vs-reference classifier: table tests for inside-biowatch paths, external absolute paths, `http://` / `https://` URLs, and edge cases like symlinks resolving to inside biowatch-data.
+- `getSourcesData` row-augmentation: `merge:` prefix detection, B live-lookup, B-missing fallback, no-merge passthrough.
+- `mergePreflight` correctness: counts match fixture sizes; `ownedByBiowatchCount` counts only B media with `filePath` inside `<biowatch-data>/studies/<B-uuid>/`; `missingFileCount` counts dangling local files (not URLs); `alreadyMerged` flips after a successful merge.
+- B-deletion dependents scan: returns the studies and counts that would break.
 
 **Integration (existing biowatch test setup, isolated SQLite DB per test):**
-- Folder→folder merge: counts add up; UUIDs don't trigger visible renames; PK prefix still applied uniformly. **All B media REFERENCED** (filePaths unchanged); zero files copied.
-- CamtrapDP-on-external-drive → folder merge: PKs prefixed; FKs consistent; A's pre-existing data untouched. **All B media REFERENCED**; the `<A-dir>/merged/<B-uuid>/` directory contains only the manifest, no copied files.
-- CamtrapDP-downloaded-into-biowatch → folder merge: B's filePaths inside `<biowatch-data>/studies/<B-uuid>/` → **COPIED** to `<A-dir>/merged/<B-uuid>/...`; A's filePaths now point to the copies; B remains intact.
-- LILA→folder merge: B's filePaths are URLs → REFERENCED; merged source row reports as Remote.
+- Folder→folder merge: counts add up; PK prefix applied uniformly; B media filePaths unchanged in A; `ownedByBiowatchCount` is 0.
+- CamtrapDP-on-external-drive → folder merge: PKs prefixed; FKs consistent; A's pre-existing data untouched; `ownedByBiowatchCount` is 0.
+- CamtrapDP-downloaded-into-biowatch → folder merge: `ownedByBiowatchCount` matches B's media count; filePaths in A still point into B's directory.
+- LILA→folder merge: B's URL filePaths copied verbatim; merged source row reports as Remote in Sources tab tests.
 - Already-merged detection: second merge of same B is a no-op (`alreadyMerged: true`).
 - Metadata merge: description concatenation, contributor union by email (case-insensitive), date-range extension.
-- File-copy idempotency: pre-existing copied files are skipped without error; retry-after-crash equivalent.
 - Forced transaction failure: A's DB unchanged.
+- B-deletion with dependents: delete handler returns `needsConfirm: true` + dependent list; deletion succeeds on `force: true` retry.
 
 **Manual / E2E:**
 - Full wizard flow for both paths.
 - Sources tab shows merged source with correct icon, label, and counts.
 - Delete A after merge → filesystem cleaned, B untouched.
-- Delete B after merge → A still functional; label falls back to manifest.
+- Delete B after merge — non-owned case → A's merged source label falls back to "Merged source".
+- Delete B after merge — owned case → warning dialog appears; if confirmed, A's affected media show "unavailable".
 
 ## Known limitations (deferred follow-ups)
 
@@ -223,7 +217,9 @@ Workaround for v1: when adding a new local directory to a merged study, pick non
 
 The follow-up adds `deployments.importFolder` (column + index + migration with backfill from `media`), changes `getDeployment`'s signature to `(db, importFolder, locationID)`, and updates `prediction.js`'s deployment-creation path. It benefits non-merge users too.
 
-**No un-merge.** Removing a previously-merged source from A is not supported in v1. The user can delete A and recreate it. Adding "Remove source" later is straightforward: delete rows where `media.importFolder = <A-dir>/merged/<B-uuid>` (cascade through observations and modelOutputs) and `rm -r` the directory.
+**No un-merge.** Removing a previously-merged source from A is not supported in v1. The user can delete A and recreate it. Adding "Remove source" later is trivial because the merge has no filesystem footprint: just `DELETE FROM media WHERE importFolder = 'merge:<B-uuid>'` (cascade through observations and modelOutputs).
+
+**Deleting B can break A's merged source files.** When B owned its media files (CamtrapDP-downloaded-into-biowatch), deleting B removes those files from disk. A's merged media rows survive but their `filePath` values now point to deleted files. We mitigate with the *B-deletion warning* described in the Data flow section. For folder imports, external CamtrapDP, and LILA, this risk doesn't apply.
 
 **Heterogeneous model runs.** A and B may have been scanned with different ML models. Both `modelRuns` are preserved in A's DB; observations keep their original linkage. The user can manually re-run a homogenizing model later; we don't offer that flow.
 
@@ -231,12 +227,12 @@ The follow-up adds `deployments.importFolder` (column + index + migration with b
 
 ## Files touched (estimate)
 
-- `src/renderer/src/sources.jsx` — button label; `SourceIcon` takes per-row `importerName`.
+- `src/renderer/src/sources.jsx` — button label; `SourceIcon` takes per-row `importerName`; renderer recognizes the `merge:` prefix.
 - `src/renderer/src/AddSourceModal.jsx` — restructured as wizard; new step components.
 - New: `src/renderer/src/MergeStudyWizard/StudyPicker.jsx`, `ReviewStep.jsx`.
-- `src/main/services/merge.js` — new module owning the merge orchestration.
-- `src/main/ipc/study.js` — `study:merge` and `study:merge-preflight` handlers, `merge:progress` / `merge:complete` events.
+- `src/main/services/merge.js` — new module owning the merge orchestration (DB-only; no file logic).
+- `src/main/ipc/study.js` — `study:merge` and `study:merge-preflight` handlers, `merge:complete` event; `study:delete-database` updated to check for dependents and surface a confirmation.
 - `src/preload/index.js` — expose `window.api.mergeStudy` and `window.api.mergePreflight`.
-- `src/main/ipc/files.js` (`getSourcesData`) — per-row `importerName` and `displayLabel` augmentation; manifest read.
+- `src/main/ipc/files.js` (`getSourcesData`) — per-row `importerName` and `displayLabel` augmentation via live B lookup.
 - Tests: matching layout under `src/main/services/merge.test.js` + integration suite.
-- Docs: update `architecture.md`, `data-formats.md`, `database-schema.md` (note on merged-source convention), `import-export.md`, `ipc-api.md`.
+- Docs: update `architecture.md`, `data-formats.md`, `database-schema.md` (note on merged-source convention: `importFolder = 'merge:<uuid>'`), `import-export.md`, `ipc-api.md`.
