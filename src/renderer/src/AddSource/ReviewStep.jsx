@@ -128,10 +128,10 @@ export default function ReviewStep({
                   value={targetMeta?.title || targetMeta?.name || targetStudyId}
                 />
                 <div className="pt-3 border-t border-blue-200/60 dark:border-blue-500/20">
-                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-3">
+                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-2">
                     Adding
                   </div>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="flex items-center gap-x-5 gap-y-2 flex-wrap">
                     <Stat icon={<Camera size={14} />} count={preflight.deploymentCount} label="deployments" />
                     <Stat icon={<ImageIcon size={14} />} count={preflight.mediaCount} label="media" />
                     <Stat icon={<Eye size={14} />} count={preflight.observationCount} label="observations" />
@@ -269,13 +269,10 @@ function PreflightSkeleton() {
           <div className="h-3 w-28 rounded bg-blue-200/60 dark:bg-blue-500/30" />
         </div>
         <div className="pt-3 border-t border-blue-200/60 dark:border-blue-500/20">
-          <div className="h-2 w-14 rounded bg-blue-200/60 dark:bg-blue-500/30 mb-3" />
-          <div className="grid grid-cols-3 gap-3">
+          <div className="h-2 w-14 rounded bg-blue-200/60 dark:bg-blue-500/30 mb-2" />
+          <div className="flex items-center gap-x-5 gap-y-2 flex-wrap">
             {[0, 1, 2].map((i) => (
-              <div key={i} className="flex flex-col items-start gap-1">
-                <div className="h-3 w-20 rounded bg-blue-200/60 dark:bg-blue-500/30" />
-                <div className="h-4 w-16 rounded bg-blue-200/60 dark:bg-blue-500/30" />
-              </div>
+              <div key={i} className="h-4 w-28 rounded bg-blue-200/60 dark:bg-blue-500/30" />
             ))}
           </div>
         </div>
@@ -312,17 +309,13 @@ function SummaryRow({ label, value }) {
 
 function Stat({ icon, count, label }) {
   return (
-    <div className="flex flex-col items-start gap-1">
-      <div className="flex items-center gap-1.5 text-muted-foreground h-4">
-        <span className="text-blue-600 dark:text-blue-300 flex items-center justify-center w-4 h-4 flex-shrink-0">
-          {icon}
-        </span>
-        <span className="text-[10px] uppercase tracking-wide leading-none">{label}</span>
-      </div>
-      <div className="text-sm font-semibold text-foreground tabular-nums leading-tight">
+    <span className="inline-flex items-baseline gap-1.5">
+      <span className="text-blue-600 dark:text-blue-300 self-center flex-shrink-0">{icon}</span>
+      <span className="text-sm font-semibold text-foreground tabular-nums">
         {Number(count || 0).toLocaleString()}
-      </div>
-    </div>
+      </span>
+      <span className="text-xs text-muted-foreground">{label}</span>
+    </span>
   )
 }
 
