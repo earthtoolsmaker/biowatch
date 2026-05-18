@@ -364,9 +364,9 @@ function PreflightSkeleton() {
 
 function SummaryRow({ label, value }) {
   return (
-    <div className="flex justify-between gap-3 items-baseline">
-      <span className="text-muted-foreground flex-shrink-0">{label}</span>
-      <span className="font-medium text-right truncate" title={String(value)}>
+    <div className="flex gap-3 items-baseline">
+      <span className="text-muted-foreground flex-shrink-0 w-14">{label}</span>
+      <span className="font-medium truncate flex-1 min-w-0" title={String(value)}>
         {value}
       </span>
     </div>
