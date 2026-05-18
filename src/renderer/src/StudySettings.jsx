@@ -6,6 +6,7 @@ import DeleteStudyModal from './DeleteStudyModal'
 import Export from './export'
 import { useSequenceGap } from './hooks/useSequenceGap'
 import { SequenceGapSlider } from './ui/SequenceGapSlider'
+import { deleteStudyWithConfirm } from './utils/deleteStudyWithConfirm.js'
 
 export default function StudySettings({ studyId, studyName }) {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
@@ -13,7 +14,7 @@ export default function StudySettings({ studyId, studyName }) {
 
   const handleDeleteStudy = async () => {
     try {
-      await window.api.deleteStudyDatabase(studyId)
+      await deleteStudyWithConfirm(studyId, studyName)
     } catch (error) {
       console.error('Failed to delete study:', error)
     }
