@@ -79,12 +79,12 @@ const api = {
   onMergeProgress: (callback) => {
     const handler = (_e, payload) => callback(payload)
     electronAPI.ipcRenderer.on('merge:progress', handler)
-    return () => electronAPI.ipcRenderer.off('merge:progress', handler)
+    return () => electronAPI.ipcRenderer.removeListener('merge:progress', handler)
   },
   onMergeComplete: (callback) => {
     const handler = (_e, payload) => callback(payload)
     electronAPI.ipcRenderer.on('merge:complete', handler)
-    return () => electronAPI.ipcRenderer.off('merge:complete', handler)
+    return () => electronAPI.ipcRenderer.removeListener('merge:complete', handler)
   },
   checkStudyHasEventIDs: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('study:has-event-ids', studyId)
