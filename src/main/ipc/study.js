@@ -2,9 +2,10 @@
  * Study-related IPC handlers
  */
 
-import { app, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain } from 'electron'
 import log from 'electron-log'
 import { existsSync, rmSync } from 'fs'
+import { join } from 'path'
 import { getStudyDatabasePath, getStudyPath } from '../services/paths.js'
 import { listStudies, updateStudy } from '../services/study.js'
 import { getStudyCacheStats, clearStudyCache } from '../services/cache/study.js'
@@ -15,6 +16,13 @@ import {
   updateMetadata,
   getDrizzleDb
 } from '../database/index.js'
+import { mergePreflight } from '../services/merge/preflight.js'
+import { mergeStudy } from '../services/merge/index.js'
+import { getAtRiskMergeBreaks } from '../services/merge/bDeletion.js'
+
+function getBiowatchDataPath() {
+  return join(app.getPath('userData'), 'biowatch-data')
+}
 
 /**
  * Register all study-related IPC handlers
@@ -28,8 +36,19 @@ export function registerStudyIPCHandlers() {
     return await updateStudy(id, update)
   })
 
-  ipcMain.handle('study:delete-database', async (event, studyId) => {
+  ipcMain.handle('study:delete-database', async (event, studyId, options = {}) => {
     try {
+      const force = options && options.force === true
+      if (!force) {
+        const dependentBreaks = getAtRiskMergeBreaks({
+          biowatchDataPath: getBiowatchDataPath(),
+          sourceStudyId: studyId
+        })
+        if (dependentBreaks.length > 0) {
+          return { needsConfirm: true, dependentBreaks }
+        }
+      }
+
       log.info(`Deleting study: ${studyId}`)
       const studyPath = getStudyPath(app.getPath('userData'), studyId)
 
@@ -48,6 +67,39 @@ export function registerStudyIPCHandlers() {
     } catch (error) {
       log.error('Error deleting study:', error)
       return { error: error.message, success: false }
+    }
+  })
+
+  ipcMain.handle('study:merge-preflight', async (_event, targetStudyId, sourceStudyId) => {
+    try {
+      return mergePreflight({
+        biowatchDataPath: getBiowatchDataPath(),
+        targetStudyId,
+        sourceStudyId
+      })
+    } catch (error) {
+      log.error('Error in study:merge-preflight:', error)
+      return { error: error.message }
+    }
+  })
+
+  ipcMain.handle('study:merge', async (_event, targetStudyId, sourceStudyId, reviewed) => {
+    try {
+      // Close any open handle on the target so the merge can write through a fresh connection.
+      await closeStudyDatabase(targetStudyId)
+      const result = mergeStudy({
+        biowatchDataPath: getBiowatchDataPath(),
+        targetStudyId,
+        sourceStudyId,
+        reviewed: reviewed || { description: '', contributorEmails: [] }
+      })
+      BrowserWindow.getAllWindows().forEach((w) =>
+        w.webContents.send('merge:complete', { studyId: targetStudyId })
+      )
+      return result
+    } catch (error) {
+      log.error('Error in study:merge:', error)
+      return { success: false, error: error.message }
     }
   })
 
