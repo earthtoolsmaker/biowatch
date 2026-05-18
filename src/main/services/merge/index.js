@@ -260,7 +260,9 @@ function mergeContributors(aList, bList, keepEmails) {
     const key = (c.email || '').toLowerCase()
     if (key && !byEmail.has(key)) byEmail.set(key, c)
   }
-  if (!keepEmails || keepEmails.length === 0) return [...byEmail.values()]
+  // `keepEmails == null` means "no filter, keep the full union". An empty
+  // array is explicit user intent ("drop everyone") and must be honored.
+  if (keepEmails == null) return [...byEmail.values()]
   const keep = new Set(keepEmails.map((e) => e.toLowerCase()))
   return [...byEmail.values()].filter((c) => keep.has((c.email || '').toLowerCase()))
 }

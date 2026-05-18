@@ -244,6 +244,36 @@ describe('mergeStudy', () => {
     }
   })
 
+  test('contributorEmails: [] drops every contributor (explicit user intent)', () => {
+    const A = bootstrapStudy(A_UUID, {
+      title: 'A',
+      importerName: 'local/images',
+      contributors: [{ title: 'Alice', email: 'alice@x', role: 'contact' }]
+    })
+    const B = bootstrapStudy(B_UUID, {
+      title: 'B',
+      importerName: 'local/images',
+      contributors: [{ title: 'Bob', email: 'bob@x', role: 'contributor' }]
+    })
+    A.db.close()
+    B.db.close()
+
+    mergeStudy({
+      biowatchDataPath: root,
+      targetStudyId: A_UUID,
+      sourceStudyId: B_UUID,
+      reviewed: { description: 'merged', contributorEmails: [] }
+    })
+
+    const a = new Database(join(studiesDir, A_UUID, 'study.db'), { readonly: true })
+    try {
+      const meta = a.prepare('SELECT contributors FROM metadata').get()
+      assert.deepEqual(JSON.parse(meta.contributors), [])
+    } finally {
+      a.close()
+    }
+  })
+
   test('merges date ranges: min of starts, max of ends', () => {
     const A = bootstrapStudy(A_UUID, { title: 'A', importerName: 'local/images' })
     const B = bootstrapStudy(B_UUID, { title: 'B', importerName: 'local/images' })
