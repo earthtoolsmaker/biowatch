@@ -48,6 +48,11 @@ const api = {
   deleteStudyDatabase: async (studyId, options) => {
     return await electronAPI.ipcRenderer.invoke('study:delete-database', studyId, options)
   },
+  getStudyMetadata: async (studyId) => {
+    const response = await electronAPI.ipcRenderer.invoke('study:get-metadata', studyId)
+    if (response.error) throw new Error(response.error)
+    return response.data
+  },
   mergePreflight: async (targetStudyId, sourceStudyId) => {
     return await electronAPI.ipcRenderer.invoke(
       'study:merge-preflight',

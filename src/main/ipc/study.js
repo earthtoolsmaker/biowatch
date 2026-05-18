@@ -156,6 +156,22 @@ export function registerStudyIPCHandlers() {
     }
   })
 
+  ipcMain.handle('study:get-metadata', async (_, studyId) => {
+    try {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) {
+        log.warn(`Database not found for study ID: ${studyId}`)
+        return { data: null }
+      }
+      const db = await getDrizzleDb(studyId, dbPath, { readonly: true })
+      const meta = await getMetadata(db)
+      return { data: meta || null }
+    } catch (error) {
+      log.error('Error getting study metadata:', error)
+      return { error: error.message, data: null }
+    }
+  })
+
   ipcMain.handle('study:get-cache-stats', async (_, studyId) => {
     try {
       const data = await getStudyCacheStats(studyId)
