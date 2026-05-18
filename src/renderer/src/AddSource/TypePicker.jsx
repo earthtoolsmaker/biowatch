@@ -42,7 +42,7 @@ export default function TypePicker({ isOpen, selected, onSelect, onCancel, onNex
           <Card
             icon={<FolderOpen size={20} />}
             title="Images directory"
-            subtitle="Scan a local folder of images with an ML model"
+            subtitle="Scan a local folder of images with an AI model"
             active={selected === 'folder'}
             onClick={() => onSelect('folder')}
           />
