@@ -205,7 +205,7 @@ describe('mergeStudy', () => {
     )
   })
 
-  test('skips media whose local files are missing, plus their dependent observations', () => {
+  test('reports missingFileCount but inserts every row — broken filePaths are B-level, not merge-level', () => {
     const A = bootstrapStudy(A_UUID, { title: 'A', importerName: 'local/images' })
     const B = bootstrapStudy(B_UUID, { title: 'B', importerName: 'local/images' })
     const existing = join(B.dir, 'x.jpg')
@@ -231,12 +231,14 @@ describe('mergeStudy', () => {
       reviewed: { description: '', contributorEmails: [] }
     })
     assert.equal(result.success, true)
+    // Informational only: we surface that 1 file is gone on disk, but every
+    // row still gets copied (broken filePaths are B's problem, not merge's).
     assert.equal(result.missingFileCount, 1)
 
     const a = new Database(A.dbPath, { readonly: true })
     try {
-      assert.equal(a.prepare('SELECT COUNT(*) AS n FROM media').get().n, 1)
-      assert.equal(a.prepare('SELECT COUNT(*) AS n FROM observations').get().n, 1)
+      assert.equal(a.prepare('SELECT COUNT(*) AS n FROM media').get().n, 2)
+      assert.equal(a.prepare('SELECT COUNT(*) AS n FROM observations').get().n, 2)
     } finally {
       a.close()
     }

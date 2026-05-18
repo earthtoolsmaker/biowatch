@@ -143,17 +143,18 @@ export function mergeStudy({
       counts.modelOutputs +
       counts.observations
 
-    // Pass 1: stream B's media to identify missing local files. Keeping only
-    // the missing-ID set means memory scales with the number of *missing*
-    // files, not the total. A study with all-present files keeps the set empty.
+    // Pass 1: stream B's media to count missing local files. We don't filter
+    // them out of the merge — broken filePaths are a pre-existing condition
+    // of B (e.g., GBIF imports point at /tmp that the importer cleaned up;
+    // unmounted external drives). The renderer's "file unavailable" path
+    // handles these at view time. We just surface the count so the user
+    // knows what to expect.
     notify('scanning', 0, counts.media)
-    const missingMediaIDs = new Set()
+    let missingFileCount = 0
     let scanned = 0
-    for (const { mediaID, filePath } of bDb
-      .prepare('SELECT mediaID, filePath FROM media')
-      .iterate()) {
+    for (const { filePath } of bDb.prepare('SELECT filePath FROM media').iterate()) {
       if (filePath && !URL_RE.test(filePath) && !existsSync(filePath)) {
-        missingMediaIDs.add(mediaID)
+        missingFileCount++
       }
       scanned++
       if (scanned % TICK === 0) notify('scanning', scanned, counts.media)
@@ -186,10 +187,6 @@ export function mergeStudy({
         bump()
       }
       for (const row of bDb.prepare('SELECT * FROM media').iterate()) {
-        if (missingMediaIDs.has(row.mediaID)) {
-          bump()
-          continue
-        }
         const out = prefixRow(row, prefix, { pk: 'mediaID', fks: ['deploymentID'] })
         out.importFolder = mergeKey
         insertMedia.run(project(out, 'media'))
@@ -200,20 +197,12 @@ export function mergeStudy({
         bump()
       }
       for (const row of bDb.prepare('SELECT * FROM model_outputs').iterate()) {
-        if (missingMediaIDs.has(row.mediaID)) {
-          bump()
-          continue
-        }
         insertModelOutput.run(
           project({ ...row, mediaID: `${prefix}${row.mediaID}` }, 'model_outputs')
         )
         bump()
       }
       for (const row of bDb.prepare('SELECT * FROM observations').iterate()) {
-        if (missingMediaIDs.has(row.mediaID)) {
-          bump()
-          continue
-        }
         const out = prefixRow(row, prefix, {
           pk: 'observationID',
           fks: ['mediaID', 'deploymentID']
@@ -247,7 +236,7 @@ export function mergeStudy({
     txn()
     notify('inserting', insertTotal, insertTotal)
 
-    return { success: true, missingFileCount: missingMediaIDs.size }
+    return { success: true, missingFileCount }
   } finally {
     aDb.close()
     bDb.close()
