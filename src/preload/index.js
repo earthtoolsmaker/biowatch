@@ -45,8 +45,28 @@ const api = {
   getDeploymentStats: async (studyId, deploymentID) => {
     return await electronAPI.ipcRenderer.invoke('deployments:get-stats', studyId, deploymentID)
   },
-  deleteStudyDatabase: async (studyId) => {
-    return await electronAPI.ipcRenderer.invoke('study:delete-database', studyId)
+  deleteStudyDatabase: async (studyId, options) => {
+    return await electronAPI.ipcRenderer.invoke('study:delete-database', studyId, options)
+  },
+  mergePreflight: async (targetStudyId, sourceStudyId) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'study:merge-preflight',
+      targetStudyId,
+      sourceStudyId
+    )
+  },
+  mergeStudy: async (targetStudyId, sourceStudyId, reviewed) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'study:merge',
+      targetStudyId,
+      sourceStudyId,
+      reviewed
+    )
+  },
+  onMergeComplete: (callback) => {
+    const handler = (_e, payload) => callback(payload)
+    electronAPI.ipcRenderer.on('merge:complete', handler)
+    return () => electronAPI.ipcRenderer.off('merge:complete', handler)
   },
   checkStudyHasEventIDs: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('study:has-event-ids', studyId)
