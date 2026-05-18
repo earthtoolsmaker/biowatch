@@ -144,14 +144,17 @@ function SourceRow({ source, importerName, studyName, expanded, onToggle }) {
   // has no separator and renders unchanged on a single line.
   const isPathLike =
     hasImportFolder &&
+    !source.importFolder.startsWith('merge:') &&
     (source.importFolder.startsWith('/') ||
       source.importFolder.startsWith('http') ||
       source.importFolder.includes('\\'))
-  const label = !hasImportFolder
-    ? studyName || 'Imported dataset'
-    : isPathLike
-      ? basenameOf(source.importFolder) || source.importFolder
-      : source.importFolder
+  const label = source.displayLabel
+    ? source.displayLabel
+    : !hasImportFolder
+      ? studyName || 'Imported dataset'
+      : isPathLike
+        ? basenameOf(source.importFolder) || source.importFolder
+        : source.importFolder
   const remoteHost = source.isRemote ? hostOf(source.sampleRemoteUrl) : ''
   // For remote sources we show the server host below the name (parallel to the
   // local-path row); for local sources we show the importFolder path.
@@ -167,7 +170,7 @@ function SourceRow({ source, importerName, studyName, expanded, onToggle }) {
           {canExpand ? expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} /> : null}
         </div>
         <div className="w-[22px] flex justify-center flex-shrink-0">
-          <SourceIcon importerName={importerName} />
+          <SourceIcon importerName={source.importerName || importerName} />
         </div>
         <div className="flex-1 min-w-[180px]">
           <div className="flex items-center gap-2 text-sm font-medium text-foreground">
@@ -291,7 +294,7 @@ export default function Sources({ studyId, importerName, studyName }) {
                     : 'opacity-50 cursor-not-allowed'
                 }`}
               >
-                + Add images directory
+                + Add source
               </button>
             </header>
             {sources.length === 0 ? (
