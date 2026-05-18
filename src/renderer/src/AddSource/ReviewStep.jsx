@@ -178,41 +178,48 @@ export default function ReviewStep({
                 </div>
               )}
 
-              {contributors.length > 0 && (
-                <div>
-                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
-                    Contributors
-                  </div>
-                  <div className="border border-border/50 rounded-md divide-y divide-border/40">
-                    {contributors.map((c, i) => (
-                      <label
-                        key={c.email + i}
-                        className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-500/15"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={c.checked}
-                          onChange={(e) =>
-                            setContributors((prev) =>
-                              prev.map((p, idx) =>
-                                idx === i ? { ...p, checked: e.target.checked } : p
-                              )
-                            )
-                          }
-                          disabled={submitting}
-                        />
-                        <span className="flex-1">
-                          {c.title || c.email}
-                          {c.role && <span className="text-muted-foreground"> · {c.role}</span>}
-                        </span>
-                        <span className="text-[10px] uppercase text-muted-foreground">
-                          {c.origin}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {contributors.length > 0 &&
+                (() => {
+                  const origins = new Set(contributors.map((c) => c.origin))
+                  const showOriginBadge = origins.size > 1
+                  return (
+                    <div>
+                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
+                        Contributors
+                      </div>
+                      <div className="border border-border/50 rounded-md divide-y divide-border/40">
+                        {contributors.map((c, i) => (
+                          <label
+                            key={c.email + i}
+                            className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-500/15"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={c.checked}
+                              onChange={(e) =>
+                                setContributors((prev) =>
+                                  prev.map((p, idx) =>
+                                    idx === i ? { ...p, checked: e.target.checked } : p
+                                  )
+                                )
+                              }
+                              disabled={submitting}
+                            />
+                            <span className="flex-1">
+                              {c.title || c.email}
+                              {c.role && <span className="text-muted-foreground"> · {c.role}</span>}
+                            </span>
+                            {showOriginBadge && (
+                              <span className="text-[10px] uppercase text-muted-foreground">
+                                {c.origin}
+                              </span>
+                            )}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })()}
 
               {error && (
                 <div className="text-sm text-red-600 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-md px-3 py-2 dark:text-red-400">
@@ -323,15 +330,15 @@ function buildContributors(aJson, bJson) {
   const byEmail = new Map()
   for (const c of aArr) {
     if (!c.email) continue
-    byEmail.set(c.email.toLowerCase(), { ...c, origin: 'A only', checked: true })
+    byEmail.set(c.email.toLowerCase(), { ...c, origin: 'Existing', checked: true })
   }
   for (const c of bArr) {
     if (!c.email) continue
     const key = c.email.toLowerCase()
     if (byEmail.has(key)) {
-      byEmail.get(key).origin = 'A + B'
+      byEmail.get(key).origin = 'Both'
     } else {
-      byEmail.set(key, { ...c, origin: 'B only', checked: true })
+      byEmail.set(key, { ...c, origin: 'New', checked: true })
     }
   }
   return [...byEmail.values()]
