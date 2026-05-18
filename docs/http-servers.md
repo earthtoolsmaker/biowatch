@@ -13,11 +13,12 @@ Biowatch uses an **HTTP-based ML model serving architecture** where each machine
 
 ### Supported Models
 
-| Model                    | Focus               | Species Coverage                     |
-| ------------------------ | ------------------- | ------------------------------------ |
-| **SpeciesNet** (Google)  | Global wildlife     | 2,000+ species worldwide             |
-| **DeepFaune** (CNRS)     | European fauna      | 34 European species                  |
-| **Manas** (OSI-Panthera) | Central Asian fauna | Snow leopard and 11 regional species |
+| Model                                     | Focus                              | Species Coverage                              |
+| ----------------------------------------- | ---------------------------------- | --------------------------------------------- |
+| **SpeciesNet** (Google)                   | Global wildlife                    | 2,000+ species worldwide                      |
+| **DeepFaune** (CNRS)                      | European fauna                     | 34 European species                           |
+| **Manas** (OSI-Panthera)                  | Central Asian fauna                | Snow leopard and 11 regional species          |
+| **MegaDetector** (Microsoft AI for Earth) | Blank filter / worldwide detection | 3 categories (animal, person, vehicle)        |
 
 ### Technology Stack
 
@@ -98,7 +99,8 @@ src/
 python-environments/common/
 ├── run_speciesnet_server.py    # SpeciesNet LitServe implementation
 ├── run_deepfaune_server.py     # DeepFaune LitServe implementation
-└── run_manas_server.py         # Manas LitServe implementation
+├── run_manas_server.py         # Manas LitServe implementation
+└── run_megadetector_server.py  # MegaDetector LitServe implementation (detection-only)
 ```
 
 ## How HTTP Servers Work
