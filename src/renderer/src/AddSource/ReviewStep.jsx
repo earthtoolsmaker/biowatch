@@ -125,7 +125,7 @@ export default function ReviewStep({
                 <SummaryRow label="From" value={sourceStudy.name || sourceStudy.id} />
                 <SummaryRow
                   label="Into"
-                  value={targetMeta?.title || targetMeta?.name || targetStudyId}
+                  value={targetMeta?.name || targetMeta?.title || targetStudyId}
                 />
                 <div className="pt-3 border-t border-blue-200/60 dark:border-blue-500/20">
                   <div className="text-muted-foreground mb-2">Adding</div>

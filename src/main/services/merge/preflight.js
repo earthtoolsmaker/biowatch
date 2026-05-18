@@ -38,18 +38,25 @@ export function mergePreflight({ biowatchDataPath, targetStudyId, sourceStudyId 
     const renameCount = deploymentCount
 
     const bStudyRoot = join(biowatchDataPath, 'studies', sourceStudyId) + '/'
-    const ownedByBiowatchCount = bDb
-      .prepare(
-        `SELECT COUNT(*) AS n FROM media
-         WHERE filePath IS NOT NULL AND substr(filePath, 1, ?) = ?`
-      )
-      .get(bStudyRoot.length, bStudyRoot).n
 
+    // Single pass over media: count missing local files AND
+    // biowatch-owned-AND-actually-present files. The "owned" count is what
+    // drives the delete-time warning; only files that actually exist on
+    // disk *and* live inside B's biowatch dir are at risk of breakage when
+    // B is deleted. Filepaths-inside-biowatch that are already missing on
+    // disk are neither at risk nor recoverable — they get counted as
+    // missing only.
     let missingFileCount = 0
+    let ownedByBiowatchCount = 0
     const mediaRows = bDb.prepare('SELECT filePath FROM media').all()
     for (const { filePath } of mediaRows) {
       if (!filePath || URL_RE.test(filePath)) continue
-      if (!existsSync(filePath)) missingFileCount++
+      const onDisk = existsSync(filePath)
+      if (!onDisk) {
+        missingFileCount++
+      } else if (filePath.startsWith(bStudyRoot)) {
+        ownedByBiowatchCount++
+      }
     }
 
     return {

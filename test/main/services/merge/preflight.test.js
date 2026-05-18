@@ -122,6 +122,28 @@ describe('mergePreflight', () => {
     assert.equal(out.alreadyMerged, true)
   })
 
+  test('paths inside biowatch but missing on disk count as missing, not as owned', () => {
+    const A = newStudy('aaaaaaaa-1111-4111-9111-111111111111')
+    const B = newStudy('bbbbbbbb-2222-4222-9222-222222222222')
+    // filePath looks biowatch-owned, but the file was never created on disk —
+    // common shape when a CamtrapDP import recorded media rows for files that
+    // were never downloaded/extracted. These should not trigger the "files
+    // remain available after merge" warning.
+    const ghostPath = join(B.dir, 'media', 'ghost.jpg')
+    B.db
+      .prepare('INSERT INTO media (mediaID, filePath, importFolder) VALUES (?, ?, ?)')
+      .run('m1', ghostPath, B.dir)
+    A.db.close()
+    B.db.close()
+    const out = mergePreflight({
+      biowatchDataPath: root,
+      targetStudyId: 'aaaaaaaa-1111-4111-9111-111111111111',
+      sourceStudyId: 'bbbbbbbb-2222-4222-9222-222222222222'
+    })
+    assert.equal(out.ownedByBiowatchCount, 0)
+    assert.equal(out.missingFileCount, 1)
+  })
+
   test('missingFileCount counts local files that are not on disk; URLs skip the check', () => {
     const A = newStudy('aaaaaaaa-1111-4111-9111-111111111111')
     const B = newStudy('bbbbbbbb-2222-4222-9222-222222222222')
