@@ -92,7 +92,7 @@ export default function ReviewStep({
       onClick={() => !submitting && onCancel()}
     >
       <div
-        className="bg-card rounded-lg shadow-xl w-[520px] max-w-[92vw] flex flex-col"
+        className="bg-card rounded-lg shadow-xl w-[560px] max-w-[92vw] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-6 py-4 border-b border-border flex justify-between items-start">
@@ -263,7 +263,7 @@ function Stat({ icon, count, label }) {
         <span className="text-blue-600 dark:text-blue-300">{icon}</span>
         <span className="text-[10px] uppercase tracking-wide">{label}</span>
       </div>
-      <div className="text-base font-semibold text-foreground tabular-nums">
+      <div className="text-sm font-semibold text-foreground tabular-nums leading-tight break-all">
         {Number(count || 0).toLocaleString()}
       </div>
     </div>

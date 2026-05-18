@@ -99,7 +99,7 @@ export default function StudyPicker({ isOpen, currentStudyId, onBack, onCancel, 
         <div className="px-6 py-4 space-y-3">
           {showSearch && (
             <input
-              className="w-full px-3 py-2 rounded-md bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+              className="w-full px-3 py-2 rounded-md bg-card border border-border/60 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400"
               placeholder="Search studies by name…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
