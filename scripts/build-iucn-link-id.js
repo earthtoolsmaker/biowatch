@@ -150,9 +150,7 @@ async function main() {
   console.log(`source version : ${meta.sourceVersion}`)
   console.log(`refreshed at   : ${meta.refreshedAt}`)
   console.log(`threatened     : ${threatenedKeys.length}`)
-  const pct = threatenedKeys.length
-    ? Math.round((100 * matched) / threatenedKeys.length)
-    : 0
+  const pct = threatenedKeys.length ? Math.round((100 * matched) / threatenedKeys.length) : 0
   console.log(`matched        : ${matched} (${pct}%)`)
   console.log(`unmatched      : ${unmatched.length}`)
   if (unmatched.length) console.log(`  sample: ${unmatched.slice(0, 8).join(', ')}`)

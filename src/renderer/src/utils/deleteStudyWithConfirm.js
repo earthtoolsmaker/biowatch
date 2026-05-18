@@ -14,13 +14,11 @@ export async function deleteStudyWithConfirm(studyId, studyTitle) {
   if (result?.needsConfirm) {
     const dependents = result.dependentBreaks || []
     const lines = dependents.map(
-      (d) =>
-        `• ${d.title || d.studyId} — ${d.brokenMediaCount} media will become unavailable`
+      (d) => `• ${d.title || d.studyId} — ${d.brokenMediaCount} media will become unavailable`
     )
-    const message =
-      `${studyTitle || 'This study'} has been merged into ${dependents.length} other ${
-        dependents.length === 1 ? 'study' : 'studies'
-      }:\n\n${lines.join('\n')}\n\nDelete anyway?`
+    const message = `${studyTitle || 'This study'} has been merged into ${dependents.length} other ${
+      dependents.length === 1 ? 'study' : 'studies'
+    }:\n\n${lines.join('\n')}\n\nDelete anyway?`
     const ok = window.confirm(message)
     if (!ok) return { cancelled: true }
     return await window.api.deleteStudyDatabase(studyId, { force: true })

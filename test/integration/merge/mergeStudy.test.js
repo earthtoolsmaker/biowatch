@@ -99,10 +99,9 @@ describe('mergeStudy', () => {
       contributors: [{ title: 'Bob', email: 'bob@x', role: 'contributor' }]
     })
 
-    B.db.prepare('INSERT INTO deployments (deploymentID, locationID) VALUES (?, ?)').run(
-      'CAM_01',
-      'CAM_01'
-    )
+    B.db
+      .prepare('INSERT INTO deployments (deploymentID, locationID) VALUES (?, ?)')
+      .run('CAM_01', 'CAM_01')
     B.db
       .prepare(
         `INSERT INTO media (mediaID, deploymentID, filePath, importFolder)
@@ -218,9 +217,7 @@ describe('mergeStudy', () => {
     B.db
       .prepare('INSERT INTO media (mediaID, deploymentID, filePath) VALUES (?, ?, ?)')
       .run('GONE', 'CAM_01', '/nowhere/missing.jpg')
-    B.db
-      .prepare('INSERT INTO observations (observationID, mediaID) VALUES (?, ?)')
-      .run('o1', 'OK')
+    B.db.prepare('INSERT INTO observations (observationID, mediaID) VALUES (?, ?)').run('o1', 'OK')
     B.db
       .prepare('INSERT INTO observations (observationID, mediaID) VALUES (?, ?)')
       .run('o2', 'GONE')

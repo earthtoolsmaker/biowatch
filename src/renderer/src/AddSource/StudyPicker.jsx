@@ -71,9 +71,7 @@ export default function StudyPicker({ isOpen, currentStudyId, onBack, onCancel, 
 
   const showSearch = studies.length > 5
   const visible = showSearch
-    ? studies.filter((s) =>
-        (s.name || s.id || '').toLowerCase().includes(search.toLowerCase())
-      )
+    ? studies.filter((s) => (s.name || s.id || '').toLowerCase().includes(search.toLowerCase()))
     : studies
 
   return (

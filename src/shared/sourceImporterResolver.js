@@ -14,18 +14,12 @@ function isUrl(s) {
  * @param {Array<{ id: string, name?: string, title?: string, importerName: string }>} args.studies
  * @returns {{ importerName: string, displayLabel?: string }}
  */
-export function resolveSourceDisplay({
-  importFolder,
-  studyImporterName,
-  sampleFilePath,
-  studies
-}) {
+export function resolveSourceDisplay({ importFolder, studyImporterName, sampleFilePath, studies }) {
   if (typeof importFolder === 'string' && importFolder.startsWith(MERGE_PREFIX)) {
     const uuid = importFolder.slice(MERGE_PREFIX.length)
     const b = (studies || []).find((s) => s.id === uuid)
     if (b) return { importerName: b.importerName, displayLabel: b.name || b.title }
-    if (isUrl(sampleFilePath))
-      return { importerName: 'lila/coco', displayLabel: 'Merged source' }
+    if (isUrl(sampleFilePath)) return { importerName: 'lila/coco', displayLabel: 'Merged source' }
     return { importerName: studyImporterName, displayLabel: 'Merged source' }
   }
   if (isUrl(sampleFilePath)) return { importerName: 'lila/coco' }

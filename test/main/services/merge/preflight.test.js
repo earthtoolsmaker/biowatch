@@ -61,9 +61,7 @@ describe('mergePreflight', () => {
       )
       .run('m1', 'CAM_01', '/home/user/photos/CAM_01/a.jpg', '/home/user/photos')
     B.db
-      .prepare(
-        'INSERT INTO observations (observationID, mediaID, deploymentID) VALUES (?, ?, ?)'
-      )
+      .prepare('INSERT INTO observations (observationID, mediaID, deploymentID) VALUES (?, ?, ?)')
       .run('o1', 'm1', 'CAM_01')
     A.db.close()
     B.db.close()
@@ -127,7 +125,9 @@ describe('mergePreflight', () => {
   test('missingFileCount counts local files that are not on disk; URLs skip the check', () => {
     const A = newStudy('aaaaaaaa-1111-4111-9111-111111111111')
     const B = newStudy('bbbbbbbb-2222-4222-9222-222222222222')
-    B.db.prepare('INSERT INTO media (mediaID, filePath) VALUES (?, ?)').run('m1', '/nowhere/missing.jpg')
+    B.db
+      .prepare('INSERT INTO media (mediaID, filePath) VALUES (?, ?)')
+      .run('m1', '/nowhere/missing.jpg')
     B.db
       .prepare('INSERT INTO media (mediaID, filePath) VALUES (?, ?)')
       .run('m2', 'https://lila.science/x.jpg')

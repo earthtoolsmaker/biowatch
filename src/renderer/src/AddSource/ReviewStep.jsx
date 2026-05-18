@@ -115,11 +115,11 @@ export default function ReviewStep({
           {preflight && (
             <>
               <div className="bg-muted rounded-md p-3 text-sm space-y-1">
+                <SummaryRow label="From" value={sourceStudy.name || sourceStudy.id} />
                 <SummaryRow
-                  label="From"
-                  value={sourceStudy.name || sourceStudy.id}
+                  label="Into"
+                  value={targetMeta?.title || targetMeta?.name || targetStudyId}
                 />
-                <SummaryRow label="Into" value={targetMeta?.title || targetMeta?.name || targetStudyId} />
                 <SummaryRow
                   label="Adding"
                   value={`${preflight.deploymentCount} deployments · ${preflight.mediaCount} media · ${preflight.observationCount} observations`}
@@ -136,9 +136,9 @@ export default function ReviewStep({
                 <p className="text-xs text-amber-700 dark:text-amber-300">
                   {preflight.ownedByBiowatchCount} file
                   {preflight.ownedByBiowatchCount === 1 ? '' : 's'} in{' '}
-                  {sourceStudy.name || 'this study'} live inside biowatch's own storage. They will
-                  remain available after the merge, but deleting the source study later will make
-                  them unavailable here. You'll be warned at delete time.
+                  {sourceStudy.name || 'this study'} live inside biowatch&apos;s own storage. They
+                  will remain available after the merge, but deleting the source study later will
+                  make them unavailable here. You&apos;ll be warned at delete time.
                 </p>
               )}
 
@@ -150,15 +150,11 @@ export default function ReviewStep({
                 </p>
               )}
 
-              <div>
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Description
-                </span>
-                {description.trim() === '' ? (
-                  <p className="mt-1.5 text-xs text-muted-foreground italic">
-                    No description to merge.
-                  </p>
-                ) : (
+              {description.trim() !== '' && (
+                <div>
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Description
+                  </span>
                   <textarea
                     className="w-full mt-1.5 px-3 py-2 rounded-md bg-muted border border-border text-sm font-mono text-foreground"
                     rows={6}
@@ -166,16 +162,14 @@ export default function ReviewStep({
                     onChange={(e) => setDescription(e.target.value)}
                     disabled={submitting}
                   />
-                )}
-              </div>
-
-              <div>
-                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
-                  Contributors
                 </div>
-                {contributors.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No contributors to merge.</p>
-                ) : (
+              )}
+
+              {contributors.length > 0 && (
+                <div>
+                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
+                    Contributors
+                  </div>
                   <div className="border border-border rounded-md divide-y divide-border">
                     {contributors.map((c, i) => (
                       <label
@@ -196,9 +190,7 @@ export default function ReviewStep({
                         />
                         <span className="flex-1">
                           {c.title || c.email}
-                          {c.role && (
-                            <span className="text-muted-foreground"> · {c.role}</span>
-                          )}
+                          {c.role && <span className="text-muted-foreground"> · {c.role}</span>}
                         </span>
                         <span className="text-[10px] uppercase text-muted-foreground">
                           {c.origin}
@@ -206,8 +198,8 @@ export default function ReviewStep({
                       </label>
                     ))}
                   </div>
-                )}
-              </div>
+                </div>
+              )}
 
               {error && (
                 <div className="text-sm text-red-600 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-md px-3 py-2 dark:text-red-400">

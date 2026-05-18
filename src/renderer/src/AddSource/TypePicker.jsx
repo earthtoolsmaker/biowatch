@@ -29,10 +29,7 @@ export default function TypePicker({ isOpen, selected, onSelect, onCancel, onNex
       >
         <header className="flex items-center justify-between px-5 py-4 border-b border-border">
           <h3 className="text-base font-medium text-foreground">Add source</h3>
-          <button
-            onClick={onCancel}
-            className="text-muted-foreground hover:text-foreground"
-          >
+          <button onClick={onCancel} className="text-muted-foreground hover:text-foreground">
             <X size={18} />
           </button>
         </header>
