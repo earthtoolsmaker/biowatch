@@ -30,17 +30,23 @@ export function listMergedSourceIds({ biowatchDataPath, targetStudyId }) {
       .all()) {
       ids.add(importFolder.slice('merge:'.length))
     }
-    // Edge case: merges where every media was missing leave only deployments behind.
-    for (const { deploymentID } of db
+    // Edge case: merges where every media was missing leave only deployments
+    // behind. Deduplicate short prefixes server-side (SQL DISTINCT on the
+    // substring) instead of pulling every deployment row into JS — a target
+    // study with 500k merged deployments would otherwise materialize a 500k
+    // string array just to derive at most a handful of prefixes.
+    //
+    // The deploymentID format is `study:<uuid-short>:<original-id>` where
+    // `uuid-short` is the first 8 chars of the source UUID. We can't
+    // reconstruct the full UUID, so we emit `__short:<short>` sentinels and
+    // let the caller compare against candidate first-8-chars.
+    for (const { short } of db
       .prepare(
-        `SELECT deploymentID FROM deployments
-         WHERE deploymentID LIKE 'study:%:%'`
+        `SELECT DISTINCT substr(deploymentID, 7, 8) AS short
+         FROM deployments
+         WHERE deploymentID LIKE 'study:________:%'`
       )
-      .all()) {
-      // Format is "study:<uuid-short>:<original-id>" — we can't reconstruct the
-      // full UUID from the short prefix, so we only flag candidates whose
-      // first 8 chars match. The caller is responsible for the comparison.
-      const short = deploymentID.split(':')[1]
+      .iterate()) {
       if (short) ids.add(`__short:${short}`)
     }
     return [...ids]
