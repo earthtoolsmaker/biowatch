@@ -126,8 +126,8 @@ export default function ReviewStep({
                   label="Into"
                   value={targetMeta?.title || targetMeta?.name || targetStudyId}
                 />
-                <div className="pt-2 border-t border-blue-200/60 dark:border-blue-500/20">
-                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-2">
+                <div className="pt-3 border-t border-blue-200/60 dark:border-blue-500/20">
+                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-3">
                     Adding
                   </div>
                   <div className="grid grid-cols-3 gap-3">
