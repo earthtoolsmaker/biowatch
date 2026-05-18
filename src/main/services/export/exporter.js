@@ -25,6 +25,7 @@ import {
   sanitizeDatapackage,
   CAMTRAP_DP_PROFILE_URL
 } from './sanitizers.js'
+import { mapObservationType } from './observationType.js'
 
 function getStudyDatabasePath(userDataPath, studyId) {
   return join(getStudyPath(userDataPath, studyId), 'study.db')
@@ -553,21 +554,8 @@ function inferMimeType(filePath) {
   return MIME_TYPES[ext] || 'application/octet-stream'
 }
 
-/**
- * Map internal observationType to Camtrap DP vocabulary
- * Valid values: animal, human, vehicle, blank, unknown, unclassified
- */
-function mapObservationType(dbType, scientificName) {
-  // If scientificName is present, it's an animal observation
-  if (scientificName) return 'animal'
-  if (!dbType || dbType === 'blank') return 'blank'
-  if (dbType === 'machine') return 'animal'
-  if (dbType === 'animal') return 'animal'
-  if (dbType === 'human') return 'human'
-  if (dbType === 'vehicle') return 'vehicle'
-  if (dbType === 'unclassified') return 'unclassified'
-  return 'unknown'
-}
+// mapObservationType is imported from ./observationType.js — see that module
+// for the Camtrap DP vocabulary mapping and MegaDetector-specific routing.
 
 /**
  * Group observations into sequences based on deployment and timestamp gap.
