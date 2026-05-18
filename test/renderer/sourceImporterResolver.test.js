@@ -1,7 +1,7 @@
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { resolveSourceDisplay } from '../../src/renderer/src/sources/sourceImporterResolver.js'
+import { resolveSourceDisplay } from '../../src/shared/sourceImporterResolver.js'
 
 const studies = [
   {
