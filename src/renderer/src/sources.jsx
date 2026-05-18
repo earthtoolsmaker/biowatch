@@ -255,6 +255,23 @@ export default function Sources({ studyId, importerName, studyName }) {
     enabled: !!actualStudyId
   })
 
+  // Listen for merge completion globally, so query caches are refreshed even
+  // when the user closed the review modal mid-merge. Also surface a toast so
+  // they know it landed. Must run before any early return below to keep hooks
+  // order stable.
+  useEffect(() => {
+    if (!actualStudyId || !window.api.onMergeComplete) return
+    const unsub = window.api.onMergeComplete((payload) => {
+      if (payload?.studyId !== actualStudyId) return
+      queryClient.invalidateQueries({
+        predicate: (query) => query.queryKey.some((k) => k === actualStudyId)
+      })
+      queryClient.invalidateQueries({ queryKey: ['studies'] })
+      toast.success('Merge complete')
+    })
+    return unsub
+  }, [actualStudyId, queryClient])
+
   if (error) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -268,22 +285,6 @@ export default function Sources({ studyId, importerName, studyName }) {
   // result may legitimately mix remote (e.g. LILA-imported) and local media —
   // that's a feature of the multi-source Sources tab, not a bug.
   const canAddSource = !!importerName
-
-  // Listen for merge completion globally, so query caches are refreshed even
-  // when the user closed the review modal mid-merge ("Continue in background").
-  // Also surface a toast so they know it landed.
-  useEffect(() => {
-    if (!actualStudyId || !window.api.onMergeComplete) return
-    const unsub = window.api.onMergeComplete((payload) => {
-      if (payload?.studyId !== actualStudyId) return
-      queryClient.invalidateQueries({
-        predicate: (query) => query.queryKey.some((k) => k === actualStudyId)
-      })
-      queryClient.invalidateQueries({ queryKey: ['studies'] })
-      toast.success('Merge complete')
-    })
-    return unsub
-  }, [actualStudyId, queryClient])
 
   const handleImported = () => {
     // Invalidate every query scoped to this study so all tabs (Overview,

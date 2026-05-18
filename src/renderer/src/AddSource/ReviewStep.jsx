@@ -159,9 +159,21 @@ export default function ReviewStep({
                 <div className="pt-3 border-t border-blue-200/60 dark:border-blue-500/20">
                   <div className="text-muted-foreground mb-2">Adding</div>
                   <div className="flex items-center justify-center gap-x-5 gap-y-2 flex-wrap">
-                    <Stat icon={<Camera size={14} />} count={preflight.deploymentCount} label="deployments" />
-                    <Stat icon={<ImageIcon size={14} />} count={preflight.mediaCount} label="media" />
-                    <Stat icon={<Eye size={14} />} count={preflight.observationCount} label="observations" />
+                    <Stat
+                      icon={<Camera size={14} />}
+                      count={preflight.deploymentCount}
+                      label="deployments"
+                    />
+                    <Stat
+                      icon={<ImageIcon size={14} />}
+                      count={preflight.mediaCount}
+                      label="media"
+                    />
+                    <Stat
+                      icon={<Eye size={14} />}
+                      count={preflight.observationCount}
+                      label="observations"
+                    />
                   </div>
                 </div>
               </div>
@@ -235,7 +247,10 @@ export default function ReviewStep({
                             <span className="flex-1">
                               {c.title || c.email}
                               {c.role && (
-                                <span className="text-muted-foreground"> · {formatRole(c.role)}</span>
+                                <span className="text-muted-foreground">
+                                  {' '}
+                                  · {formatRole(c.role)}
+                                </span>
                               )}
                             </span>
                             {showOriginBadge && (
