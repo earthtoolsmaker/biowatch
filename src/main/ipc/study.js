@@ -19,6 +19,7 @@ import {
 import { mergePreflight } from '../services/merge/preflight.js'
 import { mergeStudy } from '../services/merge/index.js'
 import { getAtRiskMergeBreaks } from '../services/merge/bDeletion.js'
+import { listMergedSourceIds } from '../services/merge/mergedSources.js'
 
 function getBiowatchDataPath() {
   return join(app.getPath('userData'), 'biowatch-data')
@@ -67,6 +68,20 @@ export function registerStudyIPCHandlers() {
     } catch (error) {
       log.error('Error deleting study:', error)
       return { error: error.message, success: false }
+    }
+  })
+
+  ipcMain.handle('study:list-merged-source-ids', async (_event, targetStudyId) => {
+    try {
+      return {
+        data: listMergedSourceIds({
+          biowatchDataPath: getBiowatchDataPath(),
+          targetStudyId
+        })
+      }
+    } catch (error) {
+      log.error('Error in study:list-merged-source-ids:', error)
+      return { error: error.message, data: [] }
     }
   })
 

@@ -30,40 +30,42 @@ export default function StudyPicker({ isOpen, currentStudyId, onBack, onCancel, 
     return () => window.removeEventListener('keydown', onKey)
   }, [isOpen, onCancel])
 
-  // Load studies once when the picker opens.
+  // Load studies and already-merged set in parallel, once on open.
+  // One IPC call returns the set of merged source IDs for `currentStudyId`,
+  // which is much cheaper than running N preflights (each opens 2 DBs and
+  // walks media for missing-file detection).
   useEffect(() => {
     if (!isOpen) return
     let cancelled = false
     setLoading(true)
-    window.api.getStudies().then((list) => {
+    Promise.all([
+      window.api.getStudies(),
+      window.api.listMergedSourceIds(currentStudyId).catch(() => [])
+    ]).then(([list, mergedIds]) => {
       if (cancelled) return
       setStudies((list || []).filter((s) => s.id !== currentStudyId))
+      // mergedIds contains both full UUIDs (from media.importFolder = merge:<uuid>)
+      // and short-prefix sentinels (from deployment prefixes). We expand the short
+      // sentinels against the candidate list so the picker can flag rows whose
+      // first 8 chars match.
+      const set = new Set()
+      const shortPrefixes = []
+      for (const id of mergedIds) {
+        if (id.startsWith('__short:')) shortPrefixes.push(id.slice('__short:'.length))
+        else set.add(id)
+      }
+      if (shortPrefixes.length > 0) {
+        for (const s of list || []) {
+          if (shortPrefixes.includes((s.id || '').slice(0, 8))) set.add(s.id)
+        }
+      }
+      setMergedSet(set)
       setLoading(false)
     })
     return () => {
       cancelled = true
     }
   }, [isOpen, currentStudyId])
-
-  // Compute already-merged set when the candidate list changes.
-  useEffect(() => {
-    if (!isOpen || studies.length === 0) return
-    let cancelled = false
-    Promise.all(
-      studies.map((s) =>
-        window.api
-          .mergePreflight(currentStudyId, s.id)
-          .then((pf) => ({ id: s.id, alreadyMerged: pf?.alreadyMerged === true }))
-          .catch(() => ({ id: s.id, alreadyMerged: false }))
-      )
-    ).then((results) => {
-      if (cancelled) return
-      setMergedSet(new Set(results.filter((r) => r.alreadyMerged).map((r) => r.id)))
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [isOpen, studies, currentStudyId])
 
   if (!isOpen) return null
 
