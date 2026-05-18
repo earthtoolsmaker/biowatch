@@ -350,6 +350,8 @@ biowatch-data/
 - Independent migrations per study
 - No cross-study query complexity
 
+**Cross-study merges.** The Sources tab's "+ Add source → Another study" path copies one study's rows into another's DB. Despite the name, no files move on disk and isolation is preserved: the source study is read-only during the merge and untouched afterward. Merged rows in the target carry the synthetic marker `media.importFolder = "merge:<source-uuid>"` plus a PK prefix (`study:<short-uuid>:`) so they can be identified later (Sources tab grouping, delete-time safety check). See `docs/import-export.md` for the full data flow and `docs/database-schema.md` for the column-level details.
+
 **Database path resolution**:
 
 ```javascript
