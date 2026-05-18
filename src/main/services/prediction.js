@@ -459,8 +459,12 @@ export async function insertVideoPredictions(db, predictions, mediaRecord, model
     entry.lastFrame = Math.max(entry.lastFrame, pred.frame_number)
   }
 
-  // 4. Select winner using majority voting with average confidence tiebreaker
-  const { winner, winnerData } = selectVideoClassificationWinner(speciesMap)
+  // 4. Select winner. Detection-only models (MegaDetector) use mean-confidence
+  // voting so a noisy stream of low-conf "animal" frames can't drown out a
+  // few high-conf "person" frames. Classifiers keep the frame-count-primary
+  // majority vote, which suits per-frame classification of the same scene.
+  const weightedVote = modelType === 'megadetector'
+  const { winner, winnerData } = selectVideoClassificationWinner(speciesMap, { weightedVote })
 
   // 5. Create exactly ONE observation (winner or blank)
   const fps = mediaRecord.exifData?.fps || 1
