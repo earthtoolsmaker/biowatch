@@ -274,7 +274,7 @@ function PreflightSkeleton() {
             {[0, 1, 2].map((i) => (
               <div key={i} className="flex flex-col items-start gap-1">
                 <div className="h-3 w-20 rounded bg-blue-200/60 dark:bg-blue-500/30" />
-                <div className="h-4 w-16 rounded bg-blue-200/60 dark:bg-blue-500/30 ml-[22px]" />
+                <div className="h-4 w-16 rounded bg-blue-200/60 dark:bg-blue-500/30" />
               </div>
             ))}
           </div>
@@ -319,7 +319,7 @@ function Stat({ icon, count, label }) {
         </span>
         <span className="text-[10px] uppercase tracking-wide leading-none">{label}</span>
       </div>
-      <div className="text-sm font-semibold text-foreground tabular-nums leading-tight break-all pl-[22px]">
+      <div className="text-sm font-semibold text-foreground tabular-nums leading-tight">
         {Number(count || 0).toLocaleString()}
       </div>
     </div>
