@@ -46,10 +46,12 @@ export function mergePreflight({ biowatchDataPath, targetStudyId, sourceStudyId 
     // B is deleted. Filepaths-inside-biowatch that are already missing on
     // disk are neither at risk nor recoverable — they get counted as
     // missing only.
+    // Stream rows so memory stays flat regardless of B's size. `.all()` here
+    // would materialize a multi-million-string array for large studies and
+    // can OOM the worker.
     let missingFileCount = 0
     let ownedByBiowatchCount = 0
-    const mediaRows = bDb.prepare('SELECT filePath FROM media').all()
-    for (const { filePath } of mediaRows) {
+    for (const { filePath } of bDb.prepare('SELECT filePath FROM media').iterate()) {
       if (!filePath || URL_RE.test(filePath)) continue
       const onDisk = existsSync(filePath)
       if (!onDisk) {
