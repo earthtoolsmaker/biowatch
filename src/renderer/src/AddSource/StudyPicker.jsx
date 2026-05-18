@@ -39,7 +39,16 @@ export default function StudyPicker({ isOpen, currentStudyId, onBack, onCancel, 
       window.api.listMergedSourceIds(currentStudyId).catch(() => [])
     ]).then(([list, mergedIds]) => {
       if (cancelled) return
-      setStudies((list || []).filter((s) => s.id !== currentStudyId))
+      setStudies(
+        (list || [])
+          .filter((s) => s.id !== currentStudyId)
+          .sort((a, b) =>
+            (a.name || a.id || '').localeCompare(b.name || b.id || '', undefined, {
+              sensitivity: 'base',
+              numeric: true
+            })
+          )
+      )
       const set = new Set()
       const shortPrefixes = []
       for (const id of mergedIds) {
