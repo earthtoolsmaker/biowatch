@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdirSync, rmSync, existsSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
+import { sql } from 'drizzle-orm'
 
 import {
   getStudyDatabase,
@@ -84,10 +85,10 @@ async function seed(db, numMedia, numEventObs) {
 }
 
 describe('expandObservationsToMedia (chunked)', () => {
-  test('emits per-batch progress when pairs > batchSize', async () => {
+  test('emits per-batch progress when source observations > batchSize', async () => {
     const manager = await getStudyDatabase(studyId, dbPath)
     const db = manager.getDb()
-    await seed(db, 10, 5) // 10 × 5 = 50 pairs
+    await seed(db, 5, 25) // 25 source obs × 5 matching media each = 125 pairs
 
     const events = []
     const result = await expandObservationsToMedia(
@@ -96,14 +97,14 @@ describe('expandObservationsToMedia (chunked)', () => {
       /* batchSize */ 10
     )
 
-    assert.equal(result.created, 50, 'created should equal pairCount')
-    assert.equal(result.expanded, 5, 'expanded should equal originalCount')
+    assert.equal(result.created, 125, 'created should equal total pairs inserted')
+    assert.equal(result.expanded, 25, 'expanded should equal source observations deleted')
 
-    // Initial event (insertedRows=0) + at least 5 batch events with insertedRows>0
+    // Initial event (insertedRows=0) + 3 batch events (10, 20, 25 source obs processed)
     const expandingEvents = events.filter((e) => e.phase === 'expanding')
     assert.ok(
-      expandingEvents.length >= 6,
-      `expected ≥6 expanding events, got ${expandingEvents.length}`
+      expandingEvents.length >= 4,
+      `expected ≥4 expanding events, got ${expandingEvents.length}`
     )
 
     const insertedSeries = expandingEvents.map((e) => e.insertedRows)
@@ -115,12 +116,17 @@ describe('expandObservationsToMedia (chunked)', () => {
     }
     assert.equal(
       insertedSeries[insertedSeries.length - 1],
-      50,
-      'final insertedRows should equal pairCount'
+      25,
+      'final insertedRows should equal totalSourceCount'
+    )
+    assert.equal(
+      expandingEvents[expandingEvents.length - 1].totalRows,
+      25,
+      'totalRows should be source observation count'
     )
   })
 
-  test('returns {0,0} and emits no expanding events when there are no pairs', async () => {
+  test('returns {0,0} and emits no expanding events when there are no source observations', async () => {
     const manager = await getStudyDatabase(studyId, dbPath)
     const db = manager.getDb()
     // Seed deployment + media but no event-based observations
@@ -133,34 +139,50 @@ describe('expandObservationsToMedia (chunked)', () => {
     assert.equal(events.filter((e) => e.phase === 'expanding').length, 0)
   })
 
-  test('single batch when pairs ≤ batchSize', async () => {
+  test('single batch when source observations ≤ batchSize', async () => {
     const manager = await getStudyDatabase(studyId, dbPath)
     const db = manager.getDb()
-    await seed(db, 3, 1) // 3 pairs
+    await seed(db, 3, 1) // 1 source obs × 3 media = 3 pairs
 
     const events = []
     const result = await expandObservationsToMedia(db, (p) => events.push(p), 100)
 
     assert.equal(result.created, 3)
+    assert.equal(result.expanded, 1)
     const expandingEvents = events.filter((e) => e.phase === 'expanding')
     // Initial (0) + exactly one batch event
     assert.equal(expandingEvents.length, 2)
     assert.equal(expandingEvents[0].insertedRows, 0)
-    assert.equal(expandingEvents[1].insertedRows, 3)
+    assert.equal(expandingEvents[1].insertedRows, 1, 'final insertedRows = 1 source obs processed')
   })
 
-  test('drops the temp table after a successful run', async () => {
+  test('preserves source observations with no matching media (orphans)', async () => {
     const manager = await getStudyDatabase(studyId, dbPath)
     const db = manager.getDb()
-    const sqlite = manager.getSqlite()
-    await seed(db, 4, 2) // 8 pairs
+    // Seed 2 source obs with matching media + 1 with NO matching media
+    await seed(db, 2, 2)
+    // Add a source obs whose eventStart/eventEnd is far in the future (no matches)
+    await db.insert(observations).values({
+      observationID: 'obs-orphan',
+      mediaID: null,
+      deploymentID: 'd1',
+      eventID: 'orphan-event',
+      eventStart: '2099-01-01T00:00:00Z',
+      eventEnd: '2099-01-01T01:00:00Z',
+      scientificName: 'orphan species',
+      observationType: 'animal'
+    })
 
-    await expandObservationsToMedia(db, null, 10)
+    const result = await expandObservationsToMedia(db, null, 10)
 
-    const tempTables = sqlite
-      .prepare(`SELECT name FROM sqlite_temp_master WHERE type='table'`)
-      .all()
-    const found = tempTables.find((t) => t.name === '__expansion_pairs')
-    assert.equal(found, undefined, '__expansion_pairs temp table should be gone after expansion')
+    assert.equal(result.expanded, 2, 'only source obs with matches should be deleted')
+    assert.equal(result.created, 4, '2 source obs × 2 media = 4 new observations')
+
+    // Verify orphan is preserved
+    const orphanRows = await db.all(
+      sql`SELECT * FROM observations WHERE observationID = 'obs-orphan'`
+    )
+    assert.equal(orphanRows.length, 1, 'orphan source obs should still exist')
+    assert.equal(orphanRows[0].mediaID, null, 'orphan should still have NULL mediaID')
   })
 })

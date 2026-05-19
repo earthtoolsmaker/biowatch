@@ -92,10 +92,12 @@ function StageRow({ stage, currentStageIndex, stageIndex, downloadProgress, csvP
           <div className="mt-2">
             <div className="text-xs text-muted-foreground mb-1">
               <span className="font-medium">{csvProgress.currentFile}</span>
-              <span className="text-muted-foreground">
-                {' '}
-                ({csvProgress.fileIndex + 1}/{csvProgress.totalFiles})
-              </span>
+              {csvProgress.phase !== 'expanding' && (
+                <span className="text-muted-foreground">
+                  {' '}
+                  ({csvProgress.fileIndex + 1}/{csvProgress.totalFiles})
+                </span>
+              )}
               {csvProgress.totalRows > 0 && (
                 <span>
                   {' '}
