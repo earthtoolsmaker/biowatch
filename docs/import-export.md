@@ -125,13 +125,19 @@ plus a per-stub `log.warn` line (capped at 50).
 **Event-based observation expansion.** Some CamTrap DP datasets store
 observations against an `event` (a time window over a deployment) rather than
 directly against a media file. After CSV ingest, `expandObservationsToMedia`
-materializes the `(observation × matching media)` join into a TEMP TABLE and
-batch-inserts new media-linked observation rows (default `batchSize=5000`),
-emitting a progress event per batch with `phase: 'expanding'`, `insertedRows`,
-and `totalRows`. The original event-based observations are then deleted in a
-single statement. The TEMP table is dropped in a `finally` block — it is also
-per-connection and dies with the worker process, so cancellation never leaks
-state.
+paginates over the source observations (those with `mediaID IS NULL`) using
+a rowid cursor (`batchSize=5000` source observations per batch). Each batch
+runs an `INSERT INTO observations ... SELECT ... FROM observations o INNER
+JOIN media m ...` scoped to that rowid window, then emits a progress event
+with `phase: 'expanding'`, `insertedRows` (source observations processed so
+far), and `totalRows` (total source observation count). After the loop, a
+single DELETE removes original event-based observations that had at least
+one matching media; orphan source observations (no matching media within
+their event window) are intentionally preserved. The function yields the
+event loop (`await new Promise(setImmediate)`) between batches so worker→main
+`postMessage` calls and stdout flush in real time — without this yield, the
+loop's microtask-only `await db.run(...)` calls (better-sqlite3 is synchronous)
+would queue every progress event and log line until after the loop finished.
 
 **Worker boundary (GBIF imports).** `better-sqlite3` is synchronous; on the
 main process, every `db.run(...)` blocks the event loop. To keep the UI

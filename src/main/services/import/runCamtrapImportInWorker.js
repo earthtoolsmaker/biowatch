@@ -12,6 +12,18 @@ import { Worker } from 'worker_threads'
 import log from '../logger.js'
 
 /**
+ * Rebuild a typed Error from the {message, name} envelope posted by the
+ * worker. Preserves error.name so downstream `error.name === 'AbortError'`
+ * checks continue to work across the worker boundary.
+ */
+function rebuildError(envelope) {
+  if (typeof envelope === 'string') return new Error(envelope)
+  const err = new Error(envelope?.message ?? 'Unknown worker error')
+  if (envelope?.name) err.name = envelope.name
+  return err
+}
+
+/**
  * @param {Object} args
  * @param {string} args.camtrapDpDirPath
  * @param {string} args.id
@@ -64,6 +76,12 @@ export function runCamtrapImportInWorker({
     }
 
     worker.on('message', (msg) => {
+      // Drop any in-flight messages that arrive after the promise has settled
+      // (e.g., a progress payload posted by the worker between abort and the
+      // actual worker.terminate() taking effect). Without this guard the
+      // renderer can see an expanding-phase event arrive after the cancelled
+      // stage.
+      if (settled) return
       if (msg.type === 'progress') {
         try {
           onProgress?.(msg.payload)
@@ -74,7 +92,7 @@ export function runCamtrapImportInWorker({
         finish(resolve, msg.result)
       } else if (msg.type === 'error') {
         log.error('camtrap-import worker reported error:', msg.error)
-        finish(reject, new Error(msg.error))
+        finish(reject, rebuildError(msg.error))
       }
     })
     worker.on('error', (err) => {

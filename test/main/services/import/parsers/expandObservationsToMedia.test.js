@@ -152,6 +152,68 @@ describe('expandObservationsToMedia (chunked)', () => {
     assert.equal(expandingEvents[1].insertedRows, 1, 'final insertedRows = 1 source obs processed')
   })
 
+  test('cursor advances past an orphan at a batch boundary', async () => {
+    // Reproduces the case where an orphan source obs (no matching media)
+    // is the last rowid in a batch — the cursor must still advance past it.
+    // Without correct cursor handling, the next iteration would re-fetch
+    // the same orphan forever (infinite loop) or skip valid source obs.
+    const manager = await getStudyDatabase(studyId, dbPath)
+    const db = manager.getDb()
+
+    // Seed 2 source obs with matching media (rowids 1-2 in observations).
+    await seed(db, 2, 2)
+
+    // Insert an orphan as the 3rd source obs — same deployment but event
+    // window is in the future, so no media matches. This row gets rowid 3
+    // and is the last rowid in batch 1 below (batchSize=3).
+    await db.insert(observations).values({
+      observationID: 'obs-orphan-boundary',
+      mediaID: null,
+      deploymentID: 'd1',
+      eventID: 'orphan-boundary-event',
+      eventStart: '2099-01-01T00:00:00Z',
+      eventEnd: '2099-01-01T01:00:00Z',
+      scientificName: 'orphan species',
+      observationType: 'animal'
+    })
+
+    // Insert 2 more source obs WITH matching media (rowids 4-5).
+    for (let i = 0; i < 2; i++) {
+      await db.insert(observations).values({
+        observationID: `obs-after-orphan-${i}`,
+        mediaID: null,
+        deploymentID: 'd1',
+        eventID: `late-event-${i}`,
+        eventStart: '2024-01-01T00:00:00Z',
+        eventEnd: '2024-01-01T01:00:00Z',
+        scientificName: 'late species',
+        observationType: 'animal'
+      })
+    }
+
+    // batchSize=3 → batch 1 covers rowids 1-3 (2 matching + orphan), batch 2
+    // covers rowids 4-5. If the cursor doesn't advance past the orphan,
+    // batch 2 would never reach rowids 4-5.
+    const result = await expandObservationsToMedia(db, null, 3)
+
+    assert.equal(result.expanded, 4, '4 source obs with matches should be deleted')
+    assert.equal(result.created, 8, '4 source obs × 2 media = 8 new observations')
+
+    // Orphan must still exist and have mediaID NULL
+    const orphanRows = await db.all(
+      sql`SELECT * FROM observations WHERE observationID = 'obs-orphan-boundary'`
+    )
+    assert.equal(orphanRows.length, 1, 'orphan at batch boundary should still exist')
+    assert.equal(orphanRows[0].mediaID, null)
+
+    // The late source obs (rowids 4-5) must have been expanded too —
+    // proves the cursor moved past the orphan.
+    const lateExpanded = await db.all(
+      sql`SELECT * FROM observations WHERE scientificName = 'late species' AND mediaID IS NOT NULL`
+    )
+    assert.equal(lateExpanded.length, 4, 'late source obs must have been expanded (2 × 2 media)')
+  })
+
   test('preserves source observations with no matching media (orphans)', async () => {
     const manager = await getStudyDatabase(studyId, dbPath)
     const db = manager.getDb()

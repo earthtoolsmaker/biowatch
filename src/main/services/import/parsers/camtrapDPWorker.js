@@ -23,4 +23,13 @@ async function run() {
 
 run()
   .then((result) => parentPort.postMessage({ type: 'result', result }))
-  .catch((error) => parentPort.postMessage({ type: 'error', error: error.message }))
+  .catch((error) =>
+    parentPort.postMessage({
+      type: 'error',
+      // Forward both message and name so the wrapper can rebuild a typed
+      // error (e.g., AbortError) on the main side. Without the name the
+      // IPC handler's `error.name === 'AbortError'` check would never match
+      // and a cancelled import would surface as a generic error.
+      error: { message: error.message, name: error.name }
+    })
+  )
