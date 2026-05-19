@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import csv from 'csv-parser'
 import { DateTime } from 'luxon'
-import { and, eq, gte, lte, sql, isNull } from 'drizzle-orm'
+import { sql } from 'drizzle-orm'
 import {
   getStudyDatabase,
   deployments,
@@ -793,113 +793,116 @@ function transformFilePathField(filePath, directoryPath, pathCache) {
  * For demo dataset: ~245,000 operations → ~250 batch operations (~1000x faster)
  *
  * @param {Object} db - Drizzle database instance
- * @param {function} onProgress - Optional callback for progress updates
+ * @param {function|null} onProgress - Optional callback for progress updates
+ * @param {number} batchSize - Source observations processed per batch (default 5000)
  * @returns {Promise<{expanded: number, created: number}>} - Count of observations expanded and created
  */
-export async function expandObservationsToMedia(db, onProgress = null) {
-  // 1. Count how many pairs will be created (for logging/progress)
-  log.info('Counting observation-media pairs...')
-  const countResult = await db
-    .select({ count: sql`COUNT(*)` })
-    .from(observations)
-    .innerJoin(
-      media,
-      and(
-        eq(observations.deploymentID, media.deploymentID),
-        gte(media.timestamp, observations.eventStart),
-        lte(media.timestamp, sql`COALESCE(${observations.eventEnd}, ${observations.eventStart})`)
-      )
-    )
-    .where(isNull(observations.mediaID))
+export async function expandObservationsToMedia(db, onProgress = null, batchSize = 5000) {
+  // Pre-flight: count source observations (event-based, no mediaID). This is
+  // a small, fast scan — there are typically thousands to hundreds of
+  // thousands of source observations even on very large datasets.
+  const sourceCountRows = await db.all(sql`
+    SELECT COUNT(*) AS c FROM observations WHERE mediaID IS NULL
+  `)
+  const totalSourceCount = Number(sourceCountRows[0].c)
 
-  const pairCount = countResult[0].count
-  if (pairCount === 0) {
-    log.info('No observation-media pairs found - skipping expansion step')
+  if (totalSourceCount === 0) {
+    log.info('No event-based observations to expand - skipping expansion step')
     return { expanded: 0, created: 0 }
   }
 
-  // Count original observations that will be expanded
-  const origCountResult = await db
-    .select({ count: sql`COUNT(DISTINCT ${observations.observationID})` })
-    .from(observations)
-    .innerJoin(
-      media,
-      and(
-        eq(observations.deploymentID, media.deploymentID),
-        gte(media.timestamp, observations.eventStart),
-        lte(media.timestamp, sql`COALESCE(${observations.eventEnd}, ${observations.eventStart})`)
-      )
-    )
-    .where(isNull(observations.mediaID))
-
-  const originalCount = origCountResult[0].count
-
-  log.info(`Found ${pairCount} observation-media pairs from ${originalCount} original observations`)
+  log.info(`Expanding up to ${totalSourceCount} event-based observations...`)
 
   if (onProgress) {
     onProgress({
       currentFile: 'Linking observations to media...',
       fileIndex: 0,
       totalFiles: 1,
-      totalRows: pairCount,
+      totalRows: totalSourceCount,
       insertedRows: 0,
       phase: 'expanding'
     })
   }
 
-  // 2. INSERT INTO ... SELECT — expand observations to media entirely in SQL
-  // This avoids materializing millions of rows in JS memory
-  log.info(`Inserting ${pairCount} new observations via INSERT INTO...SELECT...`)
+  // Paginate source observations by rowid (stable cursor, no OFFSET cost).
+  // For each batch, run INSERT INTO ... SELECT joining that rowid window
+  // against media — work and total time roughly match the previous single-
+  // statement approach, but we emit a progress event after each batch.
+  // Log once per batch — matches the precedent of the CSV inserter
+  // ("Inserted batch X into observations (Y rows so far)").
+  let cursor = 0
+  let processed = 0
+  let created = 0
+  let batchNumber = 0
+  while (processed < totalSourceCount) {
+    const rows = await db.all(sql`
+      SELECT rowid AS rid FROM observations
+      WHERE mediaID IS NULL AND rowid > ${cursor}
+      ORDER BY rowid LIMIT ${batchSize}
+    `)
+    if (rows.length === 0) break
+    const lastRowid = Number(rows[rows.length - 1].rid)
 
-  await db.run(sql`
-    INSERT INTO observations (
-      observationID, mediaID, deploymentID, eventID, eventStart, eventEnd,
-      scientificName, observationType, commonName, classificationProbability,
-      count, lifeStage, age, sex, behavior,
-      bboxX, bboxY, bboxWidth, bboxHeight,
-      detectionConfidence, modelOutputID,
-      classificationMethod, classifiedBy, classificationTimestamp
+    const insertResult = await db.run(sql`
+      INSERT INTO observations (
+        observationID, mediaID, deploymentID, eventID, eventStart, eventEnd,
+        scientificName, observationType, commonName, classificationProbability,
+        count, lifeStage, age, sex, behavior,
+        bboxX, bboxY, bboxWidth, bboxHeight,
+        detectionConfidence, modelOutputID,
+        classificationMethod, classifiedBy, classificationTimestamp
+      )
+      SELECT
+        lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-4' ||
+          substr(hex(randomblob(2)),2) || '-' ||
+          substr('89ab', abs(random()) % 4 + 1, 1) ||
+          substr(hex(randomblob(2)),2) || '-' || hex(randomblob(6))),
+        m.mediaID, o.deploymentID, o.eventID, o.eventStart, o.eventEnd,
+        o.scientificName, o.observationType, o.commonName, o.classificationProbability,
+        o.count, o.lifeStage, o.age, o.sex, o.behavior,
+        o.bboxX, o.bboxY, o.bboxWidth, o.bboxHeight,
+        o.detectionConfidence, o.modelOutputID,
+        o.classificationMethod, o.classifiedBy, o.classificationTimestamp
+      FROM observations o
+      INNER JOIN media m
+        ON o.deploymentID = m.deploymentID
+       AND m.timestamp >= o.eventStart
+       AND m.timestamp <= COALESCE(o.eventEnd, o.eventStart)
+      WHERE o.mediaID IS NULL
+        AND o.rowid > ${cursor}
+        AND o.rowid <= ${lastRowid}
+    `)
+    created += Number(insertResult.changes ?? 0)
+    processed += rows.length
+    cursor = lastRowid
+    batchNumber += 1
+
+    log.info(
+      `Linking batch ${batchNumber}: ${processed.toLocaleString()}/${totalSourceCount.toLocaleString()} source observations processed (${created.toLocaleString()} new rows so far)`
     )
-    SELECT
-      lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-4' ||
-        substr(hex(randomblob(2)),2) || '-' ||
-        substr('89ab', abs(random()) % 4 + 1, 1) ||
-        substr(hex(randomblob(2)),2) || '-' || hex(randomblob(6))),
-      m.mediaID,
-      o.deploymentID,
-      o.eventID,
-      o.eventStart,
-      o.eventEnd,
-      o.scientificName,
-      o.observationType,
-      o.commonName,
-      o.classificationProbability,
-      o.count,
-      o.lifeStage,
-      o.age,
-      o.sex,
-      o.behavior,
-      o.bboxX,
-      o.bboxY,
-      o.bboxWidth,
-      o.bboxHeight,
-      o.detectionConfidence,
-      o.modelOutputID,
-      o.classificationMethod,
-      o.classifiedBy,
-      o.classificationTimestamp
-    FROM observations o
-    INNER JOIN media m
-      ON o.deploymentID = m.deploymentID
-      AND m.timestamp >= o.eventStart
-      AND m.timestamp <= COALESCE(o.eventEnd, o.eventStart)
-    WHERE o.mediaID IS NULL
-  `)
 
-  // 3. Delete only the original observations that were actually expanded (had matching media)
-  log.info(`Deleting ${originalCount} original event-based observations...`)
+    if (onProgress) {
+      onProgress({
+        currentFile: 'Linking observations to media...',
+        fileIndex: 0,
+        totalFiles: 1,
+        totalRows: totalSourceCount,
+        insertedRows: processed,
+        phase: 'expanding'
+      })
+    }
 
-  await db.run(sql`
+    // Yield to the event loop. better-sqlite3 is synchronous, so the
+    // `await db.run(...)` above resolves a Promise that's already settled
+    // (a microtask). Without an explicit macrotask break here, stdout
+    // never drains and worker→main postMessage calls queue up, so logs
+    // and progress events only flush after the whole loop finishes.
+    await new Promise((resolve) => setImmediate(resolve))
+  }
+
+  // DELETE original event-based observations that were expanded (had ≥1 match).
+  // Source obs with no matching media (orphans) are intentionally preserved.
+  const deleteResult = await db.run(sql`
     DELETE FROM observations
     WHERE mediaID IS NULL
       AND EXISTS (
@@ -909,21 +912,10 @@ export async function expandObservationsToMedia(db, onProgress = null) {
           AND m.timestamp <= COALESCE(observations.eventEnd, observations.eventStart)
       )
   `)
-
-  if (onProgress) {
-    onProgress({
-      currentFile: 'Linking observations to media...',
-      fileIndex: 0,
-      totalFiles: 1,
-      totalRows: pairCount,
-      insertedRows: pairCount,
-      phase: 'expanding'
-    })
-  }
+  const expanded = Number(deleteResult.changes ?? 0)
 
   log.info(
-    `Expanded ${originalCount} event-based observations into ${pairCount} media-linked observations`
+    `Expanded ${expanded} event-based observations into ${created} media-linked observations`
   )
-
-  return { expanded: originalCount, created: pairCount }
+  return { expanded, created }
 }

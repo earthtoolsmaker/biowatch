@@ -180,6 +180,28 @@ describe('CamTrapDP Event-Based Observation Expansion', () => {
     assert.equal(ids.length, uniqueIds.size, 'All observation IDs should be unique')
   })
 
+  test('emits onProgress events during the expanding phase', async () => {
+    const studyId = 'test-event-progress'
+    const events = []
+    await importCamTrapDatasetWithPath(testCamTrapDataPath, testBiowatchDataPath, studyId, (p) =>
+      events.push(p)
+    )
+
+    const expandingEvents = events.filter((e) => e.phase === 'expanding')
+    assert.ok(
+      expandingEvents.length >= 2,
+      'should emit at least initial + one batch event for expanding phase'
+    )
+
+    const finalExpanding = expandingEvents[expandingEvents.length - 1]
+    assert.ok(finalExpanding.insertedRows > 0, 'final expanding event should report inserted rows')
+    assert.equal(
+      finalExpanding.insertedRows,
+      finalExpanding.totalRows,
+      'final insertedRows should equal totalRows'
+    )
+  })
+
   test('should maintain referential integrity after expansion', async () => {
     const studyId = 'test-event-integrity'
     await importCamTrapDatasetWithPath(testCamTrapDataPath, testBiowatchDataPath, studyId)

@@ -69,6 +69,19 @@ System architecture and design patterns for Biowatch.
     Initialized before `BrowserWindow` creation so the window's
     `backgroundColor` matches the resolved theme on first paint.
 
+### Worker Threads
+
+`better-sqlite3` is fully synchronous: every query blocks the Node event loop. To keep the main process responsive (IPC, cancel buttons, progress events), heavy SQL workloads run in dedicated worker threads. Each worker is a separate rollup input in `electron.vite.config.mjs` and ships beside the main bundle.
+
+| Worker | Source | Purpose |
+| --- | --- | --- |
+| `sequences-worker` | `src/main/services/sequences/worker.js` | Sequence-aware analytics (species distribution, timeseries, heatmap, daily activity, best-media). Spawned per request via `runInWorker`. |
+| `merge-worker` | `src/main/services/merge/worker.js` | Streams source → target study merge with cancellation. |
+| `merge-preflight-worker` | `src/main/services/merge/preflightWorker.js` | Pre-flight count + diff for the merge IPC. |
+| `camtrap-import-worker` | `src/main/services/import/parsers/camtrapDPWorker.js` | CamtrapDP / GBIF import (CSV ingest + observation expansion). Spawned by `runCamtrapImportInWorker`. |
+
+Cancel is uniformly `worker.terminate()`: SQLite WAL recovery rolls back any in-flight transaction on next DB open, leaving prior state intact. For imports, the IPC handler additionally calls `cleanupStudy(id)` to wipe the partial study directory.
+
 ### Python ML Servers
 
 - **Technology**: FastAPI with conda environment
