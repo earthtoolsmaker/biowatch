@@ -55,7 +55,7 @@ function SpeciesRow({
       >
         <HoverCard.Trigger asChild>
           <div className="flex items-center gap-3 flex-shrink-0">
-            <div className="w-80 flex-shrink-0">
+            <div className="w-80 flex-shrink-0 truncate">
               <span
                 className={`text-sm text-foreground font-medium ${showScientific ? 'capitalize' : ''}`}
               >
