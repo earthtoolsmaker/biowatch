@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import csv from 'csv-parser'
 import { DateTime } from 'luxon'
-import { and, eq, sql } from 'drizzle-orm'
+import { sql } from 'drizzle-orm'
 import {
   getStudyDatabase,
   deployments,

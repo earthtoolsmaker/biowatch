@@ -91,11 +91,7 @@ describe('expandObservationsToMedia (chunked)', () => {
     await seed(db, 5, 25) // 25 source obs × 5 matching media each = 125 pairs
 
     const events = []
-    const result = await expandObservationsToMedia(
-      db,
-      (p) => events.push(p),
-      /* batchSize */ 10
-    )
+    const result = await expandObservationsToMedia(db, (p) => events.push(p), /* batchSize */ 10)
 
     assert.equal(result.created, 125, 'created should equal total pairs inserted')
     assert.equal(result.expanded, 25, 'expanded should equal source observations deleted')

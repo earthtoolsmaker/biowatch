@@ -183,11 +183,8 @@ describe('CamTrapDP Event-Based Observation Expansion', () => {
   test('emits onProgress events during the expanding phase', async () => {
     const studyId = 'test-event-progress'
     const events = []
-    await importCamTrapDatasetWithPath(
-      testCamTrapDataPath,
-      testBiowatchDataPath,
-      studyId,
-      (p) => events.push(p)
+    await importCamTrapDatasetWithPath(testCamTrapDataPath, testBiowatchDataPath, studyId, (p) =>
+      events.push(p)
     )
 
     const expandingEvents = events.filter((e) => e.phase === 'expanding')
