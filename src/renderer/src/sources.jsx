@@ -45,7 +45,7 @@ function StatusCell({ row }) {
   return null
 }
 
-function MediaCounts({ imageCount, videoCount, deploymentCount }) {
+function MediaCounts({ imageCount, videoCount }) {
   const parts = []
   if (imageCount > 0) {
     parts.push(
@@ -58,13 +58,6 @@ function MediaCounts({ imageCount, videoCount, deploymentCount }) {
     parts.push(
       <span key="vid">
         <strong className="text-foreground">{videoCount.toLocaleString()}</strong> videos
-      </span>
-    )
-  }
-  if (deploymentCount > 0) {
-    parts.push(
-      <span key="dep">
-        {deploymentCount} deployment{deploymentCount !== 1 ? 's' : ''}
       </span>
     )
   }
@@ -199,11 +192,7 @@ function SourceRow({ source, importerName, studyName, expanded, onToggle }) {
           )}
         </div>
         <div className="flex items-center gap-4 ml-auto">
-          <MediaCounts
-            imageCount={source.imageCount}
-            videoCount={source.videoCount}
-            deploymentCount={mergedDeployments.length}
-          />
+          <MediaCounts imageCount={source.imageCount} videoCount={source.videoCount} />
           <div className="w-[200px] flex justify-end flex-shrink-0">
             <StatusCell row={source} />
           </div>
@@ -217,11 +206,7 @@ function SourceRow({ source, importerName, studyName, expanded, onToggle }) {
           >
             <div className="flex-1 min-w-[180px] text-sm text-foreground truncate">{d.label}</div>
             <div className="flex items-center gap-4 ml-auto">
-              <MediaCounts
-                imageCount={d.imageCount}
-                videoCount={d.videoCount}
-                deploymentCount={0}
-              />
+              <MediaCounts imageCount={d.imageCount} videoCount={d.videoCount} />
               <div className="w-[200px] flex justify-end flex-shrink-0">
                 <StatusCell row={d} />
               </div>
