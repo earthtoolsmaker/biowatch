@@ -122,6 +122,32 @@ progress payload as `synthesized.deployments`, `synthesized.orphanMediaRows`,
 `synthesized.orphanObservationRows`, and `synthesized.droppedObservationRows`,
 plus a per-stub `log.warn` line (capped at 50).
 
+**Event-based observation expansion.** Some CamTrap DP datasets store
+observations against an `event` (a time window over a deployment) rather than
+directly against a media file. After CSV ingest, `expandObservationsToMedia`
+materializes the `(observation × matching media)` join into a TEMP TABLE and
+batch-inserts new media-linked observation rows (default `batchSize=5000`),
+emitting a progress event per batch with `phase: 'expanding'`, `insertedRows`,
+and `totalRows`. The original event-based observations are then deleted in a
+single statement. The TEMP table is dropped in a `finally` block — it is also
+per-connection and dies with the worker process, so cancellation never leaks
+state.
+
+**Worker boundary (GBIF imports).** `better-sqlite3` is synchronous; on the
+main process, every `db.run(...)` blocks the event loop. To keep the UI
+responsive on large GBIF imports the entire `importCamTrapDatasetWithPath`
+call (CSV ingest + observation expansion + metadata insert) runs in a
+dedicated worker thread, `out/main/camtrap-import-worker.js`. Main spawns
+the worker via `src/main/services/import/runCamtrapImportInWorker.js`, which
+routes `progress` / `result` / `error` messages and listens for the IPC
+handler's `AbortSignal` — when fired, it calls `worker.terminate()` and
+rejects with `AbortError`. The IPC handler's existing AbortError branch
+wipes the partial study directory via `cleanupStudy(id)`. The
+download/extract phases stay on the main process (they are I/O-bound and
+already non-blocking). Local-folder CamTrap DP imports (`import:select-camtrap-dp`)
+and the demo import currently still run on main — only the GBIF path has
+been moved to a worker so far.
+
 ## Wildlife Insights Import
 
 **Format detection:** Looks for `projects.csv` in directory.
