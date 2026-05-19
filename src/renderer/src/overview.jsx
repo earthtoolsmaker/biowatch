@@ -263,9 +263,9 @@ export default function Overview({ data, studyId, studyName }) {
   }, [])
 
   const { data: deploymentsData, error: deploymentsError } = useQuery({
-    queryKey: ['deploymentLocations', studyId],
+    queryKey: ['deploymentsAll', studyId],
     queryFn: async () => {
-      const response = await window.api.getDeploymentLocations(studyId)
+      const response = await window.api.getAllDeployments(studyId)
       if (response.error) throw new Error(response.error)
       return response.data
     },
