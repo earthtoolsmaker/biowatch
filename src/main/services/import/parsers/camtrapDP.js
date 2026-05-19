@@ -828,6 +828,10 @@ export async function expandObservationsToMedia(db, onProgress = null, batchSize
   // For each batch, run INSERT INTO ... SELECT joining that rowid window
   // against media — work and total time roughly match the previous single-
   // statement approach, but we emit a progress event after each batch.
+  // Periodic log: aim for ~10 log lines regardless of dataset size, so large
+  // imports get progress in the log file without spamming small ones.
+  const logEvery = Math.max(Math.floor(totalSourceCount / 10), 1)
+  let lastLoggedAt = 0
   let cursor = 0
   let processed = 0
   let created = 0
@@ -872,6 +876,13 @@ export async function expandObservationsToMedia(db, onProgress = null, batchSize
     created += Number(insertResult.changes ?? 0)
     processed += rows.length
     cursor = lastRowid
+
+    if (processed - lastLoggedAt >= logEvery || processed >= totalSourceCount) {
+      log.info(
+        `Linking observations to media: ${processed.toLocaleString()}/${totalSourceCount.toLocaleString()} source observations processed (${created.toLocaleString()} new rows created)`
+      )
+      lastLoggedAt = processed
+    }
 
     if (onProgress) {
       onProgress({
