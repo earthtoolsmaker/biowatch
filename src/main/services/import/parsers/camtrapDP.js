@@ -891,6 +891,13 @@ export async function expandObservationsToMedia(db, onProgress = null, batchSize
         phase: 'expanding'
       })
     }
+
+    // Yield to the event loop. better-sqlite3 is synchronous, so the
+    // `await db.run(...)` above resolves a Promise that's already settled
+    // (a microtask). Without an explicit macrotask break here, stdout
+    // never drains and worker→main postMessage calls queue up, so logs
+    // and progress events only flush after the whole loop finishes.
+    await new Promise((resolve) => setImmediate(resolve))
   }
 
   // DELETE original event-based observations that were expanded (had ≥1 match).
