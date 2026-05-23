@@ -497,3 +497,329 @@ describe('getBestImagePerSpecies short-circuit on missing bbox data', () => {
     assert.equal(result.length, 2)
   })
 })
+
+describe('getBestMedia auto-scored IUCN boost', () => {
+  // Real species names that resolve in the bundled IUCN dictionary.
+  // Verify with: grep '"ailurus fulgens"' src/shared/speciesInfo/data.json
+  const EN_NAME = 'Ailurus fulgens' // Endangered (red panda) → +0.18
+  const LC_NAME = 'Vulpes vulpes' // Least Concern (red fox) → 0
+  const NOT_IN_DICT = 'Made up species' // No resolution → 0
+
+  test('an EN species displaces a comparable LC species when their raw scores are close', async () => {
+    // Two media at the same deployment, identical bbox geometry and detection
+    // confidence so the only difference between them in the orig formula is
+    // the rarity boost (which is the same when each species appears once).
+    // The IUCN boost should tip the EN species above the LC one.
+    const manager = await seed({
+      media: {
+        'a.jpg': mediaEntry('m-en', '2024-01-05T12:00:00Z'),
+        'b.jpg': mediaEntry('m-lc', '2024-01-06T12:00:00Z')
+      },
+      observations: [
+        {
+          observationID: 'o-en',
+          mediaID: 'm-en',
+          deploymentID: 'd1',
+          eventID: 'e-en',
+          scientificName: EN_NAME,
+          count: 1
+        },
+        {
+          observationID: 'o-lc',
+          mediaID: 'm-lc',
+          deploymentID: 'd1',
+          eventID: 'e-lc',
+          scientificName: LC_NAME,
+          count: 1
+        }
+      ]
+    })
+    setBbox(manager, 'o-en', { x: 0.3, y: 0.3, width: 0.3, height: 0.3, detectionConfidence: 0.9 })
+    setBbox(manager, 'o-lc', { x: 0.3, y: 0.3, width: 0.3, height: 0.3, detectionConfidence: 0.9 })
+
+    const result = await getBestMedia(testDbPath, { limit: 12 })
+
+    const enRow = result.find((r) => r.scientificName === EN_NAME)
+    const lcRow = result.find((r) => r.scientificName === LC_NAME)
+    assert.ok(enRow, `expected EN row for ${EN_NAME}`)
+    assert.ok(lcRow, `expected LC row for ${LC_NAME}`)
+    assert.ok(
+      enRow.compositeScore > lcRow.compositeScore,
+      `expected EN boost to make ${EN_NAME} (${enRow.compositeScore}) outrank ${LC_NAME} (${lcRow.compositeScore})`
+    )
+    // Boost magnitude: EN gets +0.18 on top of an otherwise-equal score.
+    // We allow a small tolerance because rarity score is per-species count.
+    assert.ok(
+      enRow.compositeScore - lcRow.compositeScore >= 0.17,
+      `expected score gap ≥ 0.17, got ${enRow.compositeScore - lcRow.compositeScore}`
+    )
+  })
+
+  test('a species not in the IUCN dictionary gets no boost', async () => {
+    const manager = await seed({
+      media: {
+        'a.jpg': mediaEntry('m-x', '2024-01-05T12:00:00Z'),
+        'b.jpg': mediaEntry('m-lc', '2024-01-06T12:00:00Z')
+      },
+      observations: [
+        {
+          observationID: 'o-x',
+          mediaID: 'm-x',
+          deploymentID: 'd1',
+          eventID: 'e-x',
+          scientificName: NOT_IN_DICT,
+          count: 1
+        },
+        {
+          observationID: 'o-lc',
+          mediaID: 'm-lc',
+          deploymentID: 'd1',
+          eventID: 'e-lc',
+          scientificName: LC_NAME,
+          count: 1
+        }
+      ]
+    })
+    setBbox(manager, 'o-x', { x: 0.3, y: 0.3, width: 0.3, height: 0.3, detectionConfidence: 0.9 })
+    setBbox(manager, 'o-lc', { x: 0.3, y: 0.3, width: 0.3, height: 0.3, detectionConfidence: 0.9 })
+
+    const result = await getBestMedia(testDbPath, { limit: 12 })
+
+    const xRow = result.find((r) => r.scientificName === NOT_IN_DICT)
+    const lcRow = result.find((r) => r.scientificName === LC_NAME)
+    assert.ok(xRow && lcRow)
+    // Both have no IUCN boost, so the gap should be ≤ 0.01 (just rarity ties).
+    assert.ok(
+      Math.abs(xRow.compositeScore - lcRow.compositeScore) < 0.05,
+      `expected no boost for unresolved species; gap was ${Math.abs(xRow.compositeScore - lcRow.compositeScore)}`
+    )
+  })
+
+  test('zero IUCN-tagged species in the study → query still runs (CASE expr is "0")', async () => {
+    const manager = await seed({
+      media: { 'a.jpg': mediaEntry('m-x', '2024-01-05T12:00:00Z') },
+      observations: [
+        {
+          observationID: 'o-x',
+          mediaID: 'm-x',
+          deploymentID: 'd1',
+          eventID: 'e-x',
+          scientificName: NOT_IN_DICT,
+          count: 1
+        }
+      ]
+    })
+    setBbox(manager, 'o-x', { x: 0.3, y: 0.3, width: 0.3, height: 0.3, detectionConfidence: 0.9 })
+
+    const result = await getBestMedia(testDbPath, { limit: 12 })
+
+    assert.equal(result.length, 1)
+    assert.equal(result[0].scientificName, NOT_IN_DICT)
+  })
+})
+
+describe('getBestMedia favorites over-limit ordering', () => {
+  const EN_NAME = 'Ailurus fulgens' // Endangered
+  const VU_NAME = 'Acinonyx jubatus' // Vulnerable
+  const LC_NAME = 'Vulpes vulpes' // Least Concern
+
+  test('when favorites count ≤ limit, ordering is timestamp DESC (unchanged)', async () => {
+    // 3 favorites, limit=12 → under limit. The IUCN-aware reorder must NOT trigger.
+    // The user's curated set is preserved in chronological order.
+    const manager = await seed({
+      media: {
+        'a.jpg': mediaEntry('m-old-en', '2024-01-01T10:00:00Z'),
+        'b.jpg': mediaEntry('m-mid-lc', '2024-01-02T10:00:00Z'),
+        'c.jpg': mediaEntry('m-new-vu', '2024-01-03T10:00:00Z')
+      },
+      observations: [
+        {
+          observationID: 'o-en',
+          mediaID: 'm-old-en',
+          deploymentID: 'd1',
+          eventID: 'e-en',
+          scientificName: EN_NAME,
+          count: 1
+        },
+        {
+          observationID: 'o-lc',
+          mediaID: 'm-mid-lc',
+          deploymentID: 'd1',
+          eventID: 'e-lc',
+          scientificName: LC_NAME,
+          count: 1
+        },
+        {
+          observationID: 'o-vu',
+          mediaID: 'm-new-vu',
+          deploymentID: 'd1',
+          eventID: 'e-vu',
+          scientificName: VU_NAME,
+          count: 1
+        }
+      ]
+    })
+    markFavorites(manager, ['m-old-en', 'm-mid-lc', 'm-new-vu'])
+
+    const result = await getBestMedia(testDbPath, { limit: 12 })
+
+    // All three favorites returned, in timestamp DESC order — NOT tier order.
+    assert.deepEqual(
+      result.map((r) => r.mediaID),
+      ['m-new-vu', 'm-mid-lc', 'm-old-en']
+    )
+  })
+
+  test('when favorites count > limit, ordering is IUCN tier DESC then timestamp DESC', async () => {
+    // 5 favorites, limit=3 → over limit. EN (oldest) must beat LC (newest)
+    // because tier-first beats recency.
+    const manager = await seed({
+      media: {
+        'a.jpg': mediaEntry('m-en-old', '2024-01-01T10:00:00Z'),
+        'b.jpg': mediaEntry('m-en-new', '2024-01-02T10:00:00Z'),
+        'c.jpg': mediaEntry('m-vu', '2024-01-03T10:00:00Z'),
+        'd.jpg': mediaEntry('m-lc-old', '2024-01-04T10:00:00Z'),
+        'e.jpg': mediaEntry('m-lc-new', '2024-01-05T10:00:00Z')
+      },
+      observations: [
+        {
+          observationID: 'o-1',
+          mediaID: 'm-en-old',
+          deploymentID: 'd1',
+          eventID: 'e-1',
+          scientificName: EN_NAME,
+          count: 1
+        },
+        {
+          observationID: 'o-2',
+          mediaID: 'm-en-new',
+          deploymentID: 'd1',
+          eventID: 'e-2',
+          scientificName: EN_NAME,
+          count: 1
+        },
+        {
+          observationID: 'o-3',
+          mediaID: 'm-vu',
+          deploymentID: 'd1',
+          eventID: 'e-3',
+          scientificName: VU_NAME,
+          count: 1
+        },
+        {
+          observationID: 'o-4',
+          mediaID: 'm-lc-old',
+          deploymentID: 'd1',
+          eventID: 'e-4',
+          scientificName: LC_NAME,
+          count: 1
+        },
+        {
+          observationID: 'o-5',
+          mediaID: 'm-lc-new',
+          deploymentID: 'd1',
+          eventID: 'e-5',
+          scientificName: LC_NAME,
+          count: 1
+        }
+      ]
+    })
+    markFavorites(manager, ['m-en-old', 'm-en-new', 'm-vu', 'm-lc-old', 'm-lc-new'])
+
+    const result = await getBestMedia(testDbPath, { limit: 3 })
+
+    // Top 3 by tier-first: both EN (newest first within tier), then VU.
+    // The two LC favorites get pushed off, even though one is the newest overall.
+    assert.deepEqual(
+      result.map((r) => r.mediaID),
+      ['m-en-new', 'm-en-old', 'm-vu']
+    )
+  })
+
+  test('with exactly limit favorites, no reorder happens (timestamp DESC preserved)', async () => {
+    // Boundary: count === limit. Neither over-limit reorder nor auto-scored fill.
+    const manager = await seed({
+      media: {
+        'a.jpg': mediaEntry('m-lc', '2024-01-01T10:00:00Z'),
+        'b.jpg': mediaEntry('m-en', '2024-01-02T10:00:00Z')
+      },
+      observations: [
+        {
+          observationID: 'o-lc',
+          mediaID: 'm-lc',
+          deploymentID: 'd1',
+          eventID: 'e-lc',
+          scientificName: LC_NAME,
+          count: 1
+        },
+        {
+          observationID: 'o-en',
+          mediaID: 'm-en',
+          deploymentID: 'd1',
+          eventID: 'e-en',
+          scientificName: EN_NAME,
+          count: 1
+        }
+      ]
+    })
+    markFavorites(manager, ['m-lc', 'm-en'])
+
+    const result = await getBestMedia(testDbPath, { limit: 2 })
+
+    // Count == limit → original timestamp-DESC path. EN (newest) first, LC second.
+    // (Tier-first WOULD pass too — they happen to coincide here. The previous
+    // test is the one that distinguishes tier-first from timestamp-first.)
+    assert.deepEqual(
+      result.map((r) => r.mediaID),
+      ['m-en', 'm-lc']
+    )
+  })
+})
+
+describe('getBestMedia IUCN scaling', () => {
+  test('handles 1000 distinct species, all marked threatened, without "too many SQL variables"', async () => {
+    // The realistic worst case is ~20 IUCN-tagged species per study (measured
+    // on 56 local DBs); 1000 is two orders of magnitude beyond that. SQLite's
+    // hard cap is 32766, so 1000 should comfortably succeed.
+    const numSpecies = 1000
+
+    // Stub resolver: every species we hand it is EN. No dependency on the
+    // bundled dictionary — keeps this test deterministic.
+    const stubResolver = () => ({ iucn: 'EN' })
+
+    const media = {}
+    const observations = []
+    for (let i = 0; i < numSpecies; i++) {
+      const mid = `m-${i}`
+      media[`${i}.jpg`] = mediaEntry(mid, `2024-01-01T${String(i % 24).padStart(2, '0')}:00:00Z`)
+      observations.push({
+        observationID: `o-${i}`,
+        mediaID: mid,
+        deploymentID: 'd1',
+        eventID: `e-${i}`,
+        scientificName: `Genus speciesnumber${i}`,
+        count: 1
+      })
+    }
+    const manager = await seed({ media, observations })
+    for (let i = 0; i < numSpecies; i++) {
+      setBbox(manager, `o-${i}`, {
+        x: 0.3,
+        y: 0.3,
+        width: 0.3,
+        height: 0.3,
+        detectionConfidence: 0.9
+      })
+    }
+
+    const t0 = Date.now()
+    const result = await getBestMedia(testDbPath, { limit: 12, iucnResolver: stubResolver })
+    const elapsed = Date.now() - t0
+
+    // We injected the stub resolver, so every species is "EN" and gets +0.18.
+    assert.equal(result.length, 12)
+    // Sanity bound: the test infrastructure (seeding 1000 obs) dominates,
+    // but the actual query should be well under 5 seconds even on slow CI.
+    assert.ok(elapsed < 10000, `getBestMedia took ${elapsed}ms with 1000 species`)
+  })
+})

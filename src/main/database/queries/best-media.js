@@ -6,6 +6,79 @@
 import { executeRawQuery } from '../index.js'
 import log from 'electron-log'
 import { getStudyIdFromPath } from './utils.js'
+import { resolveSpeciesInfo } from '../../../shared/speciesInfo/resolver.js'
+
+/**
+ * IUCN tier → additive boost applied on top of the composite score in
+ * getBestMedia (auto-scored path) and used as the primary ORDER BY key
+ * in the favorites path when the user is over-limit.
+ *
+ * Spec: docs/specs/2026-05-02-iucn-best-captures-boost-design.md
+ *
+ * Tunable knob — change values here, rebuild. LC/DD/NE intentionally
+ * absent; the resolver only emits boosts for tiers in this map.
+ */
+export const IUCN_BOOST = Object.freeze({
+  CR: 0.25,
+  EW: 0.25,
+  EX: 0.25,
+  EN: 0.18,
+  VU: 0.1,
+  NT: 0.03
+})
+
+const IUCN_TIERS_ORDER = ['CR', 'EW', 'EX', 'EN', 'VU', 'NT']
+
+/**
+ * Group a list of distinct species names into IUCN boost-eligible tiers.
+ * Names that resolve to LC/DD/NE or do not resolve at all are dropped
+ * (they would contribute a zero-boost branch, which is the same as the
+ * default ELSE 0).
+ *
+ * @param {Array<{scientificName: string}>} distinctSpecies - rows from a
+ *   `SELECT DISTINCT scientificName FROM observations` probe.
+ * @param {(name: string) => {iucn?: string} | null} resolver - usually
+ *   the bundled `resolveSpeciesInfo`, but injectable for tests.
+ * @returns {{CR: string[], EW: string[], EX: string[], EN: string[], VU: string[], NT: string[]}}
+ *   Each tier holds the original (un-normalized) scientificName values,
+ *   matching how they appear in the DB column.
+ */
+export function groupSpeciesByIucnTier(distinctSpecies, resolver) {
+  const byTier = { CR: [], EW: [], EX: [], EN: [], VU: [], NT: [] }
+  for (const row of distinctSpecies) {
+    const name = row?.scientificName
+    if (!name) continue
+    const info = resolver(name)
+    const tier = info?.iucn
+    if (tier && byTier[tier]) byTier[tier].push(name)
+  }
+  return byTier
+}
+
+/**
+ * Build a SQL `CASE` fragment that maps `o.scientificName` to its IUCN
+ * boost. Returns `{expr: '0', params: []}` when no species qualify, so
+ * callers can always splice the expr in without a special-case branch.
+ *
+ * Each branch uses `IN (?, ?, ...)` with positional placeholders so
+ * scientific names are bound, not interpolated (SQL-injection safe).
+ *
+ * @param {ReturnType<typeof groupSpeciesByIucnTier>} byTier
+ * @returns {{expr: string, params: string[]}}
+ */
+export function buildIucnCase(byTier) {
+  const branches = []
+  const params = []
+  for (const tier of IUCN_TIERS_ORDER) {
+    const names = byTier[tier]
+    if (!names || names.length === 0) continue
+    const placeholders = names.map(() => '?').join(', ')
+    branches.push(`WHEN o.scientificName IN (${placeholders}) THEN ${IUCN_BOOST[tier]}`)
+    params.push(...names)
+  }
+  if (branches.length === 0) return { expr: '0', params: [] }
+  return { expr: `CASE ${branches.join(' ')} ELSE 0 END`, params }
+}
 
 /**
  * Assigns sequence IDs to media candidates based on timestamp proximity within the same deployment.
@@ -246,6 +319,8 @@ export function selectDiverseMedia(candidates, limit, config = {}) {
  * - 10%: Classification probability
  * - 15%: Rarity boost (rare species score higher, common species penalized)
  * - 10%: Daytime boost (favor daylight captures)
+ * - additive: IUCN status boost (CR/EW/EX +0.25, EN +0.18, VU +0.10, NT +0.03;
+ *             others 0). Pushes max score from 1.0 to 1.25 for threatened species.
  *
  * Diversity constraints applied via post-processing:
  * - Max 2 images per species
@@ -259,12 +334,45 @@ export function selectDiverseMedia(candidates, limit, config = {}) {
  * @returns {Promise<Array>} - Media files with favorites first, then diverse scored captures
  */
 export async function getBestMedia(dbPath, options = {}) {
-  const { limit = 12 } = options
+  const { limit = 12, iucnResolver = resolveSpeciesInfo } = options
   const startTime = Date.now()
   log.info(`Querying best media (hybrid mode) from: ${dbPath}`)
 
   try {
     const studyId = getStudyIdFromPath(dbPath)
+
+    // Probe distinct species in the study so the IUCN CASE list is bounded by
+    // species actually present, not the entire bundled IUCN dictionary.
+    // Cheap thanks to idx_observations_scientificName. The result feeds both
+    // the favorites over-limit ordering (below) and the auto-scored path.
+    const distinctSpecies = await executeRawQuery(
+      studyId,
+      dbPath,
+      `SELECT DISTINCT scientificName FROM observations
+         WHERE scientificName IS NOT NULL AND scientificName != ''`,
+      []
+    )
+    const byTier = groupSpeciesByIucnTier(distinctSpecies, iucnResolver)
+    const iucnCase = buildIucnCase(byTier)
+
+    // Bounded probe: stop scanning as soon as we have limit + 1 favorite rows.
+    // No COUNT(*) — that would full-scan the media table (no index on favorite).
+    const favoriteProbe = await executeRawQuery(
+      studyId,
+      dbPath,
+      `SELECT 1 FROM media WHERE favorite = 1 LIMIT ?`,
+      [limit + 1]
+    )
+    const favoritesOverLimit = favoriteProbe.length > limit
+
+    // The favorites helper emits CASE WHEN o.scientificName IN (...) ... but
+    // the favorites query projects scientificName via COALESCE of two LEFT
+    // JOIN aliases. Rewrite the alias for the favorites context. Bound
+    // parameters are unaffected — only the column reference changes.
+    const favoritesIucnExpr = iucnCase.expr.replace(
+      /o\.scientificName/g,
+      'COALESCE(o1.scientificName, o2.scientificName)'
+    )
 
     // Step 1: Get user-marked favorites first.
     // Observations link to media via mediaID for most importers, or via
@@ -336,11 +444,16 @@ export async function getBestMedia(dbPath, options = {}) {
       LEFT JOIN obs_by_mediaID o1 ON o1.mediaID = f.mediaID AND o1.rn = 1
       LEFT JOIN obs_by_ts o2 ON o2.eventStart = f.timestamp AND o2.rn = 1
       WHERE COALESCE(o1.scientificName, o2.scientificName) IS NOT NULL
-      ORDER BY f.timestamp DESC
+      ORDER BY ${favoritesOverLimit && iucnCase.params.length > 0 ? `(${favoritesIucnExpr}) DESC, ` : ''}f.timestamp DESC
       LIMIT ?
     `
 
-    const favorites = await executeRawQuery(studyId, dbPath, favoritesQuery, [limit])
+    // IUCN params only bind when both branches above hold: over limit AND at
+    // least one threatened species in study. Otherwise SQL has zero unbound
+    // IUCN placeholders, so we send only [limit].
+    const favoritesParams =
+      favoritesOverLimit && iucnCase.params.length > 0 ? [...iucnCase.params, limit] : [limit]
+    const favorites = await executeRawQuery(studyId, dbPath, favoritesQuery, favoritesParams)
     log.info(`Found ${favorites.length} favorites`)
 
     // If we have enough favorites, return them
@@ -447,7 +560,10 @@ export async function getBestMedia(dbPath, options = {}) {
             WHEN CAST(strftime('%H', m.timestamp) AS INTEGER) BETWEEN 8 AND 16 THEN 1.0  -- Peak daylight (8am-4pm)
             WHEN CAST(strftime('%H', m.timestamp) AS INTEGER) BETWEEN 6 AND 18 THEN 0.7  -- Extended daylight (6am-6pm)
             ELSE 0.2  -- Night time
-          END as daytimeScore
+          END as daytimeScore,
+          -- IUCN boost (additive, on top of the composite score)
+          -- See IUCN_BOOST in best-media.js / docs/specs/2026-05-02-iucn-best-captures-boost-design.md
+          ${iucnCase.expr} as iucnBoost
         FROM observations o
         INNER JOIN media m ON o.mediaID = m.mediaID
         LEFT JOIN species_counts sc ON o.scientificName = sc.scientificName
@@ -499,6 +615,8 @@ export async function getBestMedia(dbPath, options = {}) {
             + rarityScore * 0.15
             -- Daytime boost (10%) - favor daylight captures
             + daytimeScore * 0.10
+            -- IUCN boost (additive, can push score above 1.0 for threatened species)
+            + iucnBoost
           ) as compositeScore
         FROM scored_observations
       ),
@@ -555,8 +673,10 @@ export async function getBestMedia(dbPath, options = {}) {
       ORDER BY r.compositeScore DESC
     `
 
-    // Build query parameters: favoriteMediaIDs (for exclusion) + candidatesPerSpecies (for stratified sampling)
-    const queryParams = [...favoriteMediaIDs, candidatesPerSpecies]
+    // Build query parameters. IUCN params come first because the CASE
+    // expression sits in scored_observations (the first parameterised CTE),
+    // and is evaluated before the WHERE clause that uses the favorite IDs.
+    const queryParams = [...iucnCase.params, ...favoriteMediaIDs, candidatesPerSpecies]
     const scoredCandidates = await executeRawQuery(studyId, dbPath, query, queryParams)
 
     // Assign sequence IDs using 120s gap threshold (same as media tab)
