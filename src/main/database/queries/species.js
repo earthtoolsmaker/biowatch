@@ -17,10 +17,12 @@ import {
   lte,
   isNull,
   or,
-  notExists
+  notExists,
+  between
 } from 'drizzle-orm'
 import log from 'electron-log'
 import { getStudyIdFromPath } from './utils.js'
+import { buildBboxClause } from './bbox.js'
 import { BLANK_SENTINEL } from '../../../shared/constants.js'
 import { normalizeTimeRange } from './sequences.js'
 
@@ -232,7 +234,7 @@ export async function getSpeciesDistributionByMedia(dbPath) {
  * @returns {Promise<Array<{scientificName: string, count: number}>|null>}
  *   Sorted by count desc, or null if the caller must use the JS fallback.
  */
-export async function getSequenceAwareSpeciesCountsSQL(dbPath, gapSeconds) {
+export async function getSequenceAwareSpeciesCountsSQL(dbPath, gapSeconds, bbox = null) {
   const isPositiveGap = typeof gapSeconds === 'number' && gapSeconds > 0
   if (isPositiveGap) return null
 
@@ -240,6 +242,9 @@ export async function getSequenceAwareSpeciesCountsSQL(dbPath, gapSeconds) {
   const studyId = getStudyIdFromPath(dbPath)
   const manager = await getStudyDatabase(studyId, dbPath, { readonly: true })
   const sqlite = manager.getSqlite()
+
+  const { clause: bboxClause, params: bboxParams } = buildBboxClause(bbox, 'd')
+  const bboxJoin = bbox ? 'INNER JOIN deployments d ON m.deploymentID = d.deploymentID' : ''
 
   const useEventIDPath = gapSeconds === 0
 
@@ -263,7 +268,9 @@ export async function getSequenceAwareSpeciesCountsSQL(dbPath, gapSeconds) {
                    COUNT(o.observationID) AS cnt
               FROM observations o
               INNER JOIN media m ON o.mediaID = m.mediaID
+              ${bboxJoin}
               WHERE o.scientificName IS NOT NULL AND o.scientificName != ''
+                ${bboxClause}
               GROUP BY o.scientificName, m.mediaID
           ),
           classified AS (
@@ -299,7 +306,7 @@ export async function getSequenceAwareSpeciesCountsSQL(dbPath, gapSeconds) {
           GROUP BY scientificName ORDER BY count DESC
         `
         )
-        .all()
+        .all(...bboxParams)
     } else {
       // Per-media path: each media is its own sequence, so MAX == count per media,
       // SUM over media reduces to COUNT(observationID) per species.
@@ -310,12 +317,14 @@ export async function getSequenceAwareSpeciesCountsSQL(dbPath, gapSeconds) {
                  COUNT(o.observationID) AS count
             FROM observations o
             INNER JOIN media m ON o.mediaID = m.mediaID
+            ${bboxJoin}
             WHERE o.scientificName IS NOT NULL AND o.scientificName != ''
+              ${bboxClause}
             GROUP BY o.scientificName
             ORDER BY count DESC
         `
         )
-        .all()
+        .all(...bboxParams)
     }
 
     const elapsed = Date.now() - startTime
