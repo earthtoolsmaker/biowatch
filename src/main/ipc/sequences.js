@@ -47,7 +47,7 @@ export function registerSequencesIPCHandlers() {
    * @param {string} studyId - Study identifier
    * @param {number|null} [gapSeconds] - Optional gap threshold; fetched from metadata if not provided
    */
-  ipcMain.handle('sequences:get-species-distribution', async (_, studyId, gapSeconds) => {
+  ipcMain.handle('sequences:get-species-distribution', async (_, studyId, gapSeconds, bbox) => {
     try {
       const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
       if (!dbPath || !existsSync(dbPath)) {
@@ -64,7 +64,8 @@ export function registerSequencesIPCHandlers() {
         type: 'species-distribution',
         dbPath,
         studyId,
-        gapSeconds
+        gapSeconds,
+        bbox
       })
       return { data }
     } catch (error) {
@@ -79,7 +80,7 @@ export function registerSequencesIPCHandlers() {
    * @param {Array<string>} speciesNames - Species to include in timeseries
    * @param {number|null} [gapSeconds] - Optional gap threshold; fetched from metadata if not provided
    */
-  ipcMain.handle('sequences:get-timeseries', async (_, studyId, speciesNames, gapSeconds) => {
+  ipcMain.handle('sequences:get-timeseries', async (_, studyId, speciesNames, gapSeconds, bbox) => {
     try {
       const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
       if (!dbPath || !existsSync(dbPath)) {
@@ -97,7 +98,8 @@ export function registerSequencesIPCHandlers() {
         dbPath,
         studyId,
         gapSeconds,
-        speciesNames: stripped
+        speciesNames: stripped,
+        bbox
       })
       return { data }
     } catch (error) {
@@ -170,7 +172,7 @@ export function registerSequencesIPCHandlers() {
    */
   ipcMain.handle(
     'sequences:get-daily-activity',
-    async (_, studyId, speciesNames, startDate, endDate, gapSeconds) => {
+    async (_, studyId, speciesNames, startDate, endDate, gapSeconds, bbox) => {
       try {
         const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
         if (!dbPath || !existsSync(dbPath)) {
@@ -190,7 +192,8 @@ export function registerSequencesIPCHandlers() {
           gapSeconds,
           speciesNames: stripped,
           startDate,
-          endDate
+          endDate,
+          bbox
         })
         return { data }
       } catch (error) {
