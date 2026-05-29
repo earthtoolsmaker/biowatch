@@ -68,3 +68,14 @@ test('species counts: bbox restricts to in-bounds deployments', async () => {
   // Only depA (Vulpes) is inside; depB (the only Capreolus) is excluded.
   assert.deepEqual(rows, [{ scientificName: 'Vulpes vulpes', count: 1 }])
 })
+
+test('timeseries: null bbox includes out-of-bounds species', async () => {
+  const rows = await getSequenceAwareTimeseriesSQL(dbPath, ['Capreolus capreolus'], null, null)
+  const total = rows.reduce((s, r) => s + r.count, 0)
+  assert.equal(total, 1) // the single depB Capreolus observation
+})
+
+test('timeseries: bbox excludes out-of-bounds species entirely', async () => {
+  const rows = await getSequenceAwareTimeseriesSQL(dbPath, ['Capreolus capreolus'], null, BBOX_IN)
+  assert.deepEqual(rows, []) // Capreolus only exists at depB, which is outside BBOX_IN
+})

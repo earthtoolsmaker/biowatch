@@ -368,7 +368,12 @@ export async function getSequenceAwareSpeciesCountsSQL(dbPath, gapSeconds, bbox 
  * @param {number|null|undefined} gapSeconds
  * @returns {Promise<Array<{scientificName: string, weekStart: string, count: number}>|null>}
  */
-export async function getSequenceAwareTimeseriesSQL(dbPath, speciesNames = [], gapSeconds) {
+export async function getSequenceAwareTimeseriesSQL(
+  dbPath,
+  speciesNames = [],
+  gapSeconds,
+  bbox = null
+) {
   const isPositiveGap = typeof gapSeconds === 'number' && gapSeconds > 0
   if (isPositiveGap) return null
 
@@ -386,6 +391,8 @@ export async function getSequenceAwareTimeseriesSQL(dbPath, speciesNames = [], g
   const speciesPlaceholders = regularSpecies.map(() => '?').join(',')
   const speciesFilter =
     regularSpecies.length > 0 ? `AND o.scientificName IN (${speciesPlaceholders})` : ''
+  const { clause: bboxClause, params: bboxParams } = buildBboxClause(bbox, 'd')
+  const bboxJoin = bbox ? 'INNER JOIN deployments d ON m.deploymentID = d.deploymentID' : ''
 
   try {
     let rows
@@ -400,9 +407,11 @@ export async function getSequenceAwareTimeseriesSQL(dbPath, speciesNames = [], g
                    COUNT(*) AS media_count
               FROM observations o
               INNER JOIN media m ON o.mediaID = m.mediaID
+              ${bboxJoin}
               WHERE o.scientificName IS NOT NULL AND o.scientificName != ''
                 AND m.timestamp IS NOT NULL
                 ${speciesFilter}
+                ${bboxClause}
               GROUP BY o.scientificName, o.mediaID
           ),
           event_maxes AS (
@@ -416,7 +425,7 @@ export async function getSequenceAwareTimeseriesSQL(dbPath, speciesNames = [], g
             ORDER BY weekStart
         `
         )
-        .all(...regularSpecies)
+        .all(...regularSpecies, ...bboxParams)
     } else {
       rows = sqlite
         .prepare(
@@ -426,14 +435,16 @@ export async function getSequenceAwareTimeseriesSQL(dbPath, speciesNames = [], g
                  COUNT(o.observationID) AS count
             FROM observations o
             INNER JOIN media m ON o.mediaID = m.mediaID
+            ${bboxJoin}
             WHERE o.scientificName IS NOT NULL AND o.scientificName != ''
               AND m.timestamp IS NOT NULL
               ${speciesFilter}
+              ${bboxClause}
             GROUP BY o.scientificName, weekStart
             ORDER BY weekStart
         `
         )
-        .all(...regularSpecies)
+        .all(...regularSpecies, ...bboxParams)
     }
 
     const elapsed = Date.now() - startTime
