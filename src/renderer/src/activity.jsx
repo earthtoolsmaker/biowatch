@@ -700,7 +700,12 @@ export default function Activity({ studyData, studyId }) {
     return `${fmt(dateRange[0])} → ${fmt(dateRange[1])}`
   }, [hasDateFilter, dateRange])
   const { areaFilter, setAreaFilter } = useAreaFilter(actualStudyId)
-  const areaFilterLabel = useMemo(() => (areaFilter ? 'Map area' : null), [areaFilter])
+  const areaFilterLabel = useMemo(() => {
+    if (!areaFilter) return null
+    const lat = (v) => `${Math.abs(v).toFixed(2)}°${v >= 0 ? 'N' : 'S'}`
+    const lng = (v) => `${Math.abs(v).toFixed(2)}°${v >= 0 ? 'E' : 'W'}`
+    return `${lat(areaFilter.south)}–${lat(areaFilter.north)}, ${lng(areaFilter.west)}–${lng(areaFilter.east)}`
+  }, [areaFilter])
   const isFilteringWithArea = isFiltering || !!areaFilter
   const handleResetFilters = useCallback(() => {
     setChipSelection(new Set(ALL_CHIPS_SELECTED))
