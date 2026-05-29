@@ -4,7 +4,15 @@ import 'leaflet/dist/leaflet.css'
 import { MapPin } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { LayersControl, MapContainer, Marker, TileLayer, useMap, useMapEvents } from 'react-leaflet'
+import {
+  LayersControl,
+  MapContainer,
+  Marker,
+  Rectangle,
+  TileLayer,
+  useMap,
+  useMapEvents
+} from 'react-leaflet'
 import MarkerClusterGroup from 'react-leaflet-cluster'
 import { useParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
@@ -91,6 +99,63 @@ function MapContextMenuController({ onContextMenu, mapRef }) {
   return null
 }
 
+// Floating map control that snapshots the current viewport bounds as the
+// area filter on demand. The button is enabled only when the live viewport
+// differs from the applied filter by more than a tolerance — so trivial
+// pan/zoom jitter and sub-pixel reprojection (e.g. on window resize) don't
+// leave it perpetually enabled with a meaningless diff. The filter itself is
+// a frozen snapshot: panning away after applying does NOT recompute it.
+function AreaFilterControl({ areaFilter, onApplyAreaFilter }) {
+  const map = useMap()
+  const [viewportDiffers, setViewportDiffers] = useState(true)
+
+  const TOL = 1e-4
+  const recompute = useCallback(() => {
+    if (!areaFilter) {
+      setViewportDiffers(true)
+      return
+    }
+    const b = map.getBounds()
+    const differs =
+      Math.abs(b.getNorth() - areaFilter.north) > TOL ||
+      Math.abs(b.getSouth() - areaFilter.south) > TOL ||
+      Math.abs(b.getEast() - areaFilter.east) > TOL ||
+      Math.abs(b.getWest() - areaFilter.west) > TOL
+    setViewportDiffers(differs)
+  }, [map, areaFilter])
+
+  useEffect(() => {
+    recompute()
+    map.on('moveend zoomend resize', recompute)
+    return () => map.off('moveend zoomend resize', recompute)
+  }, [map, recompute])
+
+  const apply = () => {
+    const b = map.getBounds()
+    onApplyAreaFilter({
+      north: b.getNorth(),
+      south: b.getSouth(),
+      east: b.getEast(),
+      west: b.getWest()
+    })
+  }
+
+  return (
+    <div className="leaflet-bottom leaflet-left">
+      <div className="leaflet-control leaflet-bar">
+        <button
+          type="button"
+          onClick={apply}
+          disabled={!viewportDiffers}
+          className="px-2 py-1 text-xs bg-card text-foreground disabled:opacity-50"
+        >
+          Filter to this area
+        </button>
+      </div>
+    </div>
+  )
+}
+
 const slugifyForFilename = (s) =>
   (s || '')
     .toLowerCase()
@@ -123,7 +188,9 @@ const SpeciesMap = ({
   geoKey,
   studyId,
   studyName,
-  scientificToCommon
+  scientificToCommon,
+  areaFilter,
+  onApplyAreaFilter
 }) => {
   // Persist map layer selection per study
   const mapLayerKey = `mapLayer:${studyId}`
@@ -436,6 +503,17 @@ const SpeciesMap = ({
       <MapContainer bounds={bounds} boundsOptions={boundsOptions} className="rounded w-full h-full">
         <HideLeafletAttribution />
         <MapContextMenuController onContextMenu={setContextMenu} mapRef={mapRef} />
+        <AreaFilterControl areaFilter={areaFilter} onApplyAreaFilter={onApplyAreaFilter} />
+        {areaFilter && (
+          <Rectangle
+            bounds={[
+              [areaFilter.south, areaFilter.west],
+              [areaFilter.north, areaFilter.east]
+            ]}
+            pathOptions={{ color: '#2563eb', weight: 1, fillOpacity: 0.05 }}
+            interactive={false}
+          />
+        )}
         <LayersControl position="topright">
           <LayersControl.BaseLayer name="Satellite" checked={selectedLayer === 'Satellite'}>
             <TileLayer
@@ -633,6 +711,8 @@ export default function Activity({ studyData, studyId }) {
     return `${fmt(dateRange[0])} → ${fmt(dateRange[1])}`
   }, [hasDateFilter, dateRange])
   const { areaFilter, setAreaFilter } = useAreaFilter(actualStudyId)
+  const areaFilterLabel = useMemo(() => (areaFilter ? 'Map area' : null), [areaFilter])
+  const isFilteringWithArea = isFiltering || !!areaFilter
   const handleResetFilters = useCallback(() => {
     setChipSelection(new Set(ALL_CHIPS_SELECTED))
     setArc({ start: 0, end: 24 })
@@ -917,6 +997,8 @@ export default function Activity({ studyData, studyId }) {
                     studyName={studyData?.name}
                     geoKey={geoKey}
                     scientificToCommon={scientificToCommon}
+                    areaFilter={areaFilter}
+                    onApplyAreaFilter={setAreaFilter}
                   />
                 )}
               {heatmapStatus === 'noData' && !isHeatmapLoading && (
@@ -945,9 +1027,10 @@ export default function Activity({ studyData, studyId }) {
                       // once we've confirmed the study has no timestamps
                       // (ENA24, Biome Health Project, etc).
                       hasTemporalData={hasTemporalData || timeseriesQueryData === undefined}
-                      isFiltering={isFiltering}
+                      isFiltering={isFilteringWithArea}
                       dayFilterLabel={dayFilterLabel}
                       dateFilterLabel={dateFilterLabel}
+                      areaFilterLabel={areaFilterLabel}
                       onResetFilters={handleResetFilters}
                     />
                   </div>
