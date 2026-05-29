@@ -36,6 +36,7 @@ import { getTopNonHumanSpecies } from './utils/speciesUtils'
 import { useSequenceGap } from './hooks/useSequenceGap'
 import { useShowFilterCharts } from './hooks/useShowFilterCharts'
 import { useDateRange } from './hooks/useDateRange'
+import { useAreaFilter } from './hooks/useAreaFilter'
 
 // Inject the keyframes used by the skeleton markers once per page load.
 // Guarded by an id check so HMR / multiple SpeciesMap mounts don't re-append
@@ -631,11 +632,13 @@ export default function Activity({ studyData, studyId }) {
       d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
     return `${fmt(dateRange[0])} → ${fmt(dateRange[1])}`
   }, [hasDateFilter, dateRange])
+  const { areaFilter, setAreaFilter } = useAreaFilter(actualStudyId)
   const handleResetFilters = useCallback(() => {
     setChipSelection(new Set(ALL_CHIPS_SELECTED))
     setArc({ start: 0, end: 24 })
     setDateRange([null, null])
-  }, [setDateRange])
+    setAreaFilter(null)
+  }, [setDateRange, setAreaFilter])
   const { importStatus } = useImportStatus(actualStudyId, 5000)
   const { sequenceGap, setSequenceGap } = useSequenceGap(actualStudyId)
   const { showFilterCharts } = useShowFilterCharts(actualStudyId)
@@ -676,9 +679,13 @@ export default function Activity({ studyData, studyId }) {
   // Fetch sequence-aware species distribution data
   // sequenceGap in queryKey ensures refetch when slider changes (backend fetches from metadata)
   const { data: speciesDistributionData, error: speciesDistributionError } = useQuery({
-    queryKey: ['sequenceAwareSpeciesDistribution', actualStudyId, sequenceGap],
+    queryKey: ['sequenceAwareSpeciesDistribution', actualStudyId, sequenceGap, areaFilter],
     queryFn: async () => {
-      const response = await window.api.getSequenceAwareSpeciesDistribution(actualStudyId)
+      const response = await window.api.getSequenceAwareSpeciesDistribution(
+        actualStudyId,
+        sequenceGap,
+        areaFilter
+      )
       if (response.error) throw new Error(response.error)
       return response.data
     },
@@ -716,9 +723,20 @@ export default function Activity({ studyData, studyId }) {
   // Fetch sequence-aware timeseries data
   // sequenceGap in queryKey ensures refetch when slider changes (backend fetches from metadata)
   const { data: timeseriesQueryData } = useQuery({
-    queryKey: ['sequenceAwareTimeseries', actualStudyId, [...speciesNames].sort(), sequenceGap],
+    queryKey: [
+      'sequenceAwareTimeseries',
+      actualStudyId,
+      [...speciesNames].sort(),
+      sequenceGap,
+      areaFilter
+    ],
     queryFn: async () => {
-      const response = await window.api.getSequenceAwareTimeseries(actualStudyId, speciesNames)
+      const response = await window.api.getSequenceAwareTimeseries(
+        actualStudyId,
+        speciesNames,
+        sequenceGap,
+        areaFilter
+      )
       if (response.error) throw new Error(response.error)
       return response.data
     },
@@ -829,14 +847,17 @@ export default function Activity({ studyData, studyId }) {
       [...speciesNames].sort(),
       effectiveStart?.toISOString(),
       effectiveEnd?.toISOString(),
-      sequenceGap
+      sequenceGap,
+      areaFilter
     ],
     queryFn: async () => {
       const response = await window.api.getSequenceAwareDailyActivity(
         actualStudyId,
         speciesNames,
         effectiveStart?.toISOString(),
-        effectiveEnd?.toISOString()
+        effectiveEnd?.toISOString(),
+        sequenceGap,
+        areaFilter
       )
       if (response.error) throw new Error(response.error)
       return response.data
