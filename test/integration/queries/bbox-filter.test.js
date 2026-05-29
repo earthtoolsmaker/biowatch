@@ -136,3 +136,25 @@ test('daily-activity: bbox restricts in positive-gap branch', async () => {
   const total = rows.reduce((s, r) => s + r.count, 0)
   assert.equal(total, 1)
 })
+
+test('distribution-by-media: bbox excludes out-of-bounds media rows', async () => {
+  const rows = await getSpeciesDistributionByMedia(dbPath, BBOX_IN)
+  const names = [...new Set(rows.map((r) => r.scientificName))].sort()
+  assert.deepEqual(names, ['Vulpes vulpes']) // depB (Capreolus) excluded
+})
+
+test('distribution-by-media: null bbox returns all (regression guard)', async () => {
+  const rows = await getSpeciesDistributionByMedia(dbPath, null)
+  const names = [...new Set(rows.map((r) => r.scientificName))].sort()
+  assert.deepEqual(names, ['Capreolus capreolus', 'Vulpes vulpes'])
+})
+
+test('timeseries-by-media: bbox excludes out-of-bounds media rows', async () => {
+  const rows = await getSpeciesTimeseriesByMedia(dbPath, ['Capreolus capreolus'], BBOX_IN)
+  assert.deepEqual(rows, []) // Capreolus only at depB, outside BBOX_IN
+})
+
+test('timeseries-by-media: null bbox includes out-of-bounds rows', async () => {
+  const rows = await getSpeciesTimeseriesByMedia(dbPath, ['Capreolus capreolus'], null)
+  assert.equal(rows.length, 1)
+})

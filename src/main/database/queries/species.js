@@ -162,7 +162,7 @@ export async function getVehicleMediaCount(dbPath) {
  * @param {string} dbPath - Path to the SQLite database
  * @returns {Promise<Array>} - Array of { scientificName, mediaID, timestamp, deploymentID, eventID, fileMediatype, count }
  */
-export async function getSpeciesDistributionByMedia(dbPath) {
+export async function getSpeciesDistributionByMedia(dbPath, bbox = null) {
   const startTime = Date.now()
   log.info(`Querying species distribution by media from: ${dbPath}`)
 
@@ -171,7 +171,7 @@ export async function getSpeciesDistributionByMedia(dbPath) {
 
     const db = await getDrizzleDb(studyId, dbPath, { readonly: true })
 
-    const result = await db
+    let query = db
       .select({
         scientificName: observations.scientificName,
         mediaID: media.mediaID,
@@ -183,15 +183,19 @@ export async function getSpeciesDistributionByMedia(dbPath) {
       })
       .from(observations)
       .innerJoin(media, eq(observations.mediaID, media.mediaID))
-      .where(
-        and(
-          isNotNull(observations.scientificName),
-          ne(observations.scientificName, '')
-          // The scientificName filter already excludes empty-species rows
-          // (blank/unclassified/unknown/vehicle). See spec
-          // docs/specs/2026-05-04-empty-species-observations-design.md.
-        )
-      )
+
+    // The scientificName filter already excludes empty-species rows
+    // (blank/unclassified/unknown/vehicle). See spec
+    // docs/specs/2026-05-04-empty-species-observations-design.md.
+    const conditions = [isNotNull(observations.scientificName), ne(observations.scientificName, '')]
+    if (bbox && bbox.west <= bbox.east) {
+      query = query.innerJoin(deployments, eq(media.deploymentID, deployments.deploymentID))
+      conditions.push(between(deployments.latitude, bbox.south, bbox.north))
+      conditions.push(between(deployments.longitude, bbox.west, bbox.east))
+    }
+
+    const result = await query
+      .where(and(...conditions))
       .groupBy(observations.scientificName, media.mediaID)
       .orderBy(media.timestamp)
 
@@ -465,7 +469,7 @@ export async function getSequenceAwareTimeseriesSQL(
  * @param {Array<string>} speciesNames - List of scientific names to include
  * @returns {Promise<Array>} - Array of { scientificName, mediaID, timestamp, deploymentID, eventID, fileMediatype, weekStart, count }
  */
-export async function getSpeciesTimeseriesByMedia(dbPath, speciesNames = []) {
+export async function getSpeciesTimeseriesByMedia(dbPath, speciesNames = [], bbox = null) {
   const startTime = Date.now()
   log.info(`Querying species timeseries by media from: ${dbPath}`)
 
@@ -491,7 +495,7 @@ export async function getSpeciesTimeseriesByMedia(dbPath, speciesNames = []) {
       const weekStartColumn =
         sql`date(substr(${media.timestamp}, 1, 10), 'weekday 0', '-7 days')`.as('weekStart')
 
-      results = await db
+      let query = db
         .select({
           scientificName: observations.scientificName,
           mediaID: media.mediaID,
@@ -504,13 +508,20 @@ export async function getSpeciesTimeseriesByMedia(dbPath, speciesNames = []) {
         })
         .from(observations)
         .innerJoin(media, eq(observations.mediaID, media.mediaID))
-        .where(
-          and(
-            isNotNull(observations.scientificName),
-            ne(observations.scientificName, ''),
-            speciesCondition
-          )
-        )
+
+      const conditions = [
+        isNotNull(observations.scientificName),
+        ne(observations.scientificName, ''),
+        speciesCondition
+      ]
+      if (bbox && bbox.west <= bbox.east) {
+        query = query.innerJoin(deployments, eq(media.deploymentID, deployments.deploymentID))
+        conditions.push(between(deployments.latitude, bbox.south, bbox.north))
+        conditions.push(between(deployments.longitude, bbox.west, bbox.east))
+      }
+
+      results = await query
+        .where(and(...conditions))
         .groupBy(observations.scientificName, media.mediaID)
         .orderBy(media.timestamp)
     }
