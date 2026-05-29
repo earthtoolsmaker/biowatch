@@ -46,7 +46,8 @@ async function run() {
     startDate,
     endDate,
     timeRange,
-    includeNullTimestamps
+    includeNullTimestamps,
+    bbox
   } = workerData
 
   // Fetch gapSeconds from metadata if not provided
@@ -63,9 +64,9 @@ async function run() {
       // the final [{scientificName, count}] directly (83 rows, not 1.65M).
       // Returns null for positive gapSeconds, in which case we fall back to the
       // row-dump + JS sequence grouping below.
-      const fast = await getSequenceAwareSpeciesCountsSQL(dbPath, effectiveGapSeconds)
+      const fast = await getSequenceAwareSpeciesCountsSQL(dbPath, effectiveGapSeconds, bbox)
       if (fast !== null) return fast
-      const rawData = await getSpeciesDistributionByMedia(dbPath)
+      const rawData = await getSpeciesDistributionByMedia(dbPath, bbox)
       return calculateSequenceAwareSpeciesCounts(rawData, effectiveGapSeconds)
     }
     case 'timeseries': {
@@ -77,10 +78,11 @@ async function run() {
       const fastRows = await getSequenceAwareTimeseriesSQL(
         dbPath,
         speciesNames,
-        effectiveGapSeconds
+        effectiveGapSeconds,
+        bbox
       )
       if (fastRows !== null) return pivotPreAggregatedTimeseries(fastRows)
-      const rawData = await getSpeciesTimeseriesByMedia(dbPath, speciesNames)
+      const rawData = await getSpeciesTimeseriesByMedia(dbPath, speciesNames, bbox)
       return calculateSequenceAwareTimeseries(rawData, effectiveGapSeconds)
     }
     case 'heatmap': {
@@ -117,7 +119,8 @@ async function run() {
         speciesNames,
         startDate,
         endDate,
-        effectiveGapSeconds
+        effectiveGapSeconds,
+        bbox
       )
       return pivotPreAggregatedDailyActivity(rows || [], speciesNames)
     }
