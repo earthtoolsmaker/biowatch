@@ -1,7 +1,7 @@
 import * as htmlToImage from 'html-to-image'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { MapPin } from 'lucide-react'
+import { MapPin, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import {
@@ -99,38 +99,21 @@ function MapContextMenuController({ onContextMenu, mapRef }) {
   return null
 }
 
-// Floating map control that snapshots the current viewport bounds as the
-// area filter on demand. The button is enabled only when the live viewport
-// differs from the applied filter by more than a tolerance — so trivial
-// pan/zoom jitter and sub-pixel reprojection (e.g. on window resize) don't
-// leave it perpetually enabled with a meaningless diff. The filter itself is
-// a frozen snapshot: panning away after applying does NOT recompute it.
+// Floating top-center pill that toggles the map area filter, mirroring the
+// day-period chips: when no filter is active it snapshots the current
+// viewport bounds on click; when a filter IS active the pill turns blue and
+// clicking it clears the filter (always enabled so it can always be turned
+// off). The filter is a frozen snapshot — panning away after applying does
+// NOT recompute it; to filter a different area, clear then apply again.
 function AreaFilterControl({ areaFilter, onApplyAreaFilter }) {
   const map = useMap()
-  const [viewportDiffers, setViewportDiffers] = useState(true)
+  const active = !!areaFilter
 
-  const TOL = 1e-4
-  const recompute = useCallback(() => {
-    if (!areaFilter) {
-      setViewportDiffers(true)
+  const handleClick = () => {
+    if (active) {
+      onApplyAreaFilter(null)
       return
     }
-    const b = map.getBounds()
-    const differs =
-      Math.abs(b.getNorth() - areaFilter.north) > TOL ||
-      Math.abs(b.getSouth() - areaFilter.south) > TOL ||
-      Math.abs(b.getEast() - areaFilter.east) > TOL ||
-      Math.abs(b.getWest() - areaFilter.west) > TOL
-    setViewportDiffers(differs)
-  }, [map, areaFilter])
-
-  useEffect(() => {
-    recompute()
-    map.on('moveend zoomend resize', recompute)
-    return () => map.off('moveend zoomend resize', recompute)
-  }, [map, recompute])
-
-  const apply = () => {
     const b = map.getBounds()
     onApplyAreaFilter({
       north: b.getNorth(),
@@ -141,15 +124,21 @@ function AreaFilterControl({ areaFilter, onApplyAreaFilter }) {
   }
 
   return (
-    <div className="leaflet-bottom leaflet-left">
-      <div className="leaflet-control leaflet-bar">
+    <div className="leaflet-top" style={{ left: '50%', transform: 'translateX(-50%)' }}>
+      <div className="leaflet-control">
         <button
           type="button"
-          onClick={apply}
-          disabled={!viewportDiffers}
-          className="px-2 py-1 text-xs bg-card text-foreground disabled:opacity-50"
+          onClick={handleClick}
+          className={`flex items-center gap-1.5 h-7 px-3 rounded-full text-xs font-medium border shadow-sm transition-colors ${
+            active
+              ? 'text-blue-600 bg-blue-50 border-blue-200 hover:bg-blue-100 dark:text-blue-400 dark:bg-blue-500/15 dark:border-blue-500/30 dark:hover:bg-blue-500/25'
+              : 'text-muted-foreground bg-card border-border hover:bg-accent'
+          }`}
+          aria-label={active ? 'Clear area filter' : 'Filter to this area'}
+          aria-pressed={active}
         >
-          Filter to this area
+          {active ? <X size={14} /> : <MapPin size={14} />}
+          {active ? 'Clear area filter' : 'Filter to this area'}
         </button>
       </div>
     </div>
