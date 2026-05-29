@@ -79,3 +79,60 @@ test('timeseries: bbox excludes out-of-bounds species entirely', async () => {
   const rows = await getSequenceAwareTimeseriesSQL(dbPath, ['Capreolus capreolus'], null, BBOX_IN)
   assert.deepEqual(rows, []) // Capreolus only exists at depB, which is outside BBOX_IN
 })
+
+const START = '2024-01-01T00:00:00'
+const END = '2024-12-31T23:59:59'
+
+test('daily-activity: null bbox includes out-of-bounds observations', async () => {
+  const rows = await getSequenceAwareDailyActivitySQL(
+    dbPath,
+    ['Vulpes vulpes'],
+    START,
+    END,
+    null,
+    null
+  )
+  const total = rows.reduce((s, r) => s + r.count, 0)
+  assert.equal(total, 2) // Vulpes at depA (08:00) + depB (09:00)
+})
+
+test('daily-activity: bbox restricts to in-bounds observations', async () => {
+  const rows = await getSequenceAwareDailyActivitySQL(
+    dbPath,
+    ['Vulpes vulpes'],
+    START,
+    END,
+    null,
+    BBOX_IN
+  )
+  const total = rows.reduce((s, r) => s + r.count, 0)
+  assert.equal(total, 1) // only depA Vulpes (08:00) is inside BBOX_IN
+})
+
+// Guard the param bind-order in the eventID (gap=0) and positive-gap branches,
+// which append bbox params after a different number of leading params.
+test('daily-activity: bbox restricts in eventID branch (gap=0)', async () => {
+  const rows = await getSequenceAwareDailyActivitySQL(
+    dbPath,
+    ['Vulpes vulpes'],
+    START,
+    END,
+    0,
+    BBOX_IN
+  )
+  const total = rows.reduce((s, r) => s + r.count, 0)
+  assert.equal(total, 1)
+})
+
+test('daily-activity: bbox restricts in positive-gap branch', async () => {
+  const rows = await getSequenceAwareDailyActivitySQL(
+    dbPath,
+    ['Vulpes vulpes'],
+    START,
+    END,
+    300,
+    BBOX_IN
+  )
+  const total = rows.reduce((s, r) => s + r.count, 0)
+  assert.equal(total, 1)
+})

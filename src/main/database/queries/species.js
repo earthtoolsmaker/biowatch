@@ -973,7 +973,8 @@ export async function getSequenceAwareDailyActivitySQL(
   speciesNames = [],
   startDate,
   endDate,
-  gapSeconds
+  gapSeconds,
+  bbox = null
 ) {
   const regularSpecies = speciesNames.filter((s) => s !== BLANK_SENTINEL)
   if (speciesNames.includes(BLANK_SENTINEL)) return null
@@ -984,6 +985,9 @@ export async function getSequenceAwareDailyActivitySQL(
   const studyId = getStudyIdFromPath(dbPath)
   const manager = await getStudyDatabase(studyId, dbPath, { readonly: true })
   const sqlite = manager.getSqlite()
+
+  const { clause: bboxClause, params: bboxParams } = buildBboxClause(bbox, 'd')
+  const bboxJoin = bbox ? 'INNER JOIN deployments d ON m.deploymentID = d.deploymentID' : ''
 
   const isPositiveGap = typeof gapSeconds === 'number' && gapSeconds > 0
   const useEventIDPath = gapSeconds === 0
@@ -1010,9 +1014,11 @@ export async function getSequenceAwareDailyActivitySQL(
                    COUNT(*) AS media_count
               FROM observations o
               INNER JOIN media m ON o.mediaID = m.mediaID
+              ${bboxJoin}
               WHERE o.scientificName IN (${speciesPlaceholders})
                 AND m.timestamp IS NOT NULL
                 AND m.timestamp >= ? AND m.timestamp <= ?
+                ${bboxClause}
               GROUP BY o.scientificName, o.mediaID
           ),
           marked AS (
@@ -1047,7 +1053,7 @@ export async function getSequenceAwareDailyActivitySQL(
             ORDER BY hour
         `
         )
-        .all(...regularSpecies, startDate, endDate, gapSeconds)
+        .all(...regularSpecies, startDate, endDate, ...bboxParams, gapSeconds)
     } else if (useEventIDPath) {
       rows = sqlite
         .prepare(
@@ -1059,9 +1065,11 @@ export async function getSequenceAwareDailyActivitySQL(
                    COUNT(*) AS media_count
               FROM observations o
               INNER JOIN media m ON o.mediaID = m.mediaID
+              ${bboxJoin}
               WHERE o.scientificName IN (${speciesPlaceholders})
                 AND m.timestamp IS NOT NULL
                 AND m.timestamp >= ? AND m.timestamp <= ?
+                ${bboxClause}
               GROUP BY o.scientificName, o.mediaID
           ),
           event_maxes AS (
@@ -1075,7 +1083,7 @@ export async function getSequenceAwareDailyActivitySQL(
             ORDER BY hour
         `
         )
-        .all(...regularSpecies, startDate, endDate)
+        .all(...regularSpecies, startDate, endDate, ...bboxParams)
     } else {
       rows = sqlite
         .prepare(
@@ -1085,14 +1093,16 @@ export async function getSequenceAwareDailyActivitySQL(
                  COUNT(o.observationID) AS count
             FROM observations o
             INNER JOIN media m ON o.mediaID = m.mediaID
+            ${bboxJoin}
             WHERE o.scientificName IN (${speciesPlaceholders})
               AND m.timestamp IS NOT NULL
               AND m.timestamp >= ? AND m.timestamp <= ?
+              ${bboxClause}
             GROUP BY o.scientificName, hour
             ORDER BY hour
         `
         )
-        .all(...regularSpecies, startDate, endDate)
+        .all(...regularSpecies, startDate, endDate, ...bboxParams)
     }
 
     const elapsed = Date.now() - startTime
