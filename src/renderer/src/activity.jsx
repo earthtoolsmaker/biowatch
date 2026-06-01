@@ -35,6 +35,11 @@ import { useTheme } from './hooks/useTheme'
 import PlaceholderMap from './ui/PlaceholderMap'
 import { SequenceGapSlider } from './ui/SequenceGapSlider'
 import FilterChartsToggle from './ui/FilterChartsToggle'
+import ViewModeToggle from './ui/ViewModeToggle'
+import ThumbnailBboxToggle from './ui/ThumbnailBboxToggle'
+import Gallery from './media/Gallery'
+import { useIsLgUp } from './hooks/useIsLgUp'
+import { getAvailableViewModes, clampViewMode } from './utils/viewLayout'
 import SpeciesDistribution from './ui/speciesDistribution'
 import TimelineChart from './ui/timeseries'
 import { useImportStatus } from './hooks/import'
@@ -793,6 +798,16 @@ export default function Activity({ studyData, studyId }) {
   const { sequenceGap, setSequenceGap } = useSequenceGap(actualStudyId)
   const { showFilterCharts } = useShowFilterCharts(actualStudyId)
 
+  // Explore view toggle: 'map' | 'gallery' | 'both'. Defaults to 'map'
+  // (not persisted). 'both' is only available at lg+; clamp to 'map' if the
+  // window is narrower so a stale 'both' selection can't render off-breakpoint.
+  const isLgUp = useIsLgUp()
+  const [viewModeRaw, setViewMode] = useState('map')
+  const viewMode = clampViewMode(viewModeRaw, isLgUp)
+  const availableViewModes = getAvailableViewModes(isLgUp)
+  const showMap = viewMode === 'map' || viewMode === 'both'
+  const showGallery = viewMode === 'gallery' || viewMode === 'both'
+
   // Suppress the filter-row's open/close transition until species + temporal
   // guards have settled. On tab navigation the wrapper otherwise flips
   // h-0 → h-[180px] when the async timeseries query resolves, which fires
@@ -1043,69 +1058,88 @@ export default function Activity({ studyData, studyId }) {
         </div>
       ) : (
         <div className="flex flex-col h-full">
-          {/* First row - takes remaining space */}
-          <div className="flex flex-row gap-4 flex-1 min-h-0">
-            {/* Species Distribution - left side */}
-
-            {/* Map - right side.
-                Render SpeciesMap as soon as `deploymentLocations` arrives
-                (~ms), so the user sees clustered gray dots at the camera
-                locations while the heavy heatmap query resolves. The map
-                upgrades to pies when heatmapData lands. PlaceholderMap only
-                shows when we have deployment locations but the heatmap
-                explicitly came back empty. */}
-            <div className="h-full flex-1">
-              {deploymentLocations &&
-                deploymentLocations.length > 0 &&
-                heatmapStatus !== 'noData' && (
-                  <SpeciesMap
-                    deploymentLocations={deploymentLocations}
-                    heatmapData={heatmapStatus === 'hasData' ? heatmapData : null}
-                    selectedSpecies={selectedSpecies}
-                    palette={palette}
-                    studyId={actualStudyId}
-                    studyName={studyData?.name}
-                    geoKey={geoKey}
-                    scientificToCommon={scientificToCommon}
-                    areaFilter={areaFilter}
-                    onApplyAreaFilter={setAreaFilter}
-                  />
-                )}
-              {heatmapStatus === 'noData' && !isHeatmapLoading && (
-                <PlaceholderMap
-                  title="No Species Location Data"
-                  description="Select species from the list and set up deployment coordinates in the Deployments tab to view the species distribution map."
-                  linkTo="/deployments"
-                  linkText="Go to Deployments"
-                  icon={MapPin}
+          {/* Top control bar — gap slider + view toggle + filter toggles.
+              Lifted out of the right rail so the controls apply visibly to
+              whatever the main pane shows (map, gallery, or both). */}
+          {speciesInitialized && sequenceGap !== undefined && (
+            <div className="flex items-center gap-2 px-2 h-10 flex-shrink-0 mb-2">
+              <SequenceGapSlider value={sequenceGap} onChange={setSequenceGap} variant="compact" />
+              <ViewModeToggle value={viewMode} modes={availableViewModes} onChange={setViewMode} />
+              <div className="ml-auto flex items-center gap-1">
+                {showGallery && <ThumbnailBboxToggle studyId={actualStudyId} />}
+                <FilterChartsToggle
                   studyId={actualStudyId}
+                  // Optimistic while timeseries is loading — hide only once
+                  // we've confirmed the study has no timestamps (ENA24, Biome
+                  // Health Project, etc).
+                  hasTemporalData={hasTemporalData || timeseriesQueryData === undefined}
+                  isFiltering={isFilteringWithArea}
+                  dayFilterLabel={dayFilterLabel}
+                  dateFilterLabel={dateFilterLabel}
+                  areaFilterLabel={areaFilterLabel}
+                  onResetFilters={handleResetFilters}
                 />
-              )}
+              </div>
             </div>
-            <div className="h-full w-xs flex flex-col gap-2 min-h-0">
-              {speciesInitialized && sequenceGap !== undefined && (
-                <div className="flex items-center gap-2 px-2 h-10 flex-shrink-0">
-                  <SequenceGapSlider
-                    value={sequenceGap}
-                    onChange={setSequenceGap}
-                    variant="compact"
-                  />
-                  <div className="ml-auto flex items-center gap-1">
-                    <FilterChartsToggle
+          )}
+
+          {/* Content row — main pane (map / gallery / both) + species rail. */}
+          <div className="flex flex-row gap-4 flex-1 min-h-0">
+            {/* Main pane. In 'both' the two panes stack on lg–xl and sit
+                side-by-side at 2xl+ so neither is cramped (see spec
+                responsive table). */}
+            <div className="h-full flex-1 min-w-0 flex flex-col 2xl:flex-row gap-4">
+              {showMap && (
+                <div className="h-full flex-1 min-h-0 min-w-0">
+                  {/* Render SpeciesMap as soon as `deploymentLocations` arrives
+                      (~ms), so the user sees clustered gray dots at the camera
+                      locations while the heavy heatmap query resolves. The map
+                      upgrades to pies when heatmapData lands. PlaceholderMap
+                      only shows when we have deployment locations but the
+                      heatmap explicitly came back empty. */}
+                  {deploymentLocations &&
+                    deploymentLocations.length > 0 &&
+                    heatmapStatus !== 'noData' && (
+                      <SpeciesMap
+                        deploymentLocations={deploymentLocations}
+                        heatmapData={heatmapStatus === 'hasData' ? heatmapData : null}
+                        selectedSpecies={selectedSpecies}
+                        palette={palette}
+                        studyId={actualStudyId}
+                        studyName={studyData?.name}
+                        geoKey={geoKey}
+                        scientificToCommon={scientificToCommon}
+                        areaFilter={areaFilter}
+                        onApplyAreaFilter={setAreaFilter}
+                      />
+                    )}
+                  {heatmapStatus === 'noData' && !isHeatmapLoading && (
+                    <PlaceholderMap
+                      title="No Species Location Data"
+                      description="Select species from the list and set up deployment coordinates in the Deployments tab to view the species distribution map."
+                      linkTo="/deployments"
+                      linkText="Go to Deployments"
+                      icon={MapPin}
                       studyId={actualStudyId}
-                      // Optimistic while timeseries is loading — hide only
-                      // once we've confirmed the study has no timestamps
-                      // (ENA24, Biome Health Project, etc).
-                      hasTemporalData={hasTemporalData || timeseriesQueryData === undefined}
-                      isFiltering={isFilteringWithArea}
-                      dayFilterLabel={dayFilterLabel}
-                      dateFilterLabel={dateFilterLabel}
-                      areaFilterLabel={areaFilterLabel}
-                      onResetFilters={handleResetFilters}
                     />
-                  </div>
+                  )}
                 </div>
               )}
+              {showGallery && (
+                <div className="h-full flex-1 min-h-0 min-w-0">
+                  <Gallery
+                    species={selectedSpecies.map((s) => s.scientificName)}
+                    dateRange={dateRange}
+                    timeRange={timeRange}
+                    includeNullTimestamps={isFullRange}
+                    speciesReady={speciesInitialized}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Species rail — legend + filter, shown in all views. */}
+            <div className="h-full w-xs flex flex-col gap-2 min-h-0">
               {speciesDistributionData && (
                 <div className="flex-1 min-h-0">
                   <SpeciesDistribution
