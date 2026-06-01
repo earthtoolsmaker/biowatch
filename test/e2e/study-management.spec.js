@@ -124,13 +124,13 @@ test.describe('Study Management', () => {
 
     // Check that tabs are visible by looking for tab links
     await expect(window.getByRole('link', { name: 'Overview' })).toBeVisible()
-    await expect(window.getByRole('link', { name: 'Activity' })).toBeVisible()
+    await expect(window.getByRole('link', { name: 'Explore' })).toBeVisible()
     await expect(window.getByRole('link', { name: 'Media' })).toBeVisible()
     await expect(window.getByRole('link', { name: 'Deployments' })).toBeVisible()
 
-    // Navigate to Activity tab
-    await window.getByRole('link', { name: 'Activity' }).click()
-    await window.waitForURL(/#\/study\/.*\/activity/)
+    // Navigate to Explore tab
+    await window.getByRole('link', { name: 'Explore' }).click()
+    await window.waitForURL(/#\/study\/.*\/explore/)
 
     // Navigate to Media tab
     await window.getByRole('link', { name: 'Media' }).click()
