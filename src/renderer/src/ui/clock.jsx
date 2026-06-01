@@ -18,8 +18,10 @@ import {
   rangesToSegments,
   rangesToBoundaries,
   bandToSegments,
+  bandWidth,
   resolveAction
 } from './clockGeometry.js'
+import { isFullDayArc } from '../utils/dayPeriods.js'
 
 // Outer radius (in px) of the activity radar and the inner reference circle.
 // The selection ring lives OUTSIDE this, so the radar is kept a little
@@ -62,12 +64,17 @@ const CircularTimeFilter = ({
   }, [startTime, endTime])
 
   const interactive = mode !== 'chips'
+  // A full-day freeform drag is "no filter" (same as the backend's
+  // isFullDayArc and the x-y view) — render no blue so it doesn't look like
+  // an active full selection. Chip-driven full day (the default) is the
+  // intended full ring and is left to the chipSectors path below.
+  const fullDayDrag = interactive && isFullDayArc({ start, end })
   // Ranges to paint as blue arcs: the live drag band, or the chip sectors.
   const ranges = interactive ? [{ start, end }] : chipSectors
-  const segments = rangesToSegments(ranges)
+  const segments = fullDayDrag ? [] : rangesToSegments(ranges)
   const isFullRing = segments.length === 1 && segments[0][0] === 0 && segments[0][1] === 24
   // Interior boundary hours, drawn as dashed radial guides into the plot.
-  const boundaries = rangesToBoundaries(ranges)
+  const boundaries = fullDayDrag ? [] : rangesToBoundaries(ranges)
 
   // Point on a circle of radius r at the given clock hour.
   const pointAt = (hour, r) => {
@@ -519,7 +526,7 @@ const DailyActivityLine = ({
     } else {
       // pan
       const { start, end } = selectedRanges[0]
-      const width = isWrapBand ? 24 - start + end : end - start
+      const width = bandWidth(selectedRanges[0])
       const panOffset = isWrapBand && cursor < end ? cursor + 24 - start : cursor - start
       setDragState({ mode: 'pan', liveStart: start, liveEnd: end, panOffset, panWidth: width })
     }

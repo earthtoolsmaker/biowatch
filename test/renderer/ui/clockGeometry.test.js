@@ -6,6 +6,7 @@ import {
   isInsideBand,
   edgeTolFor,
   bandToSegments,
+  bandWidth,
   rangesToSegments,
   rangesToBoundaries,
   resolveAction
@@ -60,6 +61,18 @@ describe('bandToSegments', () => {
       [21, 24],
       [0, 5]
     ])
+  })
+})
+
+describe('bandWidth', () => {
+  test('non-wrap band: end - start', () => {
+    assert.equal(bandWidth({ start: 8, end: 18 }), 10)
+  })
+  test('wrap band: hours across midnight', () => {
+    assert.equal(bandWidth({ start: 21, end: 5 }), 8)
+  })
+  test('full-day {0,24} is 24h', () => {
+    assert.equal(bandWidth({ start: 0, end: 24 }), 24)
   })
 })
 
