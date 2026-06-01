@@ -192,7 +192,7 @@ src/
 │   ├── media/               # Media subcomponents shared with the Deployments tab
 │   │   ├── Gallery.jsx               # Sequence grid + ImageModal + bbox editor
 │   │   └── DeploymentMediaGallery.jsx # Deployment-scoped wrapper around Gallery
-│   ├── activity.jsx         # Temporal analysis (right-click map → Save as PNG via html-to-image)
+│   ├── activity.jsx         # Explore tab — Map | Gallery | Both view toggle (reuses media/Gallery), temporal analysis (right-click map → Save as PNG)
 │   ├── models/              # AI Models tab (split-view map + cards)
 │   │   ├── index.jsx                  # MlZoo top-level (responsive split/stacked)
 │   │   ├── MapPane.jsx                # Leaflet map + region overlays + worldwide chip
@@ -390,7 +390,8 @@ function getStudyPath(userDataPath, studyId) {
 | `src/renderer/src/deployments.jsx`                      | Deployments tab — map + list + inline media pane            |
 | `src/renderer/src/deployments/DeploymentDetailPane.jsx` | Bottom pane (header + close) mounted on selection           |
 | `src/renderer/src/deployments/urlState.js`              | `?deploymentID=…` URL state helpers                         |
-| `src/renderer/src/media.jsx`                            | Media tab — filters, timeline, daily-activity radar         |
+| `src/renderer/src/activity.jsx`                         | Explore tab — Map \| Gallery \| Both view toggle (reuses Gallery), map + temporal filters |
+| `src/renderer/src/media.jsx`                            | Media tab — filters, timeline, daily-activity radar (separate page, pending rework) |
 | `src/renderer/src/media/Gallery.jsx`                    | Shared sequence grid + ImageModal + bbox editor             |
 | `src/renderer/src/media/DeploymentMediaGallery.jsx`     | Deployment-scoped wrapper around Gallery                    |
 | `src/main/database/models.js`                           | Drizzle table definitions                                   |
