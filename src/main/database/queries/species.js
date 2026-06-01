@@ -259,16 +259,18 @@ export async function getSequenceAwareSpeciesCountsSQL(dbPath, gapSeconds, bbox 
   try {
     let rows
     if (isPositiveGap) {
-      // Time-gap path: group each species' valid-timestamp media into sequences
-      // via window functions (boundary on gap > threshold, video, or deployment
-      // change), take MAX(per-media count) per sequence, SUM by species. Mirrors
-      // groupMediaIntoSequences + calculateSequenceAwareSpeciesCounts. Null-ts
-      // media can't be ordered into sequences, so each counts individually
-      // (UNION), matching the nullTimestampMedia branch in speciesCounts.js.
+      // Time-gap path. Mirrors groupMediaIntoSequences + calculateSequenceAwareSpeciesCounts:
+      // media are grouped into sequences over the GLOBAL media stream (boundary
+      // on gap > threshold, video, or deployment change) — NOT per species — and
+      // then each species takes MAX(per-media count) within a sequence, SUM by
+      // species. Sequencing per-species would be wrong: a media of another
+      // species can bridge a time gap between two media of this species.
+      // Null-ts media can't be ordered, so each counts individually (UNION),
+      // matching the nullTimestampMedia branch in speciesCounts.js.
       rows = sqlite
         .prepare(
           `
-          WITH per_media AS (
+          WITH mc AS (
             SELECT o.scientificName AS scientificName,
                    m.mediaID AS mediaID,
                    m.deploymentID AS deploymentID,
@@ -286,9 +288,13 @@ export async function getSequenceAwareSpeciesCountsSQL(dbPath, gapSeconds, bbox 
                 ${bboxClause}
               GROUP BY o.scientificName, m.mediaID
           ),
-          valid AS (SELECT * FROM per_media WHERE is_null_ts = 0),
+          media_level AS (
+            SELECT mediaID, deploymentID, ts, MAX(is_video) AS is_video
+              FROM mc WHERE is_null_ts = 0
+              GROUP BY mediaID, deploymentID, ts
+          ),
           marked AS (
-            SELECT *,
+            SELECT mediaID, ts,
               CASE
                 WHEN LAG(mediaID) OVER w IS NULL THEN 1
                 WHEN is_video = 1 THEN 1
@@ -299,19 +305,19 @@ export async function getSequenceAwareSpeciesCountsSQL(dbPath, gapSeconds, bbox 
                 WHEN (julianday(ts) - julianday(LAG(ts) OVER w)) * 86400 > ? THEN 1
                 ELSE 0
               END AS is_new
-              FROM valid
-              WINDOW w AS (PARTITION BY scientificName ORDER BY ts, mediaID)
+              FROM media_level
+              WINDOW w AS (ORDER BY ts, mediaID)
           ),
-          sequenced AS (
-            SELECT scientificName, cnt,
-                   SUM(is_new) OVER (PARTITION BY scientificName ORDER BY ts, mediaID
+          seq AS (
+            SELECT mediaID,
+                   SUM(is_new) OVER (ORDER BY ts, mediaID
                                      ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS seq_id
               FROM marked
           ),
           per_seq AS (
-            SELECT scientificName, seq_id, MAX(cnt) AS max_cnt
-              FROM sequenced
-              GROUP BY scientificName, seq_id
+            SELECT mc.scientificName AS scientificName, seq.seq_id AS seq_id, MAX(mc.cnt) AS max_cnt
+              FROM mc JOIN seq ON mc.mediaID = seq.mediaID
+              GROUP BY mc.scientificName, seq.seq_id
           ),
           valid_totals AS (
             SELECT scientificName, SUM(max_cnt) AS count
@@ -319,7 +325,7 @@ export async function getSequenceAwareSpeciesCountsSQL(dbPath, gapSeconds, bbox 
           ),
           null_ts_totals AS (
             SELECT scientificName, SUM(cnt) AS count
-              FROM per_media WHERE is_null_ts = 1
+              FROM mc WHERE is_null_ts = 1
               GROUP BY scientificName
           )
           SELECT scientificName, SUM(count) AS count FROM (
@@ -486,16 +492,18 @@ export async function getSequenceAwareTimeseriesSQL(
   try {
     let rows
     if (isPositiveGap) {
-      // Time-gap path: per (species, week) group media into sequences via window
-      // functions, MAX(per-media count) per sequence, SUM by (species, week).
-      // Partitioning the window by weekStart mirrors calculateSequenceAwareTimeseries,
-      // which buckets observations by week BEFORE sequence-grouping — so a burst
-      // straddling a week boundary becomes two sequences. Null-ts media have no
-      // week and are excluded (matches the JS "if (!week) continue").
+      // Time-gap path. Mirrors calculateSequenceAwareTimeseries, which buckets
+      // observations by week BEFORE sequence-grouping, and within a week groups
+      // the GLOBAL media stream (not per species) then takes MAX(per-media count)
+      // per species per sequence. So sequencing is per-week at the media level
+      // (PARTITION BY weekStart) — NOT per (species, week); per-species would let
+      // a same-week media of another species fail to bridge the gap correctly.
+      // A burst straddling a week boundary still becomes two sequences. Null-ts
+      // media have no week and are excluded (matches JS "if (!week) continue").
       rows = sqlite
         .prepare(
           `
-          WITH per_media AS (
+          WITH mc AS (
             SELECT o.scientificName AS scientificName,
                    m.mediaID AS mediaID,
                    m.deploymentID AS deploymentID,
@@ -508,12 +516,18 @@ export async function getSequenceAwareTimeseriesSQL(
               ${bboxJoin}
               WHERE o.scientificName IS NOT NULL AND o.scientificName != ''
                 AND m.timestamp IS NOT NULL
+                AND julianday(m.timestamp) IS NOT NULL
                 ${speciesFilter}
                 ${bboxClause}
               GROUP BY o.scientificName, o.mediaID
           ),
+          media_level AS (
+            SELECT mediaID, deploymentID, ts, weekStart, MAX(is_video) AS is_video
+              FROM mc
+              GROUP BY mediaID, deploymentID, ts, weekStart
+          ),
           marked AS (
-            SELECT *,
+            SELECT mediaID, ts, weekStart,
               CASE
                 WHEN LAG(mediaID) OVER w IS NULL THEN 1
                 WHEN is_video = 1 THEN 1
@@ -524,19 +538,20 @@ export async function getSequenceAwareTimeseriesSQL(
                 WHEN (julianday(ts) - julianday(LAG(ts) OVER w)) * 86400 > ? THEN 1
                 ELSE 0
               END AS is_new
-              FROM per_media
-              WINDOW w AS (PARTITION BY scientificName, weekStart ORDER BY ts, mediaID)
+              FROM media_level
+              WINDOW w AS (PARTITION BY weekStart ORDER BY ts, mediaID)
           ),
-          sequenced AS (
-            SELECT scientificName, weekStart, media_count,
-                   SUM(is_new) OVER (PARTITION BY scientificName, weekStart ORDER BY ts, mediaID
+          seq AS (
+            SELECT mediaID, weekStart,
+                   SUM(is_new) OVER (PARTITION BY weekStart ORDER BY ts, mediaID
                                      ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS seq_id
               FROM marked
           ),
           per_seq AS (
-            SELECT scientificName, weekStart, seq_id, MAX(media_count) AS max_count
-              FROM sequenced
-              GROUP BY scientificName, weekStart, seq_id
+            SELECT mc.scientificName AS scientificName, seq.weekStart AS weekStart,
+                   seq.seq_id AS seq_id, MAX(mc.media_count) AS max_count
+              FROM mc JOIN seq ON mc.mediaID = seq.mediaID
+              GROUP BY mc.scientificName, seq.weekStart, seq.seq_id
           )
           SELECT scientificName, weekStart, SUM(max_count) AS count
             FROM per_seq

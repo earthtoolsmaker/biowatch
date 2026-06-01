@@ -5,9 +5,10 @@
  * produces the same per-(week, species) counts as
  * calculateSequenceAwareTimeseries(getSpeciesTimeseriesByMedia(...), gap).
  *
- * The JS path groups observations by week FIRST, then sequence-groups within
- * each week — so a burst that straddles a week boundary becomes two sequences.
- * The SQL path must mirror that by partitioning sequences on (species, week).
+ * The JS path groups observations by week FIRST, then sequence-groups the
+ * global media stream within each week (not per species) — so a burst that
+ * straddles a week boundary becomes two sequences. The SQL path mirrors that by
+ * sequencing media partitioned on weekStart, then taking per-species MAX.
  */
 
 import { test, beforeEach, afterEach, describe } from 'node:test'
@@ -179,6 +180,68 @@ describe('getSequenceAwareTimeseriesSQL — positive-gap parity with JS pipeline
       observations: [...obs('m1', 'd1', 'Deer', 2), ...obs('m2', 'd1', 'Deer', 9)]
     })
     await assertTsParity(testDbPath, [], 120, 'null-ts excluded')
+  })
+
+  test('deployment boundary within a week never groups', async () => {
+    await seed(testDbPath, {
+      deployments: { d1: dep('d1'), d2: dep('d2') },
+      media: {
+        'm1.jpg': med('m1', 'd1', '2024-01-09T10:00:00Z'),
+        'm2.jpg': med('m2', 'd2', '2024-01-09T10:00:10Z')
+      },
+      observations: [...obs('m1', 'd1', 'Deer', 2), ...obs('m2', 'd2', 'Deer', 5)]
+    })
+    await assertTsParity(testDbPath, [], 120, 'cross-deployment within week')
+  })
+
+  test('video boundary within a week never groups', async () => {
+    const manager = await seed(testDbPath, {
+      deployments: { d1: dep('d1') },
+      media: {
+        'm1.jpg': med('m1', 'd1', '2024-01-09T10:00:00Z'),
+        'm2.mp4': med('m2', 'd1', '2024-01-09T10:00:05Z'),
+        'm3.jpg': med('m3', 'd1', '2024-01-09T10:00:10Z')
+      },
+      observations: [
+        ...obs('m1', 'd1', 'Deer', 2),
+        ...obs('m2', 'd1', 'Deer', 7),
+        ...obs('m3', 'd1', 'Deer', 3)
+      ]
+    })
+    manager
+      .getSqlite()
+      .prepare("UPDATE media SET fileMediatype = 'video/mp4' WHERE mediaID = 'm2'")
+      .run()
+    await assertTsParity(testDbPath, [], 120, 'video isolated within week')
+  })
+
+  test('non-null but unparseable timestamps are excluded (no null-week row)', async () => {
+    // insertMedia rejects bad timestamps (.toISO()), so corrupt them via raw SQL.
+    const manager = await seed(testDbPath, {
+      deployments: { d1: dep('d1') },
+      media: {
+        'm1.jpg': med('m1', 'd1', '2024-01-09T10:00:00Z'),
+        'm2.jpg': med('m2', 'd1', '2024-01-09T10:00:30Z'),
+        'm3.jpg': med('m3', 'd1', '2024-01-09T10:01:00Z')
+      },
+      observations: [
+        ...obs('m1', 'd1', 'Deer', 2),
+        ...obs('m2', 'd1', 'Deer', 9),
+        ...obs('m3', 'd1', 'Deer', 4)
+      ]
+    })
+    manager
+      .getSqlite()
+      .prepare("UPDATE media SET timestamp = 'not-a-date' WHERE mediaID = 'm2'")
+      .run()
+    manager.getSqlite().prepare("UPDATE media SET timestamp = '' WHERE mediaID = 'm3'").run()
+    const sql = await getSequenceAwareTimeseriesSQL(testDbPath, [], 120)
+    assert.equal(
+      sql.filter((r) => r.weekStart == null).length,
+      0,
+      'must not emit weekStart=null rows for unparseable timestamps'
+    )
+    await assertTsParity(testDbPath, [], 120, 'unparseable timestamps excluded')
   })
 
   test('empty DB returns empty array for positive gap', async () => {
