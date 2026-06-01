@@ -144,8 +144,11 @@ const CircularTimeFilter = ({
       window.removeEventListener('mouseup', handleMouseUp)
       window.removeEventListener('mousemove', handleMouseMove)
     }
+    // start/end are in the deps so the window listeners always close over the
+    // current range — otherwise dragging a start/end handle commits the stale
+    // pre-drag value on release (lastDragPosition only changes during arc pans).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDraggingStart, isDraggingEnd, isDraggingArc, lastDragPosition])
+  }, [isDraggingStart, isDraggingEnd, isDraggingArc, lastDragPosition, start, end])
 
   const startCoord = pointAt(start, RING_MID)
   const endCoord = pointAt(end, RING_MID)
