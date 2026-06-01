@@ -39,7 +39,7 @@ export default function ViewModeToggle({ value, modes, onChange }) {
                 type="button"
                 onClick={() => onChange(mode)}
                 aria-pressed={active}
-                className={`flex items-center gap-1.5 px-2.5 h-7 rounded-md border text-sm transition-colors ${
+                className={`flex items-center gap-1.5 px-2.5 h-7 rounded-md border text-sm transition-all duration-200 ease-out active:scale-95 ${
                   active
                     ? 'bg-card text-blue-700 border-border shadow-sm dark:text-blue-300'
                     : 'border-transparent text-muted-foreground hover:text-foreground'
