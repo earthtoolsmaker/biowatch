@@ -275,6 +275,45 @@ npx electron-rebuild -f -w better-sqlite3
 2. Zoom in to reduce visible markers
 3. Filter to specific deployments
 
+### Explore tab crashes / "Worker terminated due to reaching memory limit"
+
+**Symptom:** On large studies, opening the Explore tab logs:
+
+```
+Error getting sequence-aware species distribution: Error [ERR_WORKER_OUT_OF_MEMORY]:
+Worker terminated due to reaching memory limit: JS heap out of memory
+```
+
+The error is caught (the app keeps running) but the affected stat fails to load.
+
+**Cause:** The sequence-aware queries (`src/main/services/sequences/worker.js`) have
+a fast SQL aggregation path that only handles a sequence gap of `null` or `0`. When
+a study's stored `sequenceGap` is **positive**, the worker falls back to dumping the
+entire observation×media join into a JS array and aggregating it with Maps. Peak heap
+scales with **row count × species** (e.g. ~2.2M rows / 92 species ≈ 1.5 GB), and the
+Explore tab makes it worse by running several such workers concurrently. The OOM
+fires when the worker's V8 old-space ceiling is below that footprint.
+
+See GitHub issue
+[#564](https://github.com/earthtoolsmaker/biowatch/issues/564) for the full analysis.
+
+**Diagnosing it** (the sequences worker logs each task to the main log):
+
+```
+[seq-worker:species-distribution] start gap=110 ... heap=18/1046MB
+[seq-worker:species-distribution] SLOW PATH (gap=110): SQL fast-path returned null, dumping rows
+[seq-worker:species-distribution] loaded 2187792 rows, heap=779MB — starting JS aggregation
+```
+
+A `SLOW PATH` line followed by a large `loaded N rows` and no matching
+`aggregation done` is the OOM signature. Watch them live with:
+
+```bash
+tail -f ~/.config/biowatch/logs/main.log | grep seq-worker
+```
+
+**Reproducing it on demand:** see "Reproducing the sequence-worker OOM" below.
+
 ---
 
 ## Platform-Specific Issues
@@ -415,6 +454,76 @@ visually re-theme, force-quit and relaunch — a stuck WebContents may not
 pick up new CSS variables until a fresh load.
 
 ---
+
+## Reproducing the sequence-worker OOM (developer tooling)
+
+Two helper scripts make the Explore-tab OOM (see above) reproducible and
+observable. They live in `scripts/` and drive the **running dev app** over the
+Chrome DevTools Protocol — they don't launch their own Electron.
+
+### One-time: where to do this
+
+This is a developer workflow, so do it in a dedicated git worktree to keep it
+off your feature branches (the repo keeps worktrees under `.worktrees/`):
+
+```bash
+git worktree add .worktrees/seq-worker-troubleshooting -b arthur/seq-worker-troubleshooting origin/main
+cd .worktrees/seq-worker-troubleshooting
+npm install
+```
+
+### Step 1 — launch the dev app wired for debugging
+
+```bash
+scripts/dev-debug.sh
+```
+
+This stops any existing dev/electron instance of this project, then relaunches
+`npm run dev` with:
+
+- `--remoteDebuggingPort 9222` — so the repro script can attach over CDP.
+- `SEQ_WORKER_MAX_OLD_MB=950` — caps the sequences worker's V8 old-space heap.
+  On a high-RAM machine the default ceiling is ~4 GB, which hides the OOM; the
+  cap reproduces the real-world crash (~1 GB ceiling). Override or disable:
+
+  ```bash
+  CAP=1200 scripts/dev-debug.sh   # different cap
+  CAP=0 scripts/dev-debug.sh      # no cap (default 4GB)
+  PORT=9333 scripts/dev-debug.sh  # different CDP port
+  ```
+
+The cap is honored by `src/main/services/sequences/runInWorker.js`; it has no
+effect when the env var is unset, so normal `npm run dev` is unaffected.
+
+### Step 2 — trigger and observe
+
+In another shell (same worktree):
+
+```bash
+# Explore mode (default): boots the app straight into the study's Explore tab
+# and lets the real UI fire all its concurrent work — the true crash path.
+node scripts/repro-seq-oom.mjs <studyId>
+
+# IPC mode: fire species-distribution + timeseries directly with a positive
+# gap, to attribute heap growth to a single worker.
+REPRO_MODE=ipc node scripts/repro-seq-oom.mjs <studyId> 120
+```
+
+It prints each task's outcome plus the new `[seq-worker:*]` log lines, and exits
+0 when it reproduces the OOM. A study only takes the slow (OOM-prone) path when
+its stored `sequenceGap` is positive; the script reports the stored gap, and IPC
+mode lets you force a positive gap regardless.
+
+Pick a large study id from `~/.config/biowatch/biowatch-data/studies/` — heap is
+driven by **row count**, not DB file size.
+
+### What the logging means
+
+`src/main/services/sequences/worker.js` logs one line per task:
+`[seq-worker:<type>] start gap=… heap=used/limitMB`, a `SLOW PATH` warning when
+the SQL fast-path bails, the loaded row count, and heap before/after the JS
+aggregation. `runInWorker.js` tags worker errors/exits with the task type so a
+crash names which of the concurrent workers died.
 
 ## Getting Help
 
