@@ -53,9 +53,9 @@ import { useShowFilterCharts } from './hooks/useShowFilterCharts'
 import { useDateRange } from './hooks/useDateRange'
 import { useAreaFilter } from './hooks/useAreaFilter'
 
-// Inject the keyframes used by the skeleton markers + the view-pane enter
-// animation once per page load. Guarded by an id check so HMR / multiple
-// SpeciesMap mounts don't re-append the same <style> block.
+// Inject the keyframes used by the skeleton markers once per page load.
+// Guarded by an id check so HMR / multiple SpeciesMap mounts don't re-append
+// the same <style> block.
 const skeletonMarkerStyles = `
   @keyframes activity-skeleton-pulse {
     0%   { opacity: 0.55; }
@@ -64,19 +64,6 @@ const skeletonMarkerStyles = `
   }
   .activity-skeleton-marker, .activity-skeleton-cluster {
     animation: activity-skeleton-pulse 1.6s ease-in-out infinite;
-  }
-
-  /* Map / gallery pane enter: a subtle fade + slide-up when a view becomes
-     visible (toggling Map / Gallery / Both). Disabled for users who prefer
-     reduced motion. */
-  @keyframes activity-pane-in {
-    from { opacity: 0; transform: translateY(6px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-  @media (prefers-reduced-motion: no-preference) {
-    .activity-pane-in {
-      animation: activity-pane-in 200ms ease-out;
-    }
   }
 `
 if (typeof document !== 'undefined' && !document.getElementById('activity-skeleton-styles')) {
@@ -117,6 +104,26 @@ function MapContextMenuController({ onContextMenu, mapRef }) {
     mapRef.current = map
   }, [map, mapRef])
   return null
+}
+
+// Keeps a child mounted through its fade-out so it can cross-fade on hide.
+// `mounted` stays true for `duration` ms after `show` flips false; `visible`
+// drives the opacity class (false on the frame before unmount, and false for
+// one frame after mount so the enter transition runs from opacity-0).
+function useFadePresence(show, duration = 200) {
+  const [mounted, setMounted] = useState(show)
+  const [visible, setVisible] = useState(show)
+  useEffect(() => {
+    if (show) {
+      setMounted(true)
+      const raf = requestAnimationFrame(() => setVisible(true))
+      return () => cancelAnimationFrame(raf)
+    }
+    setVisible(false)
+    const timer = setTimeout(() => setMounted(false), duration)
+    return () => clearTimeout(timer)
+  }, [show, duration])
+  return { mounted, visible }
 }
 
 // Calls Leaflet's invalidateSize() whenever the map container is resized —
@@ -838,6 +845,11 @@ export default function Activity({ studyData, studyId }) {
   const availableViewModes = getAvailableViewModes(isLgUp)
   const showMap = viewMode === 'map' || viewMode === 'both'
   const showGallery = viewMode === 'gallery' || viewMode === 'both'
+  const isBoth = viewMode === 'both'
+  // The map stays mounted across single-view swaps (opacity-toggled) so its
+  // zoom/pan persists and it doesn't re-init; the gallery mounts on demand and
+  // fades in/out so Map↔Gallery cross-fades in place.
+  const gallery = useFadePresence(showGallery)
 
   // Species rail visibility. Not persisted: defaults by screen size (shown at
   // lg+, hidden below) and re-applies that default whenever the breakpoint is
@@ -1195,48 +1207,71 @@ export default function Activity({ studyData, studyId }) {
               docked rail supplies its own (animated) left margin so there's no
               dangling gap when it collapses to zero width. */}
           <div className="flex flex-row flex-1 min-h-0 relative">
-            {/* Main pane. In 'both' the two panes stack on lg–xl and sit
-                side-by-side at 2xl+ so neither is cramped (see spec
-                responsive table). */}
-            <div className="h-full flex-1 min-w-0 flex flex-col 2xl:flex-row gap-4">
-              {showMap && (
-                <div className="activity-pane-in h-full flex-1 min-h-0 min-w-0">
-                  {/* Render SpeciesMap as soon as `deploymentLocations` arrives
-                      (~ms), so the user sees clustered gray dots at the camera
-                      locations while the heavy heatmap query resolves. The map
-                      upgrades to pies when heatmapData lands. PlaceholderMap
-                      only shows when we have deployment locations but the
-                      heatmap explicitly came back empty. */}
-                  {deploymentLocations &&
-                    deploymentLocations.length > 0 &&
-                    heatmapStatus !== 'noData' && (
-                      <SpeciesMap
-                        deploymentLocations={deploymentLocations}
-                        heatmapData={heatmapStatus === 'hasData' ? heatmapData : null}
-                        selectedSpecies={selectedSpecies}
-                        palette={palette}
-                        studyId={actualStudyId}
-                        studyName={studyData?.name}
-                        geoKey={geoKey}
-                        scientificToCommon={scientificToCommon}
-                        areaFilter={areaFilter}
-                        onApplyAreaFilter={setAreaFilter}
-                      />
-                    )}
-                  {heatmapStatus === 'noData' && !isHeatmapLoading && (
-                    <PlaceholderMap
-                      title="No Species Location Data"
-                      description="Select species from the list and set up deployment coordinates in the Deployments tab to view the species distribution map."
-                      linkTo="/deployments"
-                      linkText="Go to Deployments"
-                      icon={MapPin}
+            {/* Main pane. Single views (map/gallery) share one grid cell so
+                they overlap and cross-fade in place; 'both' switches to a flex
+                row that stacks on lg–xl and sits side-by-side at 2xl+. The map
+                stays mounted across single-view swaps (opacity-toggled) to keep
+                its zoom/pan and avoid a re-init flash; the gallery fades in/out
+                via useFadePresence. */}
+            <div
+              className={`h-full flex-1 min-w-0 ${
+                isBoth ? 'flex flex-col 2xl:flex-row gap-4' : 'grid grid-cols-1 grid-rows-1'
+              }`}
+            >
+              {/* Map — kept mounted (data permitting) so its state persists. */}
+              {deploymentLocations &&
+                deploymentLocations.length > 0 &&
+                heatmapStatus !== 'noData' && (
+                  <div
+                    className={`min-h-0 min-w-0 transition-opacity duration-200 motion-reduce:transition-none ${
+                      isBoth ? 'h-full flex-1' : 'h-full w-full col-start-1 row-start-1'
+                    } ${showMap ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                    aria-hidden={!showMap}
+                  >
+                    {/* Render SpeciesMap as soon as `deploymentLocations` arrives
+                        (~ms), so the user sees clustered gray dots at the camera
+                        locations while the heavy heatmap query resolves. The map
+                        upgrades to pies when heatmapData lands. */}
+                    <SpeciesMap
+                      deploymentLocations={deploymentLocations}
+                      heatmapData={heatmapStatus === 'hasData' ? heatmapData : null}
+                      selectedSpecies={selectedSpecies}
+                      palette={palette}
                       studyId={actualStudyId}
+                      studyName={studyData?.name}
+                      geoKey={geoKey}
+                      scientificToCommon={scientificToCommon}
+                      areaFilter={areaFilter}
+                      onApplyAreaFilter={setAreaFilter}
                     />
-                  )}
+                  </div>
+                )}
+              {/* PlaceholderMap only shows when we have deployment locations but
+                  the heatmap explicitly came back empty. */}
+              {heatmapStatus === 'noData' && !isHeatmapLoading && showMap && (
+                <div
+                  className={`min-h-0 min-w-0 ${
+                    isBoth ? 'h-full flex-1' : 'h-full w-full col-start-1 row-start-1'
+                  }`}
+                >
+                  <PlaceholderMap
+                    title="No Species Location Data"
+                    description="Select species from the list and set up deployment coordinates in the Deployments tab to view the species distribution map."
+                    linkTo="/deployments"
+                    linkText="Go to Deployments"
+                    icon={MapPin}
+                    studyId={actualStudyId}
+                  />
                 </div>
               )}
-              {showGallery && (
-                <div className="activity-pane-in h-full flex-1 min-h-0 min-w-0">
+              {/* Gallery — mounts on demand, fades in/out for the cross-fade. */}
+              {gallery.mounted && (
+                <div
+                  className={`min-h-0 min-w-0 transition-opacity duration-200 motion-reduce:transition-none ${
+                    isBoth ? 'h-full flex-1' : 'h-full w-full col-start-1 row-start-1'
+                  } ${gallery.visible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                  aria-hidden={!gallery.visible}
+                >
                   <Gallery
                     species={selectedSpecies.map((s) => s.scientificName)}
                     dateRange={dateRange}
