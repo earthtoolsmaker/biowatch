@@ -1061,36 +1061,41 @@ export default function Activity({ studyData, studyId }) {
           {/* Top control bar — gap slider + view toggle + filter toggles.
               Lifted out of the right rail so the controls apply visibly to
               whatever the main pane shows (map, gallery, or both). */}
-          {speciesInitialized && sequenceGap !== undefined && (
-            /* Mirrors the content row below (flex-1 main pane + w-xs rail with
-               gap-4) so the two zones line up vertically: the view cluster sits
-               over the map/gallery, and the data+filters group sits over the
-               species rail. */
-            <div className="flex items-center gap-4 h-10 flex-shrink-0 mb-2">
-              {/* View cluster — aligns with the map/gallery pane. The bbox
-                  toggle is a gallery display option, separated from the view
-                  selector by a divider so it doesn't read as a fourth segment.
-                  It only shows in gallery/both and self-hides for studies
-                  without bounding boxes. */}
-              <div className="flex-1 min-w-0 flex items-center gap-2">
-                <ViewModeToggle
-                  value={viewMode}
-                  modes={availableViewModes}
-                  onChange={setViewMode}
-                />
-                {showGallery && <ThumbnailBboxToggle studyId={actualStudyId} leadingDivider />}
-              </div>
+          {/* Control bar renders immediately — it only needs local view state
+              and the fast per-study sequence-gap setting, NOT the heavy
+              species-distribution query. Gating it on speciesInitialized made
+              the whole bar (incl. the view toggle) wait seconds on large
+              surveys. Each control self-gates on just what it needs.
 
-              {/* Data + filters — same w-xs width as the species rail below, so
-                  the gap slider's icon lines up with the species panel. The
-                  slider's compact variant is flex-1 and fills the leftover
-                  width beside the filter toggle. */}
-              <div className="w-xs flex items-center gap-2">
+              Mirrors the content row below (flex-1 main pane + w-xs rail with
+              gap-4) so the two zones line up vertically: the view cluster sits
+              over the map/gallery, and the data+filters group sits over the
+              species rail. */}
+          <div className="flex items-center gap-4 h-10 flex-shrink-0 mb-2">
+            {/* View cluster — aligns with the map/gallery pane. The bbox toggle
+                is a gallery display option, separated from the view selector by
+                a divider so it doesn't read as a fourth segment. It only shows
+                in gallery/both and self-hides for studies without bounding
+                boxes. */}
+            <div className="flex-1 min-w-0 flex items-center gap-2">
+              <ViewModeToggle value={viewMode} modes={availableViewModes} onChange={setViewMode} />
+              {showGallery && <ThumbnailBboxToggle studyId={actualStudyId} leadingDivider />}
+            </div>
+
+            {/* Data + filters — same w-xs width as the species rail below, so
+                the gap slider's icon lines up with the species panel. The
+                slider's compact variant is flex-1 and fills the leftover width
+                beside the filter toggle. The filter toggle keeps to the right
+                even before the slider's gap value has loaded. */}
+            <div className="w-xs flex items-center gap-2">
+              {sequenceGap !== undefined && (
                 <SequenceGapSlider
                   value={sequenceGap}
                   onChange={setSequenceGap}
                   variant="compact"
                 />
+              )}
+              <div className="ml-auto">
                 <FilterChartsToggle
                   studyId={actualStudyId}
                   // Optimistic while timeseries is loading — hide only once
@@ -1105,7 +1110,7 @@ export default function Activity({ studyData, studyId }) {
                 />
               </div>
             </div>
-          )}
+          </div>
 
           {/* Content row — main pane (map / gallery / both) + species rail. */}
           <div className="flex flex-row gap-4 flex-1 min-h-0">
