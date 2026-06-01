@@ -1078,12 +1078,7 @@ export default function Activity({ studyData, studyId }) {
                   modes={availableViewModes}
                   onChange={setViewMode}
                 />
-                {showGallery && (
-                  <>
-                    <div className="h-5 w-px bg-border" aria-hidden="true" />
-                    <ThumbnailBboxToggle studyId={actualStudyId} />
-                  </>
-                )}
+                {showGallery && <ThumbnailBboxToggle studyId={actualStudyId} leadingDivider />}
               </div>
 
               {/* Data + filters — same w-xs width as the species rail below, so
