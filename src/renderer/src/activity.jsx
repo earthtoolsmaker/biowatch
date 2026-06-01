@@ -383,7 +383,7 @@ function HexbinLayer({ points, stops, areaFilter }) {
     map.on('moveend zoomend viewreset', redraw)
     return () => {
       map.off('moveend zoomend viewreset', redraw)
-      pane.removeChild(svg)
+      svg.remove() // no-op if the pane was already torn down (vs pane.removeChild, which throws)
     }
   }, [map, points, stops, areaFilter])
   return null
@@ -413,11 +413,12 @@ const SpeciesMap = ({
   }, [selectedLayer, mapLayerKey])
 
   // How the distribution is drawn: 'pies' (composition), 'graduated'
-  // (abundance) or 'heatmap' (density). Persisted per study like the layer.
+  // (abundance), 'heatmap' (density) or 'hexbin' (hex grid). Persisted per study
+  // like the layer; an unknown/stale saved value falls back to 'pies'.
   const mapEncodingKey = `mapEncoding:${studyId}`
   const [mapEncoding, setMapEncoding] = useState(() => {
     const saved = localStorage.getItem(mapEncodingKey)
-    return saved === 'graduated' || saved === 'heatmap' ? saved : 'pies'
+    return ['graduated', 'heatmap', 'hexbin'].includes(saved) ? saved : 'pies'
   })
   useEffect(() => {
     localStorage.setItem(mapEncodingKey, mapEncoding)
@@ -436,7 +437,10 @@ const SpeciesMap = ({
   // pick a ramp that stays legible over the basemap (e.g. Magma over forest).
   const densityScaleKey = `densityScale:${studyId}`
   const [densityScale, setDensityScale] = useState(
-    () => localStorage.getItem(densityScaleKey) || DEFAULT_DENSITY_SCALE
+    () =>
+      // Normalize through getDensityScale so a stale key (e.g. a scale removed in
+      // a later release) resolves to a real one instead of leaving no swatch active.
+      getDensityScale(localStorage.getItem(densityScaleKey) || DEFAULT_DENSITY_SCALE).key
   )
   useEffect(() => {
     localStorage.setItem(densityScaleKey, densityScale)
@@ -1032,7 +1036,7 @@ const SpeciesMap = ({
           )}
 
           {/* Density legend + color-scale picker (heatmap / hex grid). */}
-          {isDensityEncoding && (
+          {!skeletonMode && isDensityEncoding && (
             <MapDensityLegend value={densityScale} onChange={setDensityScale} />
           )}
         </LayersControl>

@@ -73,12 +73,12 @@ System architecture and design patterns for Biowatch.
 
 `better-sqlite3` is fully synchronous: every query blocks the Node event loop. To keep the main process responsive (IPC, cancel buttons, progress events), heavy SQL workloads run in dedicated worker threads. Each worker is a separate rollup input in `electron.vite.config.mjs` and ships beside the main bundle.
 
-| Worker | Source | Purpose |
-| --- | --- | --- |
-| `sequences-worker` | `src/main/services/sequences/worker.js` | Sequence-aware analytics (species distribution, timeseries, heatmap, daily activity, best-media). Spawned per request via `runInWorker`. |
-| `merge-worker` | `src/main/services/merge/worker.js` | Streams source → target study merge with cancellation. |
-| `merge-preflight-worker` | `src/main/services/merge/preflightWorker.js` | Pre-flight count + diff for the merge IPC. |
-| `camtrap-import-worker` | `src/main/services/import/parsers/camtrapDPWorker.js` | CamtrapDP / GBIF import (CSV ingest + observation expansion). Spawned by `runCamtrapImportInWorker`. |
+| Worker                   | Source                                                | Purpose                                                                                                                                  |
+| ------------------------ | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `sequences-worker`       | `src/main/services/sequences/worker.js`               | Sequence-aware analytics (species distribution, timeseries, heatmap, daily activity, best-media). Spawned per request via `runInWorker`. |
+| `merge-worker`           | `src/main/services/merge/worker.js`                   | Streams source → target study merge with cancellation.                                                                                   |
+| `merge-preflight-worker` | `src/main/services/merge/preflightWorker.js`          | Pre-flight count + diff for the merge IPC.                                                                                               |
+| `camtrap-import-worker`  | `src/main/services/import/parsers/camtrapDPWorker.js` | CamtrapDP / GBIF import (CSV ingest + observation expansion). Spawned by `runCamtrapImportInWorker`.                                     |
 
 Cancel is uniformly `worker.terminate()`: SQLite WAL recovery rolls back any in-flight transaction on next DB open, leaving prior state intact. For imports, the IPC handler additionally calls `cleanupStudy(id)` to wipe the partial study directory.
 
@@ -192,7 +192,7 @@ src/
 │   ├── media/               # Media subcomponents shared with the Deployments tab
 │   │   ├── Gallery.jsx               # Sequence grid + ImageModal + bbox editor
 │   │   └── DeploymentMediaGallery.jsx # Deployment-scoped wrapper around Gallery
-│   ├── activity.jsx         # Explore tab — Map | Gallery | Both view toggle (reuses media/Gallery), temporal analysis (right-click map → Save as PNG)
+│   ├── activity.jsx         # Explore tab — Map | Gallery | Both view toggle (reuses media/Gallery), temporal analysis (right-click map → Save as PNG). Map encoding modes: Composition (pies) | Abundance (graduated circles) | Density (leaflet.heat) | Hex grid (d3-hexbin)
 │   ├── models/              # AI Models tab (split-view map + cards)
 │   │   ├── index.jsx                  # MlZoo top-level (responsive split/stacked)
 │   │   ├── MapPane.jsx                # Leaflet map + region overlays + worldwide chip
@@ -380,46 +380,49 @@ function getStudyPath(userDataPath, studyId) {
 
 ## Key Files Reference
 
-| File                                                    | Purpose                                                     |
-| ------------------------------------------------------- | ----------------------------------------------------------- |
-| `src/main/index.js`                                     | Minimal app entry point                                     |
-| `src/main/app/lifecycle.js`                             | Window creation, app initialization                         |
-| `src/main/ipc/index.js`                                 | Registers all IPC handlers                                  |
-| `src/preload/index.js`                                  | IPC bridge, exposes `window.api`                            |
-| `src/renderer/src/base.jsx`                             | React app root, routing                                     |
-| `src/renderer/src/deployments.jsx`                      | Deployments tab — map + list + inline media pane            |
-| `src/renderer/src/deployments/DeploymentDetailPane.jsx` | Bottom pane (header + close) mounted on selection           |
-| `src/renderer/src/deployments/urlState.js`              | `?deploymentID=…` URL state helpers                         |
-| `src/renderer/src/activity.jsx`                         | Explore tab — Map \| Gallery \| Both view toggle (reuses Gallery), map + temporal filters |
-| `src/renderer/src/media.jsx`                            | Media tab — filters, timeline, daily-activity radar (separate page, pending rework) |
-| `src/renderer/src/media/Gallery.jsx`                    | Shared sequence grid + ImageModal + bbox editor             |
-| `src/renderer/src/media/DeploymentMediaGallery.jsx`     | Deployment-scoped wrapper around Gallery                    |
-| `src/main/database/models.js`                           | Drizzle table definitions                                   |
-| `src/main/database/validators.js`                       | Zod validation schemas                                      |
-| `src/main/database/manager.js`                          | Database connection pooling                                 |
-| `src/main/database/queries/`                            | Data query functions (split by domain)                      |
-| `src/shared/mlmodels.js`                                | Model zoo configuration                                     |
-| `src/shared/commonNames/`                               | Scientific → common name dictionary + resolver              |
-| `src/shared/speciesInfo/`                               | IUCN status, Wikipedia blurb, fallback image (script-built) |
-| `src/main/services/ml/server.ts`                        | ML server lifecycle (start/stop/health)                     |
-| `src/main/services/ml/download.ts`                      | ML model download and installation                          |
-| `src/main/ipc/ml.js`                                    | ML model IPC handlers                                       |
-| `src/main/services/queue.js`                            | Persistent job queue (enqueue, claim, complete, fail)       |
-| `src/main/services/queue-consumer.js`                   | Base consumer class (poll loop, pause/resume)               |
-| `src/main/services/queue-scheduler.js`                  | Singleton scheduler (active study, status)                  |
-| `src/main/services/server-manager.js`                   | ML server lifecycle (one server at a time)                  |
-| `src/main/services/inference-consumer.js`               | ML inference consumer (streams predictions)                 |
-| `src/main/ipc/queue.js`                                 | Queue IPC handlers (status, pause, resume)                  |
-| `src/main/services/import/importer.js`                  | Media scanning + job enqueueing                             |
-| `src/main/services/import/timestamp.js`                 | Video timestamp extraction (FFmpeg -> filename -> mtime)    |
-| `src/main/services/import/parsers/camtrapDP.js`         | CamTrap DP format importer                                  |
-| `src/main/services/import/parsers/wildlifeInsights.js`  | Wildlife Insights format importer                           |
-| `src/main/services/import/parsers/deepfaune.js`         | DeepFaune CSV format importer                               |
-| `src/main/services/export/exporter.js`                  | CamTrap DP exporter                                         |
-| `src/main/services/sequences/`                          | Sequence grouping and counting logic                        |
-| `src/main/ipc/sequences.js`                             | Sequence-aware counting IPC handlers                        |
-| `src/main/services/cache/video.js`                      | Video format conversion for browser playback                |
-| `src/main/utils/bbox.js`                                | Bbox format conversions                                     |
+| File                                                    | Purpose                                                                                                                                                |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/main/index.js`                                     | Minimal app entry point                                                                                                                                |
+| `src/main/app/lifecycle.js`                             | Window creation, app initialization                                                                                                                    |
+| `src/main/ipc/index.js`                                 | Registers all IPC handlers                                                                                                                             |
+| `src/preload/index.js`                                  | IPC bridge, exposes `window.api`                                                                                                                       |
+| `src/renderer/src/base.jsx`                             | React app root, routing                                                                                                                                |
+| `src/renderer/src/deployments.jsx`                      | Deployments tab — map + list + inline media pane                                                                                                       |
+| `src/renderer/src/deployments/DeploymentDetailPane.jsx` | Bottom pane (header + close) mounted on selection                                                                                                      |
+| `src/renderer/src/deployments/urlState.js`              | `?deploymentID=…` URL state helpers                                                                                                                    |
+| `src/renderer/src/activity.jsx`                         | Explore tab — Map \| Gallery \| Both view toggle (reuses Gallery), map + temporal filters; map encoding modes (Composition/Abundance/Density/Hex grid) |
+| `src/renderer/src/ui/MapEncodingToggle.jsx`             | Map encoding-mode segmented control (overlaid bottom-left)                                                                                             |
+| `src/renderer/src/ui/MapDensityLegend.jsx`              | Density/Hex grid legend + color-scale swatch picker                                                                                                    |
+| `src/renderer/src/utils/densityScales.js`               | Named density color scales (Warm/Magma/Viridis) + ramp helpers                                                                                         |
+| `src/renderer/src/media.jsx`                            | Media tab — filters, timeline, daily-activity radar (separate page, pending rework)                                                                    |
+| `src/renderer/src/media/Gallery.jsx`                    | Shared sequence grid + ImageModal + bbox editor                                                                                                        |
+| `src/renderer/src/media/DeploymentMediaGallery.jsx`     | Deployment-scoped wrapper around Gallery                                                                                                               |
+| `src/main/database/models.js`                           | Drizzle table definitions                                                                                                                              |
+| `src/main/database/validators.js`                       | Zod validation schemas                                                                                                                                 |
+| `src/main/database/manager.js`                          | Database connection pooling                                                                                                                            |
+| `src/main/database/queries/`                            | Data query functions (split by domain)                                                                                                                 |
+| `src/shared/mlmodels.js`                                | Model zoo configuration                                                                                                                                |
+| `src/shared/commonNames/`                               | Scientific → common name dictionary + resolver                                                                                                         |
+| `src/shared/speciesInfo/`                               | IUCN status, Wikipedia blurb, fallback image (script-built)                                                                                            |
+| `src/main/services/ml/server.ts`                        | ML server lifecycle (start/stop/health)                                                                                                                |
+| `src/main/services/ml/download.ts`                      | ML model download and installation                                                                                                                     |
+| `src/main/ipc/ml.js`                                    | ML model IPC handlers                                                                                                                                  |
+| `src/main/services/queue.js`                            | Persistent job queue (enqueue, claim, complete, fail)                                                                                                  |
+| `src/main/services/queue-consumer.js`                   | Base consumer class (poll loop, pause/resume)                                                                                                          |
+| `src/main/services/queue-scheduler.js`                  | Singleton scheduler (active study, status)                                                                                                             |
+| `src/main/services/server-manager.js`                   | ML server lifecycle (one server at a time)                                                                                                             |
+| `src/main/services/inference-consumer.js`               | ML inference consumer (streams predictions)                                                                                                            |
+| `src/main/ipc/queue.js`                                 | Queue IPC handlers (status, pause, resume)                                                                                                             |
+| `src/main/services/import/importer.js`                  | Media scanning + job enqueueing                                                                                                                        |
+| `src/main/services/import/timestamp.js`                 | Video timestamp extraction (FFmpeg -> filename -> mtime)                                                                                               |
+| `src/main/services/import/parsers/camtrapDP.js`         | CamTrap DP format importer                                                                                                                             |
+| `src/main/services/import/parsers/wildlifeInsights.js`  | Wildlife Insights format importer                                                                                                                      |
+| `src/main/services/import/parsers/deepfaune.js`         | DeepFaune CSV format importer                                                                                                                          |
+| `src/main/services/export/exporter.js`                  | CamTrap DP exporter                                                                                                                                    |
+| `src/main/services/sequences/`                          | Sequence grouping and counting logic                                                                                                                   |
+| `src/main/ipc/sequences.js`                             | Sequence-aware counting IPC handlers                                                                                                                   |
+| `src/main/services/cache/video.js`                      | Video format conversion for browser playback                                                                                                           |
+| `src/main/utils/bbox.js`                                | Bbox format conversions                                                                                                                                |
 
 ## IPC Pattern
 
