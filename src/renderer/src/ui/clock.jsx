@@ -28,7 +28,7 @@ const CLOCK_OUTER_RADIUS_PX = 42
 // Selection ring sits just OUTSIDE the radar circle so it never covers the
 // activity blob. Radii are in the same px space as CLOCK_OUTER_RADIUS_PX.
 const RING_GAP = 2 // gap between radar edge and ring
-const RING_WIDTH = 6 // stroke thickness of the ring
+const RING_WIDTH = 4 // stroke thickness of the ring
 const RING_MID = CLOCK_OUTER_RADIUS_PX + RING_GAP + RING_WIDTH / 2
 const RING_OUTER = CLOCK_OUTER_RADIUS_PX + RING_GAP + RING_WIDTH
 
@@ -541,7 +541,7 @@ const DailyActivityLine = ({
       <div className="px-2 pb-1" style={cursorStyle ? { cursor: cursorStyle } : undefined}>
         <div
           ref={stripRef}
-          className="relative h-2.5 rounded-full bg-muted"
+          className="relative h-1.5 rounded-full bg-muted"
           onMouseDown={handleStripDown}
           onMouseMove={handleStripMove}
           onMouseLeave={handleStripLeave}
