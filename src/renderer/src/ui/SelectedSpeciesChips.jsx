@@ -144,8 +144,10 @@ export default function SelectedSpeciesChips({
   const visible = selectedSpecies.slice(0, visibleCount)
   const overflowSpecies = selectedSpecies.slice(visibleCount)
 
-  const chipClass =
-    'inline-flex items-center gap-1.5 h-7 rounded-full border border-border bg-card pl-2.5 pr-1.5 text-sm text-foreground flex-shrink-0 max-w-[12rem] cursor-default'
+  // pr-1.5 leaves room for the × button; without it, match the left padding.
+  const chipClass = `inline-flex items-center gap-1.5 h-7 rounded-full border border-border bg-card pl-2.5 ${
+    removable ? 'pr-1.5' : 'pr-2.5'
+  } text-sm text-foreground flex-shrink-0 max-w-[12rem] cursor-default`
 
   return (
     <div ref={containerRef} className="flex-1 min-w-0 flex items-center gap-1.5 overflow-hidden">
