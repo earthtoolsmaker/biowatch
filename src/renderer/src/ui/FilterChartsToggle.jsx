@@ -22,6 +22,7 @@ export default function FilterChartsToggle({
   isFiltering = false,
   dayFilterLabel = null,
   dateFilterLabel = null,
+  areaFilterLabel = null,
   onResetFilters = null
 }) {
   const { showFilterCharts, setShowFilterCharts } = useShowFilterCharts(studyId)
@@ -70,7 +71,7 @@ export default function FilterChartsToggle({
           <p className="text-muted-foreground leading-relaxed">
             Daily-activity clock and timeline filters.
           </p>
-          {isFiltering && (dayFilterLabel || dateFilterLabel) && (
+          {isFiltering && (dayFilterLabel || dateFilterLabel || areaFilterLabel) && (
             <ul className="mt-3 pt-3 border-t border-border space-y-1.5 text-popover-foreground/90 leading-snug">
               {dayFilterLabel && (
                 <li className="flex gap-2">
@@ -82,6 +83,12 @@ export default function FilterChartsToggle({
                 <li className="flex gap-2">
                   <span className="text-muted-foreground shrink-0">Date range</span>
                   <span className="flex-1">{dateFilterLabel}</span>
+                </li>
+              )}
+              {areaFilterLabel && (
+                <li className="flex gap-2">
+                  <span className="text-muted-foreground shrink-0">Map area</span>
+                  <span className="flex-1">{areaFilterLabel}</span>
                 </li>
               )}
             </ul>

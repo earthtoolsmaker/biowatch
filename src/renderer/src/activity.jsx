@@ -1,10 +1,18 @@
 import * as htmlToImage from 'html-to-image'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { MapPin } from 'lucide-react'
+import { MapPin, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { LayersControl, MapContainer, Marker, TileLayer, useMap, useMapEvents } from 'react-leaflet'
+import {
+  LayersControl,
+  MapContainer,
+  Marker,
+  Rectangle,
+  TileLayer,
+  useMap,
+  useMapEvents
+} from 'react-leaflet'
 import MarkerClusterGroup from 'react-leaflet-cluster'
 import { useParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
@@ -36,6 +44,7 @@ import { getTopNonHumanSpecies } from './utils/speciesUtils'
 import { useSequenceGap } from './hooks/useSequenceGap'
 import { useShowFilterCharts } from './hooks/useShowFilterCharts'
 import { useDateRange } from './hooks/useDateRange'
+import { useAreaFilter } from './hooks/useAreaFilter'
 
 // Inject the keyframes used by the skeleton markers once per page load.
 // Guarded by an id check so HMR / multiple SpeciesMap mounts don't re-append
@@ -90,11 +99,87 @@ function MapContextMenuController({ onContextMenu, mapRef }) {
   return null
 }
 
+// Floating top-center pill for the map area filter. The pill body always
+// snapshots the current viewport bounds on click — so when a filter is
+// already active you can re-filter a freshly-panned area in one click (no
+// clear-first dance). When a filter IS active the pill turns blue and a ✕
+// appears inside it at the trailing edge; clicking the ✕ clears in one click
+// without re-applying. The filter is a frozen snapshot: panning after
+// applying does NOT recompute it until you click the pill again.
+function AreaFilterControl({ areaFilter, onApplyAreaFilter }) {
+  const map = useMap()
+  const active = !!areaFilter
+
+  const apply = () => {
+    const b = map.getBounds()
+    onApplyAreaFilter({
+      north: b.getNorth(),
+      south: b.getSouth(),
+      east: b.getEast(),
+      west: b.getWest()
+    })
+  }
+
+  const clear = (e) => {
+    e.stopPropagation()
+    onApplyAreaFilter(null)
+  }
+
+  return (
+    <div className="leaflet-top" style={{ left: '50%', transform: 'translateX(-50%)' }}>
+      <div className="leaflet-control">
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={apply}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') apply()
+          }}
+          className={`flex items-center gap-1.5 h-7 rounded-full text-xs font-medium border shadow-sm transition-colors cursor-pointer ${
+            active ? 'pl-3 pr-1.5' : 'px-3'
+          } ${
+            active
+              ? 'text-blue-600 bg-blue-50 border-blue-200 hover:bg-blue-100 dark:text-blue-400 dark:bg-blue-500/15 dark:border-blue-500/30 dark:hover:bg-blue-500/25'
+              : 'text-muted-foreground bg-card border-border hover:bg-accent'
+          }`}
+          aria-label="Filter to this area"
+          aria-pressed={active}
+        >
+          <MapPin size={14} />
+          Filter to this area
+          {active && (
+            <button
+              type="button"
+              onClick={clear}
+              className="flex items-center justify-center h-5 w-5 rounded-full hover:bg-blue-200/60 dark:hover:bg-blue-500/30 transition-colors"
+              aria-label="Clear area filter"
+            >
+              <X size={13} />
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const slugifyForFilename = (s) =>
   (s || '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
+
+// Markers whose deployment falls outside the active area filter are kept on the
+// map (so the user can still see where to widen the selection) but visually
+// de-emphasized to OUTSIDE_OPACITY. With no filter, everything is fully opaque.
+const OUTSIDE_OPACITY = 0.35
+const isInsideArea = (lat, lng, area) => {
+  if (!area) return true
+  const { north, south, east, west } = area
+  if ([north, south, east, west].some((v) => typeof v !== 'number' || Number.isNaN(v))) return true
+  if (west > east) return true // antimeridian box: don't de-emphasize (matches buildBboxClause no-op)
+  return lat >= south && lat <= north && lng >= west && lng <= east
+}
 
 // SpeciesMap component.
 //
@@ -122,7 +207,9 @@ const SpeciesMap = ({
   geoKey,
   studyId,
   studyName,
-  scientificToCommon
+  scientificToCommon,
+  areaFilter,
+  onApplyAreaFilter
 }) => {
   // Persist map layer selection per study
   const mapLayerKey = `mapLayer:${studyId}`
@@ -196,98 +283,105 @@ const SpeciesMap = ({
       })
     }
   }, [studyId, studyName])
-  // Function to create a pie chart icon
-  const createPieChartIcon = (counts) => {
-    const total = Object.values(counts).reduce((sum, count) => sum + count, 0)
-    const size = Math.min(60, Math.max(10, Math.sqrt(total) * 3)) // Scale dot size based on count
+  // Function to create a pie chart icon. Memoized so re-renders (e.g. toggling
+  // the area filter) don't rebuild every SVG — building the SVG + serializing +
+  // base64-encoding it for ~hundreds of points on every render is what froze the
+  // UI thread. `opacity` < 1 fades the whole pie (used for de-emphasized clusters).
+  const createPieChartIcon = useCallback(
+    (counts, opacity = 1) => {
+      const total = Object.values(counts).reduce((sum, count) => sum + count, 0)
+      const size = Math.min(60, Math.max(10, Math.sqrt(total) * 3)) // Scale dot size based on count
 
-    const createSVG = () => {
-      // Create SVG for pie chart
-      const svgNS = 'http://www.w3.org/2000/svg'
-      const svg = document.createElementNS(svgNS, 'svg')
-      svg.setAttribute('width', size)
-      svg.setAttribute('height', size)
-      svg.setAttribute('viewBox', `0 0 100 100`)
+      const createSVG = () => {
+        // Create SVG for pie chart
+        const svgNS = 'http://www.w3.org/2000/svg'
+        const svg = document.createElementNS(svgNS, 'svg')
+        svg.setAttribute('width', size)
+        svg.setAttribute('height', size)
+        svg.setAttribute('viewBox', `0 0 100 100`)
+        if (opacity < 1) svg.setAttribute('opacity', String(opacity))
 
-      // Add a circle background - only needed for multiple species
-      if (Object.keys(counts).length > 1) {
-        const circle = document.createElementNS(svgNS, 'circle')
-        circle.setAttribute('cx', '50')
-        circle.setAttribute('cy', '50')
-        circle.setAttribute('r', '50')
-        circle.setAttribute('fill', 'white')
-        svg.appendChild(circle)
-      }
+        // Add a circle background - only needed for multiple species
+        if (Object.keys(counts).length > 1) {
+          const circle = document.createElementNS(svgNS, 'circle')
+          circle.setAttribute('cx', '50')
+          circle.setAttribute('cy', '50')
+          circle.setAttribute('r', '50')
+          circle.setAttribute('fill', 'white')
+          svg.appendChild(circle)
+        }
 
-      // Draw pie slices
-      let startAngle = 0
-      const colors = selectedSpecies.map((_, i) => palette[i % palette.length])
+        // Draw pie slices
+        let startAngle = 0
+        const colors = selectedSpecies.map((_, i) => palette[i % palette.length])
 
-      // Use the same radius for pie slices as for the circle
-      const radius = 50
+        // Use the same radius for pie slices as for the circle
+        const radius = 50
 
-      // Special case for single species - draw a full circle
-      if (Object.keys(counts).length === 1) {
-        const species = Object.keys(counts)[0]
-        const index = selectedSpecies.findIndex((s) => s.scientificName === species)
-        const colorIndex = index >= 0 ? index : 0
-        const color = colors[colorIndex]
-
-        const circle = document.createElementNS(svgNS, 'circle')
-        circle.setAttribute('cx', '50')
-        circle.setAttribute('cy', '50')
-        circle.setAttribute('r', '50')
-        circle.setAttribute('fill', color)
-        svg.appendChild(circle)
-      } else {
-        // Multiple species - draw pie slices
-        Object.entries(counts).forEach(([species, count]) => {
+        // Special case for single species - draw a full circle
+        if (Object.keys(counts).length === 1) {
+          const species = Object.keys(counts)[0]
           const index = selectedSpecies.findIndex((s) => s.scientificName === species)
-          if (index < 0) return // Skip if species not in selectedSpecies
+          const colorIndex = index >= 0 ? index : 0
+          const color = colors[colorIndex]
 
-          const portion = count / total
-          const endAngle = startAngle + portion * 2 * Math.PI
-          const color = colors[index]
+          const circle = document.createElementNS(svgNS, 'circle')
+          circle.setAttribute('cx', '50')
+          circle.setAttribute('cy', '50')
+          circle.setAttribute('r', '50')
+          circle.setAttribute('fill', color)
+          svg.appendChild(circle)
+        } else {
+          // Multiple species - draw pie slices
+          Object.entries(counts).forEach(([species, count]) => {
+            const index = selectedSpecies.findIndex((s) => s.scientificName === species)
+            if (index < 0) return // Skip if species not in selectedSpecies
 
-          const largeArcFlag = portion > 0.5 ? 1 : 0
+            const portion = count / total
+            const endAngle = startAngle + portion * 2 * Math.PI
+            const color = colors[index]
 
-          const x1 = 50 + radius * Math.sin(startAngle)
-          const y1 = 50 - radius * Math.cos(startAngle)
-          const x2 = 50 + radius * Math.sin(endAngle)
-          const y2 = 50 - radius * Math.cos(endAngle)
+            const largeArcFlag = portion > 0.5 ? 1 : 0
 
-          const pathData = [
-            `M 50 50`,
-            `L ${x1} ${y1}`,
-            `A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2}`,
-            `Z`
-          ].join(' ')
+            const x1 = 50 + radius * Math.sin(startAngle)
+            const y1 = 50 - radius * Math.cos(startAngle)
+            const x2 = 50 + radius * Math.sin(endAngle)
+            const y2 = 50 - radius * Math.cos(endAngle)
 
-          const path = document.createElementNS(svgNS, 'path')
-          path.setAttribute('d', pathData)
-          path.setAttribute('fill', color)
-          path.setAttribute('stroke', color) // Match stroke color to fill color
-          path.setAttribute('stroke-width', '0.5') // Very thin stroke just to smooth edges
-          svg.appendChild(path)
+            const pathData = [
+              `M 50 50`,
+              `L ${x1} ${y1}`,
+              `A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2}`,
+              `Z`
+            ].join(' ')
 
-          startAngle = endAngle
-        })
+            const path = document.createElementNS(svgNS, 'path')
+            path.setAttribute('d', pathData)
+            path.setAttribute('fill', color)
+            path.setAttribute('stroke', color) // Match stroke color to fill color
+            path.setAttribute('stroke-width', '0.5') // Very thin stroke just to smooth edges
+            svg.appendChild(path)
+
+            startAngle = endAngle
+          })
+        }
+
+        return svg
       }
 
-      return svg
-    }
+      const svgElement = createSVG()
+      const svgString = new XMLSerializer().serializeToString(svgElement)
+      const dataUrl = `data:image/svg+xml;base64,${btoa(svgString)}`
 
-    const svgElement = createSVG()
-    const svgString = new XMLSerializer().serializeToString(svgElement)
-    const dataUrl = `data:image/svg+xml;base64,${btoa(svgString)}`
-
-    return L.icon({
-      iconUrl: dataUrl,
-      iconSize: [size, size],
-      iconAnchor: [size / 2, size / 2],
-      popupAnchor: [0, -size / 2]
-    })
-  }
+      return L.icon({
+        iconUrl: dataUrl,
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+        popupAnchor: [0, -size / 2]
+      })
+    },
+    [selectedSpecies, palette]
+  )
 
   // Render the React MarkerHoverCard to an HTML string. Leaflet's tooltip API
   // takes raw HTML, so we serialize the JSX once per call. Using a React
@@ -304,7 +398,9 @@ const SpeciesMap = ({
       />
     )
 
-  // PieChartMarker component with tooltip binding
+  // PieChartMarker component with tooltip binding. Out-of-area de-emphasis is
+  // applied imperatively (see the opacity effect below) rather than via an
+  // `opacity` prop, so toggling the area filter never re-renders these markers.
   function PieChartMarker({ point, icon }) {
     const markerRef = useRef(null)
 
@@ -334,8 +430,10 @@ const SpeciesMap = ({
     )
   }
 
-  // Process data points
-  const processPointData = () => {
+  // Process data points. Memoized on the underlying data/species so the point
+  // set — and the `counts` object identities the tooltip effect depends on —
+  // stay stable across re-renders (e.g. when the area filter toggles).
+  const locationPoints = useMemo(() => {
     const locations = {}
 
     // Combine data from all species
@@ -358,9 +456,42 @@ const SpeciesMap = ({
     })
 
     return Object.values(locations)
-  }
+  }, [heatmapData, selectedSpecies])
 
-  const locationPoints = processPointData()
+  // Pie icons are expensive (SVG build + serialize + base64). Memoize them on the
+  // data — crucially NOT on areaFilter — so applying/clearing the area filter
+  // never rebuilds them; only the cheap per-marker opacity changes.
+  const pieIcons = useMemo(
+    () => locationPoints.map((point) => createPieChartIcon(point.counts)),
+    [locationPoints, createPieChartIcon]
+  )
+
+  // Memoize the marker elements so they are NOT recreated/reconciled when the
+  // area filter toggles (only when the underlying data changes). Recreating
+  // ~hundreds of react-leaflet markers per render is the bulk of the freeze.
+  const markerElements = useMemo(
+    () =>
+      locationPoints.map((point, index) => (
+        <PieChartMarker key={index} point={point} icon={pieIcons[index]} />
+      )),
+    [locationPoints, pieIcons]
+  )
+
+  // De-emphasize markers outside the area filter imperatively: set each marker's
+  // opacity directly on the Leaflet layer and re-fade the cluster icons. This
+  // avoids touching the React tree, so applying/clearing the filter is cheap.
+  const pieClusterRef = useRef(null)
+  useEffect(() => {
+    const group = pieClusterRef.current
+    if (!group) return
+    group.getLayers().forEach((layer) => {
+      const ll = layer.getLatLng?.()
+      if (ll && layer.setOpacity) {
+        layer.setOpacity(isInsideArea(ll.lat, ll.lng, areaFilter) ? 1 : OUTSIDE_OPACITY)
+      }
+    })
+    group.refreshClusters?.()
+  }, [areaFilter, markerElements])
 
   // Bounds derive from deploymentLocations, not heatmapData, so the initial
   // viewport is fixed from the moment the map mounts — it doesn't shift
@@ -435,6 +566,17 @@ const SpeciesMap = ({
       <MapContainer bounds={bounds} boundsOptions={boundsOptions} className="rounded w-full h-full">
         <HideLeafletAttribution />
         <MapContextMenuController onContextMenu={setContextMenu} mapRef={mapRef} />
+        <AreaFilterControl areaFilter={areaFilter} onApplyAreaFilter={onApplyAreaFilter} />
+        {areaFilter && (
+          <Rectangle
+            bounds={[
+              [areaFilter.south, areaFilter.west],
+              [areaFilter.north, areaFilter.east]
+            ]}
+            pathOptions={{ color: '#2563eb', weight: 1, fillOpacity: 0.05 }}
+            interactive={false}
+          />
+        )}
         <LayersControl position="topright">
           <LayersControl.BaseLayer name="Satellite" checked={selectedLayer === 'Satellite'}>
             <TileLayer
@@ -474,6 +616,7 @@ const SpeciesMap = ({
               </MarkerClusterGroup>
             ) : (
               <MarkerClusterGroup
+                ref={pieClusterRef}
                 key={`pies:${geoKey}`}
                 chunkedLoading
                 showCoverageOnHover={false}
@@ -483,6 +626,13 @@ const SpeciesMap = ({
                 iconCreateFunction={(cluster) => {
                   // Get all markers in this cluster
                   const markers = cluster.getAllChildMarkers()
+
+                  // A cluster is de-emphasized only when ALL its markers fall
+                  // outside the area filter; any inside marker keeps it full.
+                  const anyInside = markers.some((m) => {
+                    const ll = m.getLatLng()
+                    return isInsideArea(ll.lat, ll.lng, areaFilter)
+                  })
 
                   // Combine counts from all markers
                   const combinedCounts = {}
@@ -518,16 +668,10 @@ const SpeciesMap = ({
                     className: 'species-map-tooltip'
                   })
 
-                  return createPieChartIcon(filteredCounts)
+                  return createPieChartIcon(filteredCounts, anyInside ? 1 : OUTSIDE_OPACITY)
                 }}
               >
-                {locationPoints.map((point, index) => (
-                  <PieChartMarker
-                    key={index}
-                    point={point}
-                    icon={createPieChartIcon(point.counts)}
-                  />
-                ))}
+                {markerElements}
               </MarkerClusterGroup>
             )}
           </LayersControl.Overlay>
@@ -631,11 +775,20 @@ export default function Activity({ studyData, studyId }) {
       d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
     return `${fmt(dateRange[0])} → ${fmt(dateRange[1])}`
   }, [hasDateFilter, dateRange])
+  const { areaFilter, setAreaFilter } = useAreaFilter(actualStudyId)
+  const areaFilterLabel = useMemo(() => {
+    if (!areaFilter) return null
+    const lat = (v) => `${Math.abs(v).toFixed(2)}°${v >= 0 ? 'N' : 'S'}`
+    const lng = (v) => `${Math.abs(v).toFixed(2)}°${v >= 0 ? 'E' : 'W'}`
+    return `${lat(areaFilter.south)}–${lat(areaFilter.north)}, ${lng(areaFilter.west)}–${lng(areaFilter.east)}`
+  }, [areaFilter])
+  const isFilteringWithArea = isFiltering || !!areaFilter
   const handleResetFilters = useCallback(() => {
     setChipSelection(new Set(ALL_CHIPS_SELECTED))
     setArc({ start: 0, end: 24 })
     setDateRange([null, null])
-  }, [setDateRange])
+    setAreaFilter(null)
+  }, [setDateRange, setAreaFilter])
   const { importStatus } = useImportStatus(actualStudyId, 5000)
   const { sequenceGap, setSequenceGap } = useSequenceGap(actualStudyId)
   const { showFilterCharts } = useShowFilterCharts(actualStudyId)
@@ -676,9 +829,13 @@ export default function Activity({ studyData, studyId }) {
   // Fetch sequence-aware species distribution data
   // sequenceGap in queryKey ensures refetch when slider changes (backend fetches from metadata)
   const { data: speciesDistributionData, error: speciesDistributionError } = useQuery({
-    queryKey: ['sequenceAwareSpeciesDistribution', actualStudyId, sequenceGap],
+    queryKey: ['sequenceAwareSpeciesDistribution', actualStudyId, sequenceGap, areaFilter],
     queryFn: async () => {
-      const response = await window.api.getSequenceAwareSpeciesDistribution(actualStudyId)
+      const response = await window.api.getSequenceAwareSpeciesDistribution(
+        actualStudyId,
+        sequenceGap,
+        areaFilter
+      )
       if (response.error) throw new Error(response.error)
       return response.data
     },
@@ -716,9 +873,20 @@ export default function Activity({ studyData, studyId }) {
   // Fetch sequence-aware timeseries data
   // sequenceGap in queryKey ensures refetch when slider changes (backend fetches from metadata)
   const { data: timeseriesQueryData } = useQuery({
-    queryKey: ['sequenceAwareTimeseries', actualStudyId, [...speciesNames].sort(), sequenceGap],
+    queryKey: [
+      'sequenceAwareTimeseries',
+      actualStudyId,
+      [...speciesNames].sort(),
+      sequenceGap,
+      areaFilter
+    ],
     queryFn: async () => {
-      const response = await window.api.getSequenceAwareTimeseries(actualStudyId, speciesNames)
+      const response = await window.api.getSequenceAwareTimeseries(
+        actualStudyId,
+        speciesNames,
+        sequenceGap,
+        areaFilter
+      )
       if (response.error) throw new Error(response.error)
       return response.data
     },
@@ -829,14 +997,17 @@ export default function Activity({ studyData, studyId }) {
       [...speciesNames].sort(),
       effectiveStart?.toISOString(),
       effectiveEnd?.toISOString(),
-      sequenceGap
+      sequenceGap,
+      areaFilter
     ],
     queryFn: async () => {
       const response = await window.api.getSequenceAwareDailyActivity(
         actualStudyId,
         speciesNames,
         effectiveStart?.toISOString(),
-        effectiveEnd?.toISOString()
+        effectiveEnd?.toISOString(),
+        sequenceGap,
+        areaFilter
       )
       if (response.error) throw new Error(response.error)
       return response.data
@@ -896,6 +1067,8 @@ export default function Activity({ studyData, studyId }) {
                     studyName={studyData?.name}
                     geoKey={geoKey}
                     scientificToCommon={scientificToCommon}
+                    areaFilter={areaFilter}
+                    onApplyAreaFilter={setAreaFilter}
                   />
                 )}
               {heatmapStatus === 'noData' && !isHeatmapLoading && (
@@ -924,9 +1097,10 @@ export default function Activity({ studyData, studyId }) {
                       // once we've confirmed the study has no timestamps
                       // (ENA24, Biome Health Project, etc).
                       hasTemporalData={hasTemporalData || timeseriesQueryData === undefined}
-                      isFiltering={isFiltering}
+                      isFiltering={isFilteringWithArea}
                       dayFilterLabel={dayFilterLabel}
                       dateFilterLabel={dateFilterLabel}
+                      areaFilterLabel={areaFilterLabel}
                       onResetFilters={handleResetFilters}
                     />
                   </div>
