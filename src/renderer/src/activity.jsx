@@ -1063,19 +1063,25 @@ export default function Activity({ studyData, studyId }) {
               whatever the main pane shows (map, gallery, or both). */}
           {speciesInitialized && sequenceGap !== undefined && (
             <div className="flex items-center gap-2 px-2 h-10 flex-shrink-0 mb-2">
-              {/* Bound the slider's width — its compact variant is flex-1, which
-                  would otherwise stretch it across the full-width bar on large
-                  screens (it used to be bounded by the w-xs rail). */}
-              <div className="w-64 flex-shrink-0">
-                <SequenceGapSlider
-                  value={sequenceGap}
-                  onChange={setSequenceGap}
-                  variant="compact"
-                />
-              </div>
+              {/* View cluster — what you're looking at + its display options.
+                  The bbox toggle sits next to the view toggle (not with the
+                  filters) so it reads as a display option for the current
+                  view; it only shows in gallery/both and self-hides for
+                  studies without bounding boxes. */}
               <ViewModeToggle value={viewMode} modes={availableViewModes} onChange={setViewMode} />
-              <div className="ml-auto flex items-center gap-1">
-                {showGallery && <ThumbnailBboxToggle studyId={actualStudyId} />}
+              {showGallery && <ThumbnailBboxToggle studyId={actualStudyId} />}
+
+              {/* Data + filters — pushed to the right. Slider width is bounded
+                  (its compact variant is flex-1, which would otherwise stretch
+                  across the full-width bar on large screens). */}
+              <div className="ml-auto flex items-center gap-2">
+                <div className="w-64 flex-shrink-0">
+                  <SequenceGapSlider
+                    value={sequenceGap}
+                    onChange={setSequenceGap}
+                    variant="compact"
+                  />
+                </div>
                 <FilterChartsToggle
                   studyId={actualStudyId}
                   // Optimistic while timeseries is loading — hide only once
