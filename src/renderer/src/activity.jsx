@@ -1062,10 +1062,10 @@ export default function Activity({ studyData, studyId }) {
               Lifted out of the right rail so the controls apply visibly to
               whatever the main pane shows (map, gallery, or both). */}
           {speciesInitialized && sequenceGap !== undefined && (
-            {/* Mirrors the content row below (flex-1 main pane + w-xs rail with
-                gap-4) so the two zones line up vertically: the view cluster
-                sits over the map/gallery, and the data+filters group sits over
-                the species rail. */}
+            /* Mirrors the content row below (flex-1 main pane + w-xs rail with
+               gap-4) so the two zones line up vertically: the view cluster sits
+               over the map/gallery, and the data+filters group sits over the
+               species rail. */
             <div className="flex items-center gap-4 h-10 flex-shrink-0 mb-2">
               {/* View cluster — aligns with the map/gallery pane. The bbox
                   toggle sits next to the view toggle (not with the filters) so
@@ -1073,7 +1073,11 @@ export default function Activity({ studyData, studyId }) {
                   shows in gallery/both and self-hides for studies without
                   bounding boxes. */}
               <div className="flex-1 min-w-0 flex items-center gap-2">
-                <ViewModeToggle value={viewMode} modes={availableViewModes} onChange={setViewMode} />
+                <ViewModeToggle
+                  value={viewMode}
+                  modes={availableViewModes}
+                  onChange={setViewMode}
+                />
                 {showGallery && <ThumbnailBboxToggle studyId={actualStudyId} />}
               </div>
 
@@ -1082,7 +1086,11 @@ export default function Activity({ studyData, studyId }) {
                   slider's compact variant is flex-1 and fills the leftover
                   width beside the filter toggle. */}
               <div className="w-xs flex items-center gap-2">
-                <SequenceGapSlider value={sequenceGap} onChange={setSequenceGap} variant="compact" />
+                <SequenceGapSlider
+                  value={sequenceGap}
+                  onChange={setSequenceGap}
+                  variant="compact"
+                />
                 <FilterChartsToggle
                   studyId={actualStudyId}
                   // Optimistic while timeseries is loading — hide only once
