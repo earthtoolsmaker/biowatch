@@ -105,7 +105,11 @@ after merging the gallery in) the shared filter state via the existing hooks:
 - `useSequenceGap(studyId)` — sequence-gap slider (drives both map heatmap and
   gallery queries; already in both pages' query keys)
 - `useShowFilterCharts(studyId)` — temporal-row visibility
-- `useAreaFilter` — map viewport area filter (map only)
+- `useAreaFilter` — map viewport area filter; also applied to the gallery
+  media (threaded as `filters.bbox` through `getSequences` → pagination →
+  `getMediaForSequencePagination`, filtering on the joined deployment
+  location). Media whose deployment has no coordinates are excluded when an
+  area filter is active, matching the map.
 - `selectedSpecies` / `speciesDistributionData` — species rail selection
 
 Because the gallery already reads these same hooks today, rendering `Gallery`
