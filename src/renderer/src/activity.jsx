@@ -106,6 +106,21 @@ function MapContextMenuController({ onContextMenu, mapRef }) {
   return null
 }
 
+// Calls Leaflet's invalidateSize() whenever the map container is resized —
+// e.g. when the species rail collapses and the map pane widens, or the view
+// toggle changes the pane size. Without this, Leaflet keeps its old viewport
+// dimensions and never requests tiles for the newly-exposed area.
+function MapResizeHandler() {
+  const map = useMap()
+  useEffect(() => {
+    const container = map.getContainer()
+    const observer = new ResizeObserver(() => map.invalidateSize())
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [map])
+  return null
+}
+
 // Floating top-center pill for the map area filter. The pill body always
 // snapshots the current viewport bounds on click — so when a filter is
 // already active you can re-filter a freshly-panned area in one click (no
@@ -573,6 +588,7 @@ const SpeciesMap = ({
       <MapContainer bounds={bounds} boundsOptions={boundsOptions} className="rounded w-full h-full">
         <HideLeafletAttribution />
         <MapContextMenuController onContextMenu={setContextMenu} mapRef={mapRef} />
+        <MapResizeHandler />
         <AreaFilterControl areaFilter={areaFilter} onApplyAreaFilter={onApplyAreaFilter} />
         {areaFilter && (
           <Rectangle
@@ -1129,7 +1145,7 @@ export default function Activity({ studyData, studyId }) {
                 slider's compact variant is flex-1 and fills the leftover width
                 beside the filter toggle. The filter toggle keeps to the right
                 even before the slider's gap value has loaded. */}
-            <div className="w-xs flex items-center gap-2">
+            <div className="w-xs flex-shrink-0 flex items-center gap-2">
               {sequenceGap !== undefined && (
                 <SequenceGapSlider
                   value={sequenceGap}
