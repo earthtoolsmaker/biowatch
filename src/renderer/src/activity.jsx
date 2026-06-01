@@ -1,6 +1,8 @@
 import * as htmlToImage from 'html-to-image'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import 'leaflet.heat'
+import { hexbin as d3Hexbin } from 'd3-hexbin'
 import { MapPin, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -36,6 +38,14 @@ import PlaceholderMap from './ui/PlaceholderMap'
 import { SequenceGapSlider } from './ui/SequenceGapSlider'
 import FilterChartsToggle from './ui/FilterChartsToggle'
 import ViewModeToggle from './ui/ViewModeToggle'
+import MapEncodingToggle from './ui/MapEncodingToggle'
+import MapDensityLegend from './ui/MapDensityLegend'
+import {
+  DEFAULT_DENSITY_SCALE,
+  getDensityScale,
+  interpolateScale,
+  scaleToHeatGradient
+} from './utils/densityScales'
 import ThumbnailBboxToggle from './ui/ThumbnailBboxToggle'
 import SpeciesRailToggle from './ui/SpeciesRailToggle'
 import SelectedSpeciesChips from './ui/SelectedSpeciesChips'
@@ -250,6 +260,118 @@ const isInsideArea = (lat, lng, area) => {
 // clustering (same as before), plus an extra 'pies'/'dots' suffix so the
 // initial dots → pies transition forces a fresh cluster layer rather than
 // trying to reconcile pie icons onto gray markers.
+// Imperatively manages a leaflet.heat layer for the 'heatmap' encoding. Points
+// are [lat, lng, intensity] where intensity is the combined observation count
+// across selected species; `max` normalizes the gradient and `gradient` is the
+// active color scale ({ position: color }). Returns no DOM — the layer is
+// added/removed directly on the Leaflet map.
+function HeatmapLayer({ points, max, gradient }) {
+  const map = useMap()
+  useEffect(() => {
+    if (!points.length) return undefined
+    const layer = L.heatLayer(points, {
+      radius: 28,
+      blur: 20,
+      max,
+      maxZoom: 12,
+      minOpacity: 0.25,
+      gradient
+    })
+    layer.addTo(map)
+    return () => {
+      map.removeLayer(layer)
+    }
+  }, [map, points, max, gradient])
+  return null
+}
+
+// Hex-bin overlay for the 'hexbin' encoding. Projects each site to screen
+// space, bins them into a hex grid (d3-hexbin), and fills each hex by its
+// summed intensity (combined across selected species), normalized to the
+// busiest hex at the current zoom. Drawn as an SVG in Leaflet's overlay pane
+// and redrawn on pan/zoom. Non-interactive — purely a density surface. `stops`
+// is the active color scale's hex list.
+function HexbinLayer({ points, stops }) {
+  const map = useMap()
+  useEffect(() => {
+    const svgNS = 'http://www.w3.org/2000/svg'
+    const pane = map.getPanes().overlayPane
+    const svg = document.createElementNS(svgNS, 'svg')
+    svg.setAttribute('class', 'leaflet-zoom-hide')
+    svg.style.position = 'absolute'
+    svg.style.pointerEvents = 'none'
+    const g = document.createElementNS(svgNS, 'g')
+    svg.appendChild(g)
+    pane.appendChild(svg)
+
+    const RADIUS = 24
+    const hb = d3Hexbin()
+      .radius(RADIUS)
+      .x((d) => d.x)
+      .y((d) => d.y)
+    const hexPath = hb.hexagon()
+
+    const redraw = () => {
+      while (g.firstChild) g.removeChild(g.firstChild)
+      if (!points.length) return
+
+      const proj = points.map((p) => {
+        const pt = map.latLngToLayerPoint(L.latLng(p[0], p[1]))
+        return { x: pt.x, y: pt.y, v: p[2] }
+      })
+
+      let minX = Infinity
+      let minY = Infinity
+      let maxX = -Infinity
+      let maxY = -Infinity
+      for (const d of proj) {
+        if (d.x < minX) minX = d.x
+        if (d.y < minY) minY = d.y
+        if (d.x > maxX) maxX = d.x
+        if (d.y > maxY) maxY = d.y
+      }
+      const pad = RADIUS * 2
+      minX -= pad
+      minY -= pad
+      maxX += pad
+      maxY += pad
+
+      svg.setAttribute('width', maxX - minX)
+      svg.setAttribute('height', maxY - minY)
+      svg.style.left = `${minX}px`
+      svg.style.top = `${minY}px`
+      g.setAttribute('transform', `translate(${-minX},${-minY})`)
+
+      const bins = hb(proj)
+      let localMax = 0
+      const sums = bins.map((bin) => {
+        const s = bin.reduce((acc, d) => acc + d.v, 0)
+        if (s > localMax) localMax = s
+        return s
+      })
+
+      bins.forEach((bin, i) => {
+        const path = document.createElementNS(svgNS, 'path')
+        path.setAttribute('d', hexPath)
+        path.setAttribute('transform', `translate(${bin.x},${bin.y})`)
+        path.setAttribute('fill', interpolateScale(stops, localMax ? sums[i] / localMax : 0))
+        path.setAttribute('fill-opacity', '0.8')
+        path.setAttribute('stroke', 'rgba(255,255,255,0.3)')
+        path.setAttribute('stroke-width', '1')
+        g.appendChild(path)
+      })
+    }
+
+    redraw()
+    map.on('moveend zoomend viewreset', redraw)
+    return () => {
+      map.off('moveend zoomend viewreset', redraw)
+      pane.removeChild(svg)
+    }
+  }, [map, points, stops])
+  return null
+}
+
 const SpeciesMap = ({
   deploymentLocations,
   heatmapData,
@@ -272,6 +394,38 @@ const SpeciesMap = ({
   useEffect(() => {
     localStorage.setItem(mapLayerKey, selectedLayer)
   }, [selectedLayer, mapLayerKey])
+
+  // How the distribution is drawn: 'pies' (composition), 'graduated'
+  // (abundance) or 'heatmap' (density). Persisted per study like the layer.
+  const mapEncodingKey = `mapEncoding:${studyId}`
+  const [mapEncoding, setMapEncoding] = useState(() => {
+    const saved = localStorage.getItem(mapEncodingKey)
+    return saved === 'graduated' || saved === 'heatmap' ? saved : 'pies'
+  })
+  useEffect(() => {
+    localStorage.setItem(mapEncodingKey, mapEncoding)
+  }, [mapEncoding, mapEncodingKey])
+
+  // With a single species a pie is just a solid circle — identical to the
+  // Abundance disc — so Composition is redundant. Hide it (see MapEncodingToggle)
+  // and fall back to Abundance for rendering, without overwriting the stored
+  // preference so Composition returns once a second species is selected.
+  const singleSpecies = selectedSpecies.length <= 1
+  const effectiveEncoding = singleSpecies && mapEncoding === 'pies' ? 'graduated' : mapEncoding
+  const isMarkerEncoding = effectiveEncoding === 'pies' || effectiveEncoding === 'graduated'
+  const isDensityEncoding = effectiveEncoding === 'heatmap' || effectiveEncoding === 'hexbin'
+
+  // Color scale for the density encodings, persisted per study. Lets the user
+  // pick a ramp that stays legible over the basemap (e.g. Magma over forest).
+  const densityScaleKey = `densityScale:${studyId}`
+  const [densityScale, setDensityScale] = useState(
+    () => localStorage.getItem(densityScaleKey) || DEFAULT_DENSITY_SCALE
+  )
+  useEffect(() => {
+    localStorage.setItem(densityScaleKey, densityScale)
+  }, [densityScale, densityScaleKey])
+  const densityStops = getDensityScale(densityScale).stops
+  const heatGradient = useMemo(() => scaleToHeatGradient(densityStops), [densityStops])
 
   // Theme-aware Street Map tile layer (light: OpenStreetMap, dark: CartoDB Dark Matter).
   const { resolved: streetMapResolved } = useTheme()
@@ -341,7 +495,9 @@ const SpeciesMap = ({
   const createPieChartIcon = useCallback(
     (counts, opacity = 1) => {
       const total = Object.values(counts).reduce((sum, count) => sum + count, 0)
-      const size = Math.min(60, Math.max(10, Math.sqrt(total) * 3)) // Scale dot size based on count
+      // Min raised to 22px so low-count sites stay legible (they used to all
+      // collapse onto a 10px floor). Still √-scaled and capped at 60px.
+      const size = Math.min(60, Math.max(22, Math.sqrt(total) * 3))
 
       const createSVG = () => {
         // Create SVG for pie chart
@@ -417,6 +573,17 @@ const SpeciesMap = ({
           })
         }
 
+        // Bright white outline ring around the whole disc — lifts the marker
+        // off busy satellite imagery and unifies single/multi-species cases.
+        const ring = document.createElementNS(svgNS, 'circle')
+        ring.setAttribute('cx', '50')
+        ring.setAttribute('cy', '50')
+        ring.setAttribute('r', '48')
+        ring.setAttribute('fill', 'none')
+        ring.setAttribute('stroke', '#ffffff')
+        ring.setAttribute('stroke-width', '2')
+        svg.appendChild(ring)
+
         return svg
       }
 
@@ -433,6 +600,58 @@ const SpeciesMap = ({
     },
     [selectedSpecies, palette]
   )
+
+  // Graduated-circle icon ('abundance' encoding): a single solid disc sized by
+  // total count and colored by the dominant species. Magnitude reads instantly
+  // across the map; the full species breakdown stays in the hover card.
+  const createGraduatedIcon = useCallback(
+    (counts, opacity = 1) => {
+      const total = Object.values(counts).reduce((sum, count) => sum + count, 0)
+      const size = Math.min(56, Math.max(14, Math.sqrt(total) * 3))
+
+      // Dominant species = the one with the most observations at this site.
+      let dominant = null
+      let maxCount = -1
+      Object.entries(counts).forEach(([species, count]) => {
+        if (count > maxCount) {
+          maxCount = count
+          dominant = species
+        }
+      })
+      const index = selectedSpecies.findIndex((s) => s.scientificName === dominant)
+      const color = palette[(index >= 0 ? index : 0) % palette.length]
+
+      const svgNS = 'http://www.w3.org/2000/svg'
+      const svg = document.createElementNS(svgNS, 'svg')
+      svg.setAttribute('width', size)
+      svg.setAttribute('height', size)
+      svg.setAttribute('viewBox', '0 0 100 100')
+      if (opacity < 1) svg.setAttribute('opacity', String(opacity))
+
+      const circle = document.createElementNS(svgNS, 'circle')
+      circle.setAttribute('cx', '50')
+      circle.setAttribute('cy', '50')
+      circle.setAttribute('r', '48')
+      circle.setAttribute('fill', color)
+      circle.setAttribute('stroke', '#ffffff')
+      circle.setAttribute('stroke-width', '2')
+      svg.appendChild(circle)
+
+      const svgString = new XMLSerializer().serializeToString(svg)
+      const dataUrl = `data:image/svg+xml;base64,${btoa(svgString)}`
+
+      return L.icon({
+        iconUrl: dataUrl,
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+        popupAnchor: [0, -size / 2]
+      })
+    },
+    [selectedSpecies, palette]
+  )
+
+  // Active icon builder for the marker encodings. Heatmap doesn't use markers.
+  const markerIconFn = effectiveEncoding === 'graduated' ? createGraduatedIcon : createPieChartIcon
 
   // Render the React MarkerHoverCard to an HTML string. Leaflet's tooltip API
   // takes raw HTML, so we serialize the JSX once per call. Using a React
@@ -513,8 +732,24 @@ const SpeciesMap = ({
   // data — crucially NOT on areaFilter — so applying/clearing the area filter
   // never rebuilds them; only the cheap per-marker opacity changes.
   const pieIcons = useMemo(
-    () => locationPoints.map((point) => createPieChartIcon(point.counts)),
-    [locationPoints, createPieChartIcon]
+    () => (isMarkerEncoding ? locationPoints.map((point) => markerIconFn(point.counts)) : []),
+    [locationPoints, markerIconFn, isMarkerEncoding]
+  )
+
+  // Heatmap input: one [lat, lng, total] per site, plus the max total so
+  // leaflet.heat can normalize the gradient. Combined intensity across all
+  // selected species (the 'density' encoding doesn't distinguish species).
+  const heatPoints = useMemo(
+    () =>
+      locationPoints.map((point) => {
+        const total = Object.values(point.counts).reduce((sum, count) => sum + count, 0)
+        return [point.lat, point.lng, total]
+      }),
+    [locationPoints]
+  )
+  const heatMax = useMemo(
+    () => heatPoints.reduce((m, p) => Math.max(m, p[2]), 0) || 1,
+    [heatPoints]
   )
 
   // Memoize the marker elements so they are NOT recreated/reconciled when the
@@ -522,10 +757,12 @@ const SpeciesMap = ({
   // ~hundreds of react-leaflet markers per render is the bulk of the freeze.
   const markerElements = useMemo(
     () =>
-      locationPoints.map((point, index) => (
-        <PieChartMarker key={index} point={point} icon={pieIcons[index]} />
-      )),
-    [locationPoints, pieIcons]
+      isMarkerEncoding
+        ? locationPoints.map((point, index) => (
+            <PieChartMarker key={index} point={point} icon={pieIcons[index]} />
+          ))
+        : [],
+    [locationPoints, pieIcons, isMarkerEncoding]
   )
 
   // De-emphasize markers outside the area filter imperatively: set each marker's
@@ -612,6 +849,14 @@ const SpeciesMap = ({
     })
   }
 
+  // While still loading we always show the skeleton dots regardless of the
+  // chosen encoding. Once data lands, the density encodings ('heatmap',
+  // 'hexbin') swap the markers for a density surface; 'pies'/'graduated' keep
+  // the clustered markers.
+  const showMarkersOverlay = skeletonMode || isMarkerEncoding
+  const showHeatmap = !skeletonMode && effectiveEncoding === 'heatmap'
+  const showHexbin = !skeletonMode && effectiveEncoding === 'hexbin'
+
   return (
     <>
       <MapContainer bounds={bounds} boundsOptions={boundsOptions} className="rounded w-full h-full">
@@ -647,113 +892,131 @@ const SpeciesMap = ({
             />
           </LayersControl.BaseLayer>
 
-          <LayersControl.Overlay name="Species Distribution" checked={true}>
-            {skeletonMode ? (
-              <MarkerClusterGroup
-                key={`skeleton:${skeletonPoints.length}`}
-                chunkedLoading
-                showCoverageOnHover={false}
-                spiderfyOnEveryZoom={false}
-                maxClusterRadius={100}
-                animateAddingMarkers={false}
-                iconCreateFunction={createSkeletonClusterIcon}
-              >
-                {skeletonPoints.map((point, index) => (
-                  <Marker
-                    key={`skeleton-${index}`}
-                    position={[point.lat, point.lng]}
-                    icon={skeletonDotIcon}
-                  />
-                ))}
-              </MarkerClusterGroup>
-            ) : (
-              <MarkerClusterGroup
-                ref={pieClusterRef}
-                key={`pies:${geoKey}`}
-                chunkedLoading
-                showCoverageOnHover={false}
-                spiderfyOnEveryZoom={false}
-                maxClusterRadius={100}
-                animateAddingMarkers={false}
-                iconCreateFunction={(cluster) => {
-                  // Get all markers in this cluster
-                  const markers = cluster.getAllChildMarkers()
+          {showMarkersOverlay && (
+            <LayersControl.Overlay name="Species Distribution" checked={true}>
+              {skeletonMode ? (
+                <MarkerClusterGroup
+                  key={`skeleton:${skeletonPoints.length}`}
+                  chunkedLoading
+                  showCoverageOnHover={false}
+                  spiderfyOnEveryZoom={false}
+                  maxClusterRadius={100}
+                  animateAddingMarkers={false}
+                  iconCreateFunction={createSkeletonClusterIcon}
+                >
+                  {skeletonPoints.map((point, index) => (
+                    <Marker
+                      key={`skeleton-${index}`}
+                      position={[point.lat, point.lng]}
+                      icon={skeletonDotIcon}
+                    />
+                  ))}
+                </MarkerClusterGroup>
+              ) : (
+                <MarkerClusterGroup
+                  ref={pieClusterRef}
+                  key={`pies:${geoKey}`}
+                  chunkedLoading
+                  showCoverageOnHover={false}
+                  spiderfyOnEveryZoom={false}
+                  maxClusterRadius={100}
+                  animateAddingMarkers={false}
+                  iconCreateFunction={(cluster) => {
+                    // Get all markers in this cluster
+                    const markers = cluster.getAllChildMarkers()
 
-                  // A cluster is de-emphasized only when ALL its markers fall
-                  // outside the area filter; any inside marker keeps it full.
-                  const anyInside = markers.some((m) => {
-                    const ll = m.getLatLng()
-                    return isInsideArea(ll.lat, ll.lng, areaFilter)
-                  })
-
-                  // Combine counts from all markers
-                  const combinedCounts = {}
-
-                  // First, initialize counts for all selected species to ensure consistent ordering
-                  selectedSpecies.forEach((species) => {
-                    combinedCounts[species.scientificName] = 0
-                  })
-
-                  // Then add actual counts from markers
-                  markers.forEach((marker) => {
-                    Object.entries(marker.options.counts).forEach(([species, count]) => {
-                      // Only add species that are in our selectedSpecies list
-                      if (selectedSpecies.some((s) => s.scientificName === species)) {
-                        combinedCounts[species] += count
-                      }
+                    // A cluster is de-emphasized only when ALL its markers fall
+                    // outside the area filter; any inside marker keeps it full.
+                    const anyInside = markers.some((m) => {
+                      const ll = m.getLatLng()
+                      return isInsideArea(ll.lat, ll.lng, areaFilter)
                     })
-                  })
 
-                  // Filter out species with zero counts to avoid empty slices
-                  const filteredCounts = Object.fromEntries(
-                    Object.entries(combinedCounts).filter(([, count]) => count > 0)
-                  )
+                    // Combine counts from all markers
+                    const combinedCounts = {}
 
-                  // Bind tooltip to cluster. Same beside-the-pie behavior as
-                  // individual markers — see the per-marker bindTooltip above.
-                  const tooltipHtml = createTooltipContent(filteredCounts)
-                  cluster.unbindTooltip()
-                  cluster.bindTooltip(tooltipHtml, {
-                    direction: 'auto',
-                    offset: [0, 0],
-                    opacity: 1,
-                    className: 'species-map-tooltip'
-                  })
+                    // First, initialize counts for all selected species to ensure consistent ordering
+                    selectedSpecies.forEach((species) => {
+                      combinedCounts[species.scientificName] = 0
+                    })
 
-                  return createPieChartIcon(filteredCounts, anyInside ? 1 : OUTSIDE_OPACITY)
-                }}
-              >
-                {markerElements}
-              </MarkerClusterGroup>
-            )}
-          </LayersControl.Overlay>
+                    // Then add actual counts from markers
+                    markers.forEach((marker) => {
+                      Object.entries(marker.options.counts).forEach(([species, count]) => {
+                        // Only add species that are in our selectedSpecies list
+                        if (selectedSpecies.some((s) => s.scientificName === species)) {
+                          combinedCounts[species] += count
+                        }
+                      })
+                    })
 
-          {/* Add a legend */}
-          <div className="absolute bottom-5 right-5 bg-card p-2 rounded shadow-md z-[1000] flex flex-col gap-2">
-            {selectedSpecies.map((species, index) => {
-              const common = getMapDisplayName(species.scientificName, scientificToCommon)
-              const showSci = common && common !== species.scientificName
-              return (
-                <div key={index} className="flex items-start gap-2">
-                  <div
-                    className="w-3 h-3 rounded-full mt-0.5 flex-shrink-0"
-                    style={{ backgroundColor: palette[index % palette.length] }}
-                  ></div>
-                  <div className="flex flex-col min-w-0 leading-tight">
-                    <span className={`text-xs ${common ? 'capitalize' : 'italic'}`}>
-                      {common || formatScientificName(species.scientificName)}
-                    </span>
-                    {showSci && (
-                      <span className="text-[10px] text-muted-foreground italic">
-                        {formatScientificName(species.scientificName)}
+                    // Filter out species with zero counts to avoid empty slices
+                    const filteredCounts = Object.fromEntries(
+                      Object.entries(combinedCounts).filter(([, count]) => count > 0)
+                    )
+
+                    // Bind tooltip to cluster. Same beside-the-pie behavior as
+                    // individual markers — see the per-marker bindTooltip above.
+                    const tooltipHtml = createTooltipContent(filteredCounts)
+                    cluster.unbindTooltip()
+                    cluster.bindTooltip(tooltipHtml, {
+                      direction: 'auto',
+                      offset: [0, 0],
+                      opacity: 1,
+                      className: 'species-map-tooltip'
+                    })
+
+                    return markerIconFn(filteredCounts, anyInside ? 1 : OUTSIDE_OPACITY)
+                  }}
+                >
+                  {markerElements}
+                </MarkerClusterGroup>
+              )}
+            </LayersControl.Overlay>
+          )}
+
+          {/* Species color legend — only meaningful when markers encode species
+              (composition/abundance). The density encodings use an intensity
+              ramp instead (see the density legend below). */}
+          {isMarkerEncoding && (
+            <div className="absolute bottom-5 right-5 bg-card p-2 rounded shadow-md z-[1000] flex flex-col gap-2 cursor-default">
+              {selectedSpecies.map((species, index) => {
+                const common = getMapDisplayName(species.scientificName, scientificToCommon)
+                const showSci = common && common !== species.scientificName
+                return (
+                  <div key={index} className="flex items-start gap-2">
+                    <div
+                      className="w-3 h-3 rounded-full mt-0.5 flex-shrink-0"
+                      style={{ backgroundColor: palette[index % palette.length] }}
+                    ></div>
+                    <div className="flex flex-col min-w-0 leading-tight">
+                      <span className={`text-xs ${common ? 'capitalize' : 'italic'}`}>
+                        {common || formatScientificName(species.scientificName)}
                       </span>
-                    )}
+                      {showSci && (
+                        <span className="text-[10px] text-muted-foreground italic">
+                          {formatScientificName(species.scientificName)}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Density legend + color-scale picker (heatmap / hex grid). */}
+          {isDensityEncoding && (
+            <MapDensityLegend value={densityScale} onChange={setDensityScale} />
+          )}
         </LayersControl>
+        {showHeatmap && <HeatmapLayer points={heatPoints} max={heatMax} gradient={heatGradient} />}
+        {showHexbin && <HexbinLayer points={heatPoints} stops={densityStops} />}
+        <MapEncodingToggle
+          value={effectiveEncoding}
+          onChange={setMapEncoding}
+          singleSpecies={singleSpecies}
+        />
         <LayerChangeHandler onLayerChange={setSelectedLayer} />
       </MapContainer>
       {contextMenu && (
