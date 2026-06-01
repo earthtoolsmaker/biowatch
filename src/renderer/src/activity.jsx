@@ -263,13 +263,20 @@ const isInsideArea = (lat, lng, area) => {
 // Imperatively manages a leaflet.heat layer for the 'heatmap' encoding. Points
 // are [lat, lng, intensity] where intensity is the combined observation count
 // across selected species; `max` normalizes the gradient and `gradient` is the
-// active color scale ({ position: color }). Returns no DOM — the layer is
-// added/removed directly on the Leaflet map.
-function HeatmapLayer({ points, max, gradient }) {
+// active color scale ({ position: color }). When an `areaFilter` is set,
+// out-of-area points contribute at reduced intensity so the glow fades outside
+// the filter — the continuous-surface analog of the dimmed markers. Returns no
+// DOM — the layer is added/removed directly on the Leaflet map.
+function HeatmapLayer({ points, max, gradient, areaFilter }) {
   const map = useMap()
   useEffect(() => {
     if (!points.length) return undefined
-    const layer = L.heatLayer(points, {
+    const data = areaFilter
+      ? points.map((p) =>
+          isInsideArea(p[0], p[1], areaFilter) ? p : [p[0], p[1], p[2] * OUTSIDE_OPACITY]
+        )
+      : points
+    const layer = L.heatLayer(data, {
       radius: 28,
       blur: 20,
       max,
@@ -281,7 +288,7 @@ function HeatmapLayer({ points, max, gradient }) {
     return () => {
       map.removeLayer(layer)
     }
-  }, [map, points, max, gradient])
+  }, [map, points, max, gradient, areaFilter])
   return null
 }
 
@@ -290,8 +297,10 @@ function HeatmapLayer({ points, max, gradient }) {
 // summed intensity (combined across selected species), normalized to the
 // busiest hex at the current zoom. Drawn as an SVG in Leaflet's overlay pane
 // and redrawn on pan/zoom. Non-interactive — purely a density surface. `stops`
-// is the active color scale's hex list.
-function HexbinLayer({ points, stops }) {
+// is the active color scale's hex list; when an `areaFilter` is set, hexes
+// whose center falls outside it are dimmed (lower fill-opacity), matching the
+// de-emphasis used for out-of-area markers.
+function HexbinLayer({ points, stops, areaFilter }) {
   const map = useMap()
   useEffect(() => {
     const svgNS = 'http://www.w3.org/2000/svg'
@@ -351,11 +360,19 @@ function HexbinLayer({ points, stops }) {
       })
 
       bins.forEach((bin, i) => {
+        // Dim hexes centered outside the area filter (centroid is in layer-point
+        // space, so convert back to lat/lng to test).
+        const inside =
+          !areaFilter ||
+          (() => {
+            const ll = map.layerPointToLatLng(L.point(bin.x, bin.y))
+            return isInsideArea(ll.lat, ll.lng, areaFilter)
+          })()
         const path = document.createElementNS(svgNS, 'path')
         path.setAttribute('d', hexPath)
         path.setAttribute('transform', `translate(${bin.x},${bin.y})`)
         path.setAttribute('fill', interpolateScale(stops, localMax ? sums[i] / localMax : 0))
-        path.setAttribute('fill-opacity', '0.8')
+        path.setAttribute('fill-opacity', inside ? '0.8' : String(0.8 * OUTSIDE_OPACITY))
         path.setAttribute('stroke', 'rgba(255,255,255,0.3)')
         path.setAttribute('stroke-width', '1')
         g.appendChild(path)
@@ -368,7 +385,7 @@ function HexbinLayer({ points, stops }) {
       map.off('moveend zoomend viewreset', redraw)
       pane.removeChild(svg)
     }
-  }, [map, points, stops])
+  }, [map, points, stops, areaFilter])
   return null
 }
 
@@ -488,10 +505,16 @@ const SpeciesMap = ({
       })
     }
   }, [studyId, studyName])
-  // Function to create a pie chart icon. Memoized so re-renders (e.g. toggling
-  // the area filter) don't rebuild every SVG — building the SVG + serializing +
-  // base64-encoding it for ~hundreds of points on every render is what froze the
-  // UI thread. `opacity` < 1 fades the whole pie (used for de-emphasized clusters).
+  // Builds the 'composition' marker: a Leaflet icon (SVG → base64 data URL)
+  // whose slices are each selected species' share of `counts` (a
+  // { scientificName: count } map for one location, or the combined counts of a
+  // cluster). A single species renders as a solid disc. Diameter is √-scaled by
+  // the total count and clamped to [22, 60]px; `opacity` < 1 fades the whole
+  // marker (used to de-emphasize clusters outside the area filter).
+  //
+  // Memoized so re-renders (e.g. toggling the area filter) don't rebuild every
+  // SVG — building + serializing + base64-encoding ~hundreds of icons per render
+  // is what froze the UI thread.
   const createPieChartIcon = useCallback(
     (counts, opacity = 1) => {
       const total = Object.values(counts).reduce((sum, count) => sum + count, 0)
@@ -601,9 +624,12 @@ const SpeciesMap = ({
     [selectedSpecies, palette]
   )
 
-  // Graduated-circle icon ('abundance' encoding): a single solid disc sized by
-  // total count and colored by the dominant species. Magnitude reads instantly
-  // across the map; the full species breakdown stays in the hover card.
+  // Builds the 'abundance' marker: a single solid disc, √-scaled by the total of
+  // `counts` (clamped to [14, 56]px) and colored by the dominant species (the
+  // one with the most observations at that location). Same { scientificName:
+  // count } input and `opacity` fade behavior as createPieChartIcon, so the two
+  // are interchangeable as the cluster/marker icon builder. Magnitude reads
+  // instantly across the map; the full species breakdown stays in the hover card.
   const createGraduatedIcon = useCallback(
     (counts, opacity = 1) => {
       const total = Object.values(counts).reduce((sum, count) => sum + count, 0)
@@ -1010,8 +1036,17 @@ const SpeciesMap = ({
             <MapDensityLegend value={densityScale} onChange={setDensityScale} />
           )}
         </LayersControl>
-        {showHeatmap && <HeatmapLayer points={heatPoints} max={heatMax} gradient={heatGradient} />}
-        {showHexbin && <HexbinLayer points={heatPoints} stops={densityStops} />}
+        {showHeatmap && (
+          <HeatmapLayer
+            points={heatPoints}
+            max={heatMax}
+            gradient={heatGradient}
+            areaFilter={areaFilter}
+          />
+        )}
+        {showHexbin && (
+          <HexbinLayer points={heatPoints} stops={densityStops} areaFilter={areaFilter} />
+        )}
         <MapEncodingToggle
           value={effectiveEncoding}
           onChange={setMapEncoding}
