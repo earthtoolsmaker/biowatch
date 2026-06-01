@@ -7,13 +7,17 @@ import {
   PolarGrid,
   Radar,
   RadarChart,
-  ReferenceArea,
-  ReferenceLine,
   ResponsiveContainer,
   XAxis,
   YAxis
 } from 'recharts'
-import { timeToAngle, angleToTime, rangesToSegments } from './clockGeometry.js'
+import {
+  timeToAngle,
+  angleToTime,
+  rangesToSegments,
+  bandToSegments,
+  resolveAction
+} from './clockGeometry.js'
 
 // Outer-ring radius (in px) shared by the visible 24-hour circle and the
 // radar chart underneath it. Keeping them equal makes the busiest species'
@@ -330,17 +334,16 @@ const DailyActivityRadar = ({ activityData, selectedSpecies, palette }) => {
 
 /**
  * X–Y twin of DailyActivityRadar. Renders the same hourly-bin data as a
- * line per species across a 24-hour x-axis. Selected ranges are shaded
- * with the same blue used by the polar arc.
+ * line per species across a 24-hour x-axis. The selected ranges are shown
+ * in a dedicated track strip BELOW the axis (not over the plot), so the
+ * activity curves stay unobstructed.
  *
  * Props mirror DailyActivityRadar plus:
  *   selectedRanges: Array<{start, end}> — hour ranges currently in the
- *     filter. Rendered as shaded bands.
+ *     filter. Rendered as blue segments on the track strip.
  *   onArcChange: optional ({start, end}) => void — when provided AND there
- *     is exactly one (non-wrap-around) selected range, the chart shows a
- *     draggable end-line that the user can slide to extend/contract the
- *     range. Pass undefined (e.g. while chips are driving selection) to
- *     disable.
+ *     is at most one selected range, the strip is draggable (create / resize
+ *     / pan). Pass undefined (e.g. while chips drive selection) to disable.
  */
 const DailyActivityLine = ({
   activityData,
@@ -349,87 +352,43 @@ const DailyActivityLine = ({
   selectedRanges = [],
   onArcChange
 }) => {
-  // Drag interactions on the x-y chart:
-  //   - click NEAR the end edge of an existing band  → slide the end edge
-  //   - click INSIDE the band (not near edge)         → pan the whole band
-  //                                                     (wraps at midnight)
-  //   - click OUTSIDE any band, or no band at all     → drag-to-create
-  // Wrap-around selections are panned but not edge-slid.
   const hasSingleBand = selectedRanges.length === 1
   const isWrapBand = hasSingleBand && selectedRanges[0].start >= selectedRanges[0].end
   const dragEnabled =
     typeof onArcChange === 'function' && (hasSingleBand || selectedRanges.length === 0)
 
-  const containerRef = useRef(null)
+  const stripRef = useRef(null)
   const [dragState, setDragState] = useState(null)
-  // dragState shape:
-  //   { mode: 'end',    liveStart, liveEnd }
-  //   { mode: 'start',  liveStart, liveEnd }
-  //   { mode: 'pan',    liveStart, liveEnd, panOffset, panWidth }
-  //   { mode: 'create', liveStart, liveEnd }
+  // dragState: { mode: 'create'|'start'|'end'|'pan', liveStart, liveEnd, panOffset?, panWidth? }
   const isDragging = dragState !== null
-  // Tracks what the cursor is hovering OVER (when not dragging) so we can
-  // preview the action that a click would trigger.
   const [hoverAction, setHoverAction] = useState(null)
 
-  // Convert a native pointer event to a chart-x hour value, accounting for
-  // the ComposedChart's left/right margin so the hover preview matches what
-  // a click would actually hit. When `clamp01` is false the result can fall
-  // outside [0, 24] — used during pan so the band keeps wrapping past the
-  // chart's edge.
+  // Pointer x over the strip -> hour [0,24]. The strip's inner box already
+  // excludes the 8px insets, so no margin math is needed. When clamp01 is
+  // false the value can exceed [0,24] (used during pan so the band wraps).
   const eventToHour = (e, { clamp01 = true } = {}) => {
-    if (!containerRef.current) return null
-    const rect = containerRef.current.getBoundingClientRect()
-    const marginLeft = 8
-    const marginRight = 8
-    const innerWidth = rect.width - marginLeft - marginRight
-    if (innerWidth <= 0) return null
-    const xPx = e.clientX - rect.left - marginLeft
-    const rawRatio = xPx / innerWidth
-    const ratio = clamp01 ? Math.max(0, Math.min(1, rawRatio)) : rawRatio
+    if (!stripRef.current) return null
+    const rect = stripRef.current.getBoundingClientRect()
+    if (rect.width <= 0) return null
+    const raw = (e.clientX - rect.left) / rect.width
+    const ratio = clamp01 ? Math.max(0, Math.min(1, raw)) : raw
     return ratio * 24
   }
 
-  // Whether `cursor` is inside the (possibly wrap-around) band.
-  const isInsideBand = (cursor, band) => {
-    if (band.start < band.end) return cursor > band.start && cursor < band.end
-    return cursor > band.start || cursor < band.end
-  }
-
-  // Compute what action a click at `cursor` would trigger (used for both
-  // hover-cursor previewing and the actual mousedown branch). Edge zones
-  // are at least 1h wide so they're easy to target on short bands;
-  // capped at 2h so they don't take over wide bands.
-  const edgeTolFor = (width) => Math.max(1, Math.min(2, width / 3))
-  const actionAt = (cursor) => {
-    if (!hasSingleBand) return 'create'
-    const { start, end } = selectedRanges[0]
-    const width = isWrapBand ? 24 - start + end : end - start
-    const edgeTol = edgeTolFor(width)
-    if (!isWrapBand && cursor >= end - edgeTol && cursor <= end + edgeTol) return 'edge-end'
-    if (!isWrapBand && cursor >= start - edgeTol && cursor <= start + edgeTol) return 'edge-start'
-    if (isInsideBand(cursor, { start, end })) return 'pan'
-    return 'create'
-  }
-
   const handleMouseUp = () => {
-    // Use functional setState so we read the LATEST drag state (the
-    // document-level listener was registered with a stale closure
-    // otherwise — committed band would lag the cursor).
     setDragState((prev) => {
       if (prev) {
         const { mode, liveStart, liveEnd } = prev
         if (mode === 'pan') {
           onArcChange({ start: liveStart, end: liveEnd })
         } else if (liveStart !== liveEnd) {
-          const start = Math.min(liveStart, liveEnd)
-          const end = Math.max(liveStart, liveEnd)
-          onArcChange({ start, end })
+          onArcChange({ start: Math.min(liveStart, liveEnd), end: Math.max(liveStart, liveEnd) })
         }
       }
       return null
     })
   }
+
   const formatData = (data) => {
     if (!data || !data.length) {
       return Array(24)
@@ -440,29 +399,6 @@ const DailyActivityLine = ({
   }
   const formattedData = formatData(activityData)
 
-  // Highlight the SELECTED ranges (consistent with the polar's blue arc).
-  // Wrap-around ranges (start > end) split into two pieces.
-  const selectedBands = []
-  for (const r of selectedRanges) {
-    if (r.start === r.end) continue
-    if (r.start < r.end) {
-      selectedBands.push([r.start, r.end])
-    } else {
-      selectedBands.push([r.start, 24])
-      selectedBands.push([0, r.end])
-    }
-  }
-
-  // Convert a (possibly wrap-around) {start, end} band into one or two
-  // ReferenceArea-friendly [s, e] segments.
-  const bandToSegments = (band) => {
-    if (band.start === band.end) return []
-    if (band.start < band.end) return [[band.start, band.end]]
-    return [
-      [band.start, 24],
-      [0, band.end]
-    ]
-  }
   // Live band while dragging — for pan it can wrap around midnight.
   const liveBand = (() => {
     if (!isDragging) return null
@@ -470,15 +406,13 @@ const DailyActivityLine = ({
     if (mode === 'pan') return { start: liveStart, end: liveEnd }
     return { start: Math.min(liveStart, liveEnd), end: Math.max(liveStart, liveEnd) }
   })()
-  const liveSegments = liveBand ? bandToSegments(liveBand) : []
 
-  // Edge-line positions for the visible handles.
+  // Segments + handle positions: live band while dragging, else the committed selection.
+  const segments = liveBand ? bandToSegments(liveBand) : rangesToSegments(selectedRanges)
   const handleStartX = (() => {
     if (isDragging) {
       const { mode, liveStart, liveEnd } = dragState
-      if (mode === 'pan') return liveStart
-      if (mode === 'create') return Math.min(liveStart, liveEnd)
-      return Math.min(liveStart, liveEnd)
+      return mode === 'pan' ? liveStart : Math.min(liveStart, liveEnd)
     }
     if (hasSingleBand && !isWrapBand) return selectedRanges[0].start
     return null
@@ -486,17 +420,12 @@ const DailyActivityLine = ({
   const handleEndX = (() => {
     if (isDragging) {
       const { mode, liveStart, liveEnd } = dragState
-      if (mode === 'pan') return liveEnd
-      if (mode === 'create') return Math.max(liveStart, liveEnd)
-      return Math.max(liveStart, liveEnd)
+      return mode === 'pan' ? liveEnd : Math.max(liveStart, liveEnd)
     }
     if (hasSingleBand && !isWrapBand) return selectedRanges[0].end
     return null
   })()
 
-  // Dynamic cursor: previews the action when idle, reflects it during drag.
-  // Use an inline style + child selector so Recharts' SVG elements don't
-  // override the cursor with their own defaults.
   const cursorStyle = (() => {
     if (!dragEnabled) return undefined
     const action = isDragging ? dragState.mode : hoverAction
@@ -506,8 +435,6 @@ const DailyActivityLine = ({
     if (action === 'create') return 'crosshair'
     return 'default'
   })()
-  // Which edge (if any) is currently being hovered — used to make the
-  // corresponding handle dot pop visually.
   const hoveredEdge =
     hoverAction === 'edge-start' || (isDragging && dragState.mode === 'start')
       ? 'start'
@@ -515,10 +442,7 @@ const DailyActivityLine = ({
         ? 'end'
         : null
 
-  // While a drag is in progress, listen on the document so the user can
-  // move the cursor outside the chart and the drag keeps tracking. For
-  // pan mode the cursor is intentionally NOT clamped so the band keeps
-  // wrapping past midnight as the user drags further left/right.
+  // While dragging, listen on the document so the cursor can leave the strip.
   useEffect(() => {
     if (!isDragging) return
     const onDocMove = (e) => {
@@ -545,158 +469,110 @@ const DailyActivityLine = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDragging])
 
-  // Native mouse handlers on the wrapping div for hover-preview only;
-  // mousedown still starts the drag but mousemove/mouseup are taken over
-  // by the document-level listeners above.
-  const handleNativeMove = (e) => {
+  const handleStripMove = (e) => {
     if (isDragging || !dragEnabled) return
     const cursor = eventToHour(e)
     if (cursor === null) return
-    setHoverAction(actionAt(cursor))
+    setHoverAction(resolveAction(cursor, selectedRanges))
   }
-  const handleNativeDown = (e) => {
+  const handleStripDown = (e) => {
     if (!dragEnabled) return
-    // Stop the native drag-selects-text behavior the moment we start handling.
     e.preventDefault()
     const cursor = eventToHour(e)
     if (cursor === null) return
-    if (!hasSingleBand) {
+    const action = resolveAction(cursor, selectedRanges)
+    if (action === 'create') {
       setDragState({ mode: 'create', liveStart: cursor, liveEnd: cursor })
-      return
-    }
-    const { start, end } = selectedRanges[0]
-    const width = isWrapBand ? 24 - start + end : end - start
-    const edgeTol = edgeTolFor(width)
-    if (!isWrapBand && cursor >= end - edgeTol && cursor <= end + edgeTol) {
-      setDragState({ mode: 'end', liveStart: start, liveEnd: cursor })
-    } else if (!isWrapBand && cursor >= start - edgeTol && cursor <= start + edgeTol) {
-      setDragState({ mode: 'start', liveStart: cursor, liveEnd: end })
-    } else if (isInsideBand(cursor, { start, end })) {
+    } else if (action === 'edge-end') {
+      setDragState({ mode: 'end', liveStart: selectedRanges[0].start, liveEnd: cursor })
+    } else if (action === 'edge-start') {
+      setDragState({ mode: 'start', liveStart: cursor, liveEnd: selectedRanges[0].end })
+    } else {
+      // pan
+      const { start, end } = selectedRanges[0]
+      const width = isWrapBand ? 24 - start + end : end - start
       const panOffset = isWrapBand && cursor < end ? cursor + 24 - start : cursor - start
       setDragState({ mode: 'pan', liveStart: start, liveEnd: end, panOffset, panWidth: width })
-    } else {
-      setDragState({ mode: 'create', liveStart: cursor, liveEnd: cursor })
     }
   }
-  // Only clear hover preview on leave; never cancel an in-progress drag
-  // (the document-level listeners handle move/up while dragging).
-  const handleNativeLeave = () => {
+  const handleStripLeave = () => {
     if (!isDragging) setHoverAction(null)
   }
 
+  const pct = (hour) => `${(hour / 24) * 100}%`
+
   return (
-    <div
-      ref={containerRef}
-      className="relative w-full h-full select-none [&_*]:!cursor-[inherit]"
-      style={cursorStyle ? { cursor: cursorStyle } : undefined}
-      onMouseDown={handleNativeDown}
-      onMouseMove={handleNativeMove}
-      onMouseLeave={handleNativeLeave}
-    >
-      <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={formattedData} margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
-          <CartesianGrid strokeOpacity={0} />
-          <XAxis
-            dataKey="hour"
-            type="number"
-            domain={[0, 24]}
-            ticks={[0, 6, 12, 18, 24]}
-            tick={{ fontSize: 9, fill: 'var(--color-muted-foreground)' }}
-            axisLine={false}
-            tickLine={false}
-          />
-          <YAxis hide domain={[0, 'auto']} />
-          {/* While dragging, show only the live band; otherwise the committed bands. */}
-          {isDragging
-            ? liveSegments.map(([s, e], i) => (
-                <ReferenceArea
-                  key={i}
-                  x1={s}
-                  x2={e}
-                  fill="rgb(59 130 246)"
-                  fillOpacity={0.2}
-                  stroke="rgb(59 130 246)"
-                  strokeOpacity={0.7}
-                  strokeWidth={1}
-                />
-              ))
-            : selectedBands.map(([s, e], i) => (
-                <ReferenceArea
-                  key={i}
-                  x1={s}
-                  x2={e}
-                  fill="rgb(59 130 246)"
-                  fillOpacity={0.15}
-                  stroke="rgb(59 130 246)"
-                  strokeOpacity={0.5}
-                  strokeWidth={1}
-                />
-              ))}
-          {/* Draggable start-line handle (dot centered vertically on the line). */}
-          {dragEnabled && handleStartX !== null && (
-            <ReferenceLine
-              x={handleStartX}
-              stroke="rgb(59 130 246)"
-              strokeWidth={hoveredEdge === 'start' ? 3 : 2}
-              isFront
-              label={{
-                position: 'center',
-                content: ({ viewBox }) => {
-                  if (!viewBox || viewBox.x === undefined) return null
-                  const cy = viewBox.y + (viewBox.height ?? 0) / 2
-                  return (
-                    <circle
-                      cx={viewBox.x}
-                      cy={cy}
-                      r={hoveredEdge === 'start' ? 6 : 4}
-                      fill="rgb(59 130 246)"
-                      stroke="white"
-                      strokeWidth={1}
-                    />
-                  )
-                }
-              }}
+    <div className="relative w-full h-full flex flex-col select-none">
+      <div className="flex-1 min-h-0">
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={formattedData} margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
+            <CartesianGrid strokeOpacity={0} />
+            <XAxis
+              dataKey="hour"
+              type="number"
+              domain={[0, 24]}
+              ticks={[0, 6, 12, 18, 24]}
+              tick={{ fontSize: 9, fill: 'var(--color-muted-foreground)' }}
+              axisLine={false}
+              tickLine={false}
             />
-          )}
-          {/* Draggable end-line handle. */}
-          {dragEnabled && handleEndX !== null && handleEndX !== handleStartX && (
-            <ReferenceLine
-              x={handleEndX}
-              stroke="rgb(59 130 246)"
-              strokeWidth={hoveredEdge === 'end' ? 3 : 2}
-              isFront
-              label={{
-                position: 'center',
-                content: ({ viewBox }) => {
-                  if (!viewBox || viewBox.x === undefined) return null
-                  const cy = viewBox.y + (viewBox.height ?? 0) / 2
-                  return (
-                    <circle
-                      cx={viewBox.x}
-                      cy={cy}
-                      r={hoveredEdge === 'end' ? 6 : 4}
-                      fill="rgb(59 130 246)"
-                      stroke="white"
-                      strokeWidth={1}
-                    />
-                  )
-                }
-              }}
-            />
-          )}
-          {selectedSpecies.map((species, index) => (
-            <Line
-              key={species.scientificName}
-              type="monotone"
-              dataKey={species.scientificName}
-              stroke={palette[index % palette.length]}
-              strokeWidth={1.5}
-              dot={false}
-              isAnimationActive={false}
+            <YAxis hide domain={[0, 'auto']} />
+            {selectedSpecies.map((species, index) => (
+              <Line
+                key={species.scientificName}
+                type="monotone"
+                dataKey={species.scientificName}
+                stroke={palette[index % palette.length]}
+                strokeWidth={1.5}
+                dot={false}
+                isAnimationActive={false}
+              />
+            ))}
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Selection track strip below the axis. 8px insets match the chart's
+          left/right margin so hour 0..24 line up with the plot. */}
+      <div className="px-2 pb-1" style={cursorStyle ? { cursor: cursorStyle } : undefined}>
+        <div
+          ref={stripRef}
+          className="relative h-2.5 rounded-full bg-muted"
+          onMouseDown={handleStripDown}
+          onMouseMove={handleStripMove}
+          onMouseLeave={handleStripLeave}
+        >
+          {segments.map(([s, e], i) => (
+            <div
+              key={i}
+              className="absolute top-0 h-full rounded-full"
+              style={{ left: pct(s), width: pct(e - s), backgroundColor: 'rgb(59 130 246)' }}
             />
           ))}
-        </ComposedChart>
-      </ResponsiveContainer>
+          {dragEnabled && handleStartX !== null && (
+            <div
+              className="absolute top-1/2 rounded-full bg-blue-500 border border-white"
+              style={{
+                left: pct(handleStartX),
+                width: hoveredEdge === 'start' ? 12 : 9,
+                height: hoveredEdge === 'start' ? 12 : 9,
+                transform: 'translate(-50%, -50%)'
+              }}
+            />
+          )}
+          {dragEnabled && handleEndX !== null && handleEndX !== handleStartX && (
+            <div
+              className="absolute top-1/2 rounded-full bg-blue-500 border border-white"
+              style={{
+                left: pct(handleEndX),
+                width: hoveredEdge === 'end' ? 12 : 9,
+                height: hoveredEdge === 'end' ? 12 : 9,
+                transform: 'translate(-50%, -50%)'
+              }}
+            />
+          )}
+        </div>
+      </div>
     </div>
   )
 }
