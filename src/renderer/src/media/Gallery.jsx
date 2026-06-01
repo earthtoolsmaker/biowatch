@@ -2173,45 +2173,47 @@ function Gallery({
 
   // Fetch pre-grouped sequences from main process with cursor-based pagination
   // This moves the grouping logic to the main process, keeping the client "dumb"
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useInfiniteQuery({
-    queryKey: [
-      'sequences',
-      id,
-      sequenceGap,
-      deploymentID,
-      JSON.stringify(species),
-      dateRange[0]?.toISOString(),
-      dateRange[1]?.toISOString(),
-      JSON.stringify(timeRange.ranges ?? [{ start: timeRange.start, end: timeRange.end }]),
-      includeNullTimestamps,
-      JSON.stringify(areaFilter)
-    ],
-    queryFn: async ({ pageParam = null }) => {
-      const response = await window.api.getSequences(id, {
-        gapSeconds: sequenceGap,
-        limit: PAGE_SIZE,
-        cursor: pageParam,
-        filters: {
-          species,
-          dateRange: dateRange[0] && dateRange[1] ? { start: dateRange[0], end: dateRange[1] } : {},
-          timeRange,
-          deploymentID,
-          bbox: areaFilter
-        }
-      })
-      if (response.error) throw new Error(response.error)
-      return response.data
-    },
-    getNextPageParam: (lastPage) => {
-      // Use cursor-based pagination - server returns nextCursor
-      return lastPage.hasMore ? lastPage.nextCursor : undefined
-    },
-    enabled:
-      !!id &&
-      (includeNullTimestamps || (!!dateRange[0] && !!dateRange[1])) &&
-      !isSequenceGapLoading &&
-      speciesReady
-  })
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, isSuccess } =
+    useInfiniteQuery({
+      queryKey: [
+        'sequences',
+        id,
+        sequenceGap,
+        deploymentID,
+        JSON.stringify(species),
+        dateRange[0]?.toISOString(),
+        dateRange[1]?.toISOString(),
+        JSON.stringify(timeRange.ranges ?? [{ start: timeRange.start, end: timeRange.end }]),
+        includeNullTimestamps,
+        JSON.stringify(areaFilter)
+      ],
+      queryFn: async ({ pageParam = null }) => {
+        const response = await window.api.getSequences(id, {
+          gapSeconds: sequenceGap,
+          limit: PAGE_SIZE,
+          cursor: pageParam,
+          filters: {
+            species,
+            dateRange:
+              dateRange[0] && dateRange[1] ? { start: dateRange[0], end: dateRange[1] } : {},
+            timeRange,
+            deploymentID,
+            bbox: areaFilter
+          }
+        })
+        if (response.error) throw new Error(response.error)
+        return response.data
+      },
+      getNextPageParam: (lastPage) => {
+        // Use cursor-based pagination - server returns nextCursor
+        return lastPage.hasMore ? lastPage.nextCursor : undefined
+      },
+      enabled:
+        !!id &&
+        (includeNullTimestamps || (!!dateRange[0] && !!dateRange[1])) &&
+        !isSequenceGapLoading &&
+        speciesReady
+    })
 
   // Flatten all pages of sequences into a single array
   // Server already handles null-timestamp media as individual sequences at the end
@@ -2530,6 +2532,16 @@ function Gallery({
 
           {/* Loading indicator and intersection target */}
           <div ref={loaderRef} className="w-full flex justify-center p-4">
+            {/* Initial load — show a spinner, never the empty-state copy, until
+                the query has actually resolved (a disabled/not-yet-enabled
+                infinite query reports isLoading === false, so gating the empty
+                message on isLoading alone flashes "no media" before fetch). */}
+            {isLoading && mediaFiles.length === 0 && (
+              <div className="flex items-center justify-center">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-foreground"></div>
+                <span className="ml-2">Loading…</span>
+              </div>
+            )}
             {isFetchingNextPage && (
               <div className="flex items-center justify-center">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-foreground"></div>
@@ -2539,7 +2551,7 @@ function Gallery({
             {!hasNextPage && mediaFiles.length > 0 && !isFetchingNextPage && (
               <p className="text-muted-foreground text-sm">No more media to load</p>
             )}
-            {!hasNextPage && mediaFiles.length === 0 && !isLoading && (
+            {!hasNextPage && mediaFiles.length === 0 && isSuccess && (
               <p className="text-muted-foreground">No media files match the selected filters</p>
             )}
           </div>
