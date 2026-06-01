@@ -835,7 +835,6 @@ export default function Activity({ studyData, studyId }) {
   useEffect(() => {
     setRailVisible(isLgUp)
   }, [isLgUp])
-  const railDocked = railVisible && isLgUp
   const railOverlay = railVisible && !isLgUp
 
   // Suppress the filter-row's open/close transition until species + temporal
@@ -1179,8 +1178,10 @@ export default function Activity({ studyData, studyId }) {
           </div>
 
           {/* Content row — main pane (map / gallery / both) + species rail.
-              `relative` anchors the below-lg slide-over rail. */}
-          <div className="flex flex-row gap-4 flex-1 min-h-0 relative">
+              `relative` anchors the below-lg slide-over rail. No gap here: the
+              docked rail supplies its own (animated) left margin so there's no
+              dangling gap when it collapses to zero width. */}
+          <div className="flex flex-row flex-1 min-h-0 relative">
             {/* Main pane. In 'both' the two panes stack on lg–xl and sit
                 side-by-side at 2xl+ so neither is cramped (see spec
                 responsive table). */}
@@ -1235,11 +1236,22 @@ export default function Activity({ studyData, studyId }) {
               )}
             </div>
 
-            {/* Species rail, docked (lg+). Below lg it renders as the
-                slide-over below instead. */}
-            {railDocked && (
-              <div className="h-full w-xs flex flex-col gap-2 min-h-0">
-                {speciesRail && <div className="flex-1 min-h-0">{speciesRail}</div>}
+            {/* Species rail, docked (lg+) — animates width/opacity/margin when
+                collapsing. Always mounted at lg+ so the transition runs in both
+                directions; the inner box keeps a fixed w-xs so the species list
+                doesn't reflow to a narrow width mid-slide (it's clipped by the
+                outer overflow-hidden instead). Below lg the rail is the
+                slide-over further down. */}
+            {isLgUp && (
+              <div
+                className={`h-full flex-shrink-0 overflow-hidden transition-all duration-300 ease-in-out ${
+                  railVisible ? 'w-xs opacity-100 ml-4' : 'w-0 opacity-0 ml-0'
+                }`}
+                aria-hidden={!railVisible}
+              >
+                <div className="h-full w-xs flex flex-col gap-2 min-h-0">
+                  {speciesRail && <div className="flex-1 min-h-0">{speciesRail}</div>}
+                </div>
               </div>
             )}
 
