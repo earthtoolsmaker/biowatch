@@ -37,6 +37,8 @@ import { SequenceGapSlider } from './ui/SequenceGapSlider'
 import FilterChartsToggle from './ui/FilterChartsToggle'
 import ViewModeToggle from './ui/ViewModeToggle'
 import ThumbnailBboxToggle from './ui/ThumbnailBboxToggle'
+import SpeciesRailToggle from './ui/SpeciesRailToggle'
+import SelectedSpeciesChips from './ui/SelectedSpeciesChips'
 import Gallery from './media/Gallery'
 import { useIsLgUp } from './hooks/useIsLgUp'
 import { getAvailableViewModes, clampViewMode } from './utils/viewLayout'
@@ -808,6 +810,18 @@ export default function Activity({ studyData, studyId }) {
   const showMap = viewMode === 'map' || viewMode === 'both'
   const showGallery = viewMode === 'gallery' || viewMode === 'both'
 
+  // Species rail visibility. Not persisted: defaults by screen size (shown at
+  // lg+, hidden below) and re-applies that default whenever the breakpoint is
+  // crossed; manual toggles in between are kept. At lg+ the rail docks inline;
+  // below lg it slides over the content. When hidden, SelectedSpeciesChips
+  // keeps the legend/selection visible in the control bar.
+  const [railVisible, setRailVisible] = useState(isLgUp)
+  useEffect(() => {
+    setRailVisible(isLgUp)
+  }, [isLgUp])
+  const railDocked = railVisible && isLgUp
+  const railOverlay = railVisible && !isLgUp
+
   // Suppress the filter-row's open/close transition until species + temporal
   // guards have settled. On tab navigation the wrapper otherwise flips
   // h-0 → h-[180px] when the async timeseries query resolves, which fires
@@ -1050,6 +1064,21 @@ export default function Activity({ studyData, studyId }) {
     setSelectedSpecies(newSelectedSpecies)
   }, [])
 
+  // Shared rail content — rendered either docked (lg+) or in a slide-over
+  // (below lg). Defined once so both paths stay in sync.
+  const speciesRail = speciesDistributionData ? (
+    <SpeciesDistribution
+      data={speciesDistributionData}
+      taxonomicData={taxonomicData}
+      selectedSpecies={selectedSpecies}
+      onSpeciesChange={handleSpeciesChange}
+      palette={palette}
+      studyId={actualStudyId}
+      showHeader={false}
+      hidePseudoSpecies
+    />
+  ) : null
+
   return (
     <div className="px-4 flex flex-col h-full">
       {speciesDistributionError ? (
@@ -1080,6 +1109,19 @@ export default function Activity({ studyData, studyId }) {
             <div className="flex-1 min-w-0 flex items-center gap-2">
               <ViewModeToggle value={viewMode} modes={availableViewModes} onChange={setViewMode} />
               {showGallery && <ThumbnailBboxToggle studyId={actualStudyId} leadingDivider />}
+              {/* When the rail is hidden, keep the legend/selection visible.
+                  Compact (count pill) below lg, removable chips at lg+. */}
+              {!railVisible && (
+                <SelectedSpeciesChips
+                  selectedSpecies={selectedSpecies}
+                  palette={palette}
+                  scientificToCommon={scientificToCommon}
+                  compact={!isLgUp}
+                  onRemove={(name) =>
+                    handleSpeciesChange(selectedSpecies.filter((s) => s.scientificName !== name))
+                  }
+                />
+              )}
             </div>
 
             {/* Data + filters — same w-xs width as the species rail below, so
@@ -1095,7 +1137,7 @@ export default function Activity({ studyData, studyId }) {
                   variant="compact"
                 />
               )}
-              <div className="ml-auto">
+              <div className="ml-auto flex items-center gap-1">
                 <FilterChartsToggle
                   studyId={actualStudyId}
                   // Optimistic while timeseries is loading — hide only once
@@ -1108,12 +1150,17 @@ export default function Activity({ studyData, studyId }) {
                   areaFilterLabel={areaFilterLabel}
                   onResetFilters={handleResetFilters}
                 />
+                <SpeciesRailToggle
+                  visible={railVisible}
+                  onToggle={() => setRailVisible((v) => !v)}
+                />
               </div>
             </div>
           </div>
 
-          {/* Content row — main pane (map / gallery / both) + species rail. */}
-          <div className="flex flex-row gap-4 flex-1 min-h-0">
+          {/* Content row — main pane (map / gallery / both) + species rail.
+              `relative` anchors the below-lg slide-over rail. */}
+          <div className="flex flex-row gap-4 flex-1 min-h-0 relative">
             {/* Main pane. In 'both' the two panes stack on lg–xl and sit
                 side-by-side at 2xl+ so neither is cramped (see spec
                 responsive table). */}
@@ -1168,23 +1215,28 @@ export default function Activity({ studyData, studyId }) {
               )}
             </div>
 
-            {/* Species rail — legend + filter, shown in all views. */}
-            <div className="h-full w-xs flex flex-col gap-2 min-h-0">
-              {speciesDistributionData && (
-                <div className="flex-1 min-h-0">
-                  <SpeciesDistribution
-                    data={speciesDistributionData}
-                    taxonomicData={taxonomicData}
-                    selectedSpecies={selectedSpecies}
-                    onSpeciesChange={handleSpeciesChange}
-                    palette={palette}
-                    studyId={actualStudyId}
-                    showHeader={false}
-                    hidePseudoSpecies
-                  />
+            {/* Species rail, docked (lg+). Below lg it renders as the
+                slide-over below instead. */}
+            {railDocked && (
+              <div className="h-full w-xs flex flex-col gap-2 min-h-0">
+                {speciesRail && <div className="flex-1 min-h-0">{speciesRail}</div>}
+              </div>
+            )}
+
+            {/* Species rail, slide-over (below lg). Scrim dismisses on click;
+                the panel is anchored to the right and overlays the content. */}
+            {railOverlay && (
+              <div className="absolute inset-0 z-[1100] flex justify-end">
+                <div
+                  className="absolute inset-0 bg-black/20"
+                  onClick={() => setRailVisible(false)}
+                  aria-hidden="true"
+                />
+                <div className="relative h-full w-xs max-w-[85%] bg-card border-l border-border shadow-xl flex flex-col gap-2 min-h-0 p-2">
+                  {speciesRail && <div className="flex-1 min-h-0">{speciesRail}</div>}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
           {/* Second row — wrapper is always mounted so the height/opacity/
