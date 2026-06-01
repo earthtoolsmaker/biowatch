@@ -53,9 +53,9 @@ import { useShowFilterCharts } from './hooks/useShowFilterCharts'
 import { useDateRange } from './hooks/useDateRange'
 import { useAreaFilter } from './hooks/useAreaFilter'
 
-// Inject the keyframes used by the skeleton markers once per page load.
-// Guarded by an id check so HMR / multiple SpeciesMap mounts don't re-append
-// the same <style> block.
+// Inject the keyframes used by the skeleton markers + the view-pane enter
+// animation once per page load. Guarded by an id check so HMR / multiple
+// SpeciesMap mounts don't re-append the same <style> block.
 const skeletonMarkerStyles = `
   @keyframes activity-skeleton-pulse {
     0%   { opacity: 0.55; }
@@ -64,6 +64,19 @@ const skeletonMarkerStyles = `
   }
   .activity-skeleton-marker, .activity-skeleton-cluster {
     animation: activity-skeleton-pulse 1.6s ease-in-out infinite;
+  }
+
+  /* Map / gallery pane enter: a subtle fade + slide-up when a view becomes
+     visible (toggling Map / Gallery / Both). Disabled for users who prefer
+     reduced motion. */
+  @keyframes activity-pane-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .activity-pane-in {
+      animation: activity-pane-in 200ms ease-out;
+    }
   }
 `
 if (typeof document !== 'undefined' && !document.getElementById('activity-skeleton-styles')) {
@@ -1187,7 +1200,7 @@ export default function Activity({ studyData, studyId }) {
                 responsive table). */}
             <div className="h-full flex-1 min-w-0 flex flex-col 2xl:flex-row gap-4">
               {showMap && (
-                <div className="h-full flex-1 min-h-0 min-w-0">
+                <div className="activity-pane-in h-full flex-1 min-h-0 min-w-0">
                   {/* Render SpeciesMap as soon as `deploymentLocations` arrives
                       (~ms), so the user sees clustered gray dots at the camera
                       locations while the heavy heatmap query resolves. The map
@@ -1223,7 +1236,7 @@ export default function Activity({ studyData, studyId }) {
                 </div>
               )}
               {showGallery && (
-                <div className="h-full flex-1 min-h-0 min-w-0">
+                <div className="activity-pane-in h-full flex-1 min-h-0 min-w-0">
                   <Gallery
                     species={selectedSpecies.map((s) => s.scientificName)}
                     dateRange={dateRange}
