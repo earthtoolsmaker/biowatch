@@ -137,10 +137,14 @@ export default function DeploymentsCsvActions({ studyId, onApplied }) {
           <Tooltip.Portal>
             <Tooltip.Content
               side="bottom"
-              sideOffset={6}
-              className="z-[10000] px-2 py-1 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md"
+              sideOffset={8}
+              className="z-[10000] max-w-[16rem] px-3 py-2 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md"
             >
-              Download deployments — locations, dates, cameras — as a CSV file
+              <div className="font-medium mb-1">Export CSV</div>
+              <p className="text-muted-foreground leading-snug">
+                Download every deployment — locations, dates, and cameras — as a spreadsheet you can
+                edit or share.
+              </p>
             </Tooltip.Content>
           </Tooltip.Portal>
         </Tooltip.Root>
@@ -159,10 +163,14 @@ export default function DeploymentsCsvActions({ studyId, onApplied }) {
           <Tooltip.Portal>
             <Tooltip.Content
               side="bottom"
-              sideOffset={6}
-              className="z-[10000] px-2 py-1 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md"
+              sideOffset={8}
+              className="z-[10000] max-w-[16rem] px-3 py-2 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md"
             >
-              Update deployments in bulk from an edited CSV file
+              <div className="font-medium mb-1">Import CSV</div>
+              <p className="text-muted-foreground leading-snug">
+                Bulk-update deployments from an edited CSV. You&apos;ll preview every change before
+                it&apos;s applied.
+              </p>
             </Tooltip.Content>
           </Tooltip.Portal>
         </Tooltip.Root>

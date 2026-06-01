@@ -2,9 +2,27 @@ import { BarChart3, LineChart, Grid3x3 } from 'lucide-react'
 import * as Tooltip from '@radix-ui/react-tooltip'
 
 const MODES = [
-  { id: 'bars', label: 'Bars', Icon: BarChart3, hint: 'Show activity over time as bars' },
-  { id: 'line', label: 'Line', Icon: LineChart, hint: 'Show activity over time as a line' },
-  { id: 'heatmap', label: 'Heatmap', Icon: Grid3x3, hint: 'Show activity over time as a heatmap' }
+  {
+    id: 'bars',
+    label: 'Bars',
+    Icon: BarChart3,
+    description:
+      "Each deployment's activity over time as a bar chart — taller bars mean more captures."
+  },
+  {
+    id: 'line',
+    label: 'Line',
+    Icon: LineChart,
+    description:
+      "Each deployment's activity over time as a smooth area line — good for spotting trends."
+  },
+  {
+    id: 'heatmap',
+    label: 'Heatmap',
+    Icon: Grid3x3,
+    description:
+      "Each deployment's activity over time as colored cells — darker means more captures."
+  }
 ]
 
 /**
@@ -14,7 +32,7 @@ const MODES = [
 export default function SparklineToggle({ mode, onChange }) {
   return (
     <div className="flex items-center gap-px rounded border border-border bg-card p-px">
-      {MODES.map(({ id, label, Icon, hint }) => (
+      {MODES.map(({ id, label, Icon, description }) => (
         <Tooltip.Root key={id}>
           <Tooltip.Trigger asChild>
             <button
@@ -33,10 +51,11 @@ export default function SparklineToggle({ mode, onChange }) {
           <Tooltip.Portal>
             <Tooltip.Content
               side="top"
-              sideOffset={6}
-              className="z-[10000] px-2 py-1 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md"
+              sideOffset={8}
+              className="z-[10000] max-w-[16rem] px-3 py-2 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md"
             >
-              {hint}
+              <div className="font-medium mb-1">{label}</div>
+              <p className="text-muted-foreground leading-snug">{description}</p>
             </Tooltip.Content>
           </Tooltip.Portal>
         </Tooltip.Root>
