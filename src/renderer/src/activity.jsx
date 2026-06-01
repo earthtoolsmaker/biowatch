@@ -134,9 +134,18 @@ function MapResizeHandler() {
   const map = useMap()
   useEffect(() => {
     const container = map.getContainer()
-    const observer = new ResizeObserver(() => map.invalidateSize())
+    // Coalesce bursts (e.g. the 300ms rail/pane transitions fire the observer
+    // every frame) into a single invalidateSize per animation frame.
+    let raf = 0
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => map.invalidateSize())
+    })
     observer.observe(container)
-    return () => observer.disconnect()
+    return () => {
+      cancelAnimationFrame(raf)
+      observer.disconnect()
+    }
   }, [map])
   return null
 }
@@ -850,7 +859,9 @@ export default function Activity({ studyData, studyId }) {
   // Open in 'both' when deep-linked with ?view=both (clamps to 'map' below lg).
   const [viewModeRaw, setViewMode] = useState(deepLinkView === 'both' ? 'both' : 'map')
   const viewMode = clampViewMode(viewModeRaw, isLgUp)
-  const availableViewModes = getAvailableViewModes(isLgUp)
+  // Memoized so ViewModeToggle gets a stable `modes` identity — otherwise its
+  // ResizeObserver effect tears down and re-subscribes on every Activity render.
+  const availableViewModes = useMemo(() => getAvailableViewModes(isLgUp), [isLgUp])
   const showMap = viewMode === 'map' || viewMode === 'both'
   const showGallery = viewMode === 'gallery' || viewMode === 'both'
   const isBoth = viewMode === 'both'
@@ -858,6 +869,15 @@ export default function Activity({ studyData, studyId }) {
   // zoom/pan persists and it doesn't re-init; the gallery mounts on demand and
   // fades in/out so Map↔Gallery cross-fades in place.
   const gallery = useFadePresence(showGallery)
+
+  // In 'both', keep the map full-size until the gallery has loaded its first
+  // page, then reveal the gallery (and let the map resize) — avoids showing an
+  // empty/loading gallery pane next to the map. Reset when the gallery hides.
+  const [galleryReady, setGalleryReady] = useState(false)
+  const markGalleryReady = useCallback(() => setGalleryReady(true), [])
+  useEffect(() => {
+    if (!showGallery) setGalleryReady(false)
+  }, [showGallery])
 
   // Species rail visibility. Not persisted: defaults by screen size (shown at
   // lg+, hidden below) and re-applies that default whenever the breakpoint is
@@ -1239,7 +1259,7 @@ export default function Activity({ studyData, studyId }) {
                 its zoom/pan and avoid a re-init flash; the gallery fades in/out
                 via useFadePresence. */}
             <div
-              className={`h-full flex-1 min-w-0 ${
+              className={`relative h-full flex-1 min-w-0 ${
                 isBoth ? 'flex flex-col 2xl:flex-row gap-4' : 'grid grid-cols-1 grid-rows-1'
               }`}
             >
@@ -1289,24 +1309,37 @@ export default function Activity({ studyData, studyId }) {
                   />
                 </div>
               )}
-              {/* Gallery — mounts on demand, fades in/out for the cross-fade. */}
-              {gallery.mounted && (
-                <div
-                  className={`min-h-0 min-w-0 transition-opacity duration-200 motion-reduce:transition-none ${
-                    isBoth ? 'h-full flex-1' : 'h-full w-full col-start-1 row-start-1'
-                  } ${gallery.visible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-                  aria-hidden={!gallery.visible}
-                >
-                  <Gallery
-                    species={selectedSpecies.map((s) => s.scientificName)}
-                    dateRange={dateRange}
-                    timeRange={timeRange}
-                    includeNullTimestamps={isFullRange}
-                    speciesReady={speciesInitialized}
-                    areaFilter={areaFilter}
-                  />
-                </div>
-              )}
+              {/* Gallery — mounts on demand, fades in/out for the cross-fade.
+                  In 'both', while its first page is still loading it sits out of
+                  flow (absolute, invisible) so the map fills the pane; once
+                  loaded (galleryReady) it becomes an in-flow flex pane and the
+                  map resizes. */}
+              {gallery.mounted &&
+                (() => {
+                  const galleryShown = gallery.visible && (!isBoth || galleryReady)
+                  return (
+                    <div
+                      className={`min-h-0 min-w-0 transition-opacity duration-200 motion-reduce:transition-none ${
+                        isBoth
+                          ? galleryReady
+                            ? 'h-full flex-1'
+                            : 'absolute inset-0'
+                          : 'h-full w-full col-start-1 row-start-1'
+                      } ${galleryShown ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                      aria-hidden={!galleryShown}
+                    >
+                      <Gallery
+                        species={selectedSpecies.map((s) => s.scientificName)}
+                        dateRange={dateRange}
+                        timeRange={timeRange}
+                        includeNullTimestamps={isFullRange}
+                        speciesReady={speciesInitialized}
+                        areaFilter={areaFilter}
+                        onLoadedChange={markGalleryReady}
+                      />
+                    </div>
+                  )
+                })()}
             </div>
 
             {/* Species rail, docked (lg+) — animates width/opacity/margin when

@@ -2096,6 +2096,7 @@ function Gallery({
   speciesReady = false,
   deploymentID = null,
   areaFilter = null,
+  onLoadedChange,
   embedded = false
 }) {
   const [imageErrors, setImageErrors] = useState(() => {
@@ -2214,6 +2215,12 @@ function Gallery({
         !isSequenceGapLoading &&
         speciesReady
     })
+
+  // Notify the parent once the first page has resolved — lets the Explore tab
+  // hold the map full-size until the gallery has media to show.
+  useEffect(() => {
+    if (isSuccess) onLoadedChange?.()
+  }, [isSuccess, onLoadedChange])
 
   // Flatten all pages of sequences into a single array
   // Server already handles null-timestamp media as individual sequences at the end
