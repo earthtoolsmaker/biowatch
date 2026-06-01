@@ -9,6 +9,8 @@
  */
 
 import { parentPort, workerData } from 'worker_threads'
+import { getHeapStatistics } from 'v8'
+import log from '../logger.js'
 import {
   getDrizzleDb,
   getMetadata,
@@ -36,6 +38,12 @@ import {
   pivotPreAggregatedHeatmap
 } from './speciesCounts.js'
 
+// Live heap usage in MB — cheap to call, used to trace memory growth across
+// the row-dump + JS aggregation fallbacks that can OOM the worker.
+function heapMb() {
+  return Math.round(process.memoryUsage().heapUsed / 1048576)
+}
+
 async function run() {
   const {
     type,
@@ -58,6 +66,13 @@ async function run() {
     effectiveGapSeconds = meta?.sequenceGap ?? null
   }
 
+  const tag = `[seq-worker:${type}]`
+  const heapLimitMb = Math.round(getHeapStatistics().heap_size_limit / 1048576)
+  log.info(
+    `${tag} start gap=${effectiveGapSeconds} bbox=${bbox ? 'yes' : 'no'} ` +
+      `species=${speciesNames?.length ?? 0} heap=${heapMb()}/${heapLimitMb}MB`
+  )
+
   switch (type) {
     case 'species-distribution': {
       // Fast path: SQL aggregate handles gapSeconds === null and === 0, returns
@@ -66,8 +81,14 @@ async function run() {
       // row-dump + JS sequence grouping below.
       const fast = await getSequenceAwareSpeciesCountsSQL(dbPath, effectiveGapSeconds, bbox)
       if (fast !== null) return fast
+      log.warn(
+        `${tag} SLOW PATH (gap=${effectiveGapSeconds}): SQL fast-path returned null, dumping rows`
+      )
       const rawData = await getSpeciesDistributionByMedia(dbPath, bbox)
-      return calculateSequenceAwareSpeciesCounts(rawData, effectiveGapSeconds)
+      log.info(`${tag} loaded ${rawData.length} rows, heap=${heapMb()}MB — starting JS aggregation`)
+      const result = calculateSequenceAwareSpeciesCounts(rawData, effectiveGapSeconds)
+      log.info(`${tag} aggregation done: ${result.length} species, heap=${heapMb()}MB`)
+      return result
     }
     case 'timeseries': {
       // Fast path: SQL aggregate handles gapSeconds === null and === 0,
@@ -82,8 +103,14 @@ async function run() {
         bbox
       )
       if (fastRows !== null) return pivotPreAggregatedTimeseries(fastRows)
+      log.warn(
+        `${tag} SLOW PATH (gap=${effectiveGapSeconds}): SQL fast-path returned null, dumping rows`
+      )
       const rawData = await getSpeciesTimeseriesByMedia(dbPath, speciesNames, bbox)
-      return calculateSequenceAwareTimeseries(rawData, effectiveGapSeconds)
+      log.info(`${tag} loaded ${rawData.length} rows, heap=${heapMb()}MB — starting JS aggregation`)
+      const result = calculateSequenceAwareTimeseries(rawData, effectiveGapSeconds)
+      log.info(`${tag} aggregation done, heap=${heapMb()}MB`)
+      return result
     }
     case 'heatmap': {
       // Fast path: SQL aggregate handles all three gap cases (per-media,
@@ -103,6 +130,9 @@ async function run() {
         effectiveGapSeconds
       )
       if (fastRows !== null) return pivotPreAggregatedHeatmap(fastRows)
+      log.warn(
+        `${tag} SLOW PATH (gap=${effectiveGapSeconds}): SQL fast-path returned null, dumping rows`
+      )
       const rawData = await getSpeciesHeatmapDataByMedia(
         dbPath,
         speciesNames,
@@ -111,7 +141,10 @@ async function run() {
         timeRange,
         includeNullTimestamps
       )
-      return calculateSequenceAwareHeatmap(rawData, effectiveGapSeconds)
+      log.info(`${tag} loaded ${rawData.length} rows, heap=${heapMb()}MB — starting JS aggregation`)
+      const result = calculateSequenceAwareHeatmap(rawData, effectiveGapSeconds)
+      log.info(`${tag} aggregation done, heap=${heapMb()}MB`)
+      return result
     }
     case 'daily-activity': {
       const rows = await getSequenceAwareDailyActivitySQL(
