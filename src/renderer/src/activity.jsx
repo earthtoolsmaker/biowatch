@@ -1063,7 +1063,16 @@ export default function Activity({ studyData, studyId }) {
               whatever the main pane shows (map, gallery, or both). */}
           {speciesInitialized && sequenceGap !== undefined && (
             <div className="flex items-center gap-2 px-2 h-10 flex-shrink-0 mb-2">
-              <SequenceGapSlider value={sequenceGap} onChange={setSequenceGap} variant="compact" />
+              {/* Bound the slider's width — its compact variant is flex-1, which
+                  would otherwise stretch it across the full-width bar on large
+                  screens (it used to be bounded by the w-xs rail). */}
+              <div className="w-64 flex-shrink-0">
+                <SequenceGapSlider
+                  value={sequenceGap}
+                  onChange={setSequenceGap}
+                  variant="compact"
+                />
+              </div>
               <ViewModeToggle value={viewMode} modes={availableViewModes} onChange={setViewMode} />
               <div className="ml-auto flex items-center gap-1">
                 {showGallery && <ThumbnailBboxToggle studyId={actualStudyId} />}
