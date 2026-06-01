@@ -13,11 +13,19 @@ import {
   XAxis,
   YAxis
 } from 'recharts'
+import { timeToAngle, angleToTime, rangesToSegments } from './clockGeometry.js'
 
 // Outer-ring radius (in px) shared by the visible 24-hour circle and the
 // radar chart underneath it. Keeping them equal makes the busiest species'
 // peaks land exactly on the ring instead of overflowing it.
 const CLOCK_OUTER_RADIUS_PX = 47
+
+// Selection ring sits just OUTSIDE the radar circle so it never covers the
+// activity blob. Radii are in the same px space as CLOCK_OUTER_RADIUS_PX.
+const RING_GAP = 4 // gap between radar edge and ring
+const RING_WIDTH = 7 // stroke thickness of the ring
+const RING_MID = CLOCK_OUTER_RADIUS_PX + RING_GAP + RING_WIDTH / 2
+const RING_OUTER = CLOCK_OUTER_RADIUS_PX + RING_GAP + RING_WIDTH
 
 const CircularTimeFilter = ({
   onChange,
@@ -33,39 +41,39 @@ const CircularTimeFilter = ({
   const [end, setEnd] = useState(endTime)
   const [lastDragPosition, setLastDragPosition] = useState(null)
   const svgRef = useRef(null)
-  const radius = CLOCK_OUTER_RADIUS_PX
-  const padding = 16 // Padding leaves room for hour labels outside the circle
-  const svgSize = radius * 2 + padding * 2 // Increase SVG size to accommodate padding
-  const center = { x: radius + padding, y: radius + padding } // Adjust center coordinates
-  const labelOffset = 9 // Distance from circle edge to label center
 
-  // Sync local state when parent updates the bounds externally (e.g. tab
-  // switch). Does NOT fire onChange continuously — that happens only on
-  // pointer release so downstream queries don't refetch per-mousemove.
+  const padding = 16 // room for hour labels outside the ring
+  const svgSize = RING_OUTER * 2 + padding * 2
+  const center = { x: RING_OUTER + padding, y: RING_OUTER + padding }
+  const labelOffset = RING_OUTER + 9
+
+  // Sync local state when parent updates bounds externally. Does NOT fire
+  // onChange continuously — that happens only on pointer release.
   useEffect(() => {
     setStart(startTime)
     setEnd(endTime)
   }, [startTime, endTime])
 
-  const isFullDayRange = () => {
-    return Math.abs(end - start) >= 23.9 || start === end
+  const interactive = mode !== 'chips'
+  // Ranges to paint as blue arcs: the live drag band, or the chip sectors.
+  const ranges = interactive ? [{ start, end }] : chipSectors
+  const segments = rangesToSegments(ranges)
+  const isFullRing = segments.length === 1 && segments[0][0] === 0 && segments[0][1] === 24
+
+  // Point on a circle of radius r at the given clock hour.
+  const pointAt = (hour, r) => {
+    const rad = (timeToAngle(hour) - 90) * (Math.PI / 180)
+    return { x: center.x + r * Math.cos(rad), y: center.y + r * Math.sin(rad) }
   }
 
-  const angleToTime = (angle) => {
-    let time = (angle / 15) % 24
-    return time
-  }
-
-  const timeToAngle = (time) => {
-    return (time * 15) % 360
-  }
-
-  const angleToCoordinates = (angle) => {
-    const radians = (angle - 90) * (Math.PI / 180)
-    return {
-      x: center.x + radius * Math.cos(radians),
-      y: center.y + radius * Math.sin(radians)
-    }
+  // Open arc (stroked, not filled) along RING_MID from startHour to endHour,
+  // drawn clockwise. Used for partial selections.
+  const ringArcPath = (startHour, endHour) => {
+    const a = pointAt(startHour, RING_MID)
+    const b = pointAt(endHour, RING_MID)
+    const sweep = (((endHour - startHour) % 24) + 24) % 24
+    const largeArc = sweep > 12 ? 1 : 0
+    return `M ${a.x} ${a.y} A ${RING_MID} ${RING_MID} 0 ${largeArc} 1 ${b.x} ${b.y}`
   }
 
   const handleMouseDown = (handle) => (e) => {
@@ -75,25 +83,20 @@ const CircularTimeFilter = ({
       setIsDraggingEnd(true)
     } else if (handle === 'arc') {
       setIsDraggingArc(true)
-
       const svgRect = svgRef.current.getBoundingClientRect()
       const x = e.clientX - svgRect.left - center.x
       const y = e.clientY - svgRect.top - center.y
-
       let angle = Math.atan2(y, x) * (180 / Math.PI) + 90
       if (angle < 0) angle += 360
-
       setLastDragPosition(angle)
     }
   }
 
   const handleMouseMove = (e) => {
     if (!isDraggingStart && !isDraggingEnd && !isDraggingArc) return
-
     const svgRect = svgRef.current.getBoundingClientRect()
     const x = e.clientX - svgRect.left - center.x
     const y = e.clientY - svgRect.top - center.y
-
     let angle = Math.atan2(y, x) * (180 / Math.PI) + 90
     if (angle < 0) angle += 360
 
@@ -104,22 +107,16 @@ const CircularTimeFilter = ({
     } else if (isDraggingArc) {
       if (lastDragPosition !== null) {
         let angleDiff = angle - lastDragPosition
-
         if (angleDiff > 180) angleDiff -= 360
         if (angleDiff < -180) angleDiff += 360
-
         const timeDiff = angleDiff / 15
-
         let newStart = (start + timeDiff) % 24
         let newEnd = (end + timeDiff) % 24
-
         if (newStart < 0) newStart += 24
         if (newEnd < 0) newEnd += 24
-
         setStart(newStart)
         setEnd(newEnd)
       }
-
       setLastDragPosition(angle)
     }
   }
@@ -130,8 +127,7 @@ const CircularTimeFilter = ({
     setIsDraggingEnd(false)
     setIsDraggingArc(false)
     setLastDragPosition(null)
-    // Commit-on-release: fire onChange once with the final value, rather
-    // than per-mousemove during the drag.
+    // Commit-on-release: fire onChange once with the final value.
     if (wasDragging) onChange({ start, end })
   }
 
@@ -140,7 +136,6 @@ const CircularTimeFilter = ({
       window.addEventListener('mouseup', handleMouseUp)
       window.addEventListener('mousemove', handleMouseMove)
     }
-
     return () => {
       window.removeEventListener('mouseup', handleMouseUp)
       window.removeEventListener('mousemove', handleMouseMove)
@@ -148,42 +143,8 @@ const CircularTimeFilter = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDraggingStart, isDraggingEnd, isDraggingArc, lastDragPosition])
 
-  const startCoord = angleToCoordinates(timeToAngle(start))
-  const endCoord = angleToCoordinates(timeToAngle(end))
-
-  const createArc = (startAngle, endAngle) => {
-    // Full-day check based on the PASSED angles (not closure state) so this
-    // helper works correctly for both the drag arc and chip-driven sectors.
-    const sweep = (((endAngle - startAngle) % 360) + 360) % 360
-    if (startAngle === endAngle || sweep >= 358.5) {
-      return `M ${center.x} ${center.y}
-              L ${center.x} ${center.y - radius}
-              A ${radius} ${radius} 0 1 1 ${center.x - 0.1} ${center.y - radius}
-              Z`
-    }
-
-    const startRad = (startAngle - 90) * (Math.PI / 180)
-    const endRad = (endAngle - 90) * (Math.PI / 180)
-
-    let largeArcFlag
-    if (startAngle <= endAngle) {
-      largeArcFlag = endAngle - startAngle <= 180 ? 0 : 1
-    } else {
-      largeArcFlag = 360 - startAngle + endAngle <= 180 ? 0 : 1
-    }
-
-    const startX = center.x + radius * Math.cos(startRad)
-    const startY = center.y + radius * Math.sin(startRad)
-    const endX = center.x + radius * Math.cos(endRad)
-    const endY = center.y + radius * Math.sin(endRad)
-
-    // Create a pie section by starting at center, moving to arc start,
-    // drawing the arc, then closing back to center
-    return `M ${center.x} ${center.y}
-            L ${startX} ${startY}
-            A ${radius} ${radius} 0 ${largeArcFlag} 1 ${endX} ${endY}
-            Z`
-  }
+  const startCoord = pointAt(start, RING_MID)
+  const endCoord = pointAt(end, RING_MID)
 
   return (
     <div className="flex flex-col items-center justify-center w-full h-full">
@@ -194,19 +155,20 @@ const CircularTimeFilter = ({
         onMouseMove={handleMouseMove}
         ref={svgRef}
       >
+        {/* Inner reference circle aligned to the radar's outer edge. */}
         <circle
           cx={center.x}
           cy={center.y}
-          r={radius}
+          r={CLOCK_OUTER_RADIUS_PX}
           fill="none"
           stroke="var(--color-border)"
-          strokeWidth="2"
+          strokeWidth="1"
         />
 
-        {/* Hour labels at the four cardinal points, just outside the circle */}
+        {/* Hour labels just outside the ring. */}
         <text
           x={center.x}
-          y={center.y - radius - labelOffset}
+          y={center.y - labelOffset}
           textAnchor="middle"
           dominantBaseline="middle"
           fontSize="9"
@@ -215,7 +177,7 @@ const CircularTimeFilter = ({
           0h
         </text>
         <text
-          x={center.x + radius + labelOffset}
+          x={center.x + labelOffset}
           y={center.y}
           textAnchor="middle"
           dominantBaseline="middle"
@@ -226,7 +188,7 @@ const CircularTimeFilter = ({
         </text>
         <text
           x={center.x}
-          y={center.y + radius + labelOffset}
+          y={center.y + labelOffset}
           textAnchor="middle"
           dominantBaseline="middle"
           fontSize="9"
@@ -235,7 +197,7 @@ const CircularTimeFilter = ({
           12h
         </text>
         <text
-          x={center.x - radius - labelOffset}
+          x={center.x - labelOffset}
           y={center.y}
           textAnchor="middle"
           dominantBaseline="middle"
@@ -245,87 +207,64 @@ const CircularTimeFilter = ({
           18h
         </text>
 
-        {Array.from({ length: 24 }).map((_, i) => {
-          const angle = timeToAngle(i)
-          const coord = angleToCoordinates(angle)
-          const isMajor = i % 6 === 0
+        {/* Gray track ring. */}
+        <circle
+          cx={center.x}
+          cy={center.y}
+          r={RING_MID}
+          fill="none"
+          stroke="var(--color-muted)"
+          strokeWidth={RING_WIDTH}
+        />
 
-          return (
-            <g key={i}>
-              <line
-                x1={
-                  isMajor
-                    ? center.x + (radius - 5) * Math.cos((angle - 90) * (Math.PI / 180))
-                    : coord.x
-                }
-                y1={
-                  isMajor
-                    ? center.y + (radius - 5) * Math.sin((angle - 90) * (Math.PI / 180))
-                    : coord.y
-                }
-                x2={coord.x}
-                y2={coord.y}
-                stroke="var(--color-muted-foreground)"
-                strokeWidth={isMajor ? 2 : 1}
-              />
-            </g>
-          )
-        })}
-
-        {mode === 'chips' ? (
-          chipSectors.map((sector, i) =>
-            sector.start === 0 && sector.end === 24 ? (
-              <circle
-                key={i}
-                cx={center.x}
-                cy={center.y}
-                r={radius}
-                fill="rgb(59 130 246 / 0.15)"
-                stroke="rgb(59 130 246 / 0.8)"
-                strokeWidth="2"
-                pointerEvents="none"
-              />
-            ) : (
-              <path
-                key={i}
-                d={createArc(timeToAngle(sector.start), timeToAngle(sector.end))}
-                fill="rgb(59 130 246 / 0.15)"
-                stroke="rgb(59 130 246 / 0.8)"
-                strokeWidth="2"
-                pointerEvents="none"
-              />
-            )
-          )
+        {/* Blue selection on the ring. Full-day -> full ring; else arcs.
+            The arc is the drag target for panning in interactive mode. */}
+        {isFullRing ? (
+          <circle
+            cx={center.x}
+            cy={center.y}
+            r={RING_MID}
+            fill="none"
+            stroke="rgb(59 130 246)"
+            strokeWidth={RING_WIDTH}
+            cursor={interactive ? 'pointer' : 'default'}
+            onMouseDown={interactive ? handleMouseDown('arc') : undefined}
+          />
         ) : (
-          <>
-            {/* Suppress the highlight arc when the drag selection is full-day —
-                otherwise "no filter" looks identical to "everything selected".
-                Handles stay visible (overlap at top) so the user can still drag. */}
-            {!isFullDayRange() && (
-              <path
-                d={createArc(timeToAngle(start), timeToAngle(end))}
-                fill="rgb(59 130 246 / 0.15)"
-                stroke="rgb(59 130 246 / 0.8)"
-                strokeWidth="2"
-                cursor="pointer"
-                onMouseDown={handleMouseDown('arc')}
-              />
-            )}
+          segments.map(([s, e], i) => (
+            <path
+              key={i}
+              d={ringArcPath(s, e)}
+              fill="none"
+              stroke="rgb(59 130 246)"
+              strokeWidth={RING_WIDTH}
+              strokeLinecap="butt"
+              cursor={interactive ? 'pointer' : 'default'}
+              onMouseDown={interactive ? handleMouseDown('arc') : undefined}
+            />
+          ))
+        )}
 
+        {/* Draggable handles (interactive mode only). */}
+        {interactive && (
+          <>
             <circle
               cx={startCoord.x}
               cy={startCoord.y}
-              r="4"
+              r="5"
               fill="rgb(59 130 246)"
+              stroke="white"
+              strokeWidth="1.5"
               cursor="pointer"
               onMouseDown={handleMouseDown('start')}
             />
-
             <circle
               cx={endCoord.x}
               cy={endCoord.y}
-              r="4"
+              r="5"
               fill="rgb(59 130 246)"
+              stroke="white"
+              strokeWidth="1.5"
               cursor="pointer"
               onMouseDown={handleMouseDown('end')}
             />
