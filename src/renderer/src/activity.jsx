@@ -1068,17 +1068,22 @@ export default function Activity({ studyData, studyId }) {
                species rail. */
             <div className="flex items-center gap-4 h-10 flex-shrink-0 mb-2">
               {/* View cluster — aligns with the map/gallery pane. The bbox
-                  toggle sits next to the view toggle (not with the filters) so
-                  it reads as a display option for the current view; it only
-                  shows in gallery/both and self-hides for studies without
-                  bounding boxes. */}
+                  toggle is a gallery display option, separated from the view
+                  selector by a divider so it doesn't read as a fourth segment.
+                  It only shows in gallery/both and self-hides for studies
+                  without bounding boxes. */}
               <div className="flex-1 min-w-0 flex items-center gap-2">
                 <ViewModeToggle
                   value={viewMode}
                   modes={availableViewModes}
                   onChange={setViewMode}
                 />
-                {showGallery && <ThumbnailBboxToggle studyId={actualStudyId} />}
+                {showGallery && (
+                  <>
+                    <div className="h-5 w-px bg-border" aria-hidden="true" />
+                    <ThumbnailBboxToggle studyId={actualStudyId} />
+                  </>
+                )}
               </div>
 
               {/* Data + filters — same w-xs width as the species rail below, so
