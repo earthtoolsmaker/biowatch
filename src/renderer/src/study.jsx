@@ -1,7 +1,7 @@
 import 'leaflet/dist/leaflet.css'
 import {
   Cctv,
-  ChartBar,
+  Compass,
   Image,
   NotebookText,
   Play,
@@ -255,8 +255,8 @@ export default function Study() {
             <Tab to={`/study/${id}`} icon={NotebookText} end compact={isImportActive}>
               Overview
             </Tab>
-            <Tab to={`/study/${id}/activity`} icon={ChartBar} compact={isImportActive}>
-              Activity
+            <Tab to={`/study/${id}/activity`} icon={Compass} compact={isImportActive}>
+              Explore
             </Tab>
             <Tab to={`/study/${id}/media`} icon={Image} compact={isImportActive}>
               Media
