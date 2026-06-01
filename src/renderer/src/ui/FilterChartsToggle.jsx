@@ -1,4 +1,4 @@
-import { SlidersHorizontal } from 'lucide-react'
+import { Activity } from 'lucide-react'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import { useShowFilterCharts } from '../hooks/useShowFilterCharts'
 
@@ -41,7 +41,7 @@ export default function FilterChartsToggle({
           }`}
           aria-label={showFilterCharts ? 'Hide filter charts' : 'Show filter charts'}
         >
-          <SlidersHorizontal size={16} />
+          <Activity size={16} />
           {isFiltering && (
             <span
               className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-blue-500 ring-1 ring-background"
