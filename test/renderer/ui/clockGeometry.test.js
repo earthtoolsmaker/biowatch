@@ -84,7 +84,13 @@ describe('rangesToSegments', () => {
 describe('resolveAction', () => {
   test('no single band -> create', () => {
     assert.equal(resolveAction(10, []), 'create')
-    assert.equal(resolveAction(10, [{ start: 5, end: 8 }, { start: 18, end: 21 }]), 'create')
+    assert.equal(
+      resolveAction(10, [
+        { start: 5, end: 8 },
+        { start: 18, end: 21 }
+      ]),
+      'create'
+    )
   })
   test('near end edge -> edge-end', () => {
     assert.equal(resolveAction(17.5, [{ start: 8, end: 18 }]), 'edge-end')
