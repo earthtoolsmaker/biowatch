@@ -366,6 +366,18 @@ const DailyActivityRadar = ({ activityData, selectedSpecies, palette }) => {
   )
 }
 
+// A draggable boundary handle on the line-mode track strip. `left` is a
+// CSS percentage; `active` enlarges it on hover.
+function StripHandle({ left, active }) {
+  const size = active ? 12 : 9
+  return (
+    <div
+      className="absolute top-1/2 rounded-full bg-blue-500 border border-white"
+      style={{ left, width: size, height: size, transform: 'translate(-50%, -50%)' }}
+    />
+  )
+}
+
 /**
  * X–Y twin of DailyActivityRadar. Renders the same hourly-bin data as a
  * line per species across a 24-hour x-axis. The selected ranges are shown
@@ -596,28 +608,13 @@ const DailyActivityLine = ({
               style={{ left: pct(s), width: pct(e - s), backgroundColor: 'rgb(59 130 246)' }}
             />
           ))}
-          {dragEnabled &&
-            [
-              ['start', handleStartX],
-              ['end', handleEndX]
-            ]
-              // start always renders; end only when it doesn't coincide with start
-              .filter(([edge, x]) => x !== null && (edge === 'start' || x !== handleStartX))
-              .map(([edge, x]) => {
-                const size = hoveredEdge === edge ? 12 : 9
-                return (
-                  <div
-                    key={edge}
-                    className="absolute top-1/2 rounded-full bg-blue-500 border border-white"
-                    style={{
-                      left: pct(x),
-                      width: size,
-                      height: size,
-                      transform: 'translate(-50%, -50%)'
-                    }}
-                  />
-                )
-              })}
+          {/* start always renders; end only when it doesn't coincide with start */}
+          {dragEnabled && handleStartX !== null && (
+            <StripHandle left={pct(handleStartX)} active={hoveredEdge === 'start'} />
+          )}
+          {dragEnabled && handleEndX !== null && handleEndX !== handleStartX && (
+            <StripHandle left={pct(handleEndX)} active={hoveredEdge === 'end'} />
+          )}
         </div>
       </div>
     </div>
