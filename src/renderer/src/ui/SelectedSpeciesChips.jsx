@@ -1,10 +1,41 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
+import * as HoverCard from '@radix-ui/react-hover-card'
 import { getMapDisplayName } from '../utils/commonNames'
 import { formatScientificName } from '../utils/scientificName'
 
 const GAP_PX = 6 // matches gap-1.5
 const OVERFLOW_RESERVE_PX = 42 // approx width of the "+N" pill, kept free
+
+const CARD_CLASS =
+  'z-[10000] max-w-[16rem] px-3 py-2 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md'
+
+// One species line (color dot + common name + scientific name + optional
+// observation count), shared by the chip card and the "+N" list card.
+function SpeciesLine({ species, color, scientificToCommon }) {
+  const common = getMapDisplayName(species.scientificName, scientificToCommon)
+  const sci = formatScientificName(species.scientificName)
+  const showSci = common && common !== species.scientificName
+  return (
+    <div className="flex items-start gap-2 py-0.5">
+      <span
+        className="w-2 h-2 rounded-full flex-shrink-0 mt-1"
+        style={{ backgroundColor: color }}
+      />
+      <div className="min-w-0">
+        <div className={common ? 'capitalize text-foreground' : 'italic text-foreground'}>
+          {common || sci}
+        </div>
+        {showSci && <div className="italic text-muted-foreground">{sci}</div>}
+        {typeof species.count === 'number' && (
+          <div className="text-muted-foreground tabular-nums">
+            {species.count.toLocaleString()} observation{species.count !== 1 ? 's' : ''}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
 
 /**
  * Compact, in-control-bar readout of the selected species, shown when the
@@ -13,10 +44,12 @@ const OVERFLOW_RESERVE_PX = 42 // approx width of the "+N" pill, kept free
  *
  * - `compact` (narrow screens): a single count pill (dot + number), no removal.
  * - otherwise: fits as MANY removable chips (dot + name + ×) as the available
- *   width allows, then a "+N" overflow pill. The fit is measured with a
- *   ResizeObserver so it re-flows as the bar resizes; it never pushes into the
- *   neighbouring controls. The × is disabled when only one species remains
- *   (selection can't be empty). Adding species is done by reopening the rail.
+ *   width allows, then a "+N" overflow pill — measured with a ResizeObserver so
+ *   it re-flows on resize and never pushes into the neighbouring controls.
+ *
+ * Hovering a chip shows a card with that species' info; hovering "+N" lists the
+ * remaining species. The × is disabled when only one species remains. Adding
+ * species is done by reopening the rail.
  */
 export default function SelectedSpeciesChips({
   selectedSpecies,
@@ -42,7 +75,6 @@ export default function SelectedSpeciesChips({
       let count = 0
       for (let i = 0; i < chipEls.length; i++) {
         const w = chipEls[i].offsetWidth + (i > 0 ? GAP_PX : 0)
-        // Reserve room for the "+N" pill unless this is the last chip.
         const reserve = i < chipEls.length - 1 ? OVERFLOW_RESERVE_PX + GAP_PX : 0
         if (used + w + reserve <= avail) {
           used += w
@@ -62,6 +94,7 @@ export default function SelectedSpeciesChips({
 
   if (!selectedSpecies || selectedSpecies.length === 0) return null
 
+  const colorFor = (index) => palette[index % palette.length]
   const labelFor = (species) =>
     getMapDisplayName(species.scientificName, scientificToCommon) ||
     formatScientificName(species.scientificName)
@@ -71,7 +104,7 @@ export default function SelectedSpeciesChips({
       <div className="inline-flex items-center gap-1.5 h-7 rounded-full border border-border bg-card px-2.5 text-sm text-foreground flex-shrink-0">
         <span
           className="w-2 h-2 rounded-full flex-shrink-0"
-          style={{ backgroundColor: palette[0 % palette.length] }}
+          style={{ backgroundColor: colorFor(0) }}
         />
         <span className="tabular-nums">{selectedSpecies.length}</span>
       </div>
@@ -79,18 +112,16 @@ export default function SelectedSpeciesChips({
   }
 
   const removable = selectedSpecies.length > 1
-  // If not even one chip fits, fall back to a count pill so something shows.
   const showCountFallback = visibleCount === 0
   const visible = selectedSpecies.slice(0, visibleCount)
-  const overflow = selectedSpecies.length - visible.length
+  const overflowSpecies = selectedSpecies.slice(visibleCount)
 
   const chipClass =
     'inline-flex items-center gap-1.5 h-7 rounded-full border border-border bg-card pl-2.5 pr-1.5 text-sm text-foreground flex-shrink-0 max-w-[12rem]'
 
   return (
     <div ref={containerRef} className="flex-1 min-w-0 flex items-center gap-1.5 overflow-hidden">
-      {/* Hidden measurer — all chips at natural width, off-flow, so the fit
-          calculation isn't affected by what's currently rendered. */}
+      {/* Hidden measurer — all chips at natural width, off-flow. */}
       <div
         ref={measureRef}
         aria-hidden="true"
@@ -109,7 +140,7 @@ export default function SelectedSpeciesChips({
         <div className="inline-flex items-center gap-1.5 h-7 rounded-full border border-border bg-card px-2.5 text-sm text-foreground flex-shrink-0">
           <span
             className="w-2 h-2 rounded-full flex-shrink-0"
-            style={{ backgroundColor: palette[0 % palette.length] }}
+            style={{ backgroundColor: colorFor(0) }}
           />
           <span className="tabular-nums">{selectedSpecies.length}</span>
         </div>
@@ -118,29 +149,64 @@ export default function SelectedSpeciesChips({
           {visible.map((species, index) => {
             const label = labelFor(species)
             return (
-              <span key={species.scientificName} className={chipClass}>
-                <span
-                  className="w-2 h-2 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: palette[index % palette.length] }}
-                />
-                <span className="truncate capitalize">{label}</span>
-                {removable && (
-                  <button
-                    type="button"
-                    onClick={() => onRemove(species.scientificName)}
-                    aria-label={`Remove ${label}`}
-                    className="flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-muted-foreground hover:bg-accent hover:text-foreground"
+              <HoverCard.Root key={species.scientificName} openDelay={150} closeDelay={0}>
+                <HoverCard.Trigger asChild>
+                  <span className={chipClass}>
+                    <span
+                      className="w-2 h-2 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: colorFor(index) }}
+                    />
+                    <span className="truncate capitalize">{label}</span>
+                    {removable && (
+                      <button
+                        type="button"
+                        onClick={() => onRemove(species.scientificName)}
+                        aria-label={`Remove ${label}`}
+                        className="flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-muted-foreground hover:bg-accent hover:text-foreground"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                  </span>
+                </HoverCard.Trigger>
+                <HoverCard.Portal>
+                  <HoverCard.Content
+                    side="bottom"
+                    align="start"
+                    sideOffset={6}
+                    className={CARD_CLASS}
                   >
-                    <X size={12} />
-                  </button>
-                )}
-              </span>
+                    <SpeciesLine
+                      species={species}
+                      color={colorFor(index)}
+                      scientificToCommon={scientificToCommon}
+                    />
+                  </HoverCard.Content>
+                </HoverCard.Portal>
+              </HoverCard.Root>
             )
           })}
-          {overflow > 0 && (
-            <span className="inline-flex items-center h-7 rounded-full border border-border bg-card px-2.5 text-sm text-muted-foreground tabular-nums flex-shrink-0">
-              +{overflow}
-            </span>
+          {overflowSpecies.length > 0 && (
+            <HoverCard.Root openDelay={150} closeDelay={0}>
+              <HoverCard.Trigger asChild>
+                <span className="inline-flex items-center h-7 rounded-full border border-border bg-card px-2.5 text-sm text-muted-foreground tabular-nums flex-shrink-0 cursor-default">
+                  +{overflowSpecies.length}
+                </span>
+              </HoverCard.Trigger>
+              <HoverCard.Portal>
+                <HoverCard.Content side="bottom" align="end" sideOffset={6} className={CARD_CLASS}>
+                  <div className="font-medium mb-1">{overflowSpecies.length} more species</div>
+                  {overflowSpecies.map((species, i) => (
+                    <SpeciesLine
+                      key={species.scientificName}
+                      species={species}
+                      color={colorFor(visibleCount + i)}
+                      scientificToCommon={scientificToCommon}
+                    />
+                  ))}
+                </HoverCard.Content>
+              </HoverCard.Portal>
+            </HoverCard.Root>
           )}
         </>
       )}

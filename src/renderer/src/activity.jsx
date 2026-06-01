@@ -1128,15 +1128,18 @@ export default function Activity({ studyData, studyId }) {
               {/* When the rail is hidden, keep the legend/selection visible.
                   Compact (count pill) below lg, removable chips at lg+. */}
               {!railVisible && (
-                <SelectedSpeciesChips
-                  selectedSpecies={selectedSpecies}
-                  palette={palette}
-                  scientificToCommon={scientificToCommon}
-                  compact={!isLgUp}
-                  onRemove={(name) =>
-                    handleSpeciesChange(selectedSpecies.filter((s) => s.scientificName !== name))
-                  }
-                />
+                <>
+                  <div className="h-5 w-px bg-border flex-shrink-0" aria-hidden="true" />
+                  <SelectedSpeciesChips
+                    selectedSpecies={selectedSpecies}
+                    palette={palette}
+                    scientificToCommon={scientificToCommon}
+                    compact={!isLgUp}
+                    onRemove={(name) =>
+                      handleSpeciesChange(selectedSpecies.filter((s) => s.scientificName !== name))
+                    }
+                  />
+                </>
               )}
             </div>
 
