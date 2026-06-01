@@ -1,5 +1,6 @@
 import { Download, Upload } from 'lucide-react'
 import { useCallback, useState } from 'react'
+import * as Tooltip from '@radix-ui/react-tooltip'
 import { toast } from 'sonner'
 import DeploymentsImportPreviewModal from './DeploymentsImportPreviewModal'
 import DeploymentsExportPreviewModal from './DeploymentsExportPreviewModal'
@@ -121,26 +122,58 @@ export default function DeploymentsCsvActions({ studyId, onApplied }) {
   return (
     <>
       <div className="inline-flex items-center rounded border border-border overflow-hidden bg-card">
-        <button
-          onClick={handleExportClick}
-          title="Export deployments CSV"
-          className={btnClass}
-          aria-label="Export deployments CSV"
-          disabled={isLoadingExport}
-        >
-          <Download size={12} />
-          Export CSV
-        </button>
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <button
+              onClick={handleExportClick}
+              className={btnClass}
+              aria-label="Export deployments CSV"
+              disabled={isLoadingExport}
+            >
+              <Download size={12} />
+              Export CSV
+            </button>
+          </Tooltip.Trigger>
+          <Tooltip.Portal>
+            <Tooltip.Content
+              side="bottom"
+              sideOffset={8}
+              className="z-[10000] max-w-[16rem] px-3 py-2 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md"
+            >
+              <div className="font-medium mb-1">Export CSV</div>
+              <p className="text-muted-foreground leading-snug">
+                Download every deployment — locations, dates, and cameras — as a spreadsheet you can
+                edit or share.
+              </p>
+            </Tooltip.Content>
+          </Tooltip.Portal>
+        </Tooltip.Root>
         <div className="w-px self-stretch bg-border" aria-hidden="true" />
-        <button
-          onClick={handleImportClick}
-          title="Import deployments CSV"
-          className={btnClass}
-          aria-label="Import deployments CSV"
-        >
-          <Upload size={12} />
-          Import CSV
-        </button>
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <button
+              onClick={handleImportClick}
+              className={btnClass}
+              aria-label="Import deployments CSV"
+            >
+              <Upload size={12} />
+              Import CSV
+            </button>
+          </Tooltip.Trigger>
+          <Tooltip.Portal>
+            <Tooltip.Content
+              side="bottom"
+              sideOffset={8}
+              className="z-[10000] max-w-[16rem] px-3 py-2 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md"
+            >
+              <div className="font-medium mb-1">Import CSV</div>
+              <p className="text-muted-foreground leading-snug">
+                Bulk-update deployments from an edited CSV. You&apos;ll preview every change before
+                it&apos;s applied.
+              </p>
+            </Tooltip.Content>
+          </Tooltip.Portal>
+        </Tooltip.Root>
       </div>
 
       {(isParsing || isLoadingExport) && (
