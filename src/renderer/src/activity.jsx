@@ -169,6 +169,18 @@ const slugifyForFilename = (s) =>
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
 
+// Markers whose deployment falls outside the active area filter are kept on the
+// map (so the user can still see where to widen the selection) but visually
+// de-emphasized to OUTSIDE_OPACITY. With no filter, everything is fully opaque.
+const OUTSIDE_OPACITY = 0.35
+const isInsideArea = (lat, lng, area) => {
+  if (!area) return true
+  const { north, south, east, west } = area
+  if ([north, south, east, west].some((v) => typeof v !== 'number' || Number.isNaN(v))) return true
+  if (west > east) return true // antimeridian box: don't de-emphasize (matches buildBboxClause no-op)
+  return lat >= south && lat <= north && lng >= west && lng <= east
+}
+
 // SpeciesMap component.
 //
 // Renders the leaflet map in two progressive modes so the user sees something
@@ -271,98 +283,105 @@ const SpeciesMap = ({
       })
     }
   }, [studyId, studyName])
-  // Function to create a pie chart icon
-  const createPieChartIcon = (counts) => {
-    const total = Object.values(counts).reduce((sum, count) => sum + count, 0)
-    const size = Math.min(60, Math.max(10, Math.sqrt(total) * 3)) // Scale dot size based on count
+  // Function to create a pie chart icon. Memoized so re-renders (e.g. toggling
+  // the area filter) don't rebuild every SVG — building the SVG + serializing +
+  // base64-encoding it for ~hundreds of points on every render is what froze the
+  // UI thread. `opacity` < 1 fades the whole pie (used for de-emphasized clusters).
+  const createPieChartIcon = useCallback(
+    (counts, opacity = 1) => {
+      const total = Object.values(counts).reduce((sum, count) => sum + count, 0)
+      const size = Math.min(60, Math.max(10, Math.sqrt(total) * 3)) // Scale dot size based on count
 
-    const createSVG = () => {
-      // Create SVG for pie chart
-      const svgNS = 'http://www.w3.org/2000/svg'
-      const svg = document.createElementNS(svgNS, 'svg')
-      svg.setAttribute('width', size)
-      svg.setAttribute('height', size)
-      svg.setAttribute('viewBox', `0 0 100 100`)
+      const createSVG = () => {
+        // Create SVG for pie chart
+        const svgNS = 'http://www.w3.org/2000/svg'
+        const svg = document.createElementNS(svgNS, 'svg')
+        svg.setAttribute('width', size)
+        svg.setAttribute('height', size)
+        svg.setAttribute('viewBox', `0 0 100 100`)
+        if (opacity < 1) svg.setAttribute('opacity', String(opacity))
 
-      // Add a circle background - only needed for multiple species
-      if (Object.keys(counts).length > 1) {
-        const circle = document.createElementNS(svgNS, 'circle')
-        circle.setAttribute('cx', '50')
-        circle.setAttribute('cy', '50')
-        circle.setAttribute('r', '50')
-        circle.setAttribute('fill', 'white')
-        svg.appendChild(circle)
-      }
+        // Add a circle background - only needed for multiple species
+        if (Object.keys(counts).length > 1) {
+          const circle = document.createElementNS(svgNS, 'circle')
+          circle.setAttribute('cx', '50')
+          circle.setAttribute('cy', '50')
+          circle.setAttribute('r', '50')
+          circle.setAttribute('fill', 'white')
+          svg.appendChild(circle)
+        }
 
-      // Draw pie slices
-      let startAngle = 0
-      const colors = selectedSpecies.map((_, i) => palette[i % palette.length])
+        // Draw pie slices
+        let startAngle = 0
+        const colors = selectedSpecies.map((_, i) => palette[i % palette.length])
 
-      // Use the same radius for pie slices as for the circle
-      const radius = 50
+        // Use the same radius for pie slices as for the circle
+        const radius = 50
 
-      // Special case for single species - draw a full circle
-      if (Object.keys(counts).length === 1) {
-        const species = Object.keys(counts)[0]
-        const index = selectedSpecies.findIndex((s) => s.scientificName === species)
-        const colorIndex = index >= 0 ? index : 0
-        const color = colors[colorIndex]
-
-        const circle = document.createElementNS(svgNS, 'circle')
-        circle.setAttribute('cx', '50')
-        circle.setAttribute('cy', '50')
-        circle.setAttribute('r', '50')
-        circle.setAttribute('fill', color)
-        svg.appendChild(circle)
-      } else {
-        // Multiple species - draw pie slices
-        Object.entries(counts).forEach(([species, count]) => {
+        // Special case for single species - draw a full circle
+        if (Object.keys(counts).length === 1) {
+          const species = Object.keys(counts)[0]
           const index = selectedSpecies.findIndex((s) => s.scientificName === species)
-          if (index < 0) return // Skip if species not in selectedSpecies
+          const colorIndex = index >= 0 ? index : 0
+          const color = colors[colorIndex]
 
-          const portion = count / total
-          const endAngle = startAngle + portion * 2 * Math.PI
-          const color = colors[index]
+          const circle = document.createElementNS(svgNS, 'circle')
+          circle.setAttribute('cx', '50')
+          circle.setAttribute('cy', '50')
+          circle.setAttribute('r', '50')
+          circle.setAttribute('fill', color)
+          svg.appendChild(circle)
+        } else {
+          // Multiple species - draw pie slices
+          Object.entries(counts).forEach(([species, count]) => {
+            const index = selectedSpecies.findIndex((s) => s.scientificName === species)
+            if (index < 0) return // Skip if species not in selectedSpecies
 
-          const largeArcFlag = portion > 0.5 ? 1 : 0
+            const portion = count / total
+            const endAngle = startAngle + portion * 2 * Math.PI
+            const color = colors[index]
 
-          const x1 = 50 + radius * Math.sin(startAngle)
-          const y1 = 50 - radius * Math.cos(startAngle)
-          const x2 = 50 + radius * Math.sin(endAngle)
-          const y2 = 50 - radius * Math.cos(endAngle)
+            const largeArcFlag = portion > 0.5 ? 1 : 0
 
-          const pathData = [
-            `M 50 50`,
-            `L ${x1} ${y1}`,
-            `A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2}`,
-            `Z`
-          ].join(' ')
+            const x1 = 50 + radius * Math.sin(startAngle)
+            const y1 = 50 - radius * Math.cos(startAngle)
+            const x2 = 50 + radius * Math.sin(endAngle)
+            const y2 = 50 - radius * Math.cos(endAngle)
 
-          const path = document.createElementNS(svgNS, 'path')
-          path.setAttribute('d', pathData)
-          path.setAttribute('fill', color)
-          path.setAttribute('stroke', color) // Match stroke color to fill color
-          path.setAttribute('stroke-width', '0.5') // Very thin stroke just to smooth edges
-          svg.appendChild(path)
+            const pathData = [
+              `M 50 50`,
+              `L ${x1} ${y1}`,
+              `A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2}`,
+              `Z`
+            ].join(' ')
 
-          startAngle = endAngle
-        })
+            const path = document.createElementNS(svgNS, 'path')
+            path.setAttribute('d', pathData)
+            path.setAttribute('fill', color)
+            path.setAttribute('stroke', color) // Match stroke color to fill color
+            path.setAttribute('stroke-width', '0.5') // Very thin stroke just to smooth edges
+            svg.appendChild(path)
+
+            startAngle = endAngle
+          })
+        }
+
+        return svg
       }
 
-      return svg
-    }
+      const svgElement = createSVG()
+      const svgString = new XMLSerializer().serializeToString(svgElement)
+      const dataUrl = `data:image/svg+xml;base64,${btoa(svgString)}`
 
-    const svgElement = createSVG()
-    const svgString = new XMLSerializer().serializeToString(svgElement)
-    const dataUrl = `data:image/svg+xml;base64,${btoa(svgString)}`
-
-    return L.icon({
-      iconUrl: dataUrl,
-      iconSize: [size, size],
-      iconAnchor: [size / 2, size / 2],
-      popupAnchor: [0, -size / 2]
-    })
-  }
+      return L.icon({
+        iconUrl: dataUrl,
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+        popupAnchor: [0, -size / 2]
+      })
+    },
+    [selectedSpecies, palette]
+  )
 
   // Render the React MarkerHoverCard to an HTML string. Leaflet's tooltip API
   // takes raw HTML, so we serialize the JSX once per call. Using a React
@@ -379,7 +398,9 @@ const SpeciesMap = ({
       />
     )
 
-  // PieChartMarker component with tooltip binding
+  // PieChartMarker component with tooltip binding. Out-of-area de-emphasis is
+  // applied imperatively (see the opacity effect below) rather than via an
+  // `opacity` prop, so toggling the area filter never re-renders these markers.
   function PieChartMarker({ point, icon }) {
     const markerRef = useRef(null)
 
@@ -409,8 +430,10 @@ const SpeciesMap = ({
     )
   }
 
-  // Process data points
-  const processPointData = () => {
+  // Process data points. Memoized on the underlying data/species so the point
+  // set — and the `counts` object identities the tooltip effect depends on —
+  // stay stable across re-renders (e.g. when the area filter toggles).
+  const locationPoints = useMemo(() => {
     const locations = {}
 
     // Combine data from all species
@@ -433,9 +456,42 @@ const SpeciesMap = ({
     })
 
     return Object.values(locations)
-  }
+  }, [heatmapData, selectedSpecies])
 
-  const locationPoints = processPointData()
+  // Pie icons are expensive (SVG build + serialize + base64). Memoize them on the
+  // data — crucially NOT on areaFilter — so applying/clearing the area filter
+  // never rebuilds them; only the cheap per-marker opacity changes.
+  const pieIcons = useMemo(
+    () => locationPoints.map((point) => createPieChartIcon(point.counts)),
+    [locationPoints, createPieChartIcon]
+  )
+
+  // Memoize the marker elements so they are NOT recreated/reconciled when the
+  // area filter toggles (only when the underlying data changes). Recreating
+  // ~hundreds of react-leaflet markers per render is the bulk of the freeze.
+  const markerElements = useMemo(
+    () =>
+      locationPoints.map((point, index) => (
+        <PieChartMarker key={index} point={point} icon={pieIcons[index]} />
+      )),
+    [locationPoints, pieIcons]
+  )
+
+  // De-emphasize markers outside the area filter imperatively: set each marker's
+  // opacity directly on the Leaflet layer and re-fade the cluster icons. This
+  // avoids touching the React tree, so applying/clearing the filter is cheap.
+  const pieClusterRef = useRef(null)
+  useEffect(() => {
+    const group = pieClusterRef.current
+    if (!group) return
+    group.getLayers().forEach((layer) => {
+      const ll = layer.getLatLng?.()
+      if (ll && layer.setOpacity) {
+        layer.setOpacity(isInsideArea(ll.lat, ll.lng, areaFilter) ? 1 : OUTSIDE_OPACITY)
+      }
+    })
+    group.refreshClusters?.()
+  }, [areaFilter, markerElements])
 
   // Bounds derive from deploymentLocations, not heatmapData, so the initial
   // viewport is fixed from the moment the map mounts — it doesn't shift
@@ -560,6 +616,7 @@ const SpeciesMap = ({
               </MarkerClusterGroup>
             ) : (
               <MarkerClusterGroup
+                ref={pieClusterRef}
                 key={`pies:${geoKey}`}
                 chunkedLoading
                 showCoverageOnHover={false}
@@ -569,6 +626,13 @@ const SpeciesMap = ({
                 iconCreateFunction={(cluster) => {
                   // Get all markers in this cluster
                   const markers = cluster.getAllChildMarkers()
+
+                  // A cluster is de-emphasized only when ALL its markers fall
+                  // outside the area filter; any inside marker keeps it full.
+                  const anyInside = markers.some((m) => {
+                    const ll = m.getLatLng()
+                    return isInsideArea(ll.lat, ll.lng, areaFilter)
+                  })
 
                   // Combine counts from all markers
                   const combinedCounts = {}
@@ -604,16 +668,10 @@ const SpeciesMap = ({
                     className: 'species-map-tooltip'
                   })
 
-                  return createPieChartIcon(filteredCounts)
+                  return createPieChartIcon(filteredCounts, anyInside ? 1 : OUTSIDE_OPACITY)
                 }}
               >
-                {locationPoints.map((point, index) => (
-                  <PieChartMarker
-                    key={index}
-                    point={point}
-                    icon={createPieChartIcon(point.counts)}
-                  />
-                ))}
+                {markerElements}
               </MarkerClusterGroup>
             )}
           </LayersControl.Overlay>
