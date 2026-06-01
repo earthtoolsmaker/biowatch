@@ -1157,6 +1157,7 @@ export default function Activity({ studyData, studyId }) {
                     timeRange={timeRange}
                     includeNullTimestamps={isFullRange}
                     speciesReady={speciesInitialized}
+                    areaFilter={areaFilter}
                   />
                 </div>
               )}

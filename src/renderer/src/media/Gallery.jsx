@@ -2095,6 +2095,7 @@ function Gallery({
   includeNullTimestamps = false,
   speciesReady = false,
   deploymentID = null,
+  areaFilter = null,
   embedded = false
 }) {
   const [imageErrors, setImageErrors] = useState(() => {
@@ -2182,7 +2183,8 @@ function Gallery({
       dateRange[0]?.toISOString(),
       dateRange[1]?.toISOString(),
       JSON.stringify(timeRange.ranges ?? [{ start: timeRange.start, end: timeRange.end }]),
-      includeNullTimestamps
+      includeNullTimestamps,
+      JSON.stringify(areaFilter)
     ],
     queryFn: async ({ pageParam = null }) => {
       const response = await window.api.getSequences(id, {
@@ -2193,7 +2195,8 @@ function Gallery({
           species,
           dateRange: dateRange[0] && dateRange[1] ? { start: dateRange[0], end: dateRange[1] } : {},
           timeRange,
-          deploymentID
+          deploymentID,
+          bbox: areaFilter
         }
       })
       if (response.error) throw new Error(response.error)

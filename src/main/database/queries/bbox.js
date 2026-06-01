@@ -12,12 +12,27 @@
  * @returns {{clause: string, params: number[]}}
  */
 export function buildBboxClause(bbox, alias) {
-  if (!bbox) return { clause: '', params: [] }
-  const { north, south, east, west } = bbox
-  if ([north, south, east, west].some((v) => typeof v !== 'number' || Number.isNaN(v))) {
-    return { clause: '', params: [] }
-  }
-  if (west > east) return { clause: '', params: [] }
+  if (!isAreaBboxApplicable(bbox)) return { clause: '', params: [] }
+  const { north, south, west, east } = bbox
   const clause = `AND ${alias}.latitude BETWEEN ? AND ? AND ${alias}.longitude BETWEEN ? AND ?`
   return { clause, params: [south, north, west, east] }
+}
+
+/**
+ * Whether an area bbox should be applied as a filter. False for null/undefined,
+ * non-numeric/NaN bounds, or antimeridian-crossing boxes (west > east), which
+ * v1 does not support. Shared by {@link buildBboxClause} (raw SQL) and the
+ * Drizzle-based sequence pagination query so both apply the same guard.
+ *
+ * @param {{north:number, south:number, east:number, west:number}|null|undefined} bbox
+ * @returns {boolean}
+ */
+export function isAreaBboxApplicable(bbox) {
+  if (!bbox) return false
+  const { north, south, east, west } = bbox
+  if ([north, south, east, west].some((v) => typeof v !== 'number' || Number.isNaN(v))) {
+    return false
+  }
+  if (west > east) return false
+  return true
 }
