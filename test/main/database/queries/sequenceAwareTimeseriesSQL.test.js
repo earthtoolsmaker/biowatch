@@ -170,6 +170,31 @@ describe('getSequenceAwareTimeseriesSQL — positive-gap parity with JS pipeline
     await assertTsParity(testDbPath, [], 120, 'all species')
   })
 
+  test('a media of another species bridges a time gap within a week (global)', async () => {
+    // Same discriminator as the species-counts suite: m2(Fox) at t=50s bridges
+    // the 100s Deer-to-Deer gap so all three are one sequence in the week.
+    // Deer = max(2,3) = 3, not 2+3 = 5. Regression guard for global sequencing.
+    await seed(testDbPath, {
+      deployments: { d1: dep('d1') },
+      media: {
+        'm1.jpg': med('m1', 'd1', '2024-01-09T10:00:00Z'),
+        'm2.jpg': med('m2', 'd1', '2024-01-09T10:00:50Z'),
+        'm3.jpg': med('m3', 'd1', '2024-01-09T10:01:40Z')
+      },
+      observations: [
+        ...obs('m1', 'd1', 'Deer', 2),
+        ...obs('m2', 'd1', 'Fox', 1),
+        ...obs('m3', 'd1', 'Deer', 3)
+      ]
+    })
+    const sql = await getSequenceAwareTimeseriesSQL(testDbPath, [], 90)
+    const deer = sql
+      .filter((r) => r.scientificName === 'Deer')
+      .reduce((a, r) => a + Number(r.count), 0)
+    assert.equal(deer, 3, 'bridged → one sequence within the week')
+    await assertTsParity(testDbPath, [], 90, 'cross-species bridge within week')
+  })
+
   test('null-timestamp media excluded from timeseries', async () => {
     await seed(testDbPath, {
       deployments: { d1: dep('d1') },

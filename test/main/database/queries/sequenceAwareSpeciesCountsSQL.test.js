@@ -584,7 +584,7 @@ describe('getSequenceAwareSpeciesCountsSQL — positive-gap parity with JS pipel
     await assertParity(testDbPath, 120, 'with null-ts')
   })
 
-  test('multiple species are sequenced independently (partition by species)', async () => {
+  test('multiple species share the global media sequence', async () => {
     await seed(testDbPath, {
       deployments: { d1: dep('d1', 0, 0) },
       media: {
@@ -601,6 +601,30 @@ describe('getSequenceAwareSpeciesCountsSQL — positive-gap parity with JS pipel
     })
     await assertParity(testDbPath, 120, 'two species interleaved')
     await assertParity(testDbPath, 20, 'two species, all singletons')
+  })
+
+  test('a media of another species bridges a time gap (global, not per-species)', async () => {
+    // m1(Deer,t=0), m2(Fox,t=50s), m3(Deer,t=100s), gap=90s. The Deer-to-Deer
+    // direct gap (100s) exceeds 90s, but the Fox media at t=50 bridges it, so all
+    // three form ONE global sequence. Deer = max(2,3) = 3, NOT 2+3 = 5 (which is
+    // what per-species sequencing would wrongly produce). Regression guard for
+    // the global-vs-per-species fix.
+    await seed(testDbPath, {
+      deployments: { d1: dep('d1', 0, 0) },
+      media: {
+        'm1.jpg': med('m1', 'd1', '2024-01-05T10:00:00Z'),
+        'm2.jpg': med('m2', 'd1', '2024-01-05T10:00:50Z'),
+        'm3.jpg': med('m3', 'd1', '2024-01-05T10:01:40Z')
+      },
+      observations: [
+        ...obs('m1', 'd1', 'Deer', 2),
+        ...obs('m2', 'd1', 'Fox', 1),
+        ...obs('m3', 'd1', 'Deer', 3)
+      ]
+    })
+    const sql = await getSequenceAwareSpeciesCountsSQL(testDbPath, 90)
+    assert.equal(sql.find((r) => r.scientificName === 'Deer').count, 3, 'bridged → one sequence')
+    await assertParity(testDbPath, 90, 'cross-species bridge')
   })
 
   test('bbox filter applies under positive gap', async () => {
