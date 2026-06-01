@@ -7,6 +7,7 @@ import {
   edgeTolFor,
   bandToSegments,
   rangesToSegments,
+  rangesToBoundaries,
   resolveAction
 } from '../../../src/renderer/src/ui/clockGeometry.js'
 
@@ -78,6 +79,33 @@ describe('rangesToSegments', () => {
   })
   test('full-day range yields a single full segment', () => {
     assert.deepEqual(rangesToSegments([{ start: 0, end: 24 }]), [[0, 24]])
+  })
+})
+
+describe('rangesToBoundaries', () => {
+  test('partial single band -> its two interior edges', () => {
+    assert.deepEqual(rangesToBoundaries([{ start: 7, end: 18 }]), [7, 18])
+  })
+  test('full-day range -> no boundaries (0/24 dropped)', () => {
+    assert.deepEqual(rangesToBoundaries([{ start: 0, end: 24 }]), [])
+  })
+  test('band touching the seam drops the 0 edge', () => {
+    assert.deepEqual(rangesToBoundaries([{ start: 0, end: 18 }]), [18])
+  })
+  test('wrap-around night -> its two real edges, sorted', () => {
+    assert.deepEqual(rangesToBoundaries([{ start: 21, end: 5 }]), [5, 21])
+  })
+  test('multiple chips -> all interior edges, deduped and sorted', () => {
+    assert.deepEqual(
+      rangesToBoundaries([
+        { start: 5, end: 8 },
+        { start: 18, end: 21 }
+      ]),
+      [5, 8, 18, 21]
+    )
+  })
+  test('empty selection -> no boundaries', () => {
+    assert.deepEqual(rangesToBoundaries([]), [])
   })
 })
 

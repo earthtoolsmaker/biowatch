@@ -7,6 +7,7 @@ import {
   PolarGrid,
   Radar,
   RadarChart,
+  ReferenceLine,
   ResponsiveContainer,
   XAxis,
   YAxis
@@ -15,6 +16,7 @@ import {
   timeToAngle,
   angleToTime,
   rangesToSegments,
+  rangesToBoundaries,
   bandToSegments,
   resolveAction
 } from './clockGeometry.js'
@@ -64,6 +66,8 @@ const CircularTimeFilter = ({
   const ranges = interactive ? [{ start, end }] : chipSectors
   const segments = rangesToSegments(ranges)
   const isFullRing = segments.length === 1 && segments[0][0] === 0 && segments[0][1] === 24
+  // Interior boundary hours, drawn as dashed radial guides into the plot.
+  const boundaries = rangesToBoundaries(ranges)
 
   // Point on a circle of radius r at the given clock hour.
   const pointAt = (hour, r) => {
@@ -214,6 +218,25 @@ const CircularTimeFilter = ({
         >
           18h
         </text>
+
+        {/* Dashed radial guides at the selection boundaries (center -> radar
+            edge), so it's visible where the window sits over the activity. */}
+        {boundaries.map((hour) => {
+          const p = pointAt(hour, CLOCK_OUTER_RADIUS_PX)
+          return (
+            <line
+              key={`bound-${hour}`}
+              x1={center.x}
+              y1={center.y}
+              x2={p.x}
+              y2={p.y}
+              stroke="var(--color-muted-foreground)"
+              strokeWidth="1"
+              strokeDasharray="3 3"
+              strokeOpacity="0.5"
+            />
+          )
+        })}
 
         {/* Gray track ring. */}
         <circle
@@ -413,6 +436,8 @@ const DailyActivityLine = ({
 
   // Segments + handle positions: live band while dragging, else the committed selection.
   const segments = liveBand ? bandToSegments(liveBand) : rangesToSegments(selectedRanges)
+  // Interior boundary hours, drawn as dashed vertical guides in the plot.
+  const boundaries = rangesToBoundaries(liveBand ? [liveBand] : selectedRanges)
   const handleStartX = (() => {
     if (isDragging) {
       const { mode, liveStart, liveEnd } = dragState
@@ -521,6 +546,17 @@ const DailyActivityLine = ({
               tickLine={false}
             />
             <YAxis hide domain={[0, 'auto']} />
+            {/* Dashed vertical guides at the selection boundaries. */}
+            {boundaries.map((hour) => (
+              <ReferenceLine
+                key={`bound-${hour}`}
+                x={hour}
+                stroke="var(--color-muted-foreground)"
+                strokeWidth={1}
+                strokeDasharray="3 3"
+                strokeOpacity={0.5}
+              />
+            ))}
             {selectedSpecies.map((species, index) => (
               <Line
                 key={species.scientificName}

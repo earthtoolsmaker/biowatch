@@ -36,6 +36,18 @@ export const bandToSegments = (band) => {
 // Flatten an array of bands into renderable segments.
 export const rangesToSegments = (ranges) => ranges.flatMap(bandToSegments)
 
+// Distinct interior boundary hours of a selection, used to draw the dashed
+// guide lines in the plots. Endpoints at the 0/24 seam are dropped (they
+// coincide with the plot/circle edge), so a full-day selection yields none.
+export const rangesToBoundaries = (ranges) => {
+  const hours = new Set()
+  for (const [s, e] of rangesToSegments(ranges)) {
+    if (s !== 0 && s !== 24) hours.add(s)
+    if (e !== 0 && e !== 24) hours.add(e)
+  }
+  return [...hours].sort((a, b) => a - b)
+}
+
 // Decide what a click/drag at `cursor` (hours) should do, given the current
 // selection. Only a single non-wrap band supports edge-resize; everything
 // else is pan (inside) or create (outside / multi-band / empty).
