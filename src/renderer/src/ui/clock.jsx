@@ -19,15 +19,16 @@ import {
   resolveAction
 } from './clockGeometry.js'
 
-// Outer-ring radius (in px) shared by the visible 24-hour circle and the
-// radar chart underneath it. Keeping them equal makes the busiest species'
-// peaks land exactly on the ring instead of overflowing it.
-const CLOCK_OUTER_RADIUS_PX = 47
+// Outer radius (in px) of the activity radar and the inner reference circle.
+// The selection ring lives OUTSIDE this, so the radar is kept a little
+// smaller than the old full-size circle to leave room for the ring without
+// growing the widget's footprint (which would collide with the mode toggle).
+const CLOCK_OUTER_RADIUS_PX = 42
 
 // Selection ring sits just OUTSIDE the radar circle so it never covers the
 // activity blob. Radii are in the same px space as CLOCK_OUTER_RADIUS_PX.
-const RING_GAP = 4 // gap between radar edge and ring
-const RING_WIDTH = 7 // stroke thickness of the ring
+const RING_GAP = 2 // gap between radar edge and ring
+const RING_WIDTH = 6 // stroke thickness of the ring
 const RING_MID = CLOCK_OUTER_RADIUS_PX + RING_GAP + RING_WIDTH / 2
 const RING_OUTER = CLOCK_OUTER_RADIUS_PX + RING_GAP + RING_WIDTH
 
@@ -46,10 +47,10 @@ const CircularTimeFilter = ({
   const [lastDragPosition, setLastDragPosition] = useState(null)
   const svgRef = useRef(null)
 
-  const padding = 16 // room for hour labels outside the ring
+  const padding = 14 // room for hour labels outside the ring
   const svgSize = RING_OUTER * 2 + padding * 2
   const center = { x: RING_OUTER + padding, y: RING_OUTER + padding }
-  const labelOffset = RING_OUTER + 9
+  const labelOffset = RING_OUTER + 8
 
   // Sync local state when parent updates bounds externally. Does NOT fire
   // onChange continuously — that happens only on pointer release.
