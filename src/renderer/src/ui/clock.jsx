@@ -596,28 +596,28 @@ const DailyActivityLine = ({
               style={{ left: pct(s), width: pct(e - s), backgroundColor: 'rgb(59 130 246)' }}
             />
           ))}
-          {dragEnabled && handleStartX !== null && (
-            <div
-              className="absolute top-1/2 rounded-full bg-blue-500 border border-white"
-              style={{
-                left: pct(handleStartX),
-                width: hoveredEdge === 'start' ? 12 : 9,
-                height: hoveredEdge === 'start' ? 12 : 9,
-                transform: 'translate(-50%, -50%)'
-              }}
-            />
-          )}
-          {dragEnabled && handleEndX !== null && handleEndX !== handleStartX && (
-            <div
-              className="absolute top-1/2 rounded-full bg-blue-500 border border-white"
-              style={{
-                left: pct(handleEndX),
-                width: hoveredEdge === 'end' ? 12 : 9,
-                height: hoveredEdge === 'end' ? 12 : 9,
-                transform: 'translate(-50%, -50%)'
-              }}
-            />
-          )}
+          {dragEnabled &&
+            [
+              ['start', handleStartX],
+              ['end', handleEndX]
+            ]
+              // start always renders; end only when it doesn't coincide with start
+              .filter(([edge, x]) => x !== null && (edge === 'start' || x !== handleStartX))
+              .map(([edge, x]) => {
+                const size = hoveredEdge === edge ? 12 : 9
+                return (
+                  <div
+                    key={edge}
+                    className="absolute top-1/2 rounded-full bg-blue-500 border border-white"
+                    style={{
+                      left: pct(x),
+                      width: size,
+                      height: size,
+                      transform: 'translate(-50%, -50%)'
+                    }}
+                  />
+                )
+              })}
         </div>
       </div>
     </div>
