@@ -50,6 +50,11 @@ const ENCODINGS = [
  * Abundance disc). On narrow maps the control collapses to icon-only so it
  * doesn't collide with the legend on the opposite corner — the hover cards
  * still name each mode.
+ *
+ * @param {object} props
+ * @param {'pies'|'graduated'|'heatmap'|'hexbin'} props.value Active encoding key.
+ * @param {(key: string) => void} props.onChange Called with the new encoding key.
+ * @param {boolean} props.singleSpecies When true, the Composition segment is omitted.
  */
 export default function MapEncodingToggle({ value, onChange, singleSpecies }) {
   const ref = useRef(null)

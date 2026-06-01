@@ -11,6 +11,10 @@ import { DENSITY_SCALES, getDensityScale, scaleToCssGradient } from '../utils/de
  *
  * Lives inside the Leaflet container, so click/scroll propagation is disabled
  * to keep swatch clicks from panning the map.
+ *
+ * @param {object} props
+ * @param {string} props.value Active color-scale key (see DENSITY_SCALES).
+ * @param {(key: string) => void} props.onChange Called with the chosen scale key.
  */
 export default function MapDensityLegend({ value, onChange }) {
   const ref = useRef(null)
