@@ -19,6 +19,7 @@ import {
   rangesToBoundaries,
   bandToSegments,
   bandWidth,
+  bandWraps,
   resolveAction
 } from './clockGeometry.js'
 import { isFullDayArc } from '../utils/dayPeriods.js'
@@ -387,7 +388,7 @@ const DailyActivityLine = ({
   onArcChange
 }) => {
   const hasSingleBand = selectedRanges.length === 1
-  const isWrapBand = hasSingleBand && selectedRanges[0].start >= selectedRanges[0].end
+  const isWrapBand = hasSingleBand && bandWraps(selectedRanges[0])
   const dragEnabled =
     typeof onArcChange === 'function' && (hasSingleBand || selectedRanges.length === 0)
 

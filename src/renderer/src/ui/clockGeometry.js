@@ -18,9 +18,13 @@ export const isInsideBand = (cursor, band) => {
   return cursor > band.start || cursor < band.end
 }
 
+// Whether a band wraps past midnight (start >= end). Single source of truth
+// for the wrap convention used by bandWidth, resolveAction, and the views.
+export const bandWraps = (band) => band.start >= band.end
+
 // Width in hours of a (possibly wrap-around) band.
 export const bandWidth = (band) =>
-  band.start >= band.end ? 24 - band.start + band.end : band.end - band.start
+  bandWraps(band) ? 24 - band.start + band.end : band.end - band.start
 
 // Edge grab-zone half-width (hours): at least 1h so short bands are
 // targetable, capped at 2h so it never takes over a wide band.
@@ -58,7 +62,7 @@ export const rangesToBoundaries = (ranges) => {
 export const resolveAction = (cursor, ranges) => {
   if (ranges.length !== 1) return 'create'
   const { start, end } = ranges[0]
-  const isWrap = start >= end
+  const isWrap = bandWraps(ranges[0])
   const tol = edgeTolFor(bandWidth(ranges[0]))
   if (!isWrap && cursor >= end - tol && cursor <= end + tol) return 'edge-end'
   if (!isWrap && cursor >= start - tol && cursor <= start + tol) return 'edge-start'

@@ -7,6 +7,7 @@ import {
   edgeTolFor,
   bandToSegments,
   bandWidth,
+  bandWraps,
   rangesToSegments,
   rangesToBoundaries,
   resolveAction
@@ -61,6 +62,18 @@ describe('bandToSegments', () => {
       [21, 24],
       [0, 5]
     ])
+  })
+})
+
+describe('bandWraps', () => {
+  test('non-wrap band does not wrap', () => {
+    assert.equal(bandWraps({ start: 8, end: 18 }), false)
+  })
+  test('wrap band (start > end) wraps', () => {
+    assert.equal(bandWraps({ start: 21, end: 5 }), true)
+  })
+  test('start === end is treated as wrapping (full-day degenerate)', () => {
+    assert.equal(bandWraps({ start: 6, end: 6 }), true)
   })
 })
 
