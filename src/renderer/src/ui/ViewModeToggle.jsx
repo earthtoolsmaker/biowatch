@@ -28,7 +28,7 @@ const MODE_META = {
  */
 export default function ViewModeToggle({ value, modes, onChange }) {
   return (
-    <div className="inline-flex items-center rounded-md border border-border p-0.5 gap-0.5">
+    <div className="inline-flex items-center gap-1">
       {modes.map((mode) => {
         const { label, icon: Icon, description } = MODE_META[mode]
         const active = value === mode
@@ -39,10 +39,10 @@ export default function ViewModeToggle({ value, modes, onChange }) {
                 type="button"
                 onClick={() => onChange(mode)}
                 aria-pressed={active}
-                className={`flex items-center gap-1.5 px-2.5 h-7 rounded text-sm transition-colors ${
+                className={`flex items-center gap-1.5 px-2.5 h-7 rounded-md border text-sm transition-colors ${
                   active
-                    ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300'
-                    : 'text-muted-foreground hover:bg-accent'
+                    ? 'bg-card text-blue-700 border-border shadow-sm dark:text-blue-300'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
                 }`}
               >
                 <Icon size={16} />
