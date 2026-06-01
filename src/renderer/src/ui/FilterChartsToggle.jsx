@@ -1,5 +1,5 @@
 import { Activity } from 'lucide-react'
-import * as Tooltip from '@radix-ui/react-tooltip'
+import * as HoverCard from '@radix-ui/react-hover-card'
 import { useShowFilterCharts } from '../hooks/useShowFilterCharts'
 
 /**
@@ -13,8 +13,9 @@ import { useShowFilterCharts } from '../hooks/useShowFilterCharts'
  * Passing `true` or omitting the prop keeps the button visible (the latter
  * lets callers stay optimistic while the timeseries query is still loading).
  *
- * Visual treatment mirrors the bbox toggle in GalleryDisplayStrip so the
- * two icons read as a coherent set in the gap-slider strip.
+ * Uses a HoverCard (not a Tooltip) because the card contains an interactive
+ * "Reset filters" action — Tooltip content isn't meant to be clicked, so the
+ * click would fall through to whatever sits below.
  */
 export default function FilterChartsToggle({
   studyId,
@@ -30,8 +31,8 @@ export default function FilterChartsToggle({
   if (!hasTemporalData) return null
 
   return (
-    <Tooltip.Root>
-      <Tooltip.Trigger asChild>
+    <HoverCard.Root openDelay={150} closeDelay={100}>
+      <HoverCard.Trigger asChild>
         <button
           onClick={() => setShowFilterCharts((prev) => !prev)}
           className={`w-7 h-7 rounded-md flex items-center justify-center transition-colors relative ${
@@ -49,11 +50,11 @@ export default function FilterChartsToggle({
             />
           )}
         </button>
-      </Tooltip.Trigger>
-      <Tooltip.Portal>
-        <Tooltip.Content
+      </HoverCard.Trigger>
+      <HoverCard.Portal>
+        <HoverCard.Content
           side="bottom"
-          sideOffset={10}
+          sideOffset={8}
           align="end"
           className="z-[10000] max-w-[18rem] px-3.5 py-3 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md"
         >
@@ -104,9 +105,8 @@ export default function FilterChartsToggle({
               </button>
             </div>
           )}
-          <Tooltip.Arrow className="fill-popover" />
-        </Tooltip.Content>
-      </Tooltip.Portal>
-    </Tooltip.Root>
+        </HoverCard.Content>
+      </HoverCard.Portal>
+    </HoverCard.Root>
   )
 }
