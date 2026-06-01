@@ -14,7 +14,7 @@ import {
   useMapEvents
 } from 'react-leaflet'
 import MarkerClusterGroup from 'react-leaflet-cluster'
-import { useParams } from 'react-router'
+import { useParams, useSearchParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import ActivityMapContextMenu from './ui/ActivityMapContextMenu'
@@ -771,6 +771,13 @@ export default function Activity({ studyData, studyId }) {
   const { id } = useParams()
   const actualStudyId = studyId || id // Use passed studyId or from params
 
+  // Deep-link params (e.g. clicking a species on the Overview tab):
+  // ?species=<name> pre-selects that species and hides the rail; ?view=both
+  // opens map + gallery. Consumed once, then cleared (see the init effect).
+  const [searchParams, setSearchParams] = useSearchParams()
+  const deepLinkSpecies = searchParams.get('species')
+  const deepLinkView = searchParams.get('view')
+
   const [selectedSpecies, setSelectedSpecies] = useState([])
   const [speciesInitialized, setSpeciesInitialized] = useState(false)
   const { dateRange, setDateRange } = useDateRange(actualStudyId)
@@ -840,7 +847,8 @@ export default function Activity({ studyData, studyId }) {
   // (not persisted). 'both' is only available at lg+; clamp to 'map' if the
   // window is narrower so a stale 'both' selection can't render off-breakpoint.
   const isLgUp = useIsLgUp()
-  const [viewModeRaw, setViewMode] = useState('map')
+  // Open in 'both' when deep-linked with ?view=both (clamps to 'map' below lg).
+  const [viewModeRaw, setViewMode] = useState(deepLinkView === 'both' ? 'both' : 'map')
   const viewMode = clampViewMode(viewModeRaw, isLgUp)
   const availableViewModes = getAvailableViewModes(isLgUp)
   const showMap = viewMode === 'map' || viewMode === 'both'
@@ -856,8 +864,16 @@ export default function Activity({ studyData, studyId }) {
   // crossed; manual toggles in between are kept. At lg+ the rail docks inline;
   // below lg it slides over the content. When hidden, SelectedSpeciesChips
   // keeps the legend/selection visible in the control bar.
-  const [railVisible, setRailVisible] = useState(isLgUp)
+  // Deep-link (?species) opens with the rail hidden; otherwise default by size.
+  const [railVisible, setRailVisible] = useState(deepLinkSpecies ? false : isLgUp)
+  // Re-apply the size default only on actual breakpoint crossings — skip the
+  // first run so it doesn't clobber the deep-link "hidden" initial state.
+  const breakpointFirstRun = useRef(true)
   useEffect(() => {
+    if (breakpointFirstRun.current) {
+      breakpointFirstRun.current = false
+      return
+    }
     setRailVisible(isLgUp)
   }, [isLgUp])
   const railOverlay = railVisible && !isLgUp
@@ -914,18 +930,27 @@ export default function Activity({ studyData, studyId }) {
     staleTime: Infinity
   })
 
-  // Initialize selectedSpecies when speciesDistributionData loads
-  // Excludes humans/vehicles from default selection.
-  // `speciesInitialized` gates the bottom-row mount so TimelineChart /
-  // DailyActivityRadar / CircularTimeFilter don't fire their sequence-aware
-  // queries twice (once with [] species, once with the top-2) on large
-  // studies. Mirrors the same guard in media.jsx (PR b5c4dca).
+  // Initialize selectedSpecies when speciesDistributionData loads. A
+  // ?species deep-link (from the Overview tab) pre-selects that one species;
+  // otherwise default to the top-2 non-human species. `speciesInitialized`
+  // gates the bottom-row mount so TimelineChart / DailyActivityRadar /
+  // CircularTimeFilter don't fire their sequence-aware queries twice (once
+  // with [] species, once with the resolved selection) on large studies.
+  // Mirrors the same guard in media.jsx (PR b5c4dca).
   useEffect(() => {
-    if (speciesDistributionData && !speciesInitialized) {
-      setSelectedSpecies(getTopNonHumanSpecies(speciesDistributionData, 2))
-      setSpeciesInitialized(true)
+    if (!speciesDistributionData || speciesInitialized) return
+
+    const match = deepLinkSpecies
+      ? speciesDistributionData.find((s) => s.scientificName === deepLinkSpecies)
+      : null
+    setSelectedSpecies(match ? [match] : getTopNonHumanSpecies(speciesDistributionData, 2))
+    setSpeciesInitialized(true)
+
+    // Consume the deep-link params so they don't re-apply or linger in the URL.
+    if (deepLinkSpecies || deepLinkView) {
+      setSearchParams({}, { replace: true })
     }
-  }, [speciesDistributionData, speciesInitialized])
+  }, [speciesDistributionData, speciesInitialized, deepLinkSpecies, deepLinkView, setSearchParams])
 
   // Memoize speciesNames to avoid unnecessary re-renders
   const speciesNames = useMemo(

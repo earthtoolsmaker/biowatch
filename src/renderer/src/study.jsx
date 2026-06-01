@@ -10,7 +10,7 @@ import {
   FolderOpen,
   Settings
 } from 'lucide-react'
-import { Route, Routes, useParams } from 'react-router'
+import { Navigate, Route, Routes, useParams } from 'react-router'
 import { ErrorBoundary } from 'react-error-boundary'
 import { useQuery } from '@tanstack/react-query'
 import * as Tooltip from '@radix-ui/react-tooltip'
@@ -255,7 +255,7 @@ export default function Study() {
             <Tab to={`/study/${id}`} icon={NotebookText} end compact={isImportActive}>
               Overview
             </Tab>
-            <Tab to={`/study/${id}/activity`} icon={Compass} compact={isImportActive}>
+            <Tab to={`/study/${id}/explore`} icon={Compass} compact={isImportActive}>
               Explore
             </Tab>
             <Tab to={`/study/${id}/media`} icon={Image} compact={isImportActive}>
@@ -285,13 +285,17 @@ export default function Study() {
             }
           />
           <Route
-            path="activity"
+            path="explore"
             element={
-              <ErrorBoundary FallbackComponent={ErrorFallback} key={'activity'}>
+              <ErrorBoundary FallbackComponent={ErrorFallback} key={'explore'}>
                 <Activity studyData={study.data} studyId={id} />
               </ErrorBoundary>
             }
           />
+          {/* Back-compat: the tab was renamed activity → explore. Redirect any
+              lingering bare /activity links (current callers target /explore
+              directly). */}
+          <Route path="activity" element={<Navigate to={`/study/${id}/explore`} replace />} />
           <Route
             path="deployments"
             element={
