@@ -60,7 +60,7 @@ export default function FilterChartsToggle({
         >
           <div className="flex items-start justify-between gap-4 mb-2">
             <p className="font-medium leading-snug">
-              {showFilterCharts ? 'Hide filter charts' : 'Show filter charts'}
+              {showFilterCharts ? 'Hide activity charts' : 'Show activity charts'}
             </p>
             {isFiltering && (
               <p className="text-blue-600 dark:text-blue-400 whitespace-nowrap leading-snug">
@@ -70,7 +70,7 @@ export default function FilterChartsToggle({
             )}
           </div>
           <p className="text-muted-foreground leading-relaxed">
-            Daily-activity clock and timeline filters.
+            Daily-activity clock and timeline — filter observations by time of day and date.
           </p>
           {isFiltering && (dayFilterLabel || dateFilterLabel || areaFilterLabel) && (
             <ul className="mt-3 pt-3 border-t border-border space-y-1.5 text-popover-foreground/90 leading-snug">
