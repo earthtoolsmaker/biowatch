@@ -1062,26 +1062,27 @@ export default function Activity({ studyData, studyId }) {
               Lifted out of the right rail so the controls apply visibly to
               whatever the main pane shows (map, gallery, or both). */}
           {speciesInitialized && sequenceGap !== undefined && (
-            <div className="flex items-center gap-2 h-10 flex-shrink-0 mb-2">
-              {/* View cluster — what you're looking at + its display options.
-                  The bbox toggle sits next to the view toggle (not with the
-                  filters) so it reads as a display option for the current
-                  view; it only shows in gallery/both and self-hides for
-                  studies without bounding boxes. */}
-              <ViewModeToggle value={viewMode} modes={availableViewModes} onChange={setViewMode} />
-              {showGallery && <ThumbnailBboxToggle studyId={actualStudyId} />}
+            {/* Mirrors the content row below (flex-1 main pane + w-xs rail with
+                gap-4) so the two zones line up vertically: the view cluster
+                sits over the map/gallery, and the data+filters group sits over
+                the species rail. */}
+            <div className="flex items-center gap-4 h-10 flex-shrink-0 mb-2">
+              {/* View cluster — aligns with the map/gallery pane. The bbox
+                  toggle sits next to the view toggle (not with the filters) so
+                  it reads as a display option for the current view; it only
+                  shows in gallery/both and self-hides for studies without
+                  bounding boxes. */}
+              <div className="flex-1 min-w-0 flex items-center gap-2">
+                <ViewModeToggle value={viewMode} modes={availableViewModes} onChange={setViewMode} />
+                {showGallery && <ThumbnailBboxToggle studyId={actualStudyId} />}
+              </div>
 
-              {/* Data + filters — pushed to the right. Slider width is bounded
-                  (its compact variant is flex-1, which would otherwise stretch
-                  across the full-width bar on large screens). */}
-              <div className="ml-auto flex items-center gap-2">
-                <div className="w-64 flex-shrink-0">
-                  <SequenceGapSlider
-                    value={sequenceGap}
-                    onChange={setSequenceGap}
-                    variant="compact"
-                  />
-                </div>
+              {/* Data + filters — same w-xs width as the species rail below, so
+                  the gap slider's icon lines up with the species panel. The
+                  slider's compact variant is flex-1 and fills the leftover
+                  width beside the filter toggle. */}
+              <div className="w-xs flex items-center gap-2">
+                <SequenceGapSlider value={sequenceGap} onChange={setSequenceGap} variant="compact" />
                 <FilterChartsToggle
                   studyId={actualStudyId}
                   // Optimistic while timeseries is loading — hide only once
