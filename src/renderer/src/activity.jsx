@@ -1062,7 +1062,7 @@ export default function Activity({ studyData, studyId }) {
               Lifted out of the right rail so the controls apply visibly to
               whatever the main pane shows (map, gallery, or both). */}
           {speciesInitialized && sequenceGap !== undefined && (
-            <div className="flex items-center gap-2 px-2 h-10 flex-shrink-0 mb-2">
+            <div className="flex items-center gap-2 h-10 flex-shrink-0 mb-2">
               {/* View cluster — what you're looking at + its display options.
                   The bbox toggle sits next to the view toggle (not with the
                   filters) so it reads as a display option for the current
