@@ -14,7 +14,7 @@ import {
   useMapEvents
 } from 'react-leaflet'
 import MarkerClusterGroup from 'react-leaflet-cluster'
-import { useParams } from 'react-router'
+import { useParams, useSearchParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import ActivityMapContextMenu from './ui/ActivityMapContextMenu'
@@ -35,6 +35,13 @@ import { useTheme } from './hooks/useTheme'
 import PlaceholderMap from './ui/PlaceholderMap'
 import { SequenceGapSlider } from './ui/SequenceGapSlider'
 import FilterChartsToggle from './ui/FilterChartsToggle'
+import ViewModeToggle from './ui/ViewModeToggle'
+import ThumbnailBboxToggle from './ui/ThumbnailBboxToggle'
+import SpeciesRailToggle from './ui/SpeciesRailToggle'
+import SelectedSpeciesChips from './ui/SelectedSpeciesChips'
+import Gallery from './media/Gallery'
+import { useIsLgUp } from './hooks/useIsLgUp'
+import { getAvailableViewModes, clampViewMode } from './utils/viewLayout'
 import SpeciesDistribution from './ui/speciesDistribution'
 import TimelineChart from './ui/timeseries'
 import { useImportStatus } from './hooks/import'
@@ -96,6 +103,50 @@ function MapContextMenuController({ onContextMenu, mapRef }) {
   useEffect(() => {
     mapRef.current = map
   }, [map, mapRef])
+  return null
+}
+
+// Keeps a child mounted through its fade-out so it can cross-fade on hide.
+// `mounted` stays true for `duration` ms after `show` flips false; `visible`
+// drives the opacity class (false on the frame before unmount, and false for
+// one frame after mount so the enter transition runs from opacity-0).
+function useFadePresence(show, duration = 200) {
+  const [mounted, setMounted] = useState(show)
+  const [visible, setVisible] = useState(show)
+  useEffect(() => {
+    if (show) {
+      setMounted(true)
+      const raf = requestAnimationFrame(() => setVisible(true))
+      return () => cancelAnimationFrame(raf)
+    }
+    setVisible(false)
+    const timer = setTimeout(() => setMounted(false), duration)
+    return () => clearTimeout(timer)
+  }, [show, duration])
+  return { mounted, visible }
+}
+
+// Calls Leaflet's invalidateSize() whenever the map container is resized —
+// e.g. when the species rail collapses and the map pane widens, or the view
+// toggle changes the pane size. Without this, Leaflet keeps its old viewport
+// dimensions and never requests tiles for the newly-exposed area.
+function MapResizeHandler() {
+  const map = useMap()
+  useEffect(() => {
+    const container = map.getContainer()
+    // Coalesce bursts (e.g. the 300ms rail/pane transitions fire the observer
+    // every frame) into a single invalidateSize per animation frame.
+    let raf = 0
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => map.invalidateSize())
+    })
+    observer.observe(container)
+    return () => {
+      cancelAnimationFrame(raf)
+      observer.disconnect()
+    }
+  }, [map])
   return null
 }
 
@@ -566,6 +617,7 @@ const SpeciesMap = ({
       <MapContainer bounds={bounds} boundsOptions={boundsOptions} className="rounded w-full h-full">
         <HideLeafletAttribution />
         <MapContextMenuController onContextMenu={setContextMenu} mapRef={mapRef} />
+        <MapResizeHandler />
         <AreaFilterControl areaFilter={areaFilter} onApplyAreaFilter={onApplyAreaFilter} />
         {areaFilter && (
           <Rectangle
@@ -728,6 +780,13 @@ export default function Activity({ studyData, studyId }) {
   const { id } = useParams()
   const actualStudyId = studyId || id // Use passed studyId or from params
 
+  // Deep-link params (e.g. clicking a species on the Overview tab):
+  // ?species=<name> pre-selects that species and hides the rail; ?view=both
+  // opens map + gallery. Consumed once, then cleared (see the init effect).
+  const [searchParams, setSearchParams] = useSearchParams()
+  const deepLinkSpecies = searchParams.get('species')
+  const deepLinkView = searchParams.get('view')
+
   const [selectedSpecies, setSelectedSpecies] = useState([])
   const [speciesInitialized, setSpeciesInitialized] = useState(false)
   const { dateRange, setDateRange } = useDateRange(actualStudyId)
@@ -793,6 +852,52 @@ export default function Activity({ studyData, studyId }) {
   const { sequenceGap, setSequenceGap } = useSequenceGap(actualStudyId)
   const { showFilterCharts } = useShowFilterCharts(actualStudyId)
 
+  // Explore view toggle: 'map' | 'gallery' | 'both'. Defaults to 'map'
+  // (not persisted). 'both' is only available at lg+; clamp to 'map' if the
+  // window is narrower so a stale 'both' selection can't render off-breakpoint.
+  const isLgUp = useIsLgUp()
+  // Open in 'both' when deep-linked with ?view=both (clamps to 'map' below lg).
+  const [viewModeRaw, setViewMode] = useState(deepLinkView === 'both' ? 'both' : 'map')
+  const viewMode = clampViewMode(viewModeRaw, isLgUp)
+  // Memoized so ViewModeToggle gets a stable `modes` identity — otherwise its
+  // ResizeObserver effect tears down and re-subscribes on every Activity render.
+  const availableViewModes = useMemo(() => getAvailableViewModes(isLgUp), [isLgUp])
+  const showMap = viewMode === 'map' || viewMode === 'both'
+  const showGallery = viewMode === 'gallery' || viewMode === 'both'
+  const isBoth = viewMode === 'both'
+  // The map stays mounted across single-view swaps (opacity-toggled) so its
+  // zoom/pan persists and it doesn't re-init; the gallery mounts on demand and
+  // fades in/out so Map↔Gallery cross-fades in place.
+  const gallery = useFadePresence(showGallery)
+
+  // In 'both', keep the map full-size until the gallery has loaded its first
+  // page, then reveal the gallery (and let the map resize) — avoids showing an
+  // empty/loading gallery pane next to the map. Reset when the gallery hides.
+  const [galleryReady, setGalleryReady] = useState(false)
+  const markGalleryReady = useCallback(() => setGalleryReady(true), [])
+  useEffect(() => {
+    if (!showGallery) setGalleryReady(false)
+  }, [showGallery])
+
+  // Species rail visibility. Not persisted: defaults by screen size (shown at
+  // lg+, hidden below) and re-applies that default whenever the breakpoint is
+  // crossed; manual toggles in between are kept. At lg+ the rail docks inline;
+  // below lg it slides over the content. When hidden, SelectedSpeciesChips
+  // keeps the legend/selection visible in the control bar.
+  // Deep-link (?species) opens with the rail hidden; otherwise default by size.
+  const [railVisible, setRailVisible] = useState(deepLinkSpecies ? false : isLgUp)
+  // Re-apply the size default only when the breakpoint actually changes value —
+  // compared against a ref (not a first-run flag) so StrictMode's double-invoke
+  // can't clobber the deep-link "hidden" initial state on mount.
+  const prevIsLgUp = useRef(isLgUp)
+  useEffect(() => {
+    if (prevIsLgUp.current !== isLgUp) {
+      prevIsLgUp.current = isLgUp
+      setRailVisible(isLgUp)
+    }
+  }, [isLgUp])
+  const railOverlay = railVisible && !isLgUp
+
   // Suppress the filter-row's open/close transition until species + temporal
   // guards have settled. On tab navigation the wrapper otherwise flips
   // h-0 → h-[180px] when the async timeseries query resolves, which fires
@@ -845,18 +950,27 @@ export default function Activity({ studyData, studyId }) {
     staleTime: Infinity
   })
 
-  // Initialize selectedSpecies when speciesDistributionData loads
-  // Excludes humans/vehicles from default selection.
-  // `speciesInitialized` gates the bottom-row mount so TimelineChart /
-  // DailyActivityRadar / CircularTimeFilter don't fire their sequence-aware
-  // queries twice (once with [] species, once with the top-2) on large
-  // studies. Mirrors the same guard in media.jsx (PR b5c4dca).
+  // Initialize selectedSpecies when speciesDistributionData loads. A
+  // ?species deep-link (from the Overview tab) pre-selects that one species;
+  // otherwise default to the top-2 non-human species. `speciesInitialized`
+  // gates the bottom-row mount so TimelineChart / DailyActivityRadar /
+  // CircularTimeFilter don't fire their sequence-aware queries twice (once
+  // with [] species, once with the resolved selection) on large studies.
+  // Mirrors the same guard in media.jsx (PR b5c4dca).
   useEffect(() => {
-    if (speciesDistributionData && !speciesInitialized) {
-      setSelectedSpecies(getTopNonHumanSpecies(speciesDistributionData, 2))
-      setSpeciesInitialized(true)
+    if (!speciesDistributionData || speciesInitialized) return
+
+    const match = deepLinkSpecies
+      ? speciesDistributionData.find((s) => s.scientificName === deepLinkSpecies)
+      : null
+    setSelectedSpecies(match ? [match] : getTopNonHumanSpecies(speciesDistributionData, 2))
+    setSpeciesInitialized(true)
+
+    // Consume the deep-link params so they don't re-apply or linger in the URL.
+    if (deepLinkSpecies || deepLinkView) {
+      setSearchParams({}, { replace: true })
     }
-  }, [speciesDistributionData, speciesInitialized])
+  }, [speciesDistributionData, speciesInitialized, deepLinkSpecies, deepLinkView, setSearchParams])
 
   // Memoize speciesNames to avoid unnecessary re-renders
   const speciesNames = useMemo(
@@ -1035,6 +1149,21 @@ export default function Activity({ studyData, studyId }) {
     setSelectedSpecies(newSelectedSpecies)
   }, [])
 
+  // Shared rail content — rendered either docked (lg+) or in a slide-over
+  // (below lg). Defined once so both paths stay in sync.
+  const speciesRail = speciesDistributionData ? (
+    <SpeciesDistribution
+      data={speciesDistributionData}
+      taxonomicData={taxonomicData}
+      selectedSpecies={selectedSpecies}
+      onSpeciesChange={handleSpeciesChange}
+      palette={palette}
+      studyId={actualStudyId}
+      showHeader={false}
+      hidePseudoSpecies
+    />
+  ) : null
+
   return (
     <div className="px-4 flex flex-col h-full">
       {speciesDistributionError ? (
@@ -1043,84 +1172,209 @@ export default function Activity({ studyData, studyId }) {
         </div>
       ) : (
         <div className="flex flex-col h-full">
-          {/* First row - takes remaining space */}
-          <div className="flex flex-row gap-4 flex-1 min-h-0">
-            {/* Species Distribution - left side */}
+          {/* Top control bar — gap slider + view toggle + filter toggles.
+              Lifted out of the right rail so the controls apply visibly to
+              whatever the main pane shows (map, gallery, or both). */}
+          {/* Control bar renders immediately — it only needs local view state
+              and the fast per-study sequence-gap setting, NOT the heavy
+              species-distribution query. Gating it on speciesInitialized made
+              the whole bar (incl. the view toggle) wait seconds on large
+              surveys. Each control self-gates on just what it needs.
 
-            {/* Map - right side.
-                Render SpeciesMap as soon as `deploymentLocations` arrives
-                (~ms), so the user sees clustered gray dots at the camera
-                locations while the heavy heatmap query resolves. The map
-                upgrades to pies when heatmapData lands. PlaceholderMap only
-                shows when we have deployment locations but the heatmap
-                explicitly came back empty. */}
-            <div className="h-full flex-1">
+              Mirrors the content row below (flex-1 main pane + w-xs rail with
+              gap-4) so the two zones line up vertically: the view cluster sits
+              over the map/gallery, and the data+filters group sits over the
+              species rail. */}
+          <div className="flex items-center gap-4 h-10 flex-shrink-0 mb-2">
+            {/* View cluster — aligns with the map/gallery pane. The bbox toggle
+                is a gallery display option, separated from the view selector by
+                a divider so it doesn't read as a fourth segment. It only shows
+                in gallery/both and self-hides for studies without bounding
+                boxes. */}
+            <div className="flex-1 min-w-0 flex items-center gap-2">
+              <ViewModeToggle value={viewMode} modes={availableViewModes} onChange={setViewMode} />
+              {showGallery && <ThumbnailBboxToggle studyId={actualStudyId} leadingDivider />}
+              {/* When the rail is hidden, keep the legend/selection visible.
+                  Compact (count pill) below lg, removable chips at lg+. */}
+              {!railVisible && (
+                <>
+                  <div className="h-5 w-px bg-border flex-shrink-0" aria-hidden="true" />
+                  <SelectedSpeciesChips
+                    selectedSpecies={selectedSpecies}
+                    palette={palette}
+                    scientificToCommon={scientificToCommon}
+                    compact={!isLgUp}
+                    onOpen={() => setRailVisible(true)}
+                    onRemove={(name) =>
+                      handleSpeciesChange(selectedSpecies.filter((s) => s.scientificName !== name))
+                    }
+                  />
+                </>
+              )}
+            </div>
+
+            {/* Data + filters — same w-xs width as the species rail below, so
+                the gap slider's icon lines up with the species panel. The
+                slider's compact variant is flex-1 and fills the leftover width
+                beside the filter toggle. The filter toggle keeps to the right
+                even before the slider's gap value has loaded. */}
+            <div className="w-xs flex-shrink-0 flex items-center gap-2">
+              {sequenceGap !== undefined && (
+                <SequenceGapSlider
+                  value={sequenceGap}
+                  onChange={setSequenceGap}
+                  variant="compact"
+                />
+              )}
+              <div className="ml-auto flex items-center gap-1">
+                <FilterChartsToggle
+                  studyId={actualStudyId}
+                  // Optimistic while timeseries is loading — hide only once
+                  // we've confirmed the study has no timestamps (ENA24, Biome
+                  // Health Project, etc).
+                  hasTemporalData={hasTemporalData || timeseriesQueryData === undefined}
+                  isFiltering={isFilteringWithArea}
+                  dayFilterLabel={dayFilterLabel}
+                  dateFilterLabel={dateFilterLabel}
+                  areaFilterLabel={areaFilterLabel}
+                  onResetFilters={handleResetFilters}
+                />
+                <SpeciesRailToggle
+                  visible={railVisible}
+                  onToggle={() => setRailVisible((v) => !v)}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Content row — main pane (map / gallery / both) + species rail.
+              `relative` anchors the below-lg slide-over rail. No gap here: the
+              docked rail supplies its own (animated) left margin so there's no
+              dangling gap when it collapses to zero width. */}
+          <div className="flex flex-row flex-1 min-h-0 relative">
+            {/* Main pane. Single views (map/gallery) share one grid cell so
+                they overlap and cross-fade in place; 'both' switches to a flex
+                row that stacks on lg–xl and sits side-by-side at 2xl+. The map
+                stays mounted across single-view swaps (opacity-toggled) to keep
+                its zoom/pan and avoid a re-init flash; the gallery fades in/out
+                via useFadePresence. */}
+            <div
+              className={`relative h-full flex-1 min-w-0 ${
+                isBoth ? 'flex flex-col 2xl:flex-row gap-4' : 'grid grid-cols-1 grid-rows-1'
+              }`}
+            >
+              {/* Map — kept mounted (data permitting) so its state persists. */}
               {deploymentLocations &&
                 deploymentLocations.length > 0 &&
                 heatmapStatus !== 'noData' && (
-                  <SpeciesMap
-                    deploymentLocations={deploymentLocations}
-                    heatmapData={heatmapStatus === 'hasData' ? heatmapData : null}
-                    selectedSpecies={selectedSpecies}
-                    palette={palette}
-                    studyId={actualStudyId}
-                    studyName={studyData?.name}
-                    geoKey={geoKey}
-                    scientificToCommon={scientificToCommon}
-                    areaFilter={areaFilter}
-                    onApplyAreaFilter={setAreaFilter}
-                  />
-                )}
-              {heatmapStatus === 'noData' && !isHeatmapLoading && (
-                <PlaceholderMap
-                  title="No Species Location Data"
-                  description="Select species from the list and set up deployment coordinates in the Deployments tab to view the species distribution map."
-                  linkTo="/deployments"
-                  linkText="Go to Deployments"
-                  icon={MapPin}
-                  studyId={actualStudyId}
-                />
-              )}
-            </div>
-            <div className="h-full w-xs flex flex-col gap-2 min-h-0">
-              {speciesInitialized && sequenceGap !== undefined && (
-                <div className="flex items-center gap-2 px-2 h-10 flex-shrink-0">
-                  <SequenceGapSlider
-                    value={sequenceGap}
-                    onChange={setSequenceGap}
-                    variant="compact"
-                  />
-                  <div className="ml-auto flex items-center gap-1">
-                    <FilterChartsToggle
+                  <div
+                    className={`min-h-0 min-w-0 transition-opacity duration-200 motion-reduce:transition-none ${
+                      isBoth ? 'h-full flex-1' : 'h-full w-full col-start-1 row-start-1'
+                    } ${showMap ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                    aria-hidden={!showMap}
+                  >
+                    {/* Render SpeciesMap as soon as `deploymentLocations` arrives
+                        (~ms), so the user sees clustered gray dots at the camera
+                        locations while the heavy heatmap query resolves. The map
+                        upgrades to pies when heatmapData lands. */}
+                    <SpeciesMap
+                      deploymentLocations={deploymentLocations}
+                      heatmapData={heatmapStatus === 'hasData' ? heatmapData : null}
+                      selectedSpecies={selectedSpecies}
+                      palette={palette}
                       studyId={actualStudyId}
-                      // Optimistic while timeseries is loading — hide only
-                      // once we've confirmed the study has no timestamps
-                      // (ENA24, Biome Health Project, etc).
-                      hasTemporalData={hasTemporalData || timeseriesQueryData === undefined}
-                      isFiltering={isFilteringWithArea}
-                      dayFilterLabel={dayFilterLabel}
-                      dateFilterLabel={dateFilterLabel}
-                      areaFilterLabel={areaFilterLabel}
-                      onResetFilters={handleResetFilters}
+                      studyName={studyData?.name}
+                      geoKey={geoKey}
+                      scientificToCommon={scientificToCommon}
+                      areaFilter={areaFilter}
+                      onApplyAreaFilter={setAreaFilter}
                     />
                   </div>
-                </div>
-              )}
-              {speciesDistributionData && (
-                <div className="flex-1 min-h-0">
-                  <SpeciesDistribution
-                    data={speciesDistributionData}
-                    taxonomicData={taxonomicData}
-                    selectedSpecies={selectedSpecies}
-                    onSpeciesChange={handleSpeciesChange}
-                    palette={palette}
+                )}
+              {/* PlaceholderMap only shows when we have deployment locations but
+                  the heatmap explicitly came back empty. */}
+              {heatmapStatus === 'noData' && !isHeatmapLoading && showMap && (
+                <div
+                  className={`min-h-0 min-w-0 ${
+                    isBoth ? 'h-full flex-1' : 'h-full w-full col-start-1 row-start-1'
+                  }`}
+                >
+                  <PlaceholderMap
+                    title="No Species Location Data"
+                    description="Select species from the list and set up deployment coordinates in the Deployments tab to view the species distribution map."
+                    linkTo="/deployments"
+                    linkText="Go to Deployments"
+                    icon={MapPin}
                     studyId={actualStudyId}
-                    showHeader={false}
-                    hidePseudoSpecies
                   />
                 </div>
               )}
+              {/* Gallery — mounts on demand, fades in/out for the cross-fade.
+                  In 'both', while its first page is still loading it sits out of
+                  flow (absolute, invisible) so the map fills the pane; once
+                  loaded (galleryReady) it becomes an in-flow flex pane and the
+                  map resizes. */}
+              {gallery.mounted &&
+                (() => {
+                  const galleryShown = gallery.visible && (!isBoth || galleryReady)
+                  return (
+                    <div
+                      className={`min-h-0 min-w-0 transition-opacity duration-200 motion-reduce:transition-none ${
+                        isBoth
+                          ? galleryReady
+                            ? 'h-full flex-1'
+                            : 'absolute inset-0'
+                          : 'h-full w-full col-start-1 row-start-1'
+                      } ${galleryShown ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                      aria-hidden={!galleryShown}
+                    >
+                      <Gallery
+                        species={selectedSpecies.map((s) => s.scientificName)}
+                        dateRange={dateRange}
+                        timeRange={timeRange}
+                        includeNullTimestamps={isFullRange}
+                        speciesReady={speciesInitialized}
+                        areaFilter={areaFilter}
+                        onLoadedChange={markGalleryReady}
+                      />
+                    </div>
+                  )
+                })()}
             </div>
+
+            {/* Species rail, docked (lg+) — animates width/opacity/margin when
+                collapsing. Always mounted at lg+ so the transition runs in both
+                directions; the inner box keeps a fixed w-xs so the species list
+                doesn't reflow to a narrow width mid-slide (it's clipped by the
+                outer overflow-hidden instead). Below lg the rail is the
+                slide-over further down. */}
+            {isLgUp && (
+              <div
+                className={`h-full flex-shrink-0 overflow-hidden transition-all duration-300 ease-in-out ${
+                  railVisible ? 'w-xs opacity-100 ml-4' : 'w-0 opacity-0 ml-0'
+                }`}
+                aria-hidden={!railVisible}
+              >
+                <div className="h-full w-xs flex flex-col gap-2 min-h-0">
+                  {speciesRail && <div className="flex-1 min-h-0">{speciesRail}</div>}
+                </div>
+              </div>
+            )}
+
+            {/* Species rail, slide-over (below lg). Scrim dismisses on click;
+                the panel is anchored to the right and overlays the content. */}
+            {railOverlay && (
+              <div className="absolute inset-0 z-[1100] flex justify-end">
+                <div
+                  className="absolute inset-0 bg-black/20"
+                  onClick={() => setRailVisible(false)}
+                  aria-hidden="true"
+                />
+                <div className="relative h-full w-xs max-w-[85%] bg-card border-l border-border shadow-xl flex flex-col gap-2 min-h-0 p-2">
+                  {speciesRail && <div className="flex-1 min-h-0">{speciesRail}</div>}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Second row — wrapper is always mounted so the height/opacity/

@@ -29,7 +29,11 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 24.x
+          # Pinned to 22 LTS (the dev/local version): Node 24.16+ regressed the
+          # download/extract path used by both Playwright and electron's
+          # postinstall, leaving node_modules/electron without its binary so
+          # electron.launch fails with "Electron failed to install correctly".
+          node-version: 22
           cache: "npm"
 
       - name: Install dependencies

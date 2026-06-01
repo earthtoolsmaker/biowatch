@@ -22,6 +22,7 @@ import {
 } from 'drizzle-orm'
 import { union } from 'drizzle-orm/sqlite-core'
 import log from '../../services/logger.js'
+import { isAreaBboxApplicable } from './bbox.js'
 import { getStudyIdFromPath } from './utils.js'
 import { BLANK_SENTINEL, VEHICLE_SENTINEL } from '../../../shared/constants.js'
 
@@ -90,12 +91,26 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
     species = [],
     dateRange = {},
     timeRange = {},
-    deploymentID = null
+    deploymentID = null,
+    bbox = null
   } = options
 
   const startTime = Date.now()
   const phase = cursor?.phase || 'timestamped'
   log.info(`[Sequences] Fetching media for pagination (phase: ${phase}, batchSize: ${batchSize})`)
+
+  // Optional area filter on the joined deployments row (lat/lng BETWEEN the
+  // box). Deployments without coordinates fail the BETWEEN and drop out, which
+  // matches the map (coordinate-less deployments have no marker). Every query
+  // arm below joins `deployments`, so this condition is always resolvable.
+  const bboxCondition = isAreaBboxApplicable(bbox)
+    ? and(
+        gte(deployments.latitude, bbox.south),
+        lte(deployments.latitude, bbox.north),
+        gte(deployments.longitude, bbox.west),
+        lte(deployments.longitude, bbox.east)
+      )
+    : null
 
   try {
     const studyId = getStudyIdFromPath(dbPath)
@@ -295,6 +310,11 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
         timestampedConditions.push(eq(media.deploymentID, deploymentID))
       }
 
+      // Apply area (bbox) filter on the joined deployment location
+      if (bboxCondition) {
+        timestampedConditions.push(bboxCondition)
+      }
+
       // Apply date range filter
       if (startDate && endDate) {
         timestampedConditions.push(gte(media.timestamp, startDate))
@@ -427,12 +447,17 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
         if (deploymentID) {
           nullConditions.push(eq(media.deploymentID, deploymentID))
         }
+        if (bboxCondition) {
+          nullConditions.push(bboxCondition)
+        }
 
         let nullCountResult
         if (species.length === 0) {
           nullCountResult = await db
             .select({ count: sql`COUNT(DISTINCT ${media.mediaID})`.as('count') })
             .from(media)
+            // join needed when bboxCondition references deployment columns
+            .leftJoin(deployments, eq(media.deploymentID, deployments.deploymentID))
             .where(and(...nullConditions))
         } else if (requestingBlanks || requestingVehicle) {
           // hasMoreNull only needs "any match?" so probe each arm with
@@ -448,6 +473,8 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
             .select({ count: sql`COUNT(DISTINCT ${media.mediaID})`.as('count') })
             .from(media)
             .innerJoin(observations, eq(media.mediaID, observations.mediaID))
+            // join needed when bboxCondition references deployment columns
+            .leftJoin(deployments, eq(media.deploymentID, deployments.deploymentID))
             .where(
               and(
                 ...nullConditions,
@@ -481,6 +508,11 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
       // Apply deployment filter (covers all species variants below via shared and(...))
       if (deploymentID) {
         nullConditions.push(eq(media.deploymentID, deploymentID))
+      }
+
+      // Apply area (bbox) filter on the joined deployment location
+      if (bboxCondition) {
+        nullConditions.push(bboxCondition)
       }
 
       let nullMedia = []

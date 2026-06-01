@@ -155,7 +155,10 @@ export default function SpeciesDistribution({ studyId, speciesData, taxonomicDat
   )
 
   const handleRowClick = (species) => {
-    navigate(`/study/${studyId}/media?species=${encodeURIComponent(species.scientificName)}`)
+    // Open the Explore tab focused on this species: map + gallery, rail hidden.
+    navigate(
+      `/study/${studyId}/explore?species=${encodeURIComponent(species.scientificName)}&view=both`
+    )
   }
 
   return (
