@@ -117,7 +117,7 @@ export default function SelectedSpeciesChips({
   const overflowSpecies = selectedSpecies.slice(visibleCount)
 
   const chipClass =
-    'inline-flex items-center gap-1.5 h-7 rounded-full border border-border bg-card pl-2.5 pr-1.5 text-sm text-foreground flex-shrink-0 max-w-[12rem]'
+    'inline-flex items-center gap-1.5 h-7 rounded-full border border-border bg-card pl-2.5 pr-1.5 text-sm text-foreground flex-shrink-0 max-w-[12rem] cursor-default'
 
   return (
     <div ref={containerRef} className="flex-1 min-w-0 flex items-center gap-1.5 overflow-hidden">
@@ -162,7 +162,7 @@ export default function SelectedSpeciesChips({
                         type="button"
                         onClick={() => onRemove(species.scientificName)}
                         aria-label={`Remove ${label}`}
-                        className="flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-muted-foreground hover:bg-accent hover:text-foreground"
+                        className="flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
                       >
                         <X size={12} />
                       </button>
