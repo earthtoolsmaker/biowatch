@@ -10,8 +10,20 @@ import * as Tooltip from '@radix-ui/react-tooltip'
  *   onChange: (next) => void
  */
 const SHAPES = [
-  { key: 'polar', label: 'Polar', Icon: ChartPie },
-  { key: 'xy', label: 'X–Y line', Icon: ChartLine }
+  {
+    key: 'polar',
+    label: 'Polar',
+    Icon: ChartPie,
+    blurb:
+      'A 24-hour clock face. Best for reading the daily rhythm at a glance — dawn and dusk peaks, day vs. night activity, and patterns that wrap around midnight.'
+  },
+  {
+    key: 'xy',
+    label: 'X–Y line',
+    Icon: ChartLine,
+    blurb:
+      'A straight 0–24h axis. Best for reading exact hourly values and comparing several species’ curves side by side.'
+  }
 ]
 
 export default function ChartShapeToggle({ value, onChange }) {
@@ -21,7 +33,7 @@ export default function ChartShapeToggle({ value, onChange }) {
       role="radiogroup"
       aria-label="Chart shape"
     >
-      {SHAPES.map(({ key, label, Icon }, idx) => {
+      {SHAPES.map(({ key, label, Icon, blurb }, idx) => {
         const active = value === key
         const isFirst = idx === 0
         return (
@@ -48,9 +60,10 @@ export default function ChartShapeToggle({ value, onChange }) {
               <Tooltip.Content
                 side="top"
                 sideOffset={6}
-                className="z-[10000] px-2 py-1 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md"
+                className="z-[10000] max-w-[220px] px-2.5 py-1.5 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md"
               >
-                {label}
+                <p className="font-medium">{label}</p>
+                <p className="mt-0.5 text-muted-foreground leading-snug">{blurb}</p>
               </Tooltip.Content>
             </Tooltip.Portal>
           </Tooltip.Root>
