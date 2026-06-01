@@ -1135,6 +1135,7 @@ export default function Activity({ studyData, studyId }) {
                     palette={palette}
                     scientificToCommon={scientificToCommon}
                     compact={!isLgUp}
+                    onOpen={() => setRailVisible(true)}
                     onRemove={(name) =>
                       handleSpeciesChange(selectedSpecies.filter((s) => s.scientificName !== name))
                     }

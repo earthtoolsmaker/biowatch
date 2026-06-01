@@ -56,6 +56,7 @@ export default function SelectedSpeciesChips({
   palette,
   scientificToCommon,
   onRemove,
+  onOpen = () => {},
   compact = false
 }) {
   const containerRef = useRef(null)
@@ -99,16 +100,43 @@ export default function SelectedSpeciesChips({
     getMapDisplayName(species.scientificName, scientificToCommon) ||
     formatScientificName(species.scientificName)
 
+  // Count pill: a dot + total, opening the rail on click and listing every
+  // selected species on hover. Used on narrow screens (compact) and as the
+  // wide-screen fallback when not even one chip fits.
+  const countPill = () => (
+    <HoverCard.Root openDelay={150} closeDelay={0}>
+      <HoverCard.Trigger asChild>
+        <button
+          type="button"
+          onClick={onOpen}
+          aria-label="Show species panel"
+          className="inline-flex items-center gap-1.5 h-7 rounded-full border border-border bg-card px-2.5 text-sm text-foreground flex-shrink-0 cursor-pointer hover:bg-accent"
+        >
+          <span
+            className="w-2 h-2 rounded-full flex-shrink-0"
+            style={{ backgroundColor: colorFor(0) }}
+          />
+          <span className="tabular-nums">{selectedSpecies.length}</span>
+        </button>
+      </HoverCard.Trigger>
+      <HoverCard.Portal>
+        <HoverCard.Content side="bottom" align="start" sideOffset={6} className={CARD_CLASS}>
+          <div className="font-medium mb-1">{selectedSpecies.length} selected species</div>
+          {selectedSpecies.map((species, i) => (
+            <SpeciesLine
+              key={species.scientificName}
+              species={species}
+              color={colorFor(i)}
+              scientificToCommon={scientificToCommon}
+            />
+          ))}
+        </HoverCard.Content>
+      </HoverCard.Portal>
+    </HoverCard.Root>
+  )
+
   if (compact) {
-    return (
-      <div className="inline-flex items-center gap-1.5 h-7 rounded-full border border-border bg-card px-2.5 text-sm text-foreground flex-shrink-0">
-        <span
-          className="w-2 h-2 rounded-full flex-shrink-0"
-          style={{ backgroundColor: colorFor(0) }}
-        />
-        <span className="tabular-nums">{selectedSpecies.length}</span>
-      </div>
-    )
+    return countPill()
   }
 
   const removable = selectedSpecies.length > 1
@@ -137,13 +165,7 @@ export default function SelectedSpeciesChips({
       </div>
 
       {showCountFallback ? (
-        <div className="inline-flex items-center gap-1.5 h-7 rounded-full border border-border bg-card px-2.5 text-sm text-foreground flex-shrink-0">
-          <span
-            className="w-2 h-2 rounded-full flex-shrink-0"
-            style={{ backgroundColor: colorFor(0) }}
-          />
-          <span className="tabular-nums">{selectedSpecies.length}</span>
-        </div>
+        countPill()
       ) : (
         <>
           {visible.map((species, index) => {
