@@ -64,9 +64,11 @@ async function assertParity(dbPath, gapSeconds, label) {
   const jsResult = calculateSequenceAwareSpeciesCounts(rawRows, gapSeconds)
 
   const sqlResult = await getSequenceAwareSpeciesCountsSQL(dbPath, gapSeconds)
-  if (sqlResult === null) {
-    return { skipped: true, gapSeconds, label }
-  }
+  assert.notEqual(
+    sqlResult,
+    null,
+    `SQL path returned null (unhandled gap) for gap=${gapSeconds} (${label})`
+  )
 
   const norm = (arr) =>
     [...arr]
@@ -390,51 +392,14 @@ describe('getSequenceAwareSpeciesCountsSQL — parity with JS pipeline', () => {
     await assertParity(testDbPath, 0, 'eventID-gap with null-ts')
   })
 
-  test('positive gapSeconds: SQL path returns null (JS fallback)', async () => {
-    await seed(testDbPath, {
-      deployments: {
-        d1: {
-          deploymentID: 'd1',
-          locationID: 'l1',
-          locationName: 'A',
-          deploymentStart: DateTime.fromISO('2024-01-01T00:00:00Z'),
-          deploymentEnd: DateTime.fromISO('2024-01-02T00:00:00Z'),
-          latitude: 0,
-          longitude: 0
-        }
-      },
-      media: {
-        'm1.jpg': {
-          mediaID: 'm1',
-          deploymentID: 'd1',
-          timestamp: DateTime.fromISO('2024-01-01T10:00:00Z'),
-          filePath: 'x/m1.jpg',
-          fileName: 'm1.jpg',
-          importFolder: 'x',
-          folderName: 'f'
-        }
-      },
-      observations: [
-        {
-          observationID: 'o1',
-          mediaID: 'm1',
-          deploymentID: 'd1',
-          eventID: 'e1',
-          scientificName: 'Deer',
-          count: 1
-        }
-      ]
-    })
-    const sql = await getSequenceAwareSpeciesCountsSQL(testDbPath, 120)
-    assert.equal(sql, null, 'positive gap should return null so caller falls back to JS')
-  })
-
-  test('empty DB returns empty array (gap=null and gap=0)', async () => {
+  test('empty DB returns empty array (gap=null, gap=0, positive gap)', async () => {
     await createImageDirectoryDatabase(testDbPath)
     const sqlNull = await getSequenceAwareSpeciesCountsSQL(testDbPath, null)
     const sqlZero = await getSequenceAwareSpeciesCountsSQL(testDbPath, 0)
+    const sqlPositive = await getSequenceAwareSpeciesCountsSQL(testDbPath, 120)
     assert.deepEqual(sqlNull, [])
     assert.deepEqual(sqlZero, [])
+    assert.deepEqual(sqlPositive, [])
   })
 
   test('media with empty-string eventID becomes its own event (COALESCE NULLIF path)', async () => {
@@ -493,5 +458,169 @@ describe('getSequenceAwareSpeciesCountsSQL — parity with JS pipeline', () => {
     })
     await assertParity(testDbPath, null, 'null-gap, no-eventID')
     await assertParity(testDbPath, 0, 'eventID-gap, no-eventID')
+  })
+})
+
+describe('getSequenceAwareSpeciesCountsSQL — positive-gap parity with JS pipeline', () => {
+  const dep = (id, lat, lng) => ({
+    deploymentID: id,
+    locationID: `loc-${id}`,
+    locationName: id,
+    deploymentStart: DateTime.fromISO('2024-01-01T00:00:00Z'),
+    deploymentEnd: DateTime.fromISO('2024-01-31T00:00:00Z'),
+    latitude: lat,
+    longitude: lng
+  })
+  const med = (id, deploymentID, iso, extra = {}) => ({
+    mediaID: id,
+    deploymentID,
+    timestamp: iso ? DateTime.fromISO(iso) : null,
+    filePath: `p/${id}.jpg`,
+    fileName: `${id}.jpg`,
+    importFolder: 'p',
+    folderName: 'f',
+    ...extra
+  })
+  // N observation rows for (species, media) so COUNT(observationID) == cnt.
+  const obs = (mediaID, deploymentID, scientificName, cnt, eventID = null) =>
+    Array.from({ length: cnt }, (_, i) => ({
+      observationID: `${mediaID}-${scientificName}-${i}`,
+      mediaID,
+      deploymentID,
+      eventID,
+      scientificName,
+      count: 1
+    }))
+
+  test('time-gap split: one deployment, sequences break past the gap', async () => {
+    await seed(testDbPath, {
+      deployments: { d1: dep('d1', 0, 0) },
+      media: {
+        'm1.jpg': med('m1', 'd1', '2024-01-05T10:00:00Z'),
+        'm2.jpg': med('m2', 'd1', '2024-01-05T10:00:30Z'),
+        'm3.jpg': med('m3', 'd1', '2024-01-05T10:05:00Z')
+      },
+      observations: [
+        ...obs('m1', 'd1', 'Deer', 2),
+        ...obs('m2', 'd1', 'Deer', 5),
+        ...obs('m3', 'd1', 'Deer', 3)
+      ]
+    })
+    // gap=120: {m1,m2}=max(2,5)=5, {m3}=3 → Deer=8. gap=20: each alone → 10.
+    const raw = await getSpeciesDistributionByMedia(testDbPath)
+    assert.equal(
+      calculateSequenceAwareSpeciesCounts(raw, 120).find((r) => r.scientificName === 'Deer').count,
+      8
+    )
+    assert.equal(
+      calculateSequenceAwareSpeciesCounts(raw, 20).find((r) => r.scientificName === 'Deer').count,
+      10
+    )
+    await assertParity(testDbPath, 120, 'gap-120 split')
+    await assertParity(testDbPath, 20, 'gap-20 all-singletons')
+    await assertParity(testDbPath, 600, 'gap-600 all-grouped')
+  })
+
+  test('deployment boundary: within gap but different deployments never group', async () => {
+    await seed(testDbPath, {
+      deployments: { d1: dep('d1', 0, 0), d2: dep('d2', 1, 1) },
+      media: {
+        'm1.jpg': med('m1', 'd1', '2024-01-05T10:00:00Z'),
+        'm2.jpg': med('m2', 'd2', '2024-01-05T10:00:10Z')
+      },
+      observations: [...obs('m1', 'd1', 'Fox', 2), ...obs('m2', 'd2', 'Fox', 4)]
+    })
+    await assertParity(testDbPath, 120, 'cross-deployment')
+  })
+
+  test('video boundary: a video is never grouped with neighbors', async () => {
+    // insertMedia does not carry fileMediatype, so set it directly after seed.
+    const manager = await seed(testDbPath, {
+      deployments: { d1: dep('d1', 0, 0) },
+      media: {
+        'm1.jpg': med('m1', 'd1', '2024-01-05T10:00:00Z'),
+        'm2.mp4': med('m2', 'd1', '2024-01-05T10:00:05Z'),
+        'm3.jpg': med('m3', 'd1', '2024-01-05T10:00:10Z')
+      },
+      observations: [
+        ...obs('m1', 'd1', 'Deer', 2),
+        ...obs('m2', 'd1', 'Deer', 7),
+        ...obs('m3', 'd1', 'Deer', 3)
+      ]
+    })
+    manager
+      .getSqlite()
+      .prepare("UPDATE media SET fileMediatype = 'video/mp4' WHERE mediaID = 'm2'")
+      .run()
+    // m2 video isolates: {m1}=2, {m2}=7, {m3}=3 → Deer=12 (no grouping despite 5s gaps).
+    const raw = await getSpeciesDistributionByMedia(testDbPath)
+    assert.equal(
+      calculateSequenceAwareSpeciesCounts(raw, 120).find((r) => r.scientificName === 'Deer').count,
+      12
+    )
+    await assertParity(testDbPath, 120, 'video-isolated')
+  })
+
+  test('null-timestamp media count individually alongside grouped valid-ts', async () => {
+    await seed(testDbPath, {
+      deployments: { d1: dep('d1', 0, 0) },
+      media: {
+        'm1.jpg': med('m1', 'd1', '2024-01-05T10:00:00Z'),
+        'm2.jpg': med('m2', 'd1', '2024-01-05T10:00:30Z'),
+        'm3.jpg': med('m3', 'd1', null)
+      },
+      observations: [
+        ...obs('m1', 'd1', 'Deer', 2),
+        ...obs('m2', 'd1', 'Deer', 5),
+        ...obs('m3', 'd1', 'Deer', 4)
+      ]
+    })
+    // {m1,m2}=5, null-ts m3=4 → Deer=9.
+    const raw = await getSpeciesDistributionByMedia(testDbPath)
+    assert.equal(
+      calculateSequenceAwareSpeciesCounts(raw, 120).find((r) => r.scientificName === 'Deer').count,
+      9
+    )
+    await assertParity(testDbPath, 120, 'with null-ts')
+  })
+
+  test('multiple species are sequenced independently (partition by species)', async () => {
+    await seed(testDbPath, {
+      deployments: { d1: dep('d1', 0, 0) },
+      media: {
+        'm1.jpg': med('m1', 'd1', '2024-01-05T10:00:00Z'),
+        'm2.jpg': med('m2', 'd1', '2024-01-05T10:00:30Z'),
+        'm3.jpg': med('m3', 'd1', '2024-01-05T10:01:00Z')
+      },
+      observations: [
+        ...obs('m1', 'd1', 'Deer', 2),
+        ...obs('m1', 'd1', 'Fox', 1),
+        ...obs('m2', 'd1', 'Deer', 5),
+        ...obs('m3', 'd1', 'Fox', 3)
+      ]
+    })
+    await assertParity(testDbPath, 120, 'two species interleaved')
+    await assertParity(testDbPath, 20, 'two species, all singletons')
+  })
+
+  test('bbox filter applies under positive gap', async () => {
+    await seed(testDbPath, {
+      deployments: { d1: dep('d1', 10, 10), d2: dep('d2', 50, 50) },
+      media: {
+        'm1.jpg': med('m1', 'd1', '2024-01-05T10:00:00Z'),
+        'm2.jpg': med('m2', 'd2', '2024-01-05T10:00:30Z')
+      },
+      observations: [...obs('m1', 'd1', 'Deer', 2), ...obs('m2', 'd2', 'Deer', 5)]
+    })
+    const bbox = { north: 20, south: 0, east: 20, west: 0 } // only d1
+    const raw = await getSpeciesDistributionByMedia(testDbPath, bbox)
+    const js = calculateSequenceAwareSpeciesCounts(raw, 120)
+    const sql = await getSequenceAwareSpeciesCountsSQL(testDbPath, 120, bbox)
+    assert.notEqual(sql, null)
+    const norm = (a) =>
+      [...a]
+        .map((r) => ({ scientificName: r.scientificName, count: Number(r.count) }))
+        .sort((x, y) => x.scientificName.localeCompare(y.scientificName))
+    assert.deepEqual(norm(sql), norm(js))
   })
 })
