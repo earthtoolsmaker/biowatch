@@ -866,15 +866,15 @@ export default function Activity({ studyData, studyId }) {
   // keeps the legend/selection visible in the control bar.
   // Deep-link (?species) opens with the rail hidden; otherwise default by size.
   const [railVisible, setRailVisible] = useState(deepLinkSpecies ? false : isLgUp)
-  // Re-apply the size default only on actual breakpoint crossings — skip the
-  // first run so it doesn't clobber the deep-link "hidden" initial state.
-  const breakpointFirstRun = useRef(true)
+  // Re-apply the size default only when the breakpoint actually changes value —
+  // compared against a ref (not a first-run flag) so StrictMode's double-invoke
+  // can't clobber the deep-link "hidden" initial state on mount.
+  const prevIsLgUp = useRef(isLgUp)
   useEffect(() => {
-    if (breakpointFirstRun.current) {
-      breakpointFirstRun.current = false
-      return
+    if (prevIsLgUp.current !== isLgUp) {
+      prevIsLgUp.current = isLgUp
+      setRailVisible(isLgUp)
     }
-    setRailVisible(isLgUp)
   }, [isLgUp])
   const railOverlay = railVisible && !isLgUp
 
