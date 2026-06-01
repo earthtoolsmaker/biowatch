@@ -29,15 +29,13 @@ export default function SpeciesRailToggle({ visible, onToggle }) {
       <Tooltip.Portal>
         <Tooltip.Content
           side="bottom"
-          sideOffset={10}
-          align="end"
+          sideOffset={8}
           className="z-[10000] max-w-[16rem] px-3 py-2 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md"
         >
-          <p className="font-medium mb-1">{label}</p>
+          <div className="font-medium mb-1">{label}</div>
           <p className="text-muted-foreground leading-snug">
             The species list also serves as the map legend.
           </p>
-          <Tooltip.Arrow className="fill-popover" />
         </Tooltip.Content>
       </Tooltip.Portal>
     </Tooltip.Root>

@@ -53,17 +53,15 @@ export default function ThumbnailBboxToggle({ studyId, leadingDivider = false })
         <Tooltip.Portal>
           <Tooltip.Content
             side="bottom"
-            sideOffset={10}
-            align="end"
+            sideOffset={8}
             className="z-[10000] max-w-[16rem] px-3 py-2 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md"
           >
-            <p className="font-medium mb-1">
+            <div className="font-medium mb-1">
               {showThumbnailBboxes ? 'Hide bounding boxes' : 'Show bounding boxes'}
-            </p>
+            </div>
             <p className="text-muted-foreground leading-snug">
               Outlines AI-detected animals on each thumbnail.
             </p>
-            <Tooltip.Arrow className="fill-popover" />
           </Tooltip.Content>
         </Tooltip.Portal>
       </Tooltip.Root>
