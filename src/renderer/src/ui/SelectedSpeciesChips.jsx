@@ -110,7 +110,7 @@ export default function SelectedSpeciesChips({
           type="button"
           onClick={onOpen}
           aria-label="Show species panel"
-          className="inline-flex items-center gap-1.5 h-7 rounded-full border border-border bg-card px-2.5 text-sm text-foreground flex-shrink-0 cursor-pointer hover:bg-accent"
+          className="inline-flex items-center gap-1.5 h-7 rounded-full border border-border bg-card px-2.5 text-sm text-foreground flex-shrink-0 cursor-default hover:bg-accent"
         >
           <span
             className="w-2 h-2 rounded-full flex-shrink-0"
