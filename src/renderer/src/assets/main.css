@@ -473,13 +473,20 @@ input::-webkit-inner-spin-button {
     0 8px 24px -8px rgba(0, 0, 0, 0.22),
     0 2px 6px -2px rgba(0, 0, 0, 0.12);
   overflow: hidden;
+}
+/* The explore overlay drives its own enter/exit through the --visible toggle and
+   has no Radix data-state, so the hidden default + transition live only here.
+   Radix species cards (KpiBand) animate via .species-hovercard[data-state] and
+   must keep their natural opacity:1 once the keyframe finishes — otherwise they
+   pop in and immediately vanish (the keyframe has no animation-fill-mode). */
+.species-hovercard:not([data-state]) {
   opacity: 0;
   transform: scale(0.86);
   transition:
     opacity 0.16s ease,
     transform 0.26s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.species-hovercard--visible {
+.species-hovercard:not([data-state]).species-hovercard--visible {
   opacity: 1;
   transform: scale(1);
 }
