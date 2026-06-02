@@ -1,9 +1,9 @@
 import { getMapDisplayName } from '../utils/commonNames'
 import { formatScientificName } from '../utils/scientificName'
 
-// Inner content for the Activity map's species hover card, rendered live (as a
+// Inner content for the Explore map's species hover card, rendered live (as a
 // real React node) inside the animated `.species-hovercard` overlay — see
-// HoverCardOverlay in activity.jsx. The outer chrome (background, rounded
+// HoverCardOverlay in explore.jsx. The outer chrome (background, rounded
 // corners, border, shadow) and the pop/fade animation come from the
 // `.species-hovercard` CSS rules in main.css; this component only renders the
 // inner composition breakdown.

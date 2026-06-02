@@ -16,7 +16,7 @@ import { useQuery } from '@tanstack/react-query'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import Deployments from './deployments'
 import Overview from './overview'
-import Activity from './activity'
+import Explore from './explore'
 import Media from './media'
 import Sources from './sources'
 import StudySettings from './StudySettings'
@@ -288,7 +288,7 @@ export default function Study() {
             path="explore"
             element={
               <ErrorBoundary FallbackComponent={ErrorFallback} key={'explore'}>
-                <Activity studyData={study.data} studyId={id} />
+                <Explore studyData={study.data} studyId={id} />
               </ErrorBoundary>
             }
           />

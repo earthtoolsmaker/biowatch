@@ -1011,7 +1011,7 @@ export default function Deployments({ studyId }) {
           queryClient.invalidateQueries({ queryKey: ['deploymentLocations', studyId] })
           // Invalidate this tab's un-deduped cache
           queryClient.invalidateQueries({ queryKey: ['deploymentsAll', studyId] })
-          // Invalidate the Activity tab's heatmap cache so map updates
+          // Invalidate the Explore tab's heatmap cache so map updates
           queryClient.invalidateQueries({ queryKey: ['heatmapData', studyId] })
         }
       } catch (error) {

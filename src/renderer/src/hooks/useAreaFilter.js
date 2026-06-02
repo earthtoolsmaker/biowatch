@@ -24,7 +24,7 @@ function readFromStorage(studyId) {
 }
 
 /**
- * Per-study persistence for the Activity map's bounding-box area filter.
+ * Per-study persistence for the Explore map's bounding-box area filter.
  * Mirrors {@link useDateRange}: backed by localStorage, broadcast through
  * the React Query cache so the value survives tab navigation.
  *

@@ -114,7 +114,7 @@ Runs in the sequences worker thread (off the main process). Threatened species a
 | `setDeploymentLongitude(studyId, deploymentID, longitude)`     | `deployments:set-longitude`     | studyId, deploymentID, longitude  | `{ success: boolean }`                                                                                                                                                                                               |
 | `setDeploymentLocationName(studyId, locationID, locationName)` | `deployments:set-location-name` | studyId, locationID, locationName | `{ success: boolean }`                                                                                                                                                                                               |
 
-**Note on `getDeploymentLocations` vs `getAllDeployments`:** `getDeploymentLocations` dedupes by `(latitude, longitude)` and returns one row per physical camera-trap location — used by the Activity tab to compute map bounds, where repeats are irrelevant. `getAllDeployments` returns every deployment row (no dedup) — used by both the Overview map (so its cluster count matches the "Deployments" KPI tile and the Deployments tab) and the Deployments tab's editable map (so `MarkerClusterGroup` correctly counts co-located deployments and dragging doesn't silently split a group). `getDeploymentsActivity` runs in the sequences worker thread to keep the UI responsive on large studies.
+**Note on `getDeploymentLocations` vs `getAllDeployments`:** `getDeploymentLocations` dedupes by `(latitude, longitude)` and returns one row per physical camera-trap location — used by the Explore tab to compute map bounds, where repeats are irrelevant. `getAllDeployments` returns every deployment row (no dedup) — used by both the Overview map (so its cluster count matches the "Deployments" KPI tile and the Deployments tab) and the Deployments tab's editable map (so `MarkerClusterGroup` correctly counts co-located deployments and dragging doesn't silently split a group). `getDeploymentsActivity` runs in the sequences worker thread to keep the UI responsive on large studies.
 
 **Note on `periodCount`:** `getDeploymentsActivity` accepts an optional `periodCount` (number of time-period buckets in the per-deployment timeline). The Deployments tab measures the timeline column width and passes a bucketed value (multiples of 10) so wider screens get more circles per row. Defaults to 20 if null/0/non-numeric, and is clamped to a maximum of 100 backend-side to bound the SUM(CASE)×N SQL aggregation.
 
@@ -181,13 +181,13 @@ There is also one preload-only helper (not an IPC channel):
 | ------------------------------- | ------------------------ | ---------- | ---------------------- |
 | `getLocationsActivity(studyId)` | `locations:get-activity` | studyId    | `{ data: Activity[] }` |
 
-### Activity Map Export
+### Explore Map Export
 
-| Method                                               | Channel                   | Parameters                | Returns                                                                           |
-| ---------------------------------------------------- | ------------------------- | ------------------------- | --------------------------------------------------------------------------------- |
-| `exportActivityMapPng({ dataUrl, defaultFilename })` | `activity:export-map-png` | base64 PNG data URL, name | `{ success: true, filePath } \| { cancelled: true } \| { success: false, error }` |
+| Method                                              | Channel                  | Parameters                | Returns                                                                           |
+| --------------------------------------------------- | ------------------------ | ------------------------- | --------------------------------------------------------------------------------- |
+| `exportExploreMapPng({ dataUrl, defaultFilename })` | `explore:export-map-png` | base64 PNG data URL, name | `{ success: true, filePath } \| { cancelled: true } \| { success: false, error }` |
 
-The renderer captures the Leaflet map container with `html-to-image` (`pixelRatio: 2`, `crossOrigin=""` set on the tile layers so the canvas isn't tainted) and passes a `data:image/png;base64,…` URL plus a default filename. The Density encoding's `leaflet.heat` canvas and the Hex grid SVG overlay are drawn from in-memory data (no external images), so they stay untainted and capture correctly. Main shows a save dialog (default location: Downloads) and writes the decoded buffer to disk. Triggered from the Activity tab's right-click context menu on the map.
+The renderer captures the Leaflet map container with `html-to-image` (`pixelRatio: 2`, `crossOrigin=""` set on the tile layers so the canvas isn't tainted) and passes a `data:image/png;base64,…` URL plus a default filename. The Density encoding's `leaflet.heat` canvas and the Hex grid SVG overlay are drawn from in-memory data (no external images), so they stay untainted and capture correctly. Main shows a save dialog (default location: Downloads) and writes the decoded buffer to disk. Triggered from the Explore tab's right-click context menu on the map.
 
 ### Sequence-Aware Species Counts
 

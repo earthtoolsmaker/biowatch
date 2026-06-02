@@ -22,7 +22,7 @@ import { useImportStatus } from './hooks/import'
 import Gallery from './media/Gallery'
 import GalleryDisplayStrip from './media/GalleryDisplayStrip'
 
-// Color palette used to tint species across the Activity tab's distribution
+// Color palette used to tint species across the Explore tab's distribution
 // pill, daily-activity radar, and timeline chart.
 const palette = [
   'hsl(173 58% 39%)',

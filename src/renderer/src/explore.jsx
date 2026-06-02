@@ -19,7 +19,7 @@ import MarkerClusterGroup from 'react-leaflet-cluster'
 import { useParams, useSearchParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import ActivityMapContextMenu from './ui/ActivityMapContextMenu'
+import ExploreMapContextMenu from './ui/ExploreMapContextMenu'
 import CircularTimeFilter, { DailyActivityRadar, DailyActivityLine } from './ui/clock'
 import DayPeriodChips from './ui/dayPeriodChips'
 import ChartShapeToggle from './ui/chartShapeToggle'
@@ -67,18 +67,18 @@ import { useAreaFilter } from './hooks/useAreaFilter'
 // Guarded by an id check so HMR / multiple SpeciesMap mounts don't re-append
 // the same <style> block.
 const skeletonMarkerStyles = `
-  @keyframes activity-skeleton-pulse {
+  @keyframes explore-skeleton-pulse {
     0%   { opacity: 0.55; }
     50%  { opacity: 1; }
     100% { opacity: 0.55; }
   }
-  .activity-skeleton-marker, .activity-skeleton-cluster {
-    animation: activity-skeleton-pulse 1.6s ease-in-out infinite;
+  .explore-skeleton-marker, .explore-skeleton-cluster {
+    animation: explore-skeleton-pulse 1.6s ease-in-out infinite;
   }
 `
-if (typeof document !== 'undefined' && !document.getElementById('activity-skeleton-styles')) {
+if (typeof document !== 'undefined' && !document.getElementById('explore-skeleton-styles')) {
   const style = document.createElement('style')
-  style.id = 'activity-skeleton-styles'
+  style.id = 'explore-skeleton-styles'
   style.textContent = skeletonMarkerStyles
   document.head.appendChild(style)
 }
@@ -576,8 +576,8 @@ const SpeciesMap = ({
     const container = map.getContainer()
     const slug = slugifyForFilename(studyName) || slugifyForFilename(studyId) || 'study'
     const date = new Date().toISOString().slice(0, 10)
-    const defaultFilename = `activity-map-${slug}-${date}.png`
-    toast.loading('Preparing map image…', { id: 'activity-map-export' })
+    const defaultFilename = `explore-map-${slug}-${date}.png`
+    toast.loading('Preparing map image…', { id: 'explore-map-export' })
     try {
       const dataUrl = await htmlToImage.toPng(container, {
         pixelRatio: 2,
@@ -595,23 +595,23 @@ const SpeciesMap = ({
           return true
         }
       })
-      const result = await window.api.exportActivityMapPng({ dataUrl, defaultFilename })
+      const result = await window.api.exportExploreMapPng({ dataUrl, defaultFilename })
       if (result?.cancelled) {
-        toast.dismiss('activity-map-export')
+        toast.dismiss('explore-map-export')
       } else if (result?.success) {
         toast.success('Map saved', {
-          id: 'activity-map-export',
+          id: 'explore-map-export',
           description: result.filePath
         })
       } else {
         toast.error('Export failed', {
-          id: 'activity-map-export',
+          id: 'explore-map-export',
           description: result?.error || 'Unknown error'
         })
       }
     } catch (error) {
       toast.error('Export failed', {
-        id: 'activity-map-export',
+        id: 'explore-map-export',
         description: error.message
       })
     }
@@ -969,11 +969,11 @@ const SpeciesMap = ({
 
   // Small uniform gray dot with a soft pulse so the user reads the map as
   // "loading" rather than "done, just sparse". Pulse comes from the
-  // `activity-skeleton-marker` keyframes injected at module load.
+  // `explore-skeleton-marker` keyframes injected at module load.
   const skeletonDotIcon = useMemo(() => {
     const size = 14
     return L.divIcon({
-      html: `<div class="activity-skeleton-marker" style="width:${size}px;height:${size}px;background:#9ca3af;border:2px solid white;border-radius:50%;box-shadow:0 1px 2px rgba(0,0,0,0.2);"></div>`,
+      html: `<div class="explore-skeleton-marker" style="width:${size}px;height:${size}px;background:#9ca3af;border:2px solid white;border-radius:50%;box-shadow:0 1px 2px rgba(0,0,0,0.2);"></div>`,
       className: '',
       iconSize: [size, size],
       iconAnchor: [size / 2, size / 2]
@@ -989,7 +989,7 @@ const SpeciesMap = ({
     cluster.unbindTooltip()
     cluster.bindTooltip('Loading species data…', { direction: 'top', offset: [0, -10] })
     return L.divIcon({
-      html: `<div class="activity-skeleton-cluster" style="width:${size}px;height:${size}px;background:#9ca3af;border-radius:50%;border:2px solid white;box-shadow:0 1px 2px rgba(0,0,0,0.2);"></div>`,
+      html: `<div class="explore-skeleton-cluster" style="width:${size}px;height:${size}px;background:#9ca3af;border-radius:50%;border:2px solid white;box-shadow:0 1px 2px rgba(0,0,0,0.2);"></div>`,
       className: '',
       iconSize: L.point(size, size, true)
     })
@@ -1149,7 +1149,7 @@ const SpeciesMap = ({
         <LayerChangeHandler onLayerChange={setSelectedLayer} />
       </MapContainer>
       {contextMenu && (
-        <ActivityMapContextMenu
+        <ExploreMapContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
           onSave={handleSavePng}
@@ -1168,7 +1168,7 @@ const palette = [
   'hsl(27 87% 67%)'
 ]
 
-export default function Activity({ studyData, studyId }) {
+export default function Explore({ studyData, studyId }) {
   const { id } = useParams()
   const actualStudyId = studyId || id // Use passed studyId or from params
 
@@ -1254,7 +1254,7 @@ export default function Activity({ studyData, studyId }) {
   const [viewModeRaw, setViewMode] = useState(() => initialViewMode(deepLinkView, isLgUp))
   const viewMode = clampViewMode(viewModeRaw, isLgUp)
   // Memoized so ViewModeToggle gets a stable `modes` identity — otherwise its
-  // ResizeObserver effect tears down and re-subscribes on every Activity render.
+  // ResizeObserver effect tears down and re-subscribes on every Explore render.
   const availableViewModes = useMemo(() => getAvailableViewModes(isLgUp), [isLgUp])
   const showMap = viewMode === 'map' || viewMode === 'both'
   const showGallery = viewMode === 'gallery' || viewMode === 'both'

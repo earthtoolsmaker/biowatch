@@ -50,7 +50,7 @@ function SpeciesRow({
     !isPseudoEntry && species.scientificName && resolved && resolved !== species.scientificName
   // resolveSpeciesInfo is still used to surface a Wikipedia thumbnail when the
   // study has no best-media image. The inline IUCN badge is intentionally NOT
-  // rendered on the media/activity sidebars — only inside the hover card.
+  // rendered on the media/explore sidebars — only inside the hover card.
   const info = isPseudoEntry ? null : resolveSpeciesInfo(species.scientificName)
   const studyImage = isPseudoEntry ? null : speciesImageMap[species.scientificName]
   const tooltipImageData =
@@ -149,7 +149,7 @@ function SpeciesDistribution({
   // Real-species view of the upstream data — strips out literal pseudo
   // labels like "Vehicle" or "blurred" that ride along in scientificName.
   // Used both for the bar-normalization denominator and as the rendered
-  // list when the caller opts out of pseudo rows (Activity tab).
+  // list when the caller opts out of pseudo rows (Explore tab).
   const realSpeciesData = useMemo(
     () => data.filter((d) => !getPseudoSpeciesEntry(d.scientificName)),
     [data]
@@ -170,7 +170,7 @@ function SpeciesDistribution({
   }, [data, realSpeciesData, blankCount, vehicleCount, hidePseudoSpecies])
 
   // Normalize bar widths against species-only counts so the bars match
-  // between the Media and Activity tabs. Pseudo rows (Blank/Vehicle/
+  // between the Media and Explore tabs. Pseudo rows (Blank/Vehicle/
   // processing labels) render no bar — they don't participate in this sum.
   const totalCount = realSpeciesData.reduce((sum, item) => sum + item.count, 0)
 

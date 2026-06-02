@@ -137,7 +137,7 @@ export const sortSpeciesHumansLast = (data) => {
 /**
  * Get the top N real species (excluding humans/vehicles, blanks, and non-species
  * processing labels), sorted by count descending.
- * Used for default species selection in Activity and Media tabs.
+ * Used for default species selection in Explore and Media tabs.
  * @param {Array} data - Array of species objects with scientificName and count properties
  * @param {number} n - Number of species to return (default: 2)
  * @returns {Array} - Top N real species

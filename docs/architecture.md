@@ -192,7 +192,7 @@ src/
 │   ├── media/               # Media subcomponents shared with the Deployments tab
 │   │   ├── Gallery.jsx               # Sequence grid + ImageModal + bbox editor
 │   │   └── DeploymentMediaGallery.jsx # Deployment-scoped wrapper around Gallery
-│   ├── activity.jsx         # Explore tab — Map | Gallery | Both view toggle (reuses media/Gallery), temporal analysis (right-click map → Save as PNG). Map encoding modes: Composition (pies) | Abundance (graduated circles) | Density (leaflet.heat) | Hex grid (d3-hexbin)
+│   ├── explore.jsx          # Explore tab — Map | Gallery | Both view toggle (reuses media/Gallery), temporal analysis (right-click map → Save as PNG). Map encoding modes: Composition (pies) | Abundance (graduated circles) | Density (leaflet.heat) | Hex grid (d3-hexbin)
 │   ├── models/              # AI Models tab (split-view map + cards)
 │   │   ├── index.jsx                  # MlZoo top-level (responsive split/stacked)
 │   │   ├── MapPane.jsx                # Leaflet map + region overlays + worldwide chip
@@ -390,7 +390,7 @@ function getStudyPath(userDataPath, studyId) {
 | `src/renderer/src/deployments.jsx`                      | Deployments tab — map + list + inline media pane                                                                                                       |
 | `src/renderer/src/deployments/DeploymentDetailPane.jsx` | Bottom pane (header + close) mounted on selection                                                                                                      |
 | `src/renderer/src/deployments/urlState.js`              | `?deploymentID=…` URL state helpers                                                                                                                    |
-| `src/renderer/src/activity.jsx`                         | Explore tab — Map \| Gallery \| Both view toggle (reuses Gallery), map + temporal filters; map encoding modes (Composition/Abundance/Density/Hex grid) |
+| `src/renderer/src/explore.jsx`                          | Explore tab — Map \| Gallery \| Both view toggle (reuses Gallery), map + temporal filters; map encoding modes (Composition/Abundance/Density/Hex grid) |
 | `src/renderer/src/ui/MapEncodingToggle.jsx`             | Map encoding-mode segmented control (overlaid bottom-left)                                                                                             |
 | `src/renderer/src/ui/MapDensityLegend.jsx`              | Density/Hex grid legend + color-scale swatch picker                                                                                                    |
 | `src/renderer/src/utils/densityScales.js`               | Named density color scales (Warm/Magma/Viridis) + ramp helpers                                                                                         |

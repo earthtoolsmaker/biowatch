@@ -18,7 +18,7 @@ export function getMapDisplayName(scientificName, scientificToCommon) {
 /**
  * Build a `scientificName -> English vernacular` map from a CamtrapDP-style
  * taxonomic block. Defensive against null/non-array input and taxa missing
- * either field. Used by both the Activity map and the species sidebar so the
+ * either field. Used by both the Explore map and the species sidebar so the
  * two surfaces stay in sync.
  *
  * @param {Array<{scientificName?: string, vernacularNames?: {eng?: string}}> | null | undefined} taxonomicData
