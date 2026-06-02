@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import { PieChart, Circle, Flame, Hexagon } from 'lucide-react'
 import * as Tooltip from '@radix-ui/react-tooltip'
@@ -46,6 +46,11 @@ const ENCODINGS = [
  * Explore view toggle. Click/scroll propagation is disabled so interacting with
  * the control doesn't pan or zoom the map underneath.
  *
+ * A single blue pill is absolutely positioned behind the buttons and slides
+ * (transitioning left/width) to the active segment, mirroring ViewModeToggle.
+ * Positions are measured from the button elements and re-measured on resize,
+ * when collapsing to icon-only, and when the available encodings change.
+ *
  * On a single species, Composition is hidden (a one-species pie is just the
  * Abundance disc). On narrow maps the control collapses to icon-only so it
  * doesn't collide with the legend on the opposite corner — the hover cards
@@ -58,7 +63,9 @@ const ENCODINGS = [
  */
 export default function MapEncodingToggle({ value, onChange, singleSpecies }) {
   const ref = useRef(null)
+  const btnRefs = useRef({})
   const [compact, setCompact] = useState(false)
+  const [pill, setPill] = useState(null)
 
   useEffect(() => {
     const el = ref.current
@@ -79,24 +86,43 @@ export default function MapEncodingToggle({ value, onChange, singleSpecies }) {
 
   const encodings = singleSpecies ? ENCODINGS.filter((e) => e.key !== 'pies') : ENCODINGS
 
+  // Slide the blue pill to the active segment. Re-measure when the selection,
+  // the icon-only collapse, or the available encodings change, since each
+  // alters button widths/offsets.
+  useLayoutEffect(() => {
+    const btn = btnRefs.current[value]
+    if (!btn) return
+    setPill({ left: btn.offsetLeft, width: btn.offsetWidth })
+  }, [value, compact, singleSpecies])
+
   return (
     <div
       ref={ref}
       className="absolute bottom-5 left-5 z-[1000] flex items-center gap-0.5 bg-card p-1 rounded-md shadow-md cursor-default"
     >
+      {pill && (
+        <span
+          aria-hidden="true"
+          className="absolute top-1 h-7 rounded bg-blue-50 dark:bg-blue-950 transition-[left,width] duration-200 ease-out"
+          style={{ left: pill.left, width: pill.width }}
+        />
+      )}
       {encodings.map(({ key, label, icon: Icon, description }) => {
         const active = value === key
         return (
           <Tooltip.Root key={key}>
             <Tooltip.Trigger asChild>
               <button
+                ref={(el) => {
+                  btnRefs.current[key] = el
+                }}
                 type="button"
                 onClick={() => onChange(key)}
                 aria-pressed={active}
-                className={`flex items-center gap-1.5 px-2 h-7 rounded text-xs cursor-pointer transition-colors ${
+                className={`relative z-10 flex items-center gap-1.5 px-2 h-7 rounded text-xs cursor-pointer transition-colors ${
                   active
-                    ? 'bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300'
-                    : 'text-muted-foreground hover:text-foreground'
+                    ? 'text-blue-700 dark:text-blue-300'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                 }`}
               >
                 <Icon size={14} />
