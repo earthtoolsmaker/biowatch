@@ -377,6 +377,16 @@ input::-webkit-inner-spin-button {
   }
 }
 
+/* Respect reduced-motion: drop the pop/slide entrances for the hover cards
+   and tooltips, leaving them to appear instantly. */
+@media (prefers-reduced-motion: reduce) {
+  .species-hovercard[data-state='open'],
+  .species-hovercard[data-state='closed'],
+  [data-radix-tooltip-content] {
+    animation: none;
+  }
+}
+
 @keyframes tooltip-slide-down {
   from {
     opacity: 0;

@@ -726,11 +726,7 @@ function MediaCard({ media, onClick, studyId, scrollSignal }) {
 
   return (
     <HoverCard.Root open={hoverOpen} onOpenChange={setHoverOpen} openDelay={400} closeDelay={120}>
-      {/* Static wrapper is the anchor: the card lifts on hover, but the popup
-          stays put because it's positioned off this non-transforming element. */}
-      <HoverCard.Trigger asChild>
-        <div className="flex-shrink-0">{cardButton}</div>
-      </HoverCard.Trigger>
+      <HoverCard.Trigger asChild>{cardButton}</HoverCard.Trigger>
       <HoverCard.Portal>
         <HoverCard.Content
           side="top"
