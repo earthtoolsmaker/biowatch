@@ -317,7 +317,7 @@ function ThreatenedSpeciesPopover({ studyId, species, onClose, ignoreOutsideClic
   }, [onClose, ignoreOutsideClickRef])
 
   const handleClick = (scientificName) => {
-    navigate(`/study/${studyId}/media?species=${encodeURIComponent(scientificName)}`)
+    navigate(`/study/${studyId}/explore?species=${encodeURIComponent(scientificName)}&view=both`)
   }
 
   // Sort by display name (common name from the bundled dictionary, falling
