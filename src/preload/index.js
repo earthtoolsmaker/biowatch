@@ -491,9 +491,9 @@ const api = {
     return await electronAPI.ipcRenderer.invoke('diagnostics:export')
   },
 
-  // Activity tab — export the rendered Leaflet map as a PNG file
-  exportActivityMapPng: async ({ dataUrl, defaultFilename }) => {
-    return await electronAPI.ipcRenderer.invoke('activity:export-map-png', {
+  // Explore tab — export the rendered Leaflet map as a PNG file
+  exportExploreMapPng: async ({ dataUrl, defaultFilename }) => {
+    return await electronAPI.ipcRenderer.invoke('explore:export-map-png', {
       dataUrl,
       defaultFilename
     })

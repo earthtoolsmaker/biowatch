@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { Download } from 'lucide-react'
 
-export default function ActivityMapContextMenu({ x, y, onSave, onClose }) {
+export default function ExploreMapContextMenu({ x, y, onSave, onClose }) {
   useEffect(() => {
     const handleClickOutside = () => onClose()
     const handleKeyDown = (e) => {
