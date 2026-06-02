@@ -2,7 +2,8 @@
  * Deployment-related database queries
  */
 
-import { getDrizzleDb, deployments, media, observations } from '../index.js'
+import { getDrizzleDb } from '../manager.js'
+import { deployments, media, observations } from '../models.js'
 import { and, count, countDistinct, desc, eq, isNotNull, ne, notExists, or, sql } from 'drizzle-orm'
 import log from '../../services/logger.js'
 import { getStudyIdFromPath } from './utils.js'

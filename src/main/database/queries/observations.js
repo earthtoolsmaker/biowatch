@@ -2,7 +2,8 @@
  * Observation-related database queries
  */
 
-import { getDrizzleDb, observations } from '../index.js'
+import { getDrizzleDb } from '../manager.js'
+import { observations } from '../models.js'
 import { eq } from 'drizzle-orm'
 import log from '../../services/logger.js'
 import { getStudyIdFromPath } from './utils.js'

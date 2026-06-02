@@ -2,14 +2,8 @@
  * Media-related database queries
  */
 
-import {
-  getDrizzleDb,
-  media,
-  observations,
-  modelRuns,
-  modelOutputs,
-  deployments
-} from '../index.js'
+import { getDrizzleDb } from '../manager.js'
+import { media, observations, modelRuns, modelOutputs, deployments } from '../models.js'
 import { eq, and, desc, count, sql, isNotNull, inArray, isNull } from 'drizzle-orm'
 import { DateTime } from 'luxon'
 import log from '../../services/logger.js'
