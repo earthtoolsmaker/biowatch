@@ -370,7 +370,7 @@ function ThreatenedSpeciesRow({ studyId, scientificName, iucn, onClick, scrollSi
   }, [scrollSignal])
   return (
     <li>
-      <HoverCard.Root open={hoverOpen} onOpenChange={setHoverOpen} openDelay={200} closeDelay={120}>
+      <HoverCard.Root open={hoverOpen} onOpenChange={setHoverOpen} openDelay={400} closeDelay={120}>
         <HoverCard.Trigger asChild>
           <button
             type="button"
@@ -401,7 +401,7 @@ function ThreatenedSpeciesRow({ studyId, scientificName, iucn, onClick, scrollSi
             align="center"
             avoidCollisions={true}
             collisionPadding={16}
-            className="z-[10001]"
+            className="species-hovercard z-[10001]"
           >
             <SpeciesTooltipContent imageData={{ scientificName }} studyId={studyId} size="lg" />
           </HoverCard.Content>

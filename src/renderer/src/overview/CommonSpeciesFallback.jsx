@@ -172,14 +172,14 @@ function SpeciesReferenceCard({ species, studyId, onClick, scrollSignal }) {
   }, [scrollSignal])
 
   return (
-    <HoverCard.Root open={hoverOpen} onOpenChange={setHoverOpen} openDelay={200} closeDelay={120}>
+    <HoverCard.Root open={hoverOpen} onOpenChange={setHoverOpen} openDelay={400} closeDelay={120}>
       <HoverCard.Trigger asChild>
         <button
           type="button"
           onClick={() => onClick(species.scientificName)}
-          className="flex-shrink-0 w-56 rounded-lg overflow-hidden cursor-pointer border border-border shadow hover:shadow-md transition-shadow text-left bg-card"
+          className="group flex-shrink-0 w-56 rounded-lg overflow-hidden cursor-pointer border border-border shadow hover:shadow-md transition-shadow text-left bg-card"
         >
-          <div className="relative w-full h-40 bg-muted">
+          <div className="relative w-full h-40 bg-muted overflow-hidden">
             {imageError ? (
               <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
                 <CameraOff size={24} />
@@ -188,7 +188,7 @@ function SpeciesReferenceCard({ species, studyId, onClick, scrollSignal }) {
               <img
                 src={species.info.imageUrl}
                 alt={species.scientificName}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover transition-transform duration-300 ease-out group-hover:scale-110"
                 loading="lazy"
                 onError={() => setImageError(true)}
                 referrerPolicy="no-referrer"
@@ -214,7 +214,7 @@ function SpeciesReferenceCard({ species, studyId, onClick, scrollSignal }) {
           align="center"
           avoidCollisions={true}
           collisionPadding={16}
-          className="z-[10000]"
+          className="species-hovercard z-[10000]"
         >
           <SpeciesTooltipContent
             imageData={{ scientificName: species.scientificName }}

@@ -646,9 +646,9 @@ function MediaCard({ media, onClick, studyId, scrollSignal }) {
     <button
       type="button"
       onClick={() => onClick(media)}
-      className="flex-shrink-0 w-56 rounded-lg overflow-hidden cursor-pointer border border-border shadow hover:shadow-md transition-shadow text-left bg-card"
+      className="group flex-shrink-0 w-56 rounded-lg overflow-hidden cursor-pointer border border-border shadow hover:shadow-md transition-shadow text-left bg-card"
     >
-      <div className="relative w-full h-40 bg-muted">
+      <div className="relative w-full h-40 bg-muted overflow-hidden">
         {isVideo ? (
           <>
             {/* Video placeholder background */}
@@ -671,14 +671,14 @@ function MediaCard({ media, onClick, studyId, scrollSignal }) {
               <img
                 src={thumbnailUrl}
                 alt={media.fileName || `Video ${media.mediaID}`}
-                className="relative z-10 w-full h-full object-cover"
+                className="relative z-10 w-full h-full object-cover transition-transform duration-300 ease-out group-hover:scale-110"
                 loading="lazy"
               />
             ) : (
               /* Video element - overlays placeholder when it loads successfully */
               <video
                 src={constructImageUrl(media.filePath, studyId)}
-                className={`relative z-10 w-full h-full object-cover ${imageError ? 'hidden' : ''}`}
+                className={`relative z-10 w-full h-full object-cover transition-transform duration-300 ease-out group-hover:scale-110 ${imageError ? 'hidden' : ''}`}
                 onError={() => setImageError(true)}
                 muted
                 preload="metadata"
@@ -695,7 +695,7 @@ function MediaCard({ media, onClick, studyId, scrollSignal }) {
             <img
               src={constructImageUrl(media.filePath, studyId)}
               alt={media.scientificName || 'Wildlife'}
-              className={`w-full h-full object-cover ${imageError ? 'hidden' : ''}`}
+              className={`w-full h-full object-cover transition-transform duration-300 ease-out group-hover:scale-110 ${imageError ? 'hidden' : ''}`}
               onError={() => setImageError(true)}
               loading="lazy"
             />
@@ -725,8 +725,12 @@ function MediaCard({ media, onClick, studyId, scrollSignal }) {
   if (!info?.imageUrl && !info?.blurb) return cardButton
 
   return (
-    <HoverCard.Root open={hoverOpen} onOpenChange={setHoverOpen} openDelay={200} closeDelay={120}>
-      <HoverCard.Trigger asChild>{cardButton}</HoverCard.Trigger>
+    <HoverCard.Root open={hoverOpen} onOpenChange={setHoverOpen} openDelay={400} closeDelay={120}>
+      {/* Static wrapper is the anchor: the card lifts on hover, but the popup
+          stays put because it's positioned off this non-transforming element. */}
+      <HoverCard.Trigger asChild>
+        <div className="flex-shrink-0">{cardButton}</div>
+      </HoverCard.Trigger>
       <HoverCard.Portal>
         <HoverCard.Content
           side="top"
@@ -734,7 +738,7 @@ function MediaCard({ media, onClick, studyId, scrollSignal }) {
           align="center"
           avoidCollisions={true}
           collisionPadding={16}
-          className="z-[10000]"
+          className="species-hovercard z-[10000]"
         >
           <SpeciesTooltipContent
             imageData={{ scientificName: media.scientificName }}
