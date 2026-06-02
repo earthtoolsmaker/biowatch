@@ -455,33 +455,53 @@ input::-webkit-inner-spin-button {
   }
 }
 
-/* Activity map species tooltip styles */
-.leaflet-tooltip.species-map-tooltip {
+/* Activity map species composition hover card. A React-controlled overlay
+   (HoverCardOverlay in activity.jsx) — NOT a Leaflet tooltip — so we get full
+   enter/exit animation. `--visible` is toggled on once the card has mounted and
+   removed on leave, driving the pop-in / fade-out via CSS transitions.
+
+   Pop uses an overshoot easing (the 1.56 control point) so scale .86 → 1 springs
+   slightly past 1, matching the playful pop of the study sidebar card. The exit
+   is a quicker plain fade. transform-origin is set inline per side (left/right of
+   the marker) so the card grows out of the pie it belongs to. */
+.species-hovercard {
   background: var(--color-card);
   color: var(--color-card-foreground);
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: 10px;
   box-shadow:
-    0 4px 6px -1px rgba(0, 0, 0, 0.1),
-    0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  padding: 0;
-  opacity: 1 !important;
+    0 8px 24px -8px rgba(0, 0, 0, 0.22),
+    0 2px 6px -2px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+  opacity: 0;
+  transform: scale(0.86);
+  transition:
+    opacity 0.16s ease,
+    transform 0.26s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.species-hovercard--visible {
+  opacity: 1;
+  transform: scale(1);
 }
 
-.leaflet-tooltip.species-map-tooltip::before {
-  display: none;
+/* The stacked composition bar wipes in from the left as the card pops, so the
+   "pie flattened into a bar" reads as drawing itself. Collapses back on exit,
+   but the faster fade hides that. */
+.species-hovercard__bar {
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.4s cubic-bezier(0.22, 0.61, 0.36, 1) 0.08s;
+}
+.species-hovercard--visible .species-hovercard__bar {
+  transform: scaleX(1);
 }
 
-/* Push the hovercard sideways off the pie marker so it sits BESIDE the
-   camembert rather than overlapping its right or left half. The pie marker
-   scales up to 60px wide; 36px clears the largest pie with a small gap.
-   `direction: 'auto'` on the tooltip resolves to either 'right' or 'left'
-   based on map-center, so we cover both cases. */
-.leaflet-tooltip-right.species-map-tooltip {
-  margin-left: 36px;
-}
-.leaflet-tooltip-left.species-map-tooltip {
-  margin-left: -36px;
+@media (prefers-reduced-motion: reduce) {
+  .species-hovercard,
+  .species-hovercard__bar {
+    transition: opacity 0.12s ease;
+    transform: none;
+  }
 }
 
 /* Brief outline pulse on a bbox after undo/redo so the user can see which
