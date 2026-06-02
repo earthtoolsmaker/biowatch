@@ -14,7 +14,6 @@ import log from '../logger.js'
 import {
   getDrizzleDb,
   getMetadata,
-  getSpeciesDistributionByMedia,
   getSpeciesTimeseriesByMedia,
   getSpeciesHeatmapDataByMedia,
   getSequenceAwareSpeciesCountsSQL,
@@ -30,7 +29,6 @@ import {
 } from '../../database/index.js'
 import { getPaginatedSequences } from './pagination.js'
 import {
-  calculateSequenceAwareSpeciesCounts,
   calculateSequenceAwareTimeseries,
   calculateSequenceAwareHeatmap,
   pivotPreAggregatedTimeseries,
@@ -75,20 +73,11 @@ async function run() {
 
   switch (type) {
     case 'species-distribution': {
-      // Fast path: SQL aggregate handles gapSeconds === null and === 0, returns
-      // the final [{scientificName, count}] directly (83 rows, not 1.65M).
-      // Returns null for positive gapSeconds, in which case we fall back to the
-      // row-dump + JS sequence grouping below.
-      const fast = await getSequenceAwareSpeciesCountsSQL(dbPath, effectiveGapSeconds, bbox)
-      if (fast !== null) return fast
-      log.warn(
-        `${tag} SLOW PATH (gap=${effectiveGapSeconds}): SQL fast-path returned null, dumping rows`
-      )
-      const rawData = await getSpeciesDistributionByMedia(dbPath, bbox)
-      log.info(`${tag} loaded ${rawData.length} rows, heap=${heapMb()}MB — starting JS aggregation`)
-      const result = calculateSequenceAwareSpeciesCounts(rawData, effectiveGapSeconds)
-      log.info(`${tag} aggregation done: ${result.length} species, heap=${heapMb()}MB`)
-      return result
+      // Computed entirely in SQL for every gap mode (per-media, eventID, and
+      // time-gap via window functions), so there is no JS row-dump fallback —
+      // see getSequenceAwareSpeciesCountsSQL. This is what keeps the worker off
+      // the multi-GB heap path that used to OOM on large studies.
+      return getSequenceAwareSpeciesCountsSQL(dbPath, effectiveGapSeconds, bbox)
     }
     case 'timeseries': {
       // Fast path: SQL aggregate handles gapSeconds === null and === 0,

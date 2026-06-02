@@ -286,23 +286,27 @@ Worker terminated due to reaching memory limit: JS heap out of memory
 
 The error is caught (the app keeps running) but the affected stat fails to load.
 
-**Cause:** The sequence-aware queries (`src/main/services/sequences/worker.js`) have
-a fast SQL aggregation path that only handles a sequence gap of `null` or `0`. When
-a study's stored `sequenceGap` is **positive**, the worker falls back to dumping the
+**Cause:** The sequence-aware queries (`src/main/services/sequences/worker.js`) used to
+have a fast SQL aggregation path that only handled a sequence gap of `null` or `0`. When
+a study's stored `sequenceGap` was **positive**, the worker fell back to dumping the
 entire observation×media join into a JS array and aggregating it with Maps. Peak heap
-scales with **row count × species** (e.g. ~2.2M rows / 92 species ≈ 1.5 GB), and the
-Explore tab makes it worse by running several such workers concurrently. The OOM
-fires when the worker's V8 old-space ceiling is below that footprint.
+scaled with **row count × species** (e.g. ~2.2M rows / 92 species ≈ 1.5 GB), and the
+Explore tab made it worse by running several such workers concurrently. The OOM
+fired when the worker's V8 old-space ceiling was below that footprint.
 
-See GitHub issue
-[#564](https://github.com/earthtoolsmaker/biowatch/issues/564) for the full analysis.
+**Fixed** in [#564](https://github.com/earthtoolsmaker/biowatch/issues/564): `species-distribution`
+and `timeseries` now aggregate every gap mode (including positive, via SQL window functions)
+entirely in SQLite — no JS row-dump, bounded memory. A `SLOW PATH` log line now only
+appears for the remaining JS fallback (heatmap blank-inclusion). The related
+`daily-activity` correctness issue is tracked in
+[#571](https://github.com/earthtoolsmaker/biowatch/issues/571).
 
 **Diagnosing it** (the sequences worker logs each task to the main log):
 
 ```
-[seq-worker:species-distribution] start gap=110 ... heap=18/1046MB
-[seq-worker:species-distribution] SLOW PATH (gap=110): SQL fast-path returned null, dumping rows
-[seq-worker:species-distribution] loaded 2187792 rows, heap=779MB — starting JS aggregation
+[seq-worker:timeseries] start gap=110 ... heap=18/1046MB
+[seq-worker:timeseries] SLOW PATH (gap=110): SQL fast-path returned null, dumping rows
+[seq-worker:timeseries] loaded 2187792 rows, heap=779MB — starting JS aggregation
 ```
 
 A `SLOW PATH` line followed by a large `loaded N rows` and no matching
