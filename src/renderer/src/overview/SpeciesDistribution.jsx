@@ -50,7 +50,7 @@ function SpeciesRow({
         key={species.scientificName}
         open={hoverOpen}
         onOpenChange={setHoverOpen}
-        openDelay={200}
+        openDelay={400}
         closeDelay={120}
       >
         <HoverCard.Trigger asChild>
@@ -80,7 +80,7 @@ function SpeciesRow({
               align="center"
               avoidCollisions={true}
               collisionPadding={16}
-              className="z-[10000]"
+              className="species-hovercard z-[10000]"
             >
               <SpeciesTooltipContent imageData={tooltipImageData} studyId={studyId} size="lg" />
             </HoverCard.Content>

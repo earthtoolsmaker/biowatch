@@ -107,7 +107,7 @@ function SpeciesRow({
         key={species.scientificName || index}
         open={hoverOpen}
         onOpenChange={setHoverOpen}
-        openDelay={200}
+        openDelay={400}
         closeDelay={120}
       >
         <HoverCard.Trigger asChild>{rowContent}</HoverCard.Trigger>
@@ -118,7 +118,7 @@ function SpeciesRow({
             align="start"
             avoidCollisions={true}
             collisionPadding={16}
-            className="z-[10000]"
+            className="species-hovercard z-[10000]"
           >
             {isPseudoEntry ? (
               <PseudoSpeciesTooltipContent entry={pseudoEntry} />

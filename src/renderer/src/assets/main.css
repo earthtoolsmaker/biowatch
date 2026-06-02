@@ -357,6 +357,36 @@ input::-webkit-inner-spin-button {
   animation: tooltip-fade-out 100ms ease-in;
 }
 
+/* Species detail hover card (Best captures + Featured species) — spring pop in,
+   gentle fade out. The pop is a pure scale, so it's direction-independent. */
+.species-hovercard[data-state='open'] {
+  animation: hovercard-pop 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.species-hovercard[data-state='closed'] {
+  animation: tooltip-fade-out 100ms ease-in;
+}
+
+@keyframes hovercard-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Respect reduced-motion: drop the pop/slide entrances for the hover cards
+   and tooltips, leaving them to appear instantly. */
+@media (prefers-reduced-motion: reduce) {
+  .species-hovercard[data-state='open'],
+  .species-hovercard[data-state='closed'],
+  [data-radix-tooltip-content] {
+    animation: none;
+  }
+}
+
 @keyframes tooltip-slide-down {
   from {
     opacity: 0;
