@@ -4,6 +4,7 @@ import { HashRouter, NavLink, Route, Routes, useLocation, useNavigate } from 're
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { Toaster, toast } from 'sonner'
 import * as Tooltip from '@radix-ui/react-tooltip'
+import * as HoverCard from '@radix-ui/react-hover-card'
 import Import from './import'
 import Study from './study'
 import SettingsPage from './settings'
@@ -109,6 +110,7 @@ function AppContent() {
   // Bumped on every sidebar scroll — child hover cards watch this and close
   // so the card doesn't drift while its anchor row scrolls.
   const [scrollSignal, setScrollSignal] = useState(0)
+  const [addStudyCardOpen, setAddStudyCardOpen] = useState(false)
 
   const { data: studies = [], isLoading } = useQuery({
     queryKey: ['studies'],
@@ -320,11 +322,17 @@ function AppContent() {
         <div className="p-4 border-b border-border">
           <div className={`flex items-center justify-between ${studies.length > 0 ? 'mb-3' : ''}`}>
             <h2 className="text-foreground">Studies</h2>
-            <Tooltip.Root delayDuration={500}>
-              <Tooltip.Trigger asChild>
+            <HoverCard.Root
+              open={addStudyCardOpen && location.pathname !== '/import'}
+              onOpenChange={(o) => setAddStudyCardOpen(o && location.pathname !== '/import')}
+              openDelay={200}
+              closeDelay={120}
+            >
+              <HoverCard.Trigger asChild>
                 <NavLink
                   to="/import"
                   data-testid="add-study-btn"
+                  onClick={() => setAddStudyCardOpen(false)}
                   className={`h-7 w-7 p-0 flex items-center justify-center rounded transition-colors ${
                     location.pathname === '/import'
                       ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300'
@@ -333,22 +341,31 @@ function AppContent() {
                 >
                   <Plus className="h-4 w-4" />
                 </NavLink>
-              </Tooltip.Trigger>
-              <Tooltip.Portal>
-                <Tooltip.Content
+              </HoverCard.Trigger>
+              <HoverCard.Portal>
+                <HoverCard.Content
                   side="bottom"
                   sideOffset={10}
                   align="end"
-                  className="z-[10000] max-w-[16rem] px-3 py-2 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md"
+                  avoidCollisions
+                  collisionPadding={12}
+                  className="add-study-hovercard z-[10000] w-64 bg-card text-popover-foreground rounded-lg border border-border shadow-md p-3.5"
                 >
-                  <p className="font-medium leading-snug mb-1">Add Study</p>
-                  <p className="text-muted-foreground leading-relaxed">
-                    Create a new study by importing camera trap images.
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-md bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-300">
+                      <Plus className="h-3.5 w-3.5" />
+                    </span>
+                    <p className="text-sm font-medium text-foreground leading-snug">Add a study</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Import camera-trap images or a dataset to start exploring your wildlife data.
                   </p>
-                  <Tooltip.Arrow className="fill-popover" />
-                </Tooltip.Content>
-              </Tooltip.Portal>
-            </Tooltip.Root>
+                  <div className="mt-2.5 pt-2.5 border-t border-border text-[0.7rem] text-muted-foreground">
+                    Images · CamtrapDP · GBIF · Wildlife Insights
+                  </div>
+                </HoverCard.Content>
+              </HoverCard.Portal>
+            </HoverCard.Root>
           </div>
 
           {/* Search - only show when there are studies */}
