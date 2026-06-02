@@ -21,3 +21,14 @@ export function clampViewMode(mode, isLgUp) {
   if (mode === 'both' && !isLgUp) return 'map'
   return mode
 }
+
+/**
+ * Initial view mode for the Explore tab. An explicit deep-link view wins when
+ * it names a valid mode; otherwise default to 'both' at lg+ and 'map' below.
+ * The result is still passed through clampViewMode at render, so a deep-linked
+ * 'both' below lg collapses to 'map'.
+ */
+export function initialViewMode(deepLinkView, isLgUp) {
+  if (VIEW_MODES.includes(deepLinkView)) return deepLinkView
+  return isLgUp ? 'both' : 'map'
+}
