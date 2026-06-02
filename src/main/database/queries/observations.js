@@ -4,7 +4,7 @@
 
 import { getDrizzleDb, observations } from '../index.js'
 import { eq } from 'drizzle-orm'
-import log from 'electron-log'
+import log from '../../services/logger.js'
 import { getStudyIdFromPath } from './utils.js'
 import { lifeStageSchema, sexSchema, behaviorSchema } from '../validators.js'
 import { normalizeScientificName } from '../../../shared/commonNames/normalize.js'

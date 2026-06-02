@@ -3,7 +3,7 @@
  */
 
 import { app, ipcMain } from 'electron'
-import log from 'electron-log'
+import log from '../services/logger.js'
 import { existsSync } from 'fs'
 import { eq } from 'drizzle-orm'
 import { getStudyDatabasePath } from '../services/paths.js'

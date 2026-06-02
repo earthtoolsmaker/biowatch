@@ -6,7 +6,7 @@
 
 import { existsSync, promises as fsPromises } from 'fs'
 import { dirname, basename } from 'path'
-import log from 'electron-log'
+import log from '../logger.js'
 
 import {
   findModel,

@@ -7,7 +7,7 @@
 
 import { createHash } from 'crypto'
 import { app, ipcMain } from 'electron'
-import log from 'electron-log'
+import log from '../logger.js'
 import { existsSync, mkdirSync, statSync, readdirSync, rmSync, writeFileSync } from 'fs'
 import { join, basename, extname } from 'path'
 

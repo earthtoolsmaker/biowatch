@@ -1,5 +1,5 @@
 import { app, dialog, ipcMain, BrowserWindow } from 'electron'
-import log from 'electron-log'
+import log from '../logger.js'
 import fs from 'fs'
 import path from 'path'
 import crypto from 'crypto'

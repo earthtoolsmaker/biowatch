@@ -7,7 +7,7 @@
  */
 
 import { net, protocol } from 'electron'
-import log from 'electron-log'
+import log from '../services/logger.js'
 import { createReadStream, existsSync, readFileSync, statSync } from 'fs'
 import { extname } from 'path'
 import { Readable } from 'stream'

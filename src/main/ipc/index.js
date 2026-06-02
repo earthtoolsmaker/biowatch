@@ -5,7 +5,7 @@
  */
 
 import { ipcMain } from 'electron'
-import log from 'electron-log'
+import log from '../services/logger.js'
 
 import { registerSpeciesIPCHandlers } from './species.js'
 import { registerDeploymentsIPCHandlers } from './deployments.js'

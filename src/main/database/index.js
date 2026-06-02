@@ -20,7 +20,7 @@ import {
   modelRunOptionsSchema,
   rawOutputSchema
 } from './validators.js'
-import log from 'electron-log'
+import log from '../services/logger.js'
 
 // Re-export schema and manager functions
 export { deployments, media, observations, modelRuns, modelOutputs, metadata, jobs }

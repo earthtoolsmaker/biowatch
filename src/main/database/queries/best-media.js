@@ -4,7 +4,7 @@
  */
 
 import { executeRawQuery } from '../index.js'
-import log from 'electron-log'
+import log from '../../services/logger.js'
 import { getStudyIdFromPath } from './utils.js'
 
 /**

@@ -3,7 +3,7 @@
  */
 
 import { app, dialog, ipcMain } from 'electron'
-import log from 'electron-log'
+import log from '../services/logger.js'
 import { existsSync, promises as fsp } from 'fs'
 import path from 'path'
 import { getStudyDatabasePath } from '../services/paths.js'

@@ -5,7 +5,7 @@
 import { spawn } from 'child_process'
 import crypto from 'crypto'
 import { app, dialog, ipcMain } from 'electron'
-import log from 'electron-log'
+import log from '../services/logger.js'
 import { existsSync, mkdirSync, readdirSync, rmSync, statSync, unlinkSync } from 'fs'
 import { join } from 'path'
 import { closeStudyDatabase } from '../database/index.js'

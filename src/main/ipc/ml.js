@@ -3,7 +3,7 @@
  */
 
 import { ipcMain } from 'electron'
-import log from 'electron-log'
+import log from '../services/logger.js'
 
 import {
   isMLModelDownloaded,

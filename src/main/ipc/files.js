@@ -3,7 +3,7 @@
  */
 
 import { app, ipcMain } from 'electron'
-import log from 'electron-log'
+import log from '../services/logger.js'
 import { existsSync } from 'fs'
 import { getStudyDatabasePath } from '../services/paths.js'
 import { runInWorker } from '../services/sequences/runInWorker.js'

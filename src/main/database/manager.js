@@ -3,7 +3,7 @@ import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { existsSync, mkdirSync } from 'fs'
 import { dirname } from 'path'
-import log from 'electron-log'
+import log from '../services/logger.js'
 import * as schema from './models.js'
 import { getValidatedMigrationsPath } from './migrations-utils.js'
 

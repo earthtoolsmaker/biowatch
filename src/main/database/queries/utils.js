@@ -6,7 +6,7 @@
 import { getDrizzleDb, getStudyDatabase, observations } from '../index.js'
 import { sql } from 'drizzle-orm'
 // Note: observations import kept for checkStudyHasEventIDs
-import log from 'electron-log'
+import log from '../../services/logger.js'
 
 /**
  * Detect timestamp format characteristics and format a DateTime to match the original format
