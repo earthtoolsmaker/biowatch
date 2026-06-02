@@ -366,6 +366,11 @@ Each extracted timestamp is validated to reject known-bad values: QuickTime epoc
 
 **Key file:** `src/main/services/import/timestamp.js`
 
+> **Timezones:** importers store capture timestamps in **deployment-local time**
+> (preserving the source offset, never converting to UTC), so day-period
+> filtering and the gallery read the camera's local clock. See
+> [dates-and-timezones.md](dates-and-timezones.md).
+
 ### Prediction Flow
 
 ```javascript
@@ -603,17 +608,17 @@ readonly`. Returns a `PreviewPayload` (see
 
 ### Validation rules (per cell)
 
-| Rule | Effect | Tooltip |
-| --- | --- | --- |
-| `deploymentID` empty | row skipped | `deploymentID is required.` |
-| `deploymentID` not in DB | row skipped | `No deployment with this ID in the study.` |
-| `locationID` differs from DB | cell warning | `locationID is read-only. Existing value will be kept; CSV value ignored.` |
-| `latitude` non-numeric | cell warning | `'X' is not a valid number.` |
-| `latitude` ∉ [-90, 90] | cell warning | `Latitude X is outside [-90, 90].` |
-| `longitude` non-numeric | cell warning | `'X' is not a valid number.` |
-| `longitude` ∉ [-180, 180] | cell warning | `Longitude X is outside [-180, 180].` |
-| Duplicate `deploymentID` rows in CSV | earlier change cells → warning | `Overridden by row N below.` |
-| Intra-`locationID` name conflict in CSV | earlier name cells → warning | `Conflicting names for LOC_A; row N below wins.` |
+| Rule                                    | Effect                         | Tooltip                                                                    |
+| --------------------------------------- | ------------------------------ | -------------------------------------------------------------------------- |
+| `deploymentID` empty                    | row skipped                    | `deploymentID is required.`                                                |
+| `deploymentID` not in DB                | row skipped                    | `No deployment with this ID in the study.`                                 |
+| `locationID` differs from DB            | cell warning                   | `locationID is read-only. Existing value will be kept; CSV value ignored.` |
+| `latitude` non-numeric                  | cell warning                   | `'X' is not a valid number.`                                               |
+| `latitude` ∉ [-90, 90]                  | cell warning                   | `Latitude X is outside [-90, 90].`                                         |
+| `longitude` non-numeric                 | cell warning                   | `'X' is not a valid number.`                                               |
+| `longitude` ∉ [-180, 180]               | cell warning                   | `Longitude X is outside [-180, 180].`                                      |
+| Duplicate `deploymentID` rows in CSV    | earlier change cells → warning | `Overridden by row N below.`                                               |
+| Intra-`locationID` name conflict in CSV | earlier name cells → warning   | `Conflicting names for LOC_A; row N below wins.`                           |
 
 Empty cell semantics: empty = leave existing DB value untouched. There
 is no sentinel for "clear" — clearing remains a per-row action via

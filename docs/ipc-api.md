@@ -234,6 +234,18 @@ Returns pre-grouped sequences with cursor-based pagination for the media gallery
 }
 ```
 
+> **Time-of-day (`timeRange`) hour semantics.** Each `{ start, end }` is a
+> half-open `[start, end)` hour window in the **deployment-local clock time**
+> the day-period presets are defined in (`src/renderer/src/utils/dayPeriods.js`).
+> The hour is read literally from the stored ISO timestamp string
+> (`CAST(substr(timestamp, 12, 2) AS INTEGER)`, see `localHourExpr` in
+> `src/main/database/queries/sequences.js`) rather than via `strftime('%H', …)`,
+> which would normalize a tz-aware timestamp (e.g. `…+02:00`) to UTC and shift
+> every boundary. Importers store timestamps in deployment-local time, so the
+> filter matches the gallery display. Studies imported before that change are
+> stored as UTC (`Z`) and read as UTC until re-imported. See
+> [dates-and-timezones.md](dates-and-timezones.md) for the full model.
+
 **Response:**
 
 ```javascript

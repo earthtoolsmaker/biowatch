@@ -699,13 +699,18 @@ function transformObservationRow(row) {
 }
 
 /**
- * Transform date field from CSV to ISO format
+ * Transform date field from CSV to ISO format.
+ *
+ * Preserves the deployment-local wall clock and its source offset (e.g.
+ * '2020-12-16T10:28:18+01:00') instead of normalizing to UTC, so day-period
+ * filtering and the gallery read the camera's local time. Naive source values
+ * (no offset) keep their wall clock. See docs/dates-and-timezones.md.
  */
-function transformDateField(dateValue) {
+export function transformDateField(dateValue) {
   if (!dateValue) return null
 
-  const date = DateTime.fromISO(dateValue)
-  return date.isValid ? date.toUTC().toISO() : null
+  const date = DateTime.fromISO(dateValue, { setZone: true })
+  return date.isValid ? date.toISO() : null
 }
 
 /**

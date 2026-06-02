@@ -231,8 +231,10 @@ export async function updateMediaTimestamp(dbPath, mediaID, newTimestamp) {
       throw new Error('A valid timestamp string is required')
     }
 
-    // Parse and validate the new timestamp
-    const newTimestampDT = DateTime.fromISO(newTimestamp)
+    // Parse and validate the new timestamp. setZone keeps the incoming offset
+    // (the deployment-local zone the editor sends) so formatToMatchOriginal
+    // re-emits it instead of rebasing onto the main process's local zone.
+    const newTimestampDT = DateTime.fromISO(newTimestamp, { setZone: true })
 
     if (!newTimestampDT.isValid) {
       throw new Error(
@@ -321,18 +323,18 @@ export async function updateMediaTimestamp(dbPath, mediaID, newTimestamp) {
     for (const obs of relatedObservations) {
       const updateData = {}
 
-      // Update eventStart with offset - preserve original format
+      // Update eventStart with offset - preserve original format and zone
       if (obs.eventStart) {
-        const oldEventStart = DateTime.fromISO(obs.eventStart)
+        const oldEventStart = DateTime.fromISO(obs.eventStart, { setZone: true })
         if (oldEventStart.isValid) {
           const newEventStart = oldEventStart.plus({ milliseconds: offsetMs })
           updateData.eventStart = formatToMatchOriginal(newEventStart, obs.eventStart)
         }
       }
 
-      // Update eventEnd with SAME offset (preserving duration) - preserve original format
+      // Update eventEnd with SAME offset (preserving duration) - preserve original format and zone
       if (obs.eventEnd) {
-        const oldEventEnd = DateTime.fromISO(obs.eventEnd)
+        const oldEventEnd = DateTime.fromISO(obs.eventEnd, { setZone: true })
         if (oldEventEnd.isValid) {
           const newEventEnd = oldEventEnd.plus({ milliseconds: offsetMs })
           updateData.eventEnd = formatToMatchOriginal(newEventEnd, obs.eventEnd)
