@@ -4,7 +4,7 @@ import { useShowFilterCharts } from '../hooks/useShowFilterCharts'
 
 /**
  * Toggle button for the bottom-row filter charts (Clock + Timeline) on the
- * Media and Activity tabs. State is per-study and shared between both tabs
+ * Media and Explore tabs. State is per-study and shared between both tabs
  * via {@link useShowFilterCharts}.
  *
  * Hidden entirely when `hasTemporalData === false` — studies whose media

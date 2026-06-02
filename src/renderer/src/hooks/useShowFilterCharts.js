@@ -14,12 +14,12 @@ function readFromStorage(studyId) {
 
 /**
  * Per-study toggle for the bottom-row filter charts (Clock + Timeline) shown
- * on the Media and Activity tabs. When false, the bottom row is hidden and
+ * on the Media and Explore tabs. When false, the bottom row is hidden and
  * the main content (Gallery / Map) reclaims that vertical space.
  *
  * Same shape as {@link useShowThumbnailBboxes}: persisted to localStorage
  * under `showFilterCharts:${studyId}` and broadcast through the React Query
- * cache so the Media and Activity tabs stay in sync without prop drilling.
+ * cache so the Media and Explore tabs stay in sync without prop drilling.
  *
  * @param {string} studyId
  * @returns {{ showFilterCharts: boolean, setShowFilterCharts: (next: boolean | ((prev: boolean) => boolean)) => void }}

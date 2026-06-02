@@ -17,7 +17,7 @@ function readFromStorage(studyId) {
 /**
  * Per-study persistence for the timeline brush's date filter. Same shape
  * as {@link useShowFilterCharts}: backed by localStorage, broadcast
- * through the React Query cache so the Media and Activity tabs share the
+ * through the React Query cache so the Media and Explore tabs share the
  * same range and the value survives navigating away and back to the tab.
  *
  * Returns `[null, null]` when no filter is set (the cleared / full-extent

@@ -455,8 +455,8 @@ input::-webkit-inner-spin-button {
   }
 }
 
-/* Activity map species composition hover card. A React-controlled overlay
-   (HoverCardOverlay in activity.jsx) — NOT a Leaflet tooltip — so we get full
+/* Explore map species composition hover card. A React-controlled overlay
+   (HoverCardOverlay in explore.jsx) — NOT a Leaflet tooltip — so we get full
    enter/exit animation. `--visible` is toggled on once the card has mounted and
    removed on leave, driving the pop-in / fade-out via CSS transitions.
 
