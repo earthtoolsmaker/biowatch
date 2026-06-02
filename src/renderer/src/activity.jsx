@@ -4,8 +4,8 @@ import 'leaflet/dist/leaflet.css'
 import 'leaflet.heat'
 import { hexbin as d3Hexbin } from 'd3-hexbin'
 import { MapPin, X } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { renderToStaticMarkup } from 'react-dom/server'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   LayersControl,
   MapContainer,
@@ -134,6 +134,113 @@ function useFadePresence(show, duration = 200) {
     return () => clearTimeout(timer)
   }, [show, duration])
   return { mounted, visible }
+}
+
+// Aggregate the per-species counts of every marker inside a cluster into one
+// { scientificName: count } map, limited to the currently selected species and
+// dropping zero entries. Shared by the cluster icon builder and the cluster
+// hover handler so both show the same breakdown.
+function aggregateClusterCounts(markers, selectedSpecies) {
+  const combined = {}
+  selectedSpecies.forEach((s) => {
+    combined[s.scientificName] = 0
+  })
+  markers.forEach((marker) => {
+    Object.entries(marker.options.counts || {}).forEach(([species, count]) => {
+      if (selectedSpecies.some((s) => s.scientificName === species)) {
+        combined[species] += count
+      }
+    })
+  })
+  return Object.fromEntries(Object.entries(combined).filter(([, count]) => count > 0))
+}
+
+// Distance (px) the card is pushed off the marker so it sits BESIDE the pie
+// rather than over it. The pie scales up to ~60px wide; 36px clears the largest
+// one with a small gap.
+const HOVERCARD_GAP = 36
+
+// Single React-controlled overlay that renders the species composition hover
+// card beside the hovered marker/cluster. Replaces Leaflet's native tooltip so
+// the card can pop in and fade out (Leaflet destroys tooltip DOM instantly on
+// mouse-out). One overlay total → only ever one card on screen, no matter how
+// fast the pointer crosses markers.
+//
+// `hover` is { counts, lat, lng } while a marker/cluster is hovered, else null.
+// We keep rendering the last hover through the fade-out (useFadePresence keeps
+// it mounted past the null) and recompute the on-screen position on every map
+// move/zoom so the card tracks its marker.
+function HoverCardOverlay({ hover, selectedSpecies, palette, scientificToCommon }) {
+  const map = useMap()
+  const { mounted, visible } = useFadePresence(!!hover, 200)
+
+  // Retain the last non-null hover so content/position survive the fade-out.
+  const [shown, setShown] = useState(hover)
+  useEffect(() => {
+    if (hover) setShown(hover)
+  }, [hover])
+
+  // On-screen anchor: the marker's pixel position plus which side to sit on
+  // (mirrors the old `direction: 'auto'` — left of markers past map center,
+  // right otherwise). Recomputed whenever the map moves under the card.
+  const [anchor, setAnchor] = useState(null)
+  useEffect(() => {
+    if (!shown) return
+    const update = () => {
+      const point = map.latLngToContainerPoint([shown.lat, shown.lng])
+      const side = point.x > map.getSize().x / 2 ? 'left' : 'right'
+      setAnchor({ x: point.x, y: point.y, side })
+    }
+    update()
+    map.on('move zoom viewreset', update)
+    return () => map.off('move zoom viewreset', update)
+  }, [shown, map])
+
+  // Place the card at measured, rounded INTEGER coordinates — no `translate(…,
+  // -50%)`. A percentage translate lands the card (and its text) on half-pixels
+  // whenever the card height is odd, and Chromium renders text on a fractionally
+  // positioned / transformed layer with grayscale AA, which looks blurry. Integer
+  // top/left keeps the text crisp. We measure after layout, so the very first
+  // frame (still opacity 0 mid-pop) parks off-screen until the size is known.
+  const cardRef = useRef(null)
+  const [pos, setPos] = useState(null)
+  useLayoutEffect(() => {
+    if (!anchor || !cardRef.current) return
+    const w = cardRef.current.offsetWidth
+    const h = cardRef.current.offsetHeight
+    const onRight = anchor.side === 'right'
+    const left = onRight ? anchor.x + HOVERCARD_GAP : anchor.x - HOVERCARD_GAP - w
+    setPos({ left: Math.round(left), top: Math.round(anchor.y - h / 2), onRight })
+  }, [anchor, shown])
+
+  if (!mounted || !shown) return null
+
+  const onRight = pos ? pos.onRight : anchor?.side !== 'left'
+  return createPortal(
+    <div
+      style={{
+        position: 'absolute',
+        left: pos ? pos.left : -9999,
+        top: pos ? pos.top : 0,
+        zIndex: 700,
+        pointerEvents: 'none'
+      }}
+    >
+      <div
+        ref={cardRef}
+        className={`species-hovercard${visible ? ' species-hovercard--visible' : ''}`}
+        style={{ transformOrigin: onRight ? 'left center' : 'right center' }}
+      >
+        <MarkerHoverCard
+          counts={shown.counts}
+          selectedSpecies={selectedSpecies}
+          palette={palette}
+          scientificToCommon={scientificToCommon}
+        />
+      </div>
+    </div>,
+    map.getContainer()
+  )
 }
 
 // Calls Leaflet's invalidateSize() whenever the map container is resized —
@@ -683,50 +790,38 @@ const SpeciesMap = ({
   // Active icon builder for the marker encodings. Heatmap doesn't use markers.
   const markerIconFn = effectiveEncoding === 'graduated' ? createGraduatedIcon : createPieChartIcon
 
-  // Render the React MarkerHoverCard to an HTML string. Leaflet's tooltip API
-  // takes raw HTML, so we serialize the JSX once per call. Using a React
-  // component (instead of a template-string builder) keeps the markup
-  // testable, properly indented, and shared between per-marker and
-  // per-cluster tooltips below.
-  const createTooltipContent = (counts) =>
-    renderToStaticMarkup(
-      <MarkerHoverCard
-        counts={counts}
-        selectedSpecies={selectedSpecies}
-        palette={palette}
-        scientificToCommon={scientificToCommon}
-      />
-    )
+  // Hover card state for the composition overlay. `null` when nothing is
+  // hovered. mouse-out schedules the close on a short timer so darting from one
+  // marker to an adjacent one (or briefly across the gap) re-targets the same
+  // card instead of flickering it closed; a new mouse-over cancels the timer.
+  const [hoverCard, setHoverCard] = useState(null)
+  const hoverCloseTimer = useRef(null)
+  const showHoverCard = useCallback((counts, lat, lng) => {
+    clearTimeout(hoverCloseTimer.current)
+    setHoverCard({ counts, lat, lng })
+  }, [])
+  const hideHoverCard = useCallback(() => {
+    clearTimeout(hoverCloseTimer.current)
+    hoverCloseTimer.current = setTimeout(() => setHoverCard(null), 80)
+  }, [])
+  useEffect(() => () => clearTimeout(hoverCloseTimer.current), [])
 
-  // PieChartMarker component with tooltip binding. Out-of-area de-emphasis is
-  // applied imperatively (see the opacity effect below) rather than via an
-  // `opacity` prop, so toggling the area filter never re-renders these markers.
+  // PieChartMarker. Hovering opens the shared composition card (HoverCardOverlay)
+  // beside the marker; out-of-area de-emphasis is applied imperatively (see the
+  // opacity effect below) rather than via an `opacity` prop, so toggling the
+  // area filter never re-renders these markers. `counts` is passed straight to
+  // the Leaflet marker options so the cluster builder can read it back.
   function PieChartMarker({ point, icon }) {
-    const markerRef = useRef(null)
-
-    useEffect(() => {
-      const marker = markerRef.current
-      if (!marker) return
-
-      const tooltipHtml = createTooltipContent(point.counts)
-      marker.unbindTooltip()
-      marker.bindTooltip(tooltipHtml, {
-        // 'auto' resolves to 'right' or 'left' depending on whether the
-        // marker is left or right of map center, so the card sits BESIDE
-        // the pie chart rather than above it. The CSS rule
-        // `.leaflet-tooltip-{right,left}.species-map-tooltip` adds a
-        // horizontal gap so the card doesn't overlap the marker.
-        direction: 'auto',
-        offset: [0, 0],
-        opacity: 1,
-        className: 'species-map-tooltip'
-      })
-
-      return () => marker.unbindTooltip()
-    }, [point.counts])
-
     return (
-      <Marker ref={markerRef} position={[point.lat, point.lng]} icon={icon} counts={point.counts} />
+      <Marker
+        position={[point.lat, point.lng]}
+        icon={icon}
+        counts={point.counts}
+        eventHandlers={{
+          mouseover: () => showHoverCard(point.counts, point.lat, point.lng),
+          mouseout: hideHoverCard
+        }}
+      />
     )
   }
 
@@ -811,6 +906,27 @@ const SpeciesMap = ({
     group.refreshClusters?.()
   }, [areaFilter, markerElements])
 
+  // Open the composition card when a cluster is hovered, aggregating the counts
+  // of all its child markers. Individual markers get their handlers via the
+  // <Marker eventHandlers> prop, but clusters are drawn by Leaflet (not React),
+  // so we listen on the group's cluster events. Re-bound whenever the cluster
+  // group remounts (markerElements changes) so pieClusterRef.current is current.
+  useEffect(() => {
+    const group = pieClusterRef.current
+    if (!group) return
+    const onOver = (e) => {
+      const counts = aggregateClusterCounts(e.layer.getAllChildMarkers(), selectedSpecies)
+      const ll = e.layer.getLatLng()
+      showHoverCard(counts, ll.lat, ll.lng)
+    }
+    group.on('clustermouseover', onOver)
+    group.on('clustermouseout', hideHoverCard)
+    return () => {
+      group.off('clustermouseover', onOver)
+      group.off('clustermouseout', hideHoverCard)
+    }
+  }, [markerElements, selectedSpecies, showHoverCard, hideHoverCard])
+
   // Bounds derive from deploymentLocations, not heatmapData, so the initial
   // viewport is fixed from the moment the map mounts — it doesn't shift
   // when the heavy heatmap query finally resolves.
@@ -892,6 +1008,12 @@ const SpeciesMap = ({
       <MapContainer bounds={bounds} boundsOptions={boundsOptions} className="rounded w-full h-full">
         <HideLeafletAttribution />
         <MapContextMenuController onContextMenu={setContextMenu} mapRef={mapRef} />
+        <HoverCardOverlay
+          hover={hoverCard}
+          selectedSpecies={selectedSpecies}
+          palette={palette}
+          scientificToCommon={scientificToCommon}
+        />
         <MapResizeHandler />
         <AreaFilterControl areaFilter={areaFilter} onApplyAreaFilter={onApplyAreaFilter} />
         {areaFilter && (
@@ -952,7 +1074,6 @@ const SpeciesMap = ({
                   maxClusterRadius={100}
                   animateAddingMarkers={false}
                   iconCreateFunction={(cluster) => {
-                    // Get all markers in this cluster
                     const markers = cluster.getAllChildMarkers()
 
                     // A cluster is de-emphasized only when ALL its markers fall
@@ -962,40 +1083,9 @@ const SpeciesMap = ({
                       return isInsideArea(ll.lat, ll.lng, areaFilter)
                     })
 
-                    // Combine counts from all markers
-                    const combinedCounts = {}
-
-                    // First, initialize counts for all selected species to ensure consistent ordering
-                    selectedSpecies.forEach((species) => {
-                      combinedCounts[species.scientificName] = 0
-                    })
-
-                    // Then add actual counts from markers
-                    markers.forEach((marker) => {
-                      Object.entries(marker.options.counts).forEach(([species, count]) => {
-                        // Only add species that are in our selectedSpecies list
-                        if (selectedSpecies.some((s) => s.scientificName === species)) {
-                          combinedCounts[species] += count
-                        }
-                      })
-                    })
-
-                    // Filter out species with zero counts to avoid empty slices
-                    const filteredCounts = Object.fromEntries(
-                      Object.entries(combinedCounts).filter(([, count]) => count > 0)
-                    )
-
-                    // Bind tooltip to cluster. Same beside-the-pie behavior as
-                    // individual markers — see the per-marker bindTooltip above.
-                    const tooltipHtml = createTooltipContent(filteredCounts)
-                    cluster.unbindTooltip()
-                    cluster.bindTooltip(tooltipHtml, {
-                      direction: 'auto',
-                      offset: [0, 0],
-                      opacity: 1,
-                      className: 'species-map-tooltip'
-                    })
-
+                    // Hover handling lives in the cluster-hover effect below; the
+                    // icon builder only draws the pie now.
+                    const filteredCounts = aggregateClusterCounts(markers, selectedSpecies)
                     return markerIconFn(filteredCounts, anyInside ? 1 : OUTSIDE_OPACITY)
                   }}
                 >
