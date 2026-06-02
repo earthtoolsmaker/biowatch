@@ -10,6 +10,53 @@ const SECTION_LABELS = {
 
 const COLLAPSED_MAX_HEIGHT = 180
 
+const REPO_URL = 'https://github.com/earthtoolsmaker/biowatch'
+
+// Splits on **bold**, `code`, and #123 issue/PR refs, rendering each as inline markup.
+function renderInline(text) {
+  return text.split(/(\*\*[^*]+\*\*|`[^`]+`|#\d+)/g).map((part, i) => {
+    if (!part) return null
+
+    const bold = part.match(/^\*\*([^*]+)\*\*$/)
+    if (bold) {
+      return (
+        <strong key={i} className="font-semibold">
+          {bold[1]}
+        </strong>
+      )
+    }
+
+    const code = part.match(/^`([^`]+)`$/)
+    if (code) {
+      return (
+        <code
+          key={i}
+          className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em] text-muted-foreground"
+        >
+          {code[1]}
+        </code>
+      )
+    }
+
+    const issue = part.match(/^#(\d+)$/)
+    if (issue) {
+      return (
+        <a
+          key={i}
+          href={`${REPO_URL}/pull/${issue[1]}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 hover:underline dark:text-blue-400"
+        >
+          {part}
+        </a>
+      )
+    }
+
+    return part
+  })
+}
+
 function ReleaseBlock({ release }) {
   const sections = ['added', 'changed', 'fixed'].filter(
     (key) => release[key] && release[key].length > 0
@@ -29,7 +76,7 @@ function ReleaseBlock({ release }) {
             </div>
             <ul className="text-sm text-foreground space-y-0.5 list-disc list-inside marker:text-muted-foreground">
               {release[key].map((item, i) => (
-                <li key={i}>{item}</li>
+                <li key={i}>{renderInline(item)}</li>
               ))}
             </ul>
           </div>
