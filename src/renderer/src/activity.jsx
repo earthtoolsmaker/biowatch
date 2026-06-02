@@ -281,7 +281,7 @@ function HeatmapLayer({ points, max, gradient, areaFilter }) {
       blur: 20,
       max,
       maxZoom: 12,
-      minOpacity: 0.25,
+      minOpacity: 0.45,
       gradient
     })
     layer.addTo(map)
