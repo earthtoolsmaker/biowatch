@@ -14,6 +14,7 @@ import { normalizeTimeRange } from '../../../../src/main/database/queries/sequen
 import {
   getMediaForSequencePagination,
   hasTimestampedMedia,
+  getSpeciesHeatmapDataByMedia,
   createImageDirectoryDatabase,
   insertDeployments,
   insertMedia,
@@ -273,5 +274,112 @@ describe('hasTimestampedMedia — timeRange filter', () => {
       timeRange: { start: 8, end: 18 }
     })
     assert.equal(result, true)
+  })
+})
+
+/**
+ * Seed media whose timestamps carry an explicit +02:00 offset (deployment-local
+ * time, as stored by the fixed importers), so the literal wall-clock hour
+ * differs from the UTC hour. mediaID encodes the local wall-clock hour, e.g.
+ * local 9 → '2024-06-01T09:30:00.000+02:00' (07:30 UTC).
+ *
+ * The filter must use the local hour (9), not the UTC hour (7). These assertions
+ * are timezone-independent: substr reads the stored offset's wall clock
+ * regardless of where the test runs.
+ */
+async function seedOffsetMedia(localHours) {
+  const manager = await createImageDirectoryDatabase(testDbPath)
+  await insertDeployments(manager, {
+    d1: {
+      deploymentID: 'd1',
+      locationID: 'loc1',
+      locationName: 'Site A',
+      deploymentStart: DateTime.fromISO('2024-01-01T00:00:00Z'),
+      deploymentEnd: DateTime.fromISO('2024-12-31T23:59:59Z'),
+      latitude: 1,
+      longitude: 1,
+      cameraID: 'cam1'
+    }
+  })
+  const mediaMap = {}
+  const obsList = []
+  for (const h of localHours) {
+    const id = `m-loc-${String(h).padStart(2, '0')}`
+    const iso = `2024-06-01T${String(h).padStart(2, '0')}:30:00+02:00`
+    mediaMap[`${id}.jpg`] = {
+      mediaID: id,
+      deploymentID: 'd1',
+      timestamp: DateTime.fromISO(iso, { setZone: true }),
+      filePath: `/${id}.jpg`,
+      fileName: `${id}.jpg`
+    }
+    obsList.push({
+      observationID: `obs-${id}`,
+      mediaID: id,
+      deploymentID: 'd1',
+      eventID: `ev-${id}`,
+      observationType: 'animal',
+      scientificName: 'Sus scrofa'
+    })
+  }
+  await insertMedia(manager, mediaMap)
+  await insertObservations(manager, obsList)
+  return manager
+}
+
+describe('timeRange filters on the deployment-local hour (stored offset), not UTC', () => {
+  test('insertMedia preserves the +02:00 offset in the stored timestamp', async () => {
+    const manager = await seedOffsetMedia([9])
+    const row = manager
+      .getSqlite()
+      .prepare("SELECT timestamp FROM media WHERE mediaID='m-loc-09'")
+      .get()
+    assert.equal(row.timestamp, '2024-06-01T09:30:00.000+02:00')
+  })
+
+  test('getMediaForSequencePagination: Day [8,18) uses local hour (09:30+02 is in, its 07 UTC hour is not)', async () => {
+    await seedOffsetMedia([7, 9, 17, 23])
+    const result = await getMediaForSequencePagination(testDbPath, {
+      species: ['Sus scrofa'],
+      timeRange: { ranges: [{ start: 8, end: 18 }] }
+    })
+    const ids = result.media.map((m) => m.mediaID).sort()
+    // Local hours 9 and 17 are in [8,18). Filtering on the UTC hour would read
+    // 09:30+02 as 7 and wrongly drop it, leaving only m-loc-17.
+    assert.deepEqual(ids, ['m-loc-09', 'm-loc-17'])
+  })
+
+  test('getMediaForSequencePagination: Dawn [5,8) uses local hour (07:30+02 in, 09:30+02 out)', async () => {
+    await seedOffsetMedia([7, 9, 17, 23])
+    const result = await getMediaForSequencePagination(testDbPath, {
+      species: ['Sus scrofa'],
+      timeRange: { ranges: [{ start: 5, end: 8 }] }
+    })
+    const ids = result.media.map((m) => m.mediaID).sort()
+    // Only local hour 7 is in [5,8). Filtering on the UTC hour would read
+    // 09:30+02 as 7 and wrongly include it alongside m-loc-07.
+    assert.deepEqual(ids, ['m-loc-07'])
+  })
+
+  test('hasTimestampedMedia: Day [8,18) sees a 09:30+02 capture via its local hour', async () => {
+    await seedOffsetMedia([9])
+    const result = await hasTimestampedMedia(testDbPath, {
+      species: ['Sus scrofa'],
+      timeRange: { ranges: [{ start: 8, end: 18 }] }
+    })
+    assert.equal(result, true)
+  })
+
+  test('getSpeciesHeatmapDataByMedia: Day [8,18) filters on the local hour', async () => {
+    await seedOffsetMedia([7, 9, 17, 23])
+    const rows = await getSpeciesHeatmapDataByMedia(
+      testDbPath,
+      ['Sus scrofa'],
+      '2024-05-31T00:00:00Z',
+      '2024-06-02T23:59:59Z',
+      { ranges: [{ start: 8, end: 18 }] }
+    )
+    const ids = rows.map((r) => r.mediaID).sort()
+    assert.deepEqual(ids, ['m-loc-09', 'm-loc-17'])
   })
 })

@@ -24,7 +24,7 @@ import log from 'electron-log'
 import { getStudyIdFromPath } from './utils.js'
 import { buildBboxClause } from './bbox.js'
 import { BLANK_SENTINEL } from '../../../shared/constants.js'
-import { normalizeTimeRange } from './sequences.js'
+import { normalizeTimeRange, localHourExpr, localHourExprRaw } from './sequences.js'
 
 /**
  * Get species distribution from the database using Drizzle ORM
@@ -615,10 +615,11 @@ export async function getSpeciesHeatmapDataByMedia(
       baseConditions.push(lte(media.timestamp, endDate))
     }
 
-    // Add time-of-day condition using sql template for SQLite strftime.
-    // When includeNullTimestamps=true, allow null timestamps through.
-    // Empty ranges array means no time filter.
-    const hourColumn = sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER)`
+    // Add time-of-day condition on the deployment-local hour (see
+    // localHourExpr), matching the capture time the gallery displays. When
+    // includeNullTimestamps=true, allow null timestamps through. Empty ranges
+    // array means no time filter.
+    const hourColumn = localHourExpr(media.timestamp)
     const ranges = normalizeTimeRange(timeRange)
     const rangeConditions = ranges
       .map((r) => {
@@ -760,7 +761,7 @@ export async function getSequenceAwareHeatmapSQL(
         params.push(startDate, endDate)
       }
     }
-    const hourExpr = `CAST(strftime('%H', ${tsCol}) AS INTEGER)`
+    const hourExpr = localHourExprRaw(tsCol)
     const hourClauses = hourRanges
       .map(({ start, end }) => {
         if (start === end) return null
@@ -1020,7 +1021,7 @@ export async function getSequenceAwareDailyActivitySQL(
                    m.mediaID AS mediaID,
                    m.deploymentID AS deploymentID,
                    m.timestamp AS ts,
-                   CAST(strftime('%H', m.timestamp) AS INTEGER) AS hour,
+                   ${localHourExprRaw('m.timestamp')} AS hour,
                    CASE WHEN m.fileMediatype LIKE 'video/%' THEN 1 ELSE 0 END AS is_video,
                    COUNT(*) AS media_count
               FROM observations o
@@ -1072,7 +1073,7 @@ export async function getSequenceAwareDailyActivitySQL(
           WITH media_counts AS (
             SELECT o.scientificName AS scientificName,
                    COALESCE(NULLIF(o.eventID, ''), 'solo:' || o.mediaID) AS event_key,
-                   CAST(strftime('%H', m.timestamp) AS INTEGER) AS hour,
+                   ${localHourExprRaw('m.timestamp')} AS hour,
                    COUNT(*) AS media_count
               FROM observations o
               INNER JOIN media m ON o.mediaID = m.mediaID
@@ -1100,7 +1101,7 @@ export async function getSequenceAwareDailyActivitySQL(
         .prepare(
           `
           SELECT o.scientificName AS scientificName,
-                 CAST(strftime('%H', m.timestamp) AS INTEGER) AS hour,
+                 ${localHourExprRaw('m.timestamp')} AS hour,
                  COUNT(o.observationID) AS count
             FROM observations o
             INNER JOIN media m ON o.mediaID = m.mediaID

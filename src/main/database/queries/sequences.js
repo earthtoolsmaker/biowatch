@@ -45,25 +45,62 @@ export function normalizeTimeRange(timeRange) {
 }
 
 /**
+ * Extract the deployment-local hour (0–23) literally from a stored ISO
+ * timestamp string, WITHOUT any timezone conversion.
+ *
+ * Biowatch stores capture timestamps in the *deployment's* local time (the
+ * camera's wall clock), keeping the source offset — e.g. '2017-04-10T06:06+02:00'
+ * (see docs/dates-and-timezones.md). The day-period presets in
+ * src/renderer/src/utils/dayPeriods.js are defined in that same local clock, so
+ * we read the hour straight off the string. The HH characters always sit at
+ * positions 12–13 of an ISO 'YYYY-MM-DD?HH:...' string (T or space separator).
+ *
+ * We deliberately do NOT use strftime('%H', ts): with no modifier it would
+ * normalize an offset-bearing timestamp to UTC, and with 'localtime' it would
+ * convert to the *viewer's* machine timezone — both shift the boundaries away
+ * from the camera's local clock. substr() is also timezone-independent, so the
+ * filter is deterministic regardless of where it runs.
+ *
+ * Caveat: studies imported before timestamps were stored deployment-local are
+ * kept as UTC ('Z') and will read as UTC until re-imported.
+ *
+ * @param {*} tsColumn - a Drizzle column / SQL fragment for the timestamp
+ * @returns a Drizzle SQL fragment evaluating to an integer hour
+ */
+export function localHourExpr(tsColumn) {
+  return sql`CAST(substr(${tsColumn}, 12, 2) AS INTEGER)`
+}
+
+/**
+ * Raw-SQL-string form of localHourExpr, for query paths that assemble SQL text
+ * by hand (better-sqlite3 prepared statements). See localHourExpr for why this
+ * reads the literal stored hour instead of strftime('%H', ...).
+ *
+ * @param {string} tsCol - SQL expression for the timestamp column (e.g. 'm.timestamp')
+ * @returns {string} a SQL expression evaluating to an integer hour
+ */
+export function localHourExprRaw(tsCol) {
+  return `CAST(substr(${tsCol}, 12, 2) AS INTEGER)`
+}
+
+/**
  * Build a SQL condition for a single {start, end} hour range against
  * media.timestamp. Half-open [start, end). Returns null when start === end
  * (zero-width range, no rows match — caller should drop it).
  *
  * Wrap-around (start > end) is OR'd: hour >= start OR hour < end.
+ *
+ * The hour is the deployment-local hour read off the stored string (see
+ * localHourExpr), matching the capture time the gallery displays.
  */
 export function buildHourRangeCondition(range) {
   const { start, end } = range
   if (start === end) return null
+  const hour = localHourExpr(media.timestamp)
   if (start < end) {
-    return and(
-      sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) >= ${start}`,
-      sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) < ${end}`
-    )
+    return and(sql`${hour} >= ${start}`, sql`${hour} < ${end}`)
   }
-  return or(
-    sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) >= ${start}`,
-    sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) < ${end}`
-  )
+  return or(sql`${hour} >= ${start}`, sql`${hour} < ${end}`)
 }
 
 /**

@@ -90,7 +90,7 @@ cameraID / cameraModel / coordinateUncertainty = NULL`, and `deploymentStart`
 | --------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `mediaID`       | string   | Unique media identifier (primary key)                                                                                                                                                                                                                                   |
 | `deploymentID`  | string   | Foreign key to deployments                                                                                                                                                                                                                                              |
-| `timestamp`     | datetime | Capture timestamp (ISO 8601)                                                                                                                                                                                                                                            |
+| `timestamp`     | datetime | Capture timestamp (ISO 8601), stored in **deployment-local** time keeping the source offset — see [dates-and-timezones.md](dates-and-timezones.md)                                                                                                                      |
 | `filePath`      | string   | Relative path to media file or HTTP URL                                                                                                                                                                                                                                 |
 | `filePublic`    | boolean  | Whether file is publicly accessible                                                                                                                                                                                                                                     |
 | `fileMediatype` | string   | MIME type (e.g., `image/jpeg`, `video/mp4`)                                                                                                                                                                                                                             |
@@ -285,13 +285,13 @@ Round-trip format used by the Deployments-tab **Export CSV** / **Import CSV** bu
 
 ### Columns
 
-| Column         | Required on import? | Editable on import? | Notes                                                                                          |
-| -------------- | ------------------- | ------------------- | ---------------------------------------------------------------------------------------------- |
-| `deploymentID` | Yes (row key)       | No                  | Rows whose ID is missing from the DB are skipped with a warning.                               |
-| `locationID`   | No                  | No                  | Treated as read-only context. A CSV value differing from the DB raises a per-cell warning.     |
+| Column         | Required on import? | Editable on import? | Notes                                                                                         |
+| -------------- | ------------------- | ------------------- | --------------------------------------------------------------------------------------------- |
+| `deploymentID` | Yes (row key)       | No                  | Rows whose ID is missing from the DB are skipped with a warning.                              |
+| `locationID`   | No                  | No                  | Treated as read-only context. A CSV value differing from the DB raises a per-cell warning.    |
 | `locationName` | No                  | Yes                 | Empty = leave existing value. Propagates to every deployment sharing the resolved locationID. |
-| `latitude`     | No                  | Yes                 | Decimal degrees. Must be in `[-90, 90]` when non-empty. Empty = leave existing value.          |
-| `longitude`    | No                  | Yes                 | Decimal degrees. Must be in `[-180, 180]` when non-empty. Empty = leave existing value.        |
+| `latitude`     | No                  | Yes                 | Decimal degrees. Must be in `[-90, 90]` when non-empty. Empty = leave existing value.         |
+| `longitude`    | No                  | Yes                 | Decimal degrees. Must be in `[-180, 180]` when non-empty. Empty = leave existing value.       |
 
 **Encoding:** UTF-8 with RFC-4180 quoting (`escapeCSV` shares the implementation with the CamtrapDP export). Unknown columns are silently ignored. Missing the `deploymentID` header is a hard parse error.
 

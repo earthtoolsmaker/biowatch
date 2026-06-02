@@ -53,7 +53,11 @@ import {
   getSpeciesCountsFromSequence
 } from '../utils/speciesFromBboxes'
 import { SpeciesCountLabel } from '../ui/SpeciesLabel'
-import { formatGridTimestamp } from '../utils/formatTimestamp'
+import {
+  formatGridTimestamp,
+  formatEditableTimestamp,
+  parseEditedTimestampToISO
+} from '../utils/formatTimestamp'
 import { useSequenceGap } from '../hooks/useSequenceGap'
 import { useShowThumbnailBboxes } from '../hooks/useShowThumbnailBboxes'
 import DateTimePicker from '../ui/DateTimePicker'
@@ -290,7 +294,7 @@ function ImageModal({
   // Initialize inline timestamp when media changes
   useEffect(() => {
     if (media?.timestamp) {
-      setInlineTimestamp(new Date(media.timestamp).toLocaleString())
+      setInlineTimestamp(formatEditableTimestamp(media.timestamp))
     }
     // Sync favorite state with media prop
     setIsFavorite(media?.favorite ?? false)
@@ -490,7 +494,7 @@ function ImageModal({
 
       setShowDatePicker(false)
       setIsEditingTimestamp(false)
-      setInlineTimestamp(new Date(savedTimestamp).toLocaleString())
+      setInlineTimestamp(formatEditableTimestamp(savedTimestamp))
     } catch (err) {
       // Rollback on error
       if (onTimestampUpdate) {
@@ -531,7 +535,11 @@ function ImageModal({
         return
       }
 
-      handleTimestampSave(parsedDate.toISOString())
+      // Interpret the edited wall clock in the deployment's local zone (the
+      // original timestamp's offset) so saving keeps it deployment-local rather
+      // than rebasing onto the viewer's machine zone.
+      const isoInDeploymentZone = parseEditedTimestampToISO(trimmedInput, media.timestamp)
+      handleTimestampSave(isoInDeploymentZone || parsedDate.toISOString())
     } catch {
       setError('Invalid date format. Try: "12/25/2024, 2:30:00 PM"')
     }
@@ -540,7 +548,7 @@ function ImageModal({
   const handleInlineCancel = () => {
     setIsEditingTimestamp(false)
     if (media?.timestamp) {
-      setInlineTimestamp(new Date(media.timestamp).toLocaleString())
+      setInlineTimestamp(formatEditableTimestamp(media.timestamp))
     }
     setError(null)
   }
@@ -1105,9 +1113,7 @@ function ImageModal({
                       onClick={handleInlineEdit}
                       title="Click to edit timestamp"
                     >
-                      {media.timestamp
-                        ? new Date(media.timestamp).toLocaleString()
-                        : 'No timestamp'}
+                      {media.timestamp ? formatEditableTimestamp(media.timestamp) : 'No timestamp'}
                     </span>
                     <button
                       onClick={handleInlineEdit}

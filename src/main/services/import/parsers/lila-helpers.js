@@ -7,21 +7,26 @@
 import { DateTime } from 'luxon'
 
 /**
- * Transform date field from COCO format to ISO
+ * Transform date field from COCO format to ISO.
+ *
+ * Preserves the deployment-local wall clock and any source offset instead of
+ * converting to UTC, so day-period filtering and the gallery read the camera's
+ * local time. Naive COCO values ("2022-12-31 09:52:50") keep their wall clock.
+ * See docs/dates-and-timezones.md.
  */
 export function transformDateField(dateValue) {
   if (!dateValue) return null
 
-  // Try ISO format first
-  let date = DateTime.fromISO(dateValue)
+  // Try ISO format first (keep the source offset if present)
+  let date = DateTime.fromISO(dateValue, { setZone: true })
   if (date.isValid) {
-    return date.toUTC().toISO()
+    return date.toISO()
   }
 
-  // Try COCO common format: "2022-12-31 09:52:50"
+  // Try COCO common format: "2022-12-31 09:52:50" (naive → local wall clock)
   date = DateTime.fromFormat(dateValue, 'yyyy-MM-dd HH:mm:ss')
   if (date.isValid) {
-    return date.toUTC().toISO()
+    return date.toISO()
   }
 
   return null
