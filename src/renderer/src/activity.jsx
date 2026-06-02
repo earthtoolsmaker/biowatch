@@ -51,7 +51,7 @@ import SpeciesRailToggle from './ui/SpeciesRailToggle'
 import SelectedSpeciesChips from './ui/SelectedSpeciesChips'
 import Gallery from './media/Gallery'
 import { useIsLgUp } from './hooks/useIsLgUp'
-import { getAvailableViewModes, clampViewMode } from './utils/viewLayout'
+import { getAvailableViewModes, clampViewMode, initialViewMode } from './utils/viewLayout'
 import SpeciesDistribution from './ui/speciesDistribution'
 import TimelineChart from './ui/timeseries'
 import { useImportStatus } from './hooks/import'
@@ -1154,12 +1154,14 @@ export default function Activity({ studyData, studyId }) {
   const { sequenceGap, setSequenceGap } = useSequenceGap(actualStudyId)
   const { showFilterCharts } = useShowFilterCharts(actualStudyId)
 
-  // Explore view toggle: 'map' | 'gallery' | 'both'. Defaults to 'map'
-  // (not persisted). 'both' is only available at lg+; clamp to 'map' if the
-  // window is narrower so a stale 'both' selection can't render off-breakpoint.
+  // Explore view toggle: 'map' | 'gallery' | 'both' (not persisted). 'both' is
+  // only available at lg+; clamp to 'map' if the window is narrower so a stale
+  // 'both' selection can't render off-breakpoint.
   const isLgUp = useIsLgUp()
-  // Open in 'both' when deep-linked with ?view=both (clamps to 'map' below lg).
-  const [viewModeRaw, setViewMode] = useState(deepLinkView === 'both' ? 'both' : 'map')
+  // Default to 'both' on wide screens (lg+) and 'map' below; an explicit
+  // deep-link view (?view=both / ?view=gallery) wins. isLgUp defaults to true
+  // before its effect runs (desktop-first), so the wide default holds on mount.
+  const [viewModeRaw, setViewMode] = useState(() => initialViewMode(deepLinkView, isLgUp))
   const viewMode = clampViewMode(viewModeRaw, isLgUp)
   // Memoized so ViewModeToggle gets a stable `modes` identity — otherwise its
   // ResizeObserver effect tears down and re-subscribes on every Activity render.
