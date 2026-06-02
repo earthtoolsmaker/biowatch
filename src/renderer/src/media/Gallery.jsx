@@ -1613,7 +1613,7 @@ function ThumbnailBboxOverlay({ bboxes, imageRef, containerRef }) {
   const { offsetX, offsetY, renderedWidth, renderedHeight } = imageBounds
 
   return (
-    <svg className="absolute inset-0 w-full h-full pointer-events-none z-10">
+    <svg className="absolute inset-0 w-full h-full pointer-events-none z-10 transition-transform duration-300 ease-out group-hover:scale-110">
       {drawableBboxes.map((bbox, index) => {
         const isValidated = bbox.classificationMethod === 'human'
         return (
@@ -1699,7 +1699,7 @@ function ThumbnailCard({
 
   return (
     <div
-      className="border border-border rounded-lg overflow-hidden flex flex-col transition-all"
+      className="group border border-border rounded-lg overflow-hidden flex flex-col transition-all"
       style={{ width: itemWidth ? `${itemWidth}px` : undefined }}
     >
       <div
@@ -1729,7 +1729,7 @@ function ThumbnailCard({
                 ref={imageRef}
                 src={thumbnailUrl}
                 alt={media.fileName || `Video ${media.mediaID}`}
-                className="relative z-10 w-full h-full object-contain"
+                className="relative z-10 w-full h-full object-contain transition-transform duration-300 ease-out group-hover:scale-110"
                 loading="lazy"
               />
             ) : (
@@ -1737,7 +1737,7 @@ function ThumbnailCard({
               <video
                 ref={imageRef}
                 src={constructImageUrl(media.filePath)}
-                className={`relative z-10 w-full h-full object-contain ${imageErrors[media.mediaID] ? 'hidden' : ''}`}
+                className={`relative z-10 w-full h-full object-contain transition-transform duration-300 ease-out group-hover:scale-110 ${imageErrors[media.mediaID] ? 'hidden' : ''}`}
                 onError={() => setImageErrors((prev) => ({ ...prev, [media.mediaID]: true }))}
                 muted
                 preload="metadata"
@@ -1761,7 +1761,7 @@ function ThumbnailCard({
               src={constructImageUrl(media.filePath)}
               alt={media.fileName || `Media ${media.mediaID}`}
               data-image={media.filePath}
-              className={`w-full h-full object-contain ${imageErrors[media.mediaID] ? 'hidden' : ''} ${isImageLoading ? 'opacity-0' : 'opacity-100'} transition-opacity duration-200`}
+              className={`w-full h-full object-contain ${imageErrors[media.mediaID] ? 'hidden' : ''} ${isImageLoading ? 'opacity-0' : 'opacity-100'} transition duration-300 ease-out group-hover:scale-110`}
               onLoad={() => setIsImageLoading(false)}
               onError={() => {
                 setImageErrors((prev) => ({ ...prev, [media.mediaID]: true }))
@@ -1965,7 +1965,7 @@ function SequenceCard({
                 ref={imageRef}
                 src={currentThumbnailUrl}
                 alt={currentMedia.fileName || `Video ${currentMedia.mediaID}`}
-                className="relative z-10 w-full h-full object-contain transition-opacity duration-300"
+                className="relative z-10 w-full h-full object-contain transition duration-300 ease-out group-hover:scale-110"
                 loading="lazy"
               />
             ) : (
@@ -1973,7 +1973,7 @@ function SequenceCard({
               <video
                 ref={imageRef}
                 src={constructImageUrl(currentMedia.filePath)}
-                className={`relative z-10 w-full h-full object-contain transition-opacity duration-300 ${imageErrors[currentMedia.mediaID] ? 'hidden' : ''}`}
+                className={`relative z-10 w-full h-full object-contain transition duration-300 ease-out group-hover:scale-110 ${imageErrors[currentMedia.mediaID] ? 'hidden' : ''}`}
                 onError={() =>
                   setImageErrors((prev) => ({ ...prev, [currentMedia.mediaID]: true }))
                 }
@@ -1998,7 +1998,7 @@ function SequenceCard({
               ref={imageRef}
               src={constructImageUrl(currentMedia.filePath)}
               alt={currentMedia.fileName || `Media ${currentMedia.mediaID}`}
-              className={`w-full h-full object-contain transition-opacity duration-300 ${imageErrors[currentMedia.mediaID] ? 'hidden' : ''} ${!loadedImages[currentMedia.mediaID] ? 'opacity-0' : 'opacity-100'}`}
+              className={`w-full h-full object-contain transition duration-300 ease-out group-hover:scale-110 ${imageErrors[currentMedia.mediaID] ? 'hidden' : ''} ${!loadedImages[currentMedia.mediaID] ? 'opacity-0' : 'opacity-100'}`}
               onLoad={() => setLoadedImages((prev) => ({ ...prev, [currentMedia.mediaID]: true }))}
               onError={() => {
                 setImageErrors((prev) => ({ ...prev, [currentMedia.mediaID]: true }))
