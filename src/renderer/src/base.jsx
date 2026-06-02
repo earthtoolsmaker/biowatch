@@ -531,7 +531,7 @@ function ThemedToaster() {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Tooltip.Provider delayDuration={200} skipDelayDuration={0}>
+      <Tooltip.Provider delayDuration={200} skipDelayDuration={0} disableHoverableContent>
         <ThemedToaster />
         <HashRouter>
           <ErrorBoundary FallbackComponent={ErrorFallback}>
