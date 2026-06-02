@@ -51,7 +51,7 @@ export default function StudyHoverCard({ study, scrollSignal, children }) {
           align="start"
           avoidCollisions
           collisionPadding={16}
-          className="z-[10001] w-80 bg-card rounded-lg shadow-xl border border-border p-4"
+          className="study-hovercard z-[10001] w-80 bg-card rounded-lg shadow-xl border border-border p-4"
         >
           <Body study={study} stats={stats} isLoading={isLoading} />
         </HoverCard.Content>
