@@ -5,6 +5,42 @@ All notable changes to Biowatch will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.3] - 2026-06-02
+
+### Added
+
+- **Merge a study as a source** via a new **Add Source wizard** on the Sources tab: pick the source type, choose a folder or an existing study, and review a pre-flight summary (image/video/observation/deployment counts, contributors, descriptions) before merging. The merge runs in a worker thread so the UI stays responsive, reports progress on the review modal, and is cancellable mid-run (the transaction rolls back). Contributor lists and descriptions are merged with plain-language origin labels, and deleting a study that backs merged sources now asks for confirmation first.
+- **Explore tab** (renamed from Activity) consolidates the species-distribution map and media gallery into one view with a **Map / Gallery / Both** toggle (defaults to Both on wide screens, Map otherwise). Includes a collapsible species rail with chips and hover cards, animated view-toggle and pane transitions, and a media gallery that zooms thumbnails on hover.
+- **Map encoding modes** for the species-distribution map: markers, density heatmap, and hex-grid, with the chosen mode persisted across reloads.
+- **Daytime activity filter**: select a time-of-day range to filter the activity widgets via a polar selection ring on the radar or a line-mode selection track below the axis.
+- **Map area filter** on the Explore tab: drag a box on the map to filter the activity widgets and the gallery media, with a re-applyable area pill and inline clear.
+- Clicking a **threatened species in the Overview** now opens the Explore tab focused on that species.
+- Explanatory tooltips across the app: Deployments CSV import/export actions, the sparkline toggle, the activity chart-shape toggle, and the Explore view toggle.
+- A hover card on the **Add Study** sidebar button, and spring-pop hover-card / zoom animations on the study sidebar, Overview capture and species cards, and the map composition card.
+
+### Changed
+
+- **CamtrapDP / GBIF imports now run in a worker thread** with real-time progress: expansion is paginated by source observations and logged per batch, so progress and logs flow immediately instead of in bursts.
+- Density heatmap opacity floor raised for visibility; density and hex-grid surfaces fade outside the active area filter.
+- Sources tab rows now show a per-source type icon and a humanized importer label (e.g. "Camtrap DP").
+- Logging unified through the `services/logger.js` wrapper instead of importing `electron-log` directly.
+- The Activity tab and route were renamed to **Explore** (`/explore`).
+
+### Fixed
+
+- Overview map cluster now shows the total number of deployments rather than the count of unique coordinates.
+- Sources tab no longer shows a misleading per-source deployment count.
+- Overview species-name rows truncate with an ellipsis instead of wrapping to a second line.
+- Import correctly links observations to their media.
+- Tooltips swap cleanly between adjacent triggers, and the native title tooltip no longer appears on study-tab hover.
+- Radix species hover cards stay visible after their pop animation.
+- Merge of multi-million-row studies no longer runs out of memory (rows are streamed via prepared statements instead of loaded into JS).
+
+### Performance
+
+- Sequence worker: added out-of-memory diagnostics and repro tooling, plus a configurable old-space cap for large studies.
+- Explore map: area filtering no longer freezes the map; out-of-box markers fade instead of being recomputed.
+
 ## [1.9.2] - 2026-05-18
 
 ### Added
@@ -673,6 +709,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Activity heatmaps
 - Overview statistics
 
+[1.9.3]: https://github.com/earthtoolsmaker/biowatch/compare/v1.9.2...v1.9.3
 [1.9.2]: https://github.com/earthtoolsmaker/biowatch/compare/v1.9.1...v1.9.2
 [1.9.1]: https://github.com/earthtoolsmaker/biowatch/compare/v1.9.0...v1.9.1
 [1.9.0]: https://github.com/earthtoolsmaker/biowatch/compare/v1.8.7...v1.9.0
