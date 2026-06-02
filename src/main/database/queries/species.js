@@ -2,7 +2,8 @@
  * Species-related database queries
  */
 
-import { getDrizzleDb, getStudyDatabase, deployments, media, observations } from '../index.js'
+import { getDrizzleDb, getStudyDatabase } from '../manager.js'
+import { deployments, media, observations } from '../models.js'
 import {
   eq,
   and,

@@ -3,7 +3,8 @@
  * Helper functions used across multiple query modules
  */
 
-import { getDrizzleDb, getStudyDatabase, observations } from '../index.js'
+import { getDrizzleDb, getStudyDatabase } from '../manager.js'
+import { observations } from '../models.js'
 import { sql } from 'drizzle-orm'
 // Note: observations import kept for checkStudyHasEventIDs
 import log from '../../services/logger.js'

@@ -4,7 +4,8 @@
  * Provides cursor-based pagination for sequence grouping in the main process.
  */
 
-import { getDrizzleDb, deployments, media, observations } from '../index.js'
+import { getDrizzleDb } from '../manager.js'
+import { deployments, media, observations } from '../models.js'
 import {
   eq,
   and,

@@ -3,7 +3,7 @@
  * Complex scoring and diversity selection logic for hero images
  */
 
-import { executeRawQuery } from '../index.js'
+import { executeRawQuery } from '../manager.js'
 import log from '../../services/logger.js'
 import { getStudyIdFromPath } from './utils.js'
 
