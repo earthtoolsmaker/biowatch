@@ -4,7 +4,7 @@
 
 import { app, dialog, ipcMain } from 'electron'
 import path from 'path'
-import log from 'electron-log'
+import log from '../services/logger.js'
 import { exportDiagnostics } from '../services/diagnostics.js'
 
 /**

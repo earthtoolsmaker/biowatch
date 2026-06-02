@@ -1,7 +1,7 @@
 import { app, dialog, ipcMain } from 'electron'
 import { existsSync } from 'fs'
 import fs from 'fs/promises'
-import log from 'electron-log'
+import log from '../services/logger.js'
 
 import {
   getDrizzleDb,

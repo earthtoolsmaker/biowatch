@@ -2,7 +2,7 @@ import { app, dialog, ipcMain, BrowserWindow } from 'electron'
 import { existsSync } from 'fs'
 import fs from 'fs/promises'
 import { join, extname, basename } from 'path'
-import log from 'electron-log'
+import log from '../logger.js'
 import {
   getDrizzleDb,
   getReadonlyDrizzleDb,

@@ -8,7 +8,7 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import archiver from 'archiver'
-import log from 'electron-log'
+import log from './logger.js'
 import { listStudies } from './study.js'
 
 /**

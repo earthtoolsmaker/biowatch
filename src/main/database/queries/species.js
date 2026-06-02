@@ -20,7 +20,7 @@ import {
   notExists,
   between
 } from 'drizzle-orm'
-import log from 'electron-log'
+import log from '../../services/logger.js'
 import { getStudyIdFromPath } from './utils.js'
 import { buildBboxClause } from './bbox.js'
 import { BLANK_SENTINEL } from '../../../shared/constants.js'

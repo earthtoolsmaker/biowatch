@@ -12,7 +12,7 @@ import {
 } from '../index.js'
 import { eq, and, desc, count, sql, isNotNull, inArray, isNull } from 'drizzle-orm'
 import { DateTime } from 'luxon'
-import log from 'electron-log'
+import log from '../../services/logger.js'
 import { getStudyIdFromPath, formatToMatchOriginal } from './utils.js'
 import { transformBboxToCamtrapDP, detectModelType } from '../../utils/bbox.js'
 

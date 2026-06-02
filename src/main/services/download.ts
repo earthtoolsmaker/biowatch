@@ -19,7 +19,7 @@ import {
   writeFileSync,
   statSync
 } from 'fs'
-import log from 'electron-log'
+import log from './logger.js'
 import path from 'path'
 import unzipper from 'unzipper'
 import { spawn } from 'child_process'

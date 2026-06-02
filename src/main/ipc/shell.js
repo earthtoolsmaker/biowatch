@@ -3,7 +3,7 @@
  */
 
 import { ipcMain, shell } from 'electron'
-import log from 'electron-log'
+import log from '../services/logger.js'
 
 /**
  * Register all shell-related IPC handlers

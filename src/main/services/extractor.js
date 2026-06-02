@@ -3,7 +3,7 @@
  */
 
 import { app } from 'electron'
-import log from 'electron-log'
+import log from './logger.js'
 import { spawn } from 'child_process'
 import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'fs'
 import { join } from 'path'

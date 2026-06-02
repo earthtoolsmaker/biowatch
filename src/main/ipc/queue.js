@@ -9,7 +9,7 @@
 import path from 'path'
 import fs from 'fs'
 import { ipcMain, app } from 'electron'
-import log from 'electron-log'
+import log from '../services/logger.js'
 import { queueScheduler } from '../services/queue-scheduler.js'
 import { getDrizzleDb, getLatestModelRun } from '../database/index.js'
 

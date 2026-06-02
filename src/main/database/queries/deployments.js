@@ -4,7 +4,7 @@
 
 import { getDrizzleDb, deployments, media, observations } from '../index.js'
 import { and, count, countDistinct, desc, eq, isNotNull, ne, notExists, or, sql } from 'drizzle-orm'
-import log from 'electron-log'
+import log from '../../services/logger.js'
 import { getStudyIdFromPath } from './utils.js'
 import { BLANK_SENTINEL, VEHICLE_SENTINEL } from '../../../shared/constants.js'
 

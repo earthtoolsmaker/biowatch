@@ -6,7 +6,7 @@
 import { app } from 'electron'
 import path from 'path'
 import fs from 'fs'
-import log from 'electron-log'
+import log from './logger.js'
 import {
   getReadonlyDrizzleDb,
   getDrizzleDb,

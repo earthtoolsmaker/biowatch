@@ -9,7 +9,7 @@
 import { spawn } from 'child_process'
 import { createHash } from 'crypto'
 import { app, ipcMain } from 'electron'
-import log from 'electron-log'
+import log from '../logger.js'
 import { existsSync, mkdirSync, statSync, readdirSync, unlinkSync, rmSync } from 'fs'
 import { join, basename, extname } from 'path'
 

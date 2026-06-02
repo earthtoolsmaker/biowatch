@@ -7,7 +7,7 @@
 import { app } from 'electron'
 import { join, dirname, basename } from 'path'
 import { existsSync, readdir } from 'fs'
-import log from 'electron-log'
+import log from '../logger.js'
 
 // ============================================================================
 // Directory Listing Utility

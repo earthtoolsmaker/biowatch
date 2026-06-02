@@ -3,7 +3,7 @@
  */
 
 import { app, BrowserWindow, ipcMain } from 'electron'
-import log from 'electron-log'
+import log from '../services/logger.js'
 import { existsSync, rmSync } from 'fs'
 import { join } from 'path'
 import { Worker } from 'worker_threads'

@@ -10,7 +10,7 @@
 
 import { app, BrowserWindow, dialog, shell } from 'electron'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
-import log from 'electron-log'
+import log from '../services/logger.js'
 import { autoUpdater } from 'electron-updater'
 import { join } from 'path'
 import icon from '../../../resources/icon.png?asset'
