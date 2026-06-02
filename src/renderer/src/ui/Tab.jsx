@@ -11,7 +11,6 @@ export function Tab({ to, icon: Icon, children, end = false, indicator = null, c
     <NavLink
       to={to}
       end={end}
-      title={typeof children === 'string' ? children : undefined}
       className={({ isActive }) =>
         classNames(
           isActive
