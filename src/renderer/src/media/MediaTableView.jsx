@@ -1,6 +1,6 @@
 import { memo, useMemo, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { Play, ImageOff, Layers } from 'lucide-react'
+import { Play, ImageOff, Layers, Film, Image as ImageIcon } from 'lucide-react'
 import { deriveTableRow } from './tableRows.js'
 import { resolveCommonName } from '../../../shared/commonNames/index.js'
 import { formatScientificName } from '../utils/scientificName'
@@ -15,8 +15,8 @@ function speciesDisplay(name) {
 
 const ROW_HEIGHT = 46
 // Shared column template for the header and every row so they stay aligned.
-// Columns: thumbnail · species · when · deployment.
-const GRID_COLS = '60px minmax(0,1.4fr) 180px minmax(0,1fr)'
+// Columns: thumbnail · type · species · when · deployment.
+const GRID_COLS = '60px 56px minmax(0,1.4fr) 180px minmax(0,1fr)'
 
 function formatWhen(when) {
   if (!when) return null
@@ -105,12 +105,13 @@ function SortHeader({ label, col, sortCol, sortDir, onSort }) {
 const TableRow = memo(function TableRow({
   seq,
   row,
-  speciesLabel,
+  speciesLabels,
   thumbnailUrl,
   onRowClick,
   style
 }) {
   const isMulti = seq.items.length > 1
+  const speciesText = speciesLabels.join(', ')
   return (
     <div
       role="row"
@@ -121,24 +122,27 @@ const TableRow = memo(function TableRow({
       <div className="px-2">
         <RowThumb url={thumbnailUrl} isVideo={row.isVideo} />
       </div>
-      <Cell className="font-medium">
-        {speciesLabel ? (
-          speciesLabel
+      <div className="px-2 text-muted-foreground">
+        {row.isVideo ? (
+          <Film size={15} aria-label="Video" />
+        ) : isMulti ? (
+          <span
+            className="inline-flex items-center gap-1 text-xs"
+            title={`${seq.items.length}-frame sequence`}
+          >
+            <Layers size={13} />
+            {seq.items.length}
+          </span>
+        ) : (
+          <ImageIcon size={15} className="opacity-50" aria-label="Photo" />
+        )}
+      </div>
+      <Cell className="font-medium" title={speciesText || undefined}>
+        {speciesLabels.length > 0 ? (
+          speciesText
         ) : (
           <span className="text-[11px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-normal">
             Blank
-          </span>
-        )}
-        {row.extraSpeciesCount > 0 && (
-          <span className="text-muted-foreground font-normal ml-1">+{row.extraSpeciesCount}</span>
-        )}
-        {isMulti && (
-          <span
-            className="inline-flex items-center gap-1 text-muted-foreground font-normal ml-2 text-xs align-middle"
-            title={`${seq.items.length}-frame sequence`}
-          >
-            <Layers size={12} />
-            {seq.items.length}
           </span>
         )}
       </Cell>
@@ -179,7 +183,9 @@ export default function MediaTableView({
         return {
           seq,
           row,
+          // Primary label drives the sort; the full list drives the display.
           speciesLabel: speciesDisplay(row.species),
+          speciesLabels: (row.speciesNames || []).map(speciesDisplay).filter(Boolean),
           // Request a small server-resized thumbnail (see protocols.js): the
           // original is multi-megapixel, far too costly to decode per row.
           thumbnailUrl: row.isVideo
@@ -214,6 +220,7 @@ export default function MediaTableView({
         className="grid items-center sticky top-0 z-20 bg-card border-b-2 border-border text-[11px] uppercase tracking-wide text-muted-foreground h-9"
       >
         <div className="px-2" />
+        <div className="px-2">Type</div>
         <SortHeader
           label="Species"
           col="species"
@@ -233,13 +240,13 @@ export default function MediaTableView({
 
       <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
         {virtualizer.getVirtualItems().map((v) => {
-          const { seq, row, speciesLabel, thumbnailUrl } = sortedRows[v.index]
+          const { seq, row, speciesLabels, thumbnailUrl } = sortedRows[v.index]
           return (
             <TableRow
               key={seq.id}
               seq={seq}
               row={row}
-              speciesLabel={speciesLabel}
+              speciesLabels={speciesLabels}
               thumbnailUrl={thumbnailUrl}
               onRowClick={onRowClick}
               style={{
