@@ -247,31 +247,6 @@ export default function FilterDrawer({ open, studyId, filters, onChange, blankCo
         </div>
 
         <div className="flex-1 overflow-y-auto min-h-0">
-          <Section title="Media type" count={filters.mediaTypes.length}>
-            <div className="flex gap-2">
-              {MEDIA_TYPE_OPTIONS.map(({ value, label, Icon }) => {
-                const active = filters.mediaTypes.includes(value)
-                return (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() =>
-                      onChange({ ...filters, mediaTypes: toggleInArray(filters.mediaTypes, value) })
-                    }
-                    className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border text-[13px] font-medium ${
-                      active
-                        ? 'bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-500/30'
-                        : 'bg-card border-border text-foreground hover:bg-input-background'
-                    }`}
-                  >
-                    <Icon className="w-3.5 h-3.5 opacity-80" />
-                    {label}
-                  </button>
-                )
-              })}
-            </div>
-          </Section>
-
           <Section title="Species" count={filters.species.length}>
             {speciesQuery.data ? (
               <div className="max-h-56 overflow-y-auto -mx-1">
@@ -316,6 +291,31 @@ export default function FilterDrawer({ open, studyId, filters, onChange, blankCo
                 />
               )}
             />
+          </Section>
+
+          <Section title="Media type" count={filters.mediaTypes.length}>
+            <div className="flex gap-2">
+              {MEDIA_TYPE_OPTIONS.map(({ value, label, Icon }) => {
+                const active = filters.mediaTypes.includes(value)
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() =>
+                      onChange({ ...filters, mediaTypes: toggleInArray(filters.mediaTypes, value) })
+                    }
+                    className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border text-[13px] font-medium ${
+                      active
+                        ? 'bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-500/30'
+                        : 'bg-card border-border text-foreground hover:bg-input-background'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5 opacity-80" />
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
           </Section>
         </div>
       </div>
