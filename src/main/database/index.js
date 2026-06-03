@@ -182,6 +182,7 @@ export {
   createImageDirectoryDatabase,
   // Deployments
   getDeploymentLocations,
+  getDeploymentDistribution,
   getAllDeployments,
   getLocationsActivity,
   insertDeployments,

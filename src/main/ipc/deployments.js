@@ -12,6 +12,7 @@ import {
   deployments,
   closeStudyDatabase,
   getDeploymentLocations,
+  getDeploymentDistribution,
   getAllDeployments,
   getSpeciesForDeployment,
   getMediaCountForDeployment,
@@ -40,6 +41,23 @@ export function registerDeploymentsIPCHandlers() {
       return { data: result }
     } catch (error) {
       log.error('Error getting deployment locations:', error)
+      return { error: error.message }
+    }
+  })
+
+  // Per-deployment observation counts for the Media tab's deployment filter.
+  ipcMain.handle('deployments:get-distribution', async (_, studyId) => {
+    try {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) {
+        log.warn(`Database not found for study ID: ${studyId}`)
+        return { error: 'Database not found for this study' }
+      }
+
+      const result = await getDeploymentDistribution(dbPath)
+      return { data: result }
+    } catch (error) {
+      log.error('Error getting deployment distribution:', error)
       return { error: error.message }
     }
   })

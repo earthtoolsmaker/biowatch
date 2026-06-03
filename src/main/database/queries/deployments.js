@@ -73,6 +73,35 @@ export async function getDeploymentLocations(dbPath) {
 }
 
 /**
+ * Per-deployment observation counts for the Media tab's deployment filter —
+ * the deployment analogue of the species distribution (label + count, sorted
+ * descending). LEFT JOIN keeps deployments with zero observations in the list.
+ * @param {string} dbPath - Path to the SQLite database
+ * @returns {Promise<Array<{deploymentID: string, locationName: string, count: number}>>}
+ */
+export async function getDeploymentDistribution(dbPath) {
+  const studyId = getStudyIdFromPath(dbPath)
+  const db = await getDrizzleDb(studyId, dbPath)
+  const rows = await db
+    .select({
+      deploymentID: deployments.deploymentID,
+      locationName: deployments.locationName,
+      locationID: deployments.locationID,
+      count: count(observations.observationID)
+    })
+    .from(deployments)
+    .leftJoin(observations, eq(observations.deploymentID, deployments.deploymentID))
+    .groupBy(deployments.deploymentID)
+    .orderBy(desc(count(observations.observationID)), deployments.locationID)
+    .all()
+  return rows.map((r) => ({
+    deploymentID: r.deploymentID,
+    locationName: r.locationName || r.locationID || r.deploymentID,
+    count: Number(r.count)
+  }))
+}
+
+/**
  * Get every deployment with its coordinates and identifying fields, no dedup,
  * no observations join. Intended for the Deployments tab map so each
  * deployment has its own marker and MarkerClusterGroup can correctly count

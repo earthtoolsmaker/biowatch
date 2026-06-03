@@ -41,39 +41,47 @@ function Section({ title, children }) {
   )
 }
 
-// Multi-select list used for the deployment & source facets. `selected` is an
-// array of values; clicking a row toggles it.
-function PickList({ items, selected, onToggle, emptyLabel }) {
+// Multi-select distribution list styled like the species panel: each row shows
+// a label, its count on the right, and a proportional bar underneath. `selected`
+// is an array of values; clicking a row toggles it (0..N).
+function DistributionList({ items, selected, onToggle, emptyLabel }) {
   if (!items.length) {
     return <div className="text-[13px] text-muted-foreground">{emptyLabel}</div>
   }
+  const maxCount = items.reduce((m, it) => Math.max(m, it.count || 0), 0)
   return (
-    <div className="flex flex-col gap-1 max-h-40 overflow-y-auto">
+    <div className="flex flex-col max-h-56 overflow-y-auto -mx-1">
       {items.map((it) => {
         const active = selected.includes(it.value)
+        const pct = maxCount > 0 ? ((it.count || 0) / maxCount) * 100 : 0
         return (
-          <button
+          <div
             key={it.value}
-            type="button"
             onClick={() => onToggle(it.value)}
-            className={`flex items-center justify-between rounded px-2 py-1.5 text-[13px] text-left ${
+            className={`cursor-pointer px-3 py-2 transition-colors ${
               active
-                ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300'
-                : 'hover:bg-input-background'
+                ? 'bg-blue-50 hover:bg-blue-100 dark:bg-blue-500/15 dark:hover:bg-blue-500/25'
+                : 'hover:bg-blue-50 dark:hover:bg-blue-500/15'
             }`}
           >
-            <span className="truncate pr-2 flex items-center gap-1.5">
-              <span
-                className={`inline-block w-3 h-3 rounded-sm border ${
-                  active ? 'bg-blue-600 border-blue-600' : 'border-border'
-                }`}
-              />
-              {it.label}
-            </span>
-            {typeof it.count === 'number' && (
+            <div className="flex justify-between items-center gap-2 mb-1">
+              <span className="flex items-center gap-2 min-w-0">
+                <span
+                  className={`inline-block w-3 h-3 rounded-sm border flex-shrink-0 ${
+                    active ? 'bg-blue-600 border-blue-600' : 'border-border'
+                  }`}
+                />
+                <span className="text-sm truncate text-foreground">{it.label}</span>
+              </span>
               <span className="text-xs text-muted-foreground flex-shrink-0">{it.count}</span>
-            )}
-          </button>
+            </div>
+            <div className="w-full bg-muted rounded-full h-2">
+              <div
+                className="h-2 rounded-full"
+                style={{ width: `${pct}%`, backgroundColor: active ? '#2563eb' : '#cbd5e1' }}
+              />
+            </div>
+          </div>
         )
       })}
     </div>
@@ -98,9 +106,9 @@ export default function FilterDrawer({ open, onClose, studyId, filters, onChange
   })
 
   const deploymentsQuery = useQuery({
-    queryKey: ['mediaFilterDeployments', studyId],
+    queryKey: ['mediaFilterDeploymentDistribution', studyId],
     queryFn: async () => {
-      const res = await window.api.getDeploymentLocations(studyId)
+      const res = await window.api.getDeploymentDistribution(studyId)
       if (res?.error) throw new Error(res.error)
       return res?.data ?? res
     },
@@ -122,7 +130,8 @@ export default function FilterDrawer({ open, onClose, studyId, filters, onChange
     () =>
       (deploymentsQuery.data ?? []).map((d) => ({
         value: d.deploymentID,
-        label: d.locationName || d.locationID || d.deploymentID
+        label: d.locationName || d.deploymentID,
+        count: d.count
       })),
     [deploymentsQuery.data]
   )
@@ -184,7 +193,7 @@ export default function FilterDrawer({ open, onClose, studyId, filters, onChange
           </Section>
 
           <Section title="Deployment">
-            <PickList
+            <DistributionList
               items={deploymentItems}
               selected={filters.deployments}
               onToggle={(value) =>

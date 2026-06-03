@@ -39,6 +39,9 @@ const api = {
   getDeploymentLocations: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('deployments:get-locations', studyId)
   },
+  getDeploymentDistribution: async (studyId) => {
+    return await electronAPI.ipcRenderer.invoke('deployments:get-distribution', studyId)
+  },
   getAllDeployments: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('deployments:get-all', studyId)
   },
