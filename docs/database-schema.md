@@ -235,6 +235,28 @@ older `observationType != 'blank'` proxy when restricting to "real
 species" rows — the proxy lets `unclassified`/`unknown` empty-species rows
 through, which pollutes species distributions.
 
+#### Review status (`classificationMethod`)
+
+`classificationMethod` is the source of truth for whether a human has reviewed an
+observation: `machine` is raw AI output, `human` means a person edited or confirmed
+it. Editing a species/bbox (`updateObservationClassification`/`updateObservationBbox`)
+flips it to `human` and clears `classificationProbability`; `markMediaReviewed`
+(bulk "Mark reviewed") sets `human` **without** changing the species, capturing the
+common "AI was right, confirmed" case.
+
+Derived rollups built on this field:
+
+- **Sequence reviewed flag** — `getSequenceReviewStatus`
+  (`src/main/database/queries/sequences.js`) reports a media as reviewed when it has
+  at least one observation AND **every** observation is `classificationMethod='human'`.
+  `getPaginatedSequences` attaches `reviewed: boolean` per sequence (true only when
+  all member media are reviewed) so the Media tab can render the badge without extra
+  queries.
+- **Low confidence** — `getLowConfidenceCount` (`src/main/database/queries/media.js`)
+  counts distinct media with a `machine` observation whose `classificationProbability`
+  is below a threshold (default 0.5). Human observations are excluded (their
+  probability is cleared), so this surfaces only unreviewed AI guesses.
+
 #### `observationID` reuse after delete
 
 `observationID` is a TEXT primary key (UUID, not auto-increment). Once an

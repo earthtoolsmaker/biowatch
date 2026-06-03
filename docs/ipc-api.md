@@ -71,6 +71,8 @@ const { data, error } = await window.api.getSequences(studyId, { limit: 20 })
 | `getDistinctSpecies(studyId)`     | `species:get-distinct`      | studyId    | `{ data: string[] }`                                                                                                                                                              |
 | `getBlankMediaCount(studyId)`     | `species:get-blank-count`   | studyId    | `{ data: number }` — count of media with no animal/human/vehicle observation (covers zero-obs media + media with only `blank`/`unclassified`/`unknown`-typed empty-species rows). |
 | `getVehicleMediaCount(studyId)`   | `species:get-vehicle-count` | studyId    | `{ data: number }` — count of media with at least one `observationType='vehicle'` observation.                                                                                    |
+| `getLowConfidenceCount(studyId, threshold?)` | `species:get-low-confidence-count` | studyId, threshold (default 0.5) | `{ data: number }` — count of distinct media with a `classificationMethod='machine'` observation whose `classificationProbability` is below the threshold. Drives the Media tab "Low confidence" quick view. |
+| `getSourceDistribution(studyId)`  | `sequences:get-source-distribution` | studyId | `{ data: { source: string, count: number }[] }` — import sources (`media.importFolder`) with media counts, descending. Drives the Media tab Source filter. |
 
 ### Overview
 
@@ -225,14 +227,21 @@ Returns pre-grouped sequences with cursor-based pagination for the media gallery
   gapSeconds: number | null,  // Gap threshold in seconds (null = eventID grouping)
   limit: number,              // Sequences per page (default: 20)
   cursor: string | null,      // Opaque cursor from previous response (null = first page)
+  sort: 'newest' | 'oldest',  // Timestamped-phase order (default: 'newest' = time desc)
   filters: {
     species: string[],        // Species to filter by
     dateRange: { start, end }, // Date range filter
     timeRange: { ranges: [{ start, end }, ...] } | { start, end }, // Time of day filter — multi-range (preferred) or legacy single-range; empty/missing = no filter
-    deploymentID?: string     // If set, only media for this deploymentID
+    deploymentID?: string,    // If set, only media for this deploymentID
+    source?: string           // If set, only media for this importFolder (source)
   }
 }
 ```
+
+The `sort` option only affects the timestamped phase; null-timestamp media always
+trails last. Each returned sequence also carries a `reviewed: boolean` flag — true
+when every observation on the sequence's media has `classificationMethod='human'`
+(see Observations and database-schema.md "Review status").
 
 **Response:**
 
@@ -367,6 +376,17 @@ A "source" is derived at query time as a distinct value of `media.importFolder`.
 | `deleteObservation(studyId, observationID)`                        | `observations:delete`                | studyId, observationID                                           | `{ data: { deleted: boolean } }` |
 | `createObservation(studyId, observationData)`                      | `observations:create`                | studyId, observation object (optional `observationID`/`eventID`) | `{ data: Observation }`          |
 | `restoreObservation(studyId, observationID, fields)`               | `observations:restore`               | studyId, observationID, fields to overwrite                      | `{ data: Observation }`          |
+| `bulkMarkReviewed(studyId, mediaIDs)`                              | `observations:bulk-mark-reviewed`    | studyId, mediaIDs[]                                              | `{ data: { updated: number } }`  |
+| `bulkSetSpecies(studyId, mediaIDs, classification)`               | `observations:bulk-update-classification` | studyId, mediaIDs[], { scientificName, commonName? }       | `{ data: { updated: number } }`  |
+| `bulkMarkBlank(studyId, mediaIDs)`                                 | `observations:bulk-mark-blank`       | studyId, mediaIDs[]                                              | `{ data: { updated: number } }`  |
+
+The three bulk operations act on every observation belonging to the given media
+and stamp them as human classifications (`classificationMethod='human'`,
+`classifiedBy='User'`, `classificationTimestamp=now`). `bulkMarkReviewed` leaves
+the species untouched (confirm-without-change); `bulkSetSpecies` relabels to a new
+species (canonicalized, `classificationProbability` cleared); `bulkMarkBlank`
+clears the species and sets `observationType='blank'`. All are no-ops for an empty
+`mediaIDs` array.
 
 `observations:create` accepts optional `observationID` and `eventID` in its
 payload. When supplied (used by undo-of-delete), the row is inserted with those
