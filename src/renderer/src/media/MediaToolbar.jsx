@@ -1,5 +1,22 @@
 import { useMemo } from 'react'
 import { Filter, LayoutGrid, Table2, ArrowUpDown } from 'lucide-react'
+import ViewModeToggle from '../ui/ViewModeToggle.jsx'
+
+// Grid/Table metadata for the shared ViewModeToggle (same look as Explore's
+// Map | Gallery | Both segmented control).
+const VIEW_META = {
+  grid: {
+    label: 'Grid',
+    icon: LayoutGrid,
+    description: 'Browse media as a grid of sequence thumbnails.'
+  },
+  table: {
+    label: 'Table',
+    icon: Table2,
+    description: 'Inspect sequences as sortable rows with metadata.'
+  }
+}
+const VIEW_MODES = ['grid', 'table']
 
 // Format a [fromISO, toISO] pair into a compact human label.
 function formatDateChip([from, to]) {
@@ -113,30 +130,12 @@ export default function MediaToolbar({ filters, onOpenFilter, onChange, sequence
         </select>
       </label>
 
-      <div className="inline-flex items-center bg-input-background border border-border rounded-lg p-0.5">
-        <button
-          type="button"
-          aria-pressed={filters.view === 'grid'}
-          onClick={() => onChange({ ...filters, view: 'grid' })}
-          className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[12.5px] font-medium ${
-            filters.view === 'grid' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
-          }`}
-        >
-          <LayoutGrid className="w-3.5 h-3.5" />
-          Grid
-        </button>
-        <button
-          type="button"
-          aria-pressed={filters.view === 'table'}
-          onClick={() => onChange({ ...filters, view: 'table' })}
-          className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[12.5px] font-medium ${
-            filters.view === 'table' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
-          }`}
-        >
-          <Table2 className="w-3.5 h-3.5" />
-          Table
-        </button>
-      </div>
+      <ViewModeToggle
+        value={filters.view}
+        modes={VIEW_MODES}
+        meta={VIEW_META}
+        onChange={(view) => onChange({ ...filters, view })}
+      />
     </div>
   )
 }
