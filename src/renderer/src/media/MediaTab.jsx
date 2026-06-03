@@ -80,7 +80,6 @@ export default function MediaTab({ studyId, path }) {
         </div>
         <FilterDrawer
           open={drawerOpen}
-          onClose={() => setDrawerOpen(false)}
           studyId={actualStudyId}
           path={path}
           filters={filters}

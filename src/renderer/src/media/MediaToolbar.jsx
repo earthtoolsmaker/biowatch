@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { LayoutGrid, Table2, PanelRightClose, PanelRightOpen } from 'lucide-react'
+import { LayoutGrid, Table2, Filter } from 'lucide-react'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import ViewModeToggle from '../ui/ViewModeToggle.jsx'
 import QuickViews from './QuickViews.jsx'
@@ -99,7 +99,6 @@ function deriveChips(filters, deploymentNames = {}) {
 // species-rail toggle (PanelRight icons, active-tinted, tooltip). A small dot
 // appears when drawer facets are active even while the panel is collapsed.
 function FilterPanelToggle({ open, active, onToggle }) {
-  const Icon = open ? PanelRightClose : PanelRightOpen
   const label = open ? 'Hide filters' : 'Show filters'
   return (
     <Tooltip.Root>
@@ -115,7 +114,7 @@ function FilterPanelToggle({ open, active, onToggle }) {
               : 'text-muted-foreground hover:bg-accent'
           }`}
         >
-          <Icon size={16} />
+          <Filter size={15} />
           {active && (
             <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-blue-500 dark:bg-blue-400" />
           )}

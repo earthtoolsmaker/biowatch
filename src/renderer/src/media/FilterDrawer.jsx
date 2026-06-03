@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import * as HoverCard from '@radix-ui/react-hover-card'
-import { X } from 'lucide-react'
 import SpeciesDistribution from '../ui/speciesDistribution.jsx'
 import DeploymentHoverMap from './DeploymentHoverMap.jsx'
 
@@ -101,14 +100,7 @@ function toggleInArray(arr, value) {
   return arr.includes(value) ? arr.filter((x) => x !== value) : [...arr, value]
 }
 
-export default function FilterDrawer({
-  open,
-  onClose,
-  studyId,
-  filters,
-  onChange,
-  blankCount = 0
-}) {
+export default function FilterDrawer({ open, studyId, filters, onChange, blankCount = 0 }) {
   const speciesQuery = useQuery({
     queryKey: ['mediaFilterSpeciesDistribution', studyId],
     queryFn: async () => {
@@ -177,25 +169,15 @@ export default function FilterDrawer({
       <div className="w-80 h-full bg-card border-l border-border flex flex-col">
         <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
           <span className="text-sm font-medium">Filters</span>
-          <div className="flex items-center gap-3">
-            {hasAny ? (
-              <button
-                type="button"
-                onClick={clearAll}
-                className="text-[12px] font-medium text-blue-700 dark:text-blue-300 hover:underline"
-              >
-                Clear all
-              </button>
-            ) : null}
+          {hasAny ? (
             <button
               type="button"
-              onClick={onClose}
-              aria-label="Close filters"
-              className="opacity-70 hover:opacity-100"
+              onClick={clearAll}
+              className="text-[12px] font-medium text-blue-700 dark:text-blue-300 hover:underline"
             >
-              <X className="w-4 h-4" />
+              Clear all
             </button>
-          </div>
+          ) : null}
         </div>
 
         <div className="flex-1 overflow-y-auto min-h-0">
