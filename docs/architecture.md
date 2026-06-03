@@ -193,10 +193,14 @@ src/
 │   │   ├── MediaToolbar.jsx          # Filter button, active-filter chips, sort, Grid/Table toggle
 │   │   ├── QuickViews.jsx            # Quick-view pills (needs-review/reviewed/favorites/blank/no-timestamp/low-confidence/vehicle)
 │   │   ├── FilterDrawer.jsx          # Species · deployment · source · date · time-of-day drawer
-│   │   ├── MediaGridView.jsx         # Resolves filter state → Gallery props
+│   │   ├── MediaGridView.jsx         # Resolves filter state → Gallery props (grid or table)
+│   │   ├── MediaTableView.jsx        # Sortable table view (Gallery view='table')
+│   │   ├── SelectionActionBar.jsx    # Bulk-action bar (set species / mark blank / mark reviewed)
 │   │   ├── useMediaFilters.js        # URL-backed filter/sort/view state hook
 │   │   ├── mediaFilters.js           # Pure filter-state ↔ URL serialization
 │   │   ├── quickViews.js             # Quick-view defs + query-patch mapping
+│   │   ├── selection.js              # Pure multi-select (toggle + shift-range) helper
+│   │   ├── tableRows.js              # Pure table-row derivation from a sequence
 │   │   ├── Gallery.jsx               # Sequence grid + ImageModal + bbox editor
 │   │   └── DeploymentMediaGallery.jsx # Deployment-scoped wrapper around Gallery
 │   ├── explore.jsx          # Explore tab — Map | Gallery | Both view toggle (reuses media/Gallery), temporal analysis (right-click map → Save as PNG). Map encoding modes: Composition (pies) | Abundance (graduated circles) | Density (leaflet.heat) | Hex grid (d3-hexbin)

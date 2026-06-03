@@ -232,11 +232,19 @@ Returns pre-grouped sequences with cursor-based pagination for the media gallery
     species: string[],        // Species to filter by
     dateRange: { start, end }, // Date range filter
     timeRange: { ranges: [{ start, end }, ...] } | { start, end }, // Time of day filter — multi-range (preferred) or legacy single-range; empty/missing = no filter
-    deploymentID?: string,    // If set, only media for this deploymentID
-    source?: string           // If set, only media for this importFolder (source)
+    deploymentID?: string | string[], // one deploymentID or several (IN)
+    source?: string | string[],        // one importFolder or several (IN)
+    favorite?: boolean,                // only favorited media
+    reviewed?: boolean,                // true: fully human-reviewed; false: needs review
+    lowConfidence?: boolean,           // has a low-probability machine observation
+    onlyNullTimestamps?: boolean       // only media without a timestamp ("No timestamp" quick view)
   }
 }
 ```
+
+`deploymentID` and `source` accept a single value (back-compat) or an array for
+multi-select. `favorite` / `reviewed` / `lowConfidence` / `onlyNullTimestamps`
+back the Media tab quick views.
 
 The `sort` option only affects the timestamped phase; null-timestamp media always
 trails last. Each returned sequence also carries a `reviewed: boolean` flag — true
