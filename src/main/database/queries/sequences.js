@@ -93,7 +93,8 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
     dateRange = {},
     timeRange = {},
     deploymentID = null,
-    bbox = null
+    bbox = null,
+    source = null
   } = options
 
   const startTime = Date.now()
@@ -311,6 +312,11 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
         timestampedConditions.push(eq(media.deploymentID, deploymentID))
       }
 
+      // Apply source (importFolder) filter
+      if (source) {
+        timestampedConditions.push(eq(media.importFolder, source))
+      }
+
       // Apply area (bbox) filter on the joined deployment location
       if (bboxCondition) {
         timestampedConditions.push(bboxCondition)
@@ -448,6 +454,9 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
         if (deploymentID) {
           nullConditions.push(eq(media.deploymentID, deploymentID))
         }
+        if (source) {
+          nullConditions.push(eq(media.importFolder, source))
+        }
         if (bboxCondition) {
           nullConditions.push(bboxCondition)
         }
@@ -509,6 +518,11 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
       // Apply deployment filter (covers all species variants below via shared and(...))
       if (deploymentID) {
         nullConditions.push(eq(media.deploymentID, deploymentID))
+      }
+
+      // Apply source (importFolder) filter
+      if (source) {
+        nullConditions.push(eq(media.importFolder, source))
       }
 
       // Apply area (bbox) filter on the joined deployment location
