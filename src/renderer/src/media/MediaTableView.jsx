@@ -1,6 +1,6 @@
 import { memo, useMemo, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { Play, ImageOff } from 'lucide-react'
+import { Play, ImageOff, Layers } from 'lucide-react'
 import { deriveTableRow } from './tableRows.js'
 import { resolveCommonName } from '../../../shared/commonNames/index.js'
 import { formatScientificName } from '../utils/scientificName'
@@ -133,8 +133,12 @@ const TableRow = memo(function TableRow({
           <span className="text-muted-foreground font-normal ml-1">+{row.extraSpeciesCount}</span>
         )}
         {isMulti && (
-          <span className="text-muted-foreground font-normal ml-2 text-xs">
-            {seq.items.length} frames
+          <span
+            className="inline-flex items-center gap-1 text-muted-foreground font-normal ml-2 text-xs align-middle"
+            title={`${seq.items.length}-frame sequence`}
+          >
+            <Layers size={12} />
+            {seq.items.length}
           </span>
         )}
       </Cell>
