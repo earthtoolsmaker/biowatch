@@ -136,8 +136,6 @@ export default function FilterDrawer({ open, onClose, studyId, filters, onChange
     [deploymentsQuery.data]
   )
 
-  if (!open) return null
-
   const handleSpeciesChange = (next) => {
     onChange({ ...filters, species: next.map((s) => s.scientificName) })
   }
@@ -156,9 +154,25 @@ export default function FilterDrawer({ open, onClose, studyId, filters, onChange
     filters.timeRange.ranges.length
 
   return (
-    <div className="fixed inset-0 z-[1000]" role="dialog" aria-modal="true">
-      <div className="absolute inset-0 bg-black/20" onClick={onClose} />
-      <div className="absolute right-0 top-0 h-full w-80 bg-card border-l border-border shadow-xl flex flex-col">
+    <div
+      className={`fixed inset-0 z-[1000] ${open ? '' : 'pointer-events-none'}`}
+      role="dialog"
+      aria-modal="true"
+      aria-hidden={!open}
+    >
+      {/* Backdrop fades in/out */}
+      <div
+        className={`absolute inset-0 bg-black/20 transition-opacity duration-300 ease-out motion-reduce:transition-none ${
+          open ? 'opacity-100' : 'opacity-0'
+        }`}
+        onClick={onClose}
+      />
+      {/* Panel slides in from the right */}
+      <div
+        className={`absolute right-0 top-0 h-full w-80 bg-card border-l border-border shadow-xl flex flex-col transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none ${
+          open ? 'translate-x-0' : 'translate-x-full'
+        }`}
+      >
         <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
           <span className="text-sm font-medium">Filters</span>
           <button
