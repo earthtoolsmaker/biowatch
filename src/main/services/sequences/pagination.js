@@ -79,7 +79,14 @@ function isVideoMedia(media) {
 export async function getPaginatedSequences(dbPath, options = {}) {
   const { gapSeconds = 60, limit = 20, cursor: cursorStr = null, filters = {} } = options
 
-  const { species = [], dateRange = {}, timeRange = {}, deploymentID = null, bbox = null } = filters
+  const {
+    species = [],
+    dateRange = {},
+    timeRange = {},
+    deploymentID = null,
+    bbox = null,
+    source = null
+  } = filters
 
   const startTime = Date.now()
   log.info(`[Sequences] Getting paginated sequences (limit: ${limit}, gapSeconds: ${gapSeconds})`)
@@ -94,7 +101,8 @@ export async function getPaginatedSequences(dbPath, options = {}) {
       species,
       dateRange,
       timeRange,
-      deploymentID
+      deploymentID,
+      source
     })
     if (!hasTimestamped) {
       log.info('[Sequences] No timestamped media, starting in null phase')
@@ -116,7 +124,8 @@ export async function getPaginatedSequences(dbPath, options = {}) {
       dateRange,
       timeRange,
       deploymentID,
-      bbox
+      bbox,
+      source
     })
 
     sequences.push(...result.sequences)
@@ -145,7 +154,8 @@ export async function getPaginatedSequences(dbPath, options = {}) {
         dateRange,
         timeRange,
         deploymentID,
-        bbox
+        bbox,
+        source
       })
 
       sequences.push(...result.sequences)
@@ -180,7 +190,8 @@ export async function getPaginatedSequences(dbPath, options = {}) {
  * @returns {Promise<{ sequences: Array, nextCursor: Object|null, hasMoreNull: boolean }>}
  */
 async function fetchTimestampedSequences(dbPath, options) {
-  const { gapSeconds, limit, cursor, species, dateRange, timeRange, deploymentID, bbox } = options
+  const { gapSeconds, limit, cursor, species, dateRange, timeRange, deploymentID, bbox, source } =
+    options
 
   // Fetch a batch of media
   const batchSize = Math.max(DEFAULT_BATCH_SIZE, limit * 10) // Ensure we have enough for look-ahead
@@ -191,7 +202,8 @@ async function fetchTimestampedSequences(dbPath, options) {
     dateRange,
     timeRange,
     deploymentID,
-    bbox
+    bbox,
+    source
   })
 
   const { media: mediaItems, hasMoreTimestamped, hasMoreNull } = dbResult
@@ -240,6 +252,7 @@ async function fetchTimestampedSequences(dbPath, options) {
       timeRange,
       deploymentID,
       bbox,
+      source,
       existingMedia: mediaItems,
       batchSize
     })
@@ -305,6 +318,7 @@ async function fetchMoreForLargeSequence(dbPath, options) {
     timeRange,
     deploymentID,
     bbox,
+    source,
     existingMedia,
     batchSize
   } = options
@@ -329,7 +343,8 @@ async function fetchMoreForLargeSequence(dbPath, options) {
       dateRange,
       timeRange,
       deploymentID,
-      bbox
+      bbox,
+      source
     })
 
     if (dbResult.media.length === 0) {
@@ -419,7 +434,7 @@ async function fetchMoreForLargeSequence(dbPath, options) {
  * @returns {Promise<{ sequences: Array, hasMore: boolean }>}
  */
 async function fetchNullTimestampSequences(dbPath, options) {
-  const { limit, offset, species, deploymentID, bbox } = options
+  const { limit, offset, species, deploymentID, bbox, source } = options
 
   const dbResult = await getMediaForSequencePagination(dbPath, {
     cursor: { phase: 'null', offset },
@@ -428,7 +443,8 @@ async function fetchNullTimestampSequences(dbPath, options) {
     dateRange: {}, // Date range doesn't apply to null-timestamp media
     timeRange: {}, // Time range doesn't apply to null-timestamp media
     deploymentID,
-    bbox // Location filter still applies to null-timestamp media
+    bbox, // Location filter still applies to null-timestamp media
+    source // Source filter still applies to null-timestamp media
   })
 
   const { media: mediaItems, hasMoreNull } = dbResult

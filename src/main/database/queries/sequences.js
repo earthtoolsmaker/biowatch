@@ -640,7 +640,7 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
  * @returns {Promise<boolean>}
  */
 export async function hasTimestampedMedia(dbPath, options = {}) {
-  const { species = [], dateRange = {}, timeRange = {}, deploymentID = null } = options
+  const { species = [], dateRange = {}, timeRange = {}, deploymentID = null, source = null } = options
 
   try {
     const studyId = getStudyIdFromPath(dbPath)
@@ -654,6 +654,10 @@ export async function hasTimestampedMedia(dbPath, options = {}) {
 
     if (deploymentID) {
       conditions.push(eq(media.deploymentID, deploymentID))
+    }
+
+    if (source) {
+      conditions.push(eq(media.importFolder, source))
     }
 
     // Apply date range
