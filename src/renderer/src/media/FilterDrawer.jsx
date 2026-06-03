@@ -97,17 +97,6 @@ export default function FilterDrawer({ open, onClose, studyId, filters, onChange
     staleTime: 60000
   })
 
-  const sourcesQuery = useQuery({
-    queryKey: ['mediaFilterSources', studyId],
-    queryFn: async () => {
-      const res = await window.api.getSourceDistribution(studyId)
-      if (res?.error) throw new Error(res.error)
-      return res?.data ?? res
-    },
-    enabled: open && !!studyId,
-    staleTime: 60000
-  })
-
   const deploymentsQuery = useQuery({
     queryKey: ['mediaFilterDeployments', studyId],
     queryFn: async () => {
@@ -127,12 +116,6 @@ export default function FilterDrawer({ open, onClose, studyId, filters, onChange
   const chipSelection = useMemo(
     () => rangesToChipSelection(filters.timeRange.ranges),
     [filters.timeRange.ranges]
-  )
-
-  const sourceItems = useMemo(
-    () =>
-      (sourcesQuery.data ?? []).map((s) => ({ value: s.source, label: s.source, count: s.count })),
-    [sourcesQuery.data]
   )
 
   const deploymentItems = useMemo(
@@ -207,17 +190,6 @@ export default function FilterDrawer({ open, onClose, studyId, filters, onChange
                 onChange({ ...filters, deployments: toggleInArray(filters.deployments, value) })
               }
               emptyLabel="No deployments"
-            />
-          </Section>
-
-          <Section title="Source">
-            <PickList
-              items={sourceItems}
-              selected={filters.sources}
-              onToggle={(value) =>
-                onChange({ ...filters, sources: toggleInArray(filters.sources, value) })
-              }
-              emptyLabel="No import sources"
             />
           </Section>
 

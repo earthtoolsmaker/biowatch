@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { Filter, LayoutGrid, Table2, ArrowUpDown } from 'lucide-react'
 import ViewModeToggle from '../ui/ViewModeToggle.jsx'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select.tsx'
 
 // Grid/Table metadata for the shared ViewModeToggle (same look as Explore's
 // Map | Gallery | Both segmented control).
@@ -84,6 +85,15 @@ export default function MediaToolbar({ filters, onOpenFilter, onChange, sequence
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
+      <ViewModeToggle
+        value={filters.view}
+        modes={VIEW_MODES}
+        meta={VIEW_META}
+        onChange={(view) => onChange({ ...filters, view })}
+      />
+
+      <div className="w-px h-6 bg-border mx-0.5" />
+
       <button
         type="button"
         onClick={onOpenFilter}
@@ -118,24 +128,20 @@ export default function MediaToolbar({ filters, onOpenFilter, onChange, sequence
         </span>
       )}
 
-      <label className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-border bg-card text-[12.5px] font-medium">
-        <ArrowUpDown className="w-3.5 h-3.5 opacity-70" />
-        <select
-          value={filters.sort}
-          onChange={(e) => onChange({ ...filters, sort: e.target.value })}
-          className="bg-transparent outline-none cursor-pointer"
+      <Select value={filters.sort} onValueChange={(sort) => onChange({ ...filters, sort })}>
+        <SelectTrigger
+          size="sm"
+          className="w-auto gap-1.5 text-[12.5px] font-medium"
+          aria-label="Sort order"
         >
-          <option value="newest">Newest first</option>
-          <option value="oldest">Oldest first</option>
-        </select>
-      </label>
-
-      <ViewModeToggle
-        value={filters.view}
-        modes={VIEW_MODES}
-        meta={VIEW_META}
-        onChange={(view) => onChange({ ...filters, view })}
-      />
+          <ArrowUpDown className="w-3.5 h-3.5 opacity-70" />
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="newest">Newest first</SelectItem>
+          <SelectItem value="oldest">Oldest first</SelectItem>
+        </SelectContent>
+      </Select>
     </div>
   )
 }
