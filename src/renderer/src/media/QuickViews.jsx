@@ -9,7 +9,7 @@ export default function QuickViews({ active, counts = {}, onSelect }) {
       <span className="text-[11px] uppercase tracking-wide text-muted-foreground mr-1">
         Quick views
       </span>
-      {QUICK_VIEWS.map((qv) => {
+      {QUICK_VIEWS.filter((qv) => !qv.hidden).map((qv) => {
         const isActive = active === qv.key
         const count = counts[qv.key]
         const warn = qv.tone === 'warn'
