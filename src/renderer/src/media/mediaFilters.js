@@ -15,6 +15,7 @@ export const DEFAULT_FILTERS = {
   species: [],
   deployments: [],
   sources: [],
+  mediaTypes: [],
   dateRange: [null, null],
   timeRange: { ranges: [] },
   quickView: null,
@@ -33,6 +34,7 @@ export function filtersToSearchParams(filters) {
   if (f.species.length) sp.set('species', listToParam(f.species))
   if (f.deployments.length) sp.set('deployment', listToParam(f.deployments))
   if (f.sources.length) sp.set('source', listToParam(f.sources))
+  if (f.mediaTypes.length) sp.set('mediaType', listToParam(f.mediaTypes))
   if (f.dateRange[0]) sp.set('from', f.dateRange[0])
   if (f.dateRange[1]) sp.set('to', f.dateRange[1])
   if (f.timeRange.ranges.length) sp.set('time', JSON.stringify(f.timeRange.ranges))
@@ -56,6 +58,7 @@ export function searchParamsToFilters(sp) {
     species: paramToList(sp.get('species')),
     deployments: paramToList(sp.get('deployment')),
     sources: paramToList(sp.get('source')),
+    mediaTypes: paramToList(sp.get('mediaType')),
     dateRange: [sp.get('from') || null, sp.get('to') || null],
     timeRange: { ranges },
     quickView: QUICK_VIEW_KEYS.includes(q) ? q : null,
@@ -72,6 +75,7 @@ export function hasActiveFilters(filters) {
     f.species.length ||
     f.deployments.length ||
     f.sources.length ||
+    f.mediaTypes.length ||
     f.dateRange[0] ||
     f.dateRange[1] ||
     f.timeRange.ranges.length ||

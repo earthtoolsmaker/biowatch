@@ -1,8 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import * as HoverCard from '@radix-ui/react-hover-card'
+import { Film, Image as ImageIcon } from 'lucide-react'
 import SpeciesDistribution from '../ui/speciesDistribution.jsx'
 import DeploymentHoverMap from './DeploymentHoverMap.jsx'
+
+const MEDIA_TYPE_OPTIONS = [
+  { value: 'image', label: 'Images', Icon: ImageIcon },
+  { value: 'video', label: 'Videos', Icon: Film }
+]
 
 // Single blue for selected species — consistent with the deployment filter and
 // the blue selection accent used across the drawer (no rainbow palette here,
@@ -199,7 +205,11 @@ export default function FilterDrawer({ open, studyId, filters, onChange, blankCo
     onChange({ ...filters, species: next.map((s) => s.scientificName) })
   }
 
-  const hasAny = filters.species.length || filters.deployments.length || filters.sources.length
+  const hasAny =
+    filters.species.length ||
+    filters.deployments.length ||
+    filters.sources.length ||
+    filters.mediaTypes.length
 
   const clearAll = () =>
     onChange({
@@ -207,6 +217,7 @@ export default function FilterDrawer({ open, studyId, filters, onChange, blankCo
       species: [],
       deployments: [],
       sources: [],
+      mediaTypes: [],
       dateRange: [null, null],
       timeRange: { ranges: [] }
     })
@@ -236,6 +247,31 @@ export default function FilterDrawer({ open, studyId, filters, onChange, blankCo
         </div>
 
         <div className="flex-1 overflow-y-auto min-h-0">
+          <Section title="Media type" count={filters.mediaTypes.length}>
+            <div className="flex gap-2">
+              {MEDIA_TYPE_OPTIONS.map(({ value, label, Icon }) => {
+                const active = filters.mediaTypes.includes(value)
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() =>
+                      onChange({ ...filters, mediaTypes: toggleInArray(filters.mediaTypes, value) })
+                    }
+                    className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border text-[13px] font-medium ${
+                      active
+                        ? 'bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-500/30'
+                        : 'bg-card border-border text-foreground hover:bg-input-background'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5 opacity-80" />
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+          </Section>
+
           <Section title="Species" count={filters.species.length}>
             {speciesQuery.data ? (
               <div className="max-h-56 overflow-y-auto -mx-1">

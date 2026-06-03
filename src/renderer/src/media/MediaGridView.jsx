@@ -22,6 +22,7 @@ export default function MediaGridView({ filters, speciesReady = true, onSortChan
       // selections so multi-select filtering works.
       deploymentID: filters.deployments,
       source: filters.sources,
+      mediaTypes: filters.mediaTypes,
       favorite: patch.favorite === true,
       reviewed: patch.reviewed,
       lowConfidence: patch.lowConfidence === true,
@@ -40,6 +41,7 @@ export default function MediaGridView({ filters, speciesReady = true, onSortChan
       sort={props.sort}
       deploymentID={props.deploymentID}
       source={props.source}
+      mediaTypes={props.mediaTypes}
       favorite={props.favorite}
       reviewed={props.reviewed}
       lowConfidence={props.lowConfidence}

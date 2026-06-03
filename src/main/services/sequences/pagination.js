@@ -93,6 +93,7 @@ export async function getPaginatedSequences(dbPath, options = {}) {
     deploymentID = null,
     bbox = null,
     source = null,
+    mediaTypes = [],
     favorite = false,
     reviewed,
     lowConfidence = false,
@@ -122,6 +123,7 @@ export async function getPaginatedSequences(dbPath, options = {}) {
       timeRange,
       deploymentID,
       source,
+      mediaTypes,
       ...quickView
     })
     if (!hasTimestamped) {
@@ -146,6 +148,7 @@ export async function getPaginatedSequences(dbPath, options = {}) {
       deploymentID,
       bbox,
       source,
+      mediaTypes,
       sort,
       quickView
     })
@@ -178,6 +181,7 @@ export async function getPaginatedSequences(dbPath, options = {}) {
         deploymentID,
         bbox,
         source,
+        mediaTypes,
         quickView
       })
 
@@ -233,6 +237,7 @@ async function fetchTimestampedSequences(dbPath, options) {
     deploymentID,
     bbox,
     source,
+    mediaTypes,
     sort,
     quickView = {}
   } = options
@@ -248,6 +253,7 @@ async function fetchTimestampedSequences(dbPath, options) {
     deploymentID,
     bbox,
     source,
+    mediaTypes,
     sort,
     ...quickView
   })
@@ -299,6 +305,7 @@ async function fetchTimestampedSequences(dbPath, options) {
       deploymentID,
       bbox,
       source,
+      mediaTypes,
       sort,
       quickView,
       existingMedia: mediaItems,
@@ -372,6 +379,7 @@ async function fetchMoreForLargeSequence(dbPath, options) {
     deploymentID,
     bbox,
     source,
+    mediaTypes,
     sort,
     quickView = {},
     existingMedia,
@@ -400,6 +408,7 @@ async function fetchMoreForLargeSequence(dbPath, options) {
       deploymentID,
       bbox,
       source,
+      mediaTypes,
       sort,
       ...quickView
     })
@@ -494,7 +503,7 @@ async function fetchMoreForLargeSequence(dbPath, options) {
  * @returns {Promise<{ sequences: Array, hasMore: boolean }>}
  */
 async function fetchNullTimestampSequences(dbPath, options) {
-  const { limit, offset, species, deploymentID, bbox, source, quickView = {} } = options
+  const { limit, offset, species, deploymentID, bbox, source, mediaTypes, quickView = {} } = options
 
   const dbResult = await getMediaForSequencePagination(dbPath, {
     cursor: { phase: 'null', offset },
@@ -505,6 +514,7 @@ async function fetchNullTimestampSequences(dbPath, options) {
     deploymentID,
     bbox, // Location filter still applies to null-timestamp media
     source, // Source filter still applies to null-timestamp media
+    mediaTypes, // Media-type filter applies to null-timestamp media too
     ...quickView // favorite / review-status / low-confidence apply to null media too
   })
 

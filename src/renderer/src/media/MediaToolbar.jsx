@@ -7,7 +7,9 @@ import {
   MapPin,
   FolderInput,
   Calendar,
-  Clock
+  Clock,
+  Film,
+  Image as ImageIcon
 } from 'lucide-react'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import ViewModeToggle from '../ui/ViewModeToggle.jsx'
@@ -96,6 +98,18 @@ function deriveChips(filters, deploymentNames = {}) {
       clear: (f) => ({
         ...f,
         sources: f.sources.filter((x) => x !== s)
+      })
+    })
+  }
+  for (const t of filters.mediaTypes || []) {
+    chips.push({
+      id: `mediaType:${t}`,
+      icon: t === 'video' ? Film : ImageIcon,
+      type: 'Media type',
+      label: t === 'video' ? 'Videos' : 'Images',
+      clear: (f) => ({
+        ...f,
+        mediaTypes: f.mediaTypes.filter((x) => x !== t)
       })
     })
   }

@@ -20,6 +20,7 @@ import {
   lt,
   isNull,
   or,
+  like,
   exists,
   notExists
 } from 'drizzle-orm'
@@ -78,6 +79,18 @@ export function eqOrIn(column, value) {
   if (value == null) return null
   if (Array.isArray(value)) return value.length ? inArray(column, value) : null
   return eq(column, value)
+}
+
+// Condition matching media.fileMediatype against the selected high-level types
+// ('image' → 'image/%', 'video' → 'video/%'). Empty / all-selected → null (no
+// filter). Returns an OR when more than one prefix is active.
+export function buildMediaTypeCondition(mediaTypes) {
+  const prefixes = (Array.isArray(mediaTypes) ? mediaTypes : [])
+    .map((t) => (t === 'video' ? 'video/%' : t === 'image' ? 'image/%' : null))
+    .filter(Boolean)
+  if (prefixes.length === 0) return null
+  if (prefixes.length === 1) return like(media.fileMediatype, prefixes[0])
+  return or(...prefixes.map((p) => like(media.fileMediatype, p)))
 }
 
 /**
@@ -176,6 +189,7 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
     deploymentID = null,
     bbox = null,
     source = null,
+    mediaTypes = [],
     sort = 'newest',
     favorite = false,
     reviewed,
@@ -215,6 +229,7 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
   // condition once and reuse across the timestamped and null-phase arms.
   const deploymentCond = eqOrIn(media.deploymentID, deploymentID)
   const sourceCond = eqOrIn(media.importFolder, source)
+  const mediaTypeCond = buildMediaTypeCondition(mediaTypes)
 
   try {
     const studyId = getStudyIdFromPath(dbPath)
@@ -415,6 +430,9 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
       // Apply source (importFolder) filter
       if (sourceCond) timestampedConditions.push(sourceCond)
 
+      // Apply media-type filter (image / video)
+      if (mediaTypeCond) timestampedConditions.push(mediaTypeCond)
+
       // Apply quick-view filters (favorite / review-status / low-confidence)
       timestampedConditions.push(
         ...buildQuickViewConditions(db, { favorite, reviewed, lowConfidence })
@@ -557,6 +575,7 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
         const nullConditions = [isNull(media.timestamp)]
         if (deploymentCond) nullConditions.push(deploymentCond)
         if (sourceCond) nullConditions.push(sourceCond)
+        if (mediaTypeCond) nullConditions.push(mediaTypeCond)
         nullConditions.push(...buildQuickViewConditions(db, { favorite, reviewed, lowConfidence }))
         if (bboxCondition) {
           nullConditions.push(bboxCondition)
@@ -621,6 +640,9 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
 
       // Apply source (importFolder) filter
       if (sourceCond) nullConditions.push(sourceCond)
+
+      // Apply media-type filter (image / video)
+      if (mediaTypeCond) nullConditions.push(mediaTypeCond)
 
       // Apply quick-view filters (favorite / review-status / low-confidence)
       nullConditions.push(...buildQuickViewConditions(db, { favorite, reviewed, lowConfidence }))
@@ -746,6 +768,7 @@ export async function hasTimestampedMedia(dbPath, options = {}) {
     timeRange = {},
     deploymentID = null,
     source = null,
+    mediaTypes = [],
     favorite = false,
     reviewed,
     lowConfidence = false
@@ -766,6 +789,9 @@ export async function hasTimestampedMedia(dbPath, options = {}) {
 
     const sourceCond = eqOrIn(media.importFolder, source)
     if (sourceCond) conditions.push(sourceCond)
+
+    const mediaTypeCond = buildMediaTypeCondition(mediaTypes)
+    if (mediaTypeCond) conditions.push(mediaTypeCond)
 
     conditions.push(...buildQuickViewConditions(db, { favorite, reviewed, lowConfidence }))
 
