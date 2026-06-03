@@ -2378,17 +2378,22 @@ function Gallery({
     }
   }, [hasNextPage, isFetchingNextPage, fetchNextPage])
 
-  const constructImageUrl = (fullFilePath) => {
-    if (fullFilePath.startsWith('http')) {
-      // Use cached-image protocol for remote URLs to enable disk caching
-      if (id) {
-        return `cached-image://cache?studyId=${encodeURIComponent(id)}&url=${encodeURIComponent(fullFilePath)}`
+  // Stable across renders (depends only on the study id) so memoized children —
+  // notably the Table view's rows — aren't invalidated every parent render.
+  const constructImageUrl = useCallback(
+    (fullFilePath) => {
+      if (fullFilePath.startsWith('http')) {
+        // Use cached-image protocol for remote URLs to enable disk caching
+        if (id) {
+          return `cached-image://cache?studyId=${encodeURIComponent(id)}&url=${encodeURIComponent(fullFilePath)}`
+        }
+        return fullFilePath
       }
-      return fullFilePath
-    }
 
-    return `local-file://get?path=${encodeURIComponent(fullFilePath)}`
-  }
+      return `local-file://get?path=${encodeURIComponent(fullFilePath)}`
+    },
+    [id]
+  )
 
   // Image prefetching for smooth modal navigation
   const { prefetchNeighbors } = useImagePrefetch({
