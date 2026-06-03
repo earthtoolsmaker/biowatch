@@ -1,5 +1,6 @@
 import 'leaflet/dist/leaflet.css'
 import { MapContainer, TileLayer, CircleMarker } from 'react-leaflet'
+import { Film, Image as ImageIcon } from 'lucide-react'
 import Sparkline from '../deployments/Sparkline'
 
 // Compact survey-window date label (e.g. "Mar 2024") for the heatmap axis ends.
@@ -26,6 +27,8 @@ export default function DeploymentHoverMap({
   label,
   detectionCount = 0,
   blankCount = 0,
+  imageCount = 0,
+  videoCount = 0,
   periods,
   percentile90Count,
   surveyStart,
@@ -89,6 +92,20 @@ export default function DeploymentHoverMap({
             <span className="text-muted-foreground">blank</span>
           </span>
         </div>
+        {imageCount + videoCount > 0 && (
+          <div className="mt-1.5 flex items-center gap-3 text-[11px]">
+            <span className="flex items-center gap-1">
+              <ImageIcon size={12} className="text-muted-foreground" />
+              <span className="text-foreground font-medium">{imageCount.toLocaleString()}</span>
+              <span className="text-muted-foreground">images</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <Film size={12} className="text-muted-foreground" />
+              <span className="text-foreground font-medium">{videoCount.toLocaleString()}</span>
+              <span className="text-muted-foreground">videos</span>
+            </span>
+          </div>
+        )}
         {periods && periods.length > 0 && (
           <div className="mt-2.5 pt-2.5 border-t border-border">
             <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">

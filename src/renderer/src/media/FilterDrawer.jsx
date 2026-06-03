@@ -195,6 +195,8 @@ export default function FilterDrawer({ open, studyId, filters, onChange, blankCo
         count: d.count,
         detectionCount: d.detectionCount,
         blankCount: d.blankCount,
+        imageCount: d.imageCount,
+        videoCount: d.videoCount,
         lat: d.latitude,
         lon: d.longitude
       })),
@@ -284,6 +286,8 @@ export default function FilterDrawer({ open, studyId, filters, onChange, blankCo
                   label={it.label}
                   detectionCount={it.detectionCount}
                   blankCount={it.blankCount}
+                  imageCount={it.imageCount}
+                  videoCount={it.videoCount}
                   periods={periodsByDeployment[it.value]}
                   percentile90Count={activity?.percentile90Count}
                   surveyStart={activity?.startDate}

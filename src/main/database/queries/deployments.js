@@ -98,6 +98,9 @@ export async function getDeploymentDistribution(dbPath) {
   )`
   const totalMedia = countDistinct(media.mediaID)
   const detectionMedia = sql`COUNT(DISTINCT CASE WHEN ${isRealObservation} THEN ${media.mediaID} END)`
+  // Per media-type tallies for the hover card breakdown.
+  const imageMedia = sql`COUNT(DISTINCT CASE WHEN ${media.fileMediatype} LIKE 'image/%' THEN ${media.mediaID} END)`
+  const videoMedia = sql`COUNT(DISTINCT CASE WHEN ${media.fileMediatype} LIKE 'video/%' THEN ${media.mediaID} END)`
   const rows = await db
     .select({
       deploymentID: deployments.deploymentID,
@@ -106,7 +109,9 @@ export async function getDeploymentDistribution(dbPath) {
       latitude: deployments.latitude,
       longitude: deployments.longitude,
       total: totalMedia,
-      detections: detectionMedia
+      detections: detectionMedia,
+      images: imageMedia,
+      videos: videoMedia
     })
     .from(deployments)
     .leftJoin(media, eq(media.deploymentID, deployments.deploymentID))
@@ -124,7 +129,9 @@ export async function getDeploymentDistribution(dbPath) {
       longitude: r.longitude,
       count: total,
       detectionCount,
-      blankCount: total - detectionCount
+      blankCount: total - detectionCount,
+      imageCount: Number(r.images),
+      videoCount: Number(r.videos)
     }
   })
 }
