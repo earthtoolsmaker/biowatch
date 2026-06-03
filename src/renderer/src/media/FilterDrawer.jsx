@@ -4,13 +4,6 @@ import * as HoverCard from '@radix-ui/react-hover-card'
 import { X } from 'lucide-react'
 import SpeciesDistribution from '../ui/speciesDistribution.jsx'
 import DeploymentHoverMap from './DeploymentHoverMap.jsx'
-import DayPeriodChips from '../ui/dayPeriodChips.jsx'
-import {
-  ALL_CHIPS_SELECTED,
-  DAY_PERIOD_ORDER,
-  DAY_PERIOD_PRESETS,
-  chipsToRanges
-} from '../utils/dayPeriods.js'
 
 // Species tint palette — mirrors the Explore/Media distribution colors.
 const palette = [
@@ -20,19 +13,6 @@ const palette = [
   'hsl(197 37% 24%)',
   'hsl(27 87% 67%)'
 ]
-
-// Recover the day-period chip selection from the stored ranges. chipsToRanges
-// emits one preset range per chip (no merging), so an exact start/end match is
-// lossless. Empty ranges = no time filter = all chips selected.
-function rangesToChipSelection(ranges) {
-  if (!ranges || !ranges.length) return new Set(ALL_CHIPS_SELECTED)
-  const sel = new Set()
-  for (const key of DAY_PERIOD_ORDER) {
-    const { start, end } = DAY_PERIOD_PRESETS[key].range
-    if (ranges.some((r) => r.start === start && r.end === end)) sel.add(key)
-  }
-  return sel.size ? sel : new Set(ALL_CHIPS_SELECTED)
-}
 
 function Section({ title, children }) {
   return (
@@ -139,11 +119,6 @@ export default function FilterDrawer({ open, onClose, studyId, filters, onChange
     [filters.species]
   )
 
-  const chipSelection = useMemo(
-    () => rangesToChipSelection(filters.timeRange.ranges),
-    [filters.timeRange.ranges]
-  )
-
   const deploymentItems = useMemo(
     () =>
       (deploymentsQuery.data ?? []).map((d) => ({
@@ -160,18 +135,7 @@ export default function FilterDrawer({ open, onClose, studyId, filters, onChange
     onChange({ ...filters, species: next.map((s) => s.scientificName) })
   }
 
-  const handleChips = (nextSet) => {
-    const ranges = nextSet.size === DAY_PERIOD_ORDER.length ? [] : chipsToRanges(nextSet)
-    onChange({ ...filters, timeRange: { ranges } })
-  }
-
-  const hasAny =
-    filters.species.length ||
-    filters.deployments.length ||
-    filters.sources.length ||
-    filters.dateRange[0] ||
-    filters.dateRange[1] ||
-    filters.timeRange.ranges.length
+  const hasAny = filters.species.length || filters.deployments.length || filters.sources.length
 
   return (
     <div
@@ -238,38 +202,6 @@ export default function FilterDrawer({ open, onClose, studyId, filters, onChange
                 <DeploymentHoverMap lat={it.lat} lon={it.lon} label={it.label} count={it.count} />
               )}
             />
-          </Section>
-
-          <Section title="Date range">
-            <div className="flex items-center gap-2 text-[13px]">
-              <input
-                type="date"
-                value={filters.dateRange[0] || ''}
-                onChange={(e) =>
-                  onChange({
-                    ...filters,
-                    dateRange: [e.target.value || null, filters.dateRange[1]]
-                  })
-                }
-                className="flex-1 rounded border border-border bg-input-background px-2 py-1"
-              />
-              <span className="text-muted-foreground">→</span>
-              <input
-                type="date"
-                value={filters.dateRange[1] || ''}
-                onChange={(e) =>
-                  onChange({
-                    ...filters,
-                    dateRange: [filters.dateRange[0], e.target.value || null]
-                  })
-                }
-                className="flex-1 rounded border border-border bg-input-background px-2 py-1"
-              />
-            </div>
-          </Section>
-
-          <Section title="Time of day">
-            <DayPeriodChips selection={chipSelection} onChange={handleChips} />
           </Section>
         </div>
 
