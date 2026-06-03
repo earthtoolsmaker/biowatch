@@ -50,7 +50,7 @@ export default function QuickViews({ active, counts = {}, onSelect }) {
       {open && (
         <div
           ref={popRef}
-          className="absolute left-0 top-full mt-1 w-56 bg-card border border-border rounded-lg shadow-lg z-[1100] p-1"
+          className="absolute left-0 top-full mt-1 w-72 bg-card border border-border rounded-lg shadow-lg z-[1100] p-1"
         >
           {views.map((qv) => {
             const isActive = active === qv.key
@@ -63,22 +63,34 @@ export default function QuickViews({ active, counts = {}, onSelect }) {
                   onSelect(isActive ? null : qv.key)
                   setOpen(false)
                 }}
-                className={`w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded text-[12.5px] ${
+                className={`w-full flex items-start justify-between gap-2 px-2 py-1.5 rounded text-[12.5px] text-left ${
                   isActive
                     ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300'
                     : 'hover:bg-input-background'
                 }`}
               >
-                <span className="flex items-center gap-2">
+                <span className="flex items-start gap-2 min-w-0">
                   {isActive ? (
-                    <Check size={13} className="text-blue-600 dark:text-blue-300" />
+                    <Check
+                      size={13}
+                      className="mt-0.5 flex-shrink-0 text-blue-600 dark:text-blue-300"
+                    />
                   ) : (
-                    <span className="inline-block w-[13px]" />
+                    <span className="inline-block w-[13px] flex-shrink-0" />
                   )}
-                  <span className="text-foreground">{qv.label}</span>
+                  <span className="flex flex-col min-w-0">
+                    <span className="text-foreground">{qv.label}</span>
+                    {qv.description && (
+                      <span className="text-[11px] text-muted-foreground leading-snug">
+                        {qv.description}
+                      </span>
+                    )}
+                  </span>
                 </span>
                 {typeof count === 'number' && (
-                  <span className="text-xs text-muted-foreground">{count}</span>
+                  <span className="text-xs text-muted-foreground mt-0.5 flex-shrink-0">
+                    {count}
+                  </span>
                 )}
               </button>
             )
