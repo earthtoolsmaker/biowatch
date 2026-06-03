@@ -2097,6 +2097,10 @@ function Gallery({
   deploymentID = null,
   source = null,
   sort = 'newest',
+  favorite = false,
+  reviewed,
+  lowConfidence = false,
+  onlyNullTimestamps = false,
   areaFilter = null,
   onLoadedChange,
   embedded = false
@@ -2185,6 +2189,10 @@ function Gallery({
         deploymentID,
         source,
         sort,
+        favorite,
+        reviewed,
+        lowConfidence,
+        onlyNullTimestamps,
         JSON.stringify(species),
         dateRange[0]?.toISOString(),
         dateRange[1]?.toISOString(),
@@ -2205,6 +2213,10 @@ function Gallery({
             timeRange,
             deploymentID,
             source,
+            favorite,
+            reviewed,
+            lowConfidence,
+            onlyNullTimestamps,
             bbox: areaFilter
           }
         })

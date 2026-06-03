@@ -70,6 +70,74 @@ export function buildHourRangeCondition(range) {
 }
 
 /**
+ * Build WHERE conditions for the Media tab "quick view" filters that act on a
+ * media row via correlated subqueries over its observations. Returns an array
+ * of drizzle conditions to AND into a phase's condition list (works for both
+ * the timestamped and null-timestamp phases — none of these reference the
+ * timestamp). Used by getMediaForSequencePagination and hasTimestampedMedia.
+ *
+ * @param {object} db - drizzle db handle (for correlated subqueries)
+ * @param {object} opts
+ * @param {boolean} [opts.favorite] - only favorited media
+ * @param {boolean} [opts.reviewed] - true: fully human-reviewed; false: needs review
+ * @param {boolean} [opts.lowConfidence] - has a low-probability machine observation
+ * @param {number} [opts.lowConfidenceThreshold=0.5]
+ * @returns {Array} drizzle conditions
+ */
+export function buildQuickViewConditions(db, opts = {}) {
+  const { favorite = false, reviewed, lowConfidence = false, lowConfidenceThreshold = 0.5 } = opts
+  const conditions = []
+
+  if (favorite) {
+    conditions.push(eq(media.favorite, true))
+  }
+
+  // An observation is "non-human-classified" when its method is not 'human'
+  // (machine, or unset). Drives both review-status arms.
+  const nonHumanObs = db
+    .select({ one: sql`1` })
+    .from(observations)
+    .where(
+      and(
+        eq(observations.mediaID, media.mediaID),
+        or(
+          ne(observations.classificationMethod, 'human'),
+          isNull(observations.classificationMethod)
+        )
+      )
+    )
+  const anyObs = db
+    .select({ one: sql`1` })
+    .from(observations)
+    .where(eq(observations.mediaID, media.mediaID))
+
+  if (reviewed === true) {
+    // Has observations AND none are non-human → fully reviewed.
+    conditions.push(and(exists(anyObs), notExists(nonHumanObs)))
+  } else if (reviewed === false) {
+    // Has at least one non-human observation → needs review.
+    conditions.push(exists(nonHumanObs))
+  }
+
+  if (lowConfidence) {
+    const lowConfObs = db
+      .select({ one: sql`1` })
+      .from(observations)
+      .where(
+        and(
+          eq(observations.mediaID, media.mediaID),
+          eq(observations.classificationMethod, 'machine'),
+          isNotNull(observations.classificationProbability),
+          lt(observations.classificationProbability, lowConfidenceThreshold)
+        )
+      )
+    conditions.push(exists(lowConfObs))
+  }
+
+  return conditions
+}
+
+/**
  * Get media for sequence pagination with cursor support.
  * Returns media ordered by timestamp DESC, filtered by species/date/time.
  *
@@ -97,7 +165,10 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
     deploymentID = null,
     bbox = null,
     source = null,
-    sort = 'newest'
+    sort = 'newest',
+    favorite = false,
+    reviewed,
+    lowConfidence = false
   } = options
 
   // Timestamped phase ordering: 'newest' (default) walks time descending;
@@ -332,6 +403,11 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
         timestampedConditions.push(eq(media.importFolder, source))
       }
 
+      // Apply quick-view filters (favorite / review-status / low-confidence)
+      timestampedConditions.push(
+        ...buildQuickViewConditions(db, { favorite, reviewed, lowConfidence })
+      )
+
       // Apply area (bbox) filter on the joined deployment location
       if (bboxCondition) {
         timestampedConditions.push(bboxCondition)
@@ -473,6 +549,7 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
         if (source) {
           nullConditions.push(eq(media.importFolder, source))
         }
+        nullConditions.push(...buildQuickViewConditions(db, { favorite, reviewed, lowConfidence }))
         if (bboxCondition) {
           nullConditions.push(bboxCondition)
         }
@@ -540,6 +617,9 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
       if (source) {
         nullConditions.push(eq(media.importFolder, source))
       }
+
+      // Apply quick-view filters (favorite / review-status / low-confidence)
+      nullConditions.push(...buildQuickViewConditions(db, { favorite, reviewed, lowConfidence }))
 
       // Apply area (bbox) filter on the joined deployment location
       if (bboxCondition) {
@@ -656,7 +736,16 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
  * @returns {Promise<boolean>}
  */
 export async function hasTimestampedMedia(dbPath, options = {}) {
-  const { species = [], dateRange = {}, timeRange = {}, deploymentID = null, source = null } = options
+  const {
+    species = [],
+    dateRange = {},
+    timeRange = {},
+    deploymentID = null,
+    source = null,
+    favorite = false,
+    reviewed,
+    lowConfidence = false
+  } = options
 
   try {
     const studyId = getStudyIdFromPath(dbPath)
@@ -675,6 +764,8 @@ export async function hasTimestampedMedia(dbPath, options = {}) {
     if (source) {
       conditions.push(eq(media.importFolder, source))
     }
+
+    conditions.push(...buildQuickViewConditions(db, { favorite, reviewed, lowConfidence }))
 
     // Apply date range
     if (dateRange.start && dateRange.end) {

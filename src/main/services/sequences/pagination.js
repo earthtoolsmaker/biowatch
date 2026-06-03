@@ -92,8 +92,16 @@ export async function getPaginatedSequences(dbPath, options = {}) {
     timeRange = {},
     deploymentID = null,
     bbox = null,
-    source = null
+    source = null,
+    favorite = false,
+    reviewed,
+    lowConfidence = false,
+    onlyNullTimestamps = false
   } = filters
+
+  // Bundle the quick-view, media-row filters so they thread through the fetch
+  // helpers and into the DB query as a single unit.
+  const quickView = { favorite, reviewed, lowConfidence }
 
   const startTime = Date.now()
   log.info(`[Sequences] Getting paginated sequences (limit: ${limit}, gapSeconds: ${gapSeconds})`)
@@ -102,14 +110,19 @@ export async function getPaginatedSequences(dbPath, options = {}) {
   const cursor = decodeCursor(cursorStr)
   let phase = cursor?.phase || 'timestamped'
 
-  // If no cursor, check if we should start in null phase (no timestamped media)
-  if (!cursor) {
+  // The "No timestamp" quick view restricts to null-timestamp media only, so
+  // skip the timestamped phase entirely.
+  if (onlyNullTimestamps) {
+    phase = 'null'
+  } else if (!cursor) {
+    // If no cursor, check if we should start in null phase (no timestamped media)
     const hasTimestamped = await hasTimestampedMedia(dbPath, {
       species,
       dateRange,
       timeRange,
       deploymentID,
-      source
+      source,
+      ...quickView
     })
     if (!hasTimestamped) {
       log.info('[Sequences] No timestamped media, starting in null phase')
@@ -133,7 +146,8 @@ export async function getPaginatedSequences(dbPath, options = {}) {
       deploymentID,
       bbox,
       source,
-      sort
+      sort,
+      quickView
     })
 
     sequences.push(...result.sequences)
@@ -163,7 +177,8 @@ export async function getPaginatedSequences(dbPath, options = {}) {
         timeRange,
         deploymentID,
         bbox,
-        source
+        source,
+        quickView
       })
 
       sequences.push(...result.sequences)
@@ -218,7 +233,8 @@ async function fetchTimestampedSequences(dbPath, options) {
     deploymentID,
     bbox,
     source,
-    sort
+    sort,
+    quickView = {}
   } = options
 
   // Fetch a batch of media
@@ -232,7 +248,8 @@ async function fetchTimestampedSequences(dbPath, options) {
     deploymentID,
     bbox,
     source,
-    sort
+    sort,
+    ...quickView
   })
 
   const { media: mediaItems, hasMoreTimestamped, hasMoreNull } = dbResult
@@ -283,6 +300,7 @@ async function fetchTimestampedSequences(dbPath, options) {
       bbox,
       source,
       sort,
+      quickView,
       existingMedia: mediaItems,
       batchSize
     })
@@ -355,6 +373,7 @@ async function fetchMoreForLargeSequence(dbPath, options) {
     bbox,
     source,
     sort,
+    quickView = {},
     existingMedia,
     batchSize
   } = options
@@ -381,7 +400,8 @@ async function fetchMoreForLargeSequence(dbPath, options) {
       deploymentID,
       bbox,
       source,
-      sort
+      sort,
+      ...quickView
     })
 
     if (dbResult.media.length === 0) {
@@ -474,7 +494,7 @@ async function fetchMoreForLargeSequence(dbPath, options) {
  * @returns {Promise<{ sequences: Array, hasMore: boolean }>}
  */
 async function fetchNullTimestampSequences(dbPath, options) {
-  const { limit, offset, species, deploymentID, bbox, source } = options
+  const { limit, offset, species, deploymentID, bbox, source, quickView = {} } = options
 
   const dbResult = await getMediaForSequencePagination(dbPath, {
     cursor: { phase: 'null', offset },
@@ -484,7 +504,8 @@ async function fetchNullTimestampSequences(dbPath, options) {
     timeRange: {}, // Time range doesn't apply to null-timestamp media
     deploymentID,
     bbox, // Location filter still applies to null-timestamp media
-    source // Source filter still applies to null-timestamp media
+    source, // Source filter still applies to null-timestamp media
+    ...quickView // favorite / review-status / low-confidence apply to null media too
   })
 
   const { media: mediaItems, hasMoreNull } = dbResult

@@ -429,7 +429,10 @@ export async function insertMedia(manager, mediaData) {
             filePath: item.filePath,
             fileName: item.fileName,
             importFolder: item.importFolder || null,
-            folderName: item.folderName || null
+            folderName: item.folderName || null,
+            // Passed through when present (default false) so callers/tests can
+            // seed favorite media; preserves prior behavior for existing callers.
+            favorite: item.favorite === true
           })
           .run()
 
