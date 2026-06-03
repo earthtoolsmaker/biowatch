@@ -17,7 +17,7 @@ import * as Tooltip from '@radix-ui/react-tooltip'
 import Deployments from './deployments'
 import Overview from './overview'
 import Explore from './explore'
-import Media from './media'
+import MediaTab from './media/MediaTab.jsx'
 import Sources from './sources'
 import StudySettings from './StudySettings'
 import { useImportStatus } from '@renderer/hooks/import'
@@ -308,7 +308,7 @@ export default function Study() {
             path="media"
             element={
               <ErrorBoundary FallbackComponent={ErrorFallback} key={'media'}>
-                <Media studyId={id} path={study.path} />
+                <MediaTab studyId={id} path={study.path} />
               </ErrorBoundary>
             }
           />
