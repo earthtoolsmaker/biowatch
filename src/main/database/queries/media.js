@@ -430,6 +430,10 @@ export async function insertMedia(manager, mediaData) {
             fileName: item.fileName,
             importFolder: item.importFolder || null,
             folderName: item.folderName || null,
+            // IANA media type ('image/jpeg', 'video/mp4', …); drives the Media
+            // tab's image/video filter. Falls back to the column default when
+            // the caller doesn't specify one.
+            fileMediatype: item.fileMediatype ?? 'image/jpeg',
             // Passed through when present (default false) so callers/tests can
             // seed favorite media; preserves prior behavior for existing callers.
             favorite: item.favorite === true

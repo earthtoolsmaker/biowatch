@@ -1,7 +1,7 @@
 import { getSpeciesCountsFromSequence } from '../utils/speciesFromBboxes.js'
 import { resolveCommonName } from '../../../shared/commonNames/index.js'
-import { formatScientificName } from '../utils/scientificName'
-import { toTitleCase } from '../utils/textCase'
+import { formatScientificName } from '../utils/scientificName.js'
+import { toTitleCase } from '../utils/textCase.js'
 
 // Display label for a species: common name in Title Case, else the formatted
 // scientific name (left as-is). null (no species) → null.
