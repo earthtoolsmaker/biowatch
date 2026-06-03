@@ -73,18 +73,20 @@ export default function MediaTab({ studyId, path }) {
         quickViewCounts={quickViewCounts}
         deploymentNames={deploymentNames}
       />
-      <div className="flex-1 min-h-0">
-        <MediaGridView filters={filters} speciesReady onSortChange={(sort) => patch({ sort })} />
+      <div className="flex-1 min-h-0 flex">
+        <div className="flex-1 min-w-0">
+          <MediaGridView filters={filters} speciesReady onSortChange={(sort) => patch({ sort })} />
+        </div>
+        <FilterDrawer
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+          studyId={actualStudyId}
+          path={path}
+          filters={filters}
+          onChange={setFilters}
+          blankCount={blankCount}
+        />
       </div>
-      <FilterDrawer
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        studyId={actualStudyId}
-        path={path}
-        filters={filters}
-        onChange={setFilters}
-        blankCount={blankCount}
-      />
     </div>
   )
 }
