@@ -1,4 +1,51 @@
 import { getSpeciesCountsFromSequence } from '../utils/speciesFromBboxes.js'
+import { resolveCommonName } from '../../../shared/commonNames/index.js'
+import { formatScientificName } from '../utils/scientificName'
+import { toTitleCase } from '../utils/textCase'
+
+// Display label for a species: common name in Title Case, else the formatted
+// scientific name (left as-is). null (no species) → null.
+export function speciesDisplay(name) {
+  if (!name) return null
+  const common = resolveCommonName(name)
+  if (common) return toTitleCase(common)
+  return formatScientificName(name) || name
+}
+
+// Comparator over derived rows ({ seq, row }) for a sortable column. Missing
+// values sort to the start in ascending order.
+function compareDerived(a, b, col) {
+  if (col === 'when') {
+    const av = a.row.when ? new Date(a.row.when).getTime() : -Infinity
+    const bv = b.row.when ? new Date(b.row.when).getTime() : -Infinity
+    return av - bv
+  }
+  if (col === 'type') {
+    // Group by media type (photos/sequences before videos), then by sequence
+    // length so single frames sort ahead of longer bursts.
+    const av = a.row.isVideo ? 1 : 0
+    const bv = b.row.isVideo ? 1 : 0
+    if (av !== bv) return av - bv
+    return a.seq.items.length - b.seq.items.length
+  }
+  const av = (col === 'species' ? speciesDisplay(a.row.species) : a.row.deployment) || ''
+  const bv = (col === 'species' ? speciesDisplay(b.row.species) : b.row.deployment) || ''
+  return String(av).localeCompare(String(bv), undefined, { numeric: true, sensitivity: 'base' })
+}
+
+// Sort sequences into the Table view's display order. Returns the input
+// unchanged when no column is active. Shared by the table (rendering) and the
+// gallery (so the media modal navigates in the same order the user sees).
+export function sortSequences(sequences, bboxesByMedia, isVideoMedia, sortCol, sortDir) {
+  if (!sortCol) return sequences
+  const dir = sortDir === 'asc' ? 1 : -1
+  const decorated = sequences.map((seq) => ({
+    seq,
+    row: deriveTableRow(seq, bboxesByMedia, isVideoMedia)
+  }))
+  decorated.sort((a, b) => dir * compareDerived(a, b, sortCol))
+  return decorated.map((d) => d.seq)
+}
 
 // Derive a single Table-view row from a sequence and the batch-fetched bbox map.
 // `speciesNames` lists every species in the sequence ordered by per-sequence

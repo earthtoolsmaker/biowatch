@@ -54,6 +54,7 @@ import {
 } from '../utils/speciesFromBboxes'
 import { SpeciesCountLabel } from '../ui/SpeciesLabel'
 import MediaTableView from './MediaTableView.jsx'
+import { sortSequences } from './tableRows.js'
 import { formatGridTimestamp } from '../utils/formatTimestamp'
 import { useSequenceGap } from '../hooks/useSequenceGap'
 import { useShowThumbnailBboxes } from '../hooks/useShowThumbnailBboxes'
@@ -2124,8 +2125,7 @@ function Gallery({
   areaFilter = null,
   onLoadedChange,
   embedded = false,
-  view = 'grid',
-  onSortChange
+  view = 'grid'
 }) {
   const [imageErrors, setImageErrors] = useState(() => {
     const initial = {}
@@ -2290,6 +2290,30 @@ function Gallery({
     staleTime: 60000
   })
 
+  // Table column sort (client-side), lifted here so one sorted order drives both
+  // the table render and the modal's next/prev navigation.
+  const [tableSort, setTableSort] = useState({ col: null, dir: 'asc' })
+  const handleTableSort = useCallback((col) => {
+    setTableSort((prev) =>
+      prev.col === col ? { col, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' }
+    )
+  }, [])
+
+  // The order the user actually sees: when the Table view has an active column
+  // sort, order the loaded sequences the same way; otherwise keep server order.
+  // Modal navigation and the table both read this so they stay in lockstep.
+  const navigableItems = useMemo(() => {
+    if (view !== 'table' || !tableSort.col) return allNavigableItems
+    return sortSequences(
+      allNavigableItems,
+      bboxesByMedia,
+      isVideoMedia,
+      tableSort.col,
+      tableSort.dir
+    )
+    // isVideoMedia is a stable module-level function, not a dependency.
+  }, [view, tableSort, allNavigableItems, bboxesByMedia])
+
   // Set up Intersection Observer for infinite scrolling
   useEffect(() => {
     const currentLoader = loaderRef.current
@@ -2365,8 +2389,8 @@ function Gallery({
 
       // Prefetch when at last item in sequence (next ArrowRight moves to next sequence)
       if (nextIndex === currentSequence.items.length - 1) {
-        const currentSeqIdx = allNavigableItems.findIndex((s) => s.id === currentSequence.id)
-        const sequencesRemaining = allNavigableItems.length - 1 - currentSeqIdx
+        const currentSeqIdx = navigableItems.findIndex((s) => s.id === currentSequence.id)
+        const sequencesRemaining = navigableItems.length - 1 - currentSeqIdx
         if (sequencesRemaining <= PREFETCH_THRESHOLD && hasNextPage && !isFetchingNextPage) {
           fetchNextPage()
         }
@@ -2375,7 +2399,7 @@ function Gallery({
   }, [
     currentSequence,
     currentSequenceIndex,
-    allNavigableItems,
+    navigableItems,
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage
@@ -2394,36 +2418,36 @@ function Gallery({
   const handleNextImage = useCallback(() => {
     if (!selectedMedia) return
 
-    // Find current sequence index in allNavigableItems (includes null-timestamp media)
-    const currentSeqIdx = allNavigableItems.findIndex((s) =>
+    // Find current sequence index in the displayed (sorted) order
+    const currentSeqIdx = navigableItems.findIndex((s) =>
       s.items.some((m) => m.mediaID === selectedMedia.mediaID)
     )
 
     // Prefetch when approaching end of loaded data
-    const sequencesRemaining = allNavigableItems.length - 1 - currentSeqIdx
+    const sequencesRemaining = navigableItems.length - 1 - currentSeqIdx
     if (sequencesRemaining <= PREFETCH_THRESHOLD && hasNextPage && !isFetchingNextPage) {
       fetchNextPage()
     }
 
-    if (currentSeqIdx < allNavigableItems.length - 1) {
-      const nextSequence = allNavigableItems[currentSeqIdx + 1]
+    if (currentSeqIdx < navigableItems.length - 1) {
+      const nextSequence = navigableItems[currentSeqIdx + 1]
       const isMultiItem = nextSequence.items.length > 1
       setCurrentSequence(isMultiItem ? nextSequence : null)
       setCurrentSequenceIndex(0)
       setSelectedMedia(nextSequence.items[0])
     }
-  }, [selectedMedia, allNavigableItems, hasNextPage, isFetchingNextPage, fetchNextPage])
+  }, [selectedMedia, navigableItems, hasNextPage, isFetchingNextPage, fetchNextPage])
 
   // Navigate to previous sequence/item globally
   const handlePreviousImage = useCallback(() => {
     if (!selectedMedia) return
 
-    const currentSeqIdx = allNavigableItems.findIndex((s) =>
+    const currentSeqIdx = navigableItems.findIndex((s) =>
       s.items.some((m) => m.mediaID === selectedMedia.mediaID)
     )
 
     if (currentSeqIdx > 0) {
-      const prevSequence = allNavigableItems[currentSeqIdx - 1]
+      const prevSequence = navigableItems[currentSeqIdx - 1]
       const isMultiItem = prevSequence.items.length > 1
       setCurrentSequence(isMultiItem ? prevSequence : null)
       // Start at end of previous sequence
@@ -2431,7 +2455,7 @@ function Gallery({
       setCurrentSequenceIndex(lastIndex)
       setSelectedMedia(prevSequence.items[lastIndex])
     }
-  }, [selectedMedia, allNavigableItems])
+  }, [selectedMedia, navigableItems])
 
   // Handle optimistic timestamp update
   const handleTimestampUpdate = useCallback(
@@ -2467,7 +2491,7 @@ function Gallery({
   const navigateToMediaId = useCallback(
     async (targetMediaId) => {
       if (!targetMediaId || selectedMediaIdRef.current === targetMediaId) return
-      const seq = allNavigableItems.find((s) => s.items.some((m) => m.mediaID === targetMediaId))
+      const seq = navigableItems.find((s) => s.items.some((m) => m.mediaID === targetMediaId))
       if (!seq) return // target not in currently loaded pages — best-effort no-op
       const itemIdx = seq.items.findIndex((m) => m.mediaID === targetMediaId)
       const safeIdx = itemIdx >= 0 ? itemIdx : 0
@@ -2476,14 +2500,14 @@ function Gallery({
       setCurrentSequenceIndex(safeIdx)
       setSelectedMedia(seq.items[safeIdx])
     },
-    [allNavigableItems]
+    [navigableItems]
   )
 
   // Calculate navigation availability based on sequences
   const currentSeqIdx = selectedMedia
-    ? allNavigableItems.findIndex((s) => s.items.some((m) => m.mediaID === selectedMedia.mediaID))
+    ? navigableItems.findIndex((s) => s.items.some((m) => m.mediaID === selectedMedia.mediaID))
     : -1
-  const hasNextSequence = currentSeqIdx >= 0 && currentSeqIdx < allNavigableItems.length - 1
+  const hasNextSequence = currentSeqIdx >= 0 && currentSeqIdx < navigableItems.length - 1
   const hasPreviousSequence = currentSeqIdx > 0
 
   // For sequence navigation within modal
@@ -2494,9 +2518,9 @@ function Gallery({
   // Prefetch neighboring images when modal is open
   useEffect(() => {
     if (isModalOpen && currentSeqIdx >= 0) {
-      prefetchNeighbors(allNavigableItems, currentSeqIdx)
+      prefetchNeighbors(navigableItems, currentSeqIdx)
     }
-  }, [isModalOpen, currentSeqIdx, allNavigableItems, prefetchNeighbors])
+  }, [isModalOpen, currentSeqIdx, navigableItems, prefetchNeighbors])
 
   return (
     <>
@@ -2546,13 +2570,14 @@ function Gallery({
           {/* Sequences are returned pre-grouped from server, including null-timestamp items as individual sequences */}
           {view === 'table' ? (
             <MediaTableView
-              sequences={allNavigableItems}
+              sequences={navigableItems}
               bboxesByMedia={bboxesByMedia}
               constructImageUrl={constructImageUrl}
               isVideoMedia={isVideoMedia}
               onRowClick={handleImageClick}
-              sort={sort}
-              onSortChange={onSortChange}
+              sortCol={tableSort.col}
+              sortDir={tableSort.dir}
+              onSort={handleTableSort}
               scrollRef={gridContainerRef}
             />
           ) : (

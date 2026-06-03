@@ -1,20 +1,7 @@
 import { memo, useMemo, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Play, ImageOff, Layers, Film, Image as ImageIcon } from 'lucide-react'
-import { deriveTableRow } from './tableRows.js'
-import { resolveCommonName } from '../../../shared/commonNames/index.js'
-import { formatScientificName } from '../utils/scientificName'
-import { toTitleCase } from '../utils/textCase'
-
-// Display label for the species column: common name in Title Case, falling back
-// to the formatted scientific name (left as-is — only the genus is capitalized).
-// null (no species) → null (renders a pill).
-function speciesDisplay(name) {
-  if (!name) return null
-  const common = resolveCommonName(name)
-  if (common) return toTitleCase(common)
-  return formatScientificName(name) || name
-}
+import { deriveTableRow, speciesDisplay } from './tableRows.js'
 
 const ROW_HEIGHT = 46
 // Shared column template for the header and every row so they stay aligned.
@@ -32,27 +19,6 @@ function formatWhen(when) {
     hour: '2-digit',
     minute: '2-digit'
   })
-}
-
-// Comparator for a given column over the derived rows (client-side sort of the
-// loaded rows). Missing values sort to the start in ascending order.
-function compareRows(a, b, col) {
-  if (col === 'when') {
-    const av = a.row.when ? new Date(a.row.when).getTime() : -Infinity
-    const bv = b.row.when ? new Date(b.row.when).getTime() : -Infinity
-    return av - bv
-  }
-  if (col === 'type') {
-    // Group by media type (photos/sequences before videos), then by sequence
-    // length so single frames sort ahead of longer bursts.
-    const av = a.row.isVideo ? 1 : 0
-    const bv = b.row.isVideo ? 1 : 0
-    if (av !== bv) return av - bv
-    return a.seq.items.length - b.seq.items.length
-  }
-  const av = (col === 'species' ? a.speciesLabel : a.row.deployment) || ''
-  const bv = (col === 'species' ? b.speciesLabel : b.row.deployment) || ''
-  return String(av).localeCompare(String(bv), undefined, { numeric: true, sensitivity: 'base' })
 }
 
 // Small thumbnail. `url` points at a server-resized ~128px JPEG (see
@@ -167,35 +133,26 @@ const TableRow = memo(function TableRow({
 
 // Virtualized table view: only the rows in (or near) the viewport are mounted,
 // so scroll cost stays bounded regardless of how many sequences have loaded.
-// Column headers sort the currently-loaded rows client-side.
+// `sequences` arrives already sorted by the gallery (so the media modal
+// navigates in the same order); the column headers drive that sort via onSort.
 export default function MediaTableView({
   sequences,
   bboxesByMedia,
   constructImageUrl,
   isVideoMedia,
   onRowClick,
+  sortCol = null,
+  sortDir = 'asc',
+  onSort,
   scrollRef
 }) {
-  const [sortCol, setSortCol] = useState(null)
-  const [sortDir, setSortDir] = useState('asc')
-
-  const onSort = (col) => {
-    if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
-    else {
-      setSortCol(col)
-      setSortDir('asc')
-    }
-  }
-
-  const rows = useMemo(
+  const sortedRows = useMemo(
     () =>
       sequences.map((seq) => {
         const row = deriveTableRow(seq, bboxesByMedia, isVideoMedia)
         return {
           seq,
           row,
-          // Primary label drives the sort; the full list drives the display.
-          speciesLabel: speciesDisplay(row.species),
           speciesLabels: (row.speciesNames || []).map(speciesDisplay).filter(Boolean),
           // Request a small server-resized thumbnail (see protocols.js): the
           // original is multi-megapixel, far too costly to decode per row.
@@ -206,12 +163,6 @@ export default function MediaTableView({
       }),
     [sequences, bboxesByMedia, isVideoMedia, constructImageUrl]
   )
-
-  const sortedRows = useMemo(() => {
-    if (!sortCol) return rows
-    const dir = sortDir === 'asc' ? 1 : -1
-    return [...rows].sort((a, b) => dir * compareRows(a, b, sortCol))
-  }, [rows, sortCol, sortDir])
 
   const virtualizer = useVirtualizer({
     count: sortedRows.length,
