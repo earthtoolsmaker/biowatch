@@ -520,3 +520,64 @@ export async function markMediaReviewed(dbPath, mediaIDs) {
     .where(inArray(observations.mediaID, mediaIDs))
   return { updated: result.changes ?? mediaIDs.length }
 }
+
+/**
+ * Bulk-set the species for all observations of the given media. Marks them
+ * human-classified per CamTrap DP (classificationMethod='human',
+ * classifiedBy='User', classificationTimestamp=now, classificationProbability=
+ * null). The scientific name is canonicalized at this write chokepoint.
+ *
+ * @param {string} dbPath - Path to the SQLite database
+ * @param {string[]} mediaIDs - Media whose observations should be relabeled
+ * @param {Object} classification
+ * @param {string} classification.scientificName - New scientific name
+ * @param {string} [classification.commonName] - Optional common name
+ * @returns {Promise<{updated: number}>}
+ */
+export async function bulkSetSpecies(dbPath, mediaIDs, { scientificName, commonName = null }) {
+  if (!Array.isArray(mediaIDs) || mediaIDs.length === 0) return { updated: 0 }
+  const studyId = getStudyIdFromPath(dbPath)
+  const db = await getDrizzleDb(studyId, dbPath)
+  const sci = normalizeScientificName(scientificName)
+  const result = await db
+    .update(observations)
+    .set({
+      scientificName: sci || null,
+      commonName:
+        sci && typeof commonName === 'string' && commonName.length > 0 ? commonName : null,
+      observationType: 'animal',
+      classificationMethod: 'human',
+      classifiedBy: 'User',
+      classificationTimestamp: new Date().toISOString(),
+      classificationProbability: null
+    })
+    .where(inArray(observations.mediaID, mediaIDs))
+  return { updated: result.changes ?? mediaIDs.length }
+}
+
+/**
+ * Bulk-mark the given media as blank: clear species, set observationType=
+ * 'blank', and mark human-classified.
+ *
+ * @param {string} dbPath - Path to the SQLite database
+ * @param {string[]} mediaIDs - Media to mark blank
+ * @returns {Promise<{updated: number}>}
+ */
+export async function bulkMarkBlank(dbPath, mediaIDs) {
+  if (!Array.isArray(mediaIDs) || mediaIDs.length === 0) return { updated: 0 }
+  const studyId = getStudyIdFromPath(dbPath)
+  const db = await getDrizzleDb(studyId, dbPath)
+  const result = await db
+    .update(observations)
+    .set({
+      scientificName: null,
+      commonName: null,
+      observationType: 'blank',
+      classificationMethod: 'human',
+      classifiedBy: 'User',
+      classificationTimestamp: new Date().toISOString(),
+      classificationProbability: null
+    })
+    .where(inArray(observations.mediaID, mediaIDs))
+  return { updated: result.changes ?? mediaIDs.length }
+}

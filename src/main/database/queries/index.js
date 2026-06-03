@@ -62,7 +62,9 @@ export {
   createObservation,
   restoreObservation,
   insertObservations,
-  markMediaReviewed
+  markMediaReviewed,
+  bulkSetSpecies,
+  bulkMarkBlank
 } from './observations.js'
 
 // Best media selection

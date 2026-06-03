@@ -444,6 +444,19 @@ const api = {
   bulkMarkReviewed: async (studyId, mediaIDs) => {
     return await electronAPI.ipcRenderer.invoke('observations:bulk-mark-reviewed', studyId, mediaIDs)
   },
+  // Bulk-relabel a batch of media to a species (marks human)
+  bulkSetSpecies: async (studyId, mediaIDs, classification) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'observations:bulk-update-classification',
+      studyId,
+      mediaIDs,
+      classification
+    )
+  },
+  // Bulk-mark a batch of media as blank
+  bulkMarkBlank: async (studyId, mediaIDs) => {
+    return await electronAPI.ipcRenderer.invoke('observations:bulk-mark-blank', studyId, mediaIDs)
+  },
   // Get distinct species for dropdown
   getDistinctSpecies: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('species:get-distinct', studyId)
