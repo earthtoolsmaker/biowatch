@@ -41,27 +41,32 @@ function DistributionList({ items, selected, onToggle, emptyLabel, hoverContent 
   }
   const maxCount = items.reduce((m, it) => Math.max(m, it.count || 0), 0)
   return (
-    <div className="flex flex-col max-h-56 overflow-y-auto -mx-1">
+    // Mirrors the species list's horizontal rhythm: -mx-1 + px-3 here, rows pull
+    // back with -mx-3 px-3 so the hover/selected background bleeds to the edges,
+    // exactly like SpeciesRow in ui/speciesDistribution.jsx.
+    <div className="flex flex-col max-h-56 overflow-y-auto px-3 -mx-1">
       {items.map((it) => {
         const active = selected.includes(it.value)
         const pct = maxCount > 0 ? ((it.count || 0) / maxCount) * 100 : 0
         const row = (
           <div
             onClick={() => onToggle(it.value)}
-            className={`cursor-pointer px-3 py-2 transition-colors ${
+            className={`cursor-pointer group transition-colors py-2 -mx-3 px-3 first:pt-3 last:pb-3 ${
               active
                 ? 'bg-blue-50 hover:bg-blue-100 dark:bg-blue-500/15 dark:hover:bg-blue-500/25'
                 : 'hover:bg-blue-50 dark:hover:bg-blue-500/15'
             }`}
           >
             <div className="flex justify-between items-center gap-2 mb-1">
-              <span className="flex items-center gap-2 min-w-0">
+              <span className="flex items-center min-w-0 flex-1">
                 <span
-                  className={`inline-block w-2 h-2 rounded-full border flex-shrink-0 ${
-                    active ? 'border-transparent bg-blue-600' : 'border-border'
+                  className={`w-2 h-2 rounded-full mr-2 flex-shrink-0 border ${
+                    active
+                      ? 'border-transparent bg-blue-600'
+                      : 'border-border group-hover:bg-gray-800'
                   }`}
                 />
-                <span className="text-sm truncate text-foreground">{it.label}</span>
+                <span className="text-sm truncate pr-1 text-foreground">{it.label}</span>
               </span>
               <span className="text-xs text-muted-foreground flex-shrink-0">{it.count}</span>
             </div>

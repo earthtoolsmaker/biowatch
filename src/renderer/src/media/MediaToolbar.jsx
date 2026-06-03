@@ -189,8 +189,6 @@ export default function MediaToolbar({
         </span>
       )}
 
-      <div className="w-px h-6 bg-border mx-0.5" />
-
       <FilterPanelToggle open={filterOpen} active={filterActive} onToggle={onToggleFilter} />
     </div>
   )
