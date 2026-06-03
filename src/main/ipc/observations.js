@@ -11,7 +11,8 @@ import {
   updateObservationBbox,
   deleteObservation,
   createObservation,
-  restoreObservation
+  restoreObservation,
+  markMediaReviewed
 } from '../database/index.js'
 
 /**
@@ -106,6 +107,24 @@ export function registerObservationsIPCHandlers() {
       return { data: restored }
     } catch (error) {
       log.error('Error restoring observation:', error)
+      return { error: error.message }
+    }
+  })
+
+  // Bulk mark-reviewed: confirm a batch of media as human-reviewed without
+  // changing their species (sets classificationMethod='human').
+  ipcMain.handle('observations:bulk-mark-reviewed', async (_, studyId, mediaIDs) => {
+    try {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) {
+        log.warn(`Database not found for study ID: ${studyId}`)
+        return { error: 'Database not found for this study' }
+      }
+
+      const result = await markMediaReviewed(dbPath, mediaIDs)
+      return { data: result }
+    } catch (error) {
+      log.error('Error in bulk-mark-reviewed:', error)
       return { error: error.message }
     }
   })

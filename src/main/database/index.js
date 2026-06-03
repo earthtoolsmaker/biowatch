@@ -221,6 +221,7 @@ export {
   createObservation,
   restoreObservation,
   insertObservations,
+  markMediaReviewed,
   // Best media
   getTemporalBucket,
   selectDiverseMedia,

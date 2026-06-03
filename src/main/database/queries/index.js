@@ -61,7 +61,8 @@ export {
   deleteObservation,
   createObservation,
   restoreObservation,
-  insertObservations
+  insertObservations,
+  markMediaReviewed
 } from './observations.js'
 
 // Best media selection

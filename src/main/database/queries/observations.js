@@ -4,7 +4,7 @@
 
 import { getDrizzleDb } from '../manager.js'
 import { observations } from '../models.js'
-import { eq } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import log from '../../services/logger.js'
 import { getStudyIdFromPath } from './utils.js'
 import { lifeStageSchema, sexSchema, behaviorSchema } from '../validators.js'
@@ -494,4 +494,29 @@ export async function insertObservations(manager, observationsData) {
     log.error(`Error inserting observations: ${error.message}`)
     throw error
   }
+}
+
+/**
+ * Mark all observations for the given media as human-reviewed, WITHOUT changing
+ * their species. Sets classificationMethod='human', classifiedBy='User',
+ * classificationTimestamp=now. Captures the "AI was right, confirmed" case.
+ * Idempotent; a no-op for an empty media list.
+ *
+ * @param {string} dbPath - Path to the SQLite database
+ * @param {string[]} mediaIDs - Media whose observations should be confirmed
+ * @returns {Promise<{updated: number}>}
+ */
+export async function markMediaReviewed(dbPath, mediaIDs) {
+  if (!Array.isArray(mediaIDs) || mediaIDs.length === 0) return { updated: 0 }
+  const studyId = getStudyIdFromPath(dbPath)
+  const db = await getDrizzleDb(studyId, dbPath)
+  const result = await db
+    .update(observations)
+    .set({
+      classificationMethod: 'human',
+      classifiedBy: 'User',
+      classificationTimestamp: new Date().toISOString()
+    })
+    .where(inArray(observations.mediaID, mediaIDs))
+  return { updated: result.changes ?? mediaIDs.length }
 }

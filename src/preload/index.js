@@ -440,6 +440,10 @@ const api = {
       fields
     )
   },
+  // Bulk-confirm a batch of media as human-reviewed (no species change)
+  bulkMarkReviewed: async (studyId, mediaIDs) => {
+    return await electronAPI.ipcRenderer.invoke('observations:bulk-mark-reviewed', studyId, mediaIDs)
+  },
   // Get distinct species for dropdown
   getDistinctSpecies: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('species:get-distinct', studyId)
