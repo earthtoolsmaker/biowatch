@@ -2619,6 +2619,7 @@ function Gallery({
               onSortChange={onSortChange}
               selection={selection}
               onToggleSelect={handleToggleSelect}
+              scrollRef={gridContainerRef}
             />
           ) : (
             allNavigableItems.map((sequence) => {
