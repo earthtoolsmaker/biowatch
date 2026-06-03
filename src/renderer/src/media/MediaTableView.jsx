@@ -1,11 +1,9 @@
 import { memo, useMemo, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { Check, Play, ImageOff } from 'lucide-react'
+import { Play, ImageOff } from 'lucide-react'
 import { deriveTableRow } from './tableRows.js'
 import { resolveCommonName } from '../../../shared/commonNames/index.js'
 import { formatScientificName } from '../utils/scientificName'
-
-function noop() {}
 
 // Display label for the species column: common name (capitalized), falling back
 // to the formatted scientific name. null (no species) → null (renders a pill).
@@ -17,8 +15,8 @@ function speciesDisplay(name) {
 
 const ROW_HEIGHT = 46
 // Shared column template for the header and every row so they stay aligned.
-// Columns: checkbox · thumbnail · species · when · deployment.
-const GRID_COLS = '36px 60px minmax(0,1.4fr) 180px minmax(0,1fr)'
+// Columns: thumbnail · species · when · deployment.
+const GRID_COLS = '60px minmax(0,1.4fr) 180px minmax(0,1fr)'
 
 function formatWhen(when) {
   if (!when) return null
@@ -103,15 +101,13 @@ function SortHeader({ label, col, sortCol, sortDir, onSort }) {
 }
 
 // One virtualized row, absolutely positioned by the virtualizer. Memoized so a
-// selection/hover change only re-renders the rows whose props changed.
+// hover change only re-renders the rows whose props changed.
 const TableRow = memo(function TableRow({
   seq,
   row,
   speciesLabel,
   thumbnailUrl,
-  isSelected,
   onRowClick,
-  onToggleSelect,
   style
 }) {
   const isMulti = seq.items.length > 1
@@ -119,27 +115,9 @@ const TableRow = memo(function TableRow({
     <div
       role="row"
       style={{ ...style, gridTemplateColumns: GRID_COLS }}
-      className={`grid items-center border-b border-border cursor-pointer ${
-        isSelected ? 'bg-blue-50 dark:bg-blue-500/15' : 'hover:bg-blue-50 dark:hover:bg-blue-500/10'
-      }`}
-      onClick={(e) =>
-        e.shiftKey && onToggleSelect
-          ? onToggleSelect(seq.id, true)
-          : onRowClick(seq.items[0], isMulti ? seq : null)
-      }
+      className="grid items-center border-b border-border cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-500/10"
+      onClick={() => onRowClick(seq.items[0], isMulti ? seq : null)}
     >
-      <div className="px-2" onClick={(e) => e.stopPropagation()}>
-        <button
-          type="button"
-          onClick={(e) => (onToggleSelect || noop)(seq.id, e.shiftKey)}
-          aria-label={isSelected ? 'Deselect' : 'Select'}
-          className={`w-4 h-4 rounded border flex items-center justify-center ${
-            isSelected ? 'bg-blue-600 border-blue-600' : 'bg-card border-border'
-          }`}
-        >
-          {isSelected && <Check size={11} className="text-white" />}
-        </button>
-      </div>
       <div className="px-2">
         <RowThumb url={thumbnailUrl} isVideo={row.isVideo} />
       </div>
@@ -177,8 +155,6 @@ export default function MediaTableView({
   constructImageUrl,
   isVideoMedia,
   onRowClick,
-  selection,
-  onToggleSelect,
   scrollRef
 }) {
   const [sortCol, setSortCol] = useState(null)
@@ -234,7 +210,6 @@ export default function MediaTableView({
         className="grid items-center sticky top-0 z-20 bg-card border-b-2 border-border text-[11px] uppercase tracking-wide text-muted-foreground h-9"
       >
         <div className="px-2" />
-        <div className="px-2" />
         <SortHeader
           label="Species"
           col="species"
@@ -262,9 +237,7 @@ export default function MediaTableView({
               row={row}
               speciesLabel={speciesLabel}
               thumbnailUrl={thumbnailUrl}
-              isSelected={selection ? selection.has(seq.id) : false}
               onRowClick={onRowClick}
-              onToggleSelect={onToggleSelect}
               style={{
                 position: 'absolute',
                 top: 0,
