@@ -145,7 +145,8 @@ function SpeciesDistribution({
   studyId = null,
   showHeader = true,
   hidePseudoSpecies = false,
-  allowEmpty = false
+  allowEmpty = false,
+  bordered = true
 }) {
   // Real-species view of the upstream data — strips out literal pseudo
   // labels like "Vehicle" or "blurred" that ride along in scientificName.
@@ -237,7 +238,11 @@ function SpeciesDistribution({
   const speciesCount = displayData.length - pseudoEntries
 
   return (
-    <div className="w-full h-full bg-card rounded border border-border flex flex-col overflow-hidden">
+    <div
+      className={`w-full h-full flex flex-col overflow-hidden ${
+        bordered ? 'bg-card rounded border border-border' : ''
+      }`}
+    >
       {showHeader && (
         <div className="flex items-center gap-2 px-3 py-2 border-b border-border flex-shrink-0">
           <span className="text-sm font-medium text-foreground">Species</span>

@@ -5,19 +5,29 @@ import { X } from 'lucide-react'
 import SpeciesDistribution from '../ui/speciesDistribution.jsx'
 import DeploymentHoverMap from './DeploymentHoverMap.jsx'
 
-// Species tint palette — mirrors the Explore/Media distribution colors.
-const palette = [
-  'hsl(173 58% 39%)',
-  'hsl(43 74% 66%)',
-  'hsl(12 76% 61%)',
-  'hsl(197 37% 24%)',
-  'hsl(27 87% 67%)'
-]
+// Single blue for selected species — consistent with the deployment filter and
+// the blue selection accent used across the drawer (no rainbow palette here,
+// since the drawer has no chart that needs per-species color matching).
+const palette = ['#2563eb']
 
-function Section({ title, children }) {
+function Section({ title, count = 0, children }) {
+  const active = count > 0
   return (
     <div className="border-b border-border px-4 py-3">
-      <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-2">{title}</div>
+      <div className="flex items-center gap-1.5 mb-2">
+        <span
+          className={`text-[11px] uppercase tracking-wide ${
+            active ? 'text-blue-700 dark:text-blue-300 font-semibold' : 'text-muted-foreground'
+          }`}
+        >
+          {title}
+        </span>
+        {active && (
+          <span className="text-[10px] font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-500/20 rounded-full px-1.5 leading-[1.4]">
+            {count}
+          </span>
+        )}
+      </div>
       {children}
     </div>
   )
@@ -48,8 +58,8 @@ function DistributionList({ items, selected, onToggle, emptyLabel, hoverContent 
             <div className="flex justify-between items-center gap-2 mb-1">
               <span className="flex items-center gap-2 min-w-0">
                 <span
-                  className={`inline-block w-3 h-3 rounded-sm border flex-shrink-0 ${
-                    active ? 'bg-blue-600 border-blue-600' : 'border-border'
+                  className={`inline-block w-2 h-2 rounded-full border flex-shrink-0 ${
+                    active ? 'border-transparent bg-blue-600' : 'border-border'
                   }`}
                 />
                 <span className="text-sm truncate text-foreground">{it.label}</span>
@@ -59,7 +69,7 @@ function DistributionList({ items, selected, onToggle, emptyLabel, hoverContent 
             <div className="w-full bg-muted rounded-full h-2">
               <div
                 className="h-2 rounded-full"
-                style={{ width: `${pct}%`, backgroundColor: active ? '#2563eb' : '#cbd5e1' }}
+                style={{ width: `${pct}%`, backgroundColor: active ? '#2563eb' : '#ccc' }}
               />
             </div>
           </div>
@@ -91,7 +101,14 @@ function toggleInArray(arr, value) {
   return arr.includes(value) ? arr.filter((x) => x !== value) : [...arr, value]
 }
 
-export default function FilterDrawer({ open, onClose, studyId, filters, onChange }) {
+export default function FilterDrawer({
+  open,
+  onClose,
+  studyId,
+  filters,
+  onChange,
+  blankCount = 0
+}) {
   const speciesQuery = useQuery({
     queryKey: ['mediaFilterSpeciesDistribution', studyId],
     queryFn: async () => {
@@ -137,6 +154,16 @@ export default function FilterDrawer({ open, onClose, studyId, filters, onChange
 
   const hasAny = filters.species.length || filters.deployments.length || filters.sources.length
 
+  const clearAll = () =>
+    onChange({
+      ...filters,
+      species: [],
+      deployments: [],
+      sources: [],
+      dateRange: [null, null],
+      timeRange: { ranges: [] }
+    })
+
   return (
     <div
       className={`fixed inset-0 z-[1000] ${open ? '' : 'pointer-events-none'}`}
@@ -159,18 +186,29 @@ export default function FilterDrawer({ open, onClose, studyId, filters, onChange
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
           <span className="text-sm font-medium">Filters</span>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close filters"
-            className="opacity-70 hover:opacity-100"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-3">
+            {hasAny ? (
+              <button
+                type="button"
+                onClick={clearAll}
+                className="text-[12px] font-medium text-blue-700 dark:text-blue-300 hover:underline"
+              >
+                Clear all
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close filters"
+              className="opacity-70 hover:opacity-100"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto min-h-0">
-          <Section title="Species">
+          <Section title="Species" count={filters.species.length}>
             {speciesQuery.data ? (
               <div className="max-h-56 overflow-y-auto -mx-1">
                 <SpeciesDistribution
@@ -181,8 +219,10 @@ export default function FilterDrawer({ open, onClose, studyId, filters, onChange
                   palette={palette}
                   studyId={studyId}
                   showHeader={false}
-                  hidePseudoSpecies
+                  blankCount={blankCount}
+                  vehicleCount={0}
                   allowEmpty
+                  bordered={false}
                 />
               </div>
             ) : (
@@ -190,7 +230,7 @@ export default function FilterDrawer({ open, onClose, studyId, filters, onChange
             )}
           </Section>
 
-          <Section title="Deployment">
+          <Section title="Deployment" count={filters.deployments.length}>
             <DistributionList
               items={deploymentItems}
               selected={filters.deployments}
@@ -204,27 +244,6 @@ export default function FilterDrawer({ open, onClose, studyId, filters, onChange
             />
           </Section>
         </div>
-
-        {hasAny ? (
-          <div className="px-4 py-3 border-t border-border flex-shrink-0">
-            <button
-              type="button"
-              onClick={() =>
-                onChange({
-                  ...filters,
-                  species: [],
-                  deployments: [],
-                  sources: [],
-                  dateRange: [null, null],
-                  timeRange: { ranges: [] }
-                })
-              }
-              className="text-[13px] font-medium text-blue-700 dark:text-blue-300 hover:underline"
-            >
-              Clear all filters
-            </button>
-          </div>
-        ) : null}
       </div>
     </div>
   )

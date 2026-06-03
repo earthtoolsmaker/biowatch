@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useMediaFilters } from './useMediaFilters.js'
@@ -46,6 +46,24 @@ export default function MediaTab({ studyId, path }) {
     'low-confidence': lowConfidenceCount
   }
 
+  // Map deploymentID -> location name so the toolbar's deployment chips show a
+  // readable name instead of the raw ID. Shares the drawer's query cache.
+  const { data: deploymentDist } = useQuery({
+    queryKey: ['mediaFilterDeploymentDistribution', actualStudyId],
+    queryFn: async () => {
+      const res = await window.api.getDeploymentDistribution(actualStudyId)
+      if (res?.error) throw new Error(res.error)
+      return res?.data ?? res
+    },
+    enabled: !!actualStudyId,
+    staleTime: 60000
+  })
+  const deploymentNames = useMemo(() => {
+    const m = {}
+    for (const d of deploymentDist ?? []) m[d.deploymentID] = d.locationName
+    return m
+  }, [deploymentDist])
+
   return (
     <div className="flex flex-col h-full min-h-0 gap-3 px-4 py-3">
       <MediaToolbar
@@ -53,6 +71,7 @@ export default function MediaTab({ studyId, path }) {
         onOpenFilter={() => setDrawerOpen(true)}
         onChange={setFilters}
         quickViewCounts={quickViewCounts}
+        deploymentNames={deploymentNames}
       />
       <div className="flex-1 min-h-0">
         <MediaGridView filters={filters} speciesReady onSortChange={(sort) => patch({ sort })} />
@@ -64,6 +83,7 @@ export default function MediaTab({ studyId, path }) {
         path={path}
         filters={filters}
         onChange={setFilters}
+        blankCount={blankCount}
       />
     </div>
   )

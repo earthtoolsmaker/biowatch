@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Tag, Eraser, Check, X } from 'lucide-react'
+import { Tag, Eraser, X } from 'lucide-react'
 
 // Floating bulk-action bar shown when ≥1 sequence is selected. Acts on the
 // resolved member mediaIDs via the Plan-1 bulk IPCs, then asks the caller to
@@ -90,15 +90,6 @@ export default function SelectionActionBar({ studyId, count, mediaIds, onApplied
           className="inline-flex items-center gap-1.5 bg-amber-900/80 hover:bg-amber-900 text-amber-100 rounded-md px-2.5 py-1 text-[12px]"
         >
           <Eraser size={13} /> Mark blank
-        </button>
-
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => run(() => window.api.bulkMarkReviewed(studyId, mediaIds))}
-          className="inline-flex items-center gap-1.5 bg-green-900/80 hover:bg-green-900 text-green-100 rounded-md px-2.5 py-1 text-[12px]"
-        >
-          <Check size={13} /> Mark reviewed
         </button>
 
         <button

@@ -1,8 +1,21 @@
 import { useMemo } from 'react'
-import { Filter, LayoutGrid, Table2, ArrowUpDown } from 'lucide-react'
+import { Filter, LayoutGrid, Table2 } from 'lucide-react'
 import ViewModeToggle from '../ui/ViewModeToggle.jsx'
 import QuickViews from './QuickViews.jsx'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select.tsx'
+import { hasActiveFilters } from './mediaFilters.js'
+import { resolveCommonName } from '../../../shared/commonNames/index.js'
+import { formatScientificName } from '../utils/scientificName'
+import { BLANK_SENTINEL, VEHICLE_SENTINEL } from '../utils/speciesUtils'
+
+// Human label for a species chip: pseudo-species sentinels → friendly name,
+// otherwise the common name, falling back to the formatted scientific name.
+function speciesChipLabel(name) {
+  if (name === BLANK_SENTINEL) return 'Blank'
+  if (name === VEHICLE_SENTINEL) return 'Vehicle'
+  const common = resolveCommonName(name)
+  const label = common || formatScientificName(name)
+  return label ? label.charAt(0).toUpperCase() + label.slice(1) : name
+}
 
 // Grid/Table metadata for the shared ViewModeToggle (same look as Explore's
 // Map | Gallery | Both segmented control).
@@ -35,12 +48,12 @@ function formatDateChip([from, to]) {
 
 // Derive the removable active-filter chips from filter state. Quick view is
 // surfaced in the QuickViews row, so it is intentionally not duplicated here.
-function deriveChips(filters) {
+function deriveChips(filters, deploymentNames = {}) {
   const chips = []
   for (const name of filters.species) {
     chips.push({
       id: `species:${name}`,
-      label: name,
+      label: speciesChipLabel(name),
       clear: (f) => ({
         ...f,
         species: f.species.filter((s) => s !== name)
@@ -50,7 +63,7 @@ function deriveChips(filters) {
   for (const d of filters.deployments) {
     chips.push({
       id: `deployment:${d}`,
-      label: d,
+      label: deploymentNames[d] || d,
       clear: (f) => ({
         ...f,
         deployments: f.deployments.filter((x) => x !== d)
@@ -86,9 +99,13 @@ export default function MediaToolbar({
   onOpenFilter,
   onChange,
   sequenceCount,
-  quickViewCounts
+  quickViewCounts,
+  deploymentNames
 }) {
-  const chips = useMemo(() => deriveChips(filters), [filters])
+  const chips = useMemo(() => deriveChips(filters, deploymentNames), [filters, deploymentNames])
+  // The Filter button reflects the drawer facets (species/deployment/etc.), not
+  // the quick view (which has its own button).
+  const filterActive = hasActiveFilters({ ...filters, quickView: null })
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
@@ -104,10 +121,17 @@ export default function MediaToolbar({
       <button
         type="button"
         onClick={onOpenFilter}
-        className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-border bg-card text-[13px] font-medium hover:bg-input-background"
+        className={`relative inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border text-[13px] font-medium ${
+          filterActive
+            ? 'bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-500/30'
+            : 'bg-card border-border hover:bg-input-background'
+        }`}
       >
         <Filter className="w-3.5 h-3.5 opacity-80" />
         Filter
+        {filterActive && (
+          <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-blue-500 dark:bg-blue-400" />
+        )}
       </button>
 
       <QuickViews
@@ -140,21 +164,6 @@ export default function MediaToolbar({
           {sequenceCount.toLocaleString()} sequences
         </span>
       )}
-
-      <Select value={filters.sort} onValueChange={(sort) => onChange({ ...filters, sort })}>
-        <SelectTrigger
-          size="sm"
-          className="w-auto gap-1.5 text-[12.5px] font-medium"
-          aria-label="Sort order"
-        >
-          <ArrowUpDown className="w-3.5 h-3.5 opacity-70" />
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="newest">Newest first</SelectItem>
-          <SelectItem value="oldest">Oldest first</SelectItem>
-        </SelectContent>
-      </Select>
     </div>
   )
 }

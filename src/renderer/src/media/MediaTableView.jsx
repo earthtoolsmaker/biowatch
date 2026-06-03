@@ -2,12 +2,23 @@ import { memo, useMemo, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Check, Play, ImageOff } from 'lucide-react'
 import { deriveTableRow } from './tableRows.js'
+import { resolveCommonName } from '../../../shared/commonNames/index.js'
+import { formatScientificName } from '../utils/scientificName'
 
 function noop() {}
 
+// Display label for the species column: common name (capitalized), falling back
+// to the formatted scientific name. null (no species) → null (renders a pill).
+function speciesDisplay(name) {
+  if (!name) return null
+  const label = resolveCommonName(name) || formatScientificName(name)
+  return label ? label.charAt(0).toUpperCase() + label.slice(1) : name
+}
+
 const ROW_HEIGHT = 46
 // Shared column template for the header and every row so they stay aligned.
-const GRID_COLS = '36px 60px minmax(0,28fr) 168px minmax(0,22fr) 90px 116px'
+// Columns: checkbox · thumbnail · species · when · deployment.
+const GRID_COLS = '36px 60px minmax(0,1.4fr) 180px minmax(0,1fr)'
 
 function formatWhen(when) {
   if (!when) return null
@@ -20,6 +31,19 @@ function formatWhen(when) {
     hour: '2-digit',
     minute: '2-digit'
   })
+}
+
+// Comparator for a given column over the derived rows (client-side sort of the
+// loaded rows). Missing values sort to the start in ascending order.
+function compareRows(a, b, col) {
+  if (col === 'when') {
+    const av = a.row.when ? new Date(a.row.when).getTime() : -Infinity
+    const bv = b.row.when ? new Date(b.row.when).getTime() : -Infinity
+    return av - bv
+  }
+  const av = (col === 'species' ? a.speciesLabel : a.row.deployment) || ''
+  const bv = (col === 'species' ? b.speciesLabel : b.row.deployment) || ''
+  return String(av).localeCompare(String(bv), undefined, { numeric: true, sensitivity: 'base' })
 }
 
 // Small thumbnail. `url` points at a server-resized ~128px JPEG (see
@@ -61,11 +85,29 @@ const Cell = ({ children, className = '' }) => (
   <div className={`px-2 min-w-0 truncate ${className}`}>{children}</div>
 )
 
+// Clickable, sortable column header.
+function SortHeader({ label, col, sortCol, sortDir, onSort }) {
+  const active = sortCol === col
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(col)}
+      className={`px-2 flex items-center gap-1 cursor-pointer select-none text-left hover:text-foreground ${
+        active ? 'text-blue-700 dark:text-blue-300' : ''
+      }`}
+    >
+      {label}
+      <span className="w-2">{active ? (sortDir === 'asc' ? '↑' : '↓') : ''}</span>
+    </button>
+  )
+}
+
 // One virtualized row, absolutely positioned by the virtualizer. Memoized so a
 // selection/hover change only re-renders the rows whose props changed.
 const TableRow = memo(function TableRow({
   seq,
   row,
+  speciesLabel,
   thumbnailUrl,
   isSelected,
   onRowClick,
@@ -102,8 +144,8 @@ const TableRow = memo(function TableRow({
         <RowThumb url={thumbnailUrl} isVideo={row.isVideo} />
       </div>
       <Cell className="font-medium">
-        {row.species ? (
-          row.species
+        {speciesLabel ? (
+          speciesLabel
         ) : (
           <span className="text-[11px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-normal">
             Blank
@@ -122,42 +164,34 @@ const TableRow = memo(function TableRow({
         {formatWhen(row.when) || <span className="text-muted-foreground">— missing —</span>}
       </Cell>
       <Cell>{row.deployment || <span className="text-muted-foreground">—</span>}</Cell>
-      <Cell className="tabular-nums">
-        {row.confidence != null ? (
-          row.confidence.toFixed(2)
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        )}
-      </Cell>
-      <Cell>
-        {row.reviewed ? (
-          <span className="inline-flex items-center gap-1 text-green-600 font-medium">
-            <Check size={13} /> Reviewed
-          </span>
-        ) : (
-          <span className="text-muted-foreground">— AI —</span>
-        )}
-      </Cell>
     </div>
   )
 })
 
 // Virtualized table view: only the rows in (or near) the viewport are mounted,
 // so scroll cost stays bounded regardless of how many sequences have loaded.
-// Shares the Gallery scroll container via scrollRef. Row data is derived once
-// per sequences/bbox change, not on every render.
+// Column headers sort the currently-loaded rows client-side.
 export default function MediaTableView({
   sequences,
   bboxesByMedia,
   constructImageUrl,
   isVideoMedia,
   onRowClick,
-  sort,
-  onSortChange,
   selection,
   onToggleSelect,
   scrollRef
 }) {
+  const [sortCol, setSortCol] = useState(null)
+  const [sortDir, setSortDir] = useState('asc')
+
+  const onSort = (col) => {
+    if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    else {
+      setSortCol(col)
+      setSortDir('asc')
+    }
+  }
+
   const rows = useMemo(
     () =>
       sequences.map((seq) => {
@@ -165,6 +199,7 @@ export default function MediaTableView({
         return {
           seq,
           row,
+          speciesLabel: speciesDisplay(row.species),
           // Request a small server-resized thumbnail (see protocols.js): the
           // original is multi-megapixel, far too costly to decode per row.
           thumbnailUrl: row.isVideo
@@ -175,42 +210,57 @@ export default function MediaTableView({
     [sequences, bboxesByMedia, isVideoMedia, constructImageUrl]
   )
 
+  const sortedRows = useMemo(() => {
+    if (!sortCol) return rows
+    const dir = sortDir === 'asc' ? 1 : -1
+    return [...rows].sort((a, b) => dir * compareRows(a, b, sortCol))
+  }, [rows, sortCol, sortDir])
+
   const virtualizer = useVirtualizer({
-    count: rows.length,
+    count: sortedRows.length,
     getScrollElement: () => scrollRef?.current ?? null,
     estimateSize: () => ROW_HEIGHT,
     overscan: 12
   })
 
   return (
-    <div className="w-full text-[13px]">
+    // -mt-3 cancels the gallery scroll container's top padding (py-3) so the
+    // sticky header sits flush at the top — otherwise rows scroll into the
+    // padding gap above it and bleed over the header.
+    <div className="w-full text-[13px] -mt-3">
       <div
         role="row"
         style={{ gridTemplateColumns: GRID_COLS }}
-        className="grid items-center sticky top-0 z-10 bg-card border-b-2 border-border text-[11px] uppercase tracking-wide text-muted-foreground h-9"
+        className="grid items-center sticky top-0 z-20 bg-card border-b-2 border-border text-[11px] uppercase tracking-wide text-muted-foreground h-9"
       >
         <div className="px-2" />
         <div className="px-2" />
-        <Cell>Species</Cell>
-        <div
-          className="px-2 cursor-pointer select-none text-blue-700 dark:text-blue-300"
-          onClick={() => onSortChange && onSortChange(sort === 'newest' ? 'oldest' : 'newest')}
-        >
-          When {sort === 'oldest' ? '↑' : '↓'}
-        </div>
-        <Cell>Deployment</Cell>
-        <Cell>Confidence</Cell>
-        <Cell>Reviewed</Cell>
+        <SortHeader
+          label="Species"
+          col="species"
+          sortCol={sortCol}
+          sortDir={sortDir}
+          onSort={onSort}
+        />
+        <SortHeader label="When" col="when" sortCol={sortCol} sortDir={sortDir} onSort={onSort} />
+        <SortHeader
+          label="Deployment"
+          col="deployment"
+          sortCol={sortCol}
+          sortDir={sortDir}
+          onSort={onSort}
+        />
       </div>
 
       <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
         {virtualizer.getVirtualItems().map((v) => {
-          const { seq, row, thumbnailUrl } = rows[v.index]
+          const { seq, row, speciesLabel, thumbnailUrl } = sortedRows[v.index]
           return (
             <TableRow
               key={seq.id}
               seq={seq}
               row={row}
+              speciesLabel={speciesLabel}
               thumbnailUrl={thumbnailUrl}
               isSelected={selection ? selection.has(seq.id) : false}
               onRowClick={onRowClick}
