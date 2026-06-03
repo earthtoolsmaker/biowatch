@@ -39,11 +39,15 @@ export default function MediaTab({ studyId, path }) {
   const lowConfidenceCount = useCount('lowConfidenceCount', actualStudyId, (s) =>
     window.api.getLowConfidenceCount(s)
   )
+  const noTimestampCount = useCount('noTimestampCount', actualStudyId, (s) =>
+    window.api.countMediaWithNullTimestamps(s)
+  )
 
   const quickViewCounts = {
     blank: blankCount,
     vehicle: vehicleCount,
-    'low-confidence': lowConfidenceCount
+    'low-confidence': lowConfidenceCount,
+    'no-timestamp': noTimestampCount
   }
 
   // Map deploymentID -> location name so the toolbar's deployment chips show a

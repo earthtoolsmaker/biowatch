@@ -161,7 +161,24 @@ export default function MediaToolbar({
       <QuickViews
         active={filters.quickView}
         counts={quickViewCounts}
-        onSelect={(key) => onChange({ ...filters, quickView: key })}
+        onSelect={(key) =>
+          onChange(
+            key
+              ? {
+                  // A quick view is a fresh preset: selecting one resets the
+                  // facet filters (species/deployment/source/date/time) so the
+                  // view shows exactly its category. View mode and sort persist.
+                  ...filters,
+                  species: [],
+                  deployments: [],
+                  sources: [],
+                  dateRange: [null, null],
+                  timeRange: { ranges: [] },
+                  quickView: key
+                }
+              : { ...filters, quickView: null }
+          )
+        }
       />
 
       {chips.map((chip) => (
