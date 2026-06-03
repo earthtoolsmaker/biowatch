@@ -52,6 +52,10 @@ function DistributionList({ items, selected, onToggle, emptyLabel, hoverContent 
         // stay comparable across rows (like the species bars).
         const detPct = maxCount > 0 ? ((it.detectionCount || 0) / maxCount) * 100 : 0
         const blankPct = maxCount > 0 ? ((it.blankCount || 0) / maxCount) * 100 : 0
+        // Blue is reserved for the selection accent: the detection segment only
+        // goes blue when the row is selected, otherwise slate. Blanks stay a
+        // lighter grey throughout, so the composition split reads in both states.
+        const detColor = active ? '#2563eb' : '#64748b'
         const row = (
           <div
             onClick={() => onToggle(it.value)}
@@ -75,7 +79,7 @@ function DistributionList({ items, selected, onToggle, emptyLabel, hoverContent 
               <span className="text-xs text-muted-foreground flex-shrink-0">{it.count}</span>
             </div>
             <div className="w-full bg-muted rounded-full h-2 overflow-hidden flex">
-              <div className="h-2" style={{ width: `${detPct}%`, backgroundColor: '#2563eb' }} />
+              <div className="h-2" style={{ width: `${detPct}%`, backgroundColor: detColor }} />
               <div className="h-2" style={{ width: `${blankPct}%`, backgroundColor: '#cbd5e1' }} />
             </div>
           </div>
