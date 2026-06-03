@@ -1,8 +1,7 @@
-import { memo, useMemo } from 'react'
+import { memo, useMemo, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Check, Play, ImageOff } from 'lucide-react'
 import { deriveTableRow } from './tableRows.js'
-import { useThumbnail } from './useThumbnail.js'
 
 function noop() {}
 
@@ -23,12 +22,12 @@ function formatWhen(when) {
   })
 }
 
-// Small thumbnail backed by a downscaled (~112px) cached version of the media —
-// see useThumbnail. The expensive one-time full-res decode is deferred while the
-// list is actively scrolling; cached low-res thumbs render even during scroll
-// (they're tiny and cheap to composite). Videos / missing files show icons.
+// Small thumbnail. While the list is actively scrolling we render a neutral
+// placeholder instead of the <img> — decoding full-res camera-trap JPEGs as
+// virtualized rows mount mid-scroll tanks the compositor. The image (async-
+// decoded) renders once scrolling settles. Videos / missing files show icons.
 function RowThumb({ url, isVideo, isScrolling }) {
-  const thumb = useThumbnail(url, !isVideo && !isScrolling)
+  const [failed, setFailed] = useState(false)
   const box =
     'w-12 h-9 rounded-[3px] bg-black/80 overflow-hidden flex items-center justify-center text-white/70'
   if (isVideo) {
@@ -38,20 +37,26 @@ function RowThumb({ url, isVideo, isScrolling }) {
       </div>
     )
   }
-  if (!url) {
+  if (!url || failed) {
     return (
       <div className={box}>
         <ImageOff size={13} />
       </div>
     )
   }
-  if (!thumb) {
-    // Building (or scrolling before this one is cached) → neutral placeholder.
+  if (isScrolling) {
     return <div className={box} />
   }
   return (
     <div className={box}>
-      <img src={thumb} alt="" className="w-full h-full object-cover" decoding="async" />
+      <img
+        src={url}
+        alt=""
+        className="w-full h-full object-cover"
+        loading="lazy"
+        decoding="async"
+        onError={() => setFailed(true)}
+      />
     </div>
   )
 }
