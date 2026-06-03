@@ -147,6 +147,11 @@ const api = {
   getOverviewStats: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('overview:get-stats', studyId)
   },
+  // Distribution of import sources (importFolder) with media counts — drives
+  // the Media tab's Source filter.
+  getSourceDistribution: async (studyId) => {
+    return await electronAPI.ipcRenderer.invoke('sequences:get-source-distribution', studyId)
+  },
   // Sequence-aware species distribution APIs (pre-computed in main thread)
   // gapSeconds is fetched from study metadata in the backend
   getSequenceAwareSpeciesDistribution: async (studyId, gapSeconds, bbox) => {

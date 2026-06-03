@@ -11,6 +11,26 @@ import { getStudyIdFromPath, formatToMatchOriginal } from './utils.js'
 import { transformBboxToCamtrapDP, detectModelType } from '../../utils/bbox.js'
 
 /**
+ * List import sources (media.importFolder) with their media counts, descending.
+ * Used by the Media tab's Source filter. Media with a null importFolder are
+ * excluded.
+ * @param {string} dbPath - Path to the SQLite database
+ * @returns {Promise<Array<{source: string, count: number}>>}
+ */
+export async function getSourceDistribution(dbPath) {
+  const studyId = getStudyIdFromPath(dbPath)
+  const db = await getDrizzleDb(studyId, dbPath)
+  const rows = await db
+    .select({ source: media.importFolder, count: count() })
+    .from(media)
+    .where(isNotNull(media.importFolder))
+    .groupBy(media.importFolder)
+    .orderBy(desc(count()))
+    .all()
+  return rows.map((r) => ({ source: r.source, count: Number(r.count) }))
+}
+
+/**
  * Get all bounding boxes for a specific media file with model provenance
  * @param {string} dbPath - Path to the SQLite database
  * @param {string} mediaID - The media ID to get bboxes for

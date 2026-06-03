@@ -204,6 +204,7 @@ export {
   getSequenceAwareDailyActivitySQL,
   // Media
   getSourcesData,
+  getSourceDistribution,
   getMediaBboxes,
   getMediaBboxesBatch,
   checkMediaHaveBboxes,
