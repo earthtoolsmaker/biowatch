@@ -1,5 +1,6 @@
-import { Check, Filter, X } from 'lucide-react'
+import { Check, Filter, X, ExternalLink } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import * as HoverCard from '@radix-ui/react-hover-card'
 import DeploymentMediaGallery from '../media/DeploymentMediaGallery'
@@ -32,6 +33,7 @@ export default function DeploymentDetailPane({
   // no useEffect reset, and Gallery's useInfiniteQuery only fires once per
   // switch instead of fetching with the stale selection first.
   const [selectedSpecies, setSelectedSpecies] = useState([])
+  const navigate = useNavigate()
 
   return (
     <div className="flex flex-col h-full bg-card min-h-0">
@@ -58,6 +60,18 @@ export default function DeploymentDetailPane({
             onChange={setSelectedSpecies}
           />
           <DeploymentSettingsPopover studyId={studyId} deployment={deployment} />
+          <button
+            onClick={() =>
+              navigate(
+                `/study/${studyId}/media?deployment=${encodeURIComponent(deployment.deploymentID)}`
+              )
+            }
+            className="inline-flex items-center gap-1 px-2 py-1 text-[12px] font-medium rounded text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-500/15"
+            title="Open this deployment in the Media tab"
+          >
+            Open in Media
+            <ExternalLink size={13} />
+          </button>
           <button
             onClick={onClose}
             className="p-1 hover:bg-accent rounded text-muted-foreground hover:text-foreground"

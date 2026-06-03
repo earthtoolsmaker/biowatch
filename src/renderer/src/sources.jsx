@@ -1,9 +1,18 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { useParams } from 'react-router'
+import { useParams, useNavigate } from 'react-router'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { useImportStatus } from '@renderer/hooks/import'
-import { Folder, Globe, Package, ChevronDown, ChevronRight, Info, Check } from 'lucide-react'
+import {
+  Folder,
+  Globe,
+  Package,
+  ChevronDown,
+  ChevronRight,
+  Info,
+  Check,
+  ExternalLink
+} from 'lucide-react'
 import SkeletonSourcesList from './ui/SkeletonSourcesList'
 import AddSourceModal from './AddSourceModal'
 
@@ -127,7 +136,8 @@ function mergeDeploymentsByLabel(deployments) {
   )
 }
 
-function SourceRow({ source, importerName, studyName, expanded, onToggle }) {
+function SourceRow({ source, importerName, studyName, studyId, expanded, onToggle }) {
+  const navigate = useNavigate()
   const mergedDeployments = mergeDeploymentsByLabel(source.deployments)
   const canExpand = mergedDeployments.length > 0
   const hasImportFolder = !!source.importFolder
@@ -192,6 +202,21 @@ function SourceRow({ source, importerName, studyName, expanded, onToggle }) {
           )}
         </div>
         <div className="flex items-center gap-4 ml-auto">
+          {hasImportFolder && studyId && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                navigate(
+                  `/study/${studyId}/media?source=${encodeURIComponent(source.importFolder)}`
+                )
+              }}
+              className="inline-flex items-center gap-1 px-2 py-1 text-[12px] font-medium rounded text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-500/15 flex-shrink-0"
+              title="Browse this source's media in the Media tab"
+            >
+              View media
+              <ExternalLink size={13} />
+            </button>
+          )}
           <MediaCounts imageCount={source.imageCount} videoCount={source.videoCount} />
           <div className="w-[200px] flex justify-end flex-shrink-0">
             <StatusCell row={source} />
@@ -320,6 +345,7 @@ export default function Sources({ studyId, importerName, studyName }) {
                     source={source}
                     importerName={importerName}
                     studyName={studyName}
+                    studyId={actualStudyId}
                     expanded={!!expanded[source.importFolder]}
                     onToggle={() =>
                       setExpanded((e) => ({
