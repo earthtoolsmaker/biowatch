@@ -75,15 +75,7 @@ export default function QuickViews({ active, counts = {}, onSelect }) {
                   ) : (
                     <span className="inline-block w-[13px]" />
                   )}
-                  <span
-                    className={
-                      qv.tone === 'warn' && !isActive
-                        ? 'text-amber-700 dark:text-amber-300'
-                        : 'text-foreground'
-                    }
-                  >
-                    {qv.label}
-                  </span>
+                  <span className="text-foreground">{qv.label}</span>
                 </span>
                 {typeof count === 'number' && (
                   <span className="text-xs text-muted-foreground">{count}</span>

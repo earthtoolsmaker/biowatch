@@ -5,13 +5,13 @@ import { BLANK_SENTINEL, VEHICLE_SENTINEL } from '../../../shared/constants.js'
 // `hidden` entries keep their query-patch + URL deep-link working but are not
 // rendered as pills for now (per product decision); flip the flag to restore.
 export const QUICK_VIEWS = [
-  { key: 'needs-review', label: 'Needs review', tone: 'warn', hidden: true },
+  { key: 'needs-review', label: 'Needs review', tone: 'neutral', hidden: true },
   { key: 'reviewed', label: 'Reviewed', tone: 'neutral', hidden: true },
   { key: 'favorites', label: 'Favorites', tone: 'neutral' },
-  { key: 'blank', label: 'Blank', tone: 'warn' },
-  { key: 'no-timestamp', label: 'No timestamp', tone: 'warn' },
-  { key: 'low-confidence', label: 'Low confidence', tone: 'warn', hidden: true },
-  { key: 'vehicle', label: 'Vehicle', tone: 'neutral', hidden: true }
+  { key: 'blank', label: 'Blank', tone: 'neutral' },
+  { key: 'no-timestamp', label: 'No timestamp', tone: 'neutral' },
+  { key: 'low-confidence', label: 'Low confidence', tone: 'neutral', hidden: true },
+  { key: 'vehicle', label: 'Vehicle', tone: 'neutral' }
 ]
 
 // Translate a quick view into a patch applied on top of the active filters when
