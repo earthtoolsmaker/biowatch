@@ -1,5 +1,15 @@
 import 'leaflet/dist/leaflet.css'
 import { MapContainer, TileLayer, CircleMarker } from 'react-leaflet'
+import Sparkline from '../deployments/Sparkline'
+
+// Compact survey-window date label (e.g. "Mar 2024") for the heatmap axis ends.
+function fmtSurveyDate(s) {
+  if (!s) return ''
+  const d = new Date(s)
+  return Number.isNaN(d.getTime())
+    ? ''
+    : d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
+}
 
 // Esri World Imagery — the same satellite basemap the Overview/Deployments maps
 // use. Satellite is more useful than a street map for a camera-trap location.
@@ -15,7 +25,11 @@ export default function DeploymentHoverMap({
   lon,
   label,
   detectionCount = 0,
-  blankCount = 0
+  blankCount = 0,
+  periods,
+  percentile90Count,
+  surveyStart,
+  surveyEnd
 }) {
   const latNum = typeof lat === 'string' ? parseFloat(lat) : lat
   const lonNum = typeof lon === 'string' ? parseFloat(lon) : lon
@@ -75,6 +89,20 @@ export default function DeploymentHoverMap({
             <span className="text-muted-foreground">blank</span>
           </span>
         </div>
+        {periods && periods.length > 0 && (
+          <div className="mt-2.5 pt-2.5 border-t border-border">
+            <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
+              Activity over survey
+            </div>
+            <Sparkline periods={periods} mode="heatmap" percentile90Count={percentile90Count} />
+            {(surveyStart || surveyEnd) && (
+              <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
+                <span>{fmtSurveyDate(surveyStart)}</span>
+                <span>{fmtSurveyDate(surveyEnd)}</span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

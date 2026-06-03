@@ -9,6 +9,9 @@ import DeploymentHoverMap from './DeploymentHoverMap.jsx'
 // since the drawer has no chart that needs per-species color matching).
 const palette = ['#2563eb']
 
+// Heatmap cell count for the deployment hover card — sized for the 320px card.
+const HOVER_PERIOD_COUNT = 40
+
 function Section({ title, count = 0, children }) {
   const active = count > 0
   return (
@@ -152,6 +155,27 @@ export default function FilterDrawer({ open, studyId, filters, onChange, blankCo
     staleTime: 60000
   })
 
+  // Per-deployment activity over the whole survey window, for the hover card's
+  // heatmap (same data the Deployments tab sparkline uses). A fixed period count
+  // sized for the 320px card.
+  const activityQuery = useQuery({
+    queryKey: ['mediaFilterDeploymentActivity', studyId, HOVER_PERIOD_COUNT],
+    queryFn: async () => {
+      const res = await window.api.getDeploymentsActivity(studyId, HOVER_PERIOD_COUNT)
+      if (res?.error) throw new Error(res.error)
+      return res?.data ?? res
+    },
+    enabled: open && !!studyId,
+    staleTime: 60000
+  })
+
+  const activity = activityQuery.data
+  const periodsByDeployment = useMemo(() => {
+    const m = {}
+    for (const d of activity?.deployments ?? []) m[d.deploymentID] = d.periods
+    return m
+  }, [activity])
+
   const selectedSpecies = useMemo(
     () => filters.species.map((scientificName) => ({ scientificName })),
     [filters.species]
@@ -249,6 +273,10 @@ export default function FilterDrawer({ open, studyId, filters, onChange, blankCo
                   label={it.label}
                   detectionCount={it.detectionCount}
                   blankCount={it.blankCount}
+                  periods={periodsByDeployment[it.value]}
+                  percentile90Count={activity?.percentile90Count}
+                  surveyStart={activity?.startDate}
+                  surveyEnd={activity?.endDate}
                 />
               )}
             />
