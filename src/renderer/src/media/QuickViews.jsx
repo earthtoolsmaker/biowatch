@@ -50,7 +50,7 @@ export default function QuickViews({ active, counts = {}, onSelect }) {
       {open && (
         <div
           ref={popRef}
-          className="absolute left-0 top-full mt-1 w-72 bg-card border border-border rounded-lg shadow-lg z-[1100] p-1"
+          className="absolute left-0 top-full mt-1 w-72 bg-card border border-border rounded-lg shadow-lg z-[1100] overflow-hidden py-1"
         >
           {views.map((qv) => {
             const isActive = active === qv.key
@@ -63,7 +63,7 @@ export default function QuickViews({ active, counts = {}, onSelect }) {
                   onSelect(isActive ? null : qv.key)
                   setOpen(false)
                 }}
-                className={`w-full flex items-start justify-between gap-2 px-2 py-1.5 rounded text-[12.5px] text-left ${
+                className={`w-full flex items-start justify-between gap-2 px-3 py-1.5 text-[12.5px] text-left ${
                   isActive
                     ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300'
                     : 'hover:bg-input-background'
@@ -102,7 +102,7 @@ export default function QuickViews({ active, counts = {}, onSelect }) {
                 onSelect(null)
                 setOpen(false)
               }}
-              className="w-full text-left px-2 py-1.5 mt-1 border-t border-border text-[12px] text-muted-foreground hover:text-foreground"
+              className="w-full text-left px-3 py-1.5 mt-1 border-t border-border text-[12px] text-muted-foreground hover:text-foreground hover:bg-input-background"
             >
               Clear quick view
             </button>
