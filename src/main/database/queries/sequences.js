@@ -70,6 +70,17 @@ export function buildHourRangeCondition(range) {
 }
 
 /**
+ * Build an equality / IN condition for a column that accepts either a single
+ * value or an array of values. Returns null when there's nothing to filter
+ * (null/undefined, or an empty array), so callers can skip pushing it.
+ */
+export function eqOrIn(column, value) {
+  if (value == null) return null
+  if (Array.isArray(value)) return value.length ? inArray(column, value) : null
+  return eq(column, value)
+}
+
+/**
  * Build WHERE conditions for the Media tab "quick view" filters that act on a
  * media row via correlated subqueries over its observations. Returns an array
  * of drizzle conditions to AND into a phase's condition list (works for both
@@ -199,6 +210,11 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
         lte(deployments.longitude, bbox.east)
       )
     : null
+
+  // Deployment / source filters accept a single value or an array; build the
+  // condition once and reuse across the timestamped and null-phase arms.
+  const deploymentCond = eqOrIn(media.deploymentID, deploymentID)
+  const sourceCond = eqOrIn(media.importFolder, source)
 
   try {
     const studyId = getStudyIdFromPath(dbPath)
@@ -394,14 +410,10 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
       const timestampedConditions = [isNotNull(media.timestamp)]
 
       // Apply deployment filter (covers all species variants below via shared and(...))
-      if (deploymentID) {
-        timestampedConditions.push(eq(media.deploymentID, deploymentID))
-      }
+      if (deploymentCond) timestampedConditions.push(deploymentCond)
 
       // Apply source (importFolder) filter
-      if (source) {
-        timestampedConditions.push(eq(media.importFolder, source))
-      }
+      if (sourceCond) timestampedConditions.push(sourceCond)
 
       // Apply quick-view filters (favorite / review-status / low-confidence)
       timestampedConditions.push(
@@ -543,12 +555,8 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
       if (timestampedMedia.length < batchSize) {
         // We've exhausted timestamped media, check for null-timestamp media
         const nullConditions = [isNull(media.timestamp)]
-        if (deploymentID) {
-          nullConditions.push(eq(media.deploymentID, deploymentID))
-        }
-        if (source) {
-          nullConditions.push(eq(media.importFolder, source))
-        }
+        if (deploymentCond) nullConditions.push(deploymentCond)
+        if (sourceCond) nullConditions.push(sourceCond)
         nullConditions.push(...buildQuickViewConditions(db, { favorite, reviewed, lowConfidence }))
         if (bboxCondition) {
           nullConditions.push(bboxCondition)
@@ -609,14 +617,10 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
       const nullConditions = [isNull(media.timestamp)]
 
       // Apply deployment filter (covers all species variants below via shared and(...))
-      if (deploymentID) {
-        nullConditions.push(eq(media.deploymentID, deploymentID))
-      }
+      if (deploymentCond) nullConditions.push(deploymentCond)
 
       // Apply source (importFolder) filter
-      if (source) {
-        nullConditions.push(eq(media.importFolder, source))
-      }
+      if (sourceCond) nullConditions.push(sourceCond)
 
       // Apply quick-view filters (favorite / review-status / low-confidence)
       nullConditions.push(...buildQuickViewConditions(db, { favorite, reviewed, lowConfidence }))
@@ -757,13 +761,11 @@ export async function hasTimestampedMedia(dbPath, options = {}) {
 
     const conditions = [isNotNull(media.timestamp)]
 
-    if (deploymentID) {
-      conditions.push(eq(media.deploymentID, deploymentID))
-    }
+    const deploymentCond = eqOrIn(media.deploymentID, deploymentID)
+    if (deploymentCond) conditions.push(deploymentCond)
 
-    if (source) {
-      conditions.push(eq(media.importFolder, source))
-    }
+    const sourceCond = eqOrIn(media.importFolder, source)
+    if (sourceCond) conditions.push(sourceCond)
 
     conditions.push(...buildQuickViewConditions(db, { favorite, reviewed, lowConfidence }))
 
