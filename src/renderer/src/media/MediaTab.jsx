@@ -68,7 +68,8 @@ export default function MediaTab({ studyId, path }) {
     <div className="flex flex-col h-full min-h-0 gap-3 px-4 py-3">
       <MediaToolbar
         filters={filters}
-        onOpenFilter={() => setDrawerOpen(true)}
+        filterOpen={drawerOpen}
+        onToggleFilter={() => setDrawerOpen((o) => !o)}
         onChange={setFilters}
         quickViewCounts={quickViewCounts}
         deploymentNames={deploymentNames}

@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
-import { Filter, LayoutGrid, Table2 } from 'lucide-react'
+import { LayoutGrid, Table2, PanelRightClose, PanelRightOpen } from 'lucide-react'
+import * as Tooltip from '@radix-ui/react-tooltip'
 import ViewModeToggle from '../ui/ViewModeToggle.jsx'
 import QuickViews from './QuickViews.jsx'
 import { hasActiveFilters } from './mediaFilters.js'
@@ -94,9 +95,49 @@ function deriveChips(filters, deploymentNames = {}) {
   return chips
 }
 
+// Chevron-style show/hide toggle for the filter panel, mirroring Explore's
+// species-rail toggle (PanelRight icons, active-tinted, tooltip). A small dot
+// appears when drawer facets are active even while the panel is collapsed.
+function FilterPanelToggle({ open, active, onToggle }) {
+  const Icon = open ? PanelRightClose : PanelRightOpen
+  const label = open ? 'Hide filters' : 'Show filters'
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-label={label}
+          aria-pressed={open}
+          className={`relative w-7 h-7 rounded-md flex items-center justify-center transition-colors ${
+            open
+              ? 'text-blue-600 bg-blue-50 hover:bg-blue-100 dark:text-blue-400 dark:bg-blue-500/15 dark:hover:bg-blue-500/25'
+              : 'text-muted-foreground hover:bg-accent'
+          }`}
+        >
+          <Icon size={16} />
+          {active && (
+            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-blue-500 dark:bg-blue-400" />
+          )}
+        </button>
+      </Tooltip.Trigger>
+      <Tooltip.Portal>
+        <Tooltip.Content
+          side="bottom"
+          sideOffset={8}
+          className="z-[10000] px-3 py-2 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md"
+        >
+          {label}
+        </Tooltip.Content>
+      </Tooltip.Portal>
+    </Tooltip.Root>
+  )
+}
+
 export default function MediaToolbar({
   filters,
-  onOpenFilter,
+  filterOpen,
+  onToggleFilter,
   onChange,
   sequenceCount,
   quickViewCounts,
@@ -117,22 +158,6 @@ export default function MediaToolbar({
       />
 
       <div className="w-px h-6 bg-border mx-0.5" />
-
-      <button
-        type="button"
-        onClick={onOpenFilter}
-        className={`relative inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border text-[13px] font-medium ${
-          filterActive
-            ? 'bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-500/30'
-            : 'bg-card border-border hover:bg-input-background'
-        }`}
-      >
-        <Filter className="w-3.5 h-3.5 opacity-80" />
-        Filter
-        {filterActive && (
-          <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-blue-500 dark:bg-blue-400" />
-        )}
-      </button>
 
       <QuickViews
         active={filters.quickView}
@@ -164,6 +189,10 @@ export default function MediaToolbar({
           {sequenceCount.toLocaleString()} sequences
         </span>
       )}
+
+      <div className="w-px h-6 bg-border mx-0.5" />
+
+      <FilterPanelToggle open={filterOpen} active={filterActive} onToggle={onToggleFilter} />
     </div>
   )
 }
