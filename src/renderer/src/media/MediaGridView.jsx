@@ -18,8 +18,10 @@ export default function MediaGridView({ filters, speciesReady = true }) {
       dateRange: [fromStr ? new Date(fromStr) : null, toStr ? new Date(toStr) : null],
       timeRange: filters.timeRange,
       sort: filters.sort,
-      deploymentID: filters.deployments[0] ?? null,
-      source: filters.sources[0] ?? null,
+      // deploymentID/source accept arrays now (server uses IN); pass the full
+      // selections so multi-select filtering works.
+      deploymentID: filters.deployments,
+      source: filters.sources,
       favorite: patch.favorite === true,
       reviewed: patch.reviewed,
       lowConfidence: patch.lowConfidence === true,

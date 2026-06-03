@@ -41,28 +41,35 @@ function Section({ title, children }) {
   )
 }
 
-// Single-select list row used for deployment & source facets (the gallery query
-// filters by one of each; multi-select is a later enhancement).
-function PickList({ items, selected, onPick, emptyLabel }) {
+// Multi-select list used for the deployment & source facets. `selected` is an
+// array of values; clicking a row toggles it.
+function PickList({ items, selected, onToggle, emptyLabel }) {
   if (!items.length) {
     return <div className="text-[13px] text-muted-foreground">{emptyLabel}</div>
   }
   return (
     <div className="flex flex-col gap-1 max-h-40 overflow-y-auto">
       {items.map((it) => {
-        const active = selected === it.value
+        const active = selected.includes(it.value)
         return (
           <button
             key={it.value}
             type="button"
-            onClick={() => onPick(active ? null : it.value)}
+            onClick={() => onToggle(it.value)}
             className={`flex items-center justify-between rounded px-2 py-1.5 text-[13px] text-left ${
               active
                 ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300'
                 : 'hover:bg-input-background'
             }`}
           >
-            <span className="truncate pr-2">{it.label}</span>
+            <span className="truncate pr-2 flex items-center gap-1.5">
+              <span
+                className={`inline-block w-3 h-3 rounded-sm border ${
+                  active ? 'bg-blue-600 border-blue-600' : 'border-border'
+                }`}
+              />
+              {it.label}
+            </span>
             {typeof it.count === 'number' && (
               <span className="text-xs text-muted-foreground flex-shrink-0">{it.count}</span>
             )}
@@ -71,6 +78,11 @@ function PickList({ items, selected, onPick, emptyLabel }) {
       })}
     </div>
   )
+}
+
+// Toggle a value in/out of an array filter field.
+function toggleInArray(arr, value) {
+  return arr.includes(value) ? arr.filter((x) => x !== value) : [...arr, value]
 }
 
 export default function FilterDrawer({ open, onClose, studyId, filters, onChange }) {
@@ -190,8 +202,10 @@ export default function FilterDrawer({ open, onClose, studyId, filters, onChange
           <Section title="Deployment">
             <PickList
               items={deploymentItems}
-              selected={filters.deployments[0] ?? null}
-              onPick={(value) => onChange({ ...filters, deployments: value ? [value] : [] })}
+              selected={filters.deployments}
+              onToggle={(value) =>
+                onChange({ ...filters, deployments: toggleInArray(filters.deployments, value) })
+              }
               emptyLabel="No deployments"
             />
           </Section>
@@ -199,8 +213,10 @@ export default function FilterDrawer({ open, onClose, studyId, filters, onChange
           <Section title="Source">
             <PickList
               items={sourceItems}
-              selected={filters.sources[0] ?? null}
-              onPick={(value) => onChange({ ...filters, sources: value ? [value] : [] })}
+              selected={filters.sources}
+              onToggle={(value) =>
+                onChange({ ...filters, sources: toggleInArray(filters.sources, value) })
+              }
               emptyLabel="No import sources"
             />
           </Section>
