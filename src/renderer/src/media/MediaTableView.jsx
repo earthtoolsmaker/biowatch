@@ -22,11 +22,10 @@ function formatWhen(when) {
   })
 }
 
-// Small thumbnail. While the list is actively scrolling we render a neutral
-// placeholder instead of the <img> — decoding full-res camera-trap JPEGs as
-// virtualized rows mount mid-scroll tanks the compositor. The image (async-
-// decoded) renders once scrolling settles. Videos / missing files show icons.
-function RowThumb({ url, isVideo, isScrolling }) {
+// Small thumbnail. `url` points at a server-resized ~128px JPEG (see
+// protocols.js), so it's cheap to decode/composite even as virtualized rows
+// mount during scroll — no full-res decode, no scroll placeholder needed.
+function RowThumb({ url, isVideo }) {
   const [failed, setFailed] = useState(false)
   const box =
     'w-12 h-9 rounded-[3px] bg-black/80 overflow-hidden flex items-center justify-center text-white/70'
@@ -43,9 +42,6 @@ function RowThumb({ url, isVideo, isScrolling }) {
         <ImageOff size={13} />
       </div>
     )
-  }
-  if (isScrolling) {
-    return <div className={box} />
   }
   return (
     <div className={box}>
@@ -72,7 +68,6 @@ const TableRow = memo(function TableRow({
   row,
   thumbnailUrl,
   isSelected,
-  isScrolling,
   onRowClick,
   onToggleSelect,
   style
@@ -104,7 +99,7 @@ const TableRow = memo(function TableRow({
         </button>
       </div>
       <div className="px-2">
-        <RowThumb url={thumbnailUrl} isVideo={row.isVideo} isScrolling={isScrolling} />
+        <RowThumb url={thumbnailUrl} isVideo={row.isVideo} />
       </div>
       <Cell className="font-medium">
         {row.species ? (
@@ -170,7 +165,11 @@ export default function MediaTableView({
         return {
           seq,
           row,
-          thumbnailUrl: row.isVideo ? null : constructImageUrl(row.thumbnailMedia.filePath)
+          // Request a small server-resized thumbnail (see protocols.js): the
+          // original is multi-megapixel, far too costly to decode per row.
+          thumbnailUrl: row.isVideo
+            ? null
+            : `${constructImageUrl(row.thumbnailMedia.filePath)}&thumb=128`
         }
       }),
     [sequences, bboxesByMedia, isVideoMedia, constructImageUrl]
@@ -214,7 +213,6 @@ export default function MediaTableView({
               row={row}
               thumbnailUrl={thumbnailUrl}
               isSelected={selection ? selection.has(seq.id) : false}
-              isScrolling={virtualizer.isScrolling}
               onRowClick={onRowClick}
               onToggleSelect={onToggleSelect}
               style={{
