@@ -73,7 +73,11 @@ export {
 } from './best-media.js'
 
 // Sequences
-export { getMediaForSequencePagination, hasTimestampedMedia } from './sequences.js'
+export {
+  getMediaForSequencePagination,
+  hasTimestampedMedia,
+  getSequenceReviewStatus
+} from './sequences.js'
 
 // Overview stats
 export { getOverviewStats } from './overview.js'

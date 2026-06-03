@@ -10,7 +10,8 @@ import log from '../logger.js'
 import { groupMediaIntoSequences, groupMediaByEventID } from './grouping.js'
 import {
   getMediaForSequencePagination,
-  hasTimestampedMedia
+  hasTimestampedMedia,
+  getSequenceReviewStatus
 } from '../../database/queries/sequences.js'
 
 /**
@@ -168,6 +169,16 @@ export async function getPaginatedSequences(dbPath, options = {}) {
         hasMore = true
       }
     }
+  }
+
+  // Attach per-sequence human-review status (derived from the member
+  // observations' classificationMethod) so Grid/Table can render the
+  // reviewed badge without N extra round-trips.
+  const allMediaIDs = sequences.flatMap((s) => s.items.map((i) => i.mediaID))
+  const reviewStatus = await getSequenceReviewStatus(dbPath, allMediaIDs)
+  for (const seq of sequences) {
+    seq.reviewed =
+      seq.items.length > 0 && seq.items.every((i) => reviewStatus.get(i.mediaID) === true)
   }
 
   const elapsedTime = Date.now() - startTime

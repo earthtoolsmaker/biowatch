@@ -10,6 +10,7 @@ import {
   eq,
   and,
   sql,
+  count,
   isNotNull,
   ne,
   inArray,
@@ -756,4 +757,38 @@ export async function hasTimestampedMedia(dbPath, options = {}) {
     log.error(`[Sequences] Error checking for timestamped media: ${error.message}`)
     throw error
   }
+}
+
+/**
+ * For each given mediaID, determine whether it is human-reviewed: it has at
+ * least one observation AND every observation has classificationMethod='human'.
+ * Media with no observations are reported as not reviewed (false).
+ *
+ * @param {string} dbPath - Path to the SQLite database
+ * @param {string[]} mediaIDs - Media IDs to evaluate
+ * @returns {Promise<Map<string, boolean>>} mediaID -> reviewed
+ */
+export async function getSequenceReviewStatus(dbPath, mediaIDs) {
+  const result = new Map(mediaIDs.map((id) => [id, false]))
+  if (mediaIDs.length === 0) return result
+
+  const studyId = getStudyIdFromPath(dbPath)
+  const db = await getDrizzleDb(studyId, dbPath)
+  const rows = await db
+    .select({
+      mediaID: observations.mediaID,
+      total: count(),
+      humanCount: sql`SUM(CASE WHEN ${observations.classificationMethod} = 'human' THEN 1 ELSE 0 END)`
+    })
+    .from(observations)
+    .where(inArray(observations.mediaID, mediaIDs))
+    .groupBy(observations.mediaID)
+    .all()
+
+  for (const r of rows) {
+    const total = Number(r.total)
+    const human = Number(r.humanCount)
+    result.set(r.mediaID, total > 0 && human === total)
+  }
+  return result
 }

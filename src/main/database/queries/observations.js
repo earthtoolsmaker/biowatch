@@ -465,7 +465,20 @@ export async function insertObservations(manager, observationsData) {
               observation.classificationProbability !== undefined
                 ? observation.classificationProbability
                 : null,
-            count: observation.count !== undefined ? observation.count : null
+            count: observation.count !== undefined ? observation.count : null,
+            // CamTrap DP classification provenance — passed through when present
+            // so callers (and tests) can seed machine-vs-human review status.
+            // Defaults to null, preserving prior behavior for existing callers.
+            classificationMethod:
+              observation.classificationMethod !== undefined
+                ? observation.classificationMethod
+                : null,
+            classifiedBy:
+              observation.classifiedBy !== undefined ? observation.classifiedBy : null,
+            classificationTimestamp:
+              observation.classificationTimestamp !== undefined
+                ? observation.classificationTimestamp
+                : null
           })
           .run()
 
