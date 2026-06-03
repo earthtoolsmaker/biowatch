@@ -205,6 +205,7 @@ export {
   // Media
   getSourcesData,
   getSourceDistribution,
+  getLowConfidenceCount,
   getMediaBboxes,
   getMediaBboxesBatch,
   checkMediaHaveBboxes,

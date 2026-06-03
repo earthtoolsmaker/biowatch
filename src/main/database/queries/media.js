@@ -4,7 +4,7 @@
 
 import { getDrizzleDb } from '../manager.js'
 import { media, observations, modelRuns, modelOutputs, deployments } from '../models.js'
-import { eq, and, desc, count, sql, isNotNull, inArray, isNull } from 'drizzle-orm'
+import { eq, and, desc, count, sql, isNotNull, inArray, isNull, lt } from 'drizzle-orm'
 import { DateTime } from 'luxon'
 import log from '../../services/logger.js'
 import { getStudyIdFromPath, formatToMatchOriginal } from './utils.js'
@@ -28,6 +28,32 @@ export async function getSourceDistribution(dbPath) {
     .orderBy(desc(count()))
     .all()
   return rows.map((r) => ({ source: r.source, count: Number(r.count) }))
+}
+
+/**
+ * Count distinct media that have at least one MACHINE observation whose
+ * classificationProbability is below the threshold. Drives the "Low confidence"
+ * quick view. Human-reviewed observations are excluded (their probability is
+ * cleared on human classification), so this surfaces only unreviewed AI guesses.
+ * @param {string} dbPath - Path to the SQLite database
+ * @param {number} [threshold=0.5] - Exclusive upper bound on probability
+ * @returns {Promise<number>}
+ */
+export async function getLowConfidenceCount(dbPath, threshold = 0.5) {
+  const studyId = getStudyIdFromPath(dbPath)
+  const db = await getDrizzleDb(studyId, dbPath)
+  const row = await db
+    .select({ c: sql`COUNT(DISTINCT ${observations.mediaID})` })
+    .from(observations)
+    .where(
+      and(
+        eq(observations.classificationMethod, 'machine'),
+        isNotNull(observations.classificationProbability),
+        lt(observations.classificationProbability, threshold)
+      )
+    )
+    .get()
+  return Number(row?.c ?? 0)
 }
 
 /**

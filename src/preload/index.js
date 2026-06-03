@@ -33,6 +33,9 @@ const api = {
   getVehicleMediaCount: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('species:get-vehicle-count', studyId)
   },
+  getLowConfidenceCount: async (studyId, threshold) => {
+    return await electronAPI.ipcRenderer.invoke('species:get-low-confidence-count', studyId, threshold)
+  },
   getDeploymentLocations: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('deployments:get-locations', studyId)
   },
