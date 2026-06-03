@@ -41,7 +41,7 @@ const VIEW_META = {
     description: 'Inspect sequences as sortable rows with metadata.'
   }
 }
-const VIEW_MODES = ['grid', 'table']
+const VIEW_MODES = ['table', 'grid']
 
 // Format a [fromISO, toISO] pair into a compact human label.
 function formatDateChip([from, to]) {

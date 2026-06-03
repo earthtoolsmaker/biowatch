@@ -19,7 +19,7 @@ export const DEFAULT_FILTERS = {
   timeRange: { ranges: [] },
   quickView: null,
   sort: 'newest',
-  view: 'grid'
+  view: 'table'
 }
 
 // Repeatable list params use comma-join; the renderer never stores a comma in a
@@ -38,7 +38,7 @@ export function filtersToSearchParams(filters) {
   if (f.timeRange.ranges.length) sp.set('time', JSON.stringify(f.timeRange.ranges))
   if (f.quickView) sp.set('q', f.quickView)
   if (f.sort && f.sort !== 'newest') sp.set('sort', f.sort)
-  if (f.view && f.view !== 'grid') sp.set('view', f.view)
+  if (f.view && f.view !== 'table') sp.set('view', f.view)
   return sp
 }
 
@@ -60,7 +60,7 @@ export function searchParamsToFilters(sp) {
     timeRange: { ranges },
     quickView: QUICK_VIEW_KEYS.includes(q) ? q : null,
     sort: sp.get('sort') === 'oldest' ? 'oldest' : 'newest',
-    view: sp.get('view') === 'table' ? 'table' : 'grid'
+    view: sp.get('view') === 'grid' ? 'grid' : 'table'
   }
 }
 
