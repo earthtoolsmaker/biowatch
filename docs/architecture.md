@@ -188,8 +188,15 @@ src/
 │   │   ├── coordinateParser.js       # Pure parser for "lat, lon" paste field
 │   │   ├── groupDeployments.js       # Pure helper grouping deployments by location
 │   │   └── urlState.js               # ?deploymentID=… URL state helpers
-│   ├── media.jsx            # Media tab outer shell (filters, timeline, radar)
-│   ├── media/               # Media subcomponents shared with the Deployments tab
+│   ├── media/               # Media tab + subcomponents (Gallery shared with Explore & Deployments)
+│   │   ├── MediaTab.jsx              # Media tab top-level — URL-addressable browser
+│   │   ├── MediaToolbar.jsx          # Filter button, active-filter chips, sort, Grid/Table toggle
+│   │   ├── QuickViews.jsx            # Quick-view pills (needs-review/reviewed/favorites/blank/no-timestamp/low-confidence/vehicle)
+│   │   ├── FilterDrawer.jsx          # Species · deployment · source · date · time-of-day drawer
+│   │   ├── MediaGridView.jsx         # Resolves filter state → Gallery props
+│   │   ├── useMediaFilters.js        # URL-backed filter/sort/view state hook
+│   │   ├── mediaFilters.js           # Pure filter-state ↔ URL serialization
+│   │   ├── quickViews.js             # Quick-view defs + query-patch mapping
 │   │   ├── Gallery.jsx               # Sequence grid + ImageModal + bbox editor
 │   │   └── DeploymentMediaGallery.jsx # Deployment-scoped wrapper around Gallery
 │   ├── explore.jsx          # Explore tab — Map | Gallery | Both view toggle (reuses media/Gallery), temporal analysis (right-click map → Save as PNG). Map encoding modes: Composition (pies) | Abundance (graduated circles) | Density (leaflet.heat) | Hex grid (d3-hexbin)
@@ -394,8 +401,8 @@ function getStudyPath(userDataPath, studyId) {
 | `src/renderer/src/ui/MapEncodingToggle.jsx`             | Map encoding-mode segmented control (overlaid bottom-left)                                                                                             |
 | `src/renderer/src/ui/MapDensityLegend.jsx`              | Density/Hex grid legend + color-scale swatch picker                                                                                                    |
 | `src/renderer/src/utils/densityScales.js`               | Named density color scales (Warm/Magma/Viridis) + ramp helpers                                                                                         |
-| `src/renderer/src/media.jsx`                            | Media tab — filters, timeline, daily-activity radar (separate page, pending rework)                                                                    |
-| `src/renderer/src/media/Gallery.jsx`                    | Shared sequence grid + ImageModal + bbox editor                                                                                                        |
+| `src/renderer/src/media/MediaTab.jsx`                   | Media tab — URL-addressable browser (toolbar + quick views + filter drawer + grid). URL params: `species`, `deployment`, `source`, `from`/`to`, `time`, `q` (quick view), `sort`, `view` |
+| `src/renderer/src/media/Gallery.jsx`                    | Shared sequence grid + ImageModal + bbox editor (Media, Explore, Deployments)                                                                          |
 | `src/renderer/src/media/DeploymentMediaGallery.jsx`     | Deployment-scoped wrapper around Gallery                                                                                                               |
 | `src/main/database/models.js`                           | Drizzle table definitions                                                                                                                              |
 | `src/main/database/validators.js`                       | Zod validation schemas                                                                                                                                 |
