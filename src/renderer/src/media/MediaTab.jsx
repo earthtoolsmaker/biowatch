@@ -3,7 +3,6 @@ import { useParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useMediaFilters } from './useMediaFilters.js'
 import MediaToolbar from './MediaToolbar.jsx'
-import QuickViews from './QuickViews.jsx'
 import MediaGridView from './MediaGridView.jsx'
 import FilterDrawer from './FilterDrawer.jsx'
 
@@ -53,11 +52,7 @@ export default function MediaTab({ studyId, path }) {
         filters={filters}
         onOpenFilter={() => setDrawerOpen(true)}
         onChange={setFilters}
-      />
-      <QuickViews
-        active={filters.quickView}
-        counts={quickViewCounts}
-        onSelect={(key) => patch({ quickView: key })}
+        quickViewCounts={quickViewCounts}
       />
       <div className="flex-1 min-h-0">
         <MediaGridView filters={filters} speciesReady onSortChange={(sort) => patch({ sort })} />

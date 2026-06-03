@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { Filter, LayoutGrid, Table2, ArrowUpDown } from 'lucide-react'
 import ViewModeToggle from '../ui/ViewModeToggle.jsx'
+import QuickViews from './QuickViews.jsx'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select.tsx'
 
 // Grid/Table metadata for the shared ViewModeToggle (same look as Explore's
@@ -80,7 +81,13 @@ function deriveChips(filters) {
   return chips
 }
 
-export default function MediaToolbar({ filters, onOpenFilter, onChange, sequenceCount }) {
+export default function MediaToolbar({
+  filters,
+  onOpenFilter,
+  onChange,
+  sequenceCount,
+  quickViewCounts
+}) {
   const chips = useMemo(() => deriveChips(filters), [filters])
 
   return (
@@ -102,6 +109,12 @@ export default function MediaToolbar({ filters, onOpenFilter, onChange, sequence
         <Filter className="w-3.5 h-3.5 opacity-80" />
         Filter
       </button>
+
+      <QuickViews
+        active={filters.quickView}
+        counts={quickViewCounts}
+        onSelect={(key) => onChange({ ...filters, quickView: key })}
+      />
 
       {chips.map((chip) => (
         <span
