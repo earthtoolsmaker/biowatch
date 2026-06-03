@@ -22,28 +22,43 @@ function formatWhen(when) {
   })
 }
 
-// Small thumbnail with a graceful fallback: videos and broken/missing files show
-// a muted icon placeholder instead of a broken-image glyph.
-function RowThumb({ url, isVideo }) {
+// Small thumbnail. Critically, while the list is actively scrolling we render a
+// neutral placeholder instead of the <img>: decoding full-resolution camera-trap
+// JPEGs as virtualized rows mount mid-scroll tanks the compositor (~3fps). The
+// image is decoded (async) only once scrolling settles. Videos / missing files
+// keep their icon placeholders.
+function RowThumb({ url, isVideo, isScrolling }) {
   const [failed, setFailed] = useState(false)
-  const showPlaceholder = isVideo || !url || failed
+  const box =
+    'w-12 h-9 rounded-[3px] bg-black/80 overflow-hidden flex items-center justify-center text-white/70'
+  if (isVideo) {
+    return (
+      <div className={box}>
+        <Play size={12} className="text-white" />
+      </div>
+    )
+  }
+  if (!url || failed) {
+    return (
+      <div className={box}>
+        <ImageOff size={13} />
+      </div>
+    )
+  }
+  if (isScrolling) {
+    // Neutral placeholder during scroll — no decode work.
+    return <div className={box} />
+  }
   return (
-    <div className="w-12 h-9 rounded-[3px] bg-black/80 overflow-hidden flex items-center justify-center text-white/70">
-      {showPlaceholder ? (
-        isVideo ? (
-          <Play size={12} className="text-white" />
-        ) : (
-          <ImageOff size={13} />
-        )
-      ) : (
-        <img
-          src={url}
-          alt=""
-          className="w-full h-full object-cover"
-          loading="lazy"
-          onError={() => setFailed(true)}
-        />
-      )}
+    <div className={box}>
+      <img
+        src={url}
+        alt=""
+        className="w-full h-full object-cover"
+        loading="lazy"
+        decoding="async"
+        onError={() => setFailed(true)}
+      />
     </div>
   )
 }
@@ -59,6 +74,7 @@ const TableRow = memo(function TableRow({
   row,
   thumbnailUrl,
   isSelected,
+  isScrolling,
   onRowClick,
   onToggleSelect,
   style
@@ -90,7 +106,7 @@ const TableRow = memo(function TableRow({
         </button>
       </div>
       <div className="px-2">
-        <RowThumb url={thumbnailUrl} isVideo={row.isVideo} />
+        <RowThumb url={thumbnailUrl} isVideo={row.isVideo} isScrolling={isScrolling} />
       </div>
       <Cell className="font-medium">
         {row.species ? (
@@ -200,6 +216,7 @@ export default function MediaTableView({
               row={row}
               thumbnailUrl={thumbnailUrl}
               isSelected={selection ? selection.has(seq.id) : false}
+              isScrolling={virtualizer.isScrolling}
               onRowClick={onRowClick}
               onToggleSelect={onToggleSelect}
               style={{
