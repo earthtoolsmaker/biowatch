@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import * as HoverCard from '@radix-ui/react-hover-card'
 import SpeciesDistribution from '../ui/speciesDistribution.jsx'
@@ -37,6 +37,18 @@ function Section({ title, count = 0, children }) {
 // underneath (detections in blue, blanks in grey). `selected` is an array of
 // values; clicking a row toggles it (0..N).
 function DistributionList({ items, selected, onToggle, emptyLabel, hoverContent }) {
+  // Controlled hover card so we can force it shut on scroll — otherwise the card
+  // "rides along" with its row as the list scrolls under the cursor. A capture-
+  // phase scroll listener catches scrolling of any ancestor (inner list or the
+  // outer drawer body), mirroring the species rail's scroll-close behaviour.
+  const [openValue, setOpenValue] = useState(null)
+  useEffect(() => {
+    if (openValue == null) return
+    const close = () => setOpenValue(null)
+    document.addEventListener('scroll', close, true)
+    return () => document.removeEventListener('scroll', close, true)
+  }, [openValue])
+
   if (!items.length) {
     return <div className="text-[13px] text-muted-foreground">{emptyLabel}</div>
   }
@@ -86,7 +98,13 @@ function DistributionList({ items, selected, onToggle, emptyLabel, hoverContent 
         )
         if (!hoverContent) return <div key={it.value}>{row}</div>
         return (
-          <HoverCard.Root key={it.value} openDelay={250} closeDelay={80}>
+          <HoverCard.Root
+            key={it.value}
+            openDelay={250}
+            closeDelay={80}
+            open={openValue === it.value}
+            onOpenChange={(o) => setOpenValue(o ? it.value : null)}
+          >
             <HoverCard.Trigger asChild>{row}</HoverCard.Trigger>
             <HoverCard.Portal>
               <HoverCard.Content
