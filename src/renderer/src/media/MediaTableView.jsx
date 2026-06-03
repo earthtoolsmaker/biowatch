@@ -4,13 +4,16 @@ import { Play, ImageOff, Layers, Film, Image as ImageIcon } from 'lucide-react'
 import { deriveTableRow } from './tableRows.js'
 import { resolveCommonName } from '../../../shared/commonNames/index.js'
 import { formatScientificName } from '../utils/scientificName'
+import { toTitleCase } from '../utils/textCase'
 
-// Display label for the species column: common name (capitalized), falling back
-// to the formatted scientific name. null (no species) → null (renders a pill).
+// Display label for the species column: common name in Title Case, falling back
+// to the formatted scientific name (left as-is — only the genus is capitalized).
+// null (no species) → null (renders a pill).
 function speciesDisplay(name) {
   if (!name) return null
-  const label = resolveCommonName(name) || formatScientificName(name)
-  return label ? label.charAt(0).toUpperCase() + label.slice(1) : name
+  const common = resolveCommonName(name)
+  if (common) return toTitleCase(common)
+  return formatScientificName(name) || name
 }
 
 const ROW_HEIGHT = 46

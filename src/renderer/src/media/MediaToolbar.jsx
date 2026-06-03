@@ -17,16 +17,18 @@ import QuickViews from './QuickViews.jsx'
 import { hasActiveFilters } from './mediaFilters.js'
 import { resolveCommonName } from '../../../shared/commonNames/index.js'
 import { formatScientificName } from '../utils/scientificName'
+import { toTitleCase } from '../utils/textCase'
 import { BLANK_SENTINEL, VEHICLE_SENTINEL } from '../utils/speciesUtils'
 
 // Human label for a species chip: pseudo-species sentinels → friendly name,
-// otherwise the common name, falling back to the formatted scientific name.
+// otherwise the common name in Title Case, falling back to the formatted
+// scientific name (left as-is — only the genus is capitalized).
 function speciesChipLabel(name) {
   if (name === BLANK_SENTINEL) return 'Blank'
   if (name === VEHICLE_SENTINEL) return 'Vehicle'
   const common = resolveCommonName(name)
-  const label = common || formatScientificName(name)
-  return label ? label.charAt(0).toUpperCase() + label.slice(1) : name
+  if (common) return toTitleCase(common)
+  return formatScientificName(name) || name
 }
 
 // Grid/Table metadata for the shared ViewModeToggle (same look as Explore's
