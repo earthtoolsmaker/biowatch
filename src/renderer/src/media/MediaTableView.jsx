@@ -1,6 +1,8 @@
 import { Check, Play } from 'lucide-react'
 import { deriveTableRow } from './tableRows.js'
 
+function noop() {}
+
 function formatWhen(when) {
   if (!when) return null
   const d = new Date(when)
@@ -25,13 +27,16 @@ export default function MediaTableView({
   isVideoMedia,
   onRowClick,
   sort,
-  onSortChange
+  onSortChange,
+  selection,
+  onToggleSelect
 }) {
   return (
     <div className="w-full overflow-x-auto">
       <table className="w-full border-collapse text-[13px]">
         <thead>
           <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground border-b-2 border-border bg-card sticky top-0">
+            <th className="py-2 px-2 w-8"></th>
             <th className="py-2 px-2 w-14"></th>
             <th className="py-2 px-2">Species</th>
             <th
@@ -49,12 +54,29 @@ export default function MediaTableView({
           {sequences.map((seq) => {
             const row = deriveTableRow(seq, bboxesByMedia, isVideoMedia)
             const isMulti = seq.items.length > 1
+            const isSelected = selection ? selection.has(seq.id) : false
             return (
               <tr
                 key={seq.id}
-                className="border-b border-border hover:bg-blue-50 dark:hover:bg-blue-500/10 cursor-pointer"
+                className={`border-b border-border cursor-pointer ${
+                  isSelected
+                    ? 'bg-blue-50 dark:bg-blue-500/15'
+                    : 'hover:bg-blue-50 dark:hover:bg-blue-500/10'
+                }`}
                 onClick={() => onRowClick(seq.items[0], isMulti ? seq : null)}
               >
+                <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    onClick={(e) => (onToggleSelect || noop)(seq.id, e.shiftKey)}
+                    aria-label={isSelected ? 'Deselect' : 'Select'}
+                    className={`w-4 h-4 rounded border flex items-center justify-center ${
+                      isSelected ? 'bg-blue-600 border-blue-600' : 'bg-card border-border'
+                    }`}
+                  >
+                    {isSelected && <Check size={11} className="text-white" />}
+                  </button>
+                </td>
                 <td className="py-1.5 px-2">
                   <div className="w-12 h-9 rounded bg-black/80 overflow-hidden flex items-center justify-center">
                     {row.isVideo ? (

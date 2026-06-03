@@ -54,6 +54,8 @@ import {
 } from '../utils/speciesFromBboxes'
 import { SpeciesCountLabel } from '../ui/SpeciesLabel'
 import MediaTableView from './MediaTableView.jsx'
+import SelectionActionBar from './SelectionActionBar.jsx'
+import { toggleSelection, rangeSelection } from './selection.js'
 import { formatGridTimestamp } from '../utils/formatTimestamp'
 import { useSequenceGap } from '../hooks/useSequenceGap'
 import { useShowThumbnailBboxes } from '../hooks/useShowThumbnailBboxes'
@@ -1649,7 +1651,9 @@ function ThumbnailCard({
   itemWidth,
   isVideoMedia,
   studyId,
-  reviewed = false
+  reviewed = false,
+  selected = false,
+  onToggleSelect
 }) {
   const isVideo = isVideoMedia(media)
   const [thumbnailUrl, setThumbnailUrl] = useState(null)
@@ -1709,9 +1713,26 @@ function ThumbnailCard({
         className="relative bg-black flex items-center justify-center cursor-pointer hover:bg-gray-900 transition-colors overflow-hidden aspect-[4/3]"
         onClick={() => onImageClick(media)}
       >
+        {onToggleSelect && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggleSelect(e.shiftKey)
+            }}
+            aria-label={selected ? 'Deselect' : 'Select'}
+            className={`absolute top-2 left-2 z-30 w-5 h-5 rounded border flex items-center justify-center transition-opacity ${
+              selected
+                ? 'bg-blue-600 border-blue-600 opacity-100'
+                : 'bg-white/90 border-gray-300 opacity-0 group-hover:opacity-100'
+            }`}
+          >
+            {selected && <Check size={12} className="text-white" />}
+          </button>
+        )}
         {reviewed && (
           <div
-            className="absolute top-2 left-2 z-20 w-5 h-5 rounded-full bg-green-600 text-white flex items-center justify-center shadow"
+            className="absolute bottom-2 left-2 z-20 w-5 h-5 rounded-full bg-green-600 text-white flex items-center justify-center shadow"
             title="Reviewed by a human"
           >
             <Check size={12} />
@@ -1831,7 +1852,9 @@ function SequenceCard({
   cycleInterval = 1000,
   isVideoMedia,
   studyId,
-  reviewed = false
+  reviewed = false,
+  selected = false,
+  onToggleSelect
 }) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isHovering, setIsHovering] = useState(false)
@@ -1954,9 +1977,24 @@ function SequenceCard({
         className="relative bg-black flex items-center justify-center cursor-pointer hover:bg-gray-900 transition-colors overflow-hidden aspect-[4/3]"
         onClick={handleClick}
       >
+        {onToggleSelect && (selected || isHovering) && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggleSelect(e.shiftKey)
+            }}
+            aria-label={selected ? 'Deselect' : 'Select'}
+            className={`absolute top-2 left-2 z-30 w-5 h-5 rounded border flex items-center justify-center ${
+              selected ? 'bg-blue-600 border-blue-600' : 'bg-white/90 border-gray-300'
+            }`}
+          >
+            {selected && <Check size={12} className="text-white" />}
+          </button>
+        )}
         {reviewed && (
           <div
-            className="absolute top-2 left-2 z-20 w-5 h-5 rounded-full bg-green-600 text-white flex items-center justify-center shadow"
+            className="absolute bottom-2 left-2 z-20 w-5 h-5 rounded-full bg-green-600 text-white flex items-center justify-center shadow"
             title="Reviewed by a human"
           >
             <Check size={12} />
@@ -2268,6 +2306,35 @@ function Gallery({
     [data]
   )
 
+  // Multi-select state (sequence ids). Shift-click extends from the last anchor.
+  const [selection, setSelection] = useState(() => new Set())
+  const selectAnchorRef = useRef(null)
+  const orderedSequenceIds = useMemo(() => allNavigableItems.map((s) => s.id), [allNavigableItems])
+  const handleToggleSelect = useCallback(
+    (id, shiftKey) => {
+      setSelection((prev) => {
+        if (shiftKey && selectAnchorRef.current) {
+          return rangeSelection(prev, orderedSequenceIds, selectAnchorRef.current, id)
+        }
+        return toggleSelection(prev, id)
+      })
+      selectAnchorRef.current = id
+    },
+    [orderedSequenceIds]
+  )
+  const clearSelection = useCallback(() => {
+    setSelection(new Set())
+    selectAnchorRef.current = null
+  }, [])
+  // Resolve selected sequence ids → member mediaIDs (for bulk operations).
+  const selectedMediaIds = useMemo(
+    () =>
+      allNavigableItems
+        .filter((s) => selection.has(s.id))
+        .flatMap((s) => s.items.map((i) => i.mediaID)),
+    [allNavigableItems, selection]
+  )
+
   // Extract all media files from sequences for bbox fetching
   const mediaFiles = useMemo(
     () => allNavigableItems.flatMap((seq) => seq.items),
@@ -2522,8 +2589,8 @@ function Gallery({
       <div
         className={
           embedded
-            ? 'flex flex-col h-full overflow-hidden'
-            : 'flex flex-col h-full bg-card rounded border border-border overflow-hidden'
+            ? 'relative flex flex-col h-full overflow-hidden'
+            : 'relative flex flex-col h-full bg-card rounded border border-border overflow-hidden'
         }
       >
         {/* Grid — drop horizontal padding when embedded so the first
@@ -2545,6 +2612,8 @@ function Gallery({
               onRowClick={handleImageClick}
               sort={sort}
               onSortChange={onSortChange}
+              selection={selection}
+              onToggleSelect={handleToggleSelect}
             />
           ) : (
             allNavigableItems.map((sequence) => {
@@ -2565,6 +2634,8 @@ function Gallery({
                     isVideoMedia={isVideoMedia}
                     studyId={id}
                     reviewed={sequence.reviewed === true}
+                    selected={selection.has(sequence.id)}
+                    onToggleSelect={(shiftKey) => handleToggleSelect(sequence.id, shiftKey)}
                   />
                 )
               }
@@ -2585,6 +2656,8 @@ function Gallery({
                   isVideoMedia={isVideoMedia}
                   studyId={id}
                   reviewed={sequence.reviewed === true}
+                  selected={selection.has(sequence.id)}
+                  onToggleSelect={(shiftKey) => handleToggleSelect(sequence.id, shiftKey)}
                 />
               )
             })
@@ -2616,6 +2689,24 @@ function Gallery({
             )}
           </div>
         </div>
+
+        {selection.size > 0 && (
+          <SelectionActionBar
+            studyId={id}
+            count={selection.size}
+            mediaIds={selectedMediaIds}
+            onClear={clearSelection}
+            onApplied={async () => {
+              await queryClient.invalidateQueries({ queryKey: ['sequences', id] })
+              queryClient.invalidateQueries({ queryKey: ['mediaBboxes'] })
+              queryClient.invalidateQueries({ queryKey: ['thumbnailBboxesBatch'] })
+              queryClient.invalidateQueries({ queryKey: ['blankMediaCount', id] })
+              queryClient.invalidateQueries({ queryKey: ['vehicleMediaCount', id] })
+              queryClient.invalidateQueries({ queryKey: ['lowConfidenceCount', id] })
+              clearSelection()
+            }}
+          />
+        )}
       </div>
     </>
   )
