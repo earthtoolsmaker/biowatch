@@ -12,8 +12,7 @@ export function useMediaFilters() {
 
   const setFilters = useCallback(
     (next) => {
-      const resolved =
-        typeof next === 'function' ? next(searchParamsToFilters(searchParams)) : next
+      const resolved = typeof next === 'function' ? next(searchParamsToFilters(searchParams)) : next
       setSearchParams(filtersToSearchParams(resolved), { replace: false })
     },
     [searchParams, setSearchParams]

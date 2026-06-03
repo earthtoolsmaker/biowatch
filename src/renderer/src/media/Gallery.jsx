@@ -2095,6 +2095,8 @@ function Gallery({
   includeNullTimestamps = false,
   speciesReady = false,
   deploymentID = null,
+  source = null,
+  sort = 'newest',
   areaFilter = null,
   onLoadedChange,
   embedded = false
@@ -2181,6 +2183,8 @@ function Gallery({
         id,
         sequenceGap,
         deploymentID,
+        source,
+        sort,
         JSON.stringify(species),
         dateRange[0]?.toISOString(),
         dateRange[1]?.toISOString(),
@@ -2193,12 +2197,14 @@ function Gallery({
           gapSeconds: sequenceGap,
           limit: PAGE_SIZE,
           cursor: pageParam,
+          sort,
           filters: {
             species,
             dateRange:
               dateRange[0] && dateRange[1] ? { start: dateRange[0], end: dateRange[1] } : {},
             timeRange,
             deploymentID,
+            source,
             bbox: areaFilter
           }
         })
