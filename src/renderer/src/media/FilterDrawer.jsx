@@ -175,6 +175,7 @@ export default function FilterDrawer({ open, onClose, studyId, filters, onChange
                   studyId={studyId}
                   showHeader={false}
                   hidePseudoSpecies
+                  allowEmpty
                 />
               </div>
             ) : (

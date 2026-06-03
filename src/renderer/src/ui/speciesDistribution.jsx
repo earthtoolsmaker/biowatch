@@ -144,7 +144,8 @@ function SpeciesDistribution({
   vehicleCount = 0,
   studyId = null,
   showHeader = true,
-  hidePseudoSpecies = false
+  hidePseudoSpecies = false,
+  allowEmpty = false
 }) {
   // Real-species view of the upstream data — strips out literal pseudo
   // labels like "Vehicle" or "blurred" that ride along in scientificName.
@@ -216,7 +217,7 @@ function SpeciesDistribution({
       newSelectedSpecies = [...selectedSpecies, species]
     }
 
-    if (newSelectedSpecies.length > 0) {
+    if (allowEmpty || newSelectedSpecies.length > 0) {
       onSpeciesChange(newSelectedSpecies)
     }
   }

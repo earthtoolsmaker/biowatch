@@ -71,7 +71,11 @@ const TableRow = memo(function TableRow({
       className={`grid items-center border-b border-border cursor-pointer ${
         isSelected ? 'bg-blue-50 dark:bg-blue-500/15' : 'hover:bg-blue-50 dark:hover:bg-blue-500/10'
       }`}
-      onClick={() => onRowClick(seq.items[0], isMulti ? seq : null)}
+      onClick={(e) =>
+        e.shiftKey && onToggleSelect
+          ? onToggleSelect(seq.id, true)
+          : onRowClick(seq.items[0], isMulti ? seq : null)
+      }
     >
       <div className="px-2" onClick={(e) => e.stopPropagation()}>
         <button

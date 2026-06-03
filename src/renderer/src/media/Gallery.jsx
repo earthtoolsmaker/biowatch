@@ -1711,7 +1711,7 @@ function ThumbnailCard({
       <div
         ref={containerRef}
         className="relative bg-black flex items-center justify-center cursor-pointer hover:bg-gray-900 transition-colors overflow-hidden aspect-[4/3]"
-        onClick={() => onImageClick(media)}
+        onClick={(e) => (e.shiftKey && onToggleSelect ? onToggleSelect(true) : onImageClick(media))}
       >
         {onToggleSelect && (
           <button
@@ -1945,7 +1945,11 @@ function SequenceCard({
     }
   }, [safeIndex, sequence, constructImageUrl, itemCount, isVideoMedia, isHovering])
 
-  const handleClick = () => {
+  const handleClick = (e) => {
+    if (e?.shiftKey && onToggleSelect) {
+      onToggleSelect(true)
+      return
+    }
     onSequenceClick(sequence.items[0], sequence)
   }
 
