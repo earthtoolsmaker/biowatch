@@ -2608,7 +2608,7 @@ function Gallery({
         <div
           ref={gridContainerRef}
           className={`flex flex-wrap gap-[12px] flex-1 overflow-auto content-start ${
-            embedded ? 'py-3' : 'p-3'
+            embedded ? (view === 'table' ? 'pb-3' : 'py-3') : 'p-3'
           }`}
         >
           {/* Sequences are returned pre-grouped from server, including null-timestamp items as individual sequences */}

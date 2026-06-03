@@ -95,9 +95,10 @@ function deriveChips(filters, deploymentNames = {}) {
   return chips
 }
 
-// Chevron-style show/hide toggle for the filter panel, mirroring Explore's
-// species-rail toggle (PanelRight icons, active-tinted, tooltip). A small dot
-// appears when drawer facets are active even while the panel is collapsed.
+// Show/hide toggle for the filter panel. A labelled button (icon + "Filters")
+// rather than a bare icon, so it's discoverable; active-tinted while open or
+// when facets are set, with a dot when facets are active. Mirrors the Quick
+// views button style for toolbar consistency.
 function FilterPanelToggle({ open, active, onToggle }) {
   const label = open ? 'Hide filters' : 'Show filters'
   return (
@@ -108,15 +109,16 @@ function FilterPanelToggle({ open, active, onToggle }) {
           onClick={onToggle}
           aria-label={label}
           aria-pressed={open}
-          className={`relative w-7 h-7 rounded-md flex items-center justify-center transition-colors ${
-            open
-              ? 'text-blue-600 bg-blue-50 hover:bg-blue-100 dark:text-blue-400 dark:bg-blue-500/15 dark:hover:bg-blue-500/25'
-              : 'text-muted-foreground hover:bg-accent'
+          className={`relative inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border text-[13px] font-medium transition-colors ${
+            open || active
+              ? 'bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-500/30'
+              : 'bg-card border-border hover:bg-input-background'
           }`}
         >
-          <Filter size={15} />
+          <Filter className="w-3.5 h-3.5 opacity-80" />
+          Filters
           {active && (
-            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-blue-500 dark:bg-blue-400" />
+            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-blue-500 dark:bg-blue-400" />
           )}
         </button>
       </Tooltip.Trigger>
@@ -124,9 +126,12 @@ function FilterPanelToggle({ open, active, onToggle }) {
         <Tooltip.Content
           side="bottom"
           sideOffset={8}
-          className="z-[10000] px-3 py-2 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md"
+          className="z-[10000] max-w-[15rem] px-3 py-2 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md"
         >
-          {label}
+          <div className="font-medium mb-1">{label}</div>
+          <p className="text-muted-foreground leading-snug">
+            Narrow sequences by species and deployment.
+          </p>
         </Tooltip.Content>
       </Tooltip.Portal>
     </Tooltip.Root>

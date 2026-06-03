@@ -224,10 +224,10 @@ export default function MediaTableView({
   })
 
   return (
-    // -mt-3 cancels the gallery scroll container's top padding (py-3) so the
-    // sticky header sits flush at the top — otherwise rows scroll into the
-    // padding gap above it and bleed over the header.
-    <div className="w-full text-[13px] -mt-3">
+    // The gallery scroll container drops its top padding in table view (see
+    // Gallery.jsx), so the sticky header pins flush at the very top with no gap
+    // for rows to bleed into above it.
+    <div className="w-full text-[13px]">
       <div
         role="row"
         style={{ gridTemplateColumns: GRID_COLS }}
