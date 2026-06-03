@@ -6,7 +6,7 @@ import { quickViewToQueryPatch } from './quickViews.js'
 // Date strings from the URL are converted to Date objects; null-timestamp media
 // are included by default (browse-everything) and excluded once a date range is
 // set. Quick views fold in on top of the base filters via quickViewToQueryPatch.
-export default function MediaGridView({ filters, speciesReady = true }) {
+export default function MediaGridView({ filters, speciesReady = true, onSortChange }) {
   const props = useMemo(() => {
     const patch = quickViewToQueryPatch(filters.quickView)
     const [fromStr, toStr] = filters.dateRange
@@ -46,6 +46,8 @@ export default function MediaGridView({ filters, speciesReady = true }) {
       onlyNullTimestamps={props.onlyNullTimestamps}
       includeNullTimestamps={props.includeNullTimestamps}
       speciesReady={speciesReady}
+      view={filters.view}
+      onSortChange={onSortChange}
       embedded
     />
   )

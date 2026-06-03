@@ -127,9 +127,11 @@ export default function MediaToolbar({ filters, onOpenFilter, onChange, sequence
         </button>
         <button
           type="button"
-          disabled
-          title="Table view coming soon"
-          className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[12.5px] font-medium text-muted-foreground opacity-50 cursor-not-allowed"
+          aria-pressed={filters.view === 'table'}
+          onClick={() => onChange({ ...filters, view: 'table' })}
+          className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[12.5px] font-medium ${
+            filters.view === 'table' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
+          }`}
         >
           <Table2 className="w-3.5 h-3.5" />
           Table

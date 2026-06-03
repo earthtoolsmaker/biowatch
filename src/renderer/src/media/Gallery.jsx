@@ -53,6 +53,7 @@ import {
   getSpeciesCountsFromSequence
 } from '../utils/speciesFromBboxes'
 import { SpeciesCountLabel } from '../ui/SpeciesLabel'
+import MediaTableView from './MediaTableView.jsx'
 import { formatGridTimestamp } from '../utils/formatTimestamp'
 import { useSequenceGap } from '../hooks/useSequenceGap'
 import { useShowThumbnailBboxes } from '../hooks/useShowThumbnailBboxes'
@@ -2121,7 +2122,9 @@ function Gallery({
   onlyNullTimestamps = false,
   areaFilter = null,
   onLoadedChange,
-  embedded = false
+  embedded = false,
+  view = 'grid',
+  onSortChange
 }) {
   const [imageErrors, setImageErrors] = useState(() => {
     const initial = {}
@@ -2533,47 +2536,59 @@ function Gallery({
           }`}
         >
           {/* Sequences are returned pre-grouped from server, including null-timestamp items as individual sequences */}
-          {allNavigableItems.map((sequence) => {
-            const isMultiItem = sequence.items.length > 1
+          {view === 'table' ? (
+            <MediaTableView
+              sequences={allNavigableItems}
+              bboxesByMedia={bboxesByMedia}
+              constructImageUrl={constructImageUrl}
+              isVideoMedia={isVideoMedia}
+              onRowClick={handleImageClick}
+              sort={sort}
+              onSortChange={onSortChange}
+            />
+          ) : (
+            allNavigableItems.map((sequence) => {
+              const isMultiItem = sequence.items.length > 1
 
-            if (isMultiItem) {
+              if (isMultiItem) {
+                return (
+                  <SequenceCard
+                    key={sequence.id}
+                    sequence={sequence}
+                    constructImageUrl={constructImageUrl}
+                    onSequenceClick={handleImageClick}
+                    imageErrors={imageErrors}
+                    setImageErrors={setImageErrorsWithCache}
+                    showBboxes={showThumbnailBboxes}
+                    bboxesByMedia={bboxesByMedia}
+                    itemWidth={itemWidth}
+                    isVideoMedia={isVideoMedia}
+                    studyId={id}
+                    reviewed={sequence.reviewed === true}
+                  />
+                )
+              }
+
+              // Single item - use existing ThumbnailCard
+              const media = sequence.items[0]
               return (
-                <SequenceCard
-                  key={sequence.id}
-                  sequence={sequence}
+                <ThumbnailCard
+                  key={media.mediaID}
+                  media={media}
                   constructImageUrl={constructImageUrl}
-                  onSequenceClick={handleImageClick}
+                  onImageClick={(m) => handleImageClick(m, null)}
                   imageErrors={imageErrors}
                   setImageErrors={setImageErrorsWithCache}
                   showBboxes={showThumbnailBboxes}
-                  bboxesByMedia={bboxesByMedia}
+                  bboxes={bboxesByMedia[media.mediaID] || []}
                   itemWidth={itemWidth}
                   isVideoMedia={isVideoMedia}
                   studyId={id}
                   reviewed={sequence.reviewed === true}
                 />
               )
-            }
-
-            // Single item - use existing ThumbnailCard
-            const media = sequence.items[0]
-            return (
-              <ThumbnailCard
-                key={media.mediaID}
-                media={media}
-                constructImageUrl={constructImageUrl}
-                onImageClick={(m) => handleImageClick(m, null)}
-                imageErrors={imageErrors}
-                setImageErrors={setImageErrorsWithCache}
-                showBboxes={showThumbnailBboxes}
-                bboxes={bboxesByMedia[media.mediaID] || []}
-                itemWidth={itemWidth}
-                isVideoMedia={isVideoMedia}
-                studyId={id}
-                reviewed={sequence.reviewed === true}
-              />
-            )
-          })}
+            })
+          )}
 
           {/* Loading indicator and intersection target */}
           <div ref={loaderRef} className="w-full flex justify-center p-4">

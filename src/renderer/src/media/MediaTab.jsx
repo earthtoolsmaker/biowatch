@@ -60,7 +60,7 @@ export default function MediaTab({ studyId, path }) {
         onSelect={(key) => patch({ quickView: key })}
       />
       <div className="flex-1 min-h-0">
-        <MediaGridView filters={filters} speciesReady />
+        <MediaGridView filters={filters} speciesReady onSortChange={(sort) => patch({ sort })} />
       </div>
       <FilterDrawer
         open={drawerOpen}
