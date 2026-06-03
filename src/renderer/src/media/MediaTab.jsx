@@ -28,7 +28,7 @@ export default function MediaTab({ studyId, path }) {
   const { id } = useParams()
   const actualStudyId = studyId || id
   const { filters, setFilters, patch } = useMediaFilters()
-  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(true)
 
   const blankCount = useCount('blankMediaCount', actualStudyId, (s) =>
     window.api.getBlankMediaCount(s)

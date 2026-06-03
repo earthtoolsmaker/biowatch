@@ -73,15 +73,31 @@ export async function getDeploymentLocations(dbPath) {
 }
 
 /**
- * Per-deployment observation counts for the Media tab's deployment filter —
- * the deployment analogue of the species distribution (label + count, sorted
- * descending). LEFT JOIN keeps deployments with zero observations in the list.
+ * Per-deployment media composition for the Media tab's deployment filter — the
+ * deployment analogue of the species distribution, but split into detections vs
+ * blanks so the bar/hover card can show what a deployment actually captured.
+ *
+ * Counts are at the MEDIA level, matching the app's canonical "blank" notion
+ * (see getBlankMediaCountForDeployment): a media is a detection if it has any
+ * real observation (a named species or a vehicle), otherwise it's blank. So
+ * `count` (total media) = `detectionCount` + `blankCount`.
+ *
+ * LEFT JOINs keep deployments with zero media in the list.
  * @param {string} dbPath - Path to the SQLite database
- * @returns {Promise<Array<{deploymentID: string, locationName: string, count: number}>>}
+ * @returns {Promise<Array<{deploymentID: string, locationName: string, count: number, detectionCount: number, blankCount: number}>>}
  */
 export async function getDeploymentDistribution(dbPath) {
   const studyId = getStudyIdFromPath(dbPath)
   const db = await getDrizzleDb(studyId, dbPath)
+  // A media counts as a detection when at least one of its observations names a
+  // species or is a vehicle. COUNT(DISTINCT CASE …) collapses the media×
+  // observation fan-out back to one tally per media.
+  const isRealObservation = sql`(
+    (${observations.scientificName} IS NOT NULL AND ${observations.scientificName} != '')
+    OR ${observations.observationType} = 'vehicle'
+  )`
+  const totalMedia = countDistinct(media.mediaID)
+  const detectionMedia = sql`COUNT(DISTINCT CASE WHEN ${isRealObservation} THEN ${media.mediaID} END)`
   const rows = await db
     .select({
       deploymentID: deployments.deploymentID,
@@ -89,20 +105,28 @@ export async function getDeploymentDistribution(dbPath) {
       locationID: deployments.locationID,
       latitude: deployments.latitude,
       longitude: deployments.longitude,
-      count: count(observations.observationID)
+      total: totalMedia,
+      detections: detectionMedia
     })
     .from(deployments)
-    .leftJoin(observations, eq(observations.deploymentID, deployments.deploymentID))
+    .leftJoin(media, eq(media.deploymentID, deployments.deploymentID))
+    .leftJoin(observations, eq(observations.mediaID, media.mediaID))
     .groupBy(deployments.deploymentID)
-    .orderBy(desc(count(observations.observationID)), deployments.locationID)
+    .orderBy(desc(totalMedia), deployments.locationID)
     .all()
-  return rows.map((r) => ({
-    deploymentID: r.deploymentID,
-    locationName: r.locationName || r.locationID || r.deploymentID,
-    latitude: r.latitude,
-    longitude: r.longitude,
-    count: Number(r.count)
-  }))
+  return rows.map((r) => {
+    const total = Number(r.total)
+    const detectionCount = Number(r.detections)
+    return {
+      deploymentID: r.deploymentID,
+      locationName: r.locationName || r.locationID || r.deploymentID,
+      latitude: r.latitude,
+      longitude: r.longitude,
+      count: total,
+      detectionCount,
+      blankCount: total - detectionCount
+    }
+  })
 }
 
 /**
