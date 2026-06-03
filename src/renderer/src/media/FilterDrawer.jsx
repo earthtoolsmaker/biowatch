@@ -1,7 +1,9 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import * as HoverCard from '@radix-ui/react-hover-card'
 import { X } from 'lucide-react'
 import SpeciesDistribution from '../ui/speciesDistribution.jsx'
+import DeploymentHoverMap from './DeploymentHoverMap.jsx'
 import DayPeriodChips from '../ui/dayPeriodChips.jsx'
 import {
   ALL_CHIPS_SELECTED,
@@ -44,7 +46,7 @@ function Section({ title, children }) {
 // Multi-select distribution list styled like the species panel: each row shows
 // a label, its count on the right, and a proportional bar underneath. `selected`
 // is an array of values; clicking a row toggles it (0..N).
-function DistributionList({ items, selected, onToggle, emptyLabel }) {
+function DistributionList({ items, selected, onToggle, emptyLabel, hoverContent }) {
   if (!items.length) {
     return <div className="text-[13px] text-muted-foreground">{emptyLabel}</div>
   }
@@ -54,9 +56,8 @@ function DistributionList({ items, selected, onToggle, emptyLabel }) {
       {items.map((it) => {
         const active = selected.includes(it.value)
         const pct = maxCount > 0 ? ((it.count || 0) / maxCount) * 100 : 0
-        return (
+        const row = (
           <div
-            key={it.value}
             onClick={() => onToggle(it.value)}
             className={`cursor-pointer px-3 py-2 transition-colors ${
               active
@@ -82,6 +83,23 @@ function DistributionList({ items, selected, onToggle, emptyLabel }) {
               />
             </div>
           </div>
+        )
+        if (!hoverContent) return <div key={it.value}>{row}</div>
+        return (
+          <HoverCard.Root key={it.value} openDelay={250} closeDelay={80}>
+            <HoverCard.Trigger asChild>{row}</HoverCard.Trigger>
+            <HoverCard.Portal>
+              <HoverCard.Content
+                side="left"
+                align="center"
+                sideOffset={12}
+                collisionPadding={12}
+                className="species-hovercard z-[10001]"
+              >
+                {hoverContent(it)}
+              </HoverCard.Content>
+            </HoverCard.Portal>
+          </HoverCard.Root>
         )
       })}
     </div>
@@ -131,7 +149,9 @@ export default function FilterDrawer({ open, onClose, studyId, filters, onChange
       (deploymentsQuery.data ?? []).map((d) => ({
         value: d.deploymentID,
         label: d.locationName || d.deploymentID,
-        count: d.count
+        count: d.count,
+        lat: d.latitude,
+        lon: d.longitude
       })),
     [deploymentsQuery.data]
   )
@@ -214,6 +234,9 @@ export default function FilterDrawer({ open, onClose, studyId, filters, onChange
                 onChange({ ...filters, deployments: toggleInArray(filters.deployments, value) })
               }
               emptyLabel="No deployments"
+              hoverContent={(it) => (
+                <DeploymentHoverMap lat={it.lat} lon={it.lon} label={it.label} count={it.count} />
+              )}
             />
           </Section>
 

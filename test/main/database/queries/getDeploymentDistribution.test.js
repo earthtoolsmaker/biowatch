@@ -55,9 +55,9 @@ describe('getDeploymentDistribution', () => {
     const result = await getDeploymentDistribution(testDbPath)
     // d1: 3 obs, d2: 1 obs, d3: 0 obs (still listed)
     assert.deepEqual(result, [
-      { deploymentID: 'd1', locationName: 'Site A', count: 3 },
-      { deploymentID: 'd2', locationName: 'Site B', count: 1 },
-      { deploymentID: 'd3', locationName: 'Site C', count: 0 }
+      { deploymentID: 'd1', locationName: 'Site A', latitude: 1, longitude: 1, count: 3 },
+      { deploymentID: 'd2', locationName: 'Site B', latitude: 1, longitude: 1, count: 1 },
+      { deploymentID: 'd3', locationName: 'Site C', latitude: 1, longitude: 1, count: 0 }
     ])
   })
 })

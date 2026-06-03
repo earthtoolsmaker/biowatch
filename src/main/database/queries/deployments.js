@@ -87,6 +87,8 @@ export async function getDeploymentDistribution(dbPath) {
       deploymentID: deployments.deploymentID,
       locationName: deployments.locationName,
       locationID: deployments.locationID,
+      latitude: deployments.latitude,
+      longitude: deployments.longitude,
       count: count(observations.observationID)
     })
     .from(deployments)
@@ -97,6 +99,8 @@ export async function getDeploymentDistribution(dbPath) {
   return rows.map((r) => ({
     deploymentID: r.deploymentID,
     locationName: r.locationName || r.locationID || r.deploymentID,
+    latitude: r.latitude,
+    longitude: r.longitude,
     count: Number(r.count)
   }))
 }
