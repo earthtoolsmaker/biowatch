@@ -239,12 +239,12 @@ export function registerSequencesIPCHandlers() {
         return { error: 'Database not found for this study' }
       }
 
-      const { gapSeconds = 60, limit = 20, cursor = null, filters = {} } = options
+      const { gapSeconds = 60, limit = 20, cursor = null, filters = {}, sort = 'newest' } = options
 
       const result = await runInWorker({
         type: 'pagination',
         dbPath,
-        options: { gapSeconds, limit, cursor, filters }
+        options: { gapSeconds, limit, cursor, filters, sort }
       })
 
       return { data: result }

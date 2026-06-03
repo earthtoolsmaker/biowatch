@@ -78,7 +78,13 @@ function isVideoMedia(media) {
  * @returns {Promise<{ sequences: Array, nextCursor: string|null, hasMore: boolean }>}
  */
 export async function getPaginatedSequences(dbPath, options = {}) {
-  const { gapSeconds = 60, limit = 20, cursor: cursorStr = null, filters = {} } = options
+  const {
+    gapSeconds = 60,
+    limit = 20,
+    cursor: cursorStr = null,
+    filters = {},
+    sort = 'newest'
+  } = options
 
   const {
     species = [],
@@ -126,7 +132,8 @@ export async function getPaginatedSequences(dbPath, options = {}) {
       timeRange,
       deploymentID,
       bbox,
-      source
+      source,
+      sort
     })
 
     sequences.push(...result.sequences)
@@ -201,8 +208,18 @@ export async function getPaginatedSequences(dbPath, options = {}) {
  * @returns {Promise<{ sequences: Array, nextCursor: Object|null, hasMoreNull: boolean }>}
  */
 async function fetchTimestampedSequences(dbPath, options) {
-  const { gapSeconds, limit, cursor, species, dateRange, timeRange, deploymentID, bbox, source } =
-    options
+  const {
+    gapSeconds,
+    limit,
+    cursor,
+    species,
+    dateRange,
+    timeRange,
+    deploymentID,
+    bbox,
+    source,
+    sort
+  } = options
 
   // Fetch a batch of media
   const batchSize = Math.max(DEFAULT_BATCH_SIZE, limit * 10) // Ensure we have enough for look-ahead
@@ -214,7 +231,8 @@ async function fetchTimestampedSequences(dbPath, options) {
     timeRange,
     deploymentID,
     bbox,
-    source
+    source,
+    sort
   })
 
   const { media: mediaItems, hasMoreTimestamped, hasMoreNull } = dbResult
@@ -264,6 +282,7 @@ async function fetchTimestampedSequences(dbPath, options) {
       deploymentID,
       bbox,
       source,
+      sort,
       existingMedia: mediaItems,
       batchSize
     })
@@ -296,14 +315,19 @@ async function fetchTimestampedSequences(dbPath, options) {
     const sortedItems = [...incompleteSeq.items].sort(
       (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
     )
-    const earliestInIncomplete = sortedItems[0]
+    // Cursor must point at the boundary item we continue past. For 'newest'
+    // (descending) that's the earliest item of the incomplete sequence (next
+    // page fetches older); for 'oldest' (ascending) it's the latest (next page
+    // fetches newer).
+    const boundaryInIncomplete =
+      sort === 'oldest' ? sortedItems[sortedItems.length - 1] : sortedItems[0]
 
     return {
       sequences: sequencesToReturn.map(formatSequence),
       nextCursor: {
         phase: 'timestamped',
-        t: earliestInIncomplete.timestamp,
-        m: earliestInIncomplete.mediaID
+        t: boundaryInIncomplete.timestamp,
+        m: boundaryInIncomplete.mediaID
       },
       hasMoreNull: hasMoreNull || allSequences.length > sequencesToReturn.length
     }
@@ -330,6 +354,7 @@ async function fetchMoreForLargeSequence(dbPath, options) {
     deploymentID,
     bbox,
     source,
+    sort,
     existingMedia,
     batchSize
   } = options
@@ -355,7 +380,8 @@ async function fetchMoreForLargeSequence(dbPath, options) {
       timeRange,
       deploymentID,
       bbox,
-      source
+      source,
+      sort
     })
 
     if (dbResult.media.length === 0) {
@@ -400,13 +426,16 @@ async function fetchMoreForLargeSequence(dbPath, options) {
             ? completeSequences[limit].items
             : allSequences[allSequences.length - 1].items)
         ].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+        // See note above: descending → earliest boundary; ascending → latest.
+        const boundaryItem =
+          sort === 'oldest' ? sortedItems[sortedItems.length - 1] : sortedItems[0]
 
         return {
           sequences: sequencesToReturn.map(formatSequence),
           nextCursor: {
             phase: 'timestamped',
-            t: sortedItems[0].timestamp,
-            m: sortedItems[0].mediaID
+            t: boundaryItem.timestamp,
+            m: boundaryItem.mediaID
           },
           hasMoreNull: dbResult.hasMoreNull
         }

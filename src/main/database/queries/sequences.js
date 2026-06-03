@@ -15,6 +15,7 @@ import {
   ne,
   inArray,
   gte,
+  gt,
   lte,
   lt,
   isNull,
@@ -95,8 +96,21 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
     timeRange = {},
     deploymentID = null,
     bbox = null,
-    source = null
+    source = null,
+    sort = 'newest'
   } = options
+
+  // Timestamped phase ordering: 'newest' (default) walks time descending;
+  // 'oldest' walks ascending. The cursor comparison flips to match so
+  // pagination continues in the chosen direction.
+  const isOldest = sort === 'oldest'
+  const cursorCmp = isOldest ? gt : lt
+  const orderClause = isOldest
+    ? sql`${media.timestamp} ASC, ${media.mediaID} ASC`
+    : sql`${media.timestamp} DESC, ${media.mediaID} DESC`
+  const orderClauseAliased = isOldest
+    ? sql`timestamp ASC, mediaID ASC`
+    : sql`timestamp DESC, mediaID DESC`
 
   const startTime = Date.now()
   const phase = cursor?.phase || 'timestamped'
@@ -339,13 +353,14 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
         }
       }
 
-      // Apply cursor position
+      // Apply cursor position. Comparison direction follows the sort: for
+      // 'newest' (descending) we fetch items strictly before the cursor; for
+      // 'oldest' (ascending) we fetch items strictly after it.
       if (cursor?.t) {
-        // Fetch items with timestamp < cursor.t, OR same timestamp but mediaID < cursor.m
         timestampedConditions.push(
           or(
-            lt(media.timestamp, cursor.t),
-            and(eq(media.timestamp, cursor.t), lt(media.mediaID, cursor.m))
+            cursorCmp(media.timestamp, cursor.t),
+            and(eq(media.timestamp, cursor.t), cursorCmp(media.mediaID, cursor.m))
           )
         )
       }
@@ -360,7 +375,7 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
           .from(media)
           .leftJoin(deployments, eq(media.deploymentID, deployments.deploymentID))
           .where(and(...timestampedConditions))
-          .orderBy(sql`${media.timestamp} DESC, ${media.mediaID} DESC`)
+          .orderBy(orderClause)
           .limit(batchSize)
       } else if (requestingBlanks || requestingVehicle) {
         // Mix of regular species + Blank/Vehicle pseudo-species, or
@@ -372,7 +387,7 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
         // Without this, dedup undercounts the page and hasMoreTimestamped
         // can falsely report exhaustion.
         const fetchLimit = batchSize * oversampleFactor(arms.length)
-        const raw = await unioned.orderBy(sql`timestamp DESC, mediaID DESC`).limit(fetchLimit)
+        const raw = await unioned.orderBy(orderClauseAliased).limit(fetchLimit)
         timestampedMedia = dedupByMediaID(raw).slice(0, batchSize)
       } else {
         // Regular species query — rewritten as a semi-join (EXISTS).
@@ -440,7 +455,7 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
               )
             )
           )
-          .orderBy(sql`${media.timestamp} DESC, ${media.mediaID} DESC`)
+          .orderBy(orderClause)
           .limit(batchSize)
       }
 
