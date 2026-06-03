@@ -39,6 +39,14 @@ function compareRows(a, b, col) {
     const bv = b.row.when ? new Date(b.row.when).getTime() : -Infinity
     return av - bv
   }
+  if (col === 'type') {
+    // Group by media type (photos/sequences before videos), then by sequence
+    // length so single frames sort ahead of longer bursts.
+    const av = a.row.isVideo ? 1 : 0
+    const bv = b.row.isVideo ? 1 : 0
+    if (av !== bv) return av - bv
+    return a.seq.items.length - b.seq.items.length
+  }
   const av = (col === 'species' ? a.speciesLabel : a.row.deployment) || ''
   const bv = (col === 'species' ? b.speciesLabel : b.row.deployment) || ''
   return String(av).localeCompare(String(bv), undefined, { numeric: true, sensitivity: 'base' })
@@ -220,7 +228,7 @@ export default function MediaTableView({
         className="grid items-center sticky top-0 z-20 bg-card border-b-2 border-border text-[11px] uppercase tracking-wide text-muted-foreground h-9"
       >
         <div className="px-2" />
-        <div className="px-2">Type</div>
+        <SortHeader label="Type" col="type" sortCol={sortCol} sortDir={sortDir} onSort={onSort} />
         <SortHeader
           label="Species"
           col="species"

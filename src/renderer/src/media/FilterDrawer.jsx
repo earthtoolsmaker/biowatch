@@ -217,8 +217,8 @@ export default function FilterDrawer({ open, studyId, filters, onChange, blankCo
     // keeps a fixed width so its content doesn't reflow during the animation.
     <div
       aria-hidden={!open}
-      className={`flex-shrink-0 h-full overflow-hidden transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none ${
-        open ? 'w-80' : 'w-0'
+      className={`flex-shrink-0 h-full overflow-hidden transition-all duration-300 ease-in-out motion-reduce:transition-none ${
+        open ? 'w-80 opacity-100' : 'w-0 opacity-0'
       }`}
     >
       <div className="w-80 h-full bg-card border-l border-border flex flex-col">

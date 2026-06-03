@@ -15,6 +15,7 @@ import {
   updateMediaTimestamp,
   updateMediaFavorite,
   countMediaWithNullTimestamps,
+  countFavoriteMedia,
   closeStudyDatabase
 } from '../database/index.js'
 import { runInWorker } from '../services/sequences/runInWorker.js'
@@ -180,6 +181,22 @@ export function registerMediaIPCHandlers() {
       return { data: count }
     } catch (error) {
       log.error('Error counting media with null timestamps:', error)
+      return { error: error.message }
+    }
+  })
+
+  ipcMain.handle('media:count-favorites', async (_, studyId) => {
+    try {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) {
+        log.warn(`Database not found for study ID: ${studyId}`)
+        return { error: 'Database not found for this study' }
+      }
+
+      const count = await countFavoriteMedia(dbPath)
+      return { data: count }
+    } catch (error) {
+      log.error('Error counting favorite media:', error)
       return { error: error.message }
     }
   })

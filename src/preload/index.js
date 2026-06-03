@@ -356,6 +356,9 @@ const api = {
   countMediaWithNullTimestamps: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('media:count-null-timestamps', studyId)
   },
+  countFavoriteMedia: async (studyId) => {
+    return await electronAPI.ipcRenderer.invoke('media:count-favorites', studyId)
+  },
   getSourcesData: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('sources:get-data', studyId)
   },

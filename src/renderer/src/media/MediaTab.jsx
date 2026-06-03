@@ -42,12 +42,16 @@ export default function MediaTab({ studyId, path }) {
   const noTimestampCount = useCount('noTimestampCount', actualStudyId, (s) =>
     window.api.countMediaWithNullTimestamps(s)
   )
+  const favoriteCount = useCount('favoriteCount', actualStudyId, (s) =>
+    window.api.countFavoriteMedia(s)
+  )
 
   const quickViewCounts = {
     blank: blankCount,
     vehicle: vehicleCount,
     'low-confidence': lowConfidenceCount,
-    'no-timestamp': noTimestampCount
+    'no-timestamp': noTimestampCount,
+    favorites: favoriteCount
   }
 
   // Map deploymentID -> location name so the toolbar's deployment chips show a

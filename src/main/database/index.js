@@ -216,6 +216,7 @@ export {
   insertMedia,
   updateMediaFavorite,
   countMediaWithNullTimestamps,
+  countFavoriteMedia,
   // Observations
   updateObservationClassification,
   updateObservationBbox,

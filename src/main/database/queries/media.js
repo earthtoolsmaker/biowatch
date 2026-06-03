@@ -531,6 +531,22 @@ export async function countMediaWithNullTimestamps(dbPath) {
 }
 
 /**
+ * Count media files marked as favorite.
+ * @param {string} dbPath - Path to the SQLite database
+ * @returns {Promise<number>} - Count of favorite media files
+ */
+export async function countFavoriteMedia(dbPath) {
+  const studyId = getStudyIdFromPath(dbPath)
+  const db = await getDrizzleDb(studyId, dbPath)
+  const result = await db
+    .select({ count: count().as('count') })
+    .from(media)
+    .where(eq(media.favorite, true))
+    .get()
+  return Number(result?.count || 0)
+}
+
+/**
  * Get per-frame detector bboxes for a video, sourced from modelOutputs.rawOutput.frames.
  *
  * Applies the same confidence filter as the image write path:
