@@ -53,7 +53,7 @@ import {
   getSpeciesCountsFromSequence
 } from '../utils/speciesFromBboxes'
 import { SpeciesCountLabel } from '../ui/SpeciesLabel'
-import MediaTableView from './MediaTableView.jsx'
+import MediaTableView, { MediaTableHeader } from './MediaTableView.jsx'
 import { sortSequences } from './tableRows.js'
 import { formatGridTimestamp } from '../utils/formatTimestamp'
 import { useSequenceGap } from '../hooks/useSequenceGap'
@@ -2290,6 +2290,21 @@ function Gallery({
     staleTime: 60000
   })
 
+  // Width of the scroll container's scrollbar gutter, measured so the table
+  // header (which sits OUTSIDE the scroller) can reserve the same right-edge
+  // space and keep its columns aligned with the scrolling rows. 0 on overlay-
+  // scrollbar platforms (macOS), where scrollbar-gutter reserves nothing.
+  const [scrollbarGutter, setScrollbarGutter] = useState(0)
+  useEffect(() => {
+    const el = gridContainerRef.current
+    if (!el || view !== 'table') return
+    const measure = () => setScrollbarGutter(el.offsetWidth - el.clientWidth)
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [view])
+
   // Table column sort (client-side), lifted here so one sorted order drives both
   // the table render and the modal's next/prev navigation.
   const [tableSort, setTableSort] = useState({ col: null, dir: 'asc' })
@@ -2558,11 +2573,23 @@ function Gallery({
             : 'relative flex flex-col h-full bg-card rounded border border-border overflow-hidden'
         }
       >
+        {/* Table header lives outside the scroll container so the body's
+            scrollbar doesn't run up alongside it; it reserves the measured
+            gutter to stay column-aligned with the rows. */}
+        {view === 'table' && (
+          <MediaTableHeader
+            sortCol={tableSort.col}
+            sortDir={tableSort.dir}
+            onSort={handleTableSort}
+            gutter={scrollbarGutter}
+          />
+        )}
         {/* Grid — drop horizontal padding when embedded so the first
             image cell aligns with the panel's left edge (matches the map
             in the Deployments tab). */}
         <div
           ref={gridContainerRef}
+          style={view === 'table' ? { scrollbarGutter: 'stable' } : undefined}
           className={`flex flex-wrap gap-[12px] flex-1 overflow-auto content-start ${
             embedded ? (view === 'table' ? 'pb-3' : 'py-3') : 'p-3'
           }`}
@@ -2575,9 +2602,6 @@ function Gallery({
               constructImageUrl={constructImageUrl}
               isVideoMedia={isVideoMedia}
               onRowClick={handleImageClick}
-              sortCol={tableSort.col}
-              sortDir={tableSort.dir}
-              onSort={handleTableSort}
               scrollRef={gridContainerRef}
             />
           ) : (

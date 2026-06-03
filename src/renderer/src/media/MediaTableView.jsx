@@ -131,19 +131,51 @@ const TableRow = memo(function TableRow({
   )
 })
 
-// Virtualized table view: only the rows in (or near) the viewport are mounted,
+// Column-header row. Rendered OUTSIDE the scroll container (by the gallery) so
+// the body's scrollbar doesn't run up alongside it. `gutter` is the measured
+// scrollbar width; we pad the header's right by it (the body reserves the same
+// space via scrollbar-gutter: stable) so the columns stay aligned.
+export function MediaTableHeader({ sortCol = null, sortDir = 'asc', onSort, gutter = 0 }) {
+  return (
+    <div className="w-full flex-shrink-0 bg-card border-b-2 border-border text-[11px] uppercase tracking-wide text-muted-foreground">
+      <div
+        role="row"
+        className="grid items-center h-9"
+        style={{ gridTemplateColumns: GRID_COLS, paddingRight: gutter }}
+      >
+        <div className="px-2" />
+        <SortHeader label="Type" col="type" sortCol={sortCol} sortDir={sortDir} onSort={onSort} />
+        <SortHeader
+          label="Species"
+          col="species"
+          sortCol={sortCol}
+          sortDir={sortDir}
+          onSort={onSort}
+        />
+        <SortHeader label="When" col="when" sortCol={sortCol} sortDir={sortDir} onSort={onSort} />
+        <SortHeader
+          label="Deployment"
+          col="deployment"
+          sortCol={sortCol}
+          sortDir={sortDir}
+          onSort={onSort}
+        />
+      </div>
+    </div>
+  )
+}
+
+// Virtualized table BODY: only the rows in (or near) the viewport are mounted,
 // so scroll cost stays bounded regardless of how many sequences have loaded.
 // `sequences` arrives already sorted by the gallery (so the media modal
-// navigates in the same order); the column headers drive that sort via onSort.
+// navigates in the same order). The header is rendered separately above the
+// scroll container — see MediaTableHeader.
 export default function MediaTableView({
   sequences,
   bboxesByMedia,
   constructImageUrl,
   isVideoMedia,
   onRowClick,
-  sortCol = null,
-  sortDir = 'asc',
-  onSort,
   scrollRef
 }) {
   const sortedRows = useMemo(
@@ -172,34 +204,7 @@ export default function MediaTableView({
   })
 
   return (
-    // The gallery scroll container drops its top padding in table view (see
-    // Gallery.jsx), so the sticky header pins flush at the very top with no gap
-    // for rows to bleed into above it.
     <div className="w-full text-[13px]">
-      <div
-        role="row"
-        style={{ gridTemplateColumns: GRID_COLS }}
-        className="grid items-center sticky top-0 z-20 bg-card border-b-2 border-border text-[11px] uppercase tracking-wide text-muted-foreground h-9"
-      >
-        <div className="px-2" />
-        <SortHeader label="Type" col="type" sortCol={sortCol} sortDir={sortDir} onSort={onSort} />
-        <SortHeader
-          label="Species"
-          col="species"
-          sortCol={sortCol}
-          sortDir={sortDir}
-          onSort={onSort}
-        />
-        <SortHeader label="When" col="when" sortCol={sortCol} sortDir={sortDir} onSort={onSort} />
-        <SortHeader
-          label="Deployment"
-          col="deployment"
-          sortCol={sortCol}
-          sortDir={sortDir}
-          onSort={onSort}
-        />
-      </div>
-
       <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
         {virtualizer.getVirtualItems().map((v) => {
           const { seq, row, speciesLabels, thumbnailUrl } = sortedRows[v.index]
