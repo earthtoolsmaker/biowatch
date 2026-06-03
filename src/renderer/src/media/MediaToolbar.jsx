@@ -1,5 +1,14 @@
 import { useMemo } from 'react'
-import { LayoutGrid, Table2, Filter } from 'lucide-react'
+import {
+  LayoutGrid,
+  Table2,
+  Filter,
+  PawPrint,
+  MapPin,
+  FolderInput,
+  Calendar,
+  Clock
+} from 'lucide-react'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import ViewModeToggle from '../ui/ViewModeToggle.jsx'
 import QuickViews from './QuickViews.jsx'
@@ -49,11 +58,16 @@ function formatDateChip([from, to]) {
 
 // Derive the removable active-filter chips from filter state. Quick view is
 // surfaced in the QuickViews row, so it is intentionally not duplicated here.
+// Each chip carries a leading icon naming its facet (species/deployment/…) so
+// the pills are self-describing and same-facet pills read as a group. Chips are
+// pushed facet-by-facet, so same-type pills are already contiguous.
 function deriveChips(filters, deploymentNames = {}) {
   const chips = []
   for (const name of filters.species) {
     chips.push({
       id: `species:${name}`,
+      icon: PawPrint,
+      type: 'Species',
       label: speciesChipLabel(name),
       clear: (f) => ({
         ...f,
@@ -64,6 +78,8 @@ function deriveChips(filters, deploymentNames = {}) {
   for (const d of filters.deployments) {
     chips.push({
       id: `deployment:${d}`,
+      icon: MapPin,
+      type: 'Deployment',
       label: deploymentNames[d] || d,
       clear: (f) => ({
         ...f,
@@ -74,6 +90,8 @@ function deriveChips(filters, deploymentNames = {}) {
   for (const s of filters.sources) {
     chips.push({
       id: `source:${s}`,
+      icon: FolderInput,
+      type: 'Source',
       label: s,
       clear: (f) => ({
         ...f,
@@ -83,11 +101,19 @@ function deriveChips(filters, deploymentNames = {}) {
   }
   const dateLabel = formatDateChip(filters.dateRange)
   if (dateLabel) {
-    chips.push({ id: 'date', label: dateLabel, clear: (f) => ({ ...f, dateRange: [null, null] }) })
+    chips.push({
+      id: 'date',
+      icon: Calendar,
+      type: 'Date',
+      label: dateLabel,
+      clear: (f) => ({ ...f, dateRange: [null, null] })
+    })
   }
   if (filters.timeRange.ranges.length) {
     chips.push({
       id: 'time',
+      icon: Clock,
+      type: 'Time',
       label: 'Time of day',
       clear: (f) => ({ ...f, timeRange: { ranges: [] } })
     })
@@ -186,22 +212,27 @@ export default function MediaToolbar({
         }
       />
 
-      {chips.map((chip) => (
-        <span
-          key={chip.id}
-          className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[12.5px] font-medium bg-blue-50 text-blue-700 border border-blue-100 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-500/30"
-        >
-          {chip.label}
-          <button
-            type="button"
-            aria-label={`Remove ${chip.label} filter`}
-            className="opacity-60 hover:opacity-100 leading-none"
-            onClick={() => onChange(chip.clear(filters))}
+      {chips.map((chip) => {
+        const Icon = chip.icon
+        return (
+          <span
+            key={chip.id}
+            title={`${chip.type}: ${chip.label}`}
+            className="inline-flex items-center gap-1.5 h-7 pl-2 pr-2.5 rounded-full text-[12.5px] font-medium bg-blue-50 text-blue-700 border border-blue-100 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-500/30"
           >
-            ✕
-          </button>
-        </span>
-      ))}
+            {Icon && <Icon className="w-3.5 h-3.5 opacity-60" />}
+            {chip.label}
+            <button
+              type="button"
+              aria-label={`Remove ${chip.type} filter ${chip.label}`}
+              className="opacity-60 hover:opacity-100 leading-none"
+              onClick={() => onChange(chip.clear(filters))}
+            >
+              ✕
+            </button>
+          </span>
+        )
+      })}
 
       <div className="flex-1" />
 
