@@ -230,6 +230,16 @@ function SpeciesDistribution({
     setScrollSignal((s) => s + 1)
   }, [])
 
+  // Also close cards when an ANCESTOR scrolls — e.g. in the Media filter drawer
+  // the list sits inside an outer max-height scroller, so this component's own
+  // onScroll never fires. A capture-phase listener catches scrolling of any
+  // ancestor (scroll events don't bubble, but capture reaches them).
+  useEffect(() => {
+    const onAncestorScroll = () => setScrollSignal((s) => s + 1)
+    document.addEventListener('scroll', onAncestorScroll, true)
+    return () => document.removeEventListener('scroll', onAncestorScroll, true)
+  }, [])
+
   if (!displayData || displayData.length === 0) {
     return <div className="text-muted-foreground">No species data available</div>
   }
