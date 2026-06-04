@@ -66,7 +66,7 @@ function DistributionList({ items, selected, onToggle, emptyLabel, hoverContent 
     // Mirrors the species list's horizontal rhythm: -mx-1 + px-3 here, rows pull
     // back with -mx-3 px-3 so the hover/selected background bleeds to the edges,
     // exactly like SpeciesRow in ui/speciesDistribution.jsx.
-    <div className="flex flex-col max-h-56 overflow-y-auto px-3 -mx-1">
+    <div className="flex flex-col max-h-56 overflow-y-auto px-3 -mx-4">
       {items.map((it) => {
         const active = selected.includes(it.value)
         // Normalize each segment against the largest deployment total so bars
@@ -139,7 +139,7 @@ function DistributionList({ items, selected, onToggle, emptyLabel, hoverContent 
 // empty state during the (sometimes multi-second) sequence-aware computation.
 function DistributionSkeleton({ rows = 6 }) {
   return (
-    <div className="px-3 -mx-1" aria-hidden>
+    <div className="px-3 -mx-4" aria-hidden>
       {Array.from({ length: rows }).map((_, i) => (
         <div key={i} className="py-2 first:pt-3 animate-pulse">
           <div className="mb-1.5 flex items-center justify-between gap-2">
@@ -259,24 +259,14 @@ export default function FilterDrawer({ open, studyId, filters, onChange, blankCo
     >
       {/* Separated, rounded card — matches Explore's species rail rather than a
           flush panel glued to the table. */}
+      {/* No header title here — the toolbar's "Filters" toggle already labels
+          the pane, so repeating it would be redundant. "Clear all" lives in a
+          footer that only appears when something is active. */}
       <div className="w-80 h-full bg-card border border-border rounded-lg overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border/60 flex-shrink-0">
-          <span className="text-sm font-medium">Filters</span>
-          {hasAny ? (
-            <button
-              type="button"
-              onClick={clearAll}
-              className="text-[12px] font-medium text-blue-700 dark:text-blue-300 hover:underline"
-            >
-              Clear all
-            </button>
-          ) : null}
-        </div>
-
         <div className="flex-1 overflow-y-auto min-h-0">
           <Section title="Species" count={filters.species.length}>
             {speciesQuery.data ? (
-              <div className="max-h-56 overflow-y-auto -mx-1">
+              <div className="max-h-56 overflow-y-auto -mx-4">
                 <SpeciesDistribution
                   data={speciesQuery.data}
                   taxonomicData={null}
@@ -355,6 +345,18 @@ export default function FilterDrawer({ open, studyId, filters, onChange, blankCo
             </div>
           </Section>
         </div>
+
+        {hasAny ? (
+          <div className="flex-shrink-0 border-t border-border/60 px-4 py-2.5">
+            <button
+              type="button"
+              onClick={clearAll}
+              className="text-[12px] font-medium text-blue-700 hover:underline dark:text-blue-300"
+            >
+              Clear all filters
+            </button>
+          </div>
+        ) : null}
       </div>
     </div>
   )
