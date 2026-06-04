@@ -30,25 +30,12 @@ export default function MediaTab({ studyId, path }) {
   const { filters, setFilters, patch } = useMediaFilters()
   const [drawerOpen, setDrawerOpen] = useState(true)
 
-  const blankCount = useCount('blankMediaCount', actualStudyId, (s) =>
-    window.api.getBlankMediaCount(s)
-  )
-  const vehicleCount = useCount('vehicleMediaCount', actualStudyId, (s) =>
-    window.api.getVehicleMediaCount(s)
-  )
   const noTimestampCount = useCount('noTimestampCount', actualStudyId, (s) =>
     window.api.countMediaWithNullTimestamps(s)
   )
   const favoriteCount = useCount('favoriteCount', actualStudyId, (s) =>
     window.api.countFavoriteMedia(s)
   )
-
-  const quickViewCounts = {
-    blank: blankCount,
-    vehicle: vehicleCount,
-    'no-timestamp': noTimestampCount,
-    favorites: favoriteCount
-  }
 
   // Map deploymentID -> location name so the toolbar's deployment chips show a
   // readable name instead of the raw ID. Shares the drawer's query cache.
@@ -67,6 +54,26 @@ export default function MediaTab({ studyId, path }) {
     for (const d of deploymentDist ?? []) m[d.deploymentID] = d.locationName
     return m
   }, [deploymentDist])
+
+  // Blank/Vehicle counts are sequence-aware (one unit per sequence, not per
+  // frame) so they match the species counts, the table rows, and the deployment
+  // composition. Grouping is deployment-scoped, so the study-wide total is the
+  // sum of each deployment's sequence count. undefined while the composition
+  // loads so the badge stays hidden rather than flashing 0.
+  const { blankCount, vehicleCount } = useMemo(() => {
+    if (!deploymentDist) return { blankCount: undefined, vehicleCount: undefined }
+    return {
+      blankCount: deploymentDist.reduce((s, d) => s + (d.blankCount || 0), 0),
+      vehicleCount: deploymentDist.reduce((s, d) => s + (d.vehicleCount || 0), 0)
+    }
+  }, [deploymentDist])
+
+  const quickViewCounts = {
+    blank: blankCount,
+    vehicle: vehicleCount,
+    'no-timestamp': noTimestampCount,
+    favorites: favoriteCount
+  }
 
   return (
     <div className="flex flex-col h-full min-h-0 gap-3 px-4 py-3">

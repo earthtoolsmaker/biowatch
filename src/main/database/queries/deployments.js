@@ -120,6 +120,12 @@ export async function getMediaForDeploymentComposition(dbPath) {
         )
       )
     )
+  const vehicleObservation = db
+    .select({ one: sql`1` })
+    .from(observations)
+    .where(
+      and(eq(observations.mediaID, media.mediaID), eq(observations.observationType, 'vehicle'))
+    )
   return (
     db
       .select({
@@ -129,7 +135,10 @@ export async function getMediaForDeploymentComposition(dbPath) {
         eventID: sql`(${eventIDPicker})`.as('eventID'),
         fileMediatype: media.fileMediatype,
         fileName: media.fileName,
-        isDetection: sql`(CASE WHEN ${exists(realObservation)} THEN 1 ELSE 0 END)`.as('isDetection')
+        isDetection: sql`(CASE WHEN ${exists(realObservation)} THEN 1 ELSE 0 END)`.as(
+          'isDetection'
+        ),
+        isVehicle: sql`(CASE WHEN ${exists(vehicleObservation)} THEN 1 ELSE 0 END)`.as('isVehicle')
       })
       .from(media)
       // Ordered by timestamp so the downstream sequence grouping clusters
@@ -266,8 +275,8 @@ export async function getSpeciesForDeployment(dbPath, deploymentID) {
 /**
  * Count blank media at a single deployment, using the new "blank media"
  * definition (no animal/human observation with a species name AND no
- * vehicle observation). Mirrors getBlankMediaCount but scoped to one
- * deployment.
+ * vehicle observation), scoped to one deployment. Media-level count (one per
+ * media, not per sequence) for the deployment-settings popover.
  *
  * @param {string} dbPath - Path to the SQLite database
  * @param {string} deploymentID

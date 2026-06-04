@@ -23,7 +23,6 @@ import {
   getSequenceAwareDailyActivitySQL,
   getBestMedia,
   getBestImagePerSpecies,
-  getBlankMediaCount,
   getDeploymentsActivity,
   getSourcesData,
   getOverviewStats
@@ -197,14 +196,6 @@ async function run() {
       // observations / deployments / media are O(table size) and large
       // studies show multi-hundred-ms latency.
       return getOverviewStats(dbPath)
-    }
-    case 'blank-count': {
-      // Library/Deployments tabs both call this on first open. The
-      // notExists scan is O(media × matching observations); even with the
-      // covering index on (mediaID, scientificName, observationType) it
-      // takes ~465ms on the largest GMU8-pattern study (2.7M observations).
-      // Off the main thread to avoid renderer jank.
-      return getBlankMediaCount(dbPath)
     }
     default:
       throw new Error(`Unknown worker task type: ${type}`)

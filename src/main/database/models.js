@@ -152,13 +152,13 @@ export const observations = sqliteTable(
     index('idx_observations_eventStart').on(table.eventStart),
     index('idx_observations_scientificName_eventStart').on(table.scientificName, table.eventStart),
     index('idx_observations_mediaID_deploymentID').on(table.mediaID, table.deploymentID),
-    // Used by getVehicleMediaCount and the Vehicle pseudo-species filter in
-    // getMediaForSequencePagination — without this, vehicle queries do a
-    // full scan of `observations` (3s+ on a 2.7M-row study).
+    // Used by the Vehicle pseudo-species filter in getMediaForSequencePagination
+    // and the deployment composition's isVehicle flag — without this, vehicle
+    // queries do a full scan of `observations` (3s+ on a 2.7M-row study).
     index('idx_observations_observationType').on(table.observationType),
     // Covering index for the blank-media notExists pattern used by
-    // getBlankMediaCount, getBlankMediaCountForDeployment, and the
-    // sequences.js blank arm. The query checks per-media that no observation
+    // getBlankMediaCountForDeployment, the deployment composition's isDetection
+    // flag, and the sequences.js blank arm. The query checks per-media that no observation
     // names a real species AND has no vehicle observation; with this index
     // SQLite can evaluate both predicates from index alone (~5× faster on
     // a 2.7M-row study: 2.3s → 465ms).

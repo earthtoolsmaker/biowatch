@@ -122,6 +122,7 @@ describe('getDeploymentComposition', () => {
         count: 2,
         detectionCount: 2,
         blankCount: 0,
+        vehicleCount: 0,
         imageCount: 2,
         videoCount: 0
       },
@@ -133,6 +134,7 @@ describe('getDeploymentComposition', () => {
         count: 2,
         detectionCount: 1,
         blankCount: 1,
+        vehicleCount: 0,
         imageCount: 1,
         videoCount: 1
       },
@@ -144,6 +146,7 @@ describe('getDeploymentComposition', () => {
         count: 0,
         detectionCount: 0,
         blankCount: 0,
+        vehicleCount: 0,
         imageCount: 0,
         videoCount: 0
       }
@@ -211,6 +214,7 @@ describe('getDeploymentComposition', () => {
       count: 2, // 2 sequences (not 5 media)
       detectionCount: 1,
       blankCount: 1, // 3 blank frames collapse to ONE blank sequence
+      vehicleCount: 0,
       imageCount: 2,
       videoCount: 0
     })
@@ -276,7 +280,59 @@ describe('getDeploymentComposition', () => {
       count: 2,
       detectionCount: 1, // the 2 animal frames → 1 detection sequence
       blankCount: 1, // the 3 empty frames → 1 blank sequence (== Blank filter)
+      vehicleCount: 0,
       imageCount: 2,
+      videoCount: 0
+    })
+  })
+
+  test('a vehicle burst is one vehicle sequence (counted within detections)', async () => {
+    const manager = await createImageDirectoryDatabase(testDbPath)
+    await insertDeployments(manager, {
+      d1: {
+        deploymentID: 'd1',
+        locationID: 'loc-d1',
+        locationName: 'Site A',
+        deploymentStart: DateTime.fromISO('2024-01-01T00:00:00Z'),
+        deploymentEnd: DateTime.fromISO('2024-12-31T23:59:59Z'),
+        latitude: 1,
+        longitude: 1,
+        cameraID: 'cam-d1'
+      }
+    })
+    // Three vehicle frames within 60s → one sequence. Vehicle is a "detection"
+    // (not blank), so it shows up in detectionCount AND in the separate
+    // vehicleCount tally that drives the sequence-aware Vehicle count.
+    const m = (id, iso) => ({
+      mediaID: id,
+      deploymentID: 'd1',
+      timestamp: DateTime.fromISO(iso),
+      filePath: `/${id}.jpg`,
+      fileName: `${id}.jpg`
+    })
+    await insertMedia(manager, {
+      'v1.jpg': m('v1', '2024-06-01T10:00:00Z'),
+      'v2.jpg': m('v2', '2024-06-01T10:00:01Z'),
+      'v3.jpg': m('v3', '2024-06-01T10:00:02Z')
+    })
+    await insertObservations(manager, [
+      { observationID: 'o1', mediaID: 'v1', deploymentID: 'd1', observationType: 'vehicle' },
+      { observationID: 'o2', mediaID: 'v2', deploymentID: 'd1', observationType: 'vehicle' },
+      { observationID: 'o3', mediaID: 'v3', deploymentID: 'd1', observationType: 'vehicle' }
+    ])
+
+    const result = await getDeploymentComposition(testDbPath, 60)
+    assert.equal(result.length, 1)
+    assert.deepEqual(result[0], {
+      deploymentID: 'd1',
+      locationName: 'Site A',
+      latitude: 1,
+      longitude: 1,
+      count: 1,
+      detectionCount: 1, // vehicle counts as a detection
+      blankCount: 0,
+      vehicleCount: 1, // 3 vehicle frames → 1 vehicle sequence
+      imageCount: 1,
       videoCount: 0
     })
   })

@@ -43,8 +43,12 @@ export async function getDeploymentComposition(dbPath, gapSecondsOverride) {
   const mediaRows = await getMediaForDeploymentComposition(dbPath)
   const deployments = await getDeploymentsBasic(dbPath)
 
-  // SQLite returns the EXISTS flag as 0/1 — normalize to a boolean.
-  const mediaArray = mediaRows.map((r) => ({ ...r, isDetection: !!Number(r.isDetection) }))
+  // SQLite returns the EXISTS flags as 0/1 — normalize to booleans.
+  const mediaArray = mediaRows.map((r) => ({
+    ...r,
+    isDetection: !!Number(r.isDetection),
+    isVehicle: !!Number(r.isVehicle)
+  }))
 
   // Count blank vs detection by grouping each media SUBSET independently —
   // mirroring how the Media tab's Blank quick view (and a species filter) work:
@@ -77,11 +81,15 @@ export async function getDeploymentComposition(dbPath, gapSecondsOverride) {
 
   const detectionByDep = tallySubset(mediaArray.filter((m) => m.isDetection))
   const blankByDep = tallySubset(mediaArray.filter((m) => !m.isDetection))
+  // Vehicle is a subset of "detection" (it counts toward detectionCount in the
+  // bar); this separate tally drives the sequence-aware Vehicle quick-view count.
+  const vehicleByDep = tallySubset(mediaArray.filter((m) => m.isVehicle))
 
   return deployments
     .map((d) => {
       const det = detectionByDep.get(d.deploymentID) || { count: 0, images: 0, videos: 0 }
       const blank = blankByDep.get(d.deploymentID) || { count: 0, images: 0, videos: 0 }
+      const vehicle = vehicleByDep.get(d.deploymentID) || { count: 0 }
       return {
         deploymentID: d.deploymentID,
         locationName: d.locationName || d.locationID || d.deploymentID,
@@ -90,6 +98,7 @@ export async function getDeploymentComposition(dbPath, gapSecondsOverride) {
         count: det.count + blank.count,
         detectionCount: det.count,
         blankCount: blank.count,
+        vehicleCount: vehicle.count,
         imageCount: det.images + blank.images,
         videoCount: det.videos + blank.videos
       }

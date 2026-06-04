@@ -194,8 +194,6 @@ export {
   getBlankMediaCountForDeployment,
   // Species
   getSpeciesDistribution,
-  getBlankMediaCount,
-  getVehicleMediaCount,
   getDistinctSpecies,
   getSpeciesDistributionByMedia,
   getSpeciesTimeseriesByMedia,

@@ -486,8 +486,9 @@ function ImageModal({
       queryClient.invalidateQueries({ queryKey: ['sequenceAwareTimeseries', studyId] })
       queryClient.invalidateQueries({ queryKey: ['sequenceAwareDailyActivity', studyId] })
       queryClient.invalidateQueries({ queryKey: ['sequenceAwareHeatmap', studyId] })
-      queryClient.invalidateQueries({ queryKey: ['blankMediaCount', studyId] })
-      queryClient.invalidateQueries({ queryKey: ['vehicleMediaCount', studyId] })
+      // Blank/Vehicle counts are derived from the sequence-aware deployment
+      // composition now, so refresh that cache instead of the old media counts.
+      queryClient.invalidateQueries({ queryKey: ['mediaFilterDeploymentDistribution', studyId] })
       queryClient.invalidateQueries({ queryKey: ['bestMedia', studyId] })
 
       setShowDatePicker(false)
@@ -572,8 +573,9 @@ function ImageModal({
     queryClient.invalidateQueries({ queryKey: ['sequenceAwareTimeseries', studyId] })
     queryClient.invalidateQueries({ queryKey: ['sequenceAwareDailyActivity', studyId] })
     queryClient.invalidateQueries({ queryKey: ['sequenceAwareHeatmap', studyId] })
-    queryClient.invalidateQueries({ queryKey: ['blankMediaCount', studyId] })
-    queryClient.invalidateQueries({ queryKey: ['vehicleMediaCount', studyId] })
+    // Blank/Vehicle counts are derived from the sequence-aware deployment
+    // composition now, so refresh that cache instead of the old media counts.
+    queryClient.invalidateQueries({ queryKey: ['mediaFilterDeploymentDistribution', studyId] })
     queryClient.invalidateQueries({ queryKey: ['bestMedia', studyId] })
   }, [queryClient, studyId, media?.mediaID])
 
