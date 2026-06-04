@@ -120,18 +120,24 @@ export async function getMediaForDeploymentComposition(dbPath) {
         )
       )
     )
-  return db
-    .select({
-      mediaID: media.mediaID,
-      deploymentID: media.deploymentID,
-      timestamp: media.timestamp,
-      eventID: sql`(${eventIDPicker})`.as('eventID'),
-      fileMediatype: media.fileMediatype,
-      fileName: media.fileName,
-      isDetection: sql`(CASE WHEN ${exists(realObservation)} THEN 1 ELSE 0 END)`.as('isDetection')
-    })
-    .from(media)
-    .all()
+  return (
+    db
+      .select({
+        mediaID: media.mediaID,
+        deploymentID: media.deploymentID,
+        timestamp: media.timestamp,
+        eventID: sql`(${eventIDPicker})`.as('eventID'),
+        fileMediatype: media.fileMediatype,
+        fileName: media.fileName,
+        isDetection: sql`(CASE WHEN ${exists(realObservation)} THEN 1 ELSE 0 END)`.as('isDetection')
+      })
+      .from(media)
+      // Ordered by timestamp so the downstream sequence grouping clusters
+      // correctly — groupMediaIntoSequences walks media in order, exactly like
+      // getMediaForSequencePagination feeds it. Unsorted input barely groups.
+      .orderBy(media.timestamp)
+      .all()
+  )
 }
 
 /**
