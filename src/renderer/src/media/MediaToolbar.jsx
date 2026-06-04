@@ -237,6 +237,25 @@ export default function MediaToolbar({
         )
       })}
 
+      {chips.length > 1 && (
+        <button
+          type="button"
+          onClick={() =>
+            onChange({
+              ...filters,
+              species: [],
+              deployments: [],
+              mediaTypes: [],
+              dateRange: [null, null],
+              timeRange: { ranges: [] }
+            })
+          }
+          className="text-[12.5px] font-medium text-blue-700 hover:underline dark:text-blue-300 px-1"
+        >
+          Clear all
+        </button>
+      )}
+
       <div className="flex-1" />
 
       {typeof sequenceCount === 'number' && (

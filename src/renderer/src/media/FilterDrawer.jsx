@@ -233,18 +233,6 @@ export default function FilterDrawer({ open, studyId, filters, onChange, blankCo
     onChange({ ...filters, species: next.map((s) => s.scientificName) })
   }
 
-  const hasAny = filters.species.length || filters.deployments.length || filters.mediaTypes.length
-
-  const clearAll = () =>
-    onChange({
-      ...filters,
-      species: [],
-      deployments: [],
-      mediaTypes: [],
-      dateRange: [null, null],
-      timeRange: { ranges: [] }
-    })
-
   return (
     // In-flow side panel: animating its width pushes the grid/table to the left
     // (like Explore's species rail) instead of overlaying it. The left margin
@@ -345,18 +333,6 @@ export default function FilterDrawer({ open, studyId, filters, onChange, blankCo
             </div>
           </Section>
         </div>
-
-        {hasAny ? (
-          <div className="flex-shrink-0 border-t border-border/60 px-4 py-2.5">
-            <button
-              type="button"
-              onClick={clearAll}
-              className="text-[12px] font-medium text-blue-700 hover:underline dark:text-blue-300"
-            >
-              Clear all filters
-            </button>
-          </div>
-        ) : null}
       </div>
     </div>
   )
