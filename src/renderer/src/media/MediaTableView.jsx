@@ -5,8 +5,8 @@ import { deriveTableRow, speciesDisplay } from './tableRows.js'
 
 const ROW_HEIGHT = 46
 // Shared column template for the header and every row so they stay aligned.
-// Columns: thumbnail · type · species · when · deployment.
-const GRID_COLS = '60px 56px minmax(0,1.4fr) 180px minmax(0,1fr)'
+// Columns: row number · thumbnail · type · species · when · deployment.
+const GRID_COLS = '48px 60px 56px minmax(0,1.4fr) 180px minmax(0,1fr)'
 
 function formatWhen(when) {
   if (!when) return null
@@ -82,6 +82,7 @@ function SortHeader({ label, col, sortCol, sortDir, onSort }) {
 const TableRow = memo(function TableRow({
   seq,
   row,
+  index,
   speciesLabels,
   thumbnailUrl,
   onRowClick,
@@ -96,6 +97,7 @@ const TableRow = memo(function TableRow({
       className="grid items-center border-b border-border cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-500/10"
       onClick={() => onRowClick(seq.items[0], isMulti ? seq : null)}
     >
+      <div className="px-2 text-right tabular-nums text-xs text-muted-foreground">{index}</div>
       <div className="px-2">
         <RowThumb url={thumbnailUrl} isVideo={row.isVideo} />
       </div>
@@ -143,6 +145,7 @@ export function MediaTableHeader({ sortCol = null, sortDir = 'asc', onSort, gutt
         className="grid items-center h-9"
         style={{ gridTemplateColumns: GRID_COLS, paddingRight: gutter }}
       >
+        <div className="px-2 text-right">#</div>
         <div className="px-2" />
         <SortHeader label="Type" col="type" sortCol={sortCol} sortDir={sortDir} onSort={onSort} />
         <SortHeader
@@ -213,6 +216,7 @@ export default function MediaTableView({
               key={seq.id}
               seq={seq}
               row={row}
+              index={v.index + 1}
               speciesLabels={speciesLabels}
               thumbnailUrl={thumbnailUrl}
               onRowClick={onRowClick}
