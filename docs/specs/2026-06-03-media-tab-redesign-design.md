@@ -72,7 +72,9 @@ A single slim row:
 
 A dropdown (not a pill row). Each entry has a label, a one-line description, and a
 count. Selecting a quick view is a **fresh preset**: it resets the facet filters
-so the view shows exactly its category. Entering the tab on a param-less URL
+so the view shows exactly its category. The tab nav links carry no query string,
+so the active filters are remembered per study (in `sessionStorage`) and restored
+when re-entering the tab. On a genuine first visit (nothing saved) the tab
 defaults to the **Detections** view (blanks hidden out of the box); this applies
 once on entry, so deep-links keep their own scope and "Clear quick view" can still
 drop back to showing everything. Visible: **Blank**, **Detections** (the

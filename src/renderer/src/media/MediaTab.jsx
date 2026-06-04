@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useMediaFilters } from './useMediaFilters.js'
-import { hasActiveFilters } from './mediaFilters.js'
+import { filtersToSearchParams, hasActiveFilters, searchParamsToFilters } from './mediaFilters.js'
 import MediaToolbar from './MediaToolbar.jsx'
 import MediaGridView from './MediaGridView.jsx'
 import FilterDrawer from './FilterDrawer.jsx'
@@ -31,16 +31,32 @@ export default function MediaTab({ studyId, path }) {
   const { filters, setFilters, patch } = useMediaFilters()
   const [drawerOpen, setDrawerOpen] = useState(true)
 
-  // Land on the Detections view by default: entering the Media tab with no
-  // filters in the URL hides blanks out of the box. Runs once per mount and
-  // only on a param-less entry, so deep-links keep their own scope and the
-  // "Clear quick view" affordance can still drop back to showing everything.
+  // The tab nav links carry no query string, so leaving and re-entering the tab
+  // arrives on a param-less URL. Remember the last filters per study (for this
+  // app session) and restore them on re-entry; on a genuine first visit (nothing
+  // saved) default to the Detections view so blanks are hidden out of the box. An
+  // explicit deep-link / back-nav URL with its own params wins over both.
+  const storageKey = actualStudyId ? `media-filters:${actualStudyId}` : null
   const didInit = useRef(false)
   useEffect(() => {
-    if (didInit.current) return
+    if (didInit.current || !storageKey) return
     didInit.current = true
-    if (!hasActiveFilters(filters)) patch({ quickView: 'detections' }, { replace: true })
-  }, [filters, patch])
+    if (hasActiveFilters(filters)) return
+    const saved = sessionStorage.getItem(storageKey)
+    if (saved !== null) {
+      setFilters(searchParamsToFilters(new URLSearchParams(saved)), { replace: true })
+    } else {
+      patch({ quickView: 'detections' }, { replace: true })
+    }
+  }, [storageKey, filters, setFilters, patch])
+
+  // Persist the active filters so the restore above can recover them. Reads the
+  // intact saved value first (the init effect runs before this one), so a
+  // transient empty write here is corrected on the next render.
+  useEffect(() => {
+    if (!storageKey) return
+    sessionStorage.setItem(storageKey, filtersToSearchParams(filters).toString())
+  }, [storageKey, filters])
 
   const noTimestampCount = useCount('noTimestampCount', actualStudyId, (s) =>
     window.api.countMediaWithNullTimestamps(s)
