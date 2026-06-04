@@ -11,6 +11,12 @@ export const QUICK_VIEWS = [
     tone: 'neutral'
   },
   {
+    key: 'detections',
+    label: 'Detections',
+    description: 'Only sequences with an animal, person, or vehicle — hides blanks.',
+    tone: 'neutral'
+  },
+  {
     key: 'no-timestamp',
     label: 'No timestamp',
     description: 'Media missing a capture date and time.',
@@ -38,6 +44,8 @@ export function quickViewToQueryPatch(key) {
   switch (key) {
     case 'blank':
       return { species: [BLANK_SENTINEL] }
+    case 'detections':
+      return { hideBlank: true }
     case 'vehicle':
       return { species: [VEHICLE_SENTINEL] }
     case 'no-timestamp':

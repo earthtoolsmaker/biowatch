@@ -107,4 +107,19 @@ describe('getPaginatedSequences — Blank filter is sequence-aware', () => {
     const ids = res.sequences[0].items.map((i) => i.mediaID).sort()
     assert.deepEqual(ids, ['b1', 'b2', 'b3'])
   })
+
+  test('Detections filter (hideBlank) returns only the sequence with a detection', async () => {
+    await seed()
+    const res = await getPaginatedSequences(testDbPath, {
+      gapSeconds: 60,
+      limit: 20,
+      sort: 'newest',
+      filters: { hideBlank: true }
+    })
+    // The mirror of Blank: exactly ONE sequence — the mixed burst (it contains
+    // the animal); the fully-empty burst is dropped.
+    assert.equal(res.sequences.length, 1, 'should be 1 detection sequence, not 2')
+    const ids = res.sequences[0].items.map((i) => i.mediaID).sort()
+    assert.deepEqual(ids, ['a1', 'a2', 'e1', 'e2', 'e3'])
+  })
 })

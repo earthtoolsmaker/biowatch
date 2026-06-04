@@ -95,6 +95,7 @@ export async function getPaginatedSequences(dbPath, options = {}) {
     source = null,
     mediaTypes = [],
     favorite = false,
+    hideBlank = false,
     onlyNullTimestamps = false
   } = filters
 
@@ -106,6 +107,9 @@ export async function getPaginatedSequences(dbPath, options = {}) {
   // matches the unfiltered table (see getMediaForSequencePagination).
   const blankSequenceMode =
     species.includes(BLANK_SENTINEL) && species.every((s) => s === BLANK_SENTINEL)
+  // "Detections" (hide blank): the mirror — keep only sequences WITH a
+  // detection. Only when no explicit species filter is set.
+  const detectionSequenceMode = hideBlank === true && species.length === 0
 
   const startTime = Date.now()
   log.info(`[Sequences] Getting paginated sequences (limit: ${limit}, gapSeconds: ${gapSeconds})`)
@@ -154,7 +158,8 @@ export async function getPaginatedSequences(dbPath, options = {}) {
       mediaTypes,
       sort,
       quickView,
-      blankSequenceMode
+      blankSequenceMode,
+      detectionSequenceMode
     })
 
     sequences.push(...result.sequences)
@@ -186,7 +191,8 @@ export async function getPaginatedSequences(dbPath, options = {}) {
         bbox,
         source,
         mediaTypes,
-        quickView
+        quickView,
+        detectionSequenceMode
       })
 
       sequences.push(...result.sequences)
@@ -234,16 +240,20 @@ async function fetchTimestampedSequences(dbPath, options) {
     mediaTypes,
     sort,
     quickView = {},
-    blankSequenceMode = false
+    blankSequenceMode = false,
+    detectionSequenceMode = false
   } = options
 
-  // In Blank-sequence mode the DB returns ALL media tagged with isDetection;
-  // keep only the sequences whose every item is non-detection (a whole empty
-  // event), so "Blank" matches the unfiltered table instead of regrouping the
-  // empty frames out of mixed bursts.
+  // Blank/Detections modes get ALL media tagged with isDetection; keep only the
+  // sequences whose every item is non-detection (Blank) or that contain a
+  // detection (Detections), so the result matches the unfiltered table instead
+  // of regrouping the empty frames out of mixed bursts.
+  const hasDetection = (seq) => seq.items.some((i) => Number(i.isDetection) === 1)
   const sequenceFilter = blankSequenceMode
-    ? (seq) => !seq.items.some((i) => Number(i.isDetection) === 1)
-    : null
+    ? (seq) => !hasDetection(seq)
+    : detectionSequenceMode
+      ? hasDetection
+      : null
 
   // Fetch a batch of media
   const batchSize = Math.max(DEFAULT_BATCH_SIZE, limit * 10) // Ensure we have enough for look-ahead
@@ -258,6 +268,7 @@ async function fetchTimestampedSequences(dbPath, options) {
     source,
     mediaTypes,
     sort,
+    hideBlank: detectionSequenceMode,
     ...quickView
   })
 
@@ -313,6 +324,7 @@ async function fetchTimestampedSequences(dbPath, options) {
       sort,
       quickView,
       blankSequenceMode,
+      detectionSequenceMode,
       existingMedia: mediaItems,
       batchSize
     })
@@ -377,14 +389,19 @@ async function fetchMoreForLargeSequence(dbPath, options) {
     sort,
     quickView = {},
     blankSequenceMode = false,
+    detectionSequenceMode = false,
     existingMedia,
     batchSize
   } = options
 
-  // See fetchTimestampedSequences: keep only whole no-detection sequences.
+  // See fetchTimestampedSequences: keep no-detection (Blank) or with-detection
+  // (Detections) sequences.
+  const hasDetection = (seq) => seq.items.some((i) => Number(i.isDetection) === 1)
   const sequenceFilter = blankSequenceMode
-    ? (seq) => !seq.items.some((i) => Number(i.isDetection) === 1)
-    : null
+    ? (seq) => !hasDetection(seq)
+    : detectionSequenceMode
+      ? hasDetection
+      : null
   const formatKept = (seqs) =>
     (sequenceFilter ? seqs.filter(sequenceFilter) : seqs).map(formatSequence)
 
@@ -412,6 +429,7 @@ async function fetchMoreForLargeSequence(dbPath, options) {
       source,
       mediaTypes,
       sort,
+      hideBlank: detectionSequenceMode,
       ...quickView
     })
 
@@ -505,7 +523,17 @@ async function fetchMoreForLargeSequence(dbPath, options) {
  * @returns {Promise<{ sequences: Array, hasMore: boolean }>}
  */
 async function fetchNullTimestampSequences(dbPath, options) {
-  const { limit, offset, species, deploymentID, bbox, source, mediaTypes, quickView = {} } = options
+  const {
+    limit,
+    offset,
+    species,
+    deploymentID,
+    bbox,
+    source,
+    mediaTypes,
+    quickView = {},
+    detectionSequenceMode = false
+  } = options
 
   const dbResult = await getMediaForSequencePagination(dbPath, {
     cursor: { phase: 'null', offset },
@@ -517,6 +545,7 @@ async function fetchNullTimestampSequences(dbPath, options) {
     bbox, // Location filter still applies to null-timestamp media
     source, // Source filter still applies to null-timestamp media
     mediaTypes, // Media-type filter applies to null-timestamp media too
+    hideBlank: detectionSequenceMode, // Detections: only null media with a real obs
     ...quickView // favorite apply to null media too
   })
 

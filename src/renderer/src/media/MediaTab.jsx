@@ -60,16 +60,20 @@ export default function MediaTab({ studyId, path }) {
   // composition. Grouping is deployment-scoped, so the study-wide total is the
   // sum of each deployment's sequence count. undefined while the composition
   // loads so the badge stays hidden rather than flashing 0.
-  const { blankCount, vehicleCount } = useMemo(() => {
-    if (!deploymentDist) return { blankCount: undefined, vehicleCount: undefined }
+  const { blankCount, vehicleCount, detectionCount } = useMemo(() => {
+    if (!deploymentDist) {
+      return { blankCount: undefined, vehicleCount: undefined, detectionCount: undefined }
+    }
     return {
       blankCount: deploymentDist.reduce((s, d) => s + (d.blankCount || 0), 0),
-      vehicleCount: deploymentDist.reduce((s, d) => s + (d.vehicleCount || 0), 0)
+      vehicleCount: deploymentDist.reduce((s, d) => s + (d.vehicleCount || 0), 0),
+      detectionCount: deploymentDist.reduce((s, d) => s + (d.detectionCount || 0), 0)
     }
   }, [deploymentDist])
 
   const quickViewCounts = {
     blank: blankCount,
+    detections: detectionCount,
     vehicle: vehicleCount,
     'no-timestamp': noTimestampCount,
     favorites: favoriteCount

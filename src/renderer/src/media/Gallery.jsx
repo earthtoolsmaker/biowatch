@@ -2102,6 +2102,7 @@ function Gallery({
   mediaTypes = [],
   sort = 'newest',
   favorite = false,
+  hideBlank = false,
   onlyNullTimestamps = false,
   areaFilter = null,
   onLoadedChange,
@@ -2193,6 +2194,7 @@ function Gallery({
         JSON.stringify(mediaTypes),
         sort,
         favorite,
+        hideBlank,
         onlyNullTimestamps,
         JSON.stringify(species),
         dateRange[0]?.toISOString(),
@@ -2215,6 +2217,7 @@ function Gallery({
             deploymentID,
             mediaTypes,
             favorite,
+            hideBlank,
             onlyNullTimestamps,
             bbox: areaFilter
           }

@@ -43,7 +43,7 @@ timestamp), and no clean way to land here pre-filtered from other tabs.
 | View modes | **Table** (default) ⇄ **Grid** toggle, Table on the left |
 | Sorting | In Table, via clickable column headers (Type · Species · When · Deployment) |
 | Filters | Species · Deployment · Media type |
-| Quick views | Blank · No timestamp · Favorites (Vehicle hidden behind a flag) |
+| Quick views | Blank · Detections · No timestamp · Favorites (Vehicle hidden behind a flag) |
 | Multi-species sequence | Show **all species** (comma-separated, common names in Title Case) |
 | Row/tile click | Opens the existing media modal; modal next/prev follows the table's sort/filter order |
 | Cross-tab linking | Media tab is URL-addressable; pre-filters arrive as removable toolbar chips |
@@ -66,8 +66,9 @@ A single slim row:
 
 A dropdown (not a pill row). Each entry has a label, a one-line description, and a
 count. Selecting a quick view is a **fresh preset**: it resets the facet filters
-so the view shows exactly its category. Visible: **Blank**, **No timestamp**,
-**Favorites**. Hidden behind a flag (query-patch + URL deep-link still work):
+so the view shows exactly its category. Visible: **Blank**, **Detections** (the
+inverse of Blank — only sequences with a detection; `hideBlank` filter), **No
+timestamp**, **Favorites**. Hidden behind a flag (query-patch + URL deep-link still work):
 **Vehicle** (and the parked needs-review/reviewed/low-confidence have been removed
 entirely — see "Dropped during iteration").
 
@@ -148,7 +149,7 @@ Params (all optional, composable):
 - `?species=<scientificName>` (comma-list)
 - `?deployment=<deploymentID>` (comma-list)
 - `?mediaType=<image|video>` (comma-list)
-- `?q=<blank|no-timestamp|favorites|vehicle>` (quick view)
+- `?q=<blank|detections|no-timestamp|favorites|vehicle>` (quick view)
 - `?view=<grid|table>` (default `table`) and `?sort=<newest|oldest>`
 
 ### Entry points

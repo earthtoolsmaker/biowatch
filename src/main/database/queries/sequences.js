@@ -144,7 +144,8 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
     source = null,
     mediaTypes = [],
     sort = 'newest',
-    favorite = false
+    favorite = false,
+    hideBlank = false
   } = options
 
   // Timestamped phase ordering: 'newest' (default) walks time descending;
@@ -202,6 +203,14 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
     // to blank MEDIA first would instead regroup just the empty frames and split
     // mixed bursts into extra "blank" sequences (over-counting vs the table).
     const blankSequenceMode = requestingBlanks && !requestingVehicle && regularSpecies.length === 0
+
+    // "Detections" (hide blank) is the mirror of Blank: fetch ALL media tagged
+    // with isDetection and let the pagination layer keep only the sequences that
+    // DO contain a detection. Only meaningful with no explicit species filter.
+    const detectionSequenceMode =
+      hideBlank === true && !requestingBlanks && !requestingVehicle && regularSpecies.length === 0
+    // Both modes need the isDetection flag on every row.
+    const wantDetectionFlag = blankSequenceMode || detectionSequenceMode
 
     // Date range filter (only applies to timestamped phase)
     let startDate, endDate
@@ -440,11 +449,12 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
 
       // Build query based on species filter
       if (species.length === 0 || blankSequenceMode) {
-        // No species filter (or pure-Blank): get all media. Blank mode also
-        // tags each row with isDetection so the caller can keep only the
-        // sequences that contain no detection.
+        // No species filter (or pure-Blank / Detections): get all media. Blank
+        // and Detections modes also tag each row with isDetection so the caller
+        // can keep only the no-detection (Blank) or with-detection (Detections)
+        // sequences.
         timestampedMedia = await db
-          .selectDistinct(blankSequenceMode ? selectFieldsWithDetection : selectFields)
+          .selectDistinct(wantDetectionFlag ? selectFieldsWithDetection : selectFields)
           .from(media)
           .leftJoin(deployments, eq(media.deploymentID, deployments.deploymentID))
           .where(and(...timestampedConditions))
@@ -549,7 +559,15 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
         }
 
         let nullCountResult
-        if (species.length === 0) {
+        if (detectionSequenceMode) {
+          // Detections: a null-timestamp media is its own sequence, kept only
+          // if it has a real observation.
+          nullCountResult = await db
+            .select({ count: sql`COUNT(DISTINCT ${media.mediaID})`.as('count') })
+            .from(media)
+            .leftJoin(deployments, eq(media.deploymentID, deployments.deploymentID))
+            .where(and(...nullConditions, exists(realObservations)))
+        } else if (species.length === 0) {
           nullCountResult = await db
             .select({ count: sql`COUNT(DISTINCT ${media.mediaID})`.as('count') })
             .from(media)
@@ -621,7 +639,18 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
 
       let nullMedia = []
 
-      if (species.length === 0) {
+      if (detectionSequenceMode) {
+        // Detections: null-timestamp media that have a real observation (each
+        // is its own single-item detection sequence).
+        nullMedia = await db
+          .selectDistinct(selectFields)
+          .from(media)
+          .leftJoin(deployments, eq(media.deploymentID, deployments.deploymentID))
+          .where(and(...nullConditions, exists(realObservations)))
+          .orderBy(sql`${media.mediaID} DESC`)
+          .limit(batchSize)
+          .offset(offset)
+      } else if (species.length === 0) {
         nullMedia = await db
           .selectDistinct(selectFields)
           .from(media)
