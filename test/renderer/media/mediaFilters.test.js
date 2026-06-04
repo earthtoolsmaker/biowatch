@@ -13,18 +13,18 @@ describe('mediaFilters round-trip', () => {
     assert.equal(sp.toString(), '')
   })
 
-  test('species + deployment + source round-trip', () => {
+  test('species + deployment + media type round-trip', () => {
     const filters = {
       ...DEFAULT_FILTERS,
       species: ['Panthera pardus', 'Genetta genetta'],
       deployments: ['Cam-A1'],
-      sources: ['ndutu_2024']
+      mediaTypes: ['video']
     }
     const sp = filtersToSearchParams(filters)
     const back = searchParamsToFilters(new URLSearchParams(sp.toString()))
     assert.deepEqual(back.species, ['Panthera pardus', 'Genetta genetta'])
     assert.deepEqual(back.deployments, ['Cam-A1'])
-    assert.deepEqual(back.sources, ['ndutu_2024'])
+    assert.deepEqual(back.mediaTypes, ['video'])
   })
 
   test('date range + sort + view round-trip', () => {

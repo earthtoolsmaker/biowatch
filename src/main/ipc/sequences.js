@@ -12,7 +12,6 @@ import log from '../services/logger.js'
 import { existsSync } from 'fs'
 import { getStudyDatabasePath } from '../services/paths.js'
 import { runInWorker } from '../services/sequences/runInWorker.js'
-import { getSourceDistribution } from '../database/index.js'
 import { VEHICLE_SENTINEL } from '../../shared/constants.js'
 
 /**
@@ -71,27 +70,6 @@ export function registerSequencesIPCHandlers() {
       return { data }
     } catch (error) {
       log.error('Error getting sequence-aware species distribution:', error)
-      return { error: error.message }
-    }
-  })
-
-  /**
-   * Get the distribution of import sources (importFolder) with media counts.
-   * Drives the Source filter in the Media tab. Lightweight indexed groupBy, so
-   * it runs on the main thread rather than the sequences worker.
-   * @param {string} studyId - Study identifier
-   */
-  ipcMain.handle('sequences:get-source-distribution', async (_, studyId) => {
-    try {
-      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
-      if (!dbPath || !existsSync(dbPath)) {
-        log.warn(`Database not found for study ID: ${studyId}`)
-        return { error: 'Database not found for this study' }
-      }
-      const data = await getSourceDistribution(dbPath)
-      return { data }
-    } catch (error) {
-      log.error('Error getting source distribution:', error)
       return { error: error.message }
     }
   })

@@ -5,7 +5,6 @@ import {
   Filter,
   PawPrint,
   MapPin,
-  FolderInput,
   Calendar,
   Clock,
   Film,
@@ -88,18 +87,6 @@ function deriveChips(filters, deploymentNames = {}) {
       clear: (f) => ({
         ...f,
         deployments: f.deployments.filter((x) => x !== d)
-      })
-    })
-  }
-  for (const s of filters.sources) {
-    chips.push({
-      id: `source:${s}`,
-      icon: FolderInput,
-      type: 'Source',
-      label: s,
-      clear: (f) => ({
-        ...f,
-        sources: f.sources.filter((x) => x !== s)
       })
     })
   }
@@ -213,12 +200,12 @@ export default function MediaToolbar({
             key
               ? {
                   // A quick view is a fresh preset: selecting one resets the
-                  // facet filters (species/deployment/source/date/time) so the
-                  // view shows exactly its category. View mode and sort persist.
+                  // facet filters (species/deployment/media-type/date/time) so
+                  // the view shows exactly its category. View mode and sort persist.
                   ...filters,
                   species: [],
                   deployments: [],
-                  sources: [],
+                  mediaTypes: [],
                   dateRange: [null, null],
                   timeRange: { ranges: [] },
                   quickView: key

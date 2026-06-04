@@ -18,10 +18,9 @@ export default function MediaGridView({ filters, speciesReady = true, onSortChan
       dateRange: [fromStr ? new Date(fromStr) : null, toStr ? new Date(toStr) : null],
       timeRange: filters.timeRange,
       sort: filters.sort,
-      // deploymentID/source accept arrays now (server uses IN); pass the full
-      // selections so multi-select filtering works.
+      // deploymentID accepts arrays (server uses IN); pass the full selection
+      // so multi-select filtering works.
       deploymentID: filters.deployments,
-      source: filters.sources,
       mediaTypes: filters.mediaTypes,
       favorite: patch.favorite === true,
       reviewed: patch.reviewed,
@@ -40,7 +39,6 @@ export default function MediaGridView({ filters, speciesReady = true, onSortChan
       timeRange={props.timeRange}
       sort={props.sort}
       deploymentID={props.deploymentID}
-      source={props.source}
       mediaTypes={props.mediaTypes}
       favorite={props.favorite}
       reviewed={props.reviewed}

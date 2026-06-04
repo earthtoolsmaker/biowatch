@@ -43,7 +43,6 @@ export {
 // Media
 export {
   getSourcesData,
-  getSourceDistribution,
   getLowConfidenceCount,
   getMediaBboxes,
   getMediaBboxesBatch,

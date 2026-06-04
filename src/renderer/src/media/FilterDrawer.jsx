@@ -208,17 +208,13 @@ export default function FilterDrawer({ open, studyId, filters, onChange, blankCo
   }
 
   const hasAny =
-    filters.species.length ||
-    filters.deployments.length ||
-    filters.sources.length ||
-    filters.mediaTypes.length
+    filters.species.length || filters.deployments.length || filters.mediaTypes.length
 
   const clearAll = () =>
     onChange({
       ...filters,
       species: [],
       deployments: [],
-      sources: [],
       mediaTypes: [],
       dateRange: [null, null],
       timeRange: { ranges: [] }
