@@ -88,6 +88,7 @@ export default function MediaTab({ studyId, path }) {
         onChange={setFilters}
         quickViewCounts={quickViewCounts}
         deploymentNames={deploymentNames}
+        studyId={actualStudyId}
       />
       <div className="flex-1 min-h-0 flex">
         <div className="flex-1 min-w-0">

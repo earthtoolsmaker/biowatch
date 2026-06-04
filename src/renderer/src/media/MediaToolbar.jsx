@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import {
   LayoutGrid,
   Table2,
@@ -11,13 +12,22 @@ import {
   Image as ImageIcon
 } from 'lucide-react'
 import * as Tooltip from '@radix-ui/react-tooltip'
+import * as HoverCard from '@radix-ui/react-hover-card'
 import ViewModeToggle from '../ui/ViewModeToggle.jsx'
 import QuickViews from './QuickViews.jsx'
+import SpeciesTooltipContent from '../ui/SpeciesTooltipContent.jsx'
+import PseudoSpeciesTooltipContent from '../ui/PseudoSpeciesTooltipContent.jsx'
+import DeploymentHoverMap from './DeploymentHoverMap.jsx'
 import { hasActiveFilters } from './mediaFilters.js'
 import { resolveCommonName } from '../../../shared/commonNames/index.js'
 import { formatScientificName } from '../utils/scientificName'
 import { toTitleCase } from '../utils/textCase'
 import { BLANK_SENTINEL, VEHICLE_SENTINEL } from '../utils/speciesUtils'
+import { getPseudoSpeciesEntry } from '../../../shared/pseudoSpecies.js'
+
+// Hover-card heatmap cell count — must match the FilterDrawer query so the
+// cached activity data is shared.
+const HOVER_PERIOD_COUNT = 40
 
 // Human label for a species chip: pseudo-species sentinels → friendly name,
 // otherwise the common name in Title Case, falling back to the formatted
@@ -71,6 +81,7 @@ function deriveChips(filters, deploymentNames = {}) {
       id: `species:${name}`,
       icon: PawPrint,
       type: 'Species',
+      value: name,
       label: speciesChipLabel(name),
       clear: (f) => ({
         ...f,
@@ -83,6 +94,7 @@ function deriveChips(filters, deploymentNames = {}) {
       id: `deployment:${d}`,
       icon: MapPin,
       type: 'Deployment',
+      value: d,
       label: deploymentNames[d] || d,
       clear: (f) => ({
         ...f,
@@ -174,12 +186,118 @@ export default function MediaToolbar({
   onChange,
   sequenceCount,
   quickViewCounts,
-  deploymentNames
+  deploymentNames,
+  studyId
 }) {
   const chips = useMemo(() => deriveChips(filters, deploymentNames), [filters, deploymentNames])
   // The Filter button reflects the drawer facets (species/deployment/etc.), not
   // the quick view (which has its own button).
   const filterActive = hasActiveFilters({ ...filters, quickView: null })
+
+  // Same hover-card content as the filter pane, reused on the active chips.
+  // The queries share react-query keys with the drawer, so when the drawer has
+  // already loaded them this is a cache hit; gated on having a matching chip.
+  const hasDeploymentChips = chips.some((c) => c.type === 'Deployment')
+  const hasSpeciesChips = chips.some((c) => c.type === 'Species' && !getPseudoSpeciesEntry(c.value))
+
+  const { data: deploymentDist } = useQuery({
+    queryKey: ['mediaFilterDeploymentDistribution', studyId],
+    queryFn: async () => {
+      const res = await window.api.getDeploymentDistribution(studyId)
+      if (res?.error) throw new Error(res.error)
+      return res?.data ?? res
+    },
+    enabled: !!studyId && hasDeploymentChips,
+    staleTime: 60000
+  })
+  const { data: activity } = useQuery({
+    queryKey: ['mediaFilterDeploymentActivity', studyId, HOVER_PERIOD_COUNT],
+    queryFn: async () => {
+      const res = await window.api.getDeploymentsActivity(studyId, HOVER_PERIOD_COUNT)
+      if (res?.error) throw new Error(res.error)
+      return res?.data ?? res
+    },
+    enabled: !!studyId && hasDeploymentChips,
+    staleTime: 60000
+  })
+  const { data: bestImages } = useQuery({
+    queryKey: ['bestImagesPerSpecies', studyId],
+    queryFn: async () => {
+      const res = await window.api.getBestImagePerSpecies(studyId)
+      if (res?.error) throw new Error(res.error)
+      return res?.data ?? res
+    },
+    enabled: !!studyId && hasSpeciesChips,
+    staleTime: 60000
+  })
+
+  const deploymentItems = useMemo(
+    () =>
+      (deploymentDist ?? []).map((d) => ({
+        value: d.deploymentID,
+        label: d.locationName || d.deploymentID,
+        lat: d.latitude,
+        lon: d.longitude,
+        detectionCount: d.detectionCount,
+        blankCount: d.blankCount,
+        imageCount: d.imageCount,
+        videoCount: d.videoCount
+      })),
+    [deploymentDist]
+  )
+  const deploymentById = useMemo(() => {
+    const m = {}
+    for (const it of deploymentItems) m[it.value] = it
+    return m
+  }, [deploymentItems])
+  const periodsByDeployment = useMemo(() => {
+    const m = {}
+    for (const d of activity?.deployments ?? []) m[d.deploymentID] = d.periods
+    return m
+  }, [activity])
+  const speciesImageMap = useMemo(() => {
+    const m = {}
+    for (const it of bestImages ?? []) m[it.scientificName] = it
+    return m
+  }, [bestImages])
+
+  // The rich hover card for a chip, or null for facets without one (media
+  // type / date / time keep their plain title tooltip).
+  const chipHoverCard = (chip) => {
+    if (chip.type === 'Species') {
+      const pseudo = getPseudoSpeciesEntry(chip.value)
+      return pseudo ? (
+        <PseudoSpeciesTooltipContent entry={pseudo} />
+      ) : (
+        <SpeciesTooltipContent
+          imageData={speciesImageMap[chip.value] || { scientificName: chip.value }}
+          studyId={studyId}
+        />
+      )
+    }
+    if (chip.type === 'Deployment') {
+      const dep = deploymentById[chip.value]
+      if (!dep) return null
+      return (
+        <DeploymentHoverMap
+          lat={dep.lat}
+          lon={dep.lon}
+          label={dep.label}
+          currentId={chip.value}
+          others={deploymentItems}
+          detectionCount={dep.detectionCount}
+          blankCount={dep.blankCount}
+          imageCount={dep.imageCount}
+          videoCount={dep.videoCount}
+          periods={periodsByDeployment[chip.value]}
+          percentile90Count={activity?.percentile90Count}
+          surveyStart={activity?.startDate}
+          surveyEnd={activity?.endDate}
+        />
+      )
+    }
+    return null
+  }
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
@@ -217,23 +335,41 @@ export default function MediaToolbar({
 
       {chips.map((chip) => {
         const Icon = chip.icon
-        return (
+        const hovercard = chipHoverCard(chip)
+        const pill = (
           <span
             key={chip.id}
-            title={`${chip.type}: ${chip.label}`}
-            className="inline-flex items-center gap-1.5 h-7 pl-2 pr-2.5 rounded-full text-[12.5px] font-medium bg-blue-50 text-blue-700 border border-blue-100 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-500/30"
+            title={hovercard ? undefined : `${chip.type}: ${chip.label}`}
+            className="inline-flex items-center gap-1.5 h-7 pl-2 pr-2.5 rounded-full text-[12.5px] font-medium bg-blue-50 text-blue-700 border border-blue-100 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-500/30 cursor-default select-none"
           >
             {Icon && <Icon className="w-3.5 h-3.5 opacity-60" />}
             {chip.label}
             <button
               type="button"
               aria-label={`Remove ${chip.type} filter ${chip.label}`}
-              className="opacity-60 hover:opacity-100 leading-none"
+              className="cursor-pointer opacity-60 hover:opacity-100 leading-none"
               onClick={() => onChange(chip.clear(filters))}
             >
               ✕
             </button>
           </span>
+        )
+        if (!hovercard) return pill
+        return (
+          <HoverCard.Root key={chip.id} openDelay={400} closeDelay={120}>
+            <HoverCard.Trigger asChild>{pill}</HoverCard.Trigger>
+            <HoverCard.Portal>
+              <HoverCard.Content
+                side="bottom"
+                align="start"
+                sideOffset={8}
+                collisionPadding={12}
+                className="species-hovercard z-[10002]"
+              >
+                {hovercard}
+              </HoverCard.Content>
+            </HoverCard.Portal>
+          </HoverCard.Root>
         )
       })}
 
