@@ -145,10 +145,11 @@ function Section({ title, count = 0, action = null, children }) {
   )
 }
 
-// Multi-select distribution list styled like the species panel: each row shows
-// a label, its total count on the right, and a stacked composition bar
-// underneath (detections in blue, blanks in grey). `selected` is an array of
-// values; clicking a row toggles it (0..N).
+// Multi-select distribution list styled exactly like the species panel: each
+// row shows a label, its total count on the right, and a single bar whose width
+// is the row's share of the total (NOT normalized against the max, so the top
+// row doesn't fill the bar). The detection/blank composition lives in the
+// hovercard. `selected` is an array of values; clicking a row toggles it (0..N).
 function DistributionList({ items, selected, onToggle, emptyLabel, hoverContent }) {
   // Controlled hover card so we can force it shut on scroll — otherwise the card
   // "rides along" with its row as the list scrolls under the cursor. A capture-
@@ -165,7 +166,9 @@ function DistributionList({ items, selected, onToggle, emptyLabel, hoverContent 
   if (!items.length) {
     return <div className="text-[13px] text-muted-foreground">{emptyLabel}</div>
   }
-  const maxCount = items.reduce((m, it) => Math.max(m, it.count || 0), 0)
+  // Sum of all counts — the bar denominator, so each bar is the row's share of
+  // the total (matches SpeciesRow's count / totalCount normalization).
+  const total = items.reduce((sum, it) => sum + (it.count || 0), 0)
   return (
     // -mx-4 cancels the Section's px-4 so the list spans the full pane width;
     // each row's -mx-3 px-3 then bleeds its hover/selected background to the
@@ -173,14 +176,7 @@ function DistributionList({ items, selected, onToggle, emptyLabel, hoverContent 
     <div className="flex flex-col max-h-56 overflow-y-auto px-3 -mx-4">
       {items.map((it) => {
         const active = selected.includes(it.value)
-        // Normalize each segment against the largest deployment total so bars
-        // stay comparable across rows (like the species bars).
-        const detPct = maxCount > 0 ? ((it.detectionCount || 0) / maxCount) * 100 : 0
-        const blankPct = maxCount > 0 ? ((it.blankCount || 0) / maxCount) * 100 : 0
-        // Blue is reserved for the selection accent: the detection segment only
-        // goes blue when the row is selected, otherwise slate. Blanks stay a
-        // lighter grey throughout, so the composition split reads in both states.
-        const detColor = active ? '#2563eb' : '#64748b'
+        const pct = total > 0 ? ((it.count || 0) / total) * 100 : 0
         const row = (
           <div
             onClick={() => onToggle(it.value)}
@@ -203,9 +199,11 @@ function DistributionList({ items, selected, onToggle, emptyLabel, hoverContent 
               </span>
               <span className="text-xs text-muted-foreground flex-shrink-0">{it.count}</span>
             </div>
-            <div className="w-full bg-muted rounded-full h-2 overflow-hidden flex">
-              <div className="h-2" style={{ width: `${detPct}%`, backgroundColor: detColor }} />
-              <div className="h-2" style={{ width: `${blankPct}%`, backgroundColor: '#cbd5e1' }} />
+            <div className="w-full bg-muted rounded-full h-2">
+              <div
+                className="h-2 rounded-full"
+                style={{ width: `${pct}%`, backgroundColor: active ? '#2563eb' : '#ccc' }}
+              />
             </div>
           </div>
         )
