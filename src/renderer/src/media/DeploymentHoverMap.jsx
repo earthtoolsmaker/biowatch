@@ -57,7 +57,7 @@ export default function DeploymentHoverMap({
           className="h-[180px] w-full"
           dragging={false}
           zoomControl={false}
-          scrollWheelZoom={false}
+          scrollWheelZoom={true}
           doubleClickZoom={false}
           touchZoom={false}
           boxZoom={false}
