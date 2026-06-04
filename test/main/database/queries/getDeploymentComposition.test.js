@@ -11,7 +11,10 @@ import {
   insertMedia,
   insertObservations
 } from '../../../../src/main/database/index.js'
-import { getDeploymentComposition } from '../../../../src/main/services/sequences/deploymentComposition.js'
+import {
+  getDeploymentComposition,
+  getDeploymentSequenceStats
+} from '../../../../src/main/services/sequences/deploymentComposition.js'
 
 let testBiowatchDataPath, testDbPath, testStudyId
 
@@ -334,5 +337,60 @@ describe('getDeploymentComposition', () => {
       imageCount: 1,
       videoCount: 0
     })
+  })
+})
+
+describe('getDeploymentSequenceStats', () => {
+  const seedTwoDeployments = async () => {
+    const manager = await createImageDirectoryDatabase(testDbPath)
+    const dep = (id) => ({
+      deploymentID: id,
+      locationID: `loc-${id}`,
+      locationName: id,
+      deploymentStart: DateTime.fromISO('2024-01-01T00:00:00Z'),
+      deploymentEnd: DateTime.fromISO('2024-12-31T23:59:59Z'),
+      latitude: 1,
+      longitude: 1,
+      cameraID: `cam-${id}`
+    })
+    await insertDeployments(manager, { d1: dep('d1'), d2: dep('d2') })
+    const m = (id, dep, iso) => ({
+      mediaID: id,
+      deploymentID: dep,
+      timestamp: DateTime.fromISO(iso),
+      filePath: `/${id}.jpg`,
+      fileName: `${id}.jpg`
+    })
+    await insertMedia(manager, {
+      // d1: a mixed burst (animal + 3 empty frames) → 1 detection, 0 blank
+      'a1.jpg': m('a1', 'd1', '2024-06-01T10:00:00Z'),
+      'e1.jpg': m('e1', 'd1', '2024-06-01T10:00:01Z'),
+      'e2.jpg': m('e2', 'd1', '2024-06-01T10:00:02Z'),
+      'e3.jpg': m('e3', 'd1', '2024-06-01T10:00:03Z'),
+      // d2: a separate empty burst → 1 blank sequence
+      'b1.jpg': m('b1', 'd2', '2024-06-01T10:00:00Z'),
+      'b2.jpg': m('b2', 'd2', '2024-06-01T10:00:01Z')
+    })
+    await insertObservations(manager, [
+      {
+        observationID: 'o1',
+        mediaID: 'a1',
+        deploymentID: 'd1',
+        scientificName: 'Capreolus capreolus',
+        observationType: 'animal'
+      }
+    ])
+  }
+
+  test('scoped to one deployment: mixed burst → 1 detection, 0 blank', async () => {
+    await seedTwoDeployments()
+    const stats = await getDeploymentSequenceStats(testDbPath, 'd1', 60)
+    assert.deepEqual(stats, { count: 1, detectionCount: 1, blankCount: 0, vehicleCount: 0 })
+  })
+
+  test('scoped to one deployment: empty burst → 1 blank, 0 detection', async () => {
+    await seedTwoDeployments()
+    const stats = await getDeploymentSequenceStats(testDbPath, 'd2', 60)
+    assert.deepEqual(stats, { count: 1, detectionCount: 0, blankCount: 1, vehicleCount: 0 })
   })
 })

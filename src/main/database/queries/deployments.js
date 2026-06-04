@@ -93,7 +93,7 @@ export async function getDeploymentLocations(dbPath) {
  * (timestamp/eventID/deploymentID) plus fileMediatype/fileName.
  * @param {string} dbPath - Path to the SQLite database
  */
-export async function getMediaForDeploymentComposition(dbPath) {
+export async function getMediaForDeploymentComposition(dbPath, deploymentID = null) {
   const studyId = getStudyIdFromPath(dbPath)
   const db = await getDrizzleDb(studyId, dbPath, { readonly: true })
   // Match the table's grouping input exactly: eventID is picked from one of the
@@ -141,6 +141,9 @@ export async function getMediaForDeploymentComposition(dbPath) {
         isVehicle: sql`(CASE WHEN ${exists(vehicleObservation)} THEN 1 ELSE 0 END)`.as('isVehicle')
       })
       .from(media)
+      // Optional single-deployment scope (used by the Deployments tab's
+      // per-deployment sequence stats); omit for the whole-study composition.
+      .where(deploymentID ? eq(media.deploymentID, deploymentID) : undefined)
       // Ordered by timestamp so the downstream sequence grouping clusters
       // correctly — groupMediaIntoSequences walks media in order, exactly like
       // getMediaForSequencePagination feeds it. Unsorted input barely groups.

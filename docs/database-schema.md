@@ -247,8 +247,11 @@ Blank-filter rows, and the unfiltered table all agree):
   to blank _media_ first would regroup the empty frames out of mixed bursts
   and over-count blanks.)
 
-The deployment-settings popover still reports a media-level `blankCount` via
-`getBlankMediaCountForDeployment`.
+The Deployments-tab detail pane is sequence-aware too: its species-popover
+Blank pill, the settings popover's blank rate (blank ÷ total sequences), and
+the gallery's Blank filter all use `getDeploymentSequenceStats` (unified
+per-deployment grouping), so they match the Media tab. (`getBlankMediaCountForDeployment`
+remains a media-level count used only inside `getSpeciesForDeployment`.)
 
 Both sentinels appear in the Library and Deployments species filters and
 flow through `getMediaForSequencePagination` as filterable buckets. The

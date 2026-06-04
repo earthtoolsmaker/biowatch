@@ -26,6 +26,54 @@ function isVideoMedia(m) {
   return !!m.fileMediatype && m.fileMediatype.startsWith('video/')
 }
 
+async function resolveGapSeconds(dbPath, gapSecondsOverride) {
+  if (gapSecondsOverride !== undefined) return gapSecondsOverride
+  const studyId = getStudyIdFromPath(dbPath)
+  const db = await getDrizzleDb(studyId, dbPath, { readonly: true })
+  const meta = await getMetadata(db)
+  return meta?.sequenceGap ?? null
+}
+
+// Classify one deployment's media into unified sequences and count detection /
+// blank / vehicle SEQUENCES (a whole sequence with no detection is blank). Same
+// logic as getDeploymentComposition, scoped to a single deployment.
+function classifyDeployment(mediaArray, gapSeconds) {
+  const { sequences, nullTimestampMedia } =
+    gapSeconds === null
+      ? groupMediaByEventID(mediaArray)
+      : groupMediaIntoSequences(mediaArray, gapSeconds, isVideoMedia)
+  const seqs = [...sequences.map((s) => s.items), ...nullTimestampMedia.map((m) => [m])]
+  const t = { count: 0, detectionCount: 0, blankCount: 0, vehicleCount: 0 }
+  for (const items of seqs) {
+    if (!items.length) continue
+    t.count++
+    if (items.some((m) => m.isDetection)) t.detectionCount++
+    else t.blankCount++
+    if (items.some((m) => m.isVehicle)) t.vehicleCount++
+  }
+  return t
+}
+
+/**
+ * Sequence-aware stats for ONE deployment — the unit the Media tab (and this
+ * deployment's gallery) shows. Used by the Deployments-tab detail pane so its
+ * Blank count matches what the Blank filter actually returns.
+ * @param {string} dbPath
+ * @param {string} deploymentID
+ * @param {number|null} [gapSecondsOverride] - mainly for tests
+ * @returns {Promise<{count, detectionCount, blankCount, vehicleCount}>}
+ */
+export async function getDeploymentSequenceStats(dbPath, deploymentID, gapSecondsOverride) {
+  const gapSeconds = await resolveGapSeconds(dbPath, gapSecondsOverride)
+  const mediaRows = await getMediaForDeploymentComposition(dbPath, deploymentID)
+  const mediaArray = mediaRows.map((r) => ({
+    ...r,
+    isDetection: !!Number(r.isDetection),
+    isVehicle: !!Number(r.isVehicle)
+  }))
+  return classifyDeployment(mediaArray, gapSeconds)
+}
+
 /**
  * @param {string} dbPath - Path to the SQLite database
  * @param {number|null} [gapSecondsOverride] - Sequence gap to group by; when

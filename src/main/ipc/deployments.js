@@ -15,11 +15,14 @@ import {
   getAllDeployments,
   getSpeciesForDeployment,
   getMediaCountForDeployment,
-  getObservationCountForDeployment,
-  getBlankMediaCountForDeployment
+  getObservationCountForDeployment
 } from '../database/index.js'
 import { runInWorker } from '../services/sequences/runInWorker.js'
-import { getDeploymentComposition } from '../services/sequences/deploymentComposition.js'
+import {
+  getDeploymentComposition,
+  getDeploymentSequenceStats
+} from '../services/sequences/deploymentComposition.js'
+import { BLANK_SENTINEL, VEHICLE_SENTINEL } from '../../shared/constants.js'
 
 /**
  * Register all deployments-related IPC handlers
@@ -92,7 +95,21 @@ export function registerDeploymentsIPCHandlers() {
         return { error: 'Database not found for this study' }
       }
 
-      const result = await getSpeciesForDeployment(dbPath, deploymentID)
+      const [species, seqStats] = await Promise.all([
+        getSpeciesForDeployment(dbPath, deploymentID),
+        getDeploymentSequenceStats(dbPath, deploymentID)
+      ])
+      // The Blank/Vehicle pills are sequence-aware (a whole no-detection
+      // sequence is "Blank"), matching the Media tab and this deployment's
+      // gallery Blank filter — not the raw blank-MEDIA count. Real-species
+      // counts stay media-level. Drop a pseudo-species with zero sequences.
+      const result = species
+        .map((s) => {
+          if (s.scientificName === BLANK_SENTINEL) return { ...s, count: seqStats.blankCount }
+          if (s.scientificName === VEHICLE_SENTINEL) return { ...s, count: seqStats.vehicleCount }
+          return s
+        })
+        .filter((s) => s.count > 0)
       return { data: result }
     } catch (error) {
       log.error('Error getting species for deployment:', error)
@@ -101,8 +118,9 @@ export function registerDeploymentsIPCHandlers() {
   })
 
   // At-a-glance stats for a single deployment — used by the deployment
-  // settings popover. blankCount is media-level (matches the BLANK_SENTINEL
-  // count shown in the species-filter popover).
+  // settings popover. blankCount/sequenceCount are sequence-aware (a blank
+  // sequence = a whole sequence with no detection), matching the Media tab and
+  // the species-filter popover's BLANK_SENTINEL pill. mediaCount is raw media.
   ipcMain.handle('deployments:get-stats', async (_, studyId, deploymentID) => {
     try {
       const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
@@ -111,13 +129,20 @@ export function registerDeploymentsIPCHandlers() {
         return { error: 'Database not found for this study' }
       }
 
-      const [mediaCount, observationCount, blankCount] = await Promise.all([
+      const [mediaCount, observationCount, seqStats] = await Promise.all([
         getMediaCountForDeployment(dbPath, deploymentID),
         getObservationCountForDeployment(dbPath, deploymentID),
-        getBlankMediaCountForDeployment(dbPath, deploymentID)
+        getDeploymentSequenceStats(dbPath, deploymentID)
       ])
 
-      return { data: { mediaCount, observationCount, blankCount } }
+      return {
+        data: {
+          mediaCount,
+          observationCount,
+          blankCount: seqStats.blankCount,
+          sequenceCount: seqStats.count
+        }
+      }
     } catch (error) {
       log.error('Error getting deployment stats:', error)
       return { error: error.message }
