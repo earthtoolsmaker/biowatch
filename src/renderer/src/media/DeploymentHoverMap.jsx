@@ -1,6 +1,6 @@
 import 'leaflet/dist/leaflet.css'
 import { MapContainer, TileLayer, CircleMarker } from 'react-leaflet'
-import { Film, Image as ImageIcon } from 'lucide-react'
+import { Film, Image as ImageIcon, MapPinOff } from 'lucide-react'
 import Sparkline from '../deployments/Sparkline'
 
 // Compact survey-window date label (e.g. "Mar 2024") for the heatmap axis ends.
@@ -95,8 +95,25 @@ export default function DeploymentHoverMap({
           />
         </MapContainer>
       ) : (
-        <div className="h-[180px] w-full flex items-center justify-center bg-muted text-xs text-muted-foreground">
-          No location coordinates
+        // No coordinates yet: stand in for the map with a faint map-grid panel
+        // so the layout reads as "this is where the location preview goes",
+        // plus a clear "not set" cue and where to fix it.
+        <div className="relative h-[180px] w-full overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900">
+          <div
+            className="absolute inset-0 opacity-40 dark:opacity-20"
+            style={{
+              backgroundImage:
+                'linear-gradient(#94a3b8 1px, transparent 1px), linear-gradient(90deg, #94a3b8 1px, transparent 1px)',
+              backgroundSize: '22px 22px'
+            }}
+          />
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-5 text-center">
+            <MapPinOff className="h-6 w-6 text-muted-foreground" strokeWidth={1.5} />
+            <span className="text-xs font-medium text-foreground">No location set</span>
+            <span className="text-[11px] leading-snug text-muted-foreground">
+              Add coordinates in the Deployments tab to place this camera on the map.
+            </span>
+          </div>
         </div>
       )}
       <div className="px-3 py-2">

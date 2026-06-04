@@ -133,6 +133,32 @@ function DistributionList({ items, selected, onToggle, emptyLabel, hoverContent 
   )
 }
 
+// Pulsing placeholder rows shown while a distribution (species/deployment) is
+// still loading — mirrors a DistRow's shape (dot + label + count, then the
+// composition bar) so the pane doesn't flash a misleading "No deployments" /
+// empty state during the (sometimes multi-second) sequence-aware computation.
+function DistributionSkeleton({ rows = 6 }) {
+  return (
+    <div className="px-3 -mx-1" aria-hidden>
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="py-2 first:pt-3 animate-pulse">
+          <div className="mb-1.5 flex items-center justify-between gap-2">
+            <span className="flex min-w-0 flex-1 items-center">
+              <span className="mr-2 h-2 w-2 flex-shrink-0 rounded-full bg-muted" />
+              <span
+                className="h-3 rounded bg-muted"
+                style={{ width: `${45 + ((i * 17) % 40)}%` }}
+              />
+            </span>
+            <span className="h-3 w-5 flex-shrink-0 rounded bg-muted" />
+          </div>
+          <div className="h-2 w-full rounded-full bg-muted" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // Toggle a value in/out of an array filter field.
 function toggleInArray(arr, value) {
   return arr.includes(value) ? arr.filter((x) => x !== value) : [...arr, value]
@@ -265,37 +291,43 @@ export default function FilterDrawer({ open, studyId, filters, onChange, blankCo
                   bordered={false}
                 />
               </div>
+            ) : speciesQuery.isError ? (
+              <div className="text-[13px] text-muted-foreground">Couldn’t load species.</div>
             ) : (
-              <div className="text-[13px] text-muted-foreground">Loading species…</div>
+              <DistributionSkeleton />
             )}
           </Section>
 
           <Section title="Deployment" count={filters.deployments.length}>
-            <DistributionList
-              items={deploymentItems}
-              selected={filters.deployments}
-              onToggle={(value) =>
-                onChange({ ...filters, deployments: toggleInArray(filters.deployments, value) })
-              }
-              emptyLabel="No deployments"
-              hoverContent={(it) => (
-                <DeploymentHoverMap
-                  lat={it.lat}
-                  lon={it.lon}
-                  label={it.label}
-                  currentId={it.value}
-                  others={deploymentItems}
-                  detectionCount={it.detectionCount}
-                  blankCount={it.blankCount}
-                  imageCount={it.imageCount}
-                  videoCount={it.videoCount}
-                  periods={periodsByDeployment[it.value]}
-                  percentile90Count={activity?.percentile90Count}
-                  surveyStart={activity?.startDate}
-                  surveyEnd={activity?.endDate}
-                />
-              )}
-            />
+            {!deploymentsQuery.data && !deploymentsQuery.isError ? (
+              <DistributionSkeleton />
+            ) : (
+              <DistributionList
+                items={deploymentItems}
+                selected={filters.deployments}
+                onToggle={(value) =>
+                  onChange({ ...filters, deployments: toggleInArray(filters.deployments, value) })
+                }
+                emptyLabel="No deployments"
+                hoverContent={(it) => (
+                  <DeploymentHoverMap
+                    lat={it.lat}
+                    lon={it.lon}
+                    label={it.label}
+                    currentId={it.value}
+                    others={deploymentItems}
+                    detectionCount={it.detectionCount}
+                    blankCount={it.blankCount}
+                    imageCount={it.imageCount}
+                    videoCount={it.videoCount}
+                    periods={periodsByDeployment[it.value]}
+                    percentile90Count={activity?.percentile90Count}
+                    surveyStart={activity?.startDate}
+                    surveyEnd={activity?.endDate}
+                  />
+                )}
+              />
+            )}
           </Section>
 
           <Section title="Media type" count={filters.mediaTypes.length}>
