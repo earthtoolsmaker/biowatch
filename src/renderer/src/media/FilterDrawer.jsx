@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import * as HoverCard from '@radix-ui/react-hover-card'
+import * as Tooltip from '@radix-ui/react-tooltip'
 import { Film, Image as ImageIcon, Search } from 'lucide-react'
 import SpeciesDistribution from '../ui/speciesDistribution.jsx'
 import DeploymentHoverMap from './DeploymentHoverMap.jsx'
@@ -43,19 +44,36 @@ function ListSearch({ value, onChange, placeholder }) {
 }
 
 // Subtle magnifying-glass toggle shown on a section header row; reveals the
-// section's search field when clicked. Highlights blue while open.
-function SearchToggle({ open, onClick }) {
+// section's search field when clicked. Highlights blue while open. Carries a
+// title+description tooltip in the same style as the Table/Grid toggle.
+function SearchToggle({ open, onClick, noun }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label="Search"
-      className={`flex-shrink-0 rounded p-0.5 ${
-        open ? 'text-blue-700 dark:text-blue-300' : 'text-muted-foreground hover:text-foreground'
-      }`}
-    >
-      <Search className="h-3.5 w-3.5" />
-    </button>
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <button
+          type="button"
+          onClick={onClick}
+          aria-label={open ? 'Close search' : `Search ${noun}`}
+          className={`flex-shrink-0 rounded p-0.5 ${
+            open
+              ? 'text-blue-700 dark:text-blue-300'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Search className="h-3.5 w-3.5" />
+        </button>
+      </Tooltip.Trigger>
+      <Tooltip.Portal>
+        <Tooltip.Content
+          side="bottom"
+          sideOffset={8}
+          className="z-[10000] max-w-[16rem] px-3 py-2 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md"
+        >
+          <div className="font-medium mb-1">Search</div>
+          <p className="text-muted-foreground leading-snug">Type to find a {noun} by name.</p>
+        </Tooltip.Content>
+      </Tooltip.Portal>
+    </Tooltip.Root>
   )
 }
 
@@ -342,7 +360,11 @@ export default function FilterDrawer({ open, studyId, filters, onChange, blankCo
             count={filters.species.length}
             action={
               showSpeciesSearch ? (
-                <SearchToggle open={speciesSearchOpen} onClick={toggleSpeciesSearch} />
+                <SearchToggle
+                  open={speciesSearchOpen}
+                  onClick={toggleSpeciesSearch}
+                  noun="species"
+                />
               ) : null
             }
           >
@@ -383,7 +405,11 @@ export default function FilterDrawer({ open, studyId, filters, onChange, blankCo
             count={filters.deployments.length}
             action={
               showDeploymentSearch ? (
-                <SearchToggle open={deploymentSearchOpen} onClick={toggleDeploymentSearch} />
+                <SearchToggle
+                  open={deploymentSearchOpen}
+                  onClick={toggleDeploymentSearch}
+                  noun="deployment"
+                />
               ) : null
             }
           >
