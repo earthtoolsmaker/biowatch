@@ -4,7 +4,19 @@
 
 import { getDrizzleDb } from '../manager.js'
 import { deployments, media, observations } from '../models.js'
-import { and, count, countDistinct, desc, eq, isNotNull, ne, notExists, or, sql } from 'drizzle-orm'
+import {
+  and,
+  count,
+  countDistinct,
+  desc,
+  eq,
+  exists,
+  isNotNull,
+  ne,
+  notExists,
+  or,
+  sql
+} from 'drizzle-orm'
 import log from '../../services/logger.js'
 import { getStudyIdFromPath } from './utils.js'
 import { BLANK_SENTINEL, VEHICLE_SENTINEL } from '../../../shared/constants.js'
@@ -73,67 +85,73 @@ export async function getDeploymentLocations(dbPath) {
 }
 
 /**
- * Per-deployment media composition for the Media tab's deployment filter — the
- * deployment analogue of the species distribution, but split into detections vs
- * blanks so the bar/hover card can show what a deployment actually captured.
- *
- * Counts are at the MEDIA level, matching the app's canonical "blank" notion
- * (see getBlankMediaCountForDeployment): a media is a detection if it has any
- * real observation (a named species or a vehicle), otherwise it's blank. So
- * `count` (total media) = `detectionCount` + `blankCount`.
- *
- * LEFT JOINs keep deployments with zero media in the list.
+ * Lightweight per-media projection for the Media tab's deployment composition.
+ * One row per media, with `isDetection` (1/0) flagging whether it carries a real
+ * observation (a named species or a vehicle). The sequence grouping + blank/
+ * detection tally happens in the deploymentComposition service so it matches the
+ * table's sequence units exactly. Includes the fields the grouping needs
+ * (timestamp/eventID/deploymentID) plus fileMediatype/fileName.
  * @param {string} dbPath - Path to the SQLite database
- * @returns {Promise<Array<{deploymentID: string, locationName: string, count: number, detectionCount: number, blankCount: number}>>}
  */
-export async function getDeploymentDistribution(dbPath) {
+export async function getMediaForDeploymentComposition(dbPath) {
   const studyId = getStudyIdFromPath(dbPath)
-  const db = await getDrizzleDb(studyId, dbPath)
-  // A media counts as a detection when at least one of its observations names a
-  // species or is a vehicle. COUNT(DISTINCT CASE …) collapses the media×
-  // observation fan-out back to one tally per media.
-  const isRealObservation = sql`(
-    (${observations.scientificName} IS NOT NULL AND ${observations.scientificName} != '')
-    OR ${observations.observationType} = 'vehicle'
-  )`
-  const totalMedia = countDistinct(media.mediaID)
-  const detectionMedia = sql`COUNT(DISTINCT CASE WHEN ${isRealObservation} THEN ${media.mediaID} END)`
-  // Per media-type tallies for the hover card breakdown.
-  const imageMedia = sql`COUNT(DISTINCT CASE WHEN ${media.fileMediatype} LIKE 'image/%' THEN ${media.mediaID} END)`
-  const videoMedia = sql`COUNT(DISTINCT CASE WHEN ${media.fileMediatype} LIKE 'video/%' THEN ${media.mediaID} END)`
-  const rows = await db
+  const db = await getDrizzleDb(studyId, dbPath, { readonly: true })
+  // Match the table's grouping input exactly: eventID is picked from one of the
+  // media's observations (NULL for blanks, which therefore only ever group by
+  // timestamp), not from the unused media.eventID column.
+  const eventIDPicker = db
+    .select({ value: observations.eventID })
+    .from(observations)
+    .where(eq(observations.mediaID, media.mediaID))
+    .orderBy(observations.observationID)
+    .limit(1)
+  // Correlated "has a real observation" subquery, built with the query builder
+  // so the o.mediaID = media.mediaID correlation is emitted correctly (a raw
+  // string interpolation drops the table qualifier and matches every media).
+  const realObservation = db
+    .select({ one: sql`1` })
+    .from(observations)
+    .where(
+      and(
+        eq(observations.mediaID, media.mediaID),
+        or(
+          and(isNotNull(observations.scientificName), ne(observations.scientificName, '')),
+          eq(observations.observationType, 'vehicle')
+        )
+      )
+    )
+  return db
+    .select({
+      mediaID: media.mediaID,
+      deploymentID: media.deploymentID,
+      timestamp: media.timestamp,
+      eventID: sql`(${eventIDPicker})`.as('eventID'),
+      fileMediatype: media.fileMediatype,
+      fileName: media.fileName,
+      isDetection: sql`(CASE WHEN ${exists(realObservation)} THEN 1 ELSE 0 END)`.as('isDetection')
+    })
+    .from(media)
+    .all()
+}
+
+/**
+ * Deployment id + display name + coordinates, for joining onto the aggregated
+ * per-deployment counts. Includes deployments with zero media.
+ * @param {string} dbPath - Path to the SQLite database
+ */
+export async function getDeploymentsBasic(dbPath) {
+  const studyId = getStudyIdFromPath(dbPath)
+  const db = await getDrizzleDb(studyId, dbPath, { readonly: true })
+  return db
     .select({
       deploymentID: deployments.deploymentID,
       locationName: deployments.locationName,
       locationID: deployments.locationID,
       latitude: deployments.latitude,
-      longitude: deployments.longitude,
-      total: totalMedia,
-      detections: detectionMedia,
-      images: imageMedia,
-      videos: videoMedia
+      longitude: deployments.longitude
     })
     .from(deployments)
-    .leftJoin(media, eq(media.deploymentID, deployments.deploymentID))
-    .leftJoin(observations, eq(observations.mediaID, media.mediaID))
-    .groupBy(deployments.deploymentID)
-    .orderBy(desc(totalMedia), deployments.locationID)
     .all()
-  return rows.map((r) => {
-    const total = Number(r.total)
-    const detectionCount = Number(r.detections)
-    return {
-      deploymentID: r.deploymentID,
-      locationName: r.locationName || r.locationID || r.deploymentID,
-      latitude: r.latitude,
-      longitude: r.longitude,
-      count: total,
-      detectionCount,
-      blankCount: total - detectionCount,
-      imageCount: Number(r.images),
-      videoCount: Number(r.videos)
-    }
-  })
 }
 
 /**

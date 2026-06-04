@@ -14,7 +14,8 @@ export {
 // Deployments
 export {
   getDeploymentLocations,
-  getDeploymentDistribution,
+  getMediaForDeploymentComposition,
+  getDeploymentsBasic,
   getAllDeployments,
   getLocationsActivity,
   insertDeployments,

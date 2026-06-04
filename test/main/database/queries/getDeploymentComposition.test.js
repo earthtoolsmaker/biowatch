@@ -6,12 +6,12 @@ import { tmpdir } from 'os'
 import { DateTime } from 'luxon'
 
 import {
-  getDeploymentDistribution,
   createImageDirectoryDatabase,
   insertDeployments,
   insertMedia,
   insertObservations
 } from '../../../../src/main/database/index.js'
+import { getDeploymentComposition } from '../../../../src/main/services/sequences/deploymentComposition.js'
 
 let testBiowatchDataPath, testDbPath, testStudyId
 
@@ -27,8 +27,8 @@ afterEach(() => {
     rmSync(testBiowatchDataPath, { recursive: true, force: true })
 })
 
-describe('getDeploymentDistribution', () => {
-  test('returns per-deployment media composition (detections/blank, images/videos), descending; includes zero-media deployments', async () => {
+describe('getDeploymentComposition', () => {
+  test('with no eventID / no gap, each media is its own sequence — composition equals media counts', async () => {
     const manager = await createImageDirectoryDatabase(testDbPath)
     const dep = (id, name) => ({
       deploymentID: id,
@@ -108,10 +108,11 @@ describe('getDeploymentDistribution', () => {
       }
     ])
 
-    const result = await getDeploymentDistribution(testDbPath)
-    // Counts are media-level. d1: 2 images, both detections. d2: 1 image
-    // detection + 1 blank video. d3: no media (still listed). Ordered by total
-    // media desc, then locationID (d1/d2 tie at 2 -> loc-d1 before loc-d2).
+    const result = await getDeploymentComposition(testDbPath)
+    // No eventIDs + no sequenceGap → each media is its own sequence, so the
+    // sequence counts equal the media counts here. d1: 2 image detections. d2:
+    // 1 image detection + 1 blank video. d3: no media (still listed). Ordered by
+    // total desc, then deploymentID (d1/d2 tie at 2).
     assert.deepEqual(result, [
       {
         deploymentID: 'd1',
@@ -147,5 +148,71 @@ describe('getDeploymentDistribution', () => {
         videoCount: 0
       }
     ])
+  })
+
+  test('with a positive sequenceGap, a blank burst collapses to ONE blank sequence', async () => {
+    const manager = await createImageDirectoryDatabase(testDbPath)
+    // Positive gap → timestamp-proximity grouping (the case where blank media,
+    // which have no observations/eventID, actually group). This is the user's
+    // scenario: many blank frames → far fewer blank sequences.
+    await insertDeployments(manager, {
+      d1: {
+        deploymentID: 'd1',
+        locationID: 'loc-d1',
+        locationName: 'Site A',
+        deploymentStart: DateTime.fromISO('2024-01-01T00:00:00Z'),
+        deploymentEnd: DateTime.fromISO('2024-12-31T23:59:59Z'),
+        latitude: 1,
+        longitude: 1,
+        cameraID: 'cam-d1'
+      }
+    })
+    // 3 blank frames within 60s → one blank sequence; 2 detection frames ~10min
+    // later within 60s → one detection sequence. Media-level: 5 (3 blank, 2 det);
+    // sequence-level: 2 (1 blank, 1 det).
+    const m = (id, iso) => ({
+      mediaID: id,
+      deploymentID: 'd1',
+      timestamp: DateTime.fromISO(iso),
+      filePath: `/${id}.jpg`,
+      fileName: `${id}.jpg`
+    })
+    await insertMedia(manager, {
+      'b1.jpg': m('b1', '2024-06-01T10:00:00Z'),
+      'b2.jpg': m('b2', '2024-06-01T10:00:01Z'),
+      'b3.jpg': m('b3', '2024-06-01T10:00:02Z'),
+      'k1.jpg': m('k1', '2024-06-01T10:10:00Z'),
+      'k2.jpg': m('k2', '2024-06-01T10:10:01Z')
+    })
+    await insertObservations(manager, [
+      {
+        observationID: 'o1',
+        mediaID: 'k1',
+        deploymentID: 'd1',
+        scientificName: 'Capreolus capreolus',
+        observationType: 'animal'
+      },
+      {
+        observationID: 'o2',
+        mediaID: 'k2',
+        deploymentID: 'd1',
+        scientificName: 'Capreolus capreolus',
+        observationType: 'animal'
+      }
+    ])
+
+    const result = await getDeploymentComposition(testDbPath, 60)
+    assert.equal(result.length, 1)
+    assert.deepEqual(result[0], {
+      deploymentID: 'd1',
+      locationName: 'Site A',
+      latitude: 1,
+      longitude: 1,
+      count: 2, // 2 sequences (not 5 media)
+      detectionCount: 1,
+      blankCount: 1, // 3 blank frames collapse to ONE blank sequence
+      imageCount: 2,
+      videoCount: 0
+    })
   })
 })

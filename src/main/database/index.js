@@ -182,7 +182,8 @@ export {
   createImageDirectoryDatabase,
   // Deployments
   getDeploymentLocations,
-  getDeploymentDistribution,
+  getMediaForDeploymentComposition,
+  getDeploymentsBasic,
   getAllDeployments,
   getLocationsActivity,
   insertDeployments,

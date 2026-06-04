@@ -12,7 +12,6 @@ import {
   deployments,
   closeStudyDatabase,
   getDeploymentLocations,
-  getDeploymentDistribution,
   getAllDeployments,
   getSpeciesForDeployment,
   getMediaCountForDeployment,
@@ -20,6 +19,7 @@ import {
   getBlankMediaCountForDeployment
 } from '../database/index.js'
 import { runInWorker } from '../services/sequences/runInWorker.js'
+import { getDeploymentComposition } from '../services/sequences/deploymentComposition.js'
 
 /**
  * Register all deployments-related IPC handlers
@@ -45,7 +45,8 @@ export function registerDeploymentsIPCHandlers() {
     }
   })
 
-  // Per-deployment observation counts for the Media tab's deployment filter.
+  // Per-deployment, sequence-aware blank/detection composition for the Media tab
+  // deployment filter (counts match the table's sequence units).
   ipcMain.handle('deployments:get-distribution', async (_, studyId) => {
     try {
       const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
@@ -54,10 +55,10 @@ export function registerDeploymentsIPCHandlers() {
         return { error: 'Database not found for this study' }
       }
 
-      const result = await getDeploymentDistribution(dbPath)
+      const result = await getDeploymentComposition(dbPath)
       return { data: result }
     } catch (error) {
-      log.error('Error getting deployment distribution:', error)
+      log.error('Error getting deployment composition:', error)
       return { error: error.message }
     }
   })
