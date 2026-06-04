@@ -266,7 +266,7 @@ function toggleInArray(arr, value) {
   return arr.includes(value) ? arr.filter((x) => x !== value) : [...arr, value]
 }
 
-export default function FilterDrawer({ open, studyId, filters, onChange, blankCount = 0 }) {
+export default function FilterDrawer({ open, studyId, filters, onChange }) {
   const speciesQuery = useQuery({
     queryKey: ['mediaFilterSpeciesDistribution', studyId],
     queryFn: async () => {
@@ -355,7 +355,6 @@ export default function FilterDrawer({ open, studyId, filters, onChange, blankCo
     const d = speciesQuery.data ?? []
     return sq ? d.filter((s) => speciesSearchText(s.scientificName).includes(sq)) : d
   }, [speciesQuery.data, sq])
-  const blankMatchesSearch = !sq || 'blank'.includes(sq)
   const showSpeciesSearch = (speciesQuery.data?.length ?? 0) > SEARCH_THRESHOLD
 
   const dq = deploymentSearch.trim().toLowerCase()
@@ -436,8 +435,9 @@ export default function FilterDrawer({ open, studyId, filters, onChange, blankCo
                     palette={palette}
                     studyId={studyId}
                     showHeader={false}
-                    blankCount={blankMatchesSearch ? blankCount : 0}
-                    vehicleCount={0}
+                    // Blank is offered as a quick view, so it's not duplicated as
+                    // a selectable pseudo-row in the species list.
+                    hidePseudoSpecies
                     allowEmpty
                     bordered={false}
                     sortMode={speciesSort}

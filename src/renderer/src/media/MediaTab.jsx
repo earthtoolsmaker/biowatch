@@ -100,7 +100,6 @@ export default function MediaTab({ studyId, path }) {
           path={path}
           filters={filters}
           onChange={setFilters}
-          blankCount={blankCount}
         />
       </div>
     </div>

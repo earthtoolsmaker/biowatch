@@ -86,7 +86,8 @@ table left; the gap collapses when closed. Sections:
 
 - **Species** — multi-select distribution (reuses `SpeciesDistribution`): dot +
   Title-Case common name + scientific name + count + a single bar whose width is
-  the row's **share of the total** count. Blank is selectable here too.
+  the row's **share of the total** count. Pseudo-species (Blank/Vehicle) are NOT
+  listed here — Blank is offered as a quick view instead (`hidePseudoSpecies`).
 - **Deployment** — multi-select list, styled identically to Species: each row has
   the same **share-of-total bar** (single fill; the detections-vs-blank split is
   NOT shown inline — it lives in the hovercard). Hovering a row opens a hovercard
