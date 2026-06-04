@@ -23,6 +23,12 @@ describe('deriveTableRow', () => {
     }
     const row = deriveTableRow(sequence, bboxesByMedia, isVideo)
     assert.equal(row.species, 'Panthera pardus')
+    // Per-species max-per-frame counts (m2 has 2 leopards) for the grid-style
+    // "×N" labels, sorted by count descending.
+    assert.deepEqual(row.speciesCounts, [
+      { scientificName: 'Panthera pardus', count: 2 },
+      { scientificName: 'Genetta genetta', count: 1 }
+    ])
     assert.equal(row.extraSpeciesCount, 1)
     assert.equal(row.confidence, 0.91)
     assert.equal(row.when, '2024-06-01T10:00:00Z')
@@ -41,6 +47,7 @@ describe('deriveTableRow', () => {
     assert.equal(row.deployment, 'd9')
     // No bboxes → no species, no extra, no confidence
     assert.equal(row.species, null)
+    assert.deepEqual(row.speciesCounts, [])
     assert.equal(row.extraSpeciesCount, 0)
     assert.equal(row.confidence, null)
   })

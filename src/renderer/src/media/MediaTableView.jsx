@@ -2,6 +2,7 @@ import { memo, useMemo, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Play, ImageOff, Layers, Film, Image as ImageIcon } from 'lucide-react'
 import { deriveTableRow, speciesDisplay } from './tableRows.js'
+import { SpeciesCountLabel } from '../ui/SpeciesLabel'
 
 const ROW_HEIGHT = 46
 // Shared column template for the header and every row so they stay aligned.
@@ -83,13 +84,13 @@ const TableRow = memo(function TableRow({
   seq,
   row,
   index,
-  speciesLabels,
+  speciesEntries,
+  speciesTitle,
   thumbnailUrl,
   onRowClick,
   style
 }) {
   const isMulti = seq.items.length > 1
-  const speciesText = speciesLabels.join(', ')
   return (
     <div
       role="row"
@@ -116,9 +117,13 @@ const TableRow = memo(function TableRow({
           <ImageIcon size={15} className="opacity-50" aria-label="Photo" />
         )}
       </div>
-      <Cell className="font-medium" title={speciesText || undefined}>
-        {speciesLabels.length > 0 ? (
-          speciesText
+      <Cell className="font-medium" title={speciesTitle || undefined}>
+        {speciesEntries.length > 0 ? (
+          // Same component + per-species "×N" counts as the grid card; the
+          // `capitalize` class mirrors the grid's Title-Case treatment.
+          <span className="capitalize">
+            <SpeciesCountLabel entries={speciesEntries} />
+          </span>
         ) : (
           <span className="text-[11px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-normal">
             Blank
@@ -185,10 +190,20 @@ export default function MediaTableView({
     () =>
       sequences.map((seq) => {
         const row = deriveTableRow(seq, bboxesByMedia, isVideoMedia)
+        const speciesEntries = row.speciesCounts || []
         return {
           seq,
           row,
-          speciesLabels: (row.speciesNames || []).map(speciesDisplay).filter(Boolean),
+          speciesEntries,
+          // Plain-text tooltip (shown when the cell truncates) matching the
+          // rendered "Name ×N · Name2" with Title-Case names.
+          speciesTitle: speciesEntries
+            .map((c) => {
+              const name = speciesDisplay(c.scientificName)
+              return c.count > 1 ? `${name} ×${c.count}` : name
+            })
+            .filter(Boolean)
+            .join(' · '),
           // Request a small server-resized thumbnail (see protocols.js): the
           // original is multi-megapixel, far too costly to decode per row.
           thumbnailUrl: row.isVideo
@@ -210,14 +225,15 @@ export default function MediaTableView({
     <div className="w-full text-[13px]">
       <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
         {virtualizer.getVirtualItems().map((v) => {
-          const { seq, row, speciesLabels, thumbnailUrl } = sortedRows[v.index]
+          const { seq, row, speciesEntries, speciesTitle, thumbnailUrl } = sortedRows[v.index]
           return (
             <TableRow
               key={seq.id}
               seq={seq}
               row={row}
               index={v.index + 1}
-              speciesLabels={speciesLabels}
+              speciesEntries={speciesEntries}
+              speciesTitle={speciesTitle}
               thumbnailUrl={thumbnailUrl}
               onRowClick={onRowClick}
               style={{

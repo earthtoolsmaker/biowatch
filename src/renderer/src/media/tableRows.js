@@ -58,10 +58,13 @@ export function deriveTableRow(sequence, bboxesByMedia, isVideoMedia) {
   const rep = items[0]
   const counts = getSpeciesCountsFromSequence(items, bboxesByMedia)
 
-  const speciesNames = [...counts]
+  // Per-species sequence counts (max per frame — same as the grid card), sorted
+  // by count descending. `speciesCounts` feeds the table's SpeciesCountLabel so
+  // the species column shows "Red Deer ×2 · European Hare" like the grid.
+  const speciesCounts = [...counts]
+    .filter((c) => c.scientificName)
     .sort((a, b) => b.count - a.count)
-    .map((c) => c.scientificName)
-    .filter(Boolean)
+  const speciesNames = speciesCounts.map((c) => c.scientificName)
   const species = speciesNames[0] ?? null
   const extraSpeciesCount = Math.max(0, speciesNames.length - 1)
 
@@ -85,6 +88,7 @@ export function deriveTableRow(sequence, bboxesByMedia, isVideoMedia) {
     thumbnailMedia: rep,
     species,
     speciesNames,
+    speciesCounts,
     extraSpeciesCount,
     confidence,
     when: rep.timestamp ?? null,
