@@ -1,33 +1,30 @@
 # Media Tab Redesign — Design
 
-**Date:** 2026-06-03
-**Status:** Approved design, pending implementation plan
+**Date:** 2026-06-03 (updated to reflect the shipped implementation)
+**Status:** Implemented
 **Branch context:** `arthur/feat-media-tab-revamp`
+
+> This document was revised after implementation to match what actually shipped.
+> The Media tab landed as a focused browser; several originally-scoped features
+> (bulk operations, AI review-status, the source filter) were built then removed
+> during iteration and are **not** part of the current design — see
+> "Dropped during iteration" below.
 
 ## Problem
 
-The Media tab today is a stripped-down Explore: it reuses Explore's analytical
-chrome (the `SpeciesDistribution` sidebar panel, the timeline area chart, and the
-circular time-of-day clock as the primary filter surface) and simply drops the
-map. That chrome is built for *comparing species and exploring distributions*, not
-for the two jobs people actually open the Media tab to do:
+The Media tab used to be a stripped-down Explore: it reused Explore's analytical
+chrome (the `SpeciesDistribution` sidebar, the timeline area chart, the circular
+time-of-day clock) and dropped the map. That chrome is built for *comparing
+species and exploring distributions*, not for what people open the Media tab to
+do: **browse** the imagery and **review** specific captures.
 
-1. **Review / verify** AI classifications and bounding boxes (a QA workspace).
-2. **Browse** the imagery — find interesting, rare, or specific captures (a
-   photo-library feel).
-
-It also has no sorting, no way to surface media that *needs attention* (blank,
-missing timestamp, low confidence), no bulk operations, no review-status
-indication, and no clean way to land here pre-filtered from other tabs.
+It had no sorting, no way to surface media that needs attention (blank, missing
+timestamp), and no clean way to land here pre-filtered from other tabs.
 
 ## Goals
 
 - Make browsing, filtering, and sorting media fast and obvious.
-- Support both jobs: fast visual scanning **and** efficient correction.
-- Surface media that needs attention (blank, no timestamp, low confidence,
-  vehicle, needs-review) as one-click views.
-- Add bulk operations for QA at scale (relabel, mark blank, mark reviewed).
-- Show whether a human has reviewed each sequence.
+- Surface media that needs attention (blank, no timestamp) as one-click views.
 - Make the tab fully URL-addressable so other pages deep-link into it.
 
 ## Non-Goals
@@ -36,25 +33,19 @@ indication, and no clean way to land here pre-filtered from other tabs.
   shared editor; both Grid and Table open it unchanged.
 - Touching the Explore tab (map + analytical charts stay as they are).
 - Changing the sequence-grouping logic (`sequenceGap`) — reused as-is.
-- A provenance/audit trail of AI-vs-human values beyond what the existing undo
-  stack and `classificationMethod` already provide.
 
 ## Core Decisions
 
 | Decision | Choice |
 |---|---|
 | Unit of browsing | **Sequence** (existing grouping reused) |
-| Primary jobs | Review/verify **and** browse |
-| Layout chrome | Slim **toolbar + collapsible Filter drawer** (no permanent side rail) |
-| View modes | **Grid** (scan) ⇄ **Table** (verify) toggle |
-| Sorting | Date (both directions) and Deployment. In Table, via clickable column headers; in Grid, a small sort dropdown |
-| Filters | Species · Deployment · **Source** · Date · Time-of-day |
-| Date filter UI | **Density histogram + brush** (reuse `TimelineChart`) with presets; time-of-day chips bundled in the same drawer panel |
-| Quick views | Needs review · Reviewed · Favorites · Blank · No timestamp · Low confidence · Vehicle |
-| Bulk actions | **Set species · Mark blank · Mark reviewed** |
-| Review status | Derived from `classificationMethod` (`human`/`machine`); explicit **Mark reviewed** for confirm-without-change. No schema change. |
-| Multi-species sequence | Show **top species + "+N"**; full set in the modal |
-| Row/tile click | Opens existing media modal |
+| Layout chrome | Slim **toolbar** + a persistent **right-side filter pane** (Explore-rail style) |
+| View modes | **Table** (default) ⇄ **Grid** toggle, Table on the left |
+| Sorting | In Table, via clickable column headers (Type · Species · When · Deployment) |
+| Filters | Species · Deployment · Media type |
+| Quick views | Blank · No timestamp · Favorites (Vehicle hidden behind a flag) |
+| Multi-species sequence | Show **all species** (comma-separated, common names in Title Case) |
+| Row/tile click | Opens the existing media modal; modal next/prev follows the table's sort/filter order |
 | Cross-tab linking | Media tab is URL-addressable; pre-filters arrive as removable toolbar chips |
 
 ## Layout
@@ -63,196 +54,153 @@ indication, and no clean way to land here pre-filtered from other tabs.
 
 A single slim row:
 
-- `⊕ Filter` button → opens the **Filter drawer**.
-- **Active-filter chips** (removable): species chips carry their palette color
-  dot; deployment/source/date/time render as chips too. Chips arriving from a
-  deep-link look identical to ones set in-tab.
-- **Sequence count** (e.g. "1,204 sequences").
-- **Grid ⇄ Table** segmented control.
-- In Grid mode only: a small **Sort** dropdown (Newest / Oldest / Deployment).
+- **Table ⇄ Grid** segmented control (Table first, default).
+- **Quick views** button → dropdown of preset views (with counts + descriptions).
+- **Active-filter chips** (removable), each tagged with a per-facet icon (paw =
+  species, pin = deployment, etc.) so same-type chips read as a group. Species
+  chips show the Title-Case common name; deployment chips show the location name.
+- **Filters** button (right end) — toggles the filter pane; shows a dot when
+  facet filters are active.
 
-### Quick views (row under the toolbar)
+### Quick views
 
-A row of pill toggles that apply a predefined filter in one click. "Attention"
-views (Needs review, Blank, No timestamp, Low confidence) use the amber accent;
-neutral views (Reviewed, Favorites, Vehicle) stay plain. Each shows a count.
+A dropdown (not a pill row). Each entry has a label, a one-line description, and a
+count. Selecting a quick view is a **fresh preset**: it resets the facet filters
+so the view shows exactly its category. Visible: **Blank**, **No timestamp**,
+**Favorites**. Hidden behind a flag (query-patch + URL deep-link still work):
+**Vehicle** (and the parked needs-review/reviewed/low-confidence have been removed
+entirely — see "Dropped during iteration").
 
-A quick view is a shortcut that sets the underlying filters/flags — it composes
-with the other active filters rather than replacing them.
+### Filter pane (right side)
 
-### Filter drawer
+A persistent, rounded **card** docked on the right with a gap from the table
+(mirrors Explore's species rail), open by default. Animating its width pushes the
+table left; the gap collapses when closed. Sections:
 
-Opened by `⊕ Filter`; closed by default so the grid is full-bleed. Contains:
+- **Species** — multi-select distribution (reuses `SpeciesDistribution`): dot +
+  Title-Case common name + scientific name + count + proportional bar. Blank is
+  selectable here too.
+- **Deployment** — multi-select list. Each row shows a **detections-vs-blank
+  composition bar** and the total count. Hovering a row opens a hovercard with a
+  **satellite map** (the deployment marker plus faint markers for the other survey
+  deployments, scroll-zoom + drag-pan enabled), a detections/blank + images/videos
+  breakdown, and a **survey-wide activity heatmap** (reuses the Deployments-tab
+  sparkline).
+- **Media type** — Images / Videos toggle buttons (0..2 selected).
 
-- **Species** — multi-select list with counts (reuse `SpeciesDistribution`'s row
-  pattern: color dot, count, thin bar).
-- **Deployment** — multi-select list of cameras/locations with counts.
-- **Source** — multi-select list of import sources (`importFolder`) with counts.
-  *New filter; see Data Layer.*
-- **Date + Time of day** — a small capture-count **histogram with a draggable
-  brush** (reuse `TimelineChart`) plus quick presets (All time / Last 30 days /
-  Last year / Custom); below it, **Dawn / Day / Dusk / Night** time-of-day chips
-  (reuse existing day-period logic).
+Section headers turn blue with a count badge when active; the pane closes its
+hovercards on scroll.
 
-### Grid view (browse default)
+### Table view (default)
 
-Dense tiles (white card, `rounded`, `rgba(0,0,0,.1)` border). Each tile:
+Virtualized rows (`@tanstack/react-virtual`), one per sequence. Columns:
 
-- Thumbnail of the sequence's representative frame; bbox overlay with
-  `species confidence` label (respects the existing thumbnail-bbox toggle).
-- `N frames` sequence-count badge (top-left) for multi-item sequences.
-- Review marker (top-right): green **✓** when reviewed, subtle **AI** tag when
-  raw machine output, amber issue tag (e.g. "no time", "blank") when applicable.
-- Footer: species color dot + name (+N for multi-species), deployment/location,
-  time.
+`thumbnail · type · species · when · deployment`
 
-### Table view (verify)
+- **Type** column: a photo icon, a video icon, or the sequence (Layers) icon with
+  the frame count. Sorts on media type then sequence length.
+- **Species** lists every species in the sequence (comma-separated, Title-Case
+  common names); a "Blank" pill when there's no detection.
+- **When** shows "— missing —" for null timestamps.
+- Clickable headers sort the loaded rows; the same sorted order drives the modal's
+  next/prev navigation. The header sits outside the scroll container so the
+  scrollbar doesn't run alongside it (a measured gutter keeps columns aligned).
 
-One row per sequence. Columns:
+### Grid view
 
-`thumbnail · species (+N) · when · deployment · confidence · reviewed`
-
-- Clickable headers sort by that column (asc/desc); this is the Table's sort
-  mechanism. Covers the Date and Deployment sort requirements.
-- "when" shows "— missing —" for null timestamps; confidence shows a small bar
-  and "human" (not a probability) for human-classified rows; reviewed shows
-  "✓ Reviewed" (green) or "— AI —" (muted).
-- Video sequences get a ▶ marker on the thumbnail.
-
-### Selection & bulk actions (both views)
-
-- Checkboxes on tiles/rows; **shift-click** selects a range; a header/select-all
-  affordance selects the current result set.
-- When ≥1 is selected, a floating **action bar** appears with a selected count and:
-  - **🏷 Set species ▾** — reclassify all selected (reuses the per-observation
-    classification update; applies to each selected sequence's observations).
-  - **⌫ Mark blank** — clear observations / mark as blank.
-  - **✓ Mark reviewed** — flag as human-reviewed.
-  - **✕ Clear** selection.
+Dense tiles (white card, light border). Each tile shows the sequence's
+representative frame with the thumbnail-bbox overlay, an `N frames` badge for
+multi-item sequences, and a low-res server-resized thumbnail for fast scrolling.
 
 ### Row/tile click
 
 Opens the existing `ImageModal` for that sequence — unchanged (edit species, draw
-/fix bboxes, set timestamp, favorite, navigate within sequence).
-
-## Review Status
-
-CamtrapDP fields already on `observations` carry this with **no schema change**:
-
-- `classificationMethod` = `'machine'` (raw AI) | `'human'`
-- `classifiedBy`, `classificationTimestamp`
-
-Today, editing a species or bbox already flips an observation to
-`classificationMethod='human'`, `classifiedBy='User'`. We extend this:
-
-- **A sequence is "reviewed"** when all its (non-blank) observations have
-  `classificationMethod='human'` — i.e. a human has edited or explicitly
-  confirmed every detection. (Exact roll-up rule — all vs. any — to be finalized
-  in the plan; default: **all** observations human.)
-- **Mark reviewed** (per-item via modal + bulk via action bar) sets the existing
-  observations to `classificationMethod='human'` / `classifiedBy='User'` /
-  `classificationTimestamp=now` **without changing the species** — this captures
-  the common "AI was right, confirmed" case.
-- **Needs review** quick view = sequences with any `classificationMethod='machine'`
-  observation.
+/fix bboxes, set timestamp, favorite, navigate within sequence). Cross-sequence
+next/prev follows the order the user currently sees (sorted + filtered).
 
 ## Data Layer
 
-Most of the redesign reuses the existing `window.api.getSequences(studyId, opts)`
-pipeline and its `filters` object (`species`, `dateRange`, `timeRange`,
-`deploymentID`, `bbox`). New work:
+The tab reuses the existing `window.api.getSequences(studyId, opts)` pipeline and
+its `filters` object. Implemented additions:
 
-1. **Source filter** — add `source` / `importFolder` to the sequences query
-   filter and to the species/count aggregations. Backed by the existing
-   `media.importFolder` column. Expose a list of sources with counts for the
-   drawer (analogous to the species distribution query).
-2. **Sort** — add a `sort` option to `getSequences` supporting
-   `time` (asc/desc, existing default is time-desc) and `deployment`. Cursor
-   pagination must remain correct under each sort key.
-3. **Quick-view predicates** — server-side support (or composition of existing
-   filters) for: needs-review, reviewed, favorites, blank, no-timestamp,
-   low-confidence, vehicle. Several already exist (`getBlankMediaCount`,
-   `getVehicleMediaCount`, `favorite`); add review-status and low-confidence
-   predicates and the corresponding counts.
-4. **Bulk operations** — bulk variants (or batched calls) of:
-   - set species (existing `observations:update-classification` per observation),
-   - mark blank,
-   - mark reviewed (set `classificationMethod='human'` on existing labels).
-5. **Review-status roll-up** — per-sequence reviewed flag derived from member
-   observations' `classificationMethod`, surfaced in the sequence payload so Grid
-   and Table can render it without N extra calls.
+1. **Media-type filter** — `filters.mediaTypes: ('image'|'video')[]` matches a
+   `media.fileMediatype` prefix in `getMediaForSequencePagination`.
+2. **Sort** — a `sort` option (`newest`/`oldest`) on the timestamped phase; the
+   Table's column sort is applied client-side over the loaded rows.
+3. **Quick-view predicates** — composed from existing primitives: blank/vehicle
+   via species sentinels, no-timestamp via the null-phase, favorites via
+   `media.favorite`. Counts: `getBlankMediaCount`, `getVehicleMediaCount`,
+   `countMediaWithNullTimestamps`, `countFavoriteMedia`.
+4. **Deployment composition** — `getDeploymentDistribution` returns per-deployment
+   media-level counts: total, detections (media with a real observation), blank,
+   and image/video tallies. The hovercard heatmap reuses `getDeploymentsActivity`.
+
+The generic `importFolder`/`source` filter param remains in the query layer as a
+benign capability, but there is no source-filter UI.
 
 ## URL / Deep-Linking
 
-Generalize the Media tab's current `?species=` (single, consumed-then-cleared)
-into a stable, fully-addressable scheme. Pre-applied params render as **removable
-toolbar chips** — there is no separate "deployment mode"; clearing the chip
-broadens to the whole study.
+Pre-applied params render as **removable toolbar chips**; they persist in the URL
+while on the tab (shareable / back-button-friendly).
 
 Params (all optional, composable):
 
-- `?species=<scientificName>` (repeatable / comma-list)
-- `?deployment=<deploymentID>` (repeatable)
-- `?source=<importFolder>` (repeatable)
-- `?view=<needs-review|reviewed|favorites|blank|no-timestamp|low-confidence|vehicle>`
-- `?from=<ISO date>&to=<ISO date>` (date range)
-- `?display=<grid|table>` and `?sort=<…>` (optional view state)
-
-Unlike today, params **persist** in the URL while the user is on the tab (so the
-state is shareable/back-button-friendly) rather than being cleared after applying.
+- `?species=<scientificName>` (comma-list)
+- `?deployment=<deploymentID>` (comma-list)
+- `?mediaType=<image|video>` (comma-list)
+- `?q=<blank|no-timestamp|favorites|vehicle>` (quick view)
+- `?view=<grid|table>` (default `table`) and `?sort=<newest|oldest>`
 
 ### Entry points
 
-- **Deployments** — keep the inline `DeploymentMediaGallery` quick-peek in the
-  detail pane **and** add an **"Open in Media ↗"** button →
-  `/study/:id/media?deployment=<id>`.
-- **Sources** — add a **"View media ↗"** affordance per source row →
-  `/study/:id/media?source=<importFolder>` (depends on the new Source filter).
-- **Overview / Explore** — existing links retained; generalize the species link
-  to the new scheme (`?species=`), KPI/media tiles to `/media`.
+- **Deployments** — the inline `DeploymentMediaGallery` quick-peek in the detail
+  pane, plus the deep-link into `/study/:id/media?deployment=<id>`.
+- **Overview / Explore** — existing species links generalize to `?species=`.
 
-## Components (proposed structure)
+## Components
 
-The Media tab grows beyond a single 680-line file. Proposed decomposition under
-`src/renderer/src/media/`:
+Under `src/renderer/src/media/`:
 
 - `MediaTab.jsx` — top-level: owns filter/sort/view URL state, fetches counts,
-  renders toolbar + quick views + drawer + active view.
-- `MediaToolbar.jsx` — filter button, active-filter chips, count, sort, view toggle.
-- `QuickViews.jsx` — the preset pill row.
-- `FilterDrawer.jsx` — species / deployment / source / date+time panels (reusing
-  `SpeciesDistribution`, `TimelineChart`, day-period logic).
-- `MediaGridView.jsx` / `MediaTableView.jsx` — the two presentations over a shared
-  data hook; reuse `Gallery`'s sequence-fetching/pagination logic (extract a hook
-  if needed) and open the existing `ImageModal`.
-- `SelectionActionBar.jsx` — bulk action bar.
-- A shared `useMediaQuery`/selection hook for filter→query state and multi-select.
+  renders toolbar + filter pane + active view.
+- `MediaToolbar.jsx` — Table/Grid toggle, Quick views, active-filter chips,
+  Filters toggle.
+- `QuickViews.jsx` — the quick-view dropdown.
+- `FilterDrawer.jsx` — the right-side filter pane (species / deployment / media
+  type), reusing `SpeciesDistribution`.
+- `DeploymentHoverMap.jsx` — the deployment hovercard (satellite map + composition
+  + activity heatmap).
+- `MediaGridView.jsx` / `MediaTableView.jsx` — the two presentations over the
+  shared `Gallery` fetch/pagination + `ImageModal`.
+- `mediaFilters.js` / `quickViews.js` / `tableRows.js` — pure helpers
+  (filter↔URL serialization, quick-view defs, table-row derivation), unit-tested
+  under `node:test`.
 
-Existing reused pieces: `Gallery.jsx`'s `ImageModal`, sequence pagination, bbox
-batching; `SpeciesDistribution`, `TimelineChart`, `clock`/day-period utils;
-`useDateRange`, `useSequenceGap`, `useShowThumbnailBboxes` hooks.
+Reused: `Gallery.jsx`'s `ImageModal`, sequence pagination, bbox batching;
+`SpeciesDistribution`; the Deployments `Sparkline`.
 
-## Risks / Open Questions
+## Dropped during iteration
 
-- **Reviewed roll-up rule** (all vs. any observations human) — pick in the plan;
-  default "all".
-- **Bulk set-species semantics** on multi-species sequences — does it relabel
-  every observation, or only the dominant one? Likely: apply to the selected
-  sequences' observations matching the displayed top species; confirm in plan.
-- **Sort + cursor pagination** correctness under `deployment` sort.
-- **Quick-view + filter composition** — confirm each quick view composes with
-  active filters rather than resetting them.
-- Performance of source/review-status aggregations on large studies (e.g. GMU8
-  Leuven) — reuse the sequence-aware, indexed query patterns.
+Built during the redesign, then removed (and their dead code/queries/IPC handlers
+cleaned up):
+
+- **Bulk operations** (set species / mark blank / mark reviewed) and the selection
+  / `SelectionActionBar` UI.
+- **AI review status** — the needs-review / reviewed / low-confidence quick views,
+  the per-sequence reviewed flag and green "reviewed" badge, and the
+  low-confidence/review-status query predicates. `classificationMethod` is still
+  written by the modal editor, but the Media tab exposes no review workflow.
+- **Source filter** — the in-drawer source distribution UI, the `sources` filter
+  state/chips, the Sources-tab "View media" deep-link, and `getSourceDistribution`.
+- **Date-range + time-of-day filters** in the drawer (URL params still parsed).
 
 ## Success Criteria
 
-- Open Media → see a full-bleed grid of sequences; toggle to a sortable table.
-- One click on a quick view surfaces blanks / no-timestamp / low-confidence /
-  needs-review.
-- Sort by date and by deployment.
-- Filter by species, deployment, source, date (histogram+brush), time-of-day.
-- Select many sequences and relabel / mark blank / mark reviewed in one action.
-- See at a glance which sequences are human-reviewed.
-- Deep-link from Deployments and Sources lands on Media pre-scoped, with the
-  scope shown as a removable chip.
+- Open Media → see a sortable, virtualized table of sequences (default); toggle to
+  a grid.
+- One click on a quick view surfaces blanks / no-timestamp / favorites.
+- Sort the table by type, species, when, or deployment; the modal navigates in
+  that order.
+- Filter by species, deployment, and media type from the right-side pane.
+- Deep-link from Deployments lands on Media pre-scoped, with the scope shown as a
+  removable chip.

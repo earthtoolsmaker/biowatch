@@ -190,16 +190,15 @@ src/
 │   │   └── urlState.js               # ?deploymentID=… URL state helpers
 │   ├── media/               # Media tab + subcomponents (Gallery shared with Explore & Deployments)
 │   │   ├── MediaTab.jsx              # Media tab top-level — URL-addressable browser
-│   │   ├── MediaToolbar.jsx          # Filter button, active-filter chips, sort, Grid/Table toggle
-│   │   ├── QuickViews.jsx            # Quick-view pills (needs-review/reviewed/favorites/blank/no-timestamp/low-confidence/vehicle)
-│   │   ├── FilterDrawer.jsx          # Species · deployment · source · date · time-of-day drawer
+│   │   ├── MediaToolbar.jsx          # Table/Grid toggle, Quick views, active-filter chips, Filters toggle
+│   │   ├── QuickViews.jsx            # Quick-view dropdown (blank/no-timestamp/favorites; vehicle hidden)
+│   │   ├── FilterDrawer.jsx          # Right-side filter pane (card): species · deployment · media type
+│   │   ├── DeploymentHoverMap.jsx    # Deployment hovercard: satellite map + detection/blank composition + survey activity heatmap
 │   │   ├── MediaGridView.jsx         # Resolves filter state → Gallery props (grid or table)
-│   │   ├── MediaTableView.jsx        # Sortable table view (Gallery view='table')
-│   │   ├── SelectionActionBar.jsx    # Bulk-action bar (set species / mark blank / mark reviewed)
+│   │   ├── MediaTableView.jsx        # Sortable virtualized table view (Gallery view='table')
 │   │   ├── useMediaFilters.js        # URL-backed filter/sort/view state hook
 │   │   ├── mediaFilters.js           # Pure filter-state ↔ URL serialization
 │   │   ├── quickViews.js             # Quick-view defs + query-patch mapping
-│   │   ├── selection.js              # Pure multi-select (toggle + shift-range) helper
 │   │   ├── tableRows.js              # Pure table-row derivation from a sequence
 │   │   ├── Gallery.jsx               # Sequence grid + ImageModal + bbox editor
 │   │   └── DeploymentMediaGallery.jsx # Deployment-scoped wrapper around Gallery
