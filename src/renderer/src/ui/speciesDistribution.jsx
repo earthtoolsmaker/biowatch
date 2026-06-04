@@ -8,6 +8,29 @@ import { buildScientificToCommonMap, useCommonName } from '../utils/commonNames'
 import { formatScientificName } from '../utils/scientificName'
 import { resolveSpeciesInfo } from '../../../shared/speciesInfo/index.js'
 import { getPseudoSpeciesEntry } from '../../../shared/pseudoSpecies.js'
+import { resolveCommonName } from '../../../shared/commonNames/index.js'
+
+// Name a row sorts by alphabetically — the displayed common name, falling back
+// to the formatted scientific name.
+function alphaSortName(scientificName) {
+  return (
+    resolveCommonName(scientificName) ||
+    formatScientificName(scientificName) ||
+    scientificName ||
+    ''
+  ).toLowerCase()
+}
+
+// Alphabetical ordering of the species rows, keeping pseudo-species (Blank,
+// Vehicle, processing labels) pinned to the bottom like the count sort does.
+function sortDisplayDataAlpha(displayData) {
+  return [...displayData].sort((a, b) => {
+    const pa = !!getPseudoSpeciesEntry(a.scientificName)
+    const pb = !!getPseudoSpeciesEntry(b.scientificName)
+    if (pa !== pb) return pa ? 1 : -1
+    return alphaSortName(a.scientificName).localeCompare(alphaSortName(b.scientificName))
+  })
+}
 
 function SpeciesRow({
   species,
@@ -146,7 +169,8 @@ function SpeciesDistribution({
   showHeader = true,
   hidePseudoSpecies = false,
   allowEmpty = false,
-  bordered = true
+  bordered = true,
+  sortMode = 'count'
 }) {
   // Real-species view of the upstream data — strips out literal pseudo
   // labels like "Vehicle" or "blurred" that ride along in scientificName.
@@ -263,7 +287,10 @@ function SpeciesDistribution({
       <div className="flex-1 overflow-y-auto px-3 myscroll" onScroll={handleScroll}>
         <div>
           {(() => {
-            const sorted = sortSpeciesHumansLast(displayData)
+            const sorted =
+              sortMode === 'alpha'
+                ? sortDisplayDataAlpha(displayData)
+                : sortSpeciesHumansLast(displayData)
             // Pre-resolve pseudo-species entries once per row so we can also
             // compute the divider position (first pseudo row) in the same pass.
             const pseudoEntries = sorted.map((s) => getPseudoSpeciesEntry(s.scientificName))

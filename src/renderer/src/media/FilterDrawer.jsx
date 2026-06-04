@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import * as HoverCard from '@radix-ui/react-hover-card'
 import * as Tooltip from '@radix-ui/react-tooltip'
-import { Film, Image as ImageIcon, Search } from 'lucide-react'
+import { ArrowDownAZ, ArrowDownWideNarrow, Film, Image as ImageIcon, Search } from 'lucide-react'
 import SpeciesDistribution from '../ui/speciesDistribution.jsx'
 import DeploymentHoverMap from './DeploymentHoverMap.jsx'
 import { resolveCommonName } from '../../../shared/commonNames/index.js'
@@ -71,6 +71,40 @@ function SearchToggle({ open, onClick, noun }) {
         >
           <div className="font-medium mb-1">Search</div>
           <p className="text-muted-foreground leading-snug">Type to find a {noun} by name.</p>
+        </Tooltip.Content>
+      </Tooltip.Portal>
+    </Tooltip.Root>
+  )
+}
+
+// Subtle sort toggle on a section header row: switches the list between
+// by-count and A–Z ordering. The icon reflects the current mode; tooltip in the
+// same style as the search toggle / Table-Grid control.
+function SortToggle({ mode, onToggle }) {
+  const alpha = mode === 'alpha'
+  const Icon = alpha ? ArrowDownAZ : ArrowDownWideNarrow
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-label={alpha ? 'Sort by count' : 'Sort alphabetically'}
+          className="flex-shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
+        >
+          <Icon className="h-3.5 w-3.5" />
+        </button>
+      </Tooltip.Trigger>
+      <Tooltip.Portal>
+        <Tooltip.Content
+          side="bottom"
+          sideOffset={8}
+          className="z-[10000] max-w-[16rem] px-3 py-2 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md"
+        >
+          <div className="font-medium mb-1">Sort</div>
+          <p className="text-muted-foreground leading-snug">
+            {alpha ? 'A–Z — click to sort by count.' : 'By count — click to sort A–Z.'}
+          </p>
         </Tooltip.Content>
       </Tooltip.Portal>
     </Tooltip.Root>
@@ -336,6 +370,21 @@ export default function FilterDrawer({ open, studyId, filters, onChange, blankCo
   )
   const showDeploymentSearch = deploymentItems.length > SEARCH_THRESHOLD
 
+  // Sort order per list: 'count' (default) or 'alpha'. Species sort is applied
+  // inside SpeciesDistribution via sortMode; deployments are sorted here (the
+  // composition arrives count-sorted, so 'count' is a no-op).
+  const [speciesSort, setSpeciesSort] = useState('count')
+  const [deploymentSort, setDeploymentSort] = useState('count')
+  const toggleSpeciesSort = () => setSpeciesSort((m) => (m === 'count' ? 'alpha' : 'count'))
+  const toggleDeploymentSort = () => setDeploymentSort((m) => (m === 'count' ? 'alpha' : 'count'))
+  const sortedDeployments = useMemo(
+    () =>
+      deploymentSort === 'alpha'
+        ? [...filteredDeployments].sort((a, b) => (a.label || '').localeCompare(b.label || ''))
+        : filteredDeployments,
+    [filteredDeployments, deploymentSort]
+  )
+
   return (
     // In-flow side panel: animating its width pushes the grid/table to the left
     // (like Explore's species rail) instead of overlaying it. The left margin
@@ -360,11 +409,14 @@ export default function FilterDrawer({ open, studyId, filters, onChange, blankCo
             count={filters.species.length}
             action={
               showSpeciesSearch ? (
-                <SearchToggle
-                  open={speciesSearchOpen}
-                  onClick={toggleSpeciesSearch}
-                  noun="species"
-                />
+                <div className="flex items-center gap-0.5">
+                  <SortToggle mode={speciesSort} onToggle={toggleSpeciesSort} />
+                  <SearchToggle
+                    open={speciesSearchOpen}
+                    onClick={toggleSpeciesSearch}
+                    noun="species"
+                  />
+                </div>
               ) : null
             }
           >
@@ -390,6 +442,7 @@ export default function FilterDrawer({ open, studyId, filters, onChange, blankCo
                     vehicleCount={0}
                     allowEmpty
                     bordered={false}
+                    sortMode={speciesSort}
                   />
                 </div>
               </>
@@ -405,11 +458,14 @@ export default function FilterDrawer({ open, studyId, filters, onChange, blankCo
             count={filters.deployments.length}
             action={
               showDeploymentSearch ? (
-                <SearchToggle
-                  open={deploymentSearchOpen}
-                  onClick={toggleDeploymentSearch}
-                  noun="deployment"
-                />
+                <div className="flex items-center gap-0.5">
+                  <SortToggle mode={deploymentSort} onToggle={toggleDeploymentSort} />
+                  <SearchToggle
+                    open={deploymentSearchOpen}
+                    onClick={toggleDeploymentSearch}
+                    noun="deployment"
+                  />
+                </div>
               ) : null
             }
           >
@@ -425,7 +481,7 @@ export default function FilterDrawer({ open, studyId, filters, onChange, blankCo
                   />
                 )}
                 <DistributionList
-                  items={filteredDeployments}
+                  items={sortedDeployments}
                   selected={filters.deployments}
                   onToggle={(value) =>
                     onChange({ ...filters, deployments: toggleInArray(filters.deployments, value) })
