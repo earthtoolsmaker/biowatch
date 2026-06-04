@@ -14,8 +14,8 @@
 
 The Media tab used to be a stripped-down Explore: it reused Explore's analytical
 chrome (the `SpeciesDistribution` sidebar, the timeline area chart, the circular
-time-of-day clock) and dropped the map. That chrome is built for *comparing
-species and exploring distributions*, not for what people open the Media tab to
+time-of-day clock) and dropped the map. That chrome is built for _comparing
+species and exploring distributions_, not for what people open the Media tab to
 do: **browse** the imagery and **review** specific captures.
 
 It had no sorting, no way to surface media that needs attention (blank, missing
@@ -36,17 +36,17 @@ timestamp), and no clean way to land here pre-filtered from other tabs.
 
 ## Core Decisions
 
-| Decision | Choice |
-|---|---|
-| Unit of browsing | **Sequence** (existing grouping reused) |
-| Layout chrome | Slim **toolbar** + a persistent **right-side filter pane** (Explore-rail style) |
-| View modes | **Table** (default) ⇄ **Grid** toggle, Table on the left |
-| Sorting | In Table, via clickable column headers (Type · Species · When · Deployment) |
-| Filters | Species · Deployment · Media type |
-| Quick views | Blank · Detections · No timestamp · Favorites (Vehicle hidden behind a flag) |
-| Multi-species sequence | Show **all species** (comma-separated, common names in Title Case) |
-| Row/tile click | Opens the existing media modal; modal next/prev follows the table's sort/filter order |
-| Cross-tab linking | Media tab is URL-addressable; pre-filters arrive as removable toolbar chips |
+| Decision               | Choice                                                                                |
+| ---------------------- | ------------------------------------------------------------------------------------- |
+| Unit of browsing       | **Sequence** (existing grouping reused)                                               |
+| Layout chrome          | Slim **toolbar** + a persistent **right-side filter pane** (Explore-rail style)       |
+| View modes             | **Table** (default) ⇄ **Grid** toggle, Table on the left                              |
+| Sorting                | In Table, via clickable column headers (Type · Species · When · Deployment)           |
+| Filters                | Species · Deployment · Media type                                                     |
+| Quick views            | Blank · Detections · No timestamp · Favorites (Vehicle hidden behind a flag)          |
+| Multi-species sequence | Show **all species** (comma-separated, common names in Title Case)                    |
+| Row/tile click         | Opens the existing media modal; modal next/prev follows the table's sort/filter order |
+| Cross-tab linking      | Media tab is URL-addressable; pre-filters arrive as removable toolbar chips           |
 
 ## Layout
 
@@ -59,8 +59,14 @@ A single slim row:
 - **Active-filter chips** (removable), each tagged with a per-facet icon (paw =
   species, pin = deployment, etc.) so same-type chips read as a group. Species
   chips show the Title-Case common name; deployment chips show the location name.
+  Hovering a species or deployment chip opens the **same rich hovercard as the
+  filter pane** (species photo / IUCN / blurb; deployment map + composition +
+  activity heatmap) — MediaToolbar reuses the drawer's cached queries.
+- **Clear all** — appears next to the chips when more than one filter is active;
+  clears all facet filters at once (quick views are cleared from their dropdown).
 - **Filters** button (right end) — toggles the filter pane; shows a dot when
-  facet filters are active.
+  facet filters are active. The pane has no "Filters" title of its own (it would
+  duplicate this button).
 
 ### Quick views
 
@@ -79,29 +85,40 @@ A persistent, rounded **card** docked on the right with a gap from the table
 table left; the gap collapses when closed. Sections:
 
 - **Species** — multi-select distribution (reuses `SpeciesDistribution`): dot +
-  Title-Case common name + scientific name + count + proportional bar. Blank is
-  selectable here too.
-- **Deployment** — multi-select list. Each row shows a **detections-vs-blank
-  composition bar** and the total count. Hovering a row opens a hovercard with a
-  **satellite map** (the deployment marker plus faint markers for the other survey
-  deployments, scroll-zoom + drag-pan enabled), a detections/blank + images/videos
-  breakdown, and a **survey-wide activity heatmap** (reuses the Deployments-tab
-  sparkline).
+  Title-Case common name + scientific name + count + a single bar whose width is
+  the row's **share of the total** count. Blank is selectable here too.
+- **Deployment** — multi-select list, styled identically to Species: each row has
+  the same **share-of-total bar** (single fill; the detections-vs-blank split is
+  NOT shown inline — it lives in the hovercard). Hovering a row opens a hovercard
+  with a **satellite map** (the deployment marker plus faint markers for the other
+  survey deployments, scroll-zoom + drag-pan enabled), a detections/blank +
+  images/videos breakdown, and a **survey-wide activity heatmap** (reuses the
+  Deployments-tab sparkline). Deployments without coordinates show a styled
+  "No location set" placeholder instead of the map.
 - **Media type** — Images / Videos toggle buttons (0..2 selected).
 
 Section headers turn blue with a count badge when active; the pane closes its
-hovercards on scroll.
+hovercards on scroll. The Species and Deployment headers carry two subtle
+toggles (shown once a list passes ~8 entries): a **search** magnifying glass
+(reveals an autofocused type-to-filter field) and a **sort** toggle (by count ↔
+A–Z). While a distribution is still loading, a pulsing skeleton stands in for the
+list rather than an empty state.
 
 ### Table view (default)
 
 Virtualized rows (`@tanstack/react-virtual`), one per sequence. Columns:
 
-`thumbnail · type · species · when · deployment`
+`# · thumbnail · type · species · when · deployment`
+
+- **#** — a running row number (1..N in display order), so counts are easy to
+  eyeball against the filter badges.
 
 - **Type** column: a photo icon, a video icon, or the sequence (Layers) icon with
   the frame count. Sorts on media type then sequence length.
-- **Species** lists every species in the sequence (comma-separated, Title-Case
-  common names); a "Blank" pill when there's no detection.
+- **Species** lists every species in the sequence with its per-sequence count
+  ("Red Deer ×2 · European Hare", `·`-separated, Title-Case) — the same
+  `SpeciesCountLabel` + max-per-frame counting the grid card uses; a "Blank" pill
+  when there's no detection.
 - **When** shows "— missing —" for null timestamps.
 - Clickable headers sort the loaded rows; the same sorted order drives the modal's
   next/prev navigation. The header sits outside the scroll container so the
@@ -170,7 +187,7 @@ Under `src/renderer/src/media/`:
 - `FilterDrawer.jsx` — the right-side filter pane (species / deployment / media
   type), reusing `SpeciesDistribution`.
 - `DeploymentHoverMap.jsx` — the deployment hovercard (satellite map + composition
-  + activity heatmap).
+  - activity heatmap).
 - `MediaGridView.jsx` / `MediaTableView.jsx` — the two presentations over the
   shared `Gallery` fetch/pagination + `ImageModal`.
 - `mediaFilters.js` / `quickViews.js` / `tableRows.js` — pure helpers
