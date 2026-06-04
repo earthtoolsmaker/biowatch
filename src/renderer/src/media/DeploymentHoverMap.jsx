@@ -25,6 +25,8 @@ export default function DeploymentHoverMap({
   lat,
   lon,
   label,
+  currentId,
+  others = [],
   detectionCount = 0,
   blankCount = 0,
   imageCount = 0,
@@ -63,6 +65,29 @@ export default function DeploymentHoverMap({
           attributionControl={false}
         >
           <TileLayer url={SATELLITE_URL} attribution="&copy; Esri" />
+          {/* Other survey deployments, faint — gives spatial context to confirm
+              the highlighted spot against its neighbours. Drawn first so the
+              current marker sits on top. */}
+          {others.map((o) => {
+            if (o.value === currentId) return null
+            const oLat = typeof o.lat === 'string' ? parseFloat(o.lat) : o.lat
+            const oLon = typeof o.lon === 'string' ? parseFloat(o.lon) : o.lon
+            if (!Number.isFinite(oLat) || !Number.isFinite(oLon)) return null
+            return (
+              <CircleMarker
+                key={o.value}
+                center={[oLat, oLon]}
+                radius={4}
+                pathOptions={{
+                  color: '#ffffff',
+                  weight: 1,
+                  opacity: 0.45,
+                  fillColor: '#2563eb',
+                  fillOpacity: 0.3
+                }}
+              />
+            )
+          })}
           <CircleMarker
             center={[latNum, lonNum]}
             radius={6}

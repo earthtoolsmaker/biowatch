@@ -288,6 +288,8 @@ export default function FilterDrawer({ open, studyId, filters, onChange, blankCo
                   lat={it.lat}
                   lon={it.lon}
                   label={it.label}
+                  currentId={it.value}
+                  others={deploymentItems}
                   detectionCount={it.detectionCount}
                   blankCount={it.blankCount}
                   imageCount={it.imageCount}
