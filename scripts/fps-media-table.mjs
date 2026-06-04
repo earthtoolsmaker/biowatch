@@ -77,7 +77,6 @@ async function measureFps(label) {
   await page.evaluate(async () => {
     const el = window.__scroller
     const max = Math.max(0, el.scrollHeight - el.clientHeight - 1200)
-    const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
     let y = 0
     let dir = 1
     const end = performance.now() + 3500
@@ -98,7 +97,9 @@ async function measureFps(label) {
   await session.send('Page.stopScreencast')
   session.off('Page.screencastFrame', onFrame)
   await sleep(300)
-  console.log(`${label}: ${frames} frames in ${secs.toFixed(1)}s = ${(frames / secs).toFixed(1)} FPS`)
+  console.log(
+    `${label}: ${frames} frames in ${secs.toFixed(1)}s = ${(frames / secs).toFixed(1)} FPS`
+  )
   return frames / secs
 }
 

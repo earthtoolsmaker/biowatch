@@ -10,7 +10,6 @@ import { chromium } from 'playwright-core'
 
 const PORT = process.env.PORT || '9222'
 const STUDY_ID = process.argv[2] || '7deea39a-0452-4642-bb38-a0f16cc335ce'
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function findPage(browser) {
   for (const p of browser.contexts().flatMap((c) => c.pages())) {

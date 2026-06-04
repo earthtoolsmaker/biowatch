@@ -207,8 +207,7 @@ export default function FilterDrawer({ open, studyId, filters, onChange, blankCo
     onChange({ ...filters, species: next.map((s) => s.scientificName) })
   }
 
-  const hasAny =
-    filters.species.length || filters.deployments.length || filters.mediaTypes.length
+  const hasAny = filters.species.length || filters.deployments.length || filters.mediaTypes.length
 
   const clearAll = () =>
     onChange({

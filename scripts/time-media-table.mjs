@@ -16,7 +16,6 @@ import { chromium } from 'playwright-core'
 
 const PORT = process.env.PORT || '9222'
 const STUDY_ID = process.argv[2] || '7deea39a-0452-4642-bb38-a0f16cc335ce'
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function findPage(browser) {
   const pages = browser.contexts().flatMap((c) => c.pages())
@@ -44,10 +43,9 @@ await page.evaluate((id) => {
 await page.reload({ waitUntil: 'commit', timeout: 20000 })
 
 // Wait for the table header + at least one data row to appear.
-await page.waitForFunction(
-  () => document.querySelectorAll('[role="row"]').length > 1,
-  { timeout: 30000 }
-)
+await page.waitForFunction(() => document.querySelectorAll('[role="row"]').length > 1, {
+  timeout: 30000
+})
 
 // Locate the scroll container (nearest scrollable ancestor of the table header).
 const scrollLoadResult = await page.evaluate(async () => {
@@ -137,7 +135,8 @@ const perf = await page.evaluate(async () => {
 
   const intervals = frames.filter((f) => f > 0)
   intervals.sort((a, b) => a - b)
-  const pct = (p) => intervals[Math.min(intervals.length - 1, Math.floor(intervals.length * p))] || 0
+  const pct = (p) =>
+    intervals[Math.min(intervals.length - 1, Math.floor(intervals.length * p))] || 0
   const janky = intervals.filter((f) => f > 50).length
   return {
     durationMs: Math.round(durationMs),
