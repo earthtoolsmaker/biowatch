@@ -11,10 +11,7 @@ import {
   updateObservationBbox,
   deleteObservation,
   createObservation,
-  restoreObservation,
-  markMediaReviewed,
-  bulkSetSpecies,
-  bulkMarkBlank
+  restoreObservation
 } from '../database/index.js'
 
 /**
@@ -109,61 +106,6 @@ export function registerObservationsIPCHandlers() {
       return { data: restored }
     } catch (error) {
       log.error('Error restoring observation:', error)
-      return { error: error.message }
-    }
-  })
-
-  // Bulk mark-reviewed: confirm a batch of media as human-reviewed without
-  // changing their species (sets classificationMethod='human').
-  ipcMain.handle('observations:bulk-mark-reviewed', async (_, studyId, mediaIDs) => {
-    try {
-      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
-      if (!dbPath || !existsSync(dbPath)) {
-        log.warn(`Database not found for study ID: ${studyId}`)
-        return { error: 'Database not found for this study' }
-      }
-
-      const result = await markMediaReviewed(dbPath, mediaIDs)
-      return { data: result }
-    } catch (error) {
-      log.error('Error in bulk-mark-reviewed:', error)
-      return { error: error.message }
-    }
-  })
-
-  // Bulk set species: relabel every observation of a batch of media (marks human).
-  ipcMain.handle(
-    'observations:bulk-update-classification',
-    async (_, studyId, mediaIDs, classification) => {
-      try {
-        const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
-        if (!dbPath || !existsSync(dbPath)) {
-          log.warn(`Database not found for study ID: ${studyId}`)
-          return { error: 'Database not found for this study' }
-        }
-
-        const result = await bulkSetSpecies(dbPath, mediaIDs, classification)
-        return { data: result }
-      } catch (error) {
-        log.error('Error in bulk-update-classification:', error)
-        return { error: error.message }
-      }
-    }
-  )
-
-  // Bulk mark blank: clear species + set observationType='blank' for a batch.
-  ipcMain.handle('observations:bulk-mark-blank', async (_, studyId, mediaIDs) => {
-    try {
-      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
-      if (!dbPath || !existsSync(dbPath)) {
-        log.warn(`Database not found for study ID: ${studyId}`)
-        return { error: 'Database not found for this study' }
-      }
-
-      const result = await bulkMarkBlank(dbPath, mediaIDs)
-      return { data: result }
-    } catch (error) {
-      log.error('Error in bulk-mark-blank:', error)
       return { error: error.message }
     }
   })

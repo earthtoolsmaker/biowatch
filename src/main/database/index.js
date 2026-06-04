@@ -224,9 +224,6 @@ export {
   createObservation,
   restoreObservation,
   insertObservations,
-  markMediaReviewed,
-  bulkSetSpecies,
-  bulkMarkBlank,
   // Best media
   getTemporalBucket,
   selectDiverseMedia,

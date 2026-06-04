@@ -34,7 +34,11 @@ const api = {
     return await electronAPI.ipcRenderer.invoke('species:get-vehicle-count', studyId)
   },
   getLowConfidenceCount: async (studyId, threshold) => {
-    return await electronAPI.ipcRenderer.invoke('species:get-low-confidence-count', studyId, threshold)
+    return await electronAPI.ipcRenderer.invoke(
+      'species:get-low-confidence-count',
+      studyId,
+      threshold
+    )
   },
   getDeploymentLocations: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('deployments:get-locations', studyId)
@@ -448,23 +452,6 @@ const api = {
       observationID,
       fields
     )
-  },
-  // Bulk-confirm a batch of media as human-reviewed (no species change)
-  bulkMarkReviewed: async (studyId, mediaIDs) => {
-    return await electronAPI.ipcRenderer.invoke('observations:bulk-mark-reviewed', studyId, mediaIDs)
-  },
-  // Bulk-relabel a batch of media to a species (marks human)
-  bulkSetSpecies: async (studyId, mediaIDs, classification) => {
-    return await electronAPI.ipcRenderer.invoke(
-      'observations:bulk-update-classification',
-      studyId,
-      mediaIDs,
-      classification
-    )
-  },
-  // Bulk-mark a batch of media as blank
-  bulkMarkBlank: async (studyId, mediaIDs) => {
-    return await electronAPI.ipcRenderer.invoke('observations:bulk-mark-blank', studyId, mediaIDs)
   },
   // Get distinct species for dropdown
   getDistinctSpecies: async (studyId) => {
