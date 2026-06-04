@@ -72,7 +72,10 @@ A single slim row:
 
 A dropdown (not a pill row). Each entry has a label, a one-line description, and a
 count. Selecting a quick view is a **fresh preset**: it resets the facet filters
-so the view shows exactly its category. Visible: **Blank**, **Detections** (the
+so the view shows exactly its category. Entering the tab on a param-less URL
+defaults to the **Detections** view (blanks hidden out of the box); this applies
+once on entry, so deep-links keep their own scope and "Clear quick view" can still
+drop back to showing everything. Visible: **Blank**, **Detections** (the
 inverse of Blank — only sequences with a detection; `hideBlank` filter), **No
 timestamp**, **Favorites**. Hidden behind a flag (query-patch + URL deep-link still work):
 **Vehicle** (and the parked needs-review/reviewed/low-confidence have been removed

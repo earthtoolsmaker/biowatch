@@ -11,14 +11,17 @@ export function useMediaFilters() {
   const filters = useMemo(() => searchParamsToFilters(searchParams), [searchParams])
 
   const setFilters = useCallback(
-    (next) => {
+    (next, opts) => {
       const resolved = typeof next === 'function' ? next(searchParamsToFilters(searchParams)) : next
-      setSearchParams(filtersToSearchParams(resolved), { replace: false })
+      setSearchParams(filtersToSearchParams(resolved), { replace: opts?.replace ?? false })
     },
     [searchParams, setSearchParams]
   )
 
-  const patch = useCallback((delta) => setFilters((f) => ({ ...f, ...delta })), [setFilters])
+  const patch = useCallback(
+    (delta, opts) => setFilters((f) => ({ ...f, ...delta }), opts),
+    [setFilters]
+  )
 
   const reset = useCallback(() => setFilters(DEFAULT_FILTERS), [setFilters])
 

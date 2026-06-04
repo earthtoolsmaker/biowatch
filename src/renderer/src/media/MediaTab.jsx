@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useMediaFilters } from './useMediaFilters.js'
+import { hasActiveFilters } from './mediaFilters.js'
 import MediaToolbar from './MediaToolbar.jsx'
 import MediaGridView from './MediaGridView.jsx'
 import FilterDrawer from './FilterDrawer.jsx'
@@ -29,6 +30,17 @@ export default function MediaTab({ studyId, path }) {
   const actualStudyId = studyId || id
   const { filters, setFilters, patch } = useMediaFilters()
   const [drawerOpen, setDrawerOpen] = useState(true)
+
+  // Land on the Detections view by default: entering the Media tab with no
+  // filters in the URL hides blanks out of the box. Runs once per mount and
+  // only on a param-less entry, so deep-links keep their own scope and the
+  // "Clear quick view" affordance can still drop back to showing everything.
+  const didInit = useRef(false)
+  useEffect(() => {
+    if (didInit.current) return
+    didInit.current = true
+    if (!hasActiveFilters(filters)) patch({ quickView: 'detections' }, { replace: true })
+  }, [filters, patch])
 
   const noTimestampCount = useCount('noTimestampCount', actualStudyId, (s) =>
     window.api.countMediaWithNullTimestamps(s)
