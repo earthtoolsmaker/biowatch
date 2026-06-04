@@ -469,12 +469,17 @@ async function fetchMoreForLargeSequence(dbPath, options) {
       const hasMoreSeqs = completeSequences.length > limit || dbResult.hasMoreTimestamped
 
       if (hasMoreSeqs) {
-        // Find earliest timestamp in the next sequence to use as cursor
-        const sortedItems = [
-          ...(completeSequences.length > limit
-            ? completeSequences[limit].items
-            : allSequences[allSequences.length - 1].items)
-        ].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+        // Cursor resumes right AFTER the last RETURNED sequence — when we
+        // truncate to `limit`, that's sequencesToReturn[last] (index limit-1),
+        // NOT completeSequences[limit] (which would skip one). Otherwise it's
+        // the trailing incomplete sequence we continue past.
+        const boundarySeq =
+          completeSequences.length > limit
+            ? sequencesToReturn[sequencesToReturn.length - 1]
+            : allSequences[allSequences.length - 1]
+        const sortedItems = [...boundarySeq.items].sort(
+          (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
+        )
         // See note above: descending → earliest boundary; ascending → latest.
         const boundaryItem =
           sort === 'oldest' ? sortedItems[sortedItems.length - 1] : sortedItems[0]

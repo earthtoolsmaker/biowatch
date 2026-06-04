@@ -22,7 +22,8 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  if (existsSync(testBiowatchDataPath)) rmSync(testBiowatchDataPath, { recursive: true, force: true })
+  if (existsSync(testBiowatchDataPath))
+    rmSync(testBiowatchDataPath, { recursive: true, force: true })
 })
 
 async function seedDays(n) {
@@ -56,14 +57,22 @@ async function seedDays(n) {
 describe('getPaginatedSequences — sort', () => {
   test('newest (default): most recent sequence first', async () => {
     await seedDays(3)
-    const res = await getPaginatedSequences(testDbPath, { gapSeconds: 1, limit: 20, sort: 'newest' })
+    const res = await getPaginatedSequences(testDbPath, {
+      gapSeconds: 1,
+      limit: 20,
+      sort: 'newest'
+    })
     const firstIDs = res.sequences.map((s) => s.items[0].mediaID)
     assert.deepEqual(firstIDs, ['m3', 'm2', 'm1'])
   })
 
   test('oldest: earliest sequence first', async () => {
     await seedDays(3)
-    const res = await getPaginatedSequences(testDbPath, { gapSeconds: 1, limit: 20, sort: 'oldest' })
+    const res = await getPaginatedSequences(testDbPath, {
+      gapSeconds: 1,
+      limit: 20,
+      sort: 'oldest'
+    })
     const firstIDs = res.sequences.map((s) => s.items[0].mediaID)
     assert.deepEqual(firstIDs, ['m1', 'm2', 'm3'])
   })

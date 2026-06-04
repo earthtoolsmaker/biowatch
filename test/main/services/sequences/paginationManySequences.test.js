@@ -96,4 +96,57 @@ describe('getPaginatedSequences — many sequences across batches', () => {
     assert.equal(unique.size, ids.length, 'no sequence should be returned twice')
     assert.equal(all.length, N, `should return all ${N} singleton sequences, got ${all.length}`)
   })
+
+  // A single burst longer than the batch (>200 frames within the gap) forces the
+  // large-sequence look-ahead path. The sequence right after it must not be
+  // dropped at the page boundary.
+  async function seedBigBurstThenSingletons(burst, singletons) {
+    const manager = await createImageDirectoryDatabase(testDbPath)
+    await insertDeployments(manager, {
+      d1: {
+        deploymentID: 'd1',
+        locationID: 'l1',
+        locationName: 'A',
+        deploymentStart: DateTime.fromISO('2024-01-01T00:00:00Z'),
+        deploymentEnd: DateTime.fromISO('2024-12-31T23:59:59Z'),
+        latitude: 1,
+        longitude: 1,
+        cameraID: 'c1'
+      }
+    })
+    const mediaMap = {}
+    const burstBase = DateTime.fromISO('2024-06-01T00:00:00Z')
+    for (let i = 1; i <= burst; i++) {
+      mediaMap[`g${i}.jpg`] = {
+        mediaID: `g${String(i).padStart(4, '0')}`,
+        deploymentID: 'd1',
+        timestamp: burstBase.plus({ seconds: i }), // 1s apart → one sequence (gap 60)
+        filePath: `/g${i}.jpg`,
+        fileName: `g${i}.jpg`
+      }
+    }
+    const soloBase = DateTime.fromISO('2024-06-10T00:00:00Z')
+    for (let j = 1; j <= singletons; j++) {
+      mediaMap[`s${j}.jpg`] = {
+        mediaID: `s${String(j).padStart(4, '0')}`,
+        deploymentID: 'd1',
+        timestamp: soloBase.plus({ hours: j }), // 1h apart → each its own sequence
+        filePath: `/s${j}.jpg`,
+        fileName: `s${j}.jpg`
+      }
+    }
+    await insertMedia(manager, mediaMap)
+  }
+
+  for (const sort of ['newest', 'oldest']) {
+    test(`large burst (> batch size) followed by singletons loses nothing — ${sort}`, async () => {
+      await seedBigBurstThenSingletons(260, 30)
+      const all = await paginateAll({ gapSeconds: 60, limit: 5, sort })
+      const ids = all.map((s) => s.items[0].mediaID)
+      const unique = new Set(ids)
+      assert.equal(unique.size, ids.length, 'no sequence returned twice')
+      // 1 burst sequence + 30 singletons
+      assert.equal(all.length, 31, `should return all 31 sequences, got ${all.length}`)
+    })
+  }
 })

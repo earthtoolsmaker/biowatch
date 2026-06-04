@@ -22,7 +22,8 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  if (existsSync(testBiowatchDataPath)) rmSync(testBiowatchDataPath, { recursive: true, force: true })
+  if (existsSync(testBiowatchDataPath))
+    rmSync(testBiowatchDataPath, { recursive: true, force: true })
 })
 
 async function seed() {
@@ -78,10 +79,7 @@ describe('getMediaForSequencePagination — source filter', () => {
       dateRange: {},
       timeRange: {}
     })
-    assert.deepEqual(
-      result.media.map((m) => m.mediaID).sort(),
-      ['a', 'b']
-    )
+    assert.deepEqual(result.media.map((m) => m.mediaID).sort(), ['a', 'b'])
   })
 
   test('with source: only matching source (timestamped phase)', async () => {
@@ -94,10 +92,7 @@ describe('getMediaForSequencePagination — source filter', () => {
       timeRange: {},
       source: 'ndutu_2024'
     })
-    assert.deepEqual(
-      result.media.map((m) => m.mediaID).sort(),
-      ['a']
-    )
+    assert.deepEqual(result.media.map((m) => m.mediaID).sort(), ['a'])
   })
 
   test('with source: only matching source (null phase)', async () => {
@@ -110,10 +105,7 @@ describe('getMediaForSequencePagination — source filter', () => {
       timeRange: {},
       source: 'ndutu_2024'
     })
-    assert.deepEqual(
-      result.media.map((m) => m.mediaID).sort(),
-      ['c']
-    )
+    assert.deepEqual(result.media.map((m) => m.mediaID).sort(), ['c'])
   })
 
   test('non-existent source: empty, no error', async () => {

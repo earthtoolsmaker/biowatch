@@ -107,8 +107,8 @@ export async function getDeploymentComposition(dbPath, gapSecondsOverride) {
 
   // Group each deployment's media on its OWN (grouping is sequential and
   // deployment-aware, but interleaving deployments in one time-sorted stream
-  // would split a deployment's runs at every cross-deployment hop). Per the
-  // deployment isolates it, matching "filter to this deployment, then group".
+  // would split a deployment's runs at every cross-deployment hop). Grouping
+  // per deployment isolates it, matching "filter to this deployment, then group".
   const mediaByDeployment = new Map()
   for (const m of mediaArray) {
     if (!mediaByDeployment.has(m.deploymentID)) mediaByDeployment.set(m.deploymentID, [])

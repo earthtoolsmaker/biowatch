@@ -22,7 +22,8 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  if (existsSync(testBiowatchDataPath)) rmSync(testBiowatchDataPath, { recursive: true, force: true })
+  if (existsSync(testBiowatchDataPath))
+    rmSync(testBiowatchDataPath, { recursive: true, force: true })
 })
 
 async function seed() {

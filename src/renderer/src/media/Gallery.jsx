@@ -2,7 +2,7 @@
  * Shared Gallery + ImageModal + supporting components.
  *
  * Used by:
- *   - src/renderer/src/media.jsx (the Media tab — study-wide)
+ *   - src/renderer/src/media/MediaGridView.jsx (the Media tab — study-wide)
  *   - src/renderer/src/media/DeploymentMediaGallery.jsx (the Deployments tab — deployment-scoped)
  *
  * Both consumers pass species/date/time filter inputs. The deployment-scoped
