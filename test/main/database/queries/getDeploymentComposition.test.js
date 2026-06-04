@@ -215,4 +215,69 @@ describe('getDeploymentComposition', () => {
       videoCount: 0
     })
   })
+
+  test('a mixed burst counts as ONE blank + ONE detection sequence (matches the Blank filter)', async () => {
+    const manager = await createImageDirectoryDatabase(testDbPath)
+    await insertDeployments(manager, {
+      d1: {
+        deploymentID: 'd1',
+        locationID: 'loc-d1',
+        locationName: 'Site A',
+        deploymentStart: DateTime.fromISO('2024-01-01T00:00:00Z'),
+        deploymentEnd: DateTime.fromISO('2024-12-31T23:59:59Z'),
+        latitude: 1,
+        longitude: 1,
+        cameraID: 'cam-d1'
+      }
+    })
+    // One 5-frame burst: the animal appears in 2 frames, the other 3 are empty.
+    // Grouping all media → 1 sequence. But the Blank quick view filters to the
+    // empty frames first, so it shows 1 blank sequence; a species filter shows
+    // the 2 animal frames as 1 detection sequence. The composition must report
+    // BOTH (blankCount: 1, detectionCount: 1).
+    const m = (id, iso) => ({
+      mediaID: id,
+      deploymentID: 'd1',
+      timestamp: DateTime.fromISO(iso),
+      filePath: `/${id}.jpg`,
+      fileName: `${id}.jpg`
+    })
+    await insertMedia(manager, {
+      'f1.jpg': m('f1', '2024-06-01T10:00:00Z'), // animal
+      'f2.jpg': m('f2', '2024-06-01T10:00:01Z'), // animal
+      'f3.jpg': m('f3', '2024-06-01T10:00:02Z'), // empty
+      'f4.jpg': m('f4', '2024-06-01T10:00:03Z'), // empty
+      'f5.jpg': m('f5', '2024-06-01T10:00:04Z') // empty
+    })
+    await insertObservations(manager, [
+      {
+        observationID: 'o1',
+        mediaID: 'f1',
+        deploymentID: 'd1',
+        scientificName: 'Capreolus capreolus',
+        observationType: 'animal'
+      },
+      {
+        observationID: 'o2',
+        mediaID: 'f2',
+        deploymentID: 'd1',
+        scientificName: 'Capreolus capreolus',
+        observationType: 'animal'
+      }
+    ])
+
+    const result = await getDeploymentComposition(testDbPath, 60)
+    assert.equal(result.length, 1)
+    assert.deepEqual(result[0], {
+      deploymentID: 'd1',
+      locationName: 'Site A',
+      latitude: 1,
+      longitude: 1,
+      count: 2,
+      detectionCount: 1, // the 2 animal frames → 1 detection sequence
+      blankCount: 1, // the 3 empty frames → 1 blank sequence (== Blank filter)
+      imageCount: 2,
+      videoCount: 0
+    })
+  })
 })

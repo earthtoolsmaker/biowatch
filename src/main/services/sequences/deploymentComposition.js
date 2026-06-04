@@ -46,49 +46,52 @@ export async function getDeploymentComposition(dbPath, gapSecondsOverride) {
   // SQLite returns the EXISTS flag as 0/1 — normalize to a boolean.
   const mediaArray = mediaRows.map((r) => ({ ...r, isDetection: !!Number(r.isDetection) }))
 
-  // Group identically to pagination.js: null gap → eventID grouping, otherwise
-  // timestamp-proximity (deployment-scoped, video-aware). Null-timestamp media
-  // come back separately, each its own single-item sequence.
-  const grouped =
+  // Count blank vs detection by grouping each media SUBSET independently —
+  // mirroring how the Media tab's Blank quick view (and a species filter) work:
+  // they filter media first, then group. So a mixed burst (some empty frames,
+  // some with the animal) contributes a blank sequence AND a detection sequence,
+  // and `blankCount` here equals exactly what "deployment + Blank" shows.
+  const group = (subset) =>
     gapSeconds === null
-      ? groupMediaByEventID(mediaArray)
-      : groupMediaIntoSequences(mediaArray, gapSeconds, isVideoMedia)
-  const { sequences, nullTimestampMedia } = grouped
+      ? groupMediaByEventID(subset)
+      : groupMediaIntoSequences(subset, gapSeconds, isVideoMedia)
 
-  const byDeployment = new Map()
-  const tally = (items) => {
-    if (!items.length) return
-    const dep = items[0].deploymentID
-    const e = byDeployment.get(dep) || { total: 0, detections: 0, images: 0, videos: 0 }
-    e.total++
-    if (items.some((i) => i.isDetection)) e.detections++
-    // A sequence's media type follows its representative (first) item, matching
-    // the table's Type column (deriveTableRow uses items[0]).
-    if (isVideoMedia(items[0])) e.videos++
-    else e.images++
-    byDeployment.set(dep, e)
+  const tallySubset = (subset) => {
+    const { sequences, nullTimestampMedia } = group(subset)
+    const byDep = new Map()
+    const add = (items) => {
+      if (!items.length) return
+      const dep = items[0].deploymentID
+      const e = byDep.get(dep) || { count: 0, images: 0, videos: 0 }
+      e.count++
+      // A sequence's media type follows its representative (first) item,
+      // matching the table's Type column (deriveTableRow uses items[0]).
+      if (isVideoMedia(items[0])) e.videos++
+      else e.images++
+      byDep.set(dep, e)
+    }
+    for (const seq of sequences) add(seq.items)
+    for (const m of nullTimestampMedia) add([m])
+    return byDep
   }
-  for (const seq of sequences) tally(seq.items)
-  for (const m of nullTimestampMedia) tally([m])
+
+  const detectionByDep = tallySubset(mediaArray.filter((m) => m.isDetection))
+  const blankByDep = tallySubset(mediaArray.filter((m) => !m.isDetection))
 
   return deployments
     .map((d) => {
-      const e = byDeployment.get(d.deploymentID) || {
-        total: 0,
-        detections: 0,
-        images: 0,
-        videos: 0
-      }
+      const det = detectionByDep.get(d.deploymentID) || { count: 0, images: 0, videos: 0 }
+      const blank = blankByDep.get(d.deploymentID) || { count: 0, images: 0, videos: 0 }
       return {
         deploymentID: d.deploymentID,
         locationName: d.locationName || d.locationID || d.deploymentID,
         latitude: d.latitude,
         longitude: d.longitude,
-        count: e.total,
-        detectionCount: e.detections,
-        blankCount: e.total - e.detections,
-        imageCount: e.images,
-        videoCount: e.videos
+        count: det.count + blank.count,
+        detectionCount: det.count,
+        blankCount: blank.count,
+        imageCount: det.images + blank.images,
+        videoCount: det.videos + blank.videos
       }
     })
     .sort(
