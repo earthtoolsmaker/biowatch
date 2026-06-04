@@ -44,7 +44,7 @@ timestamp), and no clean way to land here pre-filtered from other tabs.
 | Sorting                | In Table, via clickable column headers (Type · Species · When · Deployment)           |
 | Filters                | Species · Deployment · Media type                                                     |
 | Quick views            | Blank · Detections · No timestamp · Favorites (Vehicle hidden behind a flag)          |
-| Multi-species sequence | Show **all species** (comma-separated, common names in Title Case)                    |
+| Multi-species sequence | Show **all species** with per-sequence ×N counts (`·`-separated, Title Case)          |
 | Row/tile click         | Opens the existing media modal; modal next/prev follows the table's sort/filter order |
 | Cross-tab linking      | Media tab is URL-addressable; pre-filters arrive as removable toolbar chips           |
 
