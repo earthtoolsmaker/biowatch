@@ -23,8 +23,6 @@ export default function MediaGridView({ filters, speciesReady = true, onSortChan
       deploymentID: filters.deployments,
       mediaTypes: filters.mediaTypes,
       favorite: patch.favorite === true,
-      reviewed: patch.reviewed,
-      lowConfidence: patch.lowConfidence === true,
       onlyNullTimestamps: onlyNull,
       // Show null-timestamp media when browsing everything (no date filter) or
       // when explicitly viewing only-null; hide them once a date range narrows.
@@ -41,8 +39,6 @@ export default function MediaGridView({ filters, speciesReady = true, onSortChan
       deploymentID={props.deploymentID}
       mediaTypes={props.mediaTypes}
       favorite={props.favorite}
-      reviewed={props.reviewed}
-      lowConfidence={props.lowConfidence}
       onlyNullTimestamps={props.onlyNullTimestamps}
       includeNullTimestamps={props.includeNullTimestamps}
       speciesReady={speciesReady}

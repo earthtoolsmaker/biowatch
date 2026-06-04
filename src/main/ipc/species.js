@@ -9,8 +9,7 @@ import { getStudyDatabasePath } from '../services/paths.js'
 import {
   getSpeciesDistribution,
   getVehicleMediaCount,
-  getDistinctSpecies,
-  getLowConfidenceCount
+  getDistinctSpecies
 } from '../database/index.js'
 import { runInWorker } from '../services/sequences/runInWorker.js'
 
@@ -65,24 +64,6 @@ export function registerSpeciesIPCHandlers() {
       return { data: vehicleCount }
     } catch (error) {
       log.error('Error getting vehicle media count:', error)
-      return { error: error.message }
-    }
-  })
-
-  // Count of media whose only/any machine classification is below the
-  // confidence threshold — drives the Media tab's "Low confidence" quick view.
-  ipcMain.handle('species:get-low-confidence-count', async (_, studyId, threshold) => {
-    try {
-      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
-      if (!dbPath || !existsSync(dbPath)) {
-        log.warn(`Database not found for study ID: ${studyId}`)
-        return { error: 'Database not found for this study' }
-      }
-
-      const lowConfidenceCount = await getLowConfidenceCount(dbPath, threshold)
-      return { data: lowConfidenceCount }
-    } catch (error) {
-      log.error('Error getting low confidence media count:', error)
       return { error: error.message }
     }
   })

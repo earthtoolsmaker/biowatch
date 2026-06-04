@@ -43,7 +43,6 @@ export {
 // Media
 export {
   getSourcesData,
-  getLowConfidenceCount,
   getMediaBboxes,
   getMediaBboxesBatch,
   checkMediaHaveBboxes,
@@ -75,11 +74,7 @@ export {
 } from './best-media.js'
 
 // Sequences
-export {
-  getMediaForSequencePagination,
-  hasTimestampedMedia,
-  getSequenceReviewStatus
-} from './sequences.js'
+export { getMediaForSequencePagination, hasTimestampedMedia } from './sequences.js'
 
 // Overview stats
 export { getOverviewStats } from './overview.js'

@@ -10,7 +10,6 @@ import {
   eq,
   and,
   sql,
-  count,
   isNotNull,
   ne,
   inArray,
@@ -100,62 +99,16 @@ export function buildMediaTypeCondition(mediaTypes) {
  * the timestamped and null-timestamp phases — none of these reference the
  * timestamp). Used by getMediaForSequencePagination and hasTimestampedMedia.
  *
- * @param {object} db - drizzle db handle (for correlated subqueries)
  * @param {object} opts
  * @param {boolean} [opts.favorite] - only favorited media
- * @param {boolean} [opts.reviewed] - true: fully human-reviewed; false: needs review
- * @param {boolean} [opts.lowConfidence] - has a low-probability machine observation
- * @param {number} [opts.lowConfidenceThreshold=0.5]
  * @returns {Array} drizzle conditions
  */
-export function buildQuickViewConditions(db, opts = {}) {
-  const { favorite = false, reviewed, lowConfidence = false, lowConfidenceThreshold = 0.5 } = opts
+export function buildQuickViewConditions(opts = {}) {
+  const { favorite = false } = opts
   const conditions = []
 
   if (favorite) {
     conditions.push(eq(media.favorite, true))
-  }
-
-  // An observation is "non-human-classified" when its method is not 'human'
-  // (machine, or unset). Drives both review-status arms.
-  const nonHumanObs = db
-    .select({ one: sql`1` })
-    .from(observations)
-    .where(
-      and(
-        eq(observations.mediaID, media.mediaID),
-        or(
-          ne(observations.classificationMethod, 'human'),
-          isNull(observations.classificationMethod)
-        )
-      )
-    )
-  const anyObs = db
-    .select({ one: sql`1` })
-    .from(observations)
-    .where(eq(observations.mediaID, media.mediaID))
-
-  if (reviewed === true) {
-    // Has observations AND none are non-human → fully reviewed.
-    conditions.push(and(exists(anyObs), notExists(nonHumanObs)))
-  } else if (reviewed === false) {
-    // Has at least one non-human observation → needs review.
-    conditions.push(exists(nonHumanObs))
-  }
-
-  if (lowConfidence) {
-    const lowConfObs = db
-      .select({ one: sql`1` })
-      .from(observations)
-      .where(
-        and(
-          eq(observations.mediaID, media.mediaID),
-          eq(observations.classificationMethod, 'machine'),
-          isNotNull(observations.classificationProbability),
-          lt(observations.classificationProbability, lowConfidenceThreshold)
-        )
-      )
-    conditions.push(exists(lowConfObs))
   }
 
   return conditions
@@ -191,9 +144,7 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
     source = null,
     mediaTypes = [],
     sort = 'newest',
-    favorite = false,
-    reviewed,
-    lowConfidence = false
+    favorite = false
   } = options
 
   // Timestamped phase ordering: 'newest' (default) walks time descending;
@@ -433,10 +384,8 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
       // Apply media-type filter (image / video)
       if (mediaTypeCond) timestampedConditions.push(mediaTypeCond)
 
-      // Apply quick-view filters (favorite / review-status / low-confidence)
-      timestampedConditions.push(
-        ...buildQuickViewConditions(db, { favorite, reviewed, lowConfidence })
-      )
+      // Apply quick-view filters (favorite)
+      timestampedConditions.push(...buildQuickViewConditions({ favorite }))
 
       // Apply area (bbox) filter on the joined deployment location
       if (bboxCondition) {
@@ -576,7 +525,7 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
         if (deploymentCond) nullConditions.push(deploymentCond)
         if (sourceCond) nullConditions.push(sourceCond)
         if (mediaTypeCond) nullConditions.push(mediaTypeCond)
-        nullConditions.push(...buildQuickViewConditions(db, { favorite, reviewed, lowConfidence }))
+        nullConditions.push(...buildQuickViewConditions({ favorite }))
         if (bboxCondition) {
           nullConditions.push(bboxCondition)
         }
@@ -644,8 +593,8 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
       // Apply media-type filter (image / video)
       if (mediaTypeCond) nullConditions.push(mediaTypeCond)
 
-      // Apply quick-view filters (favorite / review-status / low-confidence)
-      nullConditions.push(...buildQuickViewConditions(db, { favorite, reviewed, lowConfidence }))
+      // Apply quick-view filters (favorite)
+      nullConditions.push(...buildQuickViewConditions({ favorite }))
 
       // Apply area (bbox) filter on the joined deployment location
       if (bboxCondition) {
@@ -769,9 +718,7 @@ export async function hasTimestampedMedia(dbPath, options = {}) {
     deploymentID = null,
     source = null,
     mediaTypes = [],
-    favorite = false,
-    reviewed,
-    lowConfidence = false
+    favorite = false
   } = options
 
   try {
@@ -793,7 +740,7 @@ export async function hasTimestampedMedia(dbPath, options = {}) {
     const mediaTypeCond = buildMediaTypeCondition(mediaTypes)
     if (mediaTypeCond) conditions.push(mediaTypeCond)
 
-    conditions.push(...buildQuickViewConditions(db, { favorite, reviewed, lowConfidence }))
+    conditions.push(...buildQuickViewConditions({ favorite }))
 
     // Apply date range
     if (dateRange.start && dateRange.end) {
@@ -891,38 +838,4 @@ export async function hasTimestampedMedia(dbPath, options = {}) {
     log.error(`[Sequences] Error checking for timestamped media: ${error.message}`)
     throw error
   }
-}
-
-/**
- * For each given mediaID, determine whether it is human-reviewed: it has at
- * least one observation AND every observation has classificationMethod='human'.
- * Media with no observations are reported as not reviewed (false).
- *
- * @param {string} dbPath - Path to the SQLite database
- * @param {string[]} mediaIDs - Media IDs to evaluate
- * @returns {Promise<Map<string, boolean>>} mediaID -> reviewed
- */
-export async function getSequenceReviewStatus(dbPath, mediaIDs) {
-  const result = new Map(mediaIDs.map((id) => [id, false]))
-  if (mediaIDs.length === 0) return result
-
-  const studyId = getStudyIdFromPath(dbPath)
-  const db = await getDrizzleDb(studyId, dbPath)
-  const rows = await db
-    .select({
-      mediaID: observations.mediaID,
-      total: count(),
-      humanCount: sql`SUM(CASE WHEN ${observations.classificationMethod} = 'human' THEN 1 ELSE 0 END)`
-    })
-    .from(observations)
-    .where(inArray(observations.mediaID, mediaIDs))
-    .groupBy(observations.mediaID)
-    .all()
-
-  for (const r of rows) {
-    const total = Number(r.total)
-    const human = Number(r.humanCount)
-    result.set(r.mediaID, total > 0 && human === total)
-  }
-  return result
 }

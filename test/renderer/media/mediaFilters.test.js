@@ -43,7 +43,12 @@ describe('mediaFilters round-trip', () => {
   test('timeRange ranges round-trip', () => {
     const filters = {
       ...DEFAULT_FILTERS,
-      timeRange: { ranges: [{ start: 18, end: 24 }, { start: 0, end: 6 }] }
+      timeRange: {
+        ranges: [
+          { start: 18, end: 24 },
+          { start: 0, end: 6 }
+        ]
+      }
     }
     const back = searchParamsToFilters(filtersToSearchParams(filters))
     assert.deepEqual(back.timeRange.ranges, [
@@ -53,8 +58,8 @@ describe('mediaFilters round-trip', () => {
   })
 
   test('quickView round-trips and unknown values are dropped', () => {
-    const back = searchParamsToFilters(new URLSearchParams('view=grid&q=needs-review'))
-    assert.equal(back.quickView, 'needs-review')
+    const back = searchParamsToFilters(new URLSearchParams('view=grid&q=blank'))
+    assert.equal(back.quickView, 'blank')
     const bad = searchParamsToFilters(new URLSearchParams('q=bogus'))
     assert.equal(bad.quickView, null)
   })

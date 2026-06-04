@@ -23,11 +23,8 @@ describe('quickViews', () => {
     assert.deepEqual(quickViewToQueryPatch('no-timestamp'), { onlyNullTimestamps: true })
   })
 
-  test('reviewed / needs-review / favorites / low-confidence map to server flags', () => {
-    assert.deepEqual(quickViewToQueryPatch('reviewed'), { reviewed: true })
-    assert.deepEqual(quickViewToQueryPatch('needs-review'), { reviewed: false })
+  test('favorites maps to the favorite flag', () => {
     assert.deepEqual(quickViewToQueryPatch('favorites'), { favorite: true })
-    assert.deepEqual(quickViewToQueryPatch('low-confidence'), { lowConfidence: true })
   })
 
   test('null / unknown quick view → empty patch', () => {

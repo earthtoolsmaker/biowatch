@@ -8,7 +8,6 @@ describe('deriveTableRow', () => {
   test('dominant species by count, with +N for the rest and max confidence', () => {
     const sequence = {
       id: 'seq1',
-      reviewed: false,
       items: [
         { mediaID: 'm1', timestamp: '2024-06-01T10:00:00Z', locationName: 'Cam-A1' },
         { mediaID: 'm2', timestamp: '2024-06-01T10:00:02Z', locationName: 'Cam-A1' }
@@ -28,18 +27,15 @@ describe('deriveTableRow', () => {
     assert.equal(row.confidence, 0.91)
     assert.equal(row.when, '2024-06-01T10:00:00Z')
     assert.equal(row.deployment, 'Cam-A1')
-    assert.equal(row.reviewed, false)
     assert.equal(row.mediaID, 'm1')
   })
 
-  test('reviewed passes through; video flagged; null timestamp preserved', () => {
+  test('video flagged; null timestamp preserved', () => {
     const sequence = {
       id: 'seq2',
-      reviewed: true,
       items: [{ mediaID: 'v1', timestamp: null, deploymentID: 'd9', fileMediatype: 'video/mp4' }]
     }
     const row = deriveTableRow(sequence, { v1: [] }, isVideo)
-    assert.equal(row.reviewed, true)
     assert.equal(row.isVideo, true)
     assert.equal(row.when, null)
     assert.equal(row.deployment, 'd9')

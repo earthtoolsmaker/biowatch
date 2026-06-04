@@ -10,8 +10,7 @@ import log from '../logger.js'
 import { groupMediaIntoSequences, groupMediaByEventID } from './grouping.js'
 import {
   getMediaForSequencePagination,
-  hasTimestampedMedia,
-  getSequenceReviewStatus
+  hasTimestampedMedia
 } from '../../database/queries/sequences.js'
 
 /**
@@ -95,14 +94,12 @@ export async function getPaginatedSequences(dbPath, options = {}) {
     source = null,
     mediaTypes = [],
     favorite = false,
-    reviewed,
-    lowConfidence = false,
     onlyNullTimestamps = false
   } = filters
 
   // Bundle the quick-view, media-row filters so they thread through the fetch
   // helpers and into the DB query as a single unit.
-  const quickView = { favorite, reviewed, lowConfidence }
+  const quickView = { favorite }
 
   const startTime = Date.now()
   log.info(`[Sequences] Getting paginated sequences (limit: ${limit}, gapSeconds: ${gapSeconds})`)
@@ -195,16 +192,6 @@ export async function getPaginatedSequences(dbPath, options = {}) {
         hasMore = true
       }
     }
-  }
-
-  // Attach per-sequence human-review status (derived from the member
-  // observations' classificationMethod) so Grid/Table can render the
-  // reviewed badge without N extra round-trips.
-  const allMediaIDs = sequences.flatMap((s) => s.items.map((i) => i.mediaID))
-  const reviewStatus = await getSequenceReviewStatus(dbPath, allMediaIDs)
-  for (const seq of sequences) {
-    seq.reviewed =
-      seq.items.length > 0 && seq.items.every((i) => reviewStatus.get(i.mediaID) === true)
   }
 
   const elapsedTime = Date.now() - startTime
@@ -515,7 +502,7 @@ async function fetchNullTimestampSequences(dbPath, options) {
     bbox, // Location filter still applies to null-timestamp media
     source, // Source filter still applies to null-timestamp media
     mediaTypes, // Media-type filter applies to null-timestamp media too
-    ...quickView // favorite / review-status / low-confidence apply to null media too
+    ...quickView // favorite apply to null media too
   })
 
   const { media: mediaItems, hasMoreNull } = dbResult

@@ -1,15 +1,7 @@
 // Pure helpers translating Media-tab filter state to/from URL search params.
 // No React here — keeps the logic unit-testable under node:test.
 
-export const QUICK_VIEW_KEYS = [
-  'needs-review',
-  'reviewed',
-  'favorites',
-  'blank',
-  'no-timestamp',
-  'low-confidence',
-  'vehicle'
-]
+export const QUICK_VIEW_KEYS = ['favorites', 'blank', 'no-timestamp', 'vehicle']
 
 export const DEFAULT_FILTERS = {
   species: [],

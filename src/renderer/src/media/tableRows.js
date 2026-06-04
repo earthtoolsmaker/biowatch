@@ -89,7 +89,6 @@ export function deriveTableRow(sequence, bboxesByMedia, isVideoMedia) {
     confidence,
     when: rep.timestamp ?? null,
     deployment: rep.locationName || rep.deploymentID || null,
-    reviewed: sequence.reviewed === true,
     isVideo: isVideoMedia ? isVideoMedia(rep) : false
   }
 }

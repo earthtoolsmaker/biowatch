@@ -23,7 +23,8 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  if (existsSync(testBiowatchDataPath)) rmSync(testBiowatchDataPath, { recursive: true, force: true })
+  if (existsSync(testBiowatchDataPath))
+    rmSync(testBiowatchDataPath, { recursive: true, force: true })
 })
 
 // Seed four media:
@@ -137,21 +138,6 @@ describe('getPaginatedSequences — quick-view filters', () => {
   test('favorite: only favorited media', async () => {
     await seed()
     assert.deepEqual(await collectIds({ favorite: true }), ['m1'])
-  })
-
-  test('reviewed=true: only fully human-classified media', async () => {
-    await seed()
-    assert.deepEqual(await collectIds({ reviewed: true }), ['m1', 'm3'])
-  })
-
-  test('reviewed=false: only media that need review (has a non-human obs)', async () => {
-    await seed()
-    assert.deepEqual(await collectIds({ reviewed: false }), ['m2', 'm4'])
-  })
-
-  test('lowConfidence: only media with a low-probability machine obs', async () => {
-    await seed()
-    assert.deepEqual(await collectIds({ lowConfidence: true }), ['m2'])
   })
 
   test('onlyNullTimestamps: only null-timestamp media', async () => {

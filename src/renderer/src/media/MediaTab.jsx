@@ -36,9 +36,6 @@ export default function MediaTab({ studyId, path }) {
   const vehicleCount = useCount('vehicleMediaCount', actualStudyId, (s) =>
     window.api.getVehicleMediaCount(s)
   )
-  const lowConfidenceCount = useCount('lowConfidenceCount', actualStudyId, (s) =>
-    window.api.getLowConfidenceCount(s)
-  )
   const noTimestampCount = useCount('noTimestampCount', actualStudyId, (s) =>
     window.api.countMediaWithNullTimestamps(s)
   )
@@ -49,7 +46,6 @@ export default function MediaTab({ studyId, path }) {
   const quickViewCounts = {
     blank: blankCount,
     vehicle: vehicleCount,
-    'low-confidence': lowConfidenceCount,
     'no-timestamp': noTimestampCount,
     favorites: favoriteCount
   }

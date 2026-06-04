@@ -1649,8 +1649,7 @@ function ThumbnailCard({
   bboxes,
   itemWidth,
   isVideoMedia,
-  studyId,
-  reviewed = false
+  studyId
 }) {
   const isVideo = isVideoMedia(media)
   const [thumbnailUrl, setThumbnailUrl] = useState(null)
@@ -1710,14 +1709,6 @@ function ThumbnailCard({
         className="relative bg-black flex items-center justify-center cursor-pointer hover:bg-gray-900 transition-colors overflow-hidden aspect-[4/3]"
         onClick={() => onImageClick(media)}
       >
-        {reviewed && (
-          <div
-            className="absolute bottom-2 left-2 z-20 w-5 h-5 rounded-full bg-green-600 text-white flex items-center justify-center shadow"
-            title="Reviewed by a human"
-          >
-            <Check size={12} />
-          </div>
-        )}
         {isVideo ? (
           <>
             {/* Video placeholder background - always visible */}
@@ -1831,8 +1822,7 @@ function SequenceCard({
   itemWidth,
   cycleInterval = 1000,
   isVideoMedia,
-  studyId,
-  reviewed = false
+  studyId
 }) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isHovering, setIsHovering] = useState(false)
@@ -1955,14 +1945,6 @@ function SequenceCard({
         className="relative bg-black flex items-center justify-center cursor-pointer hover:bg-gray-900 transition-colors overflow-hidden aspect-[4/3]"
         onClick={handleClick}
       >
-        {reviewed && (
-          <div
-            className="absolute bottom-2 left-2 z-20 w-5 h-5 rounded-full bg-green-600 text-white flex items-center justify-center shadow"
-            title="Reviewed by a human"
-          >
-            <Check size={12} />
-          </div>
-        )}
         {isVideo ? (
           <>
             {/* Video placeholder background - always visible */}
@@ -2118,8 +2100,6 @@ function Gallery({
   mediaTypes = [],
   sort = 'newest',
   favorite = false,
-  reviewed,
-  lowConfidence = false,
   onlyNullTimestamps = false,
   areaFilter = null,
   onLoadedChange,
@@ -2211,8 +2191,6 @@ function Gallery({
         JSON.stringify(mediaTypes),
         sort,
         favorite,
-        reviewed,
-        lowConfidence,
         onlyNullTimestamps,
         JSON.stringify(species),
         dateRange[0]?.toISOString(),
@@ -2235,8 +2213,6 @@ function Gallery({
             deploymentID,
             mediaTypes,
             favorite,
-            reviewed,
-            lowConfidence,
             onlyNullTimestamps,
             bbox: areaFilter
           }
@@ -2619,7 +2595,6 @@ function Gallery({
                     itemWidth={itemWidth}
                     isVideoMedia={isVideoMedia}
                     studyId={id}
-                    reviewed={sequence.reviewed === true}
                   />
                 )
               }
@@ -2639,7 +2614,6 @@ function Gallery({
                   itemWidth={itemWidth}
                   isVideoMedia={isVideoMedia}
                   studyId={id}
-                  reviewed={sequence.reviewed === true}
                 />
               )
             })

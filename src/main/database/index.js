@@ -205,7 +205,6 @@ export {
   getSequenceAwareDailyActivitySQL,
   // Media
   getSourcesData,
-  getLowConfidenceCount,
   getMediaBboxes,
   getMediaBboxesBatch,
   checkMediaHaveBboxes,
@@ -231,7 +230,6 @@ export {
   // Sequences
   getMediaForSequencePagination,
   hasTimestampedMedia,
-  getSequenceReviewStatus,
   // Overview stats
   getOverviewStats
 } from './queries/index.js'
