@@ -27,14 +27,11 @@ const api = {
   getSpeciesDistribution: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('species:get-distribution', studyId)
   },
-  getBlankMediaCount: async (studyId) => {
-    return await electronAPI.ipcRenderer.invoke('species:get-blank-count', studyId)
-  },
-  getVehicleMediaCount: async (studyId) => {
-    return await electronAPI.ipcRenderer.invoke('species:get-vehicle-count', studyId)
-  },
   getDeploymentLocations: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('deployments:get-locations', studyId)
+  },
+  getDeploymentDistribution: async (studyId) => {
+    return await electronAPI.ipcRenderer.invoke('deployments:get-distribution', studyId)
   },
   getAllDeployments: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('deployments:get-all', studyId)
@@ -344,6 +341,9 @@ const api = {
   },
   countMediaWithNullTimestamps: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('media:count-null-timestamps', studyId)
+  },
+  countFavoriteMedia: async (studyId) => {
+    return await electronAPI.ipcRenderer.invoke('media:count-favorites', studyId)
   },
   getSourcesData: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('sources:get-data', studyId)

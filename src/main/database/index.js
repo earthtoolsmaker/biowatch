@@ -182,6 +182,8 @@ export {
   createImageDirectoryDatabase,
   // Deployments
   getDeploymentLocations,
+  getMediaForDeploymentComposition,
+  getDeploymentsBasic,
   getAllDeployments,
   getLocationsActivity,
   insertDeployments,
@@ -192,8 +194,6 @@ export {
   getBlankMediaCountForDeployment,
   // Species
   getSpeciesDistribution,
-  getBlankMediaCount,
-  getVehicleMediaCount,
   getDistinctSpecies,
   getSpeciesDistributionByMedia,
   getSpeciesTimeseriesByMedia,
@@ -213,6 +213,7 @@ export {
   insertMedia,
   updateMediaFavorite,
   countMediaWithNullTimestamps,
+  countFavoriteMedia,
   // Observations
   updateObservationClassification,
   updateObservationBbox,

@@ -320,6 +320,7 @@ export default function Sources({ studyId, importerName, studyName }) {
                     source={source}
                     importerName={importerName}
                     studyName={studyName}
+                    studyId={actualStudyId}
                     expanded={!!expanded[source.importFolder]}
                     onToggle={() =>
                       setExpanded((e) => ({

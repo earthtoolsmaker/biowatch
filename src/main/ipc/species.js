@@ -6,11 +6,7 @@ import { app, ipcMain } from 'electron'
 import log from '../services/logger.js'
 import { existsSync } from 'fs'
 import { getStudyDatabasePath } from '../services/paths.js'
-import {
-  getSpeciesDistribution,
-  getVehicleMediaCount,
-  getDistinctSpecies
-} from '../database/index.js'
+import { getSpeciesDistribution, getDistinctSpecies } from '../database/index.js'
 import { runInWorker } from '../services/sequences/runInWorker.js'
 
 /**
@@ -30,40 +26,6 @@ export function registerSpeciesIPCHandlers() {
       return { data: distribution }
     } catch (error) {
       log.error('Error getting species distribution:', error)
-      return { error: error.message }
-    }
-  })
-
-  ipcMain.handle('species:get-blank-count', async (_, studyId) => {
-    try {
-      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
-      if (!dbPath || !existsSync(dbPath)) {
-        log.warn(`Database not found for study ID: ${studyId}`)
-        return { error: 'Database not found for this study' }
-      }
-
-      // Off the main thread — the notExists scan is ~465ms on the largest
-      // GMU8-pattern study even with the covering index.
-      const blankCount = await runInWorker({ type: 'blank-count', dbPath })
-      return { data: blankCount }
-    } catch (error) {
-      log.error('Error getting blank media count:', error)
-      return { error: error.message }
-    }
-  })
-
-  ipcMain.handle('species:get-vehicle-count', async (_, studyId) => {
-    try {
-      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
-      if (!dbPath || !existsSync(dbPath)) {
-        log.warn(`Database not found for study ID: ${studyId}`)
-        return { error: 'Database not found for this study' }
-      }
-
-      const vehicleCount = await getVehicleMediaCount(dbPath)
-      return { data: vehicleCount }
-    } catch (error) {
-      log.error('Error getting vehicle media count:', error)
       return { error: error.message }
     }
   })

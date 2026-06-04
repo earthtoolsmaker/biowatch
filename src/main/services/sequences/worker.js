@@ -23,12 +23,12 @@ import {
   getSequenceAwareDailyActivitySQL,
   getBestMedia,
   getBestImagePerSpecies,
-  getBlankMediaCount,
   getDeploymentsActivity,
   getSourcesData,
   getOverviewStats
 } from '../../database/index.js'
 import { getPaginatedSequences } from './pagination.js'
+import { getDeploymentComposition } from './deploymentComposition.js'
 import {
   calculateSequenceAwareSpeciesCounts,
   calculateSequenceAwareTimeseries,
@@ -185,6 +185,13 @@ async function run() {
       // multiple seconds on first open of large studies.
       return getDeploymentsActivity(dbPath, workerData.periodCount)
     }
+    case 'deployment-composition': {
+      // Media tab's per-deployment blank/detection composition. Fetches ALL
+      // media (synchronous better-sqlite3) and groups it into sequences in JS
+      // — O(media) work that froze the main process for seconds on large
+      // studies. Off-thread keeps the renderer responsive while it loads.
+      return getDeploymentComposition(dbPath, effectiveGapSeconds)
+    }
     case 'sources-data': {
       // Sources tab rollup. Runs four queries (per-source, per-deployment,
       // last-model-used, active-run) over media/observations/model_outputs and
@@ -197,14 +204,6 @@ async function run() {
       // observations / deployments / media are O(table size) and large
       // studies show multi-hundred-ms latency.
       return getOverviewStats(dbPath)
-    }
-    case 'blank-count': {
-      // Library/Deployments tabs both call this on first open. The
-      // notExists scan is O(media × matching observations); even with the
-      // covering index on (mediaID, scientificName, observationType) it
-      // takes ~465ms on the largest GMU8-pattern study (2.7M observations).
-      // Off the main thread to avoid renderer jank.
-      return getBlankMediaCount(dbPath)
     }
     default:
       throw new Error(`Unknown worker task type: ${type}`)

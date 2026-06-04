@@ -383,7 +383,14 @@ export async function insertMedia(manager, mediaData) {
             filePath: item.filePath,
             fileName: item.fileName,
             importFolder: item.importFolder || null,
-            folderName: item.folderName || null
+            folderName: item.folderName || null,
+            // IANA media type ('image/jpeg', 'video/mp4', …); drives the Media
+            // tab's image/video filter. Falls back to the column default when
+            // the caller doesn't specify one.
+            fileMediatype: item.fileMediatype ?? 'image/jpeg',
+            // Passed through when present (default false) so callers/tests can
+            // seed favorite media; preserves prior behavior for existing callers.
+            favorite: item.favorite === true
           })
           .run()
 
@@ -479,6 +486,22 @@ export async function countMediaWithNullTimestamps(dbPath) {
     log.error(`Error counting media with null timestamps: ${error.message}`)
     throw error
   }
+}
+
+/**
+ * Count media files marked as favorite.
+ * @param {string} dbPath - Path to the SQLite database
+ * @returns {Promise<number>} - Count of favorite media files
+ */
+export async function countFavoriteMedia(dbPath) {
+  const studyId = getStudyIdFromPath(dbPath)
+  const db = await getDrizzleDb(studyId, dbPath)
+  const result = await db
+    .select({ count: count().as('count') })
+    .from(media)
+    .where(eq(media.favorite, true))
+    .get()
+  return Number(result?.count || 0)
 }
 
 /**

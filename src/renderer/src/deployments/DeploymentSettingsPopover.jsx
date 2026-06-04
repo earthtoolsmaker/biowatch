@@ -72,9 +72,13 @@ function StatsSection({ stats }) {
   const mediaCount = stats?.mediaCount
   const observationCount = stats?.observationCount
   const blankCount = stats?.blankCount
+  const sequenceCount = stats?.sequenceCount
 
+  // Blank rate is over SEQUENCES (events), not media — a blank sequence is a
+  // whole sequence with no detection, matching the Media tab and the Blank
+  // filter. blankCount / sequenceCount keeps the units consistent.
   const blankRate =
-    mediaCount > 0 && typeof blankCount === 'number' ? (blankCount / mediaCount) * 100 : null
+    sequenceCount > 0 && typeof blankCount === 'number' ? (blankCount / sequenceCount) * 100 : null
 
   return (
     <div className="mb-3">

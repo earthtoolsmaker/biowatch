@@ -85,18 +85,18 @@ export const deployments = sqliteTable('deployments', {
 
 Media file metadata.
 
-| Column          | Type    | Constraints      | Description                                                                                                                                                    |
-| --------------- | ------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mediaID`       | TEXT    | PRIMARY KEY      | Unique media identifier                                                                                                                                        |
-| `deploymentID`  | TEXT    | FK → deployments | Parent deployment                                                                                                                                              |
-| `timestamp`     | TEXT    |                  | Capture timestamp (ISO 8601)                                                                                                                                   |
-| `filePath`      | TEXT    |                  | Absolute path or HTTP URL                                                                                                                                      |
-| `fileName`      | TEXT    |                  | Original file name                                                                                                                                             |
+| Column          | Type    | Constraints      | Description                                                                                                                                                                                                                                                            |
+| --------------- | ------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mediaID`       | TEXT    | PRIMARY KEY      | Unique media identifier                                                                                                                                                                                                                                                |
+| `deploymentID`  | TEXT    | FK → deployments | Parent deployment                                                                                                                                                                                                                                                      |
+| `timestamp`     | TEXT    |                  | Capture timestamp (ISO 8601)                                                                                                                                                                                                                                           |
+| `filePath`      | TEXT    |                  | Absolute path or HTTP URL                                                                                                                                                                                                                                              |
+| `fileName`      | TEXT    |                  | Original file name                                                                                                                                                                                                                                                     |
 | `importFolder`  | TEXT    |                  | Source import folder. For local imports: absolute folder path. For LILA: dataset name. For CamtrapDP: package directory. For merged-from-another-study sources: the synthetic string `merge:<source-study-uuid>` (no real path). The Sources tab groups by this field. |
-| `folderName`    | TEXT    |                  | Subfolder name within import                                                                                                                                   |
-| `fileMediatype` | TEXT    |                  | IANA media type (e.g., `image/jpeg`, `video/mp4`)                                                                                                              |
-| `exifData`      | TEXT    | JSON             | EXIF/metadata as JSON (see below)                                                                                                                              |
-| `favorite`      | INTEGER | DEFAULT 0        | User-marked favorite/best capture (CamtrapDP compliant)                                                                                                        |
+| `folderName`    | TEXT    |                  | Subfolder name within import                                                                                                                                                                                                                                           |
+| `fileMediatype` | TEXT    |                  | IANA media type (e.g., `image/jpeg`, `video/mp4`)                                                                                                                                                                                                                      |
+| `exifData`      | TEXT    | JSON             | EXIF/metadata as JSON (see below)                                                                                                                                                                                                                                      |
+| `favorite`      | INTEGER | DEFAULT 0        | User-marked favorite/best capture (CamtrapDP compliant)                                                                                                                                                                                                                |
 
 ```javascript
 export const media = sqliteTable('media', {
@@ -221,12 +221,37 @@ buckets, addressed via sentinel strings defined in `src/shared/constants.js`:
 - **`BLANK_SENTINEL`** — represents _blank media_: media that has no
   observation naming a real species and no vehicle observation. Covers
   media with zero observation rows AND media whose only observations are
-  `blank`/`unclassified`/`unknown`-typed empty-species rows. Computed by
-  `getBlankMediaCount` (`src/main/database/queries/species.js`) via
-  `notExists(realObservations)`.
+  `blank`/`unclassified`/`unknown`-typed empty-species rows. Identified by
+  `notExists(realObservations)` — both in the pagination filter
+  (`src/main/database/queries/sequences.js`) and the deployment composition
+  (`getMediaForDeploymentComposition`'s `isDetection` flag).
 - **`VEHICLE_SENTINEL`** — represents _vehicle media_: media with at least
-  one `observationType='vehicle'` observation. Computed by
-  `getVehicleMediaCount`. Vehicle media is **not** counted as blank.
+  one `observationType='vehicle'` observation. Vehicle media is **not**
+  counted as blank (it is a detection).
+
+The Media tab defines "Blank" at the **sequence** level, the same way the
+unfiltered table groups media: a _blank sequence_ is a whole sequence whose
+every frame is non-detection. A mixed burst (animal in some frames, empty in
+others) is therefore ONE detection — its empty frames are **not** a separate
+blank. This keeps every surface consistent (composition total, Blank badge,
+Blank-filter rows, and the unfiltered table all agree):
+
+- `getDeploymentComposition` groups each deployment's media once and
+  classifies each whole sequence → `detectionCount` / `blankCount` /
+  `vehicleCount`. The Blank badge and species-filter Blank row sum the
+  per-deployment `blankCount`.
+- The Blank quick-view filter is sequence-aware: for a pure-Blank request
+  `getMediaForSequencePagination` returns ALL timestamped media tagged with
+  an `isDetection` flag, and the pagination layer
+  (`getPaginatedSequences`) keeps only the no-detection sequences. (Filtering
+  to blank _media_ first would regroup the empty frames out of mixed bursts
+  and over-count blanks.)
+
+The Deployments-tab detail pane is sequence-aware too: its species-popover
+Blank pill, the settings popover's blank rate (blank ÷ total sequences), and
+the gallery's Blank filter all use `getDeploymentSequenceStats` (unified
+per-deployment grouping), so they match the Media tab. (`getBlankMediaCountForDeployment`
+remains a media-level count used only inside `getSpeciesForDeployment`.)
 
 Both sentinels appear in the Library and Deployments species filters and
 flow through `getMediaForSequencePagination` as filterable buckets. The
@@ -234,6 +259,16 @@ flow through `getMediaForSequencePagination` as filterable buckets. The
 older `observationType != 'blank'` proxy when restricting to "real
 species" rows — the proxy lets `unclassified`/`unknown` empty-species rows
 through, which pollutes species distributions.
+
+#### Classification method (`classificationMethod`)
+
+`classificationMethod` records whether an observation is raw AI output (`machine`)
+or has been touched by a person (`human`). Editing a species/bbox
+(`updateObservationClassification` / `updateObservationBbox`) flips it to `human`
+and clears `classificationProbability` per CamTrap DP. This field is written by the
+modal editor; the Media tab no longer exposes a review-status workflow (the
+needs-review/reviewed/low-confidence quick views, the per-sequence reviewed flag,
+and the bulk mark-reviewed action were removed).
 
 #### `observationID` reuse after delete
 

@@ -2,7 +2,7 @@
  * Shared Gallery + ImageModal + supporting components.
  *
  * Used by:
- *   - src/renderer/src/media.jsx (the Media tab — study-wide)
+ *   - src/renderer/src/media/MediaGridView.jsx (the Media tab — study-wide)
  *   - src/renderer/src/media/DeploymentMediaGallery.jsx (the Deployments tab — deployment-scoped)
  *
  * Both consumers pass species/date/time filter inputs. The deployment-scoped
@@ -53,6 +53,8 @@ import {
   getSpeciesCountsFromSequence
 } from '../utils/speciesFromBboxes'
 import { SpeciesCountLabel } from '../ui/SpeciesLabel'
+import MediaTableView, { MediaTableHeader } from './MediaTableView.jsx'
+import { sortSequences } from './tableRows.js'
 import { formatGridTimestamp } from '../utils/formatTimestamp'
 import { useSequenceGap } from '../hooks/useSequenceGap'
 import { useShowThumbnailBboxes } from '../hooks/useShowThumbnailBboxes'
@@ -484,8 +486,9 @@ function ImageModal({
       queryClient.invalidateQueries({ queryKey: ['sequenceAwareTimeseries', studyId] })
       queryClient.invalidateQueries({ queryKey: ['sequenceAwareDailyActivity', studyId] })
       queryClient.invalidateQueries({ queryKey: ['sequenceAwareHeatmap', studyId] })
-      queryClient.invalidateQueries({ queryKey: ['blankMediaCount', studyId] })
-      queryClient.invalidateQueries({ queryKey: ['vehicleMediaCount', studyId] })
+      // Blank/Vehicle counts are derived from the sequence-aware deployment
+      // composition now, so refresh that cache instead of the old media counts.
+      queryClient.invalidateQueries({ queryKey: ['mediaFilterDeploymentDistribution', studyId] })
       queryClient.invalidateQueries({ queryKey: ['bestMedia', studyId] })
 
       setShowDatePicker(false)
@@ -570,8 +573,9 @@ function ImageModal({
     queryClient.invalidateQueries({ queryKey: ['sequenceAwareTimeseries', studyId] })
     queryClient.invalidateQueries({ queryKey: ['sequenceAwareDailyActivity', studyId] })
     queryClient.invalidateQueries({ queryKey: ['sequenceAwareHeatmap', studyId] })
-    queryClient.invalidateQueries({ queryKey: ['blankMediaCount', studyId] })
-    queryClient.invalidateQueries({ queryKey: ['vehicleMediaCount', studyId] })
+    // Blank/Vehicle counts are derived from the sequence-aware deployment
+    // composition now, so refresh that cache instead of the old media counts.
+    queryClient.invalidateQueries({ queryKey: ['mediaFilterDeploymentDistribution', studyId] })
     queryClient.invalidateQueries({ queryKey: ['bestMedia', studyId] })
   }, [queryClient, studyId, media?.mediaID])
 
@@ -2095,9 +2099,15 @@ function Gallery({
   includeNullTimestamps = false,
   speciesReady = false,
   deploymentID = null,
+  mediaTypes = [],
+  sort = 'newest',
+  favorite = false,
+  hideBlank = false,
+  onlyNullTimestamps = false,
   areaFilter = null,
   onLoadedChange,
-  embedded = false
+  embedded = false,
+  view = 'grid'
 }) {
   const [imageErrors, setImageErrors] = useState(() => {
     const initial = {}
@@ -2181,6 +2191,11 @@ function Gallery({
         id,
         sequenceGap,
         deploymentID,
+        JSON.stringify(mediaTypes),
+        sort,
+        favorite,
+        hideBlank,
+        onlyNullTimestamps,
         JSON.stringify(species),
         dateRange[0]?.toISOString(),
         dateRange[1]?.toISOString(),
@@ -2193,12 +2208,17 @@ function Gallery({
           gapSeconds: sequenceGap,
           limit: PAGE_SIZE,
           cursor: pageParam,
+          sort,
           filters: {
             species,
             dateRange:
               dateRange[0] && dateRange[1] ? { start: dateRange[0], end: dateRange[1] } : {},
             timeRange,
             deploymentID,
+            mediaTypes,
+            favorite,
+            hideBlank,
+            onlyNullTimestamps,
             bbox: areaFilter
           }
         })
@@ -2248,6 +2268,45 @@ function Gallery({
     staleTime: 60000
   })
 
+  // Width of the scroll container's scrollbar gutter, measured so the table
+  // header (which sits OUTSIDE the scroller) can reserve the same right-edge
+  // space and keep its columns aligned with the scrolling rows. 0 on overlay-
+  // scrollbar platforms (macOS), where scrollbar-gutter reserves nothing.
+  const [scrollbarGutter, setScrollbarGutter] = useState(0)
+  useEffect(() => {
+    const el = gridContainerRef.current
+    if (!el || view !== 'table') return
+    const measure = () => setScrollbarGutter(el.offsetWidth - el.clientWidth)
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [view])
+
+  // Table column sort (client-side), lifted here so one sorted order drives both
+  // the table render and the modal's next/prev navigation.
+  const [tableSort, setTableSort] = useState({ col: null, dir: 'asc' })
+  const handleTableSort = useCallback((col) => {
+    setTableSort((prev) =>
+      prev.col === col ? { col, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' }
+    )
+  }, [])
+
+  // The order the user actually sees: when the Table view has an active column
+  // sort, order the loaded sequences the same way; otherwise keep server order.
+  // Modal navigation and the table both read this so they stay in lockstep.
+  const navigableItems = useMemo(() => {
+    if (view !== 'table' || !tableSort.col) return allNavigableItems
+    return sortSequences(
+      allNavigableItems,
+      bboxesByMedia,
+      isVideoMedia,
+      tableSort.col,
+      tableSort.dir
+    )
+    // isVideoMedia is a stable module-level function, not a dependency.
+  }, [view, tableSort, allNavigableItems, bboxesByMedia])
+
   // Set up Intersection Observer for infinite scrolling
   useEffect(() => {
     const currentLoader = loaderRef.current
@@ -2272,17 +2331,22 @@ function Gallery({
     }
   }, [hasNextPage, isFetchingNextPage, fetchNextPage])
 
-  const constructImageUrl = (fullFilePath) => {
-    if (fullFilePath.startsWith('http')) {
-      // Use cached-image protocol for remote URLs to enable disk caching
-      if (id) {
-        return `cached-image://cache?studyId=${encodeURIComponent(id)}&url=${encodeURIComponent(fullFilePath)}`
+  // Stable across renders (depends only on the study id) so memoized children —
+  // notably the Table view's rows — aren't invalidated every parent render.
+  const constructImageUrl = useCallback(
+    (fullFilePath) => {
+      if (fullFilePath.startsWith('http')) {
+        // Use cached-image protocol for remote URLs to enable disk caching
+        if (id) {
+          return `cached-image://cache?studyId=${encodeURIComponent(id)}&url=${encodeURIComponent(fullFilePath)}`
+        }
+        return fullFilePath
       }
-      return fullFilePath
-    }
 
-    return `local-file://get?path=${encodeURIComponent(fullFilePath)}`
-  }
+      return `local-file://get?path=${encodeURIComponent(fullFilePath)}`
+    },
+    [id]
+  )
 
   // Image prefetching for smooth modal navigation
   const { prefetchNeighbors } = useImagePrefetch({
@@ -2318,8 +2382,8 @@ function Gallery({
 
       // Prefetch when at last item in sequence (next ArrowRight moves to next sequence)
       if (nextIndex === currentSequence.items.length - 1) {
-        const currentSeqIdx = allNavigableItems.findIndex((s) => s.id === currentSequence.id)
-        const sequencesRemaining = allNavigableItems.length - 1 - currentSeqIdx
+        const currentSeqIdx = navigableItems.findIndex((s) => s.id === currentSequence.id)
+        const sequencesRemaining = navigableItems.length - 1 - currentSeqIdx
         if (sequencesRemaining <= PREFETCH_THRESHOLD && hasNextPage && !isFetchingNextPage) {
           fetchNextPage()
         }
@@ -2328,7 +2392,7 @@ function Gallery({
   }, [
     currentSequence,
     currentSequenceIndex,
-    allNavigableItems,
+    navigableItems,
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage
@@ -2347,36 +2411,36 @@ function Gallery({
   const handleNextImage = useCallback(() => {
     if (!selectedMedia) return
 
-    // Find current sequence index in allNavigableItems (includes null-timestamp media)
-    const currentSeqIdx = allNavigableItems.findIndex((s) =>
+    // Find current sequence index in the displayed (sorted) order
+    const currentSeqIdx = navigableItems.findIndex((s) =>
       s.items.some((m) => m.mediaID === selectedMedia.mediaID)
     )
 
     // Prefetch when approaching end of loaded data
-    const sequencesRemaining = allNavigableItems.length - 1 - currentSeqIdx
+    const sequencesRemaining = navigableItems.length - 1 - currentSeqIdx
     if (sequencesRemaining <= PREFETCH_THRESHOLD && hasNextPage && !isFetchingNextPage) {
       fetchNextPage()
     }
 
-    if (currentSeqIdx < allNavigableItems.length - 1) {
-      const nextSequence = allNavigableItems[currentSeqIdx + 1]
+    if (currentSeqIdx < navigableItems.length - 1) {
+      const nextSequence = navigableItems[currentSeqIdx + 1]
       const isMultiItem = nextSequence.items.length > 1
       setCurrentSequence(isMultiItem ? nextSequence : null)
       setCurrentSequenceIndex(0)
       setSelectedMedia(nextSequence.items[0])
     }
-  }, [selectedMedia, allNavigableItems, hasNextPage, isFetchingNextPage, fetchNextPage])
+  }, [selectedMedia, navigableItems, hasNextPage, isFetchingNextPage, fetchNextPage])
 
   // Navigate to previous sequence/item globally
   const handlePreviousImage = useCallback(() => {
     if (!selectedMedia) return
 
-    const currentSeqIdx = allNavigableItems.findIndex((s) =>
+    const currentSeqIdx = navigableItems.findIndex((s) =>
       s.items.some((m) => m.mediaID === selectedMedia.mediaID)
     )
 
     if (currentSeqIdx > 0) {
-      const prevSequence = allNavigableItems[currentSeqIdx - 1]
+      const prevSequence = navigableItems[currentSeqIdx - 1]
       const isMultiItem = prevSequence.items.length > 1
       setCurrentSequence(isMultiItem ? prevSequence : null)
       // Start at end of previous sequence
@@ -2384,7 +2448,7 @@ function Gallery({
       setCurrentSequenceIndex(lastIndex)
       setSelectedMedia(prevSequence.items[lastIndex])
     }
-  }, [selectedMedia, allNavigableItems])
+  }, [selectedMedia, navigableItems])
 
   // Handle optimistic timestamp update
   const handleTimestampUpdate = useCallback(
@@ -2420,7 +2484,7 @@ function Gallery({
   const navigateToMediaId = useCallback(
     async (targetMediaId) => {
       if (!targetMediaId || selectedMediaIdRef.current === targetMediaId) return
-      const seq = allNavigableItems.find((s) => s.items.some((m) => m.mediaID === targetMediaId))
+      const seq = navigableItems.find((s) => s.items.some((m) => m.mediaID === targetMediaId))
       if (!seq) return // target not in currently loaded pages — best-effort no-op
       const itemIdx = seq.items.findIndex((m) => m.mediaID === targetMediaId)
       const safeIdx = itemIdx >= 0 ? itemIdx : 0
@@ -2429,14 +2493,14 @@ function Gallery({
       setCurrentSequenceIndex(safeIdx)
       setSelectedMedia(seq.items[safeIdx])
     },
-    [allNavigableItems]
+    [navigableItems]
   )
 
   // Calculate navigation availability based on sequences
   const currentSeqIdx = selectedMedia
-    ? allNavigableItems.findIndex((s) => s.items.some((m) => m.mediaID === selectedMedia.mediaID))
+    ? navigableItems.findIndex((s) => s.items.some((m) => m.mediaID === selectedMedia.mediaID))
     : -1
-  const hasNextSequence = currentSeqIdx >= 0 && currentSeqIdx < allNavigableItems.length - 1
+  const hasNextSequence = currentSeqIdx >= 0 && currentSeqIdx < navigableItems.length - 1
   const hasPreviousSequence = currentSeqIdx > 0
 
   // For sequence navigation within modal
@@ -2447,9 +2511,9 @@ function Gallery({
   // Prefetch neighboring images when modal is open
   useEffect(() => {
     if (isModalOpen && currentSeqIdx >= 0) {
-      prefetchNeighbors(allNavigableItems, currentSeqIdx)
+      prefetchNeighbors(navigableItems, currentSeqIdx)
     }
-  }, [isModalOpen, currentSeqIdx, allNavigableItems, prefetchNeighbors])
+  }, [isModalOpen, currentSeqIdx, navigableItems, prefetchNeighbors])
 
   return (
     <>
@@ -2483,59 +2547,82 @@ function Gallery({
       <div
         className={
           embedded
-            ? 'flex flex-col h-full overflow-hidden'
-            : 'flex flex-col h-full bg-card rounded border border-border overflow-hidden'
+            ? 'relative flex flex-col h-full overflow-hidden'
+            : 'relative flex flex-col h-full bg-card rounded border border-border overflow-hidden'
         }
       >
+        {/* Table header lives outside the scroll container so the body's
+            scrollbar doesn't run up alongside it; it reserves the measured
+            gutter to stay column-aligned with the rows. */}
+        {view === 'table' && (
+          <MediaTableHeader
+            sortCol={tableSort.col}
+            sortDir={tableSort.dir}
+            onSort={handleTableSort}
+            gutter={scrollbarGutter}
+          />
+        )}
         {/* Grid — drop horizontal padding when embedded so the first
             image cell aligns with the panel's left edge (matches the map
             in the Deployments tab). */}
         <div
           ref={gridContainerRef}
+          style={view === 'table' ? { scrollbarGutter: 'stable' } : undefined}
           className={`flex flex-wrap gap-[12px] flex-1 overflow-auto content-start ${
-            embedded ? 'py-3' : 'p-3'
+            embedded ? (view === 'table' ? 'pb-3' : 'py-3') : 'p-3'
           }`}
         >
           {/* Sequences are returned pre-grouped from server, including null-timestamp items as individual sequences */}
-          {allNavigableItems.map((sequence) => {
-            const isMultiItem = sequence.items.length > 1
+          {view === 'table' ? (
+            <MediaTableView
+              sequences={navigableItems}
+              bboxesByMedia={bboxesByMedia}
+              constructImageUrl={constructImageUrl}
+              isVideoMedia={isVideoMedia}
+              onRowClick={handleImageClick}
+              scrollRef={gridContainerRef}
+            />
+          ) : (
+            allNavigableItems.map((sequence) => {
+              const isMultiItem = sequence.items.length > 1
 
-            if (isMultiItem) {
+              if (isMultiItem) {
+                return (
+                  <SequenceCard
+                    key={sequence.id}
+                    sequence={sequence}
+                    constructImageUrl={constructImageUrl}
+                    onSequenceClick={handleImageClick}
+                    imageErrors={imageErrors}
+                    setImageErrors={setImageErrorsWithCache}
+                    showBboxes={showThumbnailBboxes}
+                    bboxesByMedia={bboxesByMedia}
+                    itemWidth={itemWidth}
+                    isVideoMedia={isVideoMedia}
+                    studyId={id}
+                  />
+                )
+              }
+
+              // Single item - use existing ThumbnailCard
+              const media = sequence.items[0]
               return (
-                <SequenceCard
-                  key={sequence.id}
-                  sequence={sequence}
+                <ThumbnailCard
+                  key={media.mediaID}
+                  media={media}
                   constructImageUrl={constructImageUrl}
-                  onSequenceClick={handleImageClick}
+                  onImageClick={(m) => handleImageClick(m, null)}
                   imageErrors={imageErrors}
                   setImageErrors={setImageErrorsWithCache}
                   showBboxes={showThumbnailBboxes}
-                  bboxesByMedia={bboxesByMedia}
+                  bboxes={bboxesByMedia[media.mediaID] || []}
                   itemWidth={itemWidth}
                   isVideoMedia={isVideoMedia}
                   studyId={id}
                 />
               )
-            }
-
-            // Single item - use existing ThumbnailCard
-            const media = sequence.items[0]
-            return (
-              <ThumbnailCard
-                key={media.mediaID}
-                media={media}
-                constructImageUrl={constructImageUrl}
-                onImageClick={(m) => handleImageClick(m, null)}
-                imageErrors={imageErrors}
-                setImageErrors={setImageErrorsWithCache}
-                showBboxes={showThumbnailBboxes}
-                bboxes={bboxesByMedia[media.mediaID] || []}
-                itemWidth={itemWidth}
-                isVideoMedia={isVideoMedia}
-                studyId={id}
-              />
-            )
-          })}
+            })
+          )}
 
           {/* Loading indicator and intersection target */}
           <div ref={loaderRef} className="w-full flex justify-center p-4">

@@ -9,7 +9,6 @@ import {
   and,
   desc,
   count,
-  countDistinct,
   sql,
   isNotNull,
   ne,
@@ -65,89 +64,6 @@ export async function getSpeciesDistribution(dbPath) {
     return result
   } catch (error) {
     log.error(`Error querying species distribution: ${error.message}`)
-    throw error
-  }
-}
-
-/**
- * Get count of "blank" media — media that has no observation naming a real
- * species and no vehicle observation. Covers:
- *   - media with zero observation rows
- *   - media whose only observations are blank/unclassified/unknown-typed
- *     (Camtrap DP exporters often attach such rows instead of leaving the
- *     media observation-less)
- * Vehicle media is NOT counted as blank — see getVehicleMediaCount.
- * @param {string} dbPath - Path to the SQLite database
- * @returns {Promise<number>} - Count of blank media
- */
-export async function getBlankMediaCount(dbPath) {
-  const startTime = Date.now()
-  log.info(`Querying blank media count from: ${dbPath}`)
-
-  try {
-    const studyId = getStudyIdFromPath(dbPath)
-    const db = await getDrizzleDb(studyId, dbPath, { readonly: true })
-
-    // Subquery: returns 1 if the media has any "real" observation —
-    // animal/human (scientificName populated) or vehicle.
-    const realObservations = db
-      .select({ one: sql`1` })
-      .from(observations)
-      .where(
-        and(
-          eq(observations.mediaID, media.mediaID),
-          or(
-            and(isNotNull(observations.scientificName), ne(observations.scientificName, '')),
-            eq(observations.observationType, 'vehicle')
-          )
-        )
-      )
-
-    const result = await db
-      .select({ count: count().as('count') })
-      .from(media)
-      .where(notExists(realObservations))
-      .get()
-
-    const blankCount = result?.count || 0
-    const elapsedTime = Date.now() - startTime
-    log.info(`Retrieved blank media count: ${blankCount} in ${elapsedTime}ms`)
-
-    return blankCount
-  } catch (error) {
-    log.error(`Error querying blank media count: ${error.message}`)
-    throw error
-  }
-}
-
-/**
- * Get count of media with at least one vehicle observation
- * (observationType = 'vehicle'). Each media is counted once even if it has
- * multiple vehicle observations.
- * @param {string} dbPath - Path to the SQLite database
- * @returns {Promise<number>} - Count of vehicle media
- */
-export async function getVehicleMediaCount(dbPath) {
-  const startTime = Date.now()
-  log.info(`Querying vehicle media count from: ${dbPath}`)
-
-  try {
-    const studyId = getStudyIdFromPath(dbPath)
-    const db = await getDrizzleDb(studyId, dbPath, { readonly: true })
-
-    const result = await db
-      .select({ count: countDistinct(observations.mediaID).as('count') })
-      .from(observations)
-      .where(eq(observations.observationType, 'vehicle'))
-      .get()
-
-    const vehicleCount = result?.count || 0
-    const elapsedTime = Date.now() - startTime
-    log.info(`Retrieved vehicle media count: ${vehicleCount} in ${elapsedTime}ms`)
-
-    return vehicleCount
-  } catch (error) {
-    log.error(`Error querying vehicle media count: ${error.message}`)
     throw error
   }
 }

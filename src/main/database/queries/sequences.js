@@ -14,10 +14,12 @@ import {
   ne,
   inArray,
   gte,
+  gt,
   lte,
   lt,
   isNull,
   or,
+  like,
   exists,
   notExists
 } from 'drizzle-orm'
@@ -68,6 +70,51 @@ export function buildHourRangeCondition(range) {
 }
 
 /**
+ * Build an equality / IN condition for a column that accepts either a single
+ * value or an array of values. Returns null when there's nothing to filter
+ * (null/undefined, or an empty array), so callers can skip pushing it.
+ */
+export function eqOrIn(column, value) {
+  if (value == null) return null
+  if (Array.isArray(value)) return value.length ? inArray(column, value) : null
+  return eq(column, value)
+}
+
+// Condition matching media.fileMediatype against the selected high-level types
+// ('image' → 'image/%', 'video' → 'video/%'). Empty / all-selected → null (no
+// filter). Returns an OR when more than one prefix is active.
+export function buildMediaTypeCondition(mediaTypes) {
+  const prefixes = (Array.isArray(mediaTypes) ? mediaTypes : [])
+    .map((t) => (t === 'video' ? 'video/%' : t === 'image' ? 'image/%' : null))
+    .filter(Boolean)
+  if (prefixes.length === 0) return null
+  if (prefixes.length === 1) return like(media.fileMediatype, prefixes[0])
+  return or(...prefixes.map((p) => like(media.fileMediatype, p)))
+}
+
+/**
+ * Build WHERE conditions for the Media tab "quick view" filters that act on a
+ * media row via correlated subqueries over its observations. Returns an array
+ * of drizzle conditions to AND into a phase's condition list (works for both
+ * the timestamped and null-timestamp phases — none of these reference the
+ * timestamp). Used by getMediaForSequencePagination and hasTimestampedMedia.
+ *
+ * @param {object} opts
+ * @param {boolean} [opts.favorite] - only favorited media
+ * @returns {Array} drizzle conditions
+ */
+export function buildQuickViewConditions(opts = {}) {
+  const { favorite = false } = opts
+  const conditions = []
+
+  if (favorite) {
+    conditions.push(eq(media.favorite, true))
+  }
+
+  return conditions
+}
+
+/**
  * Get media for sequence pagination with cursor support.
  * Returns media ordered by timestamp DESC, filtered by species/date/time.
  *
@@ -93,8 +140,25 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
     dateRange = {},
     timeRange = {},
     deploymentID = null,
-    bbox = null
+    bbox = null,
+    source = null,
+    mediaTypes = [],
+    sort = 'newest',
+    favorite = false,
+    hideBlank = false
   } = options
+
+  // Timestamped phase ordering: 'newest' (default) walks time descending;
+  // 'oldest' walks ascending. The cursor comparison flips to match so
+  // pagination continues in the chosen direction.
+  const isOldest = sort === 'oldest'
+  const cursorCmp = isOldest ? gt : lt
+  const orderClause = isOldest
+    ? sql`${media.timestamp} ASC, ${media.mediaID} ASC`
+    : sql`${media.timestamp} DESC, ${media.mediaID} DESC`
+  const orderClauseAliased = isOldest
+    ? sql`timestamp ASC, mediaID ASC`
+    : sql`timestamp DESC, mediaID DESC`
 
   const startTime = Date.now()
   const phase = cursor?.phase || 'timestamped'
@@ -113,6 +177,12 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
       )
     : null
 
+  // Deployment / source filters accept a single value or an array; build the
+  // condition once and reuse across the timestamped and null-phase arms.
+  const deploymentCond = eqOrIn(media.deploymentID, deploymentID)
+  const sourceCond = eqOrIn(media.importFolder, source)
+  const mediaTypeCond = buildMediaTypeCondition(mediaTypes)
+
   try {
     const studyId = getStudyIdFromPath(dbPath)
     const db = await getDrizzleDb(studyId, dbPath)
@@ -125,6 +195,22 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
     const requestingBlanks = species.includes(BLANK_SENTINEL)
     const requestingVehicle = species.includes(VEHICLE_SENTINEL)
     const regularSpecies = species.filter((s) => s !== BLANK_SENTINEL && s !== VEHICLE_SENTINEL)
+
+    // "Blank" must mean the SAME thing as the unfiltered table: a whole
+    // sequence with NO detection. So for a pure-Blank request we fetch ALL
+    // timestamped media (each tagged with isDetection) and group them normally;
+    // the pagination layer then keeps only the no-detection sequences. Filtering
+    // to blank MEDIA first would instead regroup just the empty frames and split
+    // mixed bursts into extra "blank" sequences (over-counting vs the table).
+    const blankSequenceMode = requestingBlanks && !requestingVehicle && regularSpecies.length === 0
+
+    // "Detections" (hide blank) is the mirror of Blank: fetch ALL media tagged
+    // with isDetection and let the pagination layer keep only the sequences that
+    // DO contain a detection. Only meaningful with no explicit species filter.
+    const detectionSequenceMode =
+      hideBlank === true && !requestingBlanks && !requestingVehicle && regularSpecies.length === 0
+    // Both modes need the isDetection flag on every row.
+    const wantDetectionFlag = blankSequenceMode || detectionSequenceMode
 
     // Date range filter (only applies to timestamped phase)
     let startDate, endDate
@@ -212,6 +298,14 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
           )
         )
       )
+
+    // All-media projection plus an isDetection flag (0/1) — used by the
+    // Blank-sequence path so the pagination layer can drop sequences that
+    // contain any detection.
+    const selectFieldsWithDetection = {
+      ...selectFields,
+      isDetection: sql`(CASE WHEN ${exists(realObservations)} THEN 1 ELSE 0 END)`.as('isDetection')
+    }
 
     // Correlated subquery: returns 1 when the media has any vehicle
     // observation. Used by the Vehicle pseudo-species filter.
@@ -307,9 +401,16 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
       const timestampedConditions = [isNotNull(media.timestamp)]
 
       // Apply deployment filter (covers all species variants below via shared and(...))
-      if (deploymentID) {
-        timestampedConditions.push(eq(media.deploymentID, deploymentID))
-      }
+      if (deploymentCond) timestampedConditions.push(deploymentCond)
+
+      // Apply source (importFolder) filter
+      if (sourceCond) timestampedConditions.push(sourceCond)
+
+      // Apply media-type filter (image / video)
+      if (mediaTypeCond) timestampedConditions.push(mediaTypeCond)
+
+      // Apply quick-view filters (favorite)
+      timestampedConditions.push(...buildQuickViewConditions({ favorite }))
 
       // Apply area (bbox) filter on the joined deployment location
       if (bboxCondition) {
@@ -332,13 +433,14 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
         }
       }
 
-      // Apply cursor position
+      // Apply cursor position. Comparison direction follows the sort: for
+      // 'newest' (descending) we fetch items strictly before the cursor; for
+      // 'oldest' (ascending) we fetch items strictly after it.
       if (cursor?.t) {
-        // Fetch items with timestamp < cursor.t, OR same timestamp but mediaID < cursor.m
         timestampedConditions.push(
           or(
-            lt(media.timestamp, cursor.t),
-            and(eq(media.timestamp, cursor.t), lt(media.mediaID, cursor.m))
+            cursorCmp(media.timestamp, cursor.t),
+            and(eq(media.timestamp, cursor.t), cursorCmp(media.mediaID, cursor.m))
           )
         )
       }
@@ -346,14 +448,17 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
       let timestampedMedia = []
 
       // Build query based on species filter
-      if (species.length === 0) {
-        // No species filter - get all media
+      if (species.length === 0 || blankSequenceMode) {
+        // No species filter (or pure-Blank / Detections): get all media. Blank
+        // and Detections modes also tag each row with isDetection so the caller
+        // can keep only the no-detection (Blank) or with-detection (Detections)
+        // sequences.
         timestampedMedia = await db
-          .selectDistinct(selectFields)
+          .selectDistinct(wantDetectionFlag ? selectFieldsWithDetection : selectFields)
           .from(media)
           .leftJoin(deployments, eq(media.deploymentID, deployments.deploymentID))
           .where(and(...timestampedConditions))
-          .orderBy(sql`${media.timestamp} DESC, ${media.mediaID} DESC`)
+          .orderBy(orderClause)
           .limit(batchSize)
       } else if (requestingBlanks || requestingVehicle) {
         // Mix of regular species + Blank/Vehicle pseudo-species, or
@@ -365,7 +470,7 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
         // Without this, dedup undercounts the page and hasMoreTimestamped
         // can falsely report exhaustion.
         const fetchLimit = batchSize * oversampleFactor(arms.length)
-        const raw = await unioned.orderBy(sql`timestamp DESC, mediaID DESC`).limit(fetchLimit)
+        const raw = await unioned.orderBy(orderClauseAliased).limit(fetchLimit)
         timestampedMedia = dedupByMediaID(raw).slice(0, batchSize)
       } else {
         // Regular species query — rewritten as a semi-join (EXISTS).
@@ -433,7 +538,7 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
               )
             )
           )
-          .orderBy(sql`${media.timestamp} DESC, ${media.mediaID} DESC`)
+          .orderBy(orderClause)
           .limit(batchSize)
       }
 
@@ -445,15 +550,24 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
       if (timestampedMedia.length < batchSize) {
         // We've exhausted timestamped media, check for null-timestamp media
         const nullConditions = [isNull(media.timestamp)]
-        if (deploymentID) {
-          nullConditions.push(eq(media.deploymentID, deploymentID))
-        }
+        if (deploymentCond) nullConditions.push(deploymentCond)
+        if (sourceCond) nullConditions.push(sourceCond)
+        if (mediaTypeCond) nullConditions.push(mediaTypeCond)
+        nullConditions.push(...buildQuickViewConditions({ favorite }))
         if (bboxCondition) {
           nullConditions.push(bboxCondition)
         }
 
         let nullCountResult
-        if (species.length === 0) {
+        if (detectionSequenceMode) {
+          // Detections: a null-timestamp media is its own sequence, kept only
+          // if it has a real observation.
+          nullCountResult = await db
+            .select({ count: sql`COUNT(DISTINCT ${media.mediaID})`.as('count') })
+            .from(media)
+            .leftJoin(deployments, eq(media.deploymentID, deployments.deploymentID))
+            .where(and(...nullConditions, exists(realObservations)))
+        } else if (species.length === 0) {
           nullCountResult = await db
             .select({ count: sql`COUNT(DISTINCT ${media.mediaID})`.as('count') })
             .from(media)
@@ -507,9 +621,16 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
       const nullConditions = [isNull(media.timestamp)]
 
       // Apply deployment filter (covers all species variants below via shared and(...))
-      if (deploymentID) {
-        nullConditions.push(eq(media.deploymentID, deploymentID))
-      }
+      if (deploymentCond) nullConditions.push(deploymentCond)
+
+      // Apply source (importFolder) filter
+      if (sourceCond) nullConditions.push(sourceCond)
+
+      // Apply media-type filter (image / video)
+      if (mediaTypeCond) nullConditions.push(mediaTypeCond)
+
+      // Apply quick-view filters (favorite)
+      nullConditions.push(...buildQuickViewConditions({ favorite }))
 
       // Apply area (bbox) filter on the joined deployment location
       if (bboxCondition) {
@@ -518,7 +639,18 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
 
       let nullMedia = []
 
-      if (species.length === 0) {
+      if (detectionSequenceMode) {
+        // Detections: null-timestamp media that have a real observation (each
+        // is its own single-item detection sequence).
+        nullMedia = await db
+          .selectDistinct(selectFields)
+          .from(media)
+          .leftJoin(deployments, eq(media.deploymentID, deployments.deploymentID))
+          .where(and(...nullConditions, exists(realObservations)))
+          .orderBy(sql`${media.mediaID} DESC`)
+          .limit(batchSize)
+          .offset(offset)
+      } else if (species.length === 0) {
         nullMedia = await db
           .selectDistinct(selectFields)
           .from(media)
@@ -626,7 +758,15 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
  * @returns {Promise<boolean>}
  */
 export async function hasTimestampedMedia(dbPath, options = {}) {
-  const { species = [], dateRange = {}, timeRange = {}, deploymentID = null } = options
+  const {
+    species = [],
+    dateRange = {},
+    timeRange = {},
+    deploymentID = null,
+    source = null,
+    mediaTypes = [],
+    favorite = false
+  } = options
 
   try {
     const studyId = getStudyIdFromPath(dbPath)
@@ -638,9 +778,16 @@ export async function hasTimestampedMedia(dbPath, options = {}) {
 
     const conditions = [isNotNull(media.timestamp)]
 
-    if (deploymentID) {
-      conditions.push(eq(media.deploymentID, deploymentID))
-    }
+    const deploymentCond = eqOrIn(media.deploymentID, deploymentID)
+    if (deploymentCond) conditions.push(deploymentCond)
+
+    const sourceCond = eqOrIn(media.importFolder, source)
+    if (sourceCond) conditions.push(sourceCond)
+
+    const mediaTypeCond = buildMediaTypeCondition(mediaTypes)
+    if (mediaTypeCond) conditions.push(mediaTypeCond)
+
+    conditions.push(...buildQuickViewConditions({ favorite }))
 
     // Apply date range
     if (dateRange.start && dateRange.end) {

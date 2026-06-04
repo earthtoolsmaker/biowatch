@@ -21,17 +21,18 @@ const MODE_META = {
 }
 
 /**
- * Segmented control for the Explore tab's main view. `modes` is the list of
- * modes available at the current breakpoint (from getAvailableViewModes), so
- * 'both' is omitted on narrow windows. Each segment carries a title+description
- * tooltip in the same style as the Deployments tab.
+ * Segmented control for a small set of view modes. `modes` is the list of mode
+ * keys to render; `meta` maps each key to its { label, icon, description } (it
+ * defaults to the Explore tab's map/gallery/both, but the Media tab passes its
+ * own grid/table metadata). Each segment carries a title+description tooltip in
+ * the same style as the Deployments tab.
  *
  * A single elevated pill is absolutely positioned behind the buttons and
  * slides (transitioning left/width) to the active segment, instead of each
  * button toggling its own background. Positions are measured from the button
  * elements and re-measured on resize / when the available modes change.
  */
-export default function ViewModeToggle({ value, modes, onChange }) {
+export default function ViewModeToggle({ value, modes, onChange, meta = MODE_META }) {
   const containerRef = useRef(null)
   const btnRefs = useRef({})
   const [pill, setPill] = useState(null)
@@ -60,7 +61,7 @@ export default function ViewModeToggle({ value, modes, onChange }) {
         />
       )}
       {modes.map((mode) => {
-        const { label, icon: Icon, description } = MODE_META[mode]
+        const { label, icon: Icon, description } = meta[mode]
         const active = value === mode
         return (
           <Tooltip.Root key={mode}>

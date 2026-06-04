@@ -6,12 +6,38 @@
  * - cached-image:// protocol for caching remote images
  */
 
-import { net, protocol } from 'electron'
+import { nativeImage, net, protocol } from 'electron'
 import log from '../services/logger.js'
 import { createReadStream, existsSync, readFileSync, statSync } from 'fs'
 import { extname } from 'path'
 import { Readable } from 'stream'
 import { getCachedImage, getMimeType, saveImageToCache } from '../services/cache/image.js'
+
+/**
+ * Downscale an image buffer to a small thumbnail JPEG for the Media tab's table
+ * rows. Camera-trap JPEGs are multi-megapixel; serving them at full resolution
+ * into a ~48px box forces the renderer to decode/raster huge bitmaps on every
+ * virtualized row mount during scroll. Resizing here (off the renderer) returns
+ * a tiny image cheap to composite. Returns null on failure so the caller falls
+ * back to the full image.
+ */
+function resizeToThumbnail(buffer, width) {
+  try {
+    const img = nativeImage.createFromBuffer(buffer)
+    if (img.isEmpty()) return null
+    const out = img.resize({ width, quality: 'good' }).toJPEG(72)
+    return out && out.length ? out : null
+  } catch (error) {
+    log.warn(`[Thumbnail] resize failed: ${error.message}`)
+    return null
+  }
+}
+
+// Parse a positive ?thumb=<width> param; returns 0 when absent/invalid.
+function thumbWidth(url) {
+  const w = parseInt(url.searchParams.get('thumb') || '', 10)
+  return Number.isFinite(w) && w > 0 ? Math.min(w, 512) : 0
+}
 
 function createWebFileStream(filePath, options = undefined) {
   return Readable.toWeb(createReadStream(filePath, options))
@@ -22,8 +48,10 @@ function createWebFileStream(filePath, options = undefined) {
 const missingPathCache = new Set()
 
 /**
- * Register privileged custom schemes for local-file://
- * to make it a standard, secure, stream-capable media source.
+ * Register privileged custom schemes. Both are made `standard` + `secure` so
+ * Chromium routes them through its HTTP cache — letting `Cache-Control` headers
+ * (set on thumbnail responses) actually cache, so re-mounting a row during
+ * scroll doesn't re-hit the handler / re-resize the source.
  */
 export function registerPrivilegedSchemes() {
   protocol.registerSchemesAsPrivileged([
@@ -34,6 +62,14 @@ export function registerPrivilegedSchemes() {
         secure: true,
         supportFetchAPI: true,
         stream: true
+      }
+    },
+    {
+      scheme: 'cached-image',
+      privileges: {
+        standard: true,
+        secure: true,
+        supportFetchAPI: true
       }
     }
   ])
@@ -87,6 +123,23 @@ export function registerLocalFileProtocol() {
         '.webp': 'image/webp'
       }
       const contentType = mimeTypes[ext] || 'application/octet-stream'
+
+      // Thumbnail request: downscale images (never videos) before serving.
+      const tW = thumbWidth(url)
+      if (tW > 0 && contentType.startsWith('image/')) {
+        const thumb = resizeToThumbnail(readFileSync(filePath), tW)
+        if (thumb) {
+          return new Response(thumb, {
+            status: 200,
+            headers: {
+              'Content-Type': 'image/jpeg',
+              'Content-Length': String(thumb.length),
+              'Cache-Control': 'public, max-age=31536000, immutable'
+            }
+          })
+        }
+        // fall through to serving the full image on resize failure
+      }
 
       // Handle Range requests for video streaming
       if (rangeHeader) {
@@ -145,6 +198,7 @@ export function registerCachedImageProtocol() {
     }
 
     log.info(`[CachedImage] Request for: ${remoteUrl}`)
+    const tW = thumbWidth(url)
 
     try {
       // Check cache first
@@ -153,6 +207,18 @@ export function registerCachedImageProtocol() {
       if (cachedPath) {
         log.info(`[CachedImage] Serving from cache: ${cachedPath}`)
         const buffer = readFileSync(cachedPath)
+        const thumb = tW > 0 ? resizeToThumbnail(buffer, tW) : null
+        if (thumb) {
+          return new Response(thumb, {
+            status: 200,
+            headers: {
+              'Content-Type': 'image/jpeg',
+              'Content-Length': String(thumb.length),
+              'X-Cache': 'HIT',
+              'Cache-Control': 'public, max-age=31536000, immutable'
+            }
+          })
+        }
         return new Response(buffer, {
           status: 200,
           headers: {
@@ -175,10 +241,24 @@ export function registerCachedImageProtocol() {
       const contentType = response.headers.get('content-type') || 'image/jpeg'
       const buffer = Buffer.from(await response.arrayBuffer())
 
-      // Background cache save (don't await)
+      // Background cache save (don't await) — always save the FULL image so the
+      // modal/full view still has it; thumbnails are derived on demand.
       saveImageToCache(studyId, remoteUrl, buffer).catch((err) => {
         log.warn(`[CachedImage] Cache save failed: ${err.message}`)
       })
+
+      const thumb = tW > 0 ? resizeToThumbnail(buffer, tW) : null
+      if (thumb) {
+        return new Response(thumb, {
+          status: 200,
+          headers: {
+            'Content-Type': 'image/jpeg',
+            'Content-Length': String(thumb.length),
+            'X-Cache': 'MISS',
+            'Cache-Control': 'public, max-age=31536000, immutable'
+          }
+        })
+      }
 
       return new Response(buffer, {
         status: 200,

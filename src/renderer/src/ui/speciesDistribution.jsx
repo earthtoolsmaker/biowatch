@@ -8,6 +8,29 @@ import { buildScientificToCommonMap, useCommonName } from '../utils/commonNames'
 import { formatScientificName } from '../utils/scientificName'
 import { resolveSpeciesInfo } from '../../../shared/speciesInfo/index.js'
 import { getPseudoSpeciesEntry } from '../../../shared/pseudoSpecies.js'
+import { resolveCommonName } from '../../../shared/commonNames/index.js'
+
+// Name a row sorts by alphabetically — the displayed common name, falling back
+// to the formatted scientific name.
+function alphaSortName(scientificName) {
+  return (
+    resolveCommonName(scientificName) ||
+    formatScientificName(scientificName) ||
+    scientificName ||
+    ''
+  ).toLowerCase()
+}
+
+// Alphabetical ordering of the species rows, keeping pseudo-species (Blank,
+// Vehicle, processing labels) pinned to the bottom like the count sort does.
+function sortDisplayDataAlpha(displayData) {
+  return [...displayData].sort((a, b) => {
+    const pa = !!getPseudoSpeciesEntry(a.scientificName)
+    const pb = !!getPseudoSpeciesEntry(b.scientificName)
+    if (pa !== pb) return pa ? 1 : -1
+    return alphaSortName(a.scientificName).localeCompare(alphaSortName(b.scientificName))
+  })
+}
 
 function SpeciesRow({
   species,
@@ -144,7 +167,10 @@ function SpeciesDistribution({
   vehicleCount = 0,
   studyId = null,
   showHeader = true,
-  hidePseudoSpecies = false
+  hidePseudoSpecies = false,
+  allowEmpty = false,
+  bordered = true,
+  sortMode = 'count'
 }) {
   // Real-species view of the upstream data — strips out literal pseudo
   // labels like "Vehicle" or "blurred" that ride along in scientificName.
@@ -216,7 +242,7 @@ function SpeciesDistribution({
       newSelectedSpecies = [...selectedSpecies, species]
     }
 
-    if (newSelectedSpecies.length > 0) {
+    if (allowEmpty || newSelectedSpecies.length > 0) {
       onSpeciesChange(newSelectedSpecies)
     }
   }
@@ -228,6 +254,16 @@ function SpeciesDistribution({
     setScrollSignal((s) => s + 1)
   }, [])
 
+  // Also close cards when an ANCESTOR scrolls — e.g. in the Media filter drawer
+  // the list sits inside an outer max-height scroller, so this component's own
+  // onScroll never fires. A capture-phase listener catches scrolling of any
+  // ancestor (scroll events don't bubble, but capture reaches them).
+  useEffect(() => {
+    const onAncestorScroll = () => setScrollSignal((s) => s + 1)
+    document.addEventListener('scroll', onAncestorScroll, true)
+    return () => document.removeEventListener('scroll', onAncestorScroll, true)
+  }, [])
+
   if (!displayData || displayData.length === 0) {
     return <div className="text-muted-foreground">No species data available</div>
   }
@@ -236,7 +272,11 @@ function SpeciesDistribution({
   const speciesCount = displayData.length - pseudoEntries
 
   return (
-    <div className="w-full h-full bg-card rounded border border-border flex flex-col overflow-hidden">
+    <div
+      className={`w-full h-full flex flex-col overflow-hidden ${
+        bordered ? 'bg-card rounded border border-border' : ''
+      }`}
+    >
       {showHeader && (
         <div className="flex items-center gap-2 px-3 py-2 border-b border-border flex-shrink-0">
           <span className="text-sm font-medium text-foreground">Species</span>
@@ -247,7 +287,10 @@ function SpeciesDistribution({
       <div className="flex-1 overflow-y-auto px-3 myscroll" onScroll={handleScroll}>
         <div>
           {(() => {
-            const sorted = sortSpeciesHumansLast(displayData)
+            const sorted =
+              sortMode === 'alpha'
+                ? sortDisplayDataAlpha(displayData)
+                : sortSpeciesHumansLast(displayData)
             // Pre-resolve pseudo-species entries once per row so we can also
             // compute the divider position (first pseudo row) in the same pass.
             const pseudoEntries = sorted.map((s) => getPseudoSpeciesEntry(s.scientificName))
