@@ -18,10 +18,7 @@ import {
   getObservationCountForDeployment
 } from '../database/index.js'
 import { runInWorker } from '../services/sequences/runInWorker.js'
-import {
-  getDeploymentComposition,
-  getDeploymentSequenceStats
-} from '../services/sequences/deploymentComposition.js'
+import { getDeploymentSequenceStats } from '../services/sequences/deploymentComposition.js'
 import { BLANK_SENTINEL, VEHICLE_SENTINEL } from '../../shared/constants.js'
 
 /**
@@ -49,7 +46,9 @@ export function registerDeploymentsIPCHandlers() {
   })
 
   // Per-deployment, sequence-aware blank/detection composition for the Media tab
-  // deployment filter (counts match the table's sequence units).
+  // deployment filter (counts match the table's sequence units). Runs in the
+  // sequences worker: it dumps all media into JS and groups it, which was
+  // blocking the main process for seconds on large studies (e.g. GMU8 Leuven).
   ipcMain.handle('deployments:get-distribution', async (_, studyId) => {
     try {
       const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
@@ -58,7 +57,7 @@ export function registerDeploymentsIPCHandlers() {
         return { error: 'Database not found for this study' }
       }
 
-      const result = await getDeploymentComposition(dbPath)
+      const result = await runInWorker({ type: 'deployment-composition', dbPath, studyId })
       return { data: result }
     } catch (error) {
       log.error('Error getting deployment composition:', error)

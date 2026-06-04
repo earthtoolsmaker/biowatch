@@ -28,6 +28,7 @@ import {
   getOverviewStats
 } from '../../database/index.js'
 import { getPaginatedSequences } from './pagination.js'
+import { getDeploymentComposition } from './deploymentComposition.js'
 import {
   calculateSequenceAwareSpeciesCounts,
   calculateSequenceAwareTimeseries,
@@ -183,6 +184,13 @@ async function run() {
       // SUM(CASE) × N scan over observations was locking the renderer for
       // multiple seconds on first open of large studies.
       return getDeploymentsActivity(dbPath, workerData.periodCount)
+    }
+    case 'deployment-composition': {
+      // Media tab's per-deployment blank/detection composition. Fetches ALL
+      // media (synchronous better-sqlite3) and groups it into sequences in JS
+      // — O(media) work that froze the main process for seconds on large
+      // studies. Off-thread keeps the renderer responsive while it loads.
+      return getDeploymentComposition(dbPath, effectiveGapSeconds)
     }
     case 'sources-data': {
       // Sources tab rollup. Runs four queries (per-source, per-deployment,
