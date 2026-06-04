@@ -300,54 +300,41 @@ async function fetchTimestampedSequences(dbPath, options) {
     })
   }
 
-  // Return sequences up to limit, keeping last one for next page
+  // The trailing sequence may be incomplete (more media in the DB could belong
+  // to it), so it's never returned from this batch. allSequences.length >= 2
+  // here (the <= 1 case took the large-sequence path above), so this is non-empty.
   const completeSequences = allSequences.slice(0, -1)
+
+  // Return at most `limit` complete sequences. The cursor must resume right
+  // after the LAST RETURNED sequence — when we truncate to `limit`, that's
+  // sequence #limit, NOT the trailing incomplete one. Pointing it at the
+  // trailing sequence (the old bug) skipped every complete sequence between
+  // #limit and the end of the batch.
   const sequencesToReturn = completeSequences.slice(0, limit)
+  const truncated = completeSequences.length > limit
+  const boundarySeq = truncated
+    ? sequencesToReturn[sequencesToReturn.length - 1]
+    : allSequences[allSequences.length - 1]
 
-  if (sequencesToReturn.length < limit && completeSequences.length > limit) {
-    // We have enough complete sequences
-    const lastReturnedSeq = sequencesToReturn[sequencesToReturn.length - 1]
-    const lastItem = lastReturnedSeq.items[lastReturnedSeq.items.length - 1]
-
-    return {
-      sequences: sequencesToReturn.map(formatSequence),
-      nextCursor: {
-        phase: 'timestamped',
-        t: lastItem.timestamp,
-        m: lastItem.mediaID
-      },
-      hasMoreNull
-    }
-  }
-
-  // We're returning all complete sequences
-  if (sequencesToReturn.length > 0) {
-    // Find the earliest timestamp in the incomplete sequence to use as cursor
-    const incompleteSeq = allSequences[allSequences.length - 1]
-    const sortedItems = [...incompleteSeq.items].sort(
-      (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
-    )
-    // Cursor must point at the boundary item we continue past. For 'newest'
-    // (descending) that's the earliest item of the incomplete sequence (next
-    // page fetches older); for 'oldest' (ascending) it's the latest (next page
-    // fetches newer).
-    const boundaryInIncomplete =
-      sort === 'oldest' ? sortedItems[sortedItems.length - 1] : sortedItems[0]
-
-    return {
-      sequences: sequencesToReturn.map(formatSequence),
-      nextCursor: {
-        phase: 'timestamped',
-        t: boundaryInIncomplete.timestamp,
-        m: boundaryInIncomplete.mediaID
-      },
-      hasMoreNull: hasMoreNull || allSequences.length > sequencesToReturn.length
-    }
-  }
+  // Cursor points at the boundary item we continue past. For 'newest'
+  // (descending) that's the earliest item of the boundary sequence (next page
+  // fetches older); for 'oldest' (ascending) it's the latest (next page fetches
+  // newer).
+  const sortedItems = [...boundarySeq.items].sort(
+    (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
+  )
+  const boundaryItem = sort === 'oldest' ? sortedItems[sortedItems.length - 1] : sortedItems[0]
 
   return {
-    sequences: [],
-    nextCursor: null,
+    sequences: sequencesToReturn.map(formatSequence),
+    nextCursor: {
+      phase: 'timestamped',
+      t: boundaryItem.timestamp,
+      m: boundaryItem.mediaID
+    },
+    // When we truncated, more timestamped sequences remain so the next page
+    // stays in the timestamped phase (this flag only matters once timestamped
+    // media is exhausted, which truncation means it is not).
     hasMoreNull
   }
 }
