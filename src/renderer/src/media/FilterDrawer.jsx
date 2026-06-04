@@ -21,11 +21,11 @@ const HOVER_PERIOD_COUNT = 40
 function Section({ title, count = 0, children }) {
   const active = count > 0
   return (
-    <div className="border-b border-border px-4 py-3">
+    <div className="border-b border-border/60 px-4 py-3.5 last:border-b-0">
       <div className="flex items-center gap-1.5 mb-2">
         <span
-          className={`text-[11px] uppercase tracking-wide ${
-            active ? 'text-blue-700 dark:text-blue-300 font-semibold' : 'text-muted-foreground'
+          className={`text-[11px] uppercase tracking-[0.05em] font-semibold ${
+            active ? 'text-blue-700 dark:text-blue-300' : 'text-muted-foreground'
           }`}
         >
           {title}
@@ -226,16 +226,20 @@ export default function FilterDrawer({ open, studyId, filters, onChange, blankCo
 
   return (
     // In-flow side panel: animating its width pushes the grid/table to the left
-    // (like Explore's species rail) instead of overlaying it. The inner panel
-    // keeps a fixed width so its content doesn't reflow during the animation.
+    // (like Explore's species rail) instead of overlaying it. The left margin
+    // animates with the width so the gap between the table and the pane collapses
+    // when closed. The inner panel keeps a fixed width so its content doesn't
+    // reflow during the animation.
     <div
       aria-hidden={!open}
       className={`flex-shrink-0 h-full overflow-hidden transition-all duration-300 ease-in-out motion-reduce:transition-none ${
-        open ? 'w-80 opacity-100' : 'w-0 opacity-0'
+        open ? 'w-80 opacity-100 ml-3' : 'w-0 opacity-0 ml-0'
       }`}
     >
-      <div className="w-80 h-full bg-card border-l border-border flex flex-col">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
+      {/* Separated, rounded card — matches Explore's species rail rather than a
+          flush panel glued to the table. */}
+      <div className="w-80 h-full bg-card border border-border rounded-lg overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border/60 flex-shrink-0">
           <span className="text-sm font-medium">Filters</span>
           {hasAny ? (
             <button
