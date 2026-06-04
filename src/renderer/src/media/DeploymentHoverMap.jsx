@@ -55,7 +55,7 @@ export default function DeploymentHoverMap({
           center={[latNum, lonNum]}
           zoom={13}
           className="h-[180px] w-full"
-          dragging={false}
+          dragging={true}
           zoomControl={false}
           scrollWheelZoom={true}
           doubleClickZoom={false}
