@@ -77,13 +77,11 @@ export default function DeploymentHoverMap({
               <CircleMarker
                 key={o.value}
                 center={[oLat, oLon]}
-                radius={4}
+                radius={3}
                 pathOptions={{
-                  color: '#ffffff',
-                  weight: 1,
-                  opacity: 0.45,
-                  fillColor: '#2563eb',
-                  fillOpacity: 0.3
+                  stroke: false,
+                  fillColor: '#bfdbfe',
+                  fillOpacity: 0.4
                 }}
               />
             )
