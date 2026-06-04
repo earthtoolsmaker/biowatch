@@ -153,12 +153,31 @@ describe('getMediaForSequencePagination — vehicle/blank pseudo-species', () =>
     assert.deepEqual(ids(result.media), ['m-mix', 'm-vehicle'])
   })
 
-  test('BLANK_SENTINEL alone returns blank-typed and zero-obs media (NOT vehicle)', async () => {
+  test('BLANK_SENTINEL alone returns ALL media tagged with isDetection (pagination filters to no-detection sequences)', async () => {
+    // Pure-Blank is sequence-aware: "blank" means a whole sequence with no
+    // detection, which can only be determined after grouping. So the query
+    // returns every media with an isDetection flag and the pagination layer
+    // keeps the no-detection sequences. (Filtering to blank MEDIA here would
+    // split mixed bursts and over-count blanks.)
     await seed()
     const result = await getMediaForSequencePagination(testDbPath, {
       species: [BLANK_SENTINEL]
     })
-    assert.deepEqual(ids(result.media), ['m-blanktyped', 'm-zeroobs'])
+    assert.deepEqual(ids(result.media), [
+      'm-animal',
+      'm-blanktyped',
+      'm-mix',
+      'm-vehicle',
+      'm-zeroobs'
+    ])
+    const det = Object.fromEntries(result.media.map((r) => [r.mediaID, !!Number(r.isDetection)]))
+    assert.deepEqual(det, {
+      'm-animal': true,
+      'm-vehicle': true,
+      'm-mix': true,
+      'm-blanktyped': false,
+      'm-zeroobs': false
+    })
   })
 
   test('species + VEHICLE returns animal media + vehicle media (deduped)', async () => {

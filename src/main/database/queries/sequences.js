@@ -195,6 +195,14 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
     const requestingVehicle = species.includes(VEHICLE_SENTINEL)
     const regularSpecies = species.filter((s) => s !== BLANK_SENTINEL && s !== VEHICLE_SENTINEL)
 
+    // "Blank" must mean the SAME thing as the unfiltered table: a whole
+    // sequence with NO detection. So for a pure-Blank request we fetch ALL
+    // timestamped media (each tagged with isDetection) and group them normally;
+    // the pagination layer then keeps only the no-detection sequences. Filtering
+    // to blank MEDIA first would instead regroup just the empty frames and split
+    // mixed bursts into extra "blank" sequences (over-counting vs the table).
+    const blankSequenceMode = requestingBlanks && !requestingVehicle && regularSpecies.length === 0
+
     // Date range filter (only applies to timestamped phase)
     let startDate, endDate
     if (dateRange.start && dateRange.end) {
@@ -281,6 +289,14 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
           )
         )
       )
+
+    // All-media projection plus an isDetection flag (0/1) — used by the
+    // Blank-sequence path so the pagination layer can drop sequences that
+    // contain any detection.
+    const selectFieldsWithDetection = {
+      ...selectFields,
+      isDetection: sql`(CASE WHEN ${exists(realObservations)} THEN 1 ELSE 0 END)`.as('isDetection')
+    }
 
     // Correlated subquery: returns 1 when the media has any vehicle
     // observation. Used by the Vehicle pseudo-species filter.
@@ -423,10 +439,12 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
       let timestampedMedia = []
 
       // Build query based on species filter
-      if (species.length === 0) {
-        // No species filter - get all media
+      if (species.length === 0 || blankSequenceMode) {
+        // No species filter (or pure-Blank): get all media. Blank mode also
+        // tags each row with isDetection so the caller can keep only the
+        // sequences that contain no detection.
         timestampedMedia = await db
-          .selectDistinct(selectFields)
+          .selectDistinct(blankSequenceMode ? selectFieldsWithDetection : selectFields)
           .from(media)
           .leftJoin(deployments, eq(media.deploymentID, deployments.deploymentID))
           .where(and(...timestampedConditions))

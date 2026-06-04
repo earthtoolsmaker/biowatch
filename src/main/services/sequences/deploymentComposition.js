@@ -1,10 +1,12 @@
 /**
  * Sequence-aware per-deployment composition for the Media tab's deployment
- * filter. Unlike a raw media tally, this groups each deployment's media into
- * sequences using the SAME logic the Table/Grid pagination uses (eventID when
- * the study has no sequenceGap, otherwise timestamp-proximity grouping), then
- * counts blank vs detection SEQUENCES — so the bar/hover-card numbers match the
- * rows a user sees after selecting the deployment.
+ * filter. Groups each deployment's media into sequences using the SAME unified
+ * grouping the Table/Grid pagination uses (eventID when the study has no
+ * sequenceGap, otherwise timestamp-proximity grouping), then classifies each
+ * WHOLE sequence: a sequence with any real observation is a detection, one with
+ * none is blank. So the counts equal the rows a user sees after selecting the
+ * deployment — a mixed burst (animal in some frames, empty in others) is ONE
+ * detection row, not split into a detection + a blank.
  *
  * NOTE: this dumps all media into JS to group. For very large studies with a
  * positive sequenceGap that's memory-heavy (same trade-off as the species
@@ -50,57 +52,66 @@ export async function getDeploymentComposition(dbPath, gapSecondsOverride) {
     isVehicle: !!Number(r.isVehicle)
   }))
 
-  // Count blank vs detection by grouping each media SUBSET independently —
-  // mirroring how the Media tab's Blank quick view (and a species filter) work:
-  // they filter media first, then group. So a mixed burst (some empty frames,
-  // some with the animal) contributes a blank sequence AND a detection sequence,
-  // and `blankCount` here equals exactly what "deployment + Blank" shows.
   const group = (subset) =>
     gapSeconds === null
       ? groupMediaByEventID(subset)
       : groupMediaIntoSequences(subset, gapSeconds, isVideoMedia)
 
-  const tallySubset = (subset) => {
-    const { sequences, nullTimestampMedia } = group(subset)
-    const byDep = new Map()
-    const add = (items) => {
-      if (!items.length) return
-      const dep = items[0].deploymentID
-      const e = byDep.get(dep) || { count: 0, images: 0, videos: 0 }
-      e.count++
-      // A sequence's media type follows its representative (first) item,
-      // matching the table's Type column (deriveTableRow uses items[0]).
-      if (isVideoMedia(items[0])) e.videos++
-      else e.images++
-      byDep.set(dep, e)
-    }
-    for (const seq of sequences) add(seq.items)
-    for (const m of nullTimestampMedia) add([m])
-    return byDep
+  // Group each deployment's media on its OWN (grouping is sequential and
+  // deployment-aware, but interleaving deployments in one time-sorted stream
+  // would split a deployment's runs at every cross-deployment hop). Per the
+  // deployment isolates it, matching "filter to this deployment, then group".
+  const mediaByDeployment = new Map()
+  for (const m of mediaArray) {
+    if (!mediaByDeployment.has(m.deploymentID)) mediaByDeployment.set(m.deploymentID, [])
+    mediaByDeployment.get(m.deploymentID).push(m)
   }
 
-  const detectionByDep = tallySubset(mediaArray.filter((m) => m.isDetection))
-  const blankByDep = tallySubset(mediaArray.filter((m) => !m.isDetection))
-  // Vehicle is a subset of "detection" (it counts toward detectionCount in the
-  // bar); this separate tally drives the sequence-aware Vehicle quick-view count.
-  const vehicleByDep = tallySubset(mediaArray.filter((m) => m.isVehicle))
+  // Classify each whole sequence once: detection (any real observation),
+  // blank (none), vehicle (any vehicle observation — a subset of detection).
+  const tallyDeployment = (items) => {
+    const { sequences, nullTimestampMedia } = group(items)
+    const seqs = [...sequences.map((s) => s.items), ...nullTimestampMedia.map((m) => [m])]
+    const t = { count: 0, detectionCount: 0, blankCount: 0, vehicleCount: 0, images: 0, videos: 0 }
+    for (const seqItems of seqs) {
+      if (!seqItems.length) continue
+      t.count++
+      if (seqItems.some((m) => m.isDetection)) t.detectionCount++
+      else t.blankCount++
+      if (seqItems.some((m) => m.isVehicle)) t.vehicleCount++
+      // A sequence's media type follows its representative (first) item,
+      // matching the table's Type column (deriveTableRow uses items[0]).
+      if (isVideoMedia(seqItems[0])) t.videos++
+      else t.images++
+    }
+    return t
+  }
+
+  const byDep = new Map()
+  for (const [dep, items] of mediaByDeployment) byDep.set(dep, tallyDeployment(items))
+  const empty = {
+    count: 0,
+    detectionCount: 0,
+    blankCount: 0,
+    vehicleCount: 0,
+    images: 0,
+    videos: 0
+  }
 
   return deployments
     .map((d) => {
-      const det = detectionByDep.get(d.deploymentID) || { count: 0, images: 0, videos: 0 }
-      const blank = blankByDep.get(d.deploymentID) || { count: 0, images: 0, videos: 0 }
-      const vehicle = vehicleByDep.get(d.deploymentID) || { count: 0 }
+      const t = byDep.get(d.deploymentID) || empty
       return {
         deploymentID: d.deploymentID,
         locationName: d.locationName || d.locationID || d.deploymentID,
         latitude: d.latitude,
         longitude: d.longitude,
-        count: det.count + blank.count,
-        detectionCount: det.count,
-        blankCount: blank.count,
-        vehicleCount: vehicle.count,
-        imageCount: det.images + blank.images,
-        videoCount: det.videos + blank.videos
+        count: t.count,
+        detectionCount: t.detectionCount,
+        blankCount: t.blankCount,
+        vehicleCount: t.vehicleCount,
+        imageCount: t.images,
+        videoCount: t.videos
       }
     })
     .sort(

@@ -229,12 +229,25 @@ buckets, addressed via sentinel strings defined in `src/shared/constants.js`:
   one `observationType='vehicle'` observation. Vehicle media is **not**
   counted as blank (it is a detection).
 
-The Media tab's Blank/Vehicle counts (quick-view badges and the species
-filter) are **sequence-aware**: they sum the per-deployment `blankCount` /
-`vehicleCount` from the deployment composition
-(`getDeploymentComposition`), so a burst of empty frames collapses to one
-blank sequence and the count matches the table rows. The deployment-settings
-popover still reports a media-level `blankCount` via
+The Media tab defines "Blank" at the **sequence** level, the same way the
+unfiltered table groups media: a _blank sequence_ is a whole sequence whose
+every frame is non-detection. A mixed burst (animal in some frames, empty in
+others) is therefore ONE detection — its empty frames are **not** a separate
+blank. This keeps every surface consistent (composition total, Blank badge,
+Blank-filter rows, and the unfiltered table all agree):
+
+- `getDeploymentComposition` groups each deployment's media once and
+  classifies each whole sequence → `detectionCount` / `blankCount` /
+  `vehicleCount`. The Blank badge and species-filter Blank row sum the
+  per-deployment `blankCount`.
+- The Blank quick-view filter is sequence-aware: for a pure-Blank request
+  `getMediaForSequencePagination` returns ALL timestamped media tagged with
+  an `isDetection` flag, and the pagination layer
+  (`getPaginatedSequences`) keeps only the no-detection sequences. (Filtering
+  to blank _media_ first would regroup the empty frames out of mixed bursts
+  and over-count blanks.)
+
+The deployment-settings popover still reports a media-level `blankCount` via
 `getBlankMediaCountForDeployment`.
 
 Both sentinels appear in the Library and Deployments species filters and

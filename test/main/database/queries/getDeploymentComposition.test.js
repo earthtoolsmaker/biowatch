@@ -220,7 +220,7 @@ describe('getDeploymentComposition', () => {
     })
   })
 
-  test('a mixed burst counts as ONE blank + ONE detection sequence (matches the Blank filter)', async () => {
+  test('a mixed burst counts as ONE detection sequence (its empty frames are not a separate blank)', async () => {
     const manager = await createImageDirectoryDatabase(testDbPath)
     await insertDeployments(manager, {
       d1: {
@@ -235,10 +235,9 @@ describe('getDeploymentComposition', () => {
       }
     })
     // One 5-frame burst: the animal appears in 2 frames, the other 3 are empty.
-    // Grouping all media → 1 sequence. But the Blank quick view filters to the
-    // empty frames first, so it shows 1 blank sequence; a species filter shows
-    // the 2 animal frames as 1 detection sequence. The composition must report
-    // BOTH (blankCount: 1, detectionCount: 1).
+    // Unified grouping → 1 sequence that contains an animal, so it's ONE
+    // detection event. The 3 empty frames are part of that event, NOT a
+    // separate blank (this matches what the unfiltered table shows: one row).
     const m = (id, iso) => ({
       mediaID: id,
       deploymentID: 'd1',
@@ -277,11 +276,11 @@ describe('getDeploymentComposition', () => {
       locationName: 'Site A',
       latitude: 1,
       longitude: 1,
-      count: 2,
-      detectionCount: 1, // the 2 animal frames → 1 detection sequence
-      blankCount: 1, // the 3 empty frames → 1 blank sequence (== Blank filter)
+      count: 1, // ONE sequence (not split)
+      detectionCount: 1, // contains an animal → a detection event
+      blankCount: 0, // the empty frames are part of the detection event
       vehicleCount: 0,
-      imageCount: 2,
+      imageCount: 1,
       videoCount: 0
     })
   })

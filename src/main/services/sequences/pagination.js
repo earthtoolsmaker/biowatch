@@ -12,6 +12,7 @@ import {
   getMediaForSequencePagination,
   hasTimestampedMedia
 } from '../../database/queries/sequences.js'
+import { BLANK_SENTINEL } from '../../../shared/constants.js'
 
 /**
  * Default batch size for fetching media from DB
@@ -101,6 +102,11 @@ export async function getPaginatedSequences(dbPath, options = {}) {
   // helpers and into the DB query as a single unit.
   const quickView = { favorite }
 
+  // Pure-Blank request: keep only whole no-detection sequences so "Blank"
+  // matches the unfiltered table (see getMediaForSequencePagination).
+  const blankSequenceMode =
+    species.includes(BLANK_SENTINEL) && species.every((s) => s === BLANK_SENTINEL)
+
   const startTime = Date.now()
   log.info(`[Sequences] Getting paginated sequences (limit: ${limit}, gapSeconds: ${gapSeconds})`)
 
@@ -147,7 +153,8 @@ export async function getPaginatedSequences(dbPath, options = {}) {
       source,
       mediaTypes,
       sort,
-      quickView
+      quickView,
+      blankSequenceMode
     })
 
     sequences.push(...result.sequences)
@@ -226,8 +233,17 @@ async function fetchTimestampedSequences(dbPath, options) {
     source,
     mediaTypes,
     sort,
-    quickView = {}
+    quickView = {},
+    blankSequenceMode = false
   } = options
+
+  // In Blank-sequence mode the DB returns ALL media tagged with isDetection;
+  // keep only the sequences whose every item is non-detection (a whole empty
+  // event), so "Blank" matches the unfiltered table instead of regrouping the
+  // empty frames out of mixed bursts.
+  const sequenceFilter = blankSequenceMode
+    ? (seq) => !seq.items.some((i) => Number(i.isDetection) === 1)
+    : null
 
   // Fetch a batch of media
   const batchSize = Math.max(DEFAULT_BATCH_SIZE, limit * 10) // Ensure we have enough for look-ahead
@@ -270,8 +286,9 @@ async function fetchTimestampedSequences(dbPath, options) {
   // If we got fewer items than batch size, all sequences are complete
   if (!hasMoreTimestamped) {
     // We've exhausted timestamped media, return all sequences
+    const finalSequences = sequenceFilter ? allSequences.filter(sequenceFilter) : allSequences
     return {
-      sequences: allSequences.map(formatSequence),
+      sequences: finalSequences.map(formatSequence),
       nextCursor: null,
       hasMoreNull
     }
@@ -295,6 +312,7 @@ async function fetchTimestampedSequences(dbPath, options) {
       mediaTypes,
       sort,
       quickView,
+      blankSequenceMode,
       existingMedia: mediaItems,
       batchSize
     })
@@ -303,7 +321,11 @@ async function fetchTimestampedSequences(dbPath, options) {
   // The trailing sequence may be incomplete (more media in the DB could belong
   // to it), so it's never returned from this batch. allSequences.length >= 2
   // here (the <= 1 case took the large-sequence path above), so this is non-empty.
-  const completeSequences = allSequences.slice(0, -1)
+  // `trailing` is kept (unfiltered) for cursor advancement even when a filter
+  // drops it, so the next page resumes past everything we've already grouped.
+  const allComplete = allSequences.slice(0, -1)
+  const trailing = allSequences[allSequences.length - 1]
+  const completeSequences = sequenceFilter ? allComplete.filter(sequenceFilter) : allComplete
 
   // Return at most `limit` complete sequences. The cursor must resume right
   // after the LAST RETURNED sequence — when we truncate to `limit`, that's
@@ -312,9 +334,7 @@ async function fetchTimestampedSequences(dbPath, options) {
   // #limit and the end of the batch.
   const sequencesToReturn = completeSequences.slice(0, limit)
   const truncated = completeSequences.length > limit
-  const boundarySeq = truncated
-    ? sequencesToReturn[sequencesToReturn.length - 1]
-    : allSequences[allSequences.length - 1]
+  const boundarySeq = truncated ? sequencesToReturn[sequencesToReturn.length - 1] : trailing
 
   // Cursor points at the boundary item we continue past. For 'newest'
   // (descending) that's the earliest item of the boundary sequence (next page
@@ -356,9 +376,17 @@ async function fetchMoreForLargeSequence(dbPath, options) {
     mediaTypes,
     sort,
     quickView = {},
+    blankSequenceMode = false,
     existingMedia,
     batchSize
   } = options
+
+  // See fetchTimestampedSequences: keep only whole no-detection sequences.
+  const sequenceFilter = blankSequenceMode
+    ? (seq) => !seq.items.some((i) => Number(i.isDetection) === 1)
+    : null
+  const formatKept = (seqs) =>
+    (sequenceFilter ? seqs.filter(sequenceFilter) : seqs).map(formatSequence)
 
   let allMedia = [...existingMedia]
   let lastItem = allMedia[allMedia.length - 1]
@@ -434,7 +462,7 @@ async function fetchMoreForLargeSequence(dbPath, options) {
           sort === 'oldest' ? sortedItems[sortedItems.length - 1] : sortedItems[0]
 
         return {
-          sequences: sequencesToReturn.map(formatSequence),
+          sequences: formatKept(sequencesToReturn),
           nextCursor: {
             phase: 'timestamped',
             t: boundaryItem.timestamp,
@@ -445,7 +473,7 @@ async function fetchMoreForLargeSequence(dbPath, options) {
       }
 
       return {
-        sequences: sequencesToReturn.map(formatSequence),
+        sequences: formatKept(sequencesToReturn),
         nextCursor: null,
         hasMoreNull: dbResult.hasMoreNull
       }
@@ -463,7 +491,7 @@ async function fetchMoreForLargeSequence(dbPath, options) {
   const sequencesToReturn = groupingResult.sequences.slice(0, limit)
 
   return {
-    sequences: sequencesToReturn.map(formatSequence),
+    sequences: formatKept(sequencesToReturn),
     nextCursor: null,
     hasMoreNull: false
   }
