@@ -590,10 +590,83 @@ export async function getBestMedia(dbPath, options = {}) {
 }
 
 /**
+ * Get a representative study photo per species WITHOUT requiring bbox geometry.
+ *
+ * Used as a fallback for hover tooltips when getBestImagePerSpecies can't score
+ * images (no usable bboxes, e.g. CamTrap DP / GBIF imports like Seattle Camera
+ * Traps) or for individual species whose observations all lack bboxes. Links
+ * observations to media the same two ways getBestMedia does (mediaID for ML /
+ * Wildlife Insights / Deepfaune; eventStart = media.timestamp for CamTrap DP
+ * where observations.mediaID is NULL) and excludes videos.
+ *
+ * Performance: this picks ONE representative per species via O(species) indexed
+ * seeks (idx_observations_scientificName), not an O(observations) scan. A naive
+ * "rank every linked row per species and take the best" window query took 4-16s
+ * on 2.7-4M-row studies; this is <100ms on the same data (no new index needed).
+ * The cost of that speed is we take the first indexed row per species rather
+ * than the "nicest" frame — acceptable for a fallback, where any real photo of
+ * the species beats showing nothing.
+ *
+ * @param {string} studyId
+ * @param {string} dbPath
+ * @param {Set<string>} coveredSpecies - species already covered by a scored image (skipped)
+ * @returns {Promise<Array>} - Array of { scientificName, filePath, mediaID, isFallback: true }
+ */
+async function getFallbackImagePerSpecies(studyId, dbPath, coveredSpecies = new Set()) {
+  const covered = Array.from(coveredSpecies)
+  const exclusion =
+    covered.length > 0 ? `AND scientificName NOT IN (${covered.map(() => '?').join(',')})` : ''
+
+  // For each species, COALESCE picks a mediaID-linked image first (Strategy 1),
+  // falling back to the timestamp-linked one (Strategy 2, CamTrap DP). Each
+  // correlated subquery seeks the species via idx_observations_scientificName
+  // and stops at the first row that joins to a usable image (LIMIT 1), so the
+  // work is bounded by the species count, not the observation count.
+  const query = `
+    WITH species AS (
+      SELECT DISTINCT scientificName FROM observations
+      WHERE scientificName IS NOT NULL AND scientificName != ''
+      ${exclusion}
+    )
+    SELECT sp.scientificName, m.filePath, m.mediaID
+    FROM species sp
+    JOIN media m ON m.mediaID = COALESCE(
+      (
+        SELECT m1.mediaID
+        FROM observations o1
+        INNER JOIN media m1 ON o1.mediaID = m1.mediaID
+        WHERE o1.scientificName = sp.scientificName
+          AND o1.mediaID IS NOT NULL
+          AND m1.filePath IS NOT NULL
+          AND (m1.fileMediatype IS NULL OR m1.fileMediatype NOT LIKE 'video/%')
+        LIMIT 1
+      ),
+      (
+        SELECT m2.mediaID
+        FROM observations o2
+        INNER JOIN media m2 ON o2.eventStart = m2.timestamp AND o2.deploymentID = m2.deploymentID
+        WHERE o2.scientificName = sp.scientificName
+          AND o2.mediaID IS NULL
+          AND m2.filePath IS NOT NULL
+          AND (m2.fileMediatype IS NULL OR m2.fileMediatype NOT LIKE 'video/%')
+        LIMIT 1
+      )
+    )
+    ORDER BY sp.scientificName
+  `
+
+  const rows = await executeRawQuery(studyId, dbPath, query, covered)
+  return rows.map((r) => ({ ...r, isFallback: true }))
+}
+
+/**
  * Get the single best image for each species (for hover tooltips)
  * Reuses the exact scoring formula from getBestMedia but returns one image per species.
+ * Species without a scored (bbox-based) image get a representative fallback photo
+ * via getFallbackImagePerSpecies, flagged with isFallback so the tooltip can rank
+ * it below the Wikipedia thumbnail.
  * @param {string} dbPath - Path to the SQLite database
- * @returns {Promise<Array>} - Array of { scientificName, filePath, mediaID, compositeScore }
+ * @returns {Promise<Array>} - Array of { scientificName, filePath, mediaID, compositeScore?, isFallback }
  */
 export async function getBestImagePerSpecies(dbPath) {
   const startTime = Date.now()
@@ -602,14 +675,15 @@ export async function getBestImagePerSpecies(dbPath) {
   try {
     const studyId = getStudyIdFromPath(dbPath)
 
-    // Short-circuit: the scoring formula requires bbox area/visibility/padding,
+    // Gate the scoring CTE: the formula requires bbox area/visibility/padding,
     // which only make sense when bboxWidth/bboxHeight are populated. Many
     // datasets (e.g. CamTrap DP exports with point-only annotations) have
     // bboxX/bboxY but no bbox size. On such datasets the big CTE below
     // evaluates to zero rows but still scans the whole observations table
-    // (~2s on 2.7M rows). A quick EXISTS probe is cheap when bboxes are
-    // present (stops at the first match) and bounded when they are not
-    // (full scan ~200ms on gmu8_leuven, vs the query's ~2.3s).
+    // (~2s on 2.7M rows), so we skip it entirely and rely on the fallback
+    // query. A quick EXISTS probe is cheap when bboxes are present (stops at
+    // the first match) and bounded when they are not (full scan ~200ms on
+    // gmu8_leuven, vs the query's ~2.3s).
     const hasUsableBbox = await executeRawQuery(
       studyId,
       dbPath,
@@ -621,12 +695,6 @@ export async function getBestImagePerSpecies(dbPath) {
          LIMIT 1`,
       []
     )
-    if (hasUsableBbox.length === 0) {
-      const elapsedTime = Date.now() - startTime
-      log.info(`Retrieved best images for 0 species in ${elapsedTime}ms (no usable bbox data)`)
-      return []
-    }
-
     // Use the same scoring formula as getBestMedia but return only one per species
     const query = `
       WITH
@@ -747,10 +815,27 @@ export async function getBestImagePerSpecies(dbPath) {
       ORDER BY r.scientificName
     `
 
-    const results = await executeRawQuery(studyId, dbPath, query, [])
+    // Scored ("best") image per species — only meaningful when the study has
+    // usable bboxes (the formula needs area/visibility/padding).
+    const bboxBest =
+      hasUsableBbox.length > 0
+        ? (await executeRawQuery(studyId, dbPath, query, [])).map((r) => ({
+            ...r,
+            isFallback: false
+          }))
+        : []
 
+    // Fill species that have no scored image (and whole no-bbox studies) with a
+    // representative study photo so the tooltip shows a real picture instead of
+    // nothing. The tooltip ranks these below the Wikipedia thumbnail.
+    const covered = new Set(bboxBest.map((r) => r.scientificName))
+    const fallback = await getFallbackImagePerSpecies(studyId, dbPath, covered)
+
+    const results = [...bboxBest, ...fallback]
     const elapsedTime = Date.now() - startTime
-    log.info(`Retrieved best images for ${results.length} species in ${elapsedTime}ms`)
+    log.info(
+      `Retrieved best images for ${results.length} species (${bboxBest.length} scored, ${fallback.length} fallback) in ${elapsedTime}ms`
+    )
 
     return results
   } catch (error) {

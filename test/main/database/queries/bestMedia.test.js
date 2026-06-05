@@ -396,8 +396,8 @@ describe('getBestMedia short-circuit on missing bbox data', () => {
   })
 })
 
-describe('getBestImagePerSpecies short-circuit on missing bbox data', () => {
-  test('returns [] when no observations have bboxWidth/bboxHeight', async () => {
+describe('getBestImagePerSpecies fallback when bbox data is missing', () => {
+  test('falls back to a representative photo per species when no observations have bboxWidth/bboxHeight', async () => {
     await seed({
       media: {
         'a.jpg': mediaEntry('m-a', '2024-01-05T10:00:00Z'),
@@ -425,10 +425,16 @@ describe('getBestImagePerSpecies short-circuit on missing bbox data', () => {
 
     const result = await getBestImagePerSpecies(testDbPath)
 
-    assert.deepEqual(result, [])
+    // No bbox -> every species gets a fallback photo (linked via mediaID).
+    const byName = Object.fromEntries(result.map((r) => [r.scientificName, r]))
+    assert.equal(result.length, 2)
+    assert.equal(byName.Fox.mediaID, 'm-a')
+    assert.equal(byName.Fox.isFallback, true)
+    assert.equal(byName.Deer.mediaID, 'm-b')
+    assert.equal(byName.Deer.isFallback, true)
   })
 
-  test('returns [] when observations have bboxX but no bboxWidth (point-only CamTrap DP pattern)', async () => {
+  test('falls back when observations have bboxX but no bboxWidth (point-only CamTrap DP pattern)', async () => {
     const manager = await seed({
       media: {
         'a.jpg': mediaEntry('m-a', '2024-01-05T10:00:00Z')
@@ -453,10 +459,41 @@ describe('getBestImagePerSpecies short-circuit on missing bbox data', () => {
 
     const result = await getBestImagePerSpecies(testDbPath)
 
-    assert.deepEqual(result, [])
+    assert.equal(result.length, 1)
+    assert.equal(result[0].scientificName, 'Fox')
+    assert.equal(result[0].mediaID, 'm-a')
+    assert.equal(result[0].isFallback, true)
   })
 
-  test('runs the scoring pipeline and returns one row per species when bbox data exists', async () => {
+  test('falls back via the timestamp link when observations.mediaID is NULL (CamTrap DP)', async () => {
+    // CamTrap DP datasets leave observations.mediaID NULL and link to media by
+    // eventStart = media.timestamp within the same deployment.
+    await seed({
+      media: {
+        'fox.jpg': mediaEntry('m-fox', '2024-01-05T10:00:00Z')
+      },
+      observations: [
+        {
+          observationID: 'o-fox',
+          mediaID: null,
+          deploymentID: 'd1',
+          eventID: 'e-fox',
+          eventStart: DateTime.fromISO('2024-01-05T10:00:00Z'),
+          scientificName: 'Fox',
+          count: 1
+        }
+      ]
+    })
+
+    const result = await getBestImagePerSpecies(testDbPath)
+
+    assert.equal(result.length, 1)
+    assert.equal(result[0].scientificName, 'Fox')
+    assert.equal(result[0].mediaID, 'm-fox')
+    assert.equal(result[0].isFallback, true)
+  })
+
+  test('runs the scoring pipeline and returns one scored row per species when bbox data exists', async () => {
     const manager = await seed({
       media: {
         'fox.jpg': mediaEntry('m-fox', '2024-01-05T10:00:00Z'),
@@ -488,12 +525,53 @@ describe('getBestImagePerSpecies short-circuit on missing bbox data', () => {
 
     const result = await getBestImagePerSpecies(testDbPath)
 
-    // One row per species, each pointing to the correct media.
+    // One row per species, each pointing to the correct media and flagged as a
+    // scored (non-fallback) image.
     const byName = Object.fromEntries(result.map((r) => [r.scientificName, r]))
     assert.ok(byName.Fox, 'Fox row present')
     assert.equal(byName.Fox.mediaID, 'm-fox')
+    assert.equal(byName.Fox.isFallback, false)
     assert.ok(byName.Deer, 'Deer row present')
     assert.equal(byName.Deer.mediaID, 'm-deer')
+    assert.equal(byName.Deer.isFallback, false)
     assert.equal(result.length, 2)
+  })
+
+  test('mixes scored and fallback rows: species without a bbox still gets a photo', async () => {
+    const manager = await seed({
+      media: {
+        'fox.jpg': mediaEntry('m-fox', '2024-01-05T10:00:00Z'),
+        'deer.jpg': mediaEntry('m-deer', '2024-01-06T10:00:00Z')
+      },
+      observations: [
+        {
+          observationID: 'o-fox',
+          mediaID: 'm-fox',
+          deploymentID: 'd1',
+          eventID: 'e-fox',
+          scientificName: 'Fox',
+          count: 1
+        },
+        {
+          observationID: 'o-deer',
+          mediaID: 'm-deer',
+          deploymentID: 'd1',
+          eventID: 'e-deer',
+          scientificName: 'Deer',
+          count: 1
+        }
+      ]
+    })
+    // Only Fox has a usable bbox; Deer has none.
+    setBbox(manager, 'o-fox', { x: 0.2, y: 0.2, width: 0.3, height: 0.3 })
+
+    const result = await getBestImagePerSpecies(testDbPath)
+
+    const byName = Object.fromEntries(result.map((r) => [r.scientificName, r]))
+    assert.equal(result.length, 2)
+    assert.equal(byName.Fox.mediaID, 'm-fox')
+    assert.equal(byName.Fox.isFallback, false)
+    assert.equal(byName.Deer.mediaID, 'm-deer')
+    assert.equal(byName.Deer.isFallback, true)
   })
 })

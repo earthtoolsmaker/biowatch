@@ -176,19 +176,22 @@ export default function SpeciesTooltipContent({
     setBlurbExpanded(false)
   }, [imageData?.mediaID, sciName])
 
-  // Image source priority: study photo > Wikipedia thumbnail > placeholder.
-  // Study photos are usually camera-trap-shaped (~16:9), so we crop to fill
-  // (object-cover). Wikipedia thumbnails come in wildly varying aspect
-  // ratios, so we fit-with-letterbox (object-contain) on a black background
-  // to avoid awkward crops.
-  const usingFallbackImage = !imageData?.filePath && !!info?.imageUrl
+  // Image source priority: scored study photo (bbox-best) > Wikipedia
+  // thumbnail > fallback study photo (no bbox) > placeholder. The fallback
+  // ranks below Wikipedia on purpose — a clean Wikipedia portrait usually reads
+  // better than an arbitrary camera-trap frame, but a real frame still beats
+  // showing nothing (e.g. CamTrap DP / GBIF studies with no bbox data).
+  const studyPhotoUrl = imageData?.filePath ? constructImageUrl(imageData.filePath, studyId) : null
+  const hasScoredPhoto = !!studyPhotoUrl && !imageData?.isFallback
   // Wikipedia thumbnails are global (same URL across all studies), so we omit
   // studyId to share one cache entry app-wide instead of duplicating per study.
-  const imageSource = imageData?.filePath
-    ? constructImageUrl(imageData.filePath, studyId)
-    : info?.imageUrl
-      ? constructImageUrl(info.imageUrl, null)
-      : null
+  const wikiUrl = info?.imageUrl ? constructImageUrl(info.imageUrl, null) : null
+  // True when the displayed image is the Wikipedia thumbnail. These come in
+  // wildly varying aspect ratios, so we fit-with-letterbox (object-contain) on
+  // a black background. Study photos (scored or fallback) are camera-trap-
+  // shaped (~16:9), so they crop-to-fill (object-cover).
+  const usingWikipediaImage = !hasScoredPhoto && !!wikiUrl
+  const imageSource = hasScoredPhoto ? studyPhotoUrl : (wikiUrl ?? studyPhotoUrl)
 
   if (!imageSource && !info?.blurb && !info?.iucn && !sciName) {
     return null
@@ -202,7 +205,7 @@ export default function SpeciesTooltipContent({
     >
       {/* Image */}
       <div
-        className={`relative w-full ${imageHeight} ${usingFallbackImage ? 'bg-black' : 'bg-gray-100 dark:bg-muted'}`}
+        className={`relative w-full ${imageHeight} ${usingWikipediaImage ? 'bg-black' : 'bg-gray-100 dark:bg-muted'}`}
       >
         {!imageSource || imageError ? (
           <div className="absolute inset-0 flex items-center justify-center">
@@ -222,7 +225,7 @@ export default function SpeciesTooltipContent({
             <img
               src={imageSource}
               alt={sciName ?? ''}
-              className={`w-full h-full ${usingFallbackImage ? 'object-contain' : 'object-cover'} transition-opacity duration-150 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+              className={`w-full h-full ${usingWikipediaImage ? 'object-contain' : 'object-cover'} transition-opacity duration-150 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
               onLoad={() => setImageLoaded(true)}
               onError={() => setImageError(true)}
             />
