@@ -1,0 +1,1 @@
+CREATE INDEX `idx_observations_usable_bbox` ON `observations` (`bboxWidth`) WHERE "observations"."bboxWidth" > 0 AND "observations"."bboxHeight" > 0;
