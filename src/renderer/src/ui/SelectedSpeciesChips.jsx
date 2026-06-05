@@ -1,8 +1,10 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { X } from 'lucide-react'
 import * as HoverCard from '@radix-ui/react-hover-card'
 import { getMapDisplayName } from '../utils/commonNames'
 import { formatScientificName } from '../utils/scientificName'
+import SpeciesTooltipContent from './SpeciesTooltipContent'
 
 const GAP_PX = 6 // matches gap-1.5
 const OVERFLOW_RESERVE_PX = 42 // approx width of the "+N" pill, kept free
@@ -57,11 +59,34 @@ export default function SelectedSpeciesChips({
   scientificToCommon,
   onRemove,
   onOpen = () => {},
-  compact = false
+  compact = false,
+  studyId = null
 }) {
   const containerRef = useRef(null)
   const measureRef = useRef(null)
   const [visibleCount, setVisibleCount] = useState(selectedSpecies?.length ?? 0)
+
+  // Best study photo per species, for the rich hover card (mirrors the
+  // species rail). Shares react-query's cache with the rail's identical query.
+  const { data: bestImagesData } = useQuery({
+    queryKey: ['bestImagesPerSpecies', studyId],
+    queryFn: async () => {
+      const response = await window.api.getBestImagePerSpecies(studyId)
+      if (response.error) throw new Error(response.error)
+      return response.data
+    },
+    enabled: !!studyId,
+    staleTime: 60000
+  })
+  const speciesImageMap = useMemo(() => {
+    const map = {}
+    if (bestImagesData) bestImagesData.forEach((item) => (map[item.scientificName] = item))
+    return map
+  }, [bestImagesData])
+  // Image to feed the card: study photo if we have one, else a bare
+  // scientificName so SpeciesTooltipContent falls back to its own Wikipedia
+  // thumbnail (or the CameraOff placeholder).
+  const imageDataFor = (scientificName) => speciesImageMap[scientificName] || { scientificName }
 
   useLayoutEffect(() => {
     if (compact) return
@@ -173,7 +198,7 @@ export default function SelectedSpeciesChips({
           {visible.map((species, index) => {
             const label = labelFor(species)
             return (
-              <HoverCard.Root key={species.scientificName} openDelay={150} closeDelay={0}>
+              <HoverCard.Root key={species.scientificName} openDelay={250} closeDelay={150}>
                 <HoverCard.Trigger asChild>
                   <span className={chipClass}>
                     <span
@@ -198,12 +223,15 @@ export default function SelectedSpeciesChips({
                     side="bottom"
                     align="start"
                     sideOffset={6}
-                    className={CARD_CLASS}
+                    avoidCollisions
+                    collisionPadding={16}
+                    className="species-hovercard z-[10000]"
                   >
-                    <SpeciesLine
-                      species={species}
-                      color={colorFor(index)}
-                      scientificToCommon={scientificToCommon}
+                    <SpeciesTooltipContent
+                      imageData={imageDataFor(species.scientificName)}
+                      studyId={studyId}
+                      showActivity
+                      detectionCount={species.count}
                     />
                   </HoverCard.Content>
                 </HoverCard.Portal>

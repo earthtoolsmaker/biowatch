@@ -434,6 +434,7 @@ export default function FilterDrawer({ open, studyId, filters, onChange }) {
                     onSpeciesChange={handleSpeciesChange}
                     palette={palette}
                     studyId={studyId}
+                    showActivity
                     showHeader={false}
                     // Blank is offered as a quick view, so it's not duplicated as
                     // a selectable pseudo-row in the species list.

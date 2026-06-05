@@ -44,7 +44,8 @@ function SpeciesRow({
   speciesImageMap,
   studyId,
   onToggle,
-  scrollSignal
+  scrollSignal,
+  showActivity
 }) {
   const isPseudoEntry = !!pseudoEntry
   const [hoverOpen, setHoverOpen] = useState(false)
@@ -78,7 +79,11 @@ function SpeciesRow({
   const studyImage = isPseudoEntry ? null : speciesImageMap[species.scientificName]
   const tooltipImageData =
     studyImage || (info?.imageUrl ? { scientificName: species.scientificName } : null)
-  const enableSpeciesTooltip = !isPseudoEntry && studyId && !!tooltipImageData
+  // The card opens when there's an image OR (on Explore) when activity charts
+  // may be shown — so a species with no photo still surfaces its activity.
+  // SpeciesTooltipContent always has the scientificName to query/label with.
+  const tooltipData = tooltipImageData || { scientificName: species.scientificName }
+  const enableSpeciesTooltip = !isPseudoEntry && studyId && (!!tooltipImageData || showActivity)
 
   const rowContent = (
     <div
@@ -146,7 +151,12 @@ function SpeciesRow({
             {isPseudoEntry ? (
               <PseudoSpeciesTooltipContent entry={pseudoEntry} />
             ) : (
-              <SpeciesTooltipContent imageData={tooltipImageData} studyId={studyId} />
+              <SpeciesTooltipContent
+                imageData={tooltipData}
+                studyId={studyId}
+                showActivity={showActivity}
+                detectionCount={species.count}
+              />
             )}
           </HoverCard.Content>
         </HoverCard.Portal>
@@ -170,7 +180,8 @@ function SpeciesDistribution({
   hidePseudoSpecies = false,
   allowEmpty = false,
   bordered = true,
-  sortMode = 'count'
+  sortMode = 'count',
+  showActivity = false
 }) {
   // Real-species view of the upstream data — strips out literal pseudo
   // labels like "Vehicle" or "blurred" that ride along in scientificName.
@@ -321,6 +332,7 @@ function SpeciesDistribution({
                   speciesImageMap={speciesImageMap}
                   studyId={studyId}
                   onToggle={handleSpeciesToggle}
+                  showActivity={showActivity}
                 />
               )
             })

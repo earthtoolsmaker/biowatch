@@ -397,7 +397,11 @@ const DailyActivityLine = ({
   selectedSpecies,
   palette,
   selectedRanges = [],
-  onArcChange
+  onArcChange,
+  // The selection track strip below the axis is only useful when the chart
+  // drives a filter. Display-only uses (e.g. the species hovercard) pass false
+  // to drop the otherwise-empty grey bar.
+  showTrackStrip = true
 }) => {
   const hasSingleBand = selectedRanges.length === 1
   const isWrapBand = hasSingleBand && bandWraps(selectedRanges[0])
@@ -594,30 +598,32 @@ const DailyActivityLine = ({
 
       {/* Selection track strip below the axis. 8px insets match the chart's
           left/right margin so hour 0..24 line up with the plot. */}
-      <div className="px-2 pb-1" style={cursorStyle ? { cursor: cursorStyle } : undefined}>
-        <div
-          ref={stripRef}
-          className="relative h-1.5 rounded-full bg-muted"
-          onMouseDown={handleStripDown}
-          onMouseMove={handleStripMove}
-          onMouseLeave={handleStripLeave}
-        >
-          {segments.map(([s, e], i) => (
-            <div
-              key={i}
-              className="absolute top-0 h-full rounded-full"
-              style={{ left: pct(s), width: pct(e - s), backgroundColor: 'rgb(59 130 246)' }}
-            />
-          ))}
-          {/* start always renders; end only when it doesn't coincide with start */}
-          {dragEnabled && handleStartX !== null && (
-            <StripHandle left={pct(handleStartX)} active={hoveredEdge === 'start'} />
-          )}
-          {dragEnabled && handleEndX !== null && handleEndX !== handleStartX && (
-            <StripHandle left={pct(handleEndX)} active={hoveredEdge === 'end'} />
-          )}
+      {showTrackStrip && (
+        <div className="px-2 pb-1" style={cursorStyle ? { cursor: cursorStyle } : undefined}>
+          <div
+            ref={stripRef}
+            className="relative h-1.5 rounded-full bg-muted"
+            onMouseDown={handleStripDown}
+            onMouseMove={handleStripMove}
+            onMouseLeave={handleStripLeave}
+          >
+            {segments.map(([s, e], i) => (
+              <div
+                key={i}
+                className="absolute top-0 h-full rounded-full"
+                style={{ left: pct(s), width: pct(e - s), backgroundColor: 'rgb(59 130 246)' }}
+              />
+            ))}
+            {/* start always renders; end only when it doesn't coincide with start */}
+            {dragEnabled && handleStartX !== null && (
+              <StripHandle left={pct(handleStartX)} active={hoveredEdge === 'start'} />
+            )}
+            {dragEnabled && handleEndX !== null && handleEndX !== handleStartX && (
+              <StripHandle left={pct(handleEndX)} active={hoveredEdge === 'end'} />
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
