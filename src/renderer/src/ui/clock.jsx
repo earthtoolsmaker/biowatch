@@ -569,7 +569,9 @@ const DailyActivityLine = ({
               axisLine={false}
               tickLine={false}
             />
-            <YAxis hide domain={[0, 'auto']} />
+            {/* 10% headroom so a species' peak isn't flush against the top
+                edge (otherwise the line gets clipped into a flat "cap"). */}
+            <YAxis hide domain={[0, (dataMax) => (dataMax > 0 ? dataMax * 1.1 : 1)]} />
             {/* Dashed vertical guides at the selection boundaries. */}
             {boundaries.map((hour) => (
               <ReferenceLine
