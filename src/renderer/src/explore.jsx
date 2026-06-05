@@ -1555,6 +1555,7 @@ export default function Explore({ studyData, studyId }) {
       studyId={actualStudyId}
       showHeader={false}
       hidePseudoSpecies
+      showActivity
     />
   ) : null
 
@@ -1597,6 +1598,7 @@ export default function Explore({ studyData, studyId }) {
                     selectedSpecies={selectedSpecies}
                     palette={palette}
                     scientificToCommon={scientificToCommon}
+                    studyId={actualStudyId}
                     compact={!isLgUp}
                     onOpen={() => setRailVisible(true)}
                     onRemove={(name) =>

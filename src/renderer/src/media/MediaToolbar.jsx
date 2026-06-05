@@ -230,6 +230,23 @@ export default function MediaToolbar({
     enabled: !!studyId && hasSpeciesChips,
     staleTime: 60000
   })
+  // Per-species counts, so the hover card can gate its activity charts (and
+  // skeleton) the same way the rail does. Shares the drawer's cache key.
+  const { data: speciesDist } = useQuery({
+    queryKey: ['mediaFilterSpeciesDistribution', studyId],
+    queryFn: async () => {
+      const res = await window.api.getSequenceAwareSpeciesDistribution(studyId)
+      if (res?.error) throw new Error(res.error)
+      return res?.data ?? res
+    },
+    enabled: !!studyId && hasSpeciesChips,
+    staleTime: 60000
+  })
+  const speciesCountMap = useMemo(() => {
+    const m = {}
+    for (const it of speciesDist ?? []) m[it.scientificName] = it.count
+    return m
+  }, [speciesDist])
 
   const deploymentItems = useMemo(
     () =>
@@ -272,6 +289,8 @@ export default function MediaToolbar({
         <SpeciesTooltipContent
           imageData={speciesImageMap[chip.value] || { scientificName: chip.value }}
           studyId={studyId}
+          showActivity
+          detectionCount={speciesCountMap[chip.value] ?? 0}
         />
       )
     }

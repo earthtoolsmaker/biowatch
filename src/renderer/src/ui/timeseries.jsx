@@ -42,8 +42,20 @@ const formatPillDate = (d) =>
  * the chart shows the full data extent and no filter is applied.
  *
  * Gesture model — see docs/specs/2026-05-13-timeline-zoom-design.md.
+ *
+ * `interactive` (default true) gates all brush/pan/zoom gestures and the
+ * range handles/pill. Pass false for a read-only sparkline (e.g. the
+ * all-time over-time chart in the species hovercard), where only the line
+ * and axis are drawn.
  */
-const TimelineChart = ({ timeseriesData, selectedSpecies, dateRange, setDateRange, palette }) => {
+const TimelineChart = ({
+  timeseriesData,
+  selectedSpecies,
+  dateRange,
+  setDateRange,
+  palette,
+  interactive = true
+}) => {
   const containerRef = useRef(null)
   const [dragState, setDragState] = useState(null)
   const isDragging = dragState !== null
@@ -417,11 +429,11 @@ const TimelineChart = ({ timeseriesData, selectedSpecies, dateRange, setDateRang
       <div
         ref={containerRef}
         className="absolute inset-0 select-none [&_*]:!cursor-[inherit]"
-        style={{ cursor: cursorStyle }}
-        onMouseDown={handleNativeDown}
-        onMouseMove={handleNativeMove}
-        onMouseLeave={handleNativeLeave}
-        onWheel={handleWheel}
+        style={{ cursor: interactive ? cursorStyle : 'default' }}
+        onMouseDown={interactive ? handleNativeDown : undefined}
+        onMouseMove={interactive ? handleNativeMove : undefined}
+        onMouseLeave={interactive ? handleNativeLeave : undefined}
+        onWheel={interactive ? handleWheel : undefined}
       >
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart
@@ -459,7 +471,7 @@ const TimelineChart = ({ timeseriesData, selectedSpecies, dateRange, setDateRang
               />
             )}
 
-            {handleStart && (
+            {interactive && handleStart && (
               <ReferenceLine
                 x={handleStart.getTime()}
                 stroke={handleColor}
@@ -484,7 +496,7 @@ const TimelineChart = ({ timeseriesData, selectedSpecies, dateRange, setDateRang
                 }}
               />
             )}
-            {handleEnd && handleEnd.getTime() !== handleStart?.getTime() && (
+            {interactive && handleEnd && handleEnd.getTime() !== handleStart?.getTime() && (
               <ReferenceLine
                 x={handleEnd.getTime()}
                 stroke={handleColor}
@@ -527,7 +539,7 @@ const TimelineChart = ({ timeseriesData, selectedSpecies, dateRange, setDateRang
           </ComposedChart>
         </ResponsiveContainer>
       </div>
-      {!cleared && (
+      {interactive && !cleared && (
         <div
           className="absolute top-1 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 pl-2 pr-1 py-0.5 rounded-full text-[10px] font-medium text-blue-700 dark:text-blue-300 bg-blue-50/90 dark:bg-blue-500/15 border border-blue-200/70 dark:border-blue-500/30 pointer-events-none"
           aria-label="Date filter range"
