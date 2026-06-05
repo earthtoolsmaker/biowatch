@@ -208,6 +208,21 @@ export const observations = sqliteTable('observations', {
 })
 ```
 
+#### Partial index: `idx_observations_usable_bbox`
+
+```sql
+CREATE INDEX idx_observations_usable_bbox ON observations (bboxWidth)
+  WHERE bboxWidth > 0 AND bboxHeight > 0;
+```
+
+`getBestMedia` and `getBestImagePerSpecies` gate their bbox-scoring CTE on an
+EXISTS probe (`… WHERE bboxX IS NOT NULL AND bboxWidth IS NOT NULL AND bboxWidth
+> 0 AND bboxHeight > 0 LIMIT 1`). Without this index that probe is a full table
+`SCAN`; on no-bbox studies (CamTrap DP / GBIF imports) it reads every row to
+confirm absence (~5–8s cold on 2.7–4M-row studies). The partial index is empty
+on such studies, so the probe becomes an instant index `SEARCH`. Added in
+migration `0016_add_usable_bbox_partial_index`.
+
 #### Pseudo-species and blank media
 
 The Camtrap DP `observationType` enum carries six values: `animal`, `human`,

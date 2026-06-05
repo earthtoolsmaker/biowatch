@@ -65,10 +65,30 @@ const { data, error } = await window.api.getSequences(studyId, { limit: 20 })
 
 ### Species & Distribution
 
-| Method                            | Channel                    | Parameters | Returns                    |
-| --------------------------------- | -------------------------- | ---------- | -------------------------- |
-| `getSpeciesDistribution(studyId)` | `species:get-distribution` | studyId    | `{ data: Distribution[] }` |
-| `getDistinctSpecies(studyId)`     | `species:get-distinct`     | studyId    | `{ data: string[] }`       |
+| Method                              | Channel                    | Parameters | Returns                        |
+| ----------------------------------- | -------------------------- | ---------- | ------------------------------ |
+| `getSpeciesDistribution(studyId)`   | `species:get-distribution` | studyId    | `{ data: Distribution[] }`     |
+| `getDistinctSpecies(studyId)`       | `species:get-distinct`     | studyId    | `{ data: string[] }`           |
+| `getBestImagePerSpecies(studyId)`   | `species:get-best-images`  | studyId    | `{ data: SpeciesImage[] }`     |
+
+`SpeciesImage` (one representative image per species, for hover tooltips):
+
+```ts
+{
+  scientificName: string
+  filePath: string
+  mediaID: string
+  compositeScore?: number // present only on bbox-scored images
+  isFallback: boolean // true when picked without bbox geometry (see below)
+}
+```
+
+When a study has usable bounding boxes, each species gets a bbox-scored "best"
+image (same formula as `getBestMedia`, `isFallback: false`). Species with no
+scored image — and whole studies with no bbox data (e.g. CamTrap DP / GBIF
+imports like Seattle Camera Traps) — fall back to a representative study photo
+chosen without bbox geometry (`isFallback: true`), so tooltips still show a real
+picture. The tooltip ranks a fallback photo below the Wikipedia thumbnail.
 
 ### Overview
 

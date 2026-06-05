@@ -1,4 +1,5 @@
 import { sqliteTable, text, real, integer, unique, index } from 'drizzle-orm/sqlite-core'
+import { sql } from 'drizzle-orm'
 
 // Persistent job queue for async work (ML inference, OCR, etc.)
 export const jobs = sqliteTable(
@@ -166,6 +167,15 @@ export const observations = sqliteTable(
       table.mediaID,
       table.scientificName,
       table.observationType
-    )
+    ),
+    // Partial index over rows with drawable bbox geometry. getBestMedia and
+    // getBestImagePerSpecies gate their scoring CTE on a "has any usable bbox?"
+    // EXISTS probe; without this index that probe is a full table SCAN that, on
+    // no-bbox studies (CamTrap DP / GBIF imports), reads every row to confirm
+    // absence (~5-8s cold on 2.7-4M-row studies). The partial index is empty on
+    // such studies, so the probe becomes an instant index seek (SCAN → SEARCH).
+    index('idx_observations_usable_bbox')
+      .on(table.bboxWidth)
+      .where(sql`${table.bboxWidth} > 0 AND ${table.bboxHeight} > 0`)
   ]
 )
