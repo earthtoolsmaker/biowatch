@@ -208,8 +208,27 @@ export default function SpeciesTooltipContent({
         className={`relative w-full ${imageHeight} ${usingWikipediaImage ? 'bg-black' : 'bg-gray-100 dark:bg-muted'}`}
       >
         {!imageSource || imageError ? (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <CameraOff size={32} className="text-muted-foreground" />
+          // No usable image anywhere (no scored/fallback study photo, no
+          // Wikipedia thumbnail, or the image failed to load). Mirror the
+          // deployment hovercard's empty state (DeploymentHoverMap): a faint
+          // grid panel + icon + label, so the slot reads as an intentional
+          // "no photo" rather than a broken image.
+          <div className="absolute inset-0 overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900">
+            <div
+              className="absolute inset-0 opacity-40 dark:opacity-20"
+              style={{
+                backgroundImage:
+                  'linear-gradient(#94a3b8 1px, transparent 1px), linear-gradient(90deg, #94a3b8 1px, transparent 1px)',
+                backgroundSize: '22px 22px'
+              }}
+            />
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-5 text-center">
+              <CameraOff className="h-6 w-6 text-muted-foreground" strokeWidth={1.5} />
+              <span className="text-xs font-medium text-foreground">No photo available</span>
+              <span className="text-[11px] leading-snug text-muted-foreground">
+                No camera-trap image or reference photo was found for this species.
+              </span>
+            </div>
           </div>
         ) : (
           <>
