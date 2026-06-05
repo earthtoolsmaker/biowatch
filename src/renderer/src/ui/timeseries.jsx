@@ -457,7 +457,9 @@ const TimelineChart = ({
               minTickGap={-1}
               height={25}
             />
-            <YAxis hide domain={[0, 'auto']} />
+            {/* 10% headroom so the peak isn't flush against the top edge
+                (otherwise the line gets clipped into a flat "cap"). */}
+            <YAxis hide domain={[0, (dataMax) => (dataMax > 0 ? dataMax * 1.1 : 1)]} />
 
             {livePreview && (
               <ReferenceArea
@@ -528,6 +530,7 @@ const TimelineChart = ({
                 type="monotone"
                 dataKey={species.scientificName}
                 stroke={palette[index % palette.length]}
+                strokeWidth={1.5}
                 dot={false}
                 activeDot={{ r: 5 }}
                 name={species.scientificName}

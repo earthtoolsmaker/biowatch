@@ -155,6 +155,34 @@ function aggregateClusterCounts(markers, selectedSpecies) {
   return Object.fromEntries(Object.entries(combined).filter(([, count]) => count > 0))
 }
 
+// Scale each species' series to its own peak so every curve reaches the top of
+// the shared axis — each species reads as if it were the only one selected,
+// instead of being flattened by a more abundant one. `rows` are objects keyed
+// by scientificName (daily-activity hours or weekly timeseries); each species'
+// values are divided by that species' max across the rows. Used by both the
+// daytime activity charts and the timeline chart on the Explore tab.
+function normalizePerSpeciesToPeak(rows, selectedSpecies) {
+  if (!rows?.length) return rows
+  const maxBySpecies = {}
+  for (const { scientificName } of selectedSpecies) {
+    let max = 0
+    for (const row of rows) {
+      const v = row[scientificName]
+      if (typeof v === 'number' && v > max) max = v
+    }
+    maxBySpecies[scientificName] = max
+  }
+  return rows.map((row) => {
+    const out = { ...row }
+    for (const { scientificName } of selectedSpecies) {
+      const max = maxBySpecies[scientificName]
+      const v = row[scientificName]
+      if (typeof v === 'number' && max > 0) out[scientificName] = v / max
+    }
+    return out
+  })
+}
+
 // Distance (px) the card is pushed off the marker so it sits BESIDE the pie
 // rather than over it. The pie scales up to ~60px wide; 36px clears the largest
 // one with a small gap.
@@ -1530,6 +1558,22 @@ export default function Explore({ studyData, studyId }) {
     staleTime: Infinity
   })
 
+  // Normalize each species to its own peak so a sparse species reads as if it
+  // were the only one selected, instead of being flattened by an abundant one.
+  // Applied to the polar + x-y daytime charts and the timeline chart; the
+  // shared chart components stay value-agnostic.
+  const normalizedDailyActivity = useMemo(
+    () => normalizePerSpeciesToPeak(dailyActivityData, selectedSpecies),
+    [dailyActivityData, selectedSpecies]
+  )
+
+  // Same per-species peak scaling for the activity-over-time chart, so each
+  // species' temporal trend is readable regardless of its abundance.
+  const normalizedTimeseries = useMemo(
+    () => normalizePerSpeciesToPeak(timeseriesData, selectedSpecies),
+    [timeseriesData, selectedSpecies]
+  )
+
   const handleArcChange = useCallback((newArc) => {
     setArc(newArc)
   }, [])
@@ -1800,7 +1844,7 @@ export default function Explore({ studyData, studyId }) {
                       </div>
                       <div className="flex-1 relative">
                         <DailyActivityRadar
-                          activityData={dailyActivityData}
+                          activityData={normalizedDailyActivity}
                           selectedSpecies={selectedSpecies}
                           palette={palette}
                         />
@@ -1822,7 +1866,7 @@ export default function Explore({ studyData, studyId }) {
                       </div>
                       <div className="flex-1 relative">
                         <DailyActivityLine
-                          activityData={dailyActivityData}
+                          activityData={normalizedDailyActivity}
                           selectedSpecies={selectedSpecies}
                           palette={palette}
                           selectedRanges={visualRanges}
@@ -1837,7 +1881,7 @@ export default function Explore({ studyData, studyId }) {
                 </div>
                 <div className="flex-grow rounded px-2 border border-border">
                   <TimelineChart
-                    timeseriesData={timeseriesData}
+                    timeseriesData={normalizedTimeseries}
                     selectedSpecies={selectedSpecies}
                     dateRange={dateRange}
                     setDateRange={setDateRange}
