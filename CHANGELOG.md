@@ -5,6 +5,36 @@ All notable changes to Biowatch will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.4] - 2026-06-05
+
+### Added
+
+- **Revamped Media tab.** A sortable **Table view** (now the default, virtualized for large studies) sits alongside the Grid view, with a Type column (sequence frame count / video / photo icon), per-species counts, a row-number column, and Title Case common names; the lightbox's next/prev follows the table's column sort.
+- **Quick views** moved into a toolbar dropdown (Detections — the new default — plus Favorites, No-timestamp, and more) with explanatory copy; choosing one resets the active facet filters.
+- **In-flow filter pane** that pushes the grid/table aside (animated) instead of floating over it: Species and Deployment shown as distribution bars with observation counts, a **media-type filter** (images / videos), collapsible per-list search, and a count ↔ A–Z sort toggle. Active filters now persist across tab navigation.
+- **Rich hover cards** on active filter pills (per-facet icons) and on deployment rows — a location map with faint markers for other survey deployments (drag-to-pan, scroll-to-zoom), a survey-wide activity heatmap, and an images/videos breakdown.
+- **Deep links** into the Media tab from the Deployments and Sources tabs.
+- **Activity charts in the Explore species hover card**, shown alongside the photo.
+- **Species tooltips fall back to a study photo** when there is no bbox-scored "best" image (e.g. CamTrap DP / GBIF imports), with a polished "No photo available" empty state when nothing can be shown.
+
+### Changed
+
+- **"Blank" is now defined at the whole-sequence level** consistently across the app: a sequence counts as blank only when every frame is a non-detection. The Media table, deployment composition, Blank badge, and Blank filter all agree; vehicle media counts as a detection, not blank.
+- Deployment filter bars show detections-vs-blank composition and share-of-total fills that match the species bars.
+
+### Fixed
+
+- Media pagination cursor could skip most sequences past the first page, and dropped one sequence at large-sequence page boundaries.
+- Species/deployment hover cards now close when the filter list or page scrolls instead of riding along; the map composition hover card is raised above other overlays.
+- Deployment-detail Blank counts are sequence-aware, matching the Media tab.
+- Recent-release notes in Settings render inline markdown.
+
+### Performance
+
+- Deployment composition runs in the sequences worker so it no longer blocks the UI.
+- Table thumbnails load at low resolution and are cached, keeping scrolling smooth.
+- The "usable bbox geometry" probe behind best-media and per-species image selection is backed by a new partial index — an instant index lookup instead of a multi-second full table scan on large studies with no bounding boxes.
+
 ## [1.9.3] - 2026-06-02
 
 ### Added
@@ -709,6 +739,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Activity heatmaps
 - Overview statistics
 
+[1.9.4]: https://github.com/earthtoolsmaker/biowatch/compare/v1.9.3...v1.9.4
 [1.9.3]: https://github.com/earthtoolsmaker/biowatch/compare/v1.9.2...v1.9.3
 [1.9.2]: https://github.com/earthtoolsmaker/biowatch/compare/v1.9.1...v1.9.2
 [1.9.1]: https://github.com/earthtoolsmaker/biowatch/compare/v1.9.0...v1.9.1
