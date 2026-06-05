@@ -222,7 +222,7 @@ function HoverCardOverlay({ hover, selectedSpecies, palette, scientificToCommon 
         position: 'absolute',
         left: pos ? pos.left : -9999,
         top: pos ? pos.top : 0,
-        zIndex: 700,
+        zIndex: 1200,
         pointerEvents: 'none'
       }}
     >
