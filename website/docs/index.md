@@ -14,29 +14,32 @@ Biowatch is a free, open-source desktop application for wildlife researchers and
 - **On-Device AI** — Species identification models run locally — no internet required.
 - **Interactive Maps** — Visualize camera trap locations and wildlife sightings with spatial analysis tools.
 - **Data Analysis** — Generate insights with temporal activity patterns, species distributions, and deployment metrics.
-- **Media Management** — Browse, filter, and search through thousands of camera trap images and videos.
+- **Media Management** — Browse, filter, annotate, and search through thousands of camera trap images and videos.
 - **CamtrapDP Compatible** — Import and export using Camera Trap Data Package standards for GBIF integration.
 
 ## Screenshots
 
 <figure markdown="span">
-  ![Overview](assets/images/overview.png)
-  <figcaption>Study overview with camera trap locations and species summary</figcaption>
+  ![Overview](assets/images/hero-overview.png){ .hero }
+  <figcaption>Study overview: camera trap locations, key metrics, best captures, and species distribution</figcaption>
 </figure>
 
 <figure markdown="span">
-  ![Media Management](assets/images/medias.png)
-  <figcaption>Browse, filter, and search through camera trap images and videos</figcaption>
+  ![Explore](assets/images/hero-explore.png){ .hero }
+  <figcaption>Explore tab: spatial composition of species sightings, daily activity clock, and seasonal timeline</figcaption>
 </figure>
 
 <figure markdown="span">
-  ![Activity Analysis](assets/images/activity.png)
-  <figcaption>Temporal activity patterns and species distribution analysis</figcaption>
+  ![Media Management](assets/images/hero-media.png){ .hero }
+  <figcaption>Browse, filter, and annotate camera trap images and videos</figcaption>
 </figure>
 
 ## Quick Links
 
-- [Getting Started](getting-started.md) — Download and install Biowatch
-- [Guides](guides/importing-data.md) — Step-by-step tutorials
-- [Reference](reference/supported-formats.md) — Technical reference
+- [Getting Started](getting-started.md) — Download, install, and tour your first study
+- [Importing Data](guides/importing-data.md) — Bring in your own datasets or explore public ones
+- [Exploring Your Data](guides/exploring-data.md) — A tour of every tab
+- [Annotating Images](guides/annotating-images.md) — Review and correct observations
+- [Identifying Species with AI](guides/ai-models.md) — Run species classifiers locally
+- [Exporting & Sharing](guides/exporting-data.md) — CamtrapDP packages and media exports
 - [GitHub](https://github.com/earthtoolsmaker/biowatch) — Source code and releases

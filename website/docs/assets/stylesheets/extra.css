@@ -1,0 +1,33 @@
+/* Screenshot presentation for the Biowatch manual */
+
+/* Plain in-guide screenshots: rounded corners, hairline border, soft shadow */
+.md-typeset img.screenshot {
+  border-radius: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  box-shadow:
+    0 12px 24px -8px rgba(15, 23, 42, 0.18),
+    0 4px 8px -4px rgba(15, 23, 42, 0.1);
+}
+
+[data-md-color-scheme='slate'] .md-typeset img.screenshot {
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 12px 24px -8px rgba(0, 0, 0, 0.5),
+    0 4px 8px -4px rgba(0, 0, 0, 0.35);
+}
+
+/* Hero shots already carry their own window chrome + shadow (transparent PNG) */
+.md-typeset img.hero {
+  border: none;
+  box-shadow: none;
+}
+
+.md-typeset figure {
+  margin: 1.5em auto;
+}
+
+.md-typeset figcaption {
+  font-size: 0.72rem;
+  color: var(--md-default-fg-color--light);
+  max-width: 36rem;
+}
