@@ -44,6 +44,8 @@ Shot scripts (each saves into `scripts/manual-shots/raw/`):
 | `shots-new-studies.mjs` / `shots-alpine-map.mjs` | Waterleidingduinen deployments, Alpine Tundra maps |
 | `shots-batch2.mjs` / `shots-batch3.mjs` / `shots-row-detail.mjs` | Map encodings, media deployment hovercard, deployment line/heatmap/detail, best-capture hovercard |
 | `shots-fixes.mjs` / `cleanup-dup*.mjs` | Demo import progress recapture + duplicate-study cleanup |
+| `shots-videos*.mjs` / `shots-video-controls.mjs` / `shots-favorites-final.mjs` | Video grid/player, quick views menu, favorites (Seattle(ish) LILA study; iterations kept for the working selectors) |
+| `shots-slider3.mjs` / `restore-slider.mjs` | Retina clip of the sequence-grouping slider, then restore it to Off |
 
 ## Processing
 

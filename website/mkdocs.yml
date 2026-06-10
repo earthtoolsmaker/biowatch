@@ -47,6 +47,7 @@ markdown_extensions:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
   - attr_list
+  - def_list
   - md_in_html
 
 nav:
@@ -56,7 +57,9 @@ nav:
       - Importing Data: guides/importing-data.md
       - Exploring Your Data: guides/exploring-data.md
       - Annotating Images: guides/annotating-images.md
+      - Working with Videos: guides/videos.md
       - Identifying Species with AI: guides/ai-models.md
       - Exporting & Sharing: guides/exporting-data.md
   - Reference:
       - Supported Formats: reference/supported-formats.md
+  - Troubleshooting: troubleshooting.md

@@ -47,6 +47,11 @@ declare -A SHOTS=(
   [deployments-heatmap]=33-deployments-heatmap
   [deployments-detail]=34-deployments-row-detail
   [overview-species-hovercard]=35-overview-bestcapture-hovercard
+  [media-videos]=37-media-videos
+  [gallery-video]=38-gallery-video
+  [media-quickviews]=39-media-quickviews
+  [media-favorites]=40-media-favorites
+  [sequence-grouping-slider]=41-sequence-grouping-slider
 )
 for name in "${!SHOTS[@]}"; do
   convert "$RAW/${SHOTS[$name]}.png" -resize 1600 "$OUT/$name.png"

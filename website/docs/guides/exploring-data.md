@@ -90,7 +90,29 @@ The rail has hovercards too: hover a deployment to see where the camera sits and
   <figcaption>The deployment hovercard in the media filter rail</figcaption>
 </figure>
 
-Click any media item to open the full-screen viewer — see [Annotating Images](annotating-images.md).
+### Quick Views and Favorites
+
+The **Quick views** dropdown in the toolbar jumps to common slices of the study in one click:
+
+<figure markdown="span">
+  ![Quick views](../assets/images/media-quickviews.png){ .screenshot }
+  <figcaption>Quick views: Blank, Detections, No timestamp, Vehicle, and Favorites</figcaption>
+</figure>
+
+- **Blank** — media where nothing was detected (handy for spotting missed animals).
+- **Detections** — only media with at least one animal, person, or vehicle.
+- **No timestamp** — media missing a capture date and time.
+- **Vehicle** — vehicle detections.
+- **Favorites** — everything you've marked with the heart button in the gallery viewer.
+
+Favorites are the lightweight way to collect highlights — heart a capture in the viewer and it joins the Favorites view, ready to revisit or export:
+
+<figure markdown="span">
+  ![Favorites](../assets/images/media-favorites.png){ .screenshot }
+  <figcaption>The Favorites quick view collecting starred captures</figcaption>
+</figure>
+
+Click any media item to open the full-screen viewer — see [Annotating Images](annotating-images.md). Videos get a full player — see [Working with Videos](videos.md).
 
 ## Deployments
 
@@ -129,6 +151,11 @@ The Sources tab lists where the study's media files come from — local folders,
 Camera traps fire in bursts: one animal walking past can produce dozens of near-identical photos. Counting each photo as an observation would wildly inflate the numbers, so Biowatch can group media into **sequences**.
 
 You choose a *time gap* (in study Settings, or with the slider at the top of the Explore species rail). Captures from the same camera that are closer together than the gap belong to the same sequence, and each sequence counts as a single event in the charts and statistics. Within a sequence, the species count is the largest number of individuals seen together in any one frame — so an impala photographed 20 times in a burst counts once, but a frame showing three impala counts as three.
+
+<figure markdown="span">
+  ![Sequence grouping slider](../assets/images/sequence-grouping-slider.png){ .screenshot style="max-width: 34rem" }
+  <figcaption>The sequence grouping slider in study Settings — here set to a 1-minute gap</figcaption>
+</figure>
 
 Studies imported from Camtrap DP may already carry event groupings (`eventID`); these are preserved and used when sequence grouping is off.
 
