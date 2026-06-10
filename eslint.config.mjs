@@ -5,7 +5,7 @@ import eslintPluginReactHooks from 'eslint-plugin-react-hooks'
 import eslintPluginReactRefresh from 'eslint-plugin-react-refresh'
 
 export default [
-  { ignores: ['**/node_modules', '**/dist', '**/out', '**/python-environments'] },
+  { ignores: ['**/node_modules', '**/dist', '**/out', '**/python-environments', '**/.venv'] },
   eslint,
   {
     // Bump language level to ES2025 so the parser accepts import attributes

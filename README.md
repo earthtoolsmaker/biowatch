@@ -17,7 +17,7 @@
 <br/>
 
 <p align="center">
-  <a href="https://www.earthtoolsmaker.org/tools/biowatch/">Download</a> | <a href="./docs/">Documentation</a> | <a href="https://www.earthtoolsmaker.org/contact/">Contact Us</a>
+  <a href="https://www.earthtoolsmaker.org/tools/biowatch/">Download</a> | <a href="https://biowatch.earthtoolsmaker.org">Documentation</a> | <a href="https://www.earthtoolsmaker.org/contact/">Contact Us</a>
 </p>
 <br/>
 <br/>
