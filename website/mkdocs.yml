@@ -7,6 +7,7 @@ repo_name: earthtoolsmaker/biowatch
 theme:
   name: material
   logo: assets/images/biowatch-logo.png
+  favicon: assets/images/biowatch-logo.png
   palette:
     - scheme: default
       primary: blue
