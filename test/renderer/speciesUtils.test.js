@@ -11,14 +11,16 @@ import {
 } from '../../src/renderer/src/utils/speciesUtils.js'
 
 describe('isNonSpeciesLabel', () => {
-  test('returns true for the six known processing labels (case-insensitive)', () => {
+  test('returns true for the known processing labels (case-insensitive)', () => {
     for (const label of [
       'problem',
       'blurred',
       'ignore',
       'misfire',
       'setup_pickup',
-      'unclassifiable'
+      'unclassifiable',
+      'unlabeled',
+      'unlabelled'
     ]) {
       assert.equal(isNonSpeciesLabel(label), true, `expected true for ${label}`)
       assert.equal(

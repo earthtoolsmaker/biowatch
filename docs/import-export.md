@@ -263,13 +263,14 @@ For large datasets like Snapshot Serengeti (7.1M images), a streaming architectu
 └─────────────────────────────────────────┘
 ```
 
-**Supported Datasets (24 total):**
+**Supported Datasets (25 total):**
 
 - Biome Health Project Maasai Mara 2018 (37K images, Kenya)
 - Snapshot Karoo (38K images, South Africa)
 - Snapshot Serengeti (7.1M images, Tanzania) - uses streaming
 - WCS Camera Traps (1.4M images, 675 species)
 - NACTI (3.7M images)
+- AMMonitor Camera Traps (1.9M images, North America) - uses streaming
 - And 19 more...
 
 **Key features:**
