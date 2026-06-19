@@ -5,6 +5,17 @@ All notable changes to Biowatch will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.5] - 2026-06-19
+
+### Added
+
+- **AMMonitor Camera Traps** is now available in the LILA import dropdown alongside the other LILA datasets (~1.86M images, 76 non-blank categories), imported through the existing streaming path. AMMonitor common-name labels are mapped to scientific names so most species resolve to clean binomials or a higher rank.
+
+### Changed
+
+- **Activity charts normalize per species** so curves can be compared by shape: the daytime radar/line charts and the timeline chart now scale each selected species to its own peak, instead of plotting raw counts on a shared scale where an abundant species flattened sparser ones. The line charts also gained 10% Y-axis headroom so peaks aren't clipped at the top edge.
+- "unlabeled" now sorts to the bottom of the species lists (Overview, Explore, Media), matching how blank/vehicle labels are already handled.
+
 ## [1.9.4] - 2026-06-05
 
 ### Added
@@ -739,6 +750,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Activity heatmaps
 - Overview statistics
 
+[1.9.5]: https://github.com/earthtoolsmaker/biowatch/compare/v1.9.4...v1.9.5
 [1.9.4]: https://github.com/earthtoolsmaker/biowatch/compare/v1.9.3...v1.9.4
 [1.9.3]: https://github.com/earthtoolsmaker/biowatch/compare/v1.9.2...v1.9.3
 [1.9.2]: https://github.com/earthtoolsmaker/biowatch/compare/v1.9.1...v1.9.2
