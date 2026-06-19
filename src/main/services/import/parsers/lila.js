@@ -490,6 +490,24 @@ export const LILA_DATASETS = [
     isZipped: true,
     imageCount: 2278071,
     categoryCount: 30
+  },
+  {
+    id: 'ammonitor-camera-traps',
+    name: 'AMMonitor Camera Traps',
+    description: 'Composite wildlife monitoring dataset from North America (1.9M images)',
+    longDescription:
+      'A composite of ten camera trap datasets from the AMMonitor community, a collaboration of independent projects that use the AMMonitor R package to monitor wildlife with remotely deployed trail cameras and audio recorders. About 1.9 million images (roughly half empty); most common species are moose, white-tailed deer, and fisher. Constituent datasets were released into the public domain on ScienceBase via U.S. Geological Survey data releases.',
+    citation: null,
+    organization: 'University of Vermont',
+    contactName: 'Laurence Clarfeld',
+    contactEmail: 'Laurence.Clarfeld@uvm.edu',
+    metadataUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/ammonitor-camera-traps/ammonitor-camera-traps.zip',
+    imageBaseUrl:
+      'https://lilawildlife.blob.core.windows.net/lila-wildlife/ammonitor-camera-traps/',
+    isZipped: true,
+    imageCount: 1858251,
+    categoryCount: 76
   }
 ]
 

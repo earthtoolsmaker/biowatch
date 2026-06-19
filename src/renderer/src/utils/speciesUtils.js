@@ -18,7 +18,9 @@ const NON_SPECIES_LABELS = new Set([
   'ignore',
   'misfire',
   'setup_pickup',
-  'unclassifiable'
+  'unclassifiable',
+  'unlabeled',
+  'unlabelled'
 ])
 
 /**

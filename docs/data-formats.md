@@ -381,6 +381,7 @@ Many LILA datasets include sequence information where images are grouped into "b
 - Snapshot Safari datasets (Karoo, Kruger, Enonkishu, etc.)
 - California Small Animals
 - Wellington Camera Traps
+- AMMonitor Camera Traps
 
 **Datasets without sequence info:**
 
