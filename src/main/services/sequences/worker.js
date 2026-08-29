@@ -29,6 +29,7 @@ import {
 } from '../../database/index.js'
 import { getPaginatedSequences } from './pagination.js'
 import { getDeploymentComposition } from './deploymentComposition.js'
+import { COUNT_METRIC_INDIVIDUALS } from '../../../shared/countMetric.js'
 import {
   calculateSequenceAwareSpeciesCounts,
   calculateSequenceAwareTimeseries,
@@ -55,7 +56,8 @@ async function run() {
     endDate,
     timeRange,
     includeNullTimestamps,
-    bbox
+    bbox,
+    countMetric = COUNT_METRIC_INDIVIDUALS
   } = workerData
 
   // Fetch gapSeconds from metadata if not provided
@@ -69,38 +71,41 @@ async function run() {
   const tag = `[seq-worker:${type}]`
   const heapLimitMb = Math.round(getHeapStatistics().heap_size_limit / 1048576)
   log.info(
-    `${tag} start gap=${effectiveGapSeconds} bbox=${bbox ? 'yes' : 'no'} ` +
+    `${tag} start gap=${effectiveGapSeconds} metric=${countMetric} bbox=${bbox ? 'yes' : 'no'} ` +
       `species=${speciesNames?.length ?? 0} heap=${heapMb()}/${heapLimitMb}MB`
   )
 
   switch (type) {
     case 'species-distribution': {
-      // Fast path: SQL aggregate handles gapSeconds === null and === 0, returns
-      // the final [{scientificName, count}] directly (83 rows, not 1.65M).
-      // Returns null for positive gapSeconds, in which case we fall back to the
-      // row-dump + JS sequence grouping below.
-      const fast = await getSequenceAwareSpeciesCountsSQL(dbPath, effectiveGapSeconds, bbox)
+      // SQL returns final [{scientificName, count}] rows directly. Positive-gap
+      // N ind. retains the established JS path; N obs. stays in SQL for every
+      // grouping mode because each species/sequence contributes exactly one.
+      const fast = await getSequenceAwareSpeciesCountsSQL(
+        dbPath,
+        effectiveGapSeconds,
+        bbox,
+        countMetric
+      )
       if (fast !== null) return fast
       log.warn(
         `${tag} SLOW PATH (gap=${effectiveGapSeconds}): SQL fast-path returned null, dumping rows`
       )
       const rawData = await getSpeciesDistributionByMedia(dbPath, bbox)
       log.info(`${tag} loaded ${rawData.length} rows, heap=${heapMb()}MB — starting JS aggregation`)
-      const result = calculateSequenceAwareSpeciesCounts(rawData, effectiveGapSeconds)
+      const result = calculateSequenceAwareSpeciesCounts(rawData, effectiveGapSeconds, countMetric)
       log.info(`${tag} aggregation done: ${result.length} species, heap=${heapMb()}MB`)
       return result
     }
     case 'timeseries': {
-      // Fast path: SQL aggregate handles gapSeconds === null and === 0,
-      // returns pre-grouped (species, week, count) rows — orders of magnitude
-      // smaller than the raw observation-per-media dump the JS path needs.
-      // Returns null for positive gapSeconds → fall back to the JS path for
-      // time-gap-based sequence grouping.
+      // SQL returns pre-grouped (species, week, count) rows. Positive-gap
+      // N ind. retains the established JS fallback; N obs. has an SQL path for
+      // every grouping mode.
       const fastRows = await getSequenceAwareTimeseriesSQL(
         dbPath,
         speciesNames,
         effectiveGapSeconds,
-        bbox
+        bbox,
+        countMetric
       )
       if (fastRows !== null) return pivotPreAggregatedTimeseries(fastRows)
       log.warn(
@@ -108,7 +113,7 @@ async function run() {
       )
       const rawData = await getSpeciesTimeseriesByMedia(dbPath, speciesNames, bbox)
       log.info(`${tag} loaded ${rawData.length} rows, heap=${heapMb()}MB — starting JS aggregation`)
-      const result = calculateSequenceAwareTimeseries(rawData, effectiveGapSeconds)
+      const result = calculateSequenceAwareTimeseries(rawData, effectiveGapSeconds, countMetric)
       log.info(`${tag} aggregation done, heap=${heapMb()}MB`)
       return result
     }
@@ -127,7 +132,8 @@ async function run() {
         endDate,
         timeRange,
         includeNullTimestamps,
-        effectiveGapSeconds
+        effectiveGapSeconds,
+        countMetric
       )
       if (fastRows !== null) return pivotPreAggregatedHeatmap(fastRows)
       log.warn(
@@ -142,7 +148,7 @@ async function run() {
         includeNullTimestamps
       )
       log.info(`${tag} loaded ${rawData.length} rows, heap=${heapMb()}MB — starting JS aggregation`)
-      const result = calculateSequenceAwareHeatmap(rawData, effectiveGapSeconds)
+      const result = calculateSequenceAwareHeatmap(rawData, effectiveGapSeconds, countMetric)
       log.info(`${tag} aggregation done, heap=${heapMb()}MB`)
       return result
     }
@@ -153,7 +159,8 @@ async function run() {
         startDate,
         endDate,
         effectiveGapSeconds,
-        bbox
+        bbox,
+        countMetric
       )
       return pivotPreAggregatedDailyActivity(rows || [], speciesNames)
     }

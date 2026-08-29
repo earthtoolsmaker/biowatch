@@ -8,6 +8,7 @@ import {
   getSequenceAwareSpeciesCountsSQL,
   getSequenceAwareTimeseriesSQL,
   getSequenceAwareDailyActivitySQL,
+  getSequenceAwareHeatmapSQL,
   getSpeciesDistributionByMedia,
   getSpeciesTimeseriesByMedia
 } from '../../../src/main/database/queries/species.js'
@@ -80,6 +81,40 @@ test('timeseries: bbox excludes out-of-bounds species entirely', async () => {
   assert.deepEqual(rows, []) // Capreolus only exists at depB, which is outside BBOX_IN
 })
 
+test('independent-observation SQL paths return sequence presence counts', async () => {
+  const distribution = await getSequenceAwareSpeciesCountsSQL(dbPath, 300, null, 'observations')
+  assert.equal(distribution.find((row) => row.scientificName === 'Vulpes vulpes').count, 2)
+
+  for (const gap of [null, 0, 300]) {
+    const timeseries = await getSequenceAwareTimeseriesSQL(
+      dbPath,
+      ['Vulpes vulpes'],
+      gap,
+      null,
+      'observations'
+    )
+    assert.equal(
+      timeseries.reduce((sum, row) => sum + row.count, 0),
+      2
+    )
+
+    const heatmap = await getSequenceAwareHeatmapSQL(
+      dbPath,
+      ['Vulpes vulpes'],
+      '2024-01-01T00:00:00',
+      '2024-12-31T23:59:59',
+      { ranges: [] },
+      false,
+      gap,
+      'observations'
+    )
+    assert.equal(
+      heatmap.reduce((sum, row) => sum + row.count, 0),
+      2
+    )
+  }
+})
+
 const START = '2024-01-01T00:00:00'
 const END = '2024-12-31T23:59:59'
 
@@ -135,6 +170,24 @@ test('daily-activity: bbox restricts in positive-gap branch', async () => {
   )
   const total = rows.reduce((s, r) => s + r.count, 0)
   assert.equal(total, 1)
+})
+
+test('daily-activity: independent observations work for every gap path', async () => {
+  for (const gap of [null, 0, 300]) {
+    const rows = await getSequenceAwareDailyActivitySQL(
+      dbPath,
+      ['Vulpes vulpes'],
+      START,
+      END,
+      gap,
+      null,
+      'observations'
+    )
+    assert.equal(
+      rows.reduce((sum, row) => sum + row.count, 0),
+      2
+    )
+  }
 })
 
 test('distribution-by-media: bbox excludes out-of-bounds media rows', async () => {

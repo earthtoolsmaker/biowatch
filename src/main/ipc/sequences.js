@@ -13,6 +13,7 @@ import { existsSync } from 'fs'
 import { getStudyDatabasePath } from '../services/paths.js'
 import { runInWorker } from '../services/sequences/runInWorker.js'
 import { VEHICLE_SENTINEL } from '../../shared/constants.js'
+import { normalizeCountMetric } from '../../shared/countMetric.js'
 
 /**
  * Drop VEHICLE_SENTINEL from a species filter list before passing to the
@@ -47,32 +48,35 @@ export function registerSequencesIPCHandlers() {
    * @param {string} studyId - Study identifier
    * @param {number|null} [gapSeconds] - Optional gap threshold; fetched from metadata if not provided
    */
-  ipcMain.handle('sequences:get-species-distribution', async (_, studyId, gapSeconds, bbox) => {
-    try {
-      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
-      if (!dbPath || !existsSync(dbPath)) {
-        log.warn(`Database not found for study ID: ${studyId}`)
-        return { error: 'Database not found for this study' }
-      }
+  ipcMain.handle(
+    'sequences:get-species-distribution',
+    async (_, studyId, gapSeconds, bbox, requestedCountMetric) => {
+      try {
+        const countMetric = normalizeCountMetric(requestedCountMetric)
+        const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+        if (!dbPath || !existsSync(dbPath)) {
+          log.warn(`Database not found for study ID: ${studyId}`)
+          return { error: 'Database not found for this study' }
+        }
 
-      // Always dispatch through the Worker. The Worker tries the SQL aggregate
-      // first (null/0 gap) and falls back to row-dump + JS grouping on null
-      // return (positive gap). Running off-thread is required because the SQL
-      // scan itself can take ~8s on cold FS cache on large studies, which
-      // would freeze the renderer's UI if it ran on main.
-      const data = await runInWorker({
-        type: 'species-distribution',
-        dbPath,
-        studyId,
-        gapSeconds,
-        bbox
-      })
-      return { data }
-    } catch (error) {
-      log.error('Error getting sequence-aware species distribution:', error)
-      return { error: error.message }
+        // Always dispatch through the Worker. N obs. uses SQL for every gap;
+        // positive-gap N ind. retains the JS grouping fallback. Both must stay
+        // off the main thread because large-study scans can take several seconds.
+        const data = await runInWorker({
+          type: 'species-distribution',
+          dbPath,
+          studyId,
+          gapSeconds,
+          bbox,
+          countMetric
+        })
+        return { data }
+      } catch (error) {
+        log.error('Error getting sequence-aware species distribution:', error)
+        return { error: error.message }
+      }
     }
-  })
+  )
 
   /**
    * Get sequence-aware species timeseries
@@ -80,33 +84,38 @@ export function registerSequencesIPCHandlers() {
    * @param {Array<string>} speciesNames - Species to include in timeseries
    * @param {number|null} [gapSeconds] - Optional gap threshold; fetched from metadata if not provided
    */
-  ipcMain.handle('sequences:get-timeseries', async (_, studyId, speciesNames, gapSeconds, bbox) => {
-    try {
-      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
-      if (!dbPath || !existsSync(dbPath)) {
-        log.warn(`Database not found for study ID: ${studyId}`)
-        return { error: 'Database not found for this study' }
-      }
+  ipcMain.handle(
+    'sequences:get-timeseries',
+    async (_, studyId, speciesNames, gapSeconds, bbox, requestedCountMetric) => {
+      try {
+        const countMetric = normalizeCountMetric(requestedCountMetric)
+        const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+        if (!dbPath || !existsSync(dbPath)) {
+          log.warn(`Database not found for study ID: ${studyId}`)
+          return { error: 'Database not found for this study' }
+        }
 
-      const { stripped, vehicleOnly } = stripVehicleSentinel(speciesNames)
-      if (vehicleOnly) {
-        return { data: { timeseries: [], allSpecies: [] } }
-      }
+        const { stripped, vehicleOnly } = stripVehicleSentinel(speciesNames)
+        if (vehicleOnly) {
+          return { data: { timeseries: [], allSpecies: [] } }
+        }
 
-      const data = await runInWorker({
-        type: 'timeseries',
-        dbPath,
-        studyId,
-        gapSeconds,
-        speciesNames: stripped,
-        bbox
-      })
-      return { data }
-    } catch (error) {
-      log.error('Error getting sequence-aware timeseries:', error)
-      return { error: error.message }
+        const data = await runInWorker({
+          type: 'timeseries',
+          dbPath,
+          studyId,
+          gapSeconds,
+          speciesNames: stripped,
+          bbox,
+          countMetric
+        })
+        return { data }
+      } catch (error) {
+        log.error('Error getting sequence-aware timeseries:', error)
+        return { error: error.message }
+      }
     }
-  })
+  )
 
   /**
    * Get sequence-aware species heatmap
@@ -129,9 +138,11 @@ export function registerSequencesIPCHandlers() {
       endDate,
       timeRange,
       includeNullTimestamps,
-      gapSeconds
+      gapSeconds,
+      requestedCountMetric
     ) => {
       try {
+        const countMetric = normalizeCountMetric(requestedCountMetric)
         const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
         if (!dbPath || !existsSync(dbPath)) {
           log.warn(`Database not found for study ID: ${studyId}`)
@@ -152,7 +163,8 @@ export function registerSequencesIPCHandlers() {
           startDate,
           endDate,
           timeRange,
-          includeNullTimestamps
+          includeNullTimestamps,
+          countMetric
         })
         return { data }
       } catch (error) {
@@ -172,8 +184,18 @@ export function registerSequencesIPCHandlers() {
    */
   ipcMain.handle(
     'sequences:get-daily-activity',
-    async (_, studyId, speciesNames, startDate, endDate, gapSeconds, bbox) => {
+    async (
+      _,
+      studyId,
+      speciesNames,
+      startDate,
+      endDate,
+      gapSeconds,
+      bbox,
+      requestedCountMetric
+    ) => {
       try {
+        const countMetric = normalizeCountMetric(requestedCountMetric)
         const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
         if (!dbPath || !existsSync(dbPath)) {
           log.warn(`Database not found for study ID: ${studyId}`)
@@ -193,7 +215,8 @@ export function registerSequencesIPCHandlers() {
           speciesNames: stripped,
           startDate,
           endDate,
-          bbox
+          bbox,
+          countMetric
         })
         return { data }
       } catch (error) {

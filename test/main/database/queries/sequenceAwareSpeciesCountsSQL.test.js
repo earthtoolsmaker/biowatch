@@ -330,6 +330,21 @@ describe('getSequenceAwareSpeciesCountsSQL — parity with JS pipeline', () => {
 
     await assertParity(testDbPath, null, 'null-gap')
     await assertParity(testDbPath, 0, 'eventID-gap')
+
+    const perMediaObservations = await getSequenceAwareSpeciesCountsSQL(
+      testDbPath,
+      null,
+      null,
+      'observations'
+    )
+    const eventObservations = await getSequenceAwareSpeciesCountsSQL(
+      testDbPath,
+      0,
+      null,
+      'observations'
+    )
+    assert.equal(perMediaObservations.find((r) => r.scientificName === 'Deer').count, 3)
+    assert.equal(eventObservations.find((r) => r.scientificName === 'Deer').count, 2)
   })
 
   test('null-timestamp media still contribute to counts', async () => {
@@ -426,7 +441,19 @@ describe('getSequenceAwareSpeciesCountsSQL — parity with JS pipeline', () => {
       ]
     })
     const sql = await getSequenceAwareSpeciesCountsSQL(testDbPath, 120)
-    assert.equal(sql, null, 'positive gap should return null so caller falls back to JS')
+    assert.equal(
+      sql,
+      null,
+      'positive-gap individuals should return null so caller falls back to JS'
+    )
+
+    const observationsSql = await getSequenceAwareSpeciesCountsSQL(
+      testDbPath,
+      120,
+      null,
+      'observations'
+    )
+    assert.deepEqual(observationsSql, [{ scientificName: 'Deer', count: 1 }])
   })
 
   test('empty DB returns empty array (gap=null and gap=0)', async () => {

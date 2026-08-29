@@ -10,6 +10,7 @@ import { IUCN_ACCENT_BORDER } from './iucnPalette'
 import CircularTimeFilter, { DailyActivityRadar, DailyActivityLine } from './clock'
 import TimelineChart from './timeseries'
 import { hasEnoughActivityData, MIN_ACTIVITY_DETECTIONS } from '../utils/activitySufficiency'
+import { COUNT_METRIC_INDIVIDUALS } from '../../../shared/countMetric.js'
 
 // Single accent for the hovercard's all-time activity charts (one species
 // per card, so no multi-series palette is needed).
@@ -103,7 +104,8 @@ export default function SpeciesTooltipContent({
   // threshold there can be no charts, so we skip both the fetch and the
   // loading skeleton (no flash for sparse species). The daily-activity sum
   // only ever counts timestamped detections, so it can't exceed this.
-  detectionCount = 0
+  detectionCount = 0,
+  countMetric = COUNT_METRIC_INDIVIDUALS
 }) {
   const [imageError, setImageError] = useState(false)
   const [imageLoaded, setImageLoaded] = useState(false)
@@ -124,9 +126,15 @@ export default function SpeciesTooltipContent({
   // full extent (first..last day with data). We fetch the timeseries first,
   // then query daily activity over that range.
   const { data: activity, isError: activityError } = useQuery({
-    queryKey: ['speciesHovercardActivity', studyId, sciName],
+    queryKey: ['speciesHovercardActivity', studyId, sciName, countMetric],
     queryFn: async () => {
-      const ts = await window.api.getSequenceAwareTimeseries(studyId, [sciName], undefined, null)
+      const ts = await window.api.getSequenceAwareTimeseries(
+        studyId,
+        [sciName],
+        undefined,
+        null,
+        countMetric
+      )
       if (ts.error) throw new Error(ts.error)
       const timeseries = ts.data?.timeseries ?? []
       if (timeseries.length === 0) return { dailyActivity: [], timeseries: [] }
@@ -139,7 +147,8 @@ export default function SpeciesTooltipContent({
         start,
         end,
         undefined,
-        null
+        null,
+        countMetric
       )
       if (daily.error) throw new Error(daily.error)
       return { dailyActivity: daily.data ?? [], timeseries }

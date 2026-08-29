@@ -146,6 +146,55 @@ describe('calculateSequenceAwareSpeciesCounts', () => {
     })
   })
 
+  describe('independent observation counting', () => {
+    test('counts one per species-positive sequence instead of frame magnitude', () => {
+      const observations = [
+        createObservationAtOffset('Deer', 'media1', baseTime, 0, 2),
+        createObservationAtOffset('Deer', 'media2', baseTime, 10, 5),
+        createObservationAtOffset('Deer', 'media3', baseTime, 20, 3),
+        createObservationAtOffset('Deer', 'media4', baseTime, 200, 4),
+        createObservationAtOffset('Deer', 'media5', baseTime, 210, 2)
+      ]
+
+      assert.equal(calculateSequenceAwareSpeciesCounts(observations, 60)[0].count, 9)
+      assert.equal(
+        calculateSequenceAwareSpeciesCounts(observations, 60, 'observations')[0].count,
+        2
+      )
+    })
+
+    test('each species present in a sequence contributes one', () => {
+      const observations = [
+        createObservationAtOffset('Deer', 'media1', baseTime, 0, 4),
+        createObservationAtOffset('Fox', 'media1', baseTime, 0, 2),
+        createObservationAtOffset('Deer', 'media2', baseTime, 10, 3),
+        createObservationAtOffset('Fox', 'media2', baseTime, 10, 1)
+      ]
+      const result = calculateSequenceAwareSpeciesCounts(observations, 60, 'observations')
+      assert.equal(result.find((row) => row.scientificName === 'Deer').count, 1)
+      assert.equal(result.find((row) => row.scientificName === 'Fox').count, 1)
+    })
+
+    test('event IDs, missing event IDs, and null timestamps retain existing boundaries', () => {
+      const observations = [
+        createObservation('Deer', 'm1', baseTime.toISOString(), 2, 'dep1', 'event1'),
+        createObservation('Deer', 'm2', baseTime.toISOString(), 5, 'dep1', 'event1'),
+        createObservation('Deer', 'm3', baseTime.toISOString(), 3, 'dep1', null),
+        createObservation('Deer', 'm4', baseTime.toISOString(), 4, 'dep1', null),
+        createObservation('Deer', 'm5', null, 6, 'dep1', 'event1')
+      ]
+      const result = calculateSequenceAwareSpeciesCounts(observations, 0, 'observations')
+      assert.equal(result[0].count, 4)
+    })
+
+    test('rejects an invalid explicit metric', () => {
+      assert.throws(
+        () => calculateSequenceAwareSpeciesCounts([], 60, 'rows'),
+        /Invalid count metric/
+      )
+    })
+  })
+
   describe('null timestamp handling', () => {
     test('null timestamp media are treated as individual sequences', () => {
       const observations = [

@@ -1,12 +1,9 @@
 /**
  * Utilities for calculating sequence-aware species counts.
  *
- * The idea is that when counting species observations, instead of counting every
- * individual observation, we want to count "independent events" (sequences).
- *
- * For each sequence:
- * - Take the MAX count of each species across all media in that sequence
- * - This represents the minimum number of individuals observed in that event
+ * Media are grouped into sequences once, then each species contributes either:
+ * - individuals: its MAX same-frame detection count in the sequence
+ * - observations: 1 when it is present anywhere in the sequence
  *
  * Example:
  * - Sequence 1: Photo A (2 deer), Photo B (3 deer), Photo C (1 deer) -> max deer = 3
@@ -15,6 +12,11 @@
  */
 
 import { groupMediaIntoSequences, groupMediaByEventID } from './grouping.js'
+import {
+  COUNT_METRIC_INDIVIDUALS,
+  COUNT_METRIC_OBSERVATIONS,
+  normalizeCountMetric
+} from '../../../shared/countMetric.js'
 
 /**
  * Check if a media item is a video based on fileMediatype
@@ -30,22 +32,23 @@ function isVideoMedia(media) {
  *
  * @param {Array} observationsByMedia - Array of { scientificName, mediaID, timestamp, deploymentID, eventID, fileMediatype, count }
  * @param {number} gapSeconds - Gap threshold in seconds (0 = use eventID grouping)
+ * @param {'individuals'|'observations'} [countMetric='individuals']
  * @returns {Array} - Array of { scientificName, count } sorted by count descending
  */
-export function calculateSequenceAwareSpeciesCounts(observationsByMedia, gapSeconds) {
+export function calculateSequenceAwareSpeciesCounts(
+  observationsByMedia,
+  gapSeconds,
+  countMetric = COUNT_METRIC_INDIVIDUALS
+) {
+  const metric = normalizeCountMetric(countMetric)
   if (!observationsByMedia || observationsByMedia.length === 0) {
     return []
   }
 
   // Create a map of mediaID -> media info for grouping
   const mediaMap = new Map()
-  // Create a map of (mediaID, scientificName) -> count
-  const mediaSpeciesCounts = new Map()
 
   for (const obs of observationsByMedia) {
-    const key = `${obs.mediaID}:${obs.scientificName}`
-    mediaSpeciesCounts.set(key, obs.count)
-
     if (!mediaMap.has(obs.mediaID)) {
       mediaMap.set(obs.mediaID, {
         mediaID: obs.mediaID,
@@ -86,48 +89,30 @@ export function calculateSequenceAwareSpeciesCounts(observationsByMedia, gapSeco
     nullTimestampMedia = result.nullTimestampMedia
   }
 
-  // Calculate max count per species per sequence
   const speciesCounts = new Map()
 
-  // Process regular sequences
-  for (const sequence of sequences) {
-    const sequenceMaxCounts = new Map()
-
-    // Find max count for each species in this sequence
-    for (const media of sequence.items) {
+  // Sequence formation is shared by both metrics. Only each species' contribution
+  // changes: the existing metric contributes its largest same-frame count, while
+  // independent observations contribute one for presence anywhere in the sequence.
+  const addSequence = (items) => {
+    const sequenceCounts = new Map()
+    for (const media of items) {
       const mediaObs = observationsByMediaID.get(media.mediaID) || []
       for (const { scientificName, count } of mediaObs) {
-        const current = sequenceMaxCounts.get(scientificName) || 0
-        sequenceMaxCounts.set(scientificName, Math.max(current, count))
+        const contribution = metric === COUNT_METRIC_OBSERVATIONS ? 1 : count
+        const current = sequenceCounts.get(scientificName) || 0
+        sequenceCounts.set(scientificName, Math.max(current, contribution))
       }
     }
-
-    // Add sequence max counts to total
-    for (const [species, maxCount] of sequenceMaxCounts) {
-      const current = speciesCounts.get(species) || 0
-      speciesCounts.set(species, current + maxCount)
+    for (const [species, contribution] of sequenceCounts) {
+      speciesCounts.set(species, (speciesCounts.get(species) || 0) + contribution)
     }
   }
 
-  // Process null-timestamp media (each is treated as its own single-item "sequence")
-  // Since we can't determine temporal relationships without timestamps, each media
-  // is considered an independent observation event. For consistency with sequence
-  // logic, we apply the same max-per-sequence approach (which for a single-item
-  // sequence simply uses that item's count).
-  for (const media of nullTimestampMedia) {
-    const mediaObs = observationsByMediaID.get(media.mediaID) || []
-    // Create a mini-sequence with just this media and compute max counts
-    const singleMediaMaxCounts = new Map()
-    for (const { scientificName, count } of mediaObs) {
-      const current = singleMediaMaxCounts.get(scientificName) || 0
-      singleMediaMaxCounts.set(scientificName, Math.max(current, count))
-    }
-    // Add this "sequence's" max counts to total
-    for (const [species, maxCount] of singleMediaMaxCounts) {
-      const current = speciesCounts.get(species) || 0
-      speciesCounts.set(species, current + maxCount)
-    }
-  }
+  for (const sequence of sequences) addSequence(sequence.items)
+
+  // Null/invalid-timestamp media retain the existing single-media sequence rule.
+  for (const media of nullTimestampMedia) addSequence([media])
 
   // Convert to array and sort by count descending
   const result = Array.from(speciesCounts.entries())
@@ -144,7 +129,11 @@ export function calculateSequenceAwareSpeciesCounts(observationsByMedia, gapSeco
  * @param {number} gapSeconds - Gap threshold in seconds (0 = use eventID grouping)
  * @returns {Object} - { timeseries: Array, allSpecies: Array }
  */
-export function calculateSequenceAwareTimeseries(observationsByMedia, gapSeconds) {
+export function calculateSequenceAwareTimeseries(
+  observationsByMedia,
+  gapSeconds,
+  countMetric = COUNT_METRIC_INDIVIDUALS
+) {
   if (!observationsByMedia || observationsByMedia.length === 0) {
     return { timeseries: [], allSpecies: [] }
   }
@@ -182,7 +171,7 @@ export function calculateSequenceAwareTimeseries(observationsByMedia, gapSeconds
   const allSpeciesSet = new Set()
 
   for (const [week, weekObs] of observationsByWeek) {
-    const weeklyCounts = calculateSequenceAwareSpeciesCounts(weekObs, gapSeconds)
+    const weeklyCounts = calculateSequenceAwareSpeciesCounts(weekObs, gapSeconds, countMetric)
     const weekData = {}
     for (const { scientificName, count } of weeklyCounts) {
       weekData[scientificName] = count
@@ -305,7 +294,11 @@ export function pivotPreAggregatedHeatmap(rows) {
  * @param {number} gapSeconds - Gap threshold in seconds (0 = use eventID grouping)
  * @returns {Object} - Map of scientificName -> Array of { lat, lng, count, locationName }
  */
-export function calculateSequenceAwareHeatmap(observationsByMedia, gapSeconds) {
+export function calculateSequenceAwareHeatmap(
+  observationsByMedia,
+  gapSeconds,
+  countMetric = COUNT_METRIC_INDIVIDUALS
+) {
   if (!observationsByMedia || observationsByMedia.length === 0) {
     return {}
   }
@@ -332,7 +325,8 @@ export function calculateSequenceAwareHeatmap(observationsByMedia, gapSeconds) {
   for (const [, locationInfo] of observationsByLocation) {
     const locationCounts = calculateSequenceAwareSpeciesCounts(
       locationInfo.observations,
-      gapSeconds
+      gapSeconds,
+      countMetric
     )
 
     for (const { scientificName, count } of locationCounts) {

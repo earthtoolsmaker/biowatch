@@ -1,5 +1,6 @@
 import { getMapDisplayName } from '../utils/commonNames'
 import { formatScientificName } from '../utils/scientificName'
+import { COUNT_METRIC_INDIVIDUALS, COUNT_METRIC_OBSERVATIONS } from '../../../shared/countMetric.js'
 
 // Inner content for the Explore map's species hover card, rendered live (as a
 // real React node) inside the animated `.species-hovercard` overlay — see
@@ -11,7 +12,13 @@ import { formatScientificName } from '../utils/scientificName'
 // Layout: a "Composition" header with the total, a stacked composition bar
 // (the pie marker flattened into one bar), then one row per species with its
 // color, common/scientific name, share (%) and raw count.
-export default function MarkerHoverCard({ counts, selectedSpecies, palette, scientificToCommon }) {
+export default function MarkerHoverCard({
+  counts,
+  selectedSpecies,
+  palette,
+  scientificToCommon,
+  countMetric = COUNT_METRIC_INDIVIDUALS
+}) {
   const entries = Object.entries(counts)
     .filter(([species]) => selectedSpecies.some((s) => s.scientificName === species))
     .sort((a, b) => b[1] - a[1])
@@ -47,7 +54,12 @@ export default function MarkerHoverCard({ counts, selectedSpecies, palette, scie
         >
           Composition
         </span>
-        <span style={{ fontSize: '16px', fontWeight: 700, letterSpacing: '-0.01em' }}>{total}</span>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: '16px', fontWeight: 700, letterSpacing: '-0.01em' }}>{total}</div>
+          <div style={{ fontSize: '9px', color: 'var(--color-muted-foreground)' }}>
+            {countMetric === COUNT_METRIC_OBSERVATIONS ? 'Independent observations' : 'Individuals'}
+          </div>
+        </div>
       </div>
 
       <div

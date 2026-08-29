@@ -34,7 +34,7 @@ The Explore tab is where the analysis happens. It combines three views you can t
   <figcaption>Map view: each camera location is a pie chart of the selected species' share of sightings (Alpine Tundra Rodents, Norway)</figcaption>
 </figure>
 
-- **Species rail** — every species in the study with its observation count. Click species to select them; each gets a color used consistently across the map and charts. The slider at the top controls [sequence grouping](#sequence-grouping), so bursts of photos count as single events.
+- **Species rail** — every species in the study with its selected count metric. Click species to select them; each gets a color used consistently across the map and charts. Use **N ind. / N obs.** to switch between individual detections and independent observations. The slider at the top controls [sequence grouping](#sequence-grouping), so bursts of photos count as single events.
 - **Map** — camera locations rendered as pie charts (species composition), or switch the encoding to abundance, density, or a hex grid. Click **Filter to this area** to restrict everything to the current map view.
 - **Gallery** — the images behind the current selection, newest first.
 - **Activity charts** — toggle the chart row (activity icon, top right) to add a daily-activity clock and a seasonal timeline. Charts can be normalized per species to compare activity patterns between abundant and rare species.
@@ -158,6 +158,13 @@ You choose a *time gap* (in study Settings, or with the slider at the top of the
 </figure>
 
 Studies imported from Camtrap DP may already carry event groupings (`eventID`); these are preserved and used when sequence grouping is off.
+
+Explore offers two ways to count each species across those sequences:
+
+- **N ind. (Individuals)** — for each sequence, take the largest number of same-species detections in one frame, then sum those maxima. This is not a unique-animal or population estimate: an animal can contribute again in another sequence.
+- **N obs. (Independent observations)** — count each sequence in which the species appears once, regardless of the number of frames or detections in that sequence.
+
+The current N ind. calculation uses the number of observation records on each media item. An aggregate Camtrap DP `observations.count` value stored on one record is not yet expanded, so a single imported record with `count = 5` currently contributes one to N ind. N obs. is unaffected because it only records species presence in the sequence.
 
 ## Settings
 

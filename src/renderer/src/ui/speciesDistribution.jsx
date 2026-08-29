@@ -9,6 +9,7 @@ import { formatScientificName } from '../utils/scientificName'
 import { resolveSpeciesInfo } from '../../../shared/speciesInfo/index.js'
 import { getPseudoSpeciesEntry } from '../../../shared/pseudoSpecies.js'
 import { resolveCommonName } from '../../../shared/commonNames/index.js'
+import { COUNT_METRIC_INDIVIDUALS } from '../../../shared/countMetric.js'
 
 // Name a row sorts by alphabetically — the displayed common name, falling back
 // to the formatted scientific name.
@@ -45,7 +46,8 @@ function SpeciesRow({
   studyId,
   onToggle,
   scrollSignal,
-  showActivity
+  showActivity,
+  countMetric
 }) {
   const isPseudoEntry = !!pseudoEntry
   const [hoverOpen, setHoverOpen] = useState(false)
@@ -156,6 +158,7 @@ function SpeciesRow({
                 studyId={studyId}
                 showActivity={showActivity}
                 detectionCount={species.count}
+                countMetric={countMetric}
               />
             )}
           </HoverCard.Content>
@@ -181,7 +184,8 @@ function SpeciesDistribution({
   allowEmpty = false,
   bordered = true,
   sortMode = 'count',
-  showActivity = false
+  showActivity = false,
+  countMetric = COUNT_METRIC_INDIVIDUALS
 }) {
   // Real-species view of the upstream data — strips out literal pseudo
   // labels like "Vehicle" or "blurred" that ride along in scientificName.
@@ -333,6 +337,7 @@ function SpeciesDistribution({
                   studyId={studyId}
                   onToggle={handleSpeciesToggle}
                   showActivity={showActivity}
+                  countMetric={countMetric}
                 />
               )
             })
