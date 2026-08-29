@@ -1247,8 +1247,7 @@ export async function getSequenceAwareDailyActivitySQL(
               FROM marked
           ),
           per_seq_hour AS (
-            SELECT scientificName, hour, seq_id,
-                   ${isObservations ? '1' : 'MAX(media_count)'} AS max_count
+            SELECT scientificName, hour, seq_id, MAX(media_count) AS max_count
               FROM sequenced
               GROUP BY scientificName, hour, seq_id
           )
