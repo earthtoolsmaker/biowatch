@@ -25,6 +25,11 @@ import { getStudyIdFromPath } from './utils.js'
 import { buildBboxClause } from './bbox.js'
 import { BLANK_SENTINEL } from '../../../shared/constants.js'
 import { normalizeTimeRange } from './sequences.js'
+import {
+  COUNT_METRIC_INDIVIDUALS,
+  COUNT_METRIC_OBSERVATIONS,
+  normalizeCountMetric
+} from '../../../shared/countMetric.js'
 
 /**
  * Get species distribution from the database using Drizzle ORM
@@ -132,10 +137,9 @@ export async function getSpeciesDistributionByMedia(dbPath, bbox = null) {
  * Compute the sequence-aware species distribution entirely in SQL for speed,
  * producing the same aggregated result as:
  *   getSpeciesDistributionByMedia(dbPath) + calculateSequenceAwareSpeciesCounts(rows, gapSeconds)
- * on the happy-path gap values (null / 0). For positive gapSeconds the
- * timestamp-gap grouping logic is non-trivial to replicate in SQL (deployment-
- * scoped, video-aware, dual-direction gap check); this function returns null
- * so callers fall back to the JS implementation.
+ * on the happy-path gap values (null / 0). Positive-gap N ind. retains the
+ * established JS implementation; positive-gap N obs. uses a SQL window path
+ * so large studies do not need to ship all media rows to JavaScript.
  *
  * Semantics mirror the current JS implementation:
  *  - gapSeconds === 0        → group by eventID per deployment-agnostic event;
@@ -145,7 +149,8 @@ export async function getSpeciesDistributionByMedia(dbPath, bbox = null) {
  *    (not a positive number) → "each media is its own sequence": count of
  *                              observations per species (matches the
  *                              null-gap short-circuit at grouping.js:59).
- *  - gapSeconds > 0          → returns null (caller must fall back to JS).
+ *  - gapSeconds > 0          → N ind. returns null for the JS fallback;
+ *                              N obs. counts grouped species/sequence rows.
  *
  * INNER JOIN on media is preserved to mirror the current behavior: observations
  * whose mediaID has no matching media row are dropped from counts.
@@ -155,9 +160,18 @@ export async function getSpeciesDistributionByMedia(dbPath, bbox = null) {
  * @returns {Promise<Array<{scientificName: string, count: number}>|null>}
  *   Sorted by count desc, or null if the caller must use the JS fallback.
  */
-export async function getSequenceAwareSpeciesCountsSQL(dbPath, gapSeconds, bbox = null) {
+export async function getSequenceAwareSpeciesCountsSQL(
+  dbPath,
+  gapSeconds,
+  bbox = null,
+  countMetric = COUNT_METRIC_INDIVIDUALS
+) {
+  const metric = normalizeCountMetric(countMetric)
+  const isObservations = metric === COUNT_METRIC_OBSERVATIONS
   const isPositiveGap = typeof gapSeconds === 'number' && gapSeconds > 0
-  if (isPositiveGap) return null
+  // Preserve the exact existing JS implementation for positive-gap N ind.;
+  // N obs. has a compact SQL path because every species/sequence contributes 1.
+  if (isPositiveGap && !isObservations) return null
 
   const startTime = Date.now()
   const studyId = getStudyIdFromPath(dbPath)
@@ -171,7 +185,97 @@ export async function getSequenceAwareSpeciesCountsSQL(dbPath, gapSeconds, bbox 
 
   try {
     let rows
-    if (useEventIDPath) {
+    if (isPositiveGap) {
+      rows = sqlite
+        .prepare(
+          `
+          WITH media_species AS (
+            SELECT o.scientificName, m.mediaID, m.deploymentID, m.timestamp AS ts,
+                   CASE WHEN m.fileMediatype LIKE 'video/%' THEN 1 ELSE 0 END AS is_video
+              FROM observations o
+              INNER JOIN media m ON o.mediaID = m.mediaID
+              ${bboxJoin}
+              WHERE o.scientificName IS NOT NULL AND o.scientificName != ''
+                ${bboxClause}
+              GROUP BY o.scientificName, m.mediaID
+          ),
+          valid_media AS (
+            SELECT DISTINCT mediaID, deploymentID, ts, is_video
+              FROM media_species
+              WHERE ts IS NOT NULL AND ts != '' AND julianday(ts) IS NOT NULL
+          ),
+          marked AS (
+            SELECT *, CASE
+              WHEN LAG(mediaID) OVER w IS NULL THEN 1
+              WHEN is_video = 1 OR LAG(is_video) OVER w = 1 THEN 1
+              WHEN deploymentID IS NULL OR LAG(deploymentID) OVER w IS NULL THEN 1
+              WHEN deploymentID != LAG(deploymentID) OVER w THEN 1
+              WHEN (julianday(ts) - julianday(LAG(ts) OVER w)) * 86400 > ? THEN 1
+              ELSE 0 END AS is_new
+              FROM valid_media
+              WINDOW w AS (ORDER BY ts, mediaID)
+          ),
+          sequenced AS (
+            SELECT mediaID,
+                   SUM(is_new) OVER (ORDER BY ts, mediaID ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS seq_id
+              FROM marked
+          ),
+          species_sequences AS (
+            SELECT ms.scientificName, s.seq_id
+              FROM sequenced s INNER JOIN media_species ms ON s.mediaID = ms.mediaID
+              GROUP BY ms.scientificName, s.seq_id
+          ),
+          null_species_media AS (
+            SELECT scientificName, mediaID
+              FROM media_species
+              WHERE ts IS NULL OR ts = '' OR julianday(ts) IS NULL
+              GROUP BY scientificName, mediaID
+          )
+          SELECT scientificName, SUM(count) AS count FROM (
+            SELECT scientificName, COUNT(*) AS count
+              FROM species_sequences GROUP BY scientificName
+            UNION ALL
+            SELECT scientificName, COUNT(*) AS count
+              FROM null_species_media GROUP BY scientificName
+          )
+          GROUP BY scientificName ORDER BY count DESC
+        `
+        )
+        .all(...bboxParams, gapSeconds)
+    } else if (useEventIDPath && isObservations) {
+      rows = sqlite
+        .prepare(
+          `
+          WITH per_media AS (
+            SELECT o.scientificName, o.eventID, m.mediaID, m.timestamp
+              FROM observations o
+              INNER JOIN media m ON o.mediaID = m.mediaID
+              ${bboxJoin}
+              WHERE o.scientificName IS NOT NULL AND o.scientificName != ''
+                ${bboxClause}
+              GROUP BY o.scientificName, m.mediaID
+          ),
+          species_events AS (
+            SELECT scientificName,
+                   COALESCE(NULLIF(eventID, ''), 'solo:' || mediaID) AS event_key
+              FROM per_media
+              WHERE timestamp IS NOT NULL AND timestamp != '' AND julianday(timestamp) IS NOT NULL
+              GROUP BY scientificName, event_key
+          ),
+          null_species_media AS (
+            SELECT scientificName, mediaID FROM per_media
+              WHERE timestamp IS NULL OR timestamp = '' OR julianday(timestamp) IS NULL
+              GROUP BY scientificName, mediaID
+          )
+          SELECT scientificName, SUM(count) AS count FROM (
+            SELECT scientificName, COUNT(*) AS count FROM species_events GROUP BY scientificName
+            UNION ALL
+            SELECT scientificName, COUNT(*) AS count FROM null_species_media GROUP BY scientificName
+          ) GROUP BY scientificName ORDER BY count DESC
+        `
+        )
+        .all(...bboxParams)
+    } else if (useEventIDPath) {
       // eventID path: per (species, eventID) take MAX(per-media count), SUM by species.
       // Media without eventID contribute as their own single-media "event" via COALESCE.
       // Null-timestamp media are separated out and contribute as individual single-media
@@ -229,28 +333,46 @@ export async function getSequenceAwareSpeciesCountsSQL(dbPath, gapSeconds, bbox 
         )
         .all(...bboxParams)
     } else {
-      // Per-media path: each media is its own sequence, so MAX == count per media,
-      // SUM over media reduces to COUNT(observationID) per species.
+      // Per-media N obs. counts species/media groups; N ind. intentionally
+      // keeps COUNT(observationID), not observations.count (the retained
+      // Camtrap DP aggregate-count caveat documented in the Explore spec).
       rows = sqlite
         .prepare(
-          `
-          SELECT o.scientificName AS scientificName,
-                 COUNT(o.observationID) AS count
-            FROM observations o
-            INNER JOIN media m ON o.mediaID = m.mediaID
-            ${bboxJoin}
-            WHERE o.scientificName IS NOT NULL AND o.scientificName != ''
-              ${bboxClause}
-            GROUP BY o.scientificName
-            ORDER BY count DESC
-        `
+          isObservations
+            ? `
+              SELECT scientificName, COUNT(*) AS count FROM (
+                SELECT o.scientificName AS scientificName, m.mediaID
+                  FROM observations o
+                  INNER JOIN media m ON o.mediaID = m.mediaID
+                  ${bboxJoin}
+                  WHERE o.scientificName IS NOT NULL AND o.scientificName != ''
+                    ${bboxClause}
+                  GROUP BY o.scientificName, m.mediaID
+              ) GROUP BY scientificName ORDER BY count DESC
+            `
+            : `
+              SELECT o.scientificName AS scientificName,
+                     COUNT(o.observationID) AS count
+                FROM observations o
+                INNER JOIN media m ON o.mediaID = m.mediaID
+                ${bboxJoin}
+                WHERE o.scientificName IS NOT NULL AND o.scientificName != ''
+                  ${bboxClause}
+                GROUP BY o.scientificName
+                ORDER BY count DESC
+            `
         )
         .all(...bboxParams)
     }
 
     const elapsed = Date.now() - startTime
+    const pathLabel = isPositiveGap
+      ? `time-gap-${gapSeconds}s`
+      : useEventIDPath
+        ? 'eventID'
+        : 'per-media'
     log.info(
-      `[SQL-agg] sequence-aware species counts (gap=${gapSeconds}, path=${useEventIDPath ? 'eventID' : 'per-media'}): ${rows.length} species in ${elapsed}ms`
+      `[SQL-agg] sequence-aware species counts (gap=${gapSeconds}, path=${pathLabel}, metric=${metric}): ${rows.length} species in ${elapsed}ms`
     )
     return rows
   } catch (error) {
@@ -281,8 +403,8 @@ export async function getSequenceAwareSpeciesCountsSQL(dbPath, gapSeconds, bbox 
  *    (not positive)            → "each media is its own sequence": MAX
  *                                reduces to obs count per media, SUM
  *                                reduces to COUNT(observationID).
- *  - gapSeconds > 0            → returns null (JS fallback required for
- *                                time-gap-based sequence grouping).
+ *  - gapSeconds > 0            → N ind. returns null for its established JS
+ *                                fallback; N obs. uses SQL sequence windows.
  *
  * @param {string} dbPath
  * @param {Array<string>} speciesNames - scientificName filter (empty = all)
@@ -293,10 +415,13 @@ export async function getSequenceAwareTimeseriesSQL(
   dbPath,
   speciesNames = [],
   gapSeconds,
-  bbox = null
+  bbox = null,
+  countMetric = COUNT_METRIC_INDIVIDUALS
 ) {
+  const metric = normalizeCountMetric(countMetric)
+  const isObservations = metric === COUNT_METRIC_OBSERVATIONS
   const isPositiveGap = typeof gapSeconds === 'number' && gapSeconds > 0
-  if (isPositiveGap) return null
+  if (isPositiveGap && !isObservations) return null
 
   const regularSpecies = speciesNames.filter((s) => s !== BLANK_SENTINEL)
   // Fast path only handles regular-species filtering. Blank-inclusion requests
@@ -317,7 +442,78 @@ export async function getSequenceAwareTimeseriesSQL(
 
   try {
     let rows
-    if (useEventIDPath) {
+    if (isPositiveGap) {
+      rows = sqlite
+        .prepare(
+          `
+          WITH media_species AS (
+            SELECT o.scientificName, m.mediaID, m.deploymentID, m.timestamp AS ts,
+                   date(substr(m.timestamp, 1, 10), 'weekday 0', '-7 days') AS weekStart,
+                   CASE WHEN m.fileMediatype LIKE 'video/%' THEN 1 ELSE 0 END AS is_video
+              FROM observations o
+              INNER JOIN media m ON o.mediaID = m.mediaID
+              ${bboxJoin}
+              WHERE o.scientificName IS NOT NULL AND o.scientificName != ''
+                AND m.timestamp IS NOT NULL AND julianday(m.timestamp) IS NOT NULL
+                ${speciesFilter}
+                ${bboxClause}
+              GROUP BY o.scientificName, m.mediaID
+          ),
+          valid_media AS (
+            SELECT DISTINCT mediaID, deploymentID, ts, weekStart, is_video FROM media_species
+          ),
+          marked AS (
+            SELECT *, CASE
+              WHEN LAG(mediaID) OVER w IS NULL THEN 1
+              WHEN is_video = 1 OR LAG(is_video) OVER w = 1 THEN 1
+              WHEN deploymentID IS NULL OR LAG(deploymentID) OVER w IS NULL THEN 1
+              WHEN deploymentID != LAG(deploymentID) OVER w THEN 1
+              WHEN (julianday(ts) - julianday(LAG(ts) OVER w)) * 86400 > ? THEN 1
+              ELSE 0 END AS is_new
+              FROM valid_media
+              WINDOW w AS (PARTITION BY weekStart ORDER BY ts, mediaID)
+          ),
+          sequenced AS (
+            SELECT mediaID, weekStart,
+                   SUM(is_new) OVER (PARTITION BY weekStart ORDER BY ts, mediaID
+                                     ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS seq_id
+              FROM marked
+          ),
+          species_sequences AS (
+            SELECT ms.scientificName, s.weekStart, s.seq_id
+              FROM sequenced s INNER JOIN media_species ms ON s.mediaID = ms.mediaID
+              GROUP BY ms.scientificName, s.weekStart, s.seq_id
+          )
+          SELECT scientificName, weekStart, COUNT(*) AS count
+            FROM species_sequences
+            GROUP BY scientificName, weekStart
+            ORDER BY weekStart
+        `
+        )
+        .all(...regularSpecies, ...bboxParams, gapSeconds)
+    } else if (useEventIDPath && isObservations) {
+      rows = sqlite
+        .prepare(
+          `
+          WITH species_events AS (
+            SELECT o.scientificName AS scientificName,
+                   date(substr(m.timestamp, 1, 10), 'weekday 0', '-7 days') AS weekStart,
+                   COALESCE(NULLIF(o.eventID, ''), 'solo:' || o.mediaID) AS event_key
+              FROM observations o
+              INNER JOIN media m ON o.mediaID = m.mediaID
+              ${bboxJoin}
+              WHERE o.scientificName IS NOT NULL AND o.scientificName != ''
+                AND m.timestamp IS NOT NULL
+                ${speciesFilter}
+                ${bboxClause}
+              GROUP BY o.scientificName, weekStart, event_key
+          )
+          SELECT scientificName, weekStart, COUNT(*) AS count
+            FROM species_events GROUP BY scientificName, weekStart ORDER BY weekStart
+        `
+        )
+        .all(...regularSpecies, ...bboxParams)
+    } else if (useEventIDPath) {
       rows = sqlite
         .prepare(
           `
@@ -350,27 +546,50 @@ export async function getSequenceAwareTimeseriesSQL(
     } else {
       rows = sqlite
         .prepare(
-          `
-          SELECT o.scientificName AS scientificName,
-                 date(substr(m.timestamp, 1, 10), 'weekday 0', '-7 days') AS weekStart,
-                 COUNT(o.observationID) AS count
-            FROM observations o
-            INNER JOIN media m ON o.mediaID = m.mediaID
-            ${bboxJoin}
-            WHERE o.scientificName IS NOT NULL AND o.scientificName != ''
-              AND m.timestamp IS NOT NULL
-              ${speciesFilter}
-              ${bboxClause}
-            GROUP BY o.scientificName, weekStart
-            ORDER BY weekStart
-        `
+          isObservations
+            ? `
+              WITH species_media AS (
+                SELECT o.scientificName AS scientificName,
+                       date(substr(m.timestamp, 1, 10), 'weekday 0', '-7 days') AS weekStart,
+                       m.mediaID
+                  FROM observations o
+                  INNER JOIN media m ON o.mediaID = m.mediaID
+                  ${bboxJoin}
+                  WHERE o.scientificName IS NOT NULL AND o.scientificName != ''
+                    AND m.timestamp IS NOT NULL
+                    ${speciesFilter}
+                    ${bboxClause}
+                  GROUP BY o.scientificName, weekStart, m.mediaID
+              )
+              SELECT scientificName, weekStart, COUNT(*) AS count
+                FROM species_media GROUP BY scientificName, weekStart ORDER BY weekStart
+            `
+            : `
+              SELECT o.scientificName AS scientificName,
+                     date(substr(m.timestamp, 1, 10), 'weekday 0', '-7 days') AS weekStart,
+                     COUNT(o.observationID) AS count
+                FROM observations o
+                INNER JOIN media m ON o.mediaID = m.mediaID
+                ${bboxJoin}
+                WHERE o.scientificName IS NOT NULL AND o.scientificName != ''
+                  AND m.timestamp IS NOT NULL
+                  ${speciesFilter}
+                  ${bboxClause}
+                GROUP BY o.scientificName, weekStart
+                ORDER BY weekStart
+            `
         )
         .all(...regularSpecies, ...bboxParams)
     }
 
     const elapsed = Date.now() - startTime
+    const pathLabel = isPositiveGap
+      ? `time-gap-${gapSeconds}s`
+      : useEventIDPath
+        ? 'eventID'
+        : 'per-media'
     log.info(
-      `[SQL-agg] sequence-aware timeseries (gap=${gapSeconds}, path=${useEventIDPath ? 'eventID' : 'per-media'}): ${rows.length} (species,week) rows in ${elapsed}ms`
+      `[SQL-agg] sequence-aware timeseries (gap=${gapSeconds}, path=${pathLabel}, metric=${metric}): ${rows.length} (species,week) rows in ${elapsed}ms`
     )
     return rows
   } catch (error) {
@@ -639,8 +858,11 @@ export async function getSequenceAwareHeatmapSQL(
   endDate,
   timeRange = {},
   includeNullTimestamps = false,
-  gapSeconds
+  gapSeconds,
+  countMetric = COUNT_METRIC_INDIVIDUALS
 ) {
+  const metric = normalizeCountMetric(countMetric)
+  const isObservations = metric === COUNT_METRIC_OBSERVATIONS
   if (speciesNames.includes(BLANK_SENTINEL)) return null
   const regularSpecies = speciesNames.filter((s) => s !== BLANK_SENTINEL)
   if (regularSpecies.length === 0) return []
@@ -750,7 +972,8 @@ export async function getSequenceAwareHeatmapSQL(
         ),
         per_seq_sp_loc AS (
           SELECT mo.scientificName, s.latitude, s.longitude, s.seq_id,
-                 MAX(mo.obs_count) AS max_count, MAX(s.locationName) AS locationName
+                 ${isObservations ? '1' : 'MAX(mo.obs_count)'} AS max_count,
+                 MAX(s.locationName) AS locationName
             FROM sequenced s INNER JOIN media_obs mo ON s.mediaID = mo.mediaID
             GROUP BY mo.scientificName, s.latitude, s.longitude, s.seq_id
         ),
@@ -767,7 +990,7 @@ export async function getSequenceAwareHeatmapSQL(
         null_totals AS (
           SELECT o.scientificName,
                  d.latitude, d.longitude, MAX(d.locationName) AS locationName,
-                 COUNT(o.observationID) AS count
+                 ${isObservations ? 'COUNT(DISTINCT o.mediaID)' : 'COUNT(o.observationID)'} AS count
             FROM observations o
             INNER JOIN media m ON o.mediaID = m.mediaID
             INNER JOIN deployments d ON m.deploymentID = d.deploymentID
@@ -821,7 +1044,7 @@ export async function getSequenceAwareHeatmapSQL(
           ),
           valid_maxes AS (
             SELECT scientificName, latitude, longitude, event_key,
-                   MAX(media_count) AS max_count,
+                   ${isObservations ? '1' : 'MAX(media_count)'} AS max_count,
                    MAX(locationName) AS locationName
               FROM classified WHERE is_null_ts = 0
               GROUP BY scientificName, latitude, longitude, event_key
@@ -833,7 +1056,8 @@ export async function getSequenceAwareHeatmapSQL(
           ),
           null_totals AS (
             SELECT scientificName, latitude, longitude,
-                   MAX(locationName) AS locationName, SUM(media_count) AS count
+                   MAX(locationName) AS locationName,
+                   ${isObservations ? 'COUNT(*)' : 'SUM(media_count)'} AS count
               FROM classified WHERE is_null_ts = 1
               GROUP BY scientificName, latitude, longitude
           )
@@ -845,15 +1069,15 @@ export async function getSequenceAwareHeatmapSQL(
         )
         .all(...regularSpecies, ...obsFilter.params)
     } else {
-      // Per-media path: each media is its own sequence, so MAX reduces to
-      // per-media count and SUM reduces to COUNT(observationID).
+      // Per-media N obs. counts one species/media group; N ind. keeps the
+      // current observation-row magnitude.
       const obsFilter = buildDateHourFilter('m.timestamp')
       rows = sqlite
         .prepare(
           `
           SELECT o.scientificName AS scientificName,
                  d.latitude, d.longitude, MAX(d.locationName) AS locationName,
-                 COUNT(o.observationID) AS count
+                 ${isObservations ? 'COUNT(DISTINCT o.mediaID)' : 'COUNT(o.observationID)'} AS count
             FROM observations o
             INNER JOIN media m ON o.mediaID = m.mediaID
             INNER JOIN deployments d ON m.deploymentID = d.deploymentID
@@ -868,7 +1092,7 @@ export async function getSequenceAwareHeatmapSQL(
 
     const elapsed = Date.now() - startTime
     log.info(
-      `[SQL-agg] sequence-aware heatmap (gap=${gapSeconds}, path=${pathLabel}): ${rows.length} (species,lat,lng) rows in ${elapsed}ms`
+      `[SQL-agg] sequence-aware heatmap (gap=${gapSeconds}, path=${pathLabel}, metric=${metric}): ${rows.length} (species,lat,lng) rows in ${elapsed}ms`
     )
     return rows
   } catch (error) {
@@ -902,8 +1126,11 @@ export async function getSequenceAwareDailyActivitySQL(
   startDate,
   endDate,
   gapSeconds,
-  bbox = null
+  bbox = null,
+  countMetric = COUNT_METRIC_INDIVIDUALS
 ) {
+  const metric = normalizeCountMetric(countMetric)
+  const isObservations = metric === COUNT_METRIC_OBSERVATIONS
   const regularSpecies = speciesNames.filter((s) => s !== BLANK_SENTINEL)
   if (speciesNames.includes(BLANK_SENTINEL)) return null
   if (regularSpecies.length === 0) return []
@@ -928,7 +1155,56 @@ export async function getSequenceAwareDailyActivitySQL(
 
   try {
     let rows
-    if (isPositiveGap) {
+    if (isPositiveGap && isObservations) {
+      rows = sqlite
+        .prepare(
+          `
+          WITH media_species AS (
+            SELECT o.scientificName, m.mediaID, m.deploymentID, m.timestamp AS ts,
+                   CAST(strftime('%H', m.timestamp) AS INTEGER) AS hour,
+                   CASE WHEN m.fileMediatype LIKE 'video/%' THEN 1 ELSE 0 END AS is_video
+              FROM observations o
+              INNER JOIN media m ON o.mediaID = m.mediaID
+              ${bboxJoin}
+              WHERE o.scientificName IN (${speciesPlaceholders})
+                AND m.timestamp IS NOT NULL AND julianday(m.timestamp) IS NOT NULL
+                AND m.timestamp >= ? AND m.timestamp <= ?
+                ${bboxClause}
+              GROUP BY o.scientificName, m.mediaID
+          ),
+          valid_media AS (
+            SELECT DISTINCT mediaID, deploymentID, ts, hour, is_video FROM media_species
+          ),
+          marked AS (
+            SELECT *, CASE
+              WHEN LAG(mediaID) OVER w IS NULL THEN 1
+              WHEN is_video = 1 OR LAG(is_video) OVER w = 1 THEN 1
+              WHEN deploymentID IS NULL OR LAG(deploymentID) OVER w IS NULL THEN 1
+              WHEN deploymentID != LAG(deploymentID) OVER w THEN 1
+              WHEN (julianday(ts) - julianday(LAG(ts) OVER w)) * 86400 > ? THEN 1
+              ELSE 0 END AS is_new
+              FROM valid_media
+              WINDOW w AS (ORDER BY ts, mediaID)
+          ),
+          sequenced AS (
+            SELECT mediaID, hour,
+                   SUM(is_new) OVER (ORDER BY ts, mediaID
+                                     ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS seq_id
+              FROM marked
+          ),
+          species_sequence_hours AS (
+            SELECT ms.scientificName, s.hour, s.seq_id
+              FROM sequenced s INNER JOIN media_species ms ON s.mediaID = ms.mediaID
+              GROUP BY ms.scientificName, s.hour, s.seq_id
+          )
+          SELECT scientificName, hour, COUNT(*) AS count
+            FROM species_sequence_hours
+            GROUP BY scientificName, hour
+            ORDER BY hour
+        `
+        )
+        .all(...regularSpecies, startDate, endDate, ...bboxParams, gapSeconds)
+    } else if (isPositiveGap) {
       rows = sqlite
         .prepare(
           `
@@ -971,7 +1247,8 @@ export async function getSequenceAwareDailyActivitySQL(
               FROM marked
           ),
           per_seq_hour AS (
-            SELECT scientificName, hour, seq_id, MAX(media_count) AS max_count
+            SELECT scientificName, hour, seq_id,
+                   ${isObservations ? '1' : 'MAX(media_count)'} AS max_count
               FROM sequenced
               GROUP BY scientificName, hour, seq_id
           )
@@ -1001,7 +1278,8 @@ export async function getSequenceAwareDailyActivitySQL(
               GROUP BY o.scientificName, o.mediaID
           ),
           event_maxes AS (
-            SELECT scientificName, hour, event_key, MAX(media_count) AS max_count
+            SELECT scientificName, hour, event_key,
+                   ${isObservations ? '1' : 'MAX(media_count)'} AS max_count
               FROM media_counts
               GROUP BY scientificName, hour, event_key
           )
@@ -1018,7 +1296,7 @@ export async function getSequenceAwareDailyActivitySQL(
           `
           SELECT o.scientificName AS scientificName,
                  CAST(strftime('%H', m.timestamp) AS INTEGER) AS hour,
-                 COUNT(o.observationID) AS count
+                 ${isObservations ? 'COUNT(DISTINCT o.mediaID)' : 'COUNT(o.observationID)'} AS count
             FROM observations o
             INNER JOIN media m ON o.mediaID = m.mediaID
             ${bboxJoin}
@@ -1035,7 +1313,7 @@ export async function getSequenceAwareDailyActivitySQL(
 
     const elapsed = Date.now() - startTime
     log.info(
-      `[SQL-agg] sequence-aware daily activity (gap=${gapSeconds}, path=${pathLabel}): ${rows.length} (species,hour) rows in ${elapsed}ms`
+      `[SQL-agg] sequence-aware daily activity (gap=${gapSeconds}, path=${pathLabel}, metric=${metric}): ${rows.length} (species,hour) rows in ${elapsed}ms`
     )
     return rows
   } catch (error) {

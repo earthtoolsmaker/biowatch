@@ -62,6 +62,8 @@ import { useSequenceGap } from './hooks/useSequenceGap'
 import { useShowFilterCharts } from './hooks/useShowFilterCharts'
 import { useDateRange } from './hooks/useDateRange'
 import { useAreaFilter } from './hooks/useAreaFilter'
+import { useExploreCountMetric } from './hooks/useExploreCountMetric'
+import CountMetricToggle from './ui/CountMetricToggle'
 
 // Inject the keyframes used by the skeleton markers once per page load.
 // Guarded by an id check so HMR / multiple SpeciesMap mounts don't re-append
@@ -198,7 +200,7 @@ const HOVERCARD_GAP = 36
 // We keep rendering the last hover through the fade-out (useFadePresence keeps
 // it mounted past the null) and recompute the on-screen position on every map
 // move/zoom so the card tracks its marker.
-function HoverCardOverlay({ hover, selectedSpecies, palette, scientificToCommon }) {
+function HoverCardOverlay({ hover, selectedSpecies, palette, scientificToCommon, countMetric }) {
   const map = useMap()
   const { mounted, visible } = useFadePresence(!!hover, 200)
 
@@ -264,6 +266,7 @@ function HoverCardOverlay({ hover, selectedSpecies, palette, scientificToCommon 
           selectedSpecies={selectedSpecies}
           palette={palette}
           scientificToCommon={scientificToCommon}
+          countMetric={countMetric}
         />
       </div>
     </div>,
@@ -534,7 +537,8 @@ const SpeciesMap = ({
   studyName,
   scientificToCommon,
   areaFilter,
-  onApplyAreaFilter
+  onApplyAreaFilter,
+  countMetric
 }) => {
   // Persist map layer selection per study
   const mapLayerKey = `mapLayer:${studyId}`
@@ -1041,6 +1045,7 @@ const SpeciesMap = ({
           selectedSpecies={selectedSpecies}
           palette={palette}
           scientificToCommon={scientificToCommon}
+          countMetric={countMetric}
         />
         <MapResizeHandler />
         <AreaFilterControl areaFilter={areaFilter} onApplyAreaFilter={onApplyAreaFilter} />
@@ -1270,6 +1275,7 @@ export default function Explore({ studyData, studyId }) {
   }, [setDateRange, setAreaFilter])
   const { importStatus } = useImportStatus(actualStudyId, 5000)
   const { sequenceGap, setSequenceGap } = useSequenceGap(actualStudyId)
+  const { countMetric, setCountMetric } = useExploreCountMetric(actualStudyId)
   const { showFilterCharts } = useShowFilterCharts(actualStudyId)
 
   // Explore view toggle: 'map' | 'gallery' | 'both' (not persisted). 'both' is
@@ -1356,19 +1362,25 @@ export default function Explore({ studyData, studyId }) {
   // Fetch sequence-aware species distribution data
   // sequenceGap in queryKey ensures refetch when slider changes (backend fetches from metadata)
   const { data: speciesDistributionData, error: speciesDistributionError } = useQuery({
-    queryKey: ['sequenceAwareSpeciesDistribution', actualStudyId, sequenceGap, areaFilter],
+    queryKey: [
+      'sequenceAwareSpeciesDistribution',
+      actualStudyId,
+      sequenceGap,
+      areaFilter,
+      countMetric
+    ],
     queryFn: async () => {
       const response = await window.api.getSequenceAwareSpeciesDistribution(
         actualStudyId,
         sequenceGap,
-        areaFilter
+        areaFilter,
+        countMetric
       )
       if (response.error) throw new Error(response.error)
       return response.data
     },
     enabled: !!actualStudyId && sequenceGap !== undefined,
     refetchInterval: importStatus?.isRunning ? 5000 : false,
-    placeholderData: (prev) => prev,
     staleTime: Infinity
   })
 
@@ -1394,6 +1406,21 @@ export default function Explore({ studyData, studyId }) {
     }
   }, [speciesDistributionData, speciesInitialized, deepLinkSpecies, deepLinkView, setSearchParams])
 
+  // A metric switch can reorder and replace the distribution rows. Preserve
+  // selection by scientific name while refreshing each selected row's count.
+  useEffect(() => {
+    if (!speciesInitialized || !speciesDistributionData) return
+    setSelectedSpecies((current) => {
+      const next = current.map(
+        (selected) =>
+          speciesDistributionData.find(
+            (candidate) => candidate.scientificName === selected.scientificName
+          ) || selected
+      )
+      return next.some((item, index) => item !== current[index]) ? next : current
+    })
+  }, [speciesDistributionData, speciesInitialized])
+
   // Memoize speciesNames to avoid unnecessary re-renders
   const speciesNames = useMemo(
     () => selectedSpecies.map((s) => s.scientificName),
@@ -1404,7 +1431,8 @@ export default function Explore({ studyData, studyId }) {
     selectedSpecies.map((s) => s.scientificName).join(',') +
     (dateRange[0]?.toISOString() || '') +
     (dateRange[1]?.toISOString() || '') +
-    JSON.stringify(timeRange.ranges)
+    JSON.stringify(timeRange.ranges) +
+    countMetric
 
   // Fetch sequence-aware timeseries data
   // sequenceGap in queryKey ensures refetch when slider changes (backend fetches from metadata)
@@ -1414,23 +1442,24 @@ export default function Explore({ studyData, studyId }) {
       actualStudyId,
       [...speciesNames].sort(),
       sequenceGap,
-      areaFilter
+      areaFilter,
+      countMetric
     ],
     queryFn: async () => {
       const response = await window.api.getSequenceAwareTimeseries(
         actualStudyId,
         speciesNames,
         sequenceGap,
-        areaFilter
+        areaFilter,
+        countMetric
       )
       if (response.error) throw new Error(response.error)
       return response.data
     },
     enabled: !!actualStudyId && speciesNames.length > 0 && sequenceGap !== undefined,
-    placeholderData: (prev) => prev,
     staleTime: Infinity
   })
-  const timeseriesData = timeseriesQueryData?.timeseries ?? []
+  const timeseriesData = useMemo(() => timeseriesQueryData?.timeseries ?? [], [timeseriesQueryData])
 
   // Check if dataset has temporal data
   const hasTemporalData = useMemo(() => {
@@ -1489,7 +1518,8 @@ export default function Explore({ studyData, studyId }) {
       effectiveEnd?.toISOString(),
       JSON.stringify(timeRange.ranges),
       isFullRange,
-      sequenceGap
+      sequenceGap,
+      countMetric
     ],
     queryFn: async () => {
       const response = await window.api.getSequenceAwareHeatmap(
@@ -1498,7 +1528,9 @@ export default function Explore({ studyData, studyId }) {
         effectiveStart?.toISOString(),
         effectiveEnd?.toISOString(),
         timeRange,
-        isFullRange
+        isFullRange,
+        sequenceGap,
+        countMetric
       )
       if (response.error) throw new Error(response.error)
       return response.data
@@ -1513,7 +1545,6 @@ export default function Explore({ studyData, studyId }) {
       // noDateFilter path return all media (heatmap is keyed by
       // species/lat/lng, not by timestamp).
       (!hasTemporalData || (!!effectiveStart && !!effectiveEnd)),
-    placeholderData: (prev) => prev,
     staleTime: Infinity
   })
 
@@ -1534,7 +1565,8 @@ export default function Explore({ studyData, studyId }) {
       effectiveStart?.toISOString(),
       effectiveEnd?.toISOString(),
       sequenceGap,
-      areaFilter
+      areaFilter,
+      countMetric
     ],
     queryFn: async () => {
       const response = await window.api.getSequenceAwareDailyActivity(
@@ -1543,7 +1575,8 @@ export default function Explore({ studyData, studyId }) {
         effectiveStart?.toISOString(),
         effectiveEnd?.toISOString(),
         sequenceGap,
-        areaFilter
+        areaFilter,
+        countMetric
       )
       if (response.error) throw new Error(response.error)
       return response.data
@@ -1554,7 +1587,6 @@ export default function Explore({ studyData, studyId }) {
       sequenceGap !== undefined &&
       !!effectiveStart &&
       !!effectiveEnd,
-    placeholderData: (prev) => prev,
     staleTime: Infinity
   })
 
@@ -1600,8 +1632,26 @@ export default function Explore({ studyData, studyId }) {
       showHeader={false}
       hidePseudoSpecies
       showActivity
+      countMetric={countMetric}
     />
-  ) : null
+  ) : (
+    <div
+      className="h-full rounded border border-border bg-card px-3 py-3"
+      aria-label="Loading species counts"
+    >
+      <div className="space-y-4" aria-hidden="true">
+        {Array.from({ length: 7 }, (_, index) => (
+          <div key={index} className="space-y-2 animate-pulse">
+            <div className="flex items-center justify-between gap-3">
+              <div className="h-3 w-2/3 rounded bg-muted" />
+              <div className="h-3 w-8 rounded bg-muted" />
+            </div>
+            <div className="h-2 rounded bg-muted" />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 
   return (
     <div className="px-4 flex flex-col h-full">
@@ -1659,6 +1709,7 @@ export default function Explore({ studyData, studyId }) {
                 beside the filter toggle. The filter toggle keeps to the right
                 even before the slider's gap value has loaded. */}
             <div className="w-xs flex-shrink-0 flex items-center gap-2">
+              <CountMetricToggle value={countMetric} onChange={setCountMetric} />
               {sequenceGap !== undefined && (
                 <SequenceGapSlider
                   value={sequenceGap}
@@ -1728,6 +1779,7 @@ export default function Explore({ studyData, studyId }) {
                       scientificToCommon={scientificToCommon}
                       areaFilter={areaFilter}
                       onApplyAreaFilter={setAreaFilter}
+                      countMetric={countMetric}
                     />
                   </div>
                 )}
