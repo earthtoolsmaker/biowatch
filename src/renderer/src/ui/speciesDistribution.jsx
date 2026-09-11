@@ -9,7 +9,8 @@ import { formatScientificName } from '../utils/scientificName'
 import { resolveSpeciesInfo } from '../../../shared/speciesInfo/index.js'
 import { getPseudoSpeciesEntry } from '../../../shared/pseudoSpecies.js'
 import { resolveCommonName } from '../../../shared/commonNames/index.js'
-import { COUNT_METRIC_INDIVIDUALS } from '../../../shared/countMetric.js'
+import { DEFAULT_ANALYSIS_METRIC } from '../../../shared/analysisMetric.js'
+import { formatAnalysisValue } from '../utils/analysisMetric.js'
 
 // Name a row sorts by alphabetically — the displayed common name, falling back
 // to the formatted scientific name.
@@ -47,7 +48,7 @@ function SpeciesRow({
   onToggle,
   scrollSignal,
   showActivity,
-  countMetric
+  metric
 }) {
   const isPseudoEntry = !!pseudoEntry
   const [hoverOpen, setHoverOpen] = useState(false)
@@ -115,14 +116,23 @@ function SpeciesRow({
             )}
           </span>
         </div>
-        <span className="text-xs text-muted-foreground flex-shrink-0">{species.count}</span>
+        <span
+          className="text-xs text-muted-foreground flex-shrink-0"
+          title={
+            species.count == null
+              ? 'RAI unavailable: no valid camera effort for the current filters.'
+              : undefined
+          }
+        >
+          {formatAnalysisValue(species.count, metric)}
+        </span>
       </div>
       {!isPseudoEntry && (
         <div className="w-full bg-muted rounded-full h-2">
           <div
             className="h-2 rounded-full"
             style={{
-              width: `${(species.count / totalCount) * 100}%`,
+              width: `${totalCount > 0 ? ((Number(species.count) || 0) / totalCount) * 100 : 0}%`,
               backgroundColor: isSelected ? color : '#ccc'
             }}
           ></div>
@@ -157,8 +167,8 @@ function SpeciesRow({
                 imageData={tooltipData}
                 studyId={studyId}
                 showActivity={showActivity}
-                detectionCount={species.count}
-                countMetric={countMetric}
+                detectionCount={species.rawCount ?? species.count ?? 0}
+                metric={metric}
               />
             )}
           </HoverCard.Content>
@@ -185,7 +195,7 @@ function SpeciesDistribution({
   bordered = true,
   sortMode = 'count',
   showActivity = false,
-  countMetric = COUNT_METRIC_INDIVIDUALS
+  metric = DEFAULT_ANALYSIS_METRIC
 }) {
   // Real-species view of the upstream data — strips out literal pseudo
   // labels like "Vehicle" or "blurred" that ride along in scientificName.
@@ -213,7 +223,7 @@ function SpeciesDistribution({
   // Normalize bar widths against species-only counts so the bars match
   // between the Media and Explore tabs. Pseudo rows (Blank/Vehicle/
   // processing labels) render no bar — they don't participate in this sum.
-  const totalCount = realSpeciesData.reduce((sum, item) => sum + item.count, 0)
+  const totalCount = realSpeciesData.reduce((sum, item) => sum + (Number(item.count) || 0), 0)
 
   // Fetch best image per species for hover tooltips (only when studyId is provided)
   const { data: bestImagesData } = useQuery({
@@ -337,7 +347,7 @@ function SpeciesDistribution({
                   studyId={studyId}
                   onToggle={handleSpeciesToggle}
                   showActivity={showActivity}
-                  countMetric={countMetric}
+                  metric={metric}
                 />
               )
             })

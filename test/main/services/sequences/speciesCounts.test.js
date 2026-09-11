@@ -190,7 +190,7 @@ describe('calculateSequenceAwareSpeciesCounts', () => {
     test('rejects an invalid explicit metric', () => {
       assert.throws(
         () => calculateSequenceAwareSpeciesCounts([], 60, 'rows'),
-        /Invalid count metric/
+        /Invalid counting mode/
       )
     })
   })

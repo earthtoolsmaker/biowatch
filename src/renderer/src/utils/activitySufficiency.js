@@ -19,7 +19,10 @@ export const MIN_ACTIVITY_DATES = 2
 // returned by sequences:get-daily-activity (rows of { hour, [sci]: count }).
 export function sumDailyActivity(dailyActivity, scientificName) {
   if (!Array.isArray(dailyActivity)) return 0
-  return dailyActivity.reduce((sum, row) => sum + (row?.[scientificName] || 0), 0)
+  return dailyActivity.reduce(
+    (sum, row) => sum + (row?.rawCounts?.[scientificName] ?? row?.[scientificName] ?? 0),
+    0
+  )
 }
 
 // Number of distinct dates with at least one detection for `scientificName`
@@ -27,7 +30,10 @@ export function sumDailyActivity(dailyActivity, scientificName) {
 // { date, [sci]: count }).
 export function countActivityDates(timeseries, scientificName) {
   if (!Array.isArray(timeseries)) return 0
-  return timeseries.reduce((n, day) => n + ((day?.[scientificName] || 0) > 0 ? 1 : 0), 0)
+  return timeseries.reduce(
+    (n, day) => n + ((day?.rawCounts?.[scientificName] ?? day?.[scientificName] ?? 0) > 0 ? 1 : 0),
+    0
+  )
 }
 
 // All-or-nothing gate: both charts show only when the species clears both

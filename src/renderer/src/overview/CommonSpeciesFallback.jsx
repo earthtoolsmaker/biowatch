@@ -25,7 +25,7 @@ export default function CommonSpeciesFallback({ studyId }) {
   const { data: speciesData } = useQuery({
     queryKey: ['sequenceAwareSpeciesDistribution', studyId, sequenceGap],
     queryFn: async () => {
-      const response = await window.api.getSequenceAwareSpeciesDistribution(studyId)
+      const response = await window.api.getSequenceAwareSpeciesDistribution({ studyId })
       if (response.error) throw new Error(response.error)
       return response.data
     },
