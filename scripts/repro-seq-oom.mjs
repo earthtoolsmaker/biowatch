@@ -165,9 +165,16 @@ async function runIpc(page) {
         }
         return Promise.all([
           call('species-distribution', () =>
-            window.api.getSequenceAwareSpeciesDistribution(studyId, gap, null)
+            window.api.getSequenceAwareSpeciesDistribution({ studyId, gapSeconds: gap, bbox: null })
           ),
-          call('timeseries', () => window.api.getSequenceAwareTimeseries(studyId, [], gap, null))
+          call('timeseries', () =>
+            window.api.getSequenceAwareTimeseries({
+              studyId,
+              speciesNames: [],
+              gapSeconds: gap,
+              bbox: null
+            })
+          )
         ])
       },
       { studyId: STUDY_ID, gap: GAP_SECONDS }

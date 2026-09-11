@@ -208,26 +208,29 @@ There is also one preload-only helper (not an IPC channel):
 
 The renderer captures the Leaflet map container with `html-to-image` (`pixelRatio: 2`, `crossOrigin=""` set on the tile layers so the canvas isn't tainted) and passes a `data:image/png;base64,…` URL plus a default filename. The Density encoding's `leaflet.heat` canvas and the Hex grid SVG overlay are drawn from in-memory data (no external images), so they stay untainted and capture correctly. Main shows a save dialog (default location: Downloads) and writes the decoded buffer to disk. Triggered from the Explore tab's right-click context menu on the map.
 
-### Sequence-Aware Species Counts
+### Sequence-aware analysis
 
-These endpoints perform sequence grouping and counting in the main thread, returning pre-computed results. This avoids transferring raw media-level data to the renderer and keeps computation off the UI thread.
+These endpoints take one structured request object and run in the sequence worker. Every request may include the complete analysis metric:
 
-| Method                                                                                                 | Channel                              | Parameters                                        | Returns                               |
-| ------------------------------------------------------------------------------------------------------ | ------------------------------------ | ------------------------------------------------- | ------------------------------------- |
-| `getSequenceAwareSpeciesDistribution(studyId)`                                                         | `sequences:get-species-distribution` | studyId                                           | `{ data: [{scientificName, count}] }` |
-| `getSequenceAwareTimeseries(studyId, speciesNames)`                                                    | `sequences:get-timeseries`           | studyId, species[]                                | `{ data: {timeseries, allSpecies} }`  |
-| `getSequenceAwareHeatmap(studyId, speciesNames, startDate, endDate, timeRange, includeNullTimestamps)` | `sequences:get-heatmap`              | studyId, species[], dates, timeRange, includeNull | `{ data: {species -> locations[]} }`  |
-| `getSequenceAwareDailyActivity(studyId, speciesNames, startDate, endDate)`                             | `sequences:get-daily-activity`       | studyId, species[], dates                         | `{ data: [24 hourly objects] }`       |
+```js
+metric: {
+  counting: 'individuals' | 'observations',
+  normalization: 'none' | 'RAI100'
+}
+```
 
-**Parameters:**
+An omitted metric defaults to N ind. Generic callers outside Explore rely on that default. Explicit malformed metrics are rejected.
 
-- `speciesNames`: Array of scientific names to include in the analysis.
-- `gapSeconds` is **not passed by the frontend**. The backend fetches it from the study's metadata table. When metadata has no `sequenceGap` stored, it defaults to `null` (eventID-based grouping for CamtrapDP datasets).
+| Method                                         | Channel                              | Key request fields                                                                               | Returns                                    |
+| ---------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------ | ------------------------------------------ |
+| `getSequenceAwareSpeciesDistribution(request)` | `sequences:get-species-distribution` | `studyId`, `gapSeconds?`, `bbox?`, `metric?`                                                     | `{ data: [{scientificName, count, ...}] }` |
+| `getSequenceAwareTimeseries(request)`          | `sequences:get-timeseries`           | `studyId`, `speciesNames`, `gapSeconds?`, `bbox?`, `metric?`                                     | `{ data: {timeseries, allSpecies} }`       |
+| `getSequenceAwareHeatmap(request)`             | `sequences:get-heatmap`              | `studyId`, `speciesNames`, dates, `timeRange`, `includeNullTimestamps`, `gapSeconds?`, `metric?` | `{ data: {locations, availability?} }`     |
+| `getSequenceAwareDailyActivity(request)`       | `sequences:get-daily-activity`       | `studyId`, `speciesNames`, dates, `gapSeconds?`, `bbox?`, `metric?`                              | `{ data: [24 hourly objects] }`            |
 
-**Benefits:**
+When `gapSeconds` is omitted, the worker reads the study's configured sequence gap. RAI responses retain raw numerators and effort: distribution rows include `rawCount` and `effortDays`; timeline/activity rows include bucket `effortDays` and `rawCounts`; map locations include `rawCounts`, `effortDays`, and derived `values`. Missing effort yields `null`, never infinity.
 
-- Computed in main thread = better UI responsiveness
-- Frontend query cache keys include `sequenceGap` for instant slider feedback (refetch triggered on change)
+The renderer includes `metric.counting` and `metric.normalization` as primitive query-key fields, preventing stale results from appearing under another metric label.
 
 ### Paginated Sequences (Media Gallery)
 

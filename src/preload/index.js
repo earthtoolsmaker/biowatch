@@ -144,68 +144,19 @@ const api = {
   getOverviewStats: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('overview:get-stats', studyId)
   },
-  // Sequence-aware species distribution APIs (pre-computed in main thread)
-  // gapSeconds is fetched from study metadata in the backend
-  getSequenceAwareSpeciesDistribution: async (studyId, gapSeconds, bbox, countMetric) => {
-    return await electronAPI.ipcRenderer.invoke(
-      'sequences:get-species-distribution',
-      studyId,
-      gapSeconds,
-      bbox,
-      countMetric
-    )
+  // Sequence-aware analysis APIs. Structured requests keep metric semantics
+  // self-describing across the renderer/main process boundary.
+  getSequenceAwareSpeciesDistribution: async (request) => {
+    return await electronAPI.ipcRenderer.invoke('sequences:get-species-distribution', request)
   },
-  getSequenceAwareTimeseries: async (studyId, speciesNames, gapSeconds, bbox, countMetric) => {
-    return await electronAPI.ipcRenderer.invoke(
-      'sequences:get-timeseries',
-      studyId,
-      speciesNames,
-      gapSeconds,
-      bbox,
-      countMetric
-    )
+  getSequenceAwareTimeseries: async (request) => {
+    return await electronAPI.ipcRenderer.invoke('sequences:get-timeseries', request)
   },
-  getSequenceAwareHeatmap: async (
-    studyId,
-    speciesNames,
-    startDate,
-    endDate,
-    timeRange,
-    includeNullTimestamps,
-    gapSeconds,
-    countMetric
-  ) => {
-    return await electronAPI.ipcRenderer.invoke(
-      'sequences:get-heatmap',
-      studyId,
-      speciesNames,
-      startDate,
-      endDate,
-      timeRange,
-      includeNullTimestamps,
-      gapSeconds,
-      countMetric
-    )
+  getSequenceAwareHeatmap: async (request) => {
+    return await electronAPI.ipcRenderer.invoke('sequences:get-heatmap', request)
   },
-  getSequenceAwareDailyActivity: async (
-    studyId,
-    speciesNames,
-    startDate,
-    endDate,
-    gapSeconds,
-    bbox,
-    countMetric
-  ) => {
-    return await electronAPI.ipcRenderer.invoke(
-      'sequences:get-daily-activity',
-      studyId,
-      speciesNames,
-      startDate,
-      endDate,
-      gapSeconds,
-      bbox,
-      countMetric
-    )
+  getSequenceAwareDailyActivity: async (request) => {
+    return await electronAPI.ipcRenderer.invoke('sequences:get-daily-activity', request)
   },
   // Paginated sequences API for media gallery
   getSequences: async (studyId, options = {}) => {

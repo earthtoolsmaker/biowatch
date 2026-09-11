@@ -276,7 +276,7 @@ export default function Overview({ data, studyId, studyName }) {
   const { data: speciesData, error: speciesError } = useQuery({
     queryKey: ['sequenceAwareSpeciesDistribution', studyId, sequenceGap],
     queryFn: async () => {
-      const response = await window.api.getSequenceAwareSpeciesDistribution(studyId)
+      const response = await window.api.getSequenceAwareSpeciesDistribution({ studyId })
       if (response.error) throw new Error(response.error)
       return response.data
     },

@@ -270,7 +270,7 @@ export default function FilterDrawer({ open, studyId, filters, onChange }) {
   const speciesQuery = useQuery({
     queryKey: ['mediaFilterSpeciesDistribution', studyId],
     queryFn: async () => {
-      const res = await window.api.getSequenceAwareSpeciesDistribution(studyId)
+      const res = await window.api.getSequenceAwareSpeciesDistribution({ studyId })
       if (res?.error) throw new Error(res.error)
       return res?.data ?? res
     },
