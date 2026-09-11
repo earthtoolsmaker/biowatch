@@ -62,8 +62,10 @@ import { useSequenceGap } from './hooks/useSequenceGap'
 import { useShowFilterCharts } from './hooks/useShowFilterCharts'
 import { useDateRange } from './hooks/useDateRange'
 import { useAreaFilter } from './hooks/useAreaFilter'
-import { useExploreCountMetric } from './hooks/useExploreCountMetric'
-import CountMetricToggle from './ui/CountMetricToggle'
+import { useExploreMetric } from './hooks/useExploreMetric'
+import AnalysisMetricToggle from './ui/AnalysisMetricToggle'
+import { aggregateAnalysisLocations } from './utils/analysisMetric'
+import { NORMALIZATION_RAI_100 } from '../../shared/analysisMetric.js'
 
 // Inject the keyframes used by the skeleton markers once per page load.
 // Guarded by an id check so HMR / multiple SpeciesMap mounts don't re-append
@@ -138,23 +140,14 @@ function useFadePresence(show, duration = 200) {
   return { mounted, visible }
 }
 
-// Aggregate the per-species counts of every marker inside a cluster into one
-// { scientificName: count } map, limited to the currently selected species and
-// dropping zero entries. Shared by the cluster icon builder and the cluster
-// hover handler so both show the same breakdown.
-function aggregateClusterCounts(markers, selectedSpecies) {
-  const combined = {}
-  selectedSpecies.forEach((s) => {
-    combined[s.scientificName] = 0
-  })
-  markers.forEach((marker) => {
-    Object.entries(marker.options.counts || {}).forEach(([species, count]) => {
-      if (selectedSpecies.some((s) => s.scientificName === species)) {
-        combined[species] += count
-      }
-    })
-  })
-  return Object.fromEntries(Object.entries(combined).filter(([, count]) => count > 0))
+// Aggregate raw numerator + effort, then derive displayed values. RAI values
+// themselves are never summed or averaged across markers.
+function aggregateClusterAnalysis(markers, selectedSpecies, metric) {
+  return aggregateAnalysisLocations(
+    markers.map((marker) => marker.options.analysisLocation).filter(Boolean),
+    selectedSpecies,
+    metric
+  )
 }
 
 // Scale each species' series to its own peak so every curve reaches the top of
@@ -196,11 +189,11 @@ const HOVERCARD_GAP = 36
 // mouse-out). One overlay total → only ever one card on screen, no matter how
 // fast the pointer crosses markers.
 //
-// `hover` is { counts, lat, lng } while a marker/cluster is hovered, else null.
+// `hover` is { analysis, lat, lng } while a marker/cluster is hovered, else null.
 // We keep rendering the last hover through the fade-out (useFadePresence keeps
 // it mounted past the null) and recompute the on-screen position on every map
 // move/zoom so the card tracks its marker.
-function HoverCardOverlay({ hover, selectedSpecies, palette, scientificToCommon, countMetric }) {
+function HoverCardOverlay({ hover, selectedSpecies, palette, scientificToCommon, metric }) {
   const map = useMap()
   const { mounted, visible } = useFadePresence(!!hover, 200)
 
@@ -262,11 +255,11 @@ function HoverCardOverlay({ hover, selectedSpecies, palette, scientificToCommon,
         style={{ transformOrigin: onRight ? 'left center' : 'right center' }}
       >
         <MarkerHoverCard
-          counts={shown.counts}
+          analysis={shown.analysis}
           selectedSpecies={selectedSpecies}
           palette={palette}
           scientificToCommon={scientificToCommon}
-          countMetric={countMetric}
+          metric={metric}
         />
       </div>
     </div>,
@@ -405,16 +398,11 @@ const isInsideArea = (lat, lng, area) => {
 // out-of-area points contribute at reduced intensity so the glow fades outside
 // the filter — the continuous-surface analog of the dimmed markers. Returns no
 // DOM — the layer is added/removed directly on the Leaflet map.
-function HeatmapLayer({ points, max, gradient, areaFilter }) {
+function HeatmapLayer({ points, max, gradient, areaFilter, metric }) {
   const map = useMap()
   useEffect(() => {
     if (!points.length) return undefined
-    const data = areaFilter
-      ? points.map((p) =>
-          isInsideArea(p[0], p[1], areaFilter) ? p : [p[0], p[1], p[2] * OUTSIDE_OPACITY]
-        )
-      : points
-    const layer = L.heatLayer(data, {
+    const layer = L.heatLayer([], {
       radius: 28,
       blur: 20,
       max,
@@ -422,11 +410,52 @@ function HeatmapLayer({ points, max, gradient, areaFilter }) {
       minOpacity: 0.45,
       gradient
     })
+
+    const redraw = () => {
+      let aggregated = points
+      if (metric.normalization === NORMALIZATION_RAI_100) {
+        // leaflet.heat adds nearby intensities. Bin nearby sites first and
+        // recompute each rate from summed numerator + effort so child RAI
+        // values are never directly summed or averaged.
+        const bins = new Map()
+        for (const point of points) {
+          const projected = map.latLngToContainerPoint([point[0], point[1]])
+          const key = `${Math.floor(projected.x / 28)},${Math.floor(projected.y / 28)}`
+          const bin = bins.get(key) || { lat: 0, lng: 0, sites: 0, raw: 0, effortDays: 0 }
+          bin.lat += point[0]
+          bin.lng += point[1]
+          bin.sites += 1
+          bin.raw += point[3]
+          bin.effortDays += point[4]
+          bins.set(key, bin)
+        }
+        aggregated = [...bins.values()].map((bin) => [
+          bin.lat / bin.sites,
+          bin.lng / bin.sites,
+          bin.effortDays > 0 ? (100 * bin.raw) / bin.effortDays : 0
+        ])
+      }
+      const data = aggregated.map((point) => [
+        point[0],
+        point[1],
+        point[2] * (isInsideArea(point[0], point[1], areaFilter) ? 1 : OUTSIDE_OPACITY)
+      ])
+      layer.options.max =
+        metric.normalization === NORMALIZATION_RAI_100
+          ? aggregated.reduce((largest, point) => Math.max(largest, point[2]), 0) || 1
+          : max
+      layer.setLatLngs(data)
+      layer.redraw()
+    }
+
     layer.addTo(map)
+    redraw()
+    map.on('moveend zoomend', redraw)
     return () => {
+      map.off('moveend zoomend', redraw)
       map.removeLayer(layer)
     }
-  }, [map, points, max, gradient, areaFilter])
+  }, [map, points, max, gradient, areaFilter, metric])
   return null
 }
 
@@ -438,7 +467,7 @@ function HeatmapLayer({ points, max, gradient, areaFilter }) {
 // is the active color scale's hex list; when an `areaFilter` is set, hexes
 // whose center falls outside it are dimmed (lower fill-opacity), matching the
 // de-emphasis used for out-of-area markers.
-function HexbinLayer({ points, stops, areaFilter }) {
+function HexbinLayer({ points, stops, areaFilter, metric }) {
   const map = useMap()
   useEffect(() => {
     const svgNS = 'http://www.w3.org/2000/svg'
@@ -464,7 +493,7 @@ function HexbinLayer({ points, stops, areaFilter }) {
 
       const proj = points.map((p) => {
         const pt = map.latLngToLayerPoint(L.latLng(p[0], p[1]))
-        return { x: pt.x, y: pt.y, v: p[2] }
+        return { x: pt.x, y: pt.y, v: p[2], raw: p[3], effortDays: p[4] }
       })
 
       let minX = Infinity
@@ -492,7 +521,14 @@ function HexbinLayer({ points, stops, areaFilter }) {
       const bins = hb(proj)
       let localMax = 0
       const sums = bins.map((bin) => {
-        const s = bin.reduce((acc, d) => acc + d.v, 0)
+        const s =
+          metric.normalization === NORMALIZATION_RAI_100
+            ? (() => {
+                const raw = bin.reduce((sum, point) => sum + point.raw, 0)
+                const effortDays = bin.reduce((sum, point) => sum + point.effortDays, 0)
+                return effortDays > 0 ? (100 * raw) / effortDays : 0
+              })()
+            : bin.reduce((sum, point) => sum + point.v, 0)
         if (s > localMax) localMax = s
         return s
       })
@@ -523,7 +559,7 @@ function HexbinLayer({ points, stops, areaFilter }) {
       map.off('moveend zoomend viewreset', redraw)
       svg.remove() // no-op if the pane was already torn down (vs pane.removeChild, which throws)
     }
-  }, [map, points, stops, areaFilter])
+  }, [map, points, stops, areaFilter, metric])
   return null
 }
 
@@ -538,7 +574,7 @@ const SpeciesMap = ({
   scientificToCommon,
   areaFilter,
   onApplyAreaFilter,
-  countMetric
+  metric
 }) => {
   // Persist map layer selection per study
   const mapLayerKey = `mapLayer:${studyId}`
@@ -684,6 +720,17 @@ const SpeciesMap = ({
           svg.appendChild(circle)
         }
 
+        // Effort-only sites remain in the aggregation model and use a neutral
+        // marker rather than disappearing from the map.
+        if (total === 0) {
+          const empty = document.createElementNS(svgNS, 'circle')
+          empty.setAttribute('cx', '50')
+          empty.setAttribute('cy', '50')
+          empty.setAttribute('r', '48')
+          empty.setAttribute('fill', '#9ca3af')
+          svg.appendChild(empty)
+        }
+
         // Draw pie slices
         let startAngle = 0
         const colors = selectedSpecies.map((_, i) => palette[i % palette.length])
@@ -692,7 +739,9 @@ const SpeciesMap = ({
         const radius = 50
 
         // Special case for single species - draw a full circle
-        if (Object.keys(counts).length === 1) {
+        if (total === 0) {
+          // Neutral circle already drawn above.
+        } else if (Object.keys(counts).length === 1) {
           const species = Object.keys(counts)[0]
           const index = selectedSpecies.findIndex((s) => s.scientificName === species)
           const colorIndex = index >= 0 ? index : 0
@@ -778,7 +827,7 @@ const SpeciesMap = ({
       const total = Object.values(counts).reduce((sum, count) => sum + count, 0)
       const size = Math.min(56, Math.max(14, Math.sqrt(total) * 3))
 
-      // Dominant species = the one with the most observations at this site.
+      // Dominant species = the one with the highest selected metric value.
       let dominant = null
       let maxCount = -1
       Object.entries(counts).forEach(([species, count]) => {
@@ -801,7 +850,7 @@ const SpeciesMap = ({
       circle.setAttribute('cx', '50')
       circle.setAttribute('cy', '50')
       circle.setAttribute('r', '48')
-      circle.setAttribute('fill', color)
+      circle.setAttribute('fill', total === 0 ? '#9ca3af' : color)
       circle.setAttribute('stroke', '#ffffff')
       circle.setAttribute('stroke-width', '2')
       svg.appendChild(circle)
@@ -828,9 +877,9 @@ const SpeciesMap = ({
   // card instead of flickering it closed; a new mouse-over cancels the timer.
   const [hoverCard, setHoverCard] = useState(null)
   const hoverCloseTimer = useRef(null)
-  const showHoverCard = useCallback((counts, lat, lng) => {
+  const showHoverCard = useCallback((analysis, lat, lng) => {
     clearTimeout(hoverCloseTimer.current)
-    setHoverCard({ counts, lat, lng })
+    setHoverCard({ analysis, lat, lng })
   }, [])
   const hideHoverCard = useCallback(() => {
     clearTimeout(hoverCloseTimer.current)
@@ -848,9 +897,9 @@ const SpeciesMap = ({
       <Marker
         position={[point.lat, point.lng]}
         icon={icon}
-        counts={point.counts}
+        analysisLocation={point}
         eventHandlers={{
-          mouseover: () => showHoverCard(point.counts, point.lat, point.lng),
+          mouseover: () => showHoverCard(point, point.lat, point.lng),
           mouseout: hideHoverCard
         }}
       />
@@ -860,30 +909,16 @@ const SpeciesMap = ({
   // Process data points. Memoized on the underlying data/species so the point
   // set — and the `counts` object identities the tooltip effect depends on —
   // stay stable across re-renders (e.g. when the area filter toggles).
-  const locationPoints = useMemo(() => {
-    const locations = {}
-
-    // Combine data from all species
-    selectedSpecies.forEach((species) => {
-      const speciesName = species.scientificName
-      const points = heatmapData?.[speciesName] || []
-
-      points.forEach((point) => {
-        const key = `${point.lat},${point.lng}`
-        if (!locations[key]) {
-          locations[key] = {
-            lat: parseFloat(point.lat),
-            lng: parseFloat(point.lng),
-            counts: {}
-          }
-        }
-
-        locations[key].counts[speciesName] = point.count
-      })
-    })
-
-    return Object.values(locations)
-  }, [heatmapData, selectedSpecies])
+  const locationPoints = useMemo(
+    () =>
+      (heatmapData?.locations || []).map((location) => ({
+        ...location,
+        lat: Number(location.lat),
+        lng: Number(location.lng),
+        counts: location.values || {}
+      })),
+    [heatmapData]
+  )
 
   // Pie icons are expensive (SVG build + serialize + base64). Memoize them on the
   // data — crucially NOT on areaFilter — so applying/clearing the area filter
@@ -899,8 +934,15 @@ const SpeciesMap = ({
   const heatPoints = useMemo(
     () =>
       locationPoints.map((point) => {
-        const total = Object.values(point.counts).reduce((sum, count) => sum + count, 0)
-        return [point.lat, point.lng, total]
+        const total = Object.values(point.counts).reduce(
+          (sum, count) => sum + (Number(count) || 0),
+          0
+        )
+        const rawTotal = Object.values(point.rawCounts || {}).reduce(
+          (sum, count) => sum + (Number(count) || 0),
+          0
+        )
+        return [point.lat, point.lng, total, rawTotal, Number(point.effortDays) || 0]
       }),
     [locationPoints]
   )
@@ -947,9 +989,13 @@ const SpeciesMap = ({
     const group = pieClusterRef.current
     if (!group) return
     const onOver = (e) => {
-      const counts = aggregateClusterCounts(e.layer.getAllChildMarkers(), selectedSpecies)
+      const analysis = aggregateClusterAnalysis(
+        e.layer.getAllChildMarkers(),
+        selectedSpecies,
+        metric
+      )
       const ll = e.layer.getLatLng()
-      showHoverCard(counts, ll.lat, ll.lng)
+      showHoverCard(analysis, ll.lat, ll.lng)
     }
     group.on('clustermouseover', onOver)
     group.on('clustermouseout', hideHoverCard)
@@ -957,7 +1003,7 @@ const SpeciesMap = ({
       group.off('clustermouseover', onOver)
       group.off('clustermouseout', hideHoverCard)
     }
-  }, [markerElements, selectedSpecies, showHoverCard, hideHoverCard])
+  }, [markerElements, selectedSpecies, metric, showHoverCard, hideHoverCard])
 
   // Bounds derive from deploymentLocations, not heatmapData, so the initial
   // viewport is fixed from the moment the map mounts — it doesn't shift
@@ -1045,7 +1091,7 @@ const SpeciesMap = ({
           selectedSpecies={selectedSpecies}
           palette={palette}
           scientificToCommon={scientificToCommon}
-          countMetric={countMetric}
+          metric={metric}
         />
         <MapResizeHandler />
         <AreaFilterControl areaFilter={areaFilter} onApplyAreaFilter={onApplyAreaFilter} />
@@ -1118,8 +1164,8 @@ const SpeciesMap = ({
 
                     // Hover handling lives in the cluster-hover effect below; the
                     // icon builder only draws the pie now.
-                    const filteredCounts = aggregateClusterCounts(markers, selectedSpecies)
-                    return markerIconFn(filteredCounts, anyInside ? 1 : OUTSIDE_OPACITY)
+                    const analysis = aggregateClusterAnalysis(markers, selectedSpecies, metric)
+                    return markerIconFn(analysis.values, anyInside ? 1 : OUTSIDE_OPACITY)
                   }}
                 >
                   {markerElements}
@@ -1169,10 +1215,16 @@ const SpeciesMap = ({
             max={heatMax}
             gradient={heatGradient}
             areaFilter={areaFilter}
+            metric={metric}
           />
         )}
         {showHexbin && (
-          <HexbinLayer points={heatPoints} stops={densityStops} areaFilter={areaFilter} />
+          <HexbinLayer
+            points={heatPoints}
+            stops={densityStops}
+            areaFilter={areaFilter}
+            metric={metric}
+          />
         )}
         <MapEncodingToggle
           value={effectiveEncoding}
@@ -1275,7 +1327,7 @@ export default function Explore({ studyData, studyId }) {
   }, [setDateRange, setAreaFilter])
   const { importStatus } = useImportStatus(actualStudyId, 5000)
   const { sequenceGap, setSequenceGap } = useSequenceGap(actualStudyId)
-  const { countMetric, setCountMetric } = useExploreCountMetric(actualStudyId)
+  const { metric, setMetric } = useExploreMetric(actualStudyId)
   const { showFilterCharts } = useShowFilterCharts(actualStudyId)
 
   // Explore view toggle: 'map' | 'gallery' | 'both' (not persisted). 'both' is
@@ -1367,15 +1419,16 @@ export default function Explore({ studyData, studyId }) {
       actualStudyId,
       sequenceGap,
       areaFilter,
-      countMetric
+      metric.counting,
+      metric.normalization
     ],
     queryFn: async () => {
-      const response = await window.api.getSequenceAwareSpeciesDistribution(
-        actualStudyId,
-        sequenceGap,
-        areaFilter,
-        countMetric
-      )
+      const response = await window.api.getSequenceAwareSpeciesDistribution({
+        studyId: actualStudyId,
+        gapSeconds: sequenceGap,
+        bbox: areaFilter,
+        metric
+      })
       if (response.error) throw new Error(response.error)
       return response.data
     },
@@ -1432,7 +1485,8 @@ export default function Explore({ studyData, studyId }) {
     (dateRange[0]?.toISOString() || '') +
     (dateRange[1]?.toISOString() || '') +
     JSON.stringify(timeRange.ranges) +
-    countMetric
+    metric.counting +
+    metric.normalization
 
   // Fetch sequence-aware timeseries data
   // sequenceGap in queryKey ensures refetch when slider changes (backend fetches from metadata)
@@ -1443,16 +1497,17 @@ export default function Explore({ studyData, studyId }) {
       [...speciesNames].sort(),
       sequenceGap,
       areaFilter,
-      countMetric
+      metric.counting,
+      metric.normalization
     ],
     queryFn: async () => {
-      const response = await window.api.getSequenceAwareTimeseries(
-        actualStudyId,
+      const response = await window.api.getSequenceAwareTimeseries({
+        studyId: actualStudyId,
         speciesNames,
-        sequenceGap,
-        areaFilter,
-        countMetric
-      )
+        gapSeconds: sequenceGap,
+        bbox: areaFilter,
+        metric
+      })
       if (response.error) throw new Error(response.error)
       return response.data
     },
@@ -1500,8 +1555,19 @@ export default function Explore({ studyData, studyId }) {
   // a date filter. dateRange itself stays [null, null] in the parent so
   // TimelineChart can render its cleared/zoomed visual state correctly;
   // this fallback is local to the query calls. Mirrors media.jsx.
-  const effectiveStart = dateRange[0] ?? fullExtent[0]
-  const effectiveEnd = dateRange[1] ?? fullExtent[1]
+  // Weekly rows are labelled with the Sunday immediately before their
+  // Monday–Sunday bucket. RAI expands those labels back to half-open bucket
+  // bounds so effort does not lose the first day or final week. Raw metrics
+  // retain the established label-based query scope unchanged.
+  const fullBucketStart = fullExtent[0]
+    ? new Date(fullExtent[0].getTime() + 24 * 60 * 60 * 1000)
+    : null
+  const fullBucketEnd = fullExtent[1]
+    ? new Date(fullExtent[1].getTime() + 8 * 24 * 60 * 60 * 1000)
+    : null
+  const usesEffort = metric.normalization === NORMALIZATION_RAI_100
+  const effectiveStart = dateRange[0] ?? (usesEffort ? fullBucketStart : fullExtent[0])
+  const effectiveEnd = dateRange[1] ?? (usesEffort ? fullBucketEnd : fullExtent[1])
 
   // Fetch sequence-aware heatmap data. The `enabled` gate defers the
   // fetch until every queryKey input has settled (sequenceGap resolved,
@@ -1519,19 +1585,20 @@ export default function Explore({ studyData, studyId }) {
       JSON.stringify(timeRange.ranges),
       isFullRange,
       sequenceGap,
-      countMetric
+      metric.counting,
+      metric.normalization
     ],
     queryFn: async () => {
-      const response = await window.api.getSequenceAwareHeatmap(
-        actualStudyId,
+      const response = await window.api.getSequenceAwareHeatmap({
+        studyId: actualStudyId,
         speciesNames,
-        effectiveStart?.toISOString(),
-        effectiveEnd?.toISOString(),
+        startDate: effectiveStart?.toISOString(),
+        endDate: effectiveEnd?.toISOString(),
         timeRange,
-        isFullRange,
-        sequenceGap,
-        countMetric
-      )
+        includeNullTimestamps: isFullRange,
+        gapSeconds: sequenceGap,
+        metric
+      })
       if (response.error) throw new Error(response.error)
       return response.data
     },
@@ -1551,7 +1618,7 @@ export default function Explore({ studyData, studyId }) {
   // Derive heatmap status from query state and data
   const heatmapStatus = useMemo(() => {
     if (isHeatmapLoading || !heatmapData) return 'loading'
-    const hasPoints = Object.values(heatmapData).some((points) => points && points.length > 0)
+    const hasPoints = (heatmapData.locations || []).length > 0
     return hasPoints ? 'hasData' : 'noData'
   }, [heatmapData, isHeatmapLoading])
 
@@ -1566,18 +1633,19 @@ export default function Explore({ studyData, studyId }) {
       effectiveEnd?.toISOString(),
       sequenceGap,
       areaFilter,
-      countMetric
+      metric.counting,
+      metric.normalization
     ],
     queryFn: async () => {
-      const response = await window.api.getSequenceAwareDailyActivity(
-        actualStudyId,
+      const response = await window.api.getSequenceAwareDailyActivity({
+        studyId: actualStudyId,
         speciesNames,
-        effectiveStart?.toISOString(),
-        effectiveEnd?.toISOString(),
-        sequenceGap,
-        areaFilter,
-        countMetric
-      )
+        startDate: effectiveStart?.toISOString(),
+        endDate: effectiveEnd?.toISOString(),
+        gapSeconds: sequenceGap,
+        bbox: areaFilter,
+        metric
+      })
       if (response.error) throw new Error(response.error)
       return response.data
     },
@@ -1632,7 +1700,7 @@ export default function Explore({ studyData, studyId }) {
       showHeader={false}
       hidePseudoSpecies
       showActivity
-      countMetric={countMetric}
+      metric={metric}
     />
   ) : (
     <div
@@ -1708,8 +1776,8 @@ export default function Explore({ studyData, studyId }) {
                 slider's compact variant is flex-1 and fills the leftover width
                 beside the filter toggle. The filter toggle keeps to the right
                 even before the slider's gap value has loaded. */}
-            <div className="w-xs flex-shrink-0 flex items-center gap-2">
-              <CountMetricToggle value={countMetric} onChange={setCountMetric} />
+            <div className="w-sm max-w-[48vw] flex-shrink-0 flex items-center gap-2">
+              <AnalysisMetricToggle value={metric} onChange={setMetric} />
               {sequenceGap !== undefined && (
                 <SequenceGapSlider
                   value={sequenceGap}
@@ -1779,7 +1847,7 @@ export default function Explore({ studyData, studyId }) {
                       scientificToCommon={scientificToCommon}
                       areaFilter={areaFilter}
                       onApplyAreaFilter={setAreaFilter}
-                      countMetric={countMetric}
+                      metric={metric}
                     />
                   </div>
                 )}

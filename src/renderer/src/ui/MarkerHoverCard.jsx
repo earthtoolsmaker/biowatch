@@ -1,38 +1,51 @@
 import { getMapDisplayName } from '../utils/commonNames'
 import { formatScientificName } from '../utils/scientificName'
-import { COUNT_METRIC_INDIVIDUALS, COUNT_METRIC_OBSERVATIONS } from '../../../shared/countMetric.js'
+import {
+  COUNTING_OBSERVATIONS,
+  DEFAULT_ANALYSIS_METRIC,
+  NORMALIZATION_RAI_100
+} from '../../../shared/analysisMetric.js'
+import { analysisMetricUnit, formatAnalysisValue } from '../utils/analysisMetric.js'
 
-// Inner content for the Explore map's species hover card, rendered live (as a
-// real React node) inside the animated `.species-hovercard` overlay — see
-// HoverCardOverlay in explore.jsx. The outer chrome (background, rounded
-// corners, border, shadow) and the pop/fade animation come from the
-// `.species-hovercard` CSS rules in main.css; this component only renders the
-// inner composition breakdown.
-//
-// Layout: a "Composition" header with the total, a stacked composition bar
-// (the pie marker flattened into one bar), then one row per species with its
-// color, common/scientific name, share (%) and raw count.
+// Inner content for the Explore map's animated species hovercard. The outer
+// chrome and transition live in `.species-hovercard`; this component renders
+// the total, stacked composition bar, per-species shares, and — for RAI — the
+// raw numerator and camera-effort denominator. Composition uses raw counts so
+// it remains valid when displayed rate values are unavailable.
 export default function MarkerHoverCard({
-  counts,
+  analysis,
   selectedSpecies,
   palette,
   scientificToCommon,
-  countMetric = COUNT_METRIC_INDIVIDUALS
+  metric = DEFAULT_ANALYSIS_METRIC
 }) {
-  const entries = Object.entries(counts)
-    .filter(([species]) => selectedSpecies.some((s) => s.scientificName === species))
-    .sort((a, b) => b[1] - a[1])
-
-  const total = entries.reduce((sum, [, count]) => sum + count, 0)
+  const values = analysis?.values || analysis?.counts || {}
+  const rawCounts = analysis?.rawCounts || values
+  const entries = Object.entries(values)
+    .filter(([species]) => selectedSpecies.some((item) => item.scientificName === species))
+    .sort((left, right) => (Number(right[1]) || 0) - (Number(left[1]) || 0))
+  const total = entries.reduce((sum, [, value]) => sum + (Number(value) || 0), 0)
+  const rawTotal = Object.entries(rawCounts)
+    .filter(([species]) => selectedSpecies.some((item) => item.scientificName === species))
+    .reduce((sum, [, value]) => sum + (Number(value) || 0), 0)
+  const isRai = metric.normalization === NORMALIZATION_RAI_100
+  const effortDays = Number(analysis?.effortDays) || 0
 
   const colorFor = (species) => {
-    const index = selectedSpecies.findIndex((s) => s.scientificName === species)
+    const index = selectedSpecies.findIndex((item) => item.scientificName === species)
     return palette[(index >= 0 ? index : 0) % palette.length]
   }
-  const share = (count) => (total > 0 ? Math.round((count / total) * 100) : 0)
+  const share = (species) => {
+    const denominator = rawTotal || total
+    const numerator = rawTotal ? Number(rawCounts[species]) || 0 : Number(values[species]) || 0
+    return denominator > 0 ? Math.round((numerator / denominator) * 100) : 0
+  }
+
+  const rawUnit =
+    metric.counting === COUNTING_OBSERVATIONS ? 'independent observations' : 'individual detections'
 
   return (
-    <div style={{ padding: '11px 13px', minWidth: '210px' }}>
+    <div style={{ padding: '11px 13px', minWidth: '230px' }}>
       <div
         style={{
           display: 'flex',
@@ -55,12 +68,28 @@ export default function MarkerHoverCard({
           Composition
         </span>
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: '16px', fontWeight: 700, letterSpacing: '-0.01em' }}>{total}</div>
+          <div style={{ fontSize: '16px', fontWeight: 700, letterSpacing: '-0.01em' }}>
+            {formatAnalysisValue(effortDays > 0 || !isRai ? total : null, metric)}
+          </div>
           <div style={{ fontSize: '9px', color: 'var(--color-muted-foreground)' }}>
-            {countMetric === COUNT_METRIC_OBSERVATIONS ? 'Independent observations' : 'Individuals'}
+            {analysisMetricUnit(metric)}
           </div>
         </div>
       </div>
+
+      {isRai && (
+        <div
+          style={{
+            margin: '-2px 0 9px',
+            fontSize: '9.5px',
+            color: 'var(--color-muted-foreground)'
+          }}
+        >
+          {effortDays > 0
+            ? `${rawTotal} ${rawUnit} / ${effortDays.toFixed(1)} camera-days`
+            : 'RAI unavailable: no valid camera effort for the current filters.'}
+        </div>
+      )}
 
       <div
         className="species-hovercard__bar"
@@ -72,18 +101,15 @@ export default function MarkerHoverCard({
           margin: '2px 0 11px'
         }}
       >
-        {entries.map(([species, count]) => (
+        {entries.map(([species]) => (
           <span
             key={species}
-            style={{
-              width: `${total > 0 ? (count / total) * 100 : 0}%`,
-              backgroundColor: colorFor(species)
-            }}
+            style={{ width: `${share(species)}%`, backgroundColor: colorFor(species) }}
           />
         ))}
       </div>
 
-      {entries.map(([species, count]) => {
+      {entries.map(([species, value]) => {
         const common = getMapDisplayName(species, scientificToCommon)
         const showSci = common && common !== species
         return (
@@ -135,11 +161,7 @@ export default function MarkerHoverCard({
                 marginTop: '1px'
               }}
             >
-              <span
-                style={{ fontSize: '11px', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}
-              >
-                {share(count)}%
-              </span>
+              <span style={{ fontSize: '11px', fontWeight: 600 }}>{share(species)}%</span>
               <span
                 style={{
                   fontSize: '10.5px',
@@ -147,7 +169,7 @@ export default function MarkerHoverCard({
                   fontVariantNumeric: 'tabular-nums'
                 }}
               >
-                {count}
+                {formatAnalysisValue(value, metric)}
               </span>
             </div>
           </div>

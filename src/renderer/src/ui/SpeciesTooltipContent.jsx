@@ -10,7 +10,7 @@ import { IUCN_ACCENT_BORDER } from './iucnPalette'
 import CircularTimeFilter, { DailyActivityRadar, DailyActivityLine } from './clock'
 import TimelineChart from './timeseries'
 import { hasEnoughActivityData, MIN_ACTIVITY_DETECTIONS } from '../utils/activitySufficiency'
-import { COUNT_METRIC_INDIVIDUALS } from '../../../shared/countMetric.js'
+import { DEFAULT_ANALYSIS_METRIC } from '../../../shared/analysisMetric.js'
 
 // Single accent for the hovercard's all-time activity charts (one species
 // per card, so no multi-series palette is needed).
@@ -105,7 +105,7 @@ export default function SpeciesTooltipContent({
   // loading skeleton (no flash for sparse species). The daily-activity sum
   // only ever counts timestamped detections, so it can't exceed this.
   detectionCount = 0,
-  countMetric = COUNT_METRIC_INDIVIDUALS
+  metric = DEFAULT_ANALYSIS_METRIC
 }) {
   const [imageError, setImageError] = useState(false)
   const [imageLoaded, setImageLoaded] = useState(false)
@@ -126,30 +126,26 @@ export default function SpeciesTooltipContent({
   // full extent (first..last day with data). We fetch the timeseries first,
   // then query daily activity over that range.
   const { data: activity, isError: activityError } = useQuery({
-    queryKey: ['speciesHovercardActivity', studyId, sciName, countMetric],
+    queryKey: ['speciesHovercardActivity', studyId, sciName, metric.counting, metric.normalization],
     queryFn: async () => {
-      const ts = await window.api.getSequenceAwareTimeseries(
+      const ts = await window.api.getSequenceAwareTimeseries({
         studyId,
-        [sciName],
-        undefined,
-        null,
-        countMetric
-      )
+        speciesNames: [sciName],
+        metric
+      })
       if (ts.error) throw new Error(ts.error)
       const timeseries = ts.data?.timeseries ?? []
       if (timeseries.length === 0) return { dailyActivity: [], timeseries: [] }
 
       const start = new Date(timeseries[0].date).toISOString()
       const end = new Date(timeseries[timeseries.length - 1].date).toISOString()
-      const daily = await window.api.getSequenceAwareDailyActivity(
+      const daily = await window.api.getSequenceAwareDailyActivity({
         studyId,
-        [sciName],
-        start,
-        end,
-        undefined,
-        null,
-        countMetric
-      )
+        speciesNames: [sciName],
+        startDate: start,
+        endDate: end,
+        metric
+      })
       if (daily.error) throw new Error(daily.error)
       return { dailyActivity: daily.data ?? [], timeseries }
     },

@@ -39,9 +39,11 @@ before(() => {
       observationID TEXT PRIMARY KEY, mediaID TEXT, deploymentID TEXT,
       eventID TEXT, eventStart TEXT, scientificName TEXT, observationType TEXT
     );
-    INSERT INTO deployments (deploymentID, latitude, longitude) VALUES
-      ('depA', 50.5, 4.5),   -- inside BBOX_IN
-      ('depB', 52.0, 6.0);   -- outside BBOX_IN
+    INSERT INTO deployments (
+      deploymentID, deploymentStart, deploymentEnd, latitude, longitude
+    ) VALUES
+      ('depA', '2024-05-01T00:00:00', '2024-07-01T00:00:00', 50.5, 4.5),
+      ('depB', NULL, NULL, 52.0, 6.0);
     INSERT INTO media (mediaID, deploymentID, timestamp, fileMediatype) VALUES
       ('mA1', 'depA', '2024-06-01T08:00:00', 'image/jpeg'),
       ('mB1', 'depB', '2024-06-01T09:00:00', 'image/jpeg'),
@@ -68,6 +70,61 @@ test('species counts: bbox restricts to in-bounds deployments', async () => {
   const rows = await getSequenceAwareSpeciesCountsSQL(dbPath, null, BBOX_IN)
   // Only depA (Vulpes) is inside; depB (the only Capreolus) is excluded.
   assert.deepEqual(rows, [{ scientificName: 'Vulpes vulpes', count: 1 }])
+})
+
+test('effort eligibility excludes media without a valid deployment interval', async () => {
+  const distribution = await getSequenceAwareSpeciesCountsSQL(
+    dbPath,
+    null,
+    null,
+    'individuals',
+    true
+  )
+  assert.deepEqual(distribution, [{ scientificName: 'Vulpes vulpes', count: 1 }])
+
+  const timeseries = await getSequenceAwareTimeseriesSQL(
+    dbPath,
+    ['Vulpes vulpes', 'Capreolus capreolus'],
+    null,
+    null,
+    'observations',
+    true
+  )
+  assert.deepEqual(
+    timeseries.map((row) => row.scientificName),
+    ['Vulpes vulpes']
+  )
+
+  const activity = await getSequenceAwareDailyActivitySQL(
+    dbPath,
+    ['Vulpes vulpes', 'Capreolus capreolus'],
+    '2024-06-01T00:00:00',
+    '2024-06-02T00:00:00',
+    null,
+    null,
+    'observations',
+    true
+  )
+  assert.deepEqual(
+    activity.map((row) => row.scientificName),
+    ['Vulpes vulpes']
+  )
+
+  const locations = await getSequenceAwareHeatmapSQL(
+    dbPath,
+    ['Vulpes vulpes', 'Capreolus capreolus'],
+    '2024-06-01T00:00:00',
+    '2024-06-02T00:00:00',
+    {},
+    false,
+    null,
+    'observations',
+    true
+  )
+  assert.deepEqual(
+    locations.map((row) => row.scientificName),
+    ['Vulpes vulpes']
+  )
 })
 
 test('timeseries: null bbox includes out-of-bounds species', async () => {

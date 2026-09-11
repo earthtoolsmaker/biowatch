@@ -13,10 +13,10 @@
 
 import { groupMediaIntoSequences, groupMediaByEventID } from './grouping.js'
 import {
-  COUNT_METRIC_INDIVIDUALS,
-  COUNT_METRIC_OBSERVATIONS,
-  normalizeCountMetric
-} from '../../../shared/countMetric.js'
+  COUNTING_INDIVIDUALS,
+  COUNTING_OBSERVATIONS,
+  normalizeCounting
+} from '../../../shared/analysisMetric.js'
 
 /**
  * Check if a media item is a video based on fileMediatype
@@ -32,15 +32,15 @@ function isVideoMedia(media) {
  *
  * @param {Array} observationsByMedia - Array of { scientificName, mediaID, timestamp, deploymentID, eventID, fileMediatype, count }
  * @param {number} gapSeconds - Gap threshold in seconds (0 = use eventID grouping)
- * @param {'individuals'|'observations'} [countMetric='individuals']
+ * @param {'individuals'|'observations'} [counting='individuals']
  * @returns {Array} - Array of { scientificName, count } sorted by count descending
  */
 export function calculateSequenceAwareSpeciesCounts(
   observationsByMedia,
   gapSeconds,
-  countMetric = COUNT_METRIC_INDIVIDUALS
+  counting = COUNTING_INDIVIDUALS
 ) {
-  const metric = normalizeCountMetric(countMetric)
+  const metric = normalizeCounting(counting)
   if (!observationsByMedia || observationsByMedia.length === 0) {
     return []
   }
@@ -99,7 +99,7 @@ export function calculateSequenceAwareSpeciesCounts(
     for (const media of items) {
       const mediaObs = observationsByMediaID.get(media.mediaID) || []
       for (const { scientificName, count } of mediaObs) {
-        const contribution = metric === COUNT_METRIC_OBSERVATIONS ? 1 : count
+        const contribution = metric === COUNTING_OBSERVATIONS ? 1 : count
         const current = sequenceCounts.get(scientificName) || 0
         sequenceCounts.set(scientificName, Math.max(current, contribution))
       }
@@ -132,7 +132,7 @@ export function calculateSequenceAwareSpeciesCounts(
 export function calculateSequenceAwareTimeseries(
   observationsByMedia,
   gapSeconds,
-  countMetric = COUNT_METRIC_INDIVIDUALS
+  counting = COUNTING_INDIVIDUALS
 ) {
   if (!observationsByMedia || observationsByMedia.length === 0) {
     return { timeseries: [], allSpecies: [] }
@@ -171,7 +171,7 @@ export function calculateSequenceAwareTimeseries(
   const allSpeciesSet = new Set()
 
   for (const [week, weekObs] of observationsByWeek) {
-    const weeklyCounts = calculateSequenceAwareSpeciesCounts(weekObs, gapSeconds, countMetric)
+    const weeklyCounts = calculateSequenceAwareSpeciesCounts(weekObs, gapSeconds, counting)
     const weekData = {}
     for (const { scientificName, count } of weeklyCounts) {
       weekData[scientificName] = count
@@ -297,7 +297,7 @@ export function pivotPreAggregatedHeatmap(rows) {
 export function calculateSequenceAwareHeatmap(
   observationsByMedia,
   gapSeconds,
-  countMetric = COUNT_METRIC_INDIVIDUALS
+  counting = COUNTING_INDIVIDUALS
 ) {
   if (!observationsByMedia || observationsByMedia.length === 0) {
     return {}
@@ -326,7 +326,7 @@ export function calculateSequenceAwareHeatmap(
     const locationCounts = calculateSequenceAwareSpeciesCounts(
       locationInfo.observations,
       gapSeconds,
-      countMetric
+      counting
     )
 
     for (const { scientificName, count } of locationCounts) {

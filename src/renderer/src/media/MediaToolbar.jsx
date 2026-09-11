@@ -235,7 +235,7 @@ export default function MediaToolbar({
   const { data: speciesDist } = useQuery({
     queryKey: ['mediaFilterSpeciesDistribution', studyId],
     queryFn: async () => {
-      const res = await window.api.getSequenceAwareSpeciesDistribution(studyId)
+      const res = await window.api.getSequenceAwareSpeciesDistribution({ studyId })
       if (res?.error) throw new Error(res.error)
       return res?.data ?? res
     },

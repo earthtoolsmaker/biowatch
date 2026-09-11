@@ -36,7 +36,8 @@ export {
   getSequenceAwareSpeciesCountsSQL,
   getSequenceAwareTimeseriesSQL,
   getSequenceAwareHeatmapSQL,
-  getSequenceAwareDailyActivitySQL
+  getSequenceAwareDailyActivitySQL,
+  getDeploymentEffortRows
 } from './species.js'
 
 // Media

@@ -34,7 +34,7 @@ The Explore tab is where the analysis happens. It combines three views you can t
   <figcaption>Map view: each camera location is a pie chart of the selected species' share of sightings (Alpine Tundra Rodents, Norway)</figcaption>
 </figure>
 
-- **Species rail** — every species in the study with its selected count metric. Click species to select them; each gets a color used consistently across the map and charts. Use **N ind. / N obs.** to switch between individual detections and independent observations. The slider at the top controls [sequence grouping](#sequence-grouping), so bursts of photos count as single events.
+- **Species rail** — every species in the study with its selected analysis metric. Click species to select them; each gets a color used consistently across the map and charts. Choose **N ind.**, **N obs.**, **RAI ind.**, or **RAI obs.** to switch the counting basis and optional camera-effort normalization. The slider at the top controls [sequence grouping](#sequence-grouping), so bursts of photos count as single events.
 - **Map** — camera locations rendered as pie charts (species composition), or switch the encoding to abundance, density, or a hex grid. Click **Filter to this area** to restrict everything to the current map view.
 - **Gallery** — the images behind the current selection, newest first.
 - **Activity charts** — toggle the chart row (activity icon, top right) to add a daily-activity clock and a seasonal timeline. Charts can be normalized per species to compare activity patterns between abundant and rare species.
@@ -150,7 +150,7 @@ The Sources tab lists where the study's media files come from — local folders,
 
 Camera traps fire in bursts: one animal walking past can produce dozens of near-identical photos. Counting each photo as an observation would wildly inflate the numbers, so Biowatch can group media into **sequences**.
 
-You choose a *time gap* (in study Settings, or with the slider at the top of the Explore species rail). Captures from the same camera that are closer together than the gap belong to the same sequence, and each sequence counts as a single event in the charts and statistics. Within a sequence, the species count is the largest number of individuals seen together in any one frame — so an impala photographed 20 times in a burst counts once, but a frame showing three impala counts as three.
+You choose a _time gap_ (in study Settings, or with the slider at the top of the Explore species rail). Captures from the same camera that are closer together than the gap belong to the same sequence, and each sequence counts as a single event in the charts and statistics. Within a sequence, the species count is the largest number of individuals seen together in any one frame — so an impala photographed 20 times in a burst counts once, but a frame showing three impala counts as three.
 
 <figure markdown="span">
   ![Sequence grouping slider](../assets/images/sequence-grouping-slider.png){ .screenshot style="max-width: 34rem" }
@@ -159,10 +159,16 @@ You choose a *time gap* (in study Settings, or with the slider at the top of the
 
 Studies imported from Camtrap DP may already carry event groupings (`eventID`); these are preserved and used when sequence grouping is off.
 
-Explore offers two ways to count each species across those sequences:
+Explore offers four analysis metrics:
 
 - **N ind. (Individuals)** — for each sequence, take the largest number of same-species detections in one frame, then sum those maxima. This is not a unique-animal or population estimate: an animal can contribute again in another sequence.
 - **N obs. (Independent observations)** — count each sequence in which the species appears once, regardless of the number of frames or detections in that sequence.
+- **RAI ind. (Individual relative abundance index)** — N ind. per 100 effective camera-days.
+- **RAI obs. (Observation relative abundance index)** — N obs. per 100 effective camera-days. This is the more conventional camera-trap encounter-rate index.
+
+RAI uses deployment start-to-end duration as camera effort. Partial days remain fractional, multiple cameras contribute separately, and date, area, and time-of-day filters clip both detections and effort. A deployment contributes only when both dates are valid and its end follows its start. Biowatch assumes the camera operated continuously inside that interval; represent known downtime as separate deployment intervals. Media without a valid timestamp and valid deployment attribution are excluded from RAI numerators. When no valid effort exists, RAI is shown as unavailable rather than zero.
+
+RAI is an encounter-rate index, **not** an estimate of unique animals, population size, density, occupancy, or detection probability. It does not control for camera placement, habitat, species detectability, bait, or camera settings. Prefer standardized within-study comparisons and report the sequence-gap and effort rules with results.
 
 The current N ind. calculation uses the number of observation records on each media item. An aggregate Camtrap DP `observations.count` value stored on one record is not yet expanded, so a single imported record with `count = 5` currently contributes one to N ind. N obs. is unaffected because it only records species presence in the sequence.
 

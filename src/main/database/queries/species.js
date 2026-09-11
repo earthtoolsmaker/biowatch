@@ -26,10 +26,10 @@ import { buildBboxClause } from './bbox.js'
 import { BLANK_SENTINEL } from '../../../shared/constants.js'
 import { normalizeTimeRange } from './sequences.js'
 import {
-  COUNT_METRIC_INDIVIDUALS,
-  COUNT_METRIC_OBSERVATIONS,
-  normalizeCountMetric
-} from '../../../shared/countMetric.js'
+  COUNTING_INDIVIDUALS,
+  COUNTING_OBSERVATIONS,
+  normalizeCounting
+} from '../../../shared/analysisMetric.js'
 
 /**
  * Get species distribution from the database using Drizzle ORM
@@ -84,7 +84,7 @@ export async function getSpeciesDistribution(dbPath) {
  * @param {string} dbPath - Path to the SQLite database
  * @returns {Promise<Array>} - Array of { scientificName, mediaID, timestamp, deploymentID, eventID, fileMediatype, count }
  */
-export async function getSpeciesDistributionByMedia(dbPath, bbox = null) {
+export async function getSpeciesDistributionByMedia(dbPath, bbox = null, requireEffort = false) {
   const startTime = Date.now()
   log.info(`Querying species distribution by media from: ${dbPath}`)
 
@@ -110,10 +110,23 @@ export async function getSpeciesDistributionByMedia(dbPath, bbox = null) {
     // (blank/unclassified/unknown/vehicle). See spec
     // docs/specs/2026-05-04-empty-species-observations-design.md.
     const conditions = [isNotNull(observations.scientificName), ne(observations.scientificName, '')]
-    if (bbox && bbox.west <= bbox.east) {
+    if (bbox || requireEffort) {
       query = query.innerJoin(deployments, eq(media.deploymentID, deployments.deploymentID))
+    }
+    if (bbox && bbox.west <= bbox.east) {
       conditions.push(between(deployments.latitude, bbox.south, bbox.north))
       conditions.push(between(deployments.longitude, bbox.west, bbox.east))
+    }
+    if (requireEffort) {
+      conditions.push(sql`julianday(${media.timestamp}) IS NOT NULL`)
+      conditions.push(sql`julianday(${deployments.deploymentStart}) IS NOT NULL`)
+      conditions.push(
+        sql`julianday(${deployments.deploymentEnd}) > julianday(${deployments.deploymentStart})`
+      )
+      conditions.push(
+        sql`julianday(${media.timestamp}) >= julianday(${deployments.deploymentStart})`
+      )
+      conditions.push(sql`julianday(${media.timestamp}) < julianday(${deployments.deploymentEnd})`)
     }
 
     const result = await query
@@ -164,10 +177,11 @@ export async function getSequenceAwareSpeciesCountsSQL(
   dbPath,
   gapSeconds,
   bbox = null,
-  countMetric = COUNT_METRIC_INDIVIDUALS
+  counting = COUNTING_INDIVIDUALS,
+  requireEffort = false
 ) {
-  const metric = normalizeCountMetric(countMetric)
-  const isObservations = metric === COUNT_METRIC_OBSERVATIONS
+  const metric = normalizeCounting(counting)
+  const isObservations = metric === COUNTING_OBSERVATIONS
   const isPositiveGap = typeof gapSeconds === 'number' && gapSeconds > 0
   // Preserve the exact existing JS implementation for positive-gap N ind.;
   // N obs. has a compact SQL path because every species/sequence contributes 1.
@@ -179,7 +193,15 @@ export async function getSequenceAwareSpeciesCountsSQL(
   const sqlite = manager.getSqlite()
 
   const { clause: bboxClause, params: bboxParams } = buildBboxClause(bbox, 'd')
-  const bboxJoin = bbox ? 'INNER JOIN deployments d ON m.deploymentID = d.deploymentID' : ''
+  const bboxJoin =
+    bbox || requireEffort ? 'INNER JOIN deployments d ON m.deploymentID = d.deploymentID' : ''
+  const effortClause = requireEffort
+    ? `AND julianday(m.timestamp) IS NOT NULL
+       AND julianday(d.deploymentStart) IS NOT NULL
+       AND julianday(d.deploymentEnd) > julianday(d.deploymentStart)
+       AND julianday(m.timestamp) >= julianday(d.deploymentStart)
+       AND julianday(m.timestamp) < julianday(d.deploymentEnd)`
+    : ''
 
   const useEventIDPath = gapSeconds === 0
 
@@ -197,6 +219,7 @@ export async function getSequenceAwareSpeciesCountsSQL(
               ${bboxJoin}
               WHERE o.scientificName IS NOT NULL AND o.scientificName != ''
                 ${bboxClause}
+                ${effortClause}
               GROUP BY o.scientificName, m.mediaID
           ),
           valid_media AS (
@@ -253,6 +276,7 @@ export async function getSequenceAwareSpeciesCountsSQL(
               ${bboxJoin}
               WHERE o.scientificName IS NOT NULL AND o.scientificName != ''
                 ${bboxClause}
+                ${effortClause}
               GROUP BY o.scientificName, m.mediaID
           ),
           species_events AS (
@@ -296,6 +320,7 @@ export async function getSequenceAwareSpeciesCountsSQL(
               ${bboxJoin}
               WHERE o.scientificName IS NOT NULL AND o.scientificName != ''
                 ${bboxClause}
+                ${effortClause}
               GROUP BY o.scientificName, m.mediaID
           ),
           classified AS (
@@ -347,6 +372,7 @@ export async function getSequenceAwareSpeciesCountsSQL(
                   ${bboxJoin}
                   WHERE o.scientificName IS NOT NULL AND o.scientificName != ''
                     ${bboxClause}
+                ${effortClause}
                   GROUP BY o.scientificName, m.mediaID
               ) GROUP BY scientificName ORDER BY count DESC
             `
@@ -358,6 +384,7 @@ export async function getSequenceAwareSpeciesCountsSQL(
                 ${bboxJoin}
                 WHERE o.scientificName IS NOT NULL AND o.scientificName != ''
                   ${bboxClause}
+                ${effortClause}
                 GROUP BY o.scientificName
                 ORDER BY count DESC
             `
@@ -416,10 +443,11 @@ export async function getSequenceAwareTimeseriesSQL(
   speciesNames = [],
   gapSeconds,
   bbox = null,
-  countMetric = COUNT_METRIC_INDIVIDUALS
+  counting = COUNTING_INDIVIDUALS,
+  requireEffort = false
 ) {
-  const metric = normalizeCountMetric(countMetric)
-  const isObservations = metric === COUNT_METRIC_OBSERVATIONS
+  const metric = normalizeCounting(counting)
+  const isObservations = metric === COUNTING_OBSERVATIONS
   const isPositiveGap = typeof gapSeconds === 'number' && gapSeconds > 0
   if (isPositiveGap && !isObservations) return null
 
@@ -438,7 +466,15 @@ export async function getSequenceAwareTimeseriesSQL(
   const speciesFilter =
     regularSpecies.length > 0 ? `AND o.scientificName IN (${speciesPlaceholders})` : ''
   const { clause: bboxClause, params: bboxParams } = buildBboxClause(bbox, 'd')
-  const bboxJoin = bbox ? 'INNER JOIN deployments d ON m.deploymentID = d.deploymentID' : ''
+  const bboxJoin =
+    bbox || requireEffort ? 'INNER JOIN deployments d ON m.deploymentID = d.deploymentID' : ''
+  const effortClause = requireEffort
+    ? `AND julianday(m.timestamp) IS NOT NULL
+       AND julianday(d.deploymentStart) IS NOT NULL
+       AND julianday(d.deploymentEnd) > julianday(d.deploymentStart)
+       AND julianday(m.timestamp) >= julianday(d.deploymentStart)
+       AND julianday(m.timestamp) < julianday(d.deploymentEnd)`
+    : ''
 
   try {
     let rows
@@ -457,6 +493,7 @@ export async function getSequenceAwareTimeseriesSQL(
                 AND m.timestamp IS NOT NULL AND julianday(m.timestamp) IS NOT NULL
                 ${speciesFilter}
                 ${bboxClause}
+                ${effortClause}
               GROUP BY o.scientificName, m.mediaID
           ),
           valid_media AS (
@@ -506,6 +543,7 @@ export async function getSequenceAwareTimeseriesSQL(
                 AND m.timestamp IS NOT NULL
                 ${speciesFilter}
                 ${bboxClause}
+                ${effortClause}
               GROUP BY o.scientificName, weekStart, event_key
           )
           SELECT scientificName, weekStart, COUNT(*) AS count
@@ -529,6 +567,7 @@ export async function getSequenceAwareTimeseriesSQL(
                 AND m.timestamp IS NOT NULL
                 ${speciesFilter}
                 ${bboxClause}
+                ${effortClause}
               GROUP BY o.scientificName, o.mediaID
           ),
           event_maxes AS (
@@ -559,6 +598,7 @@ export async function getSequenceAwareTimeseriesSQL(
                     AND m.timestamp IS NOT NULL
                     ${speciesFilter}
                     ${bboxClause}
+                ${effortClause}
                   GROUP BY o.scientificName, weekStart, m.mediaID
               )
               SELECT scientificName, weekStart, COUNT(*) AS count
@@ -575,6 +615,7 @@ export async function getSequenceAwareTimeseriesSQL(
                   AND m.timestamp IS NOT NULL
                   ${speciesFilter}
                   ${bboxClause}
+                ${effortClause}
                 GROUP BY o.scientificName, weekStart
                 ORDER BY weekStart
             `
@@ -605,7 +646,12 @@ export async function getSequenceAwareTimeseriesSQL(
  * @param {Array<string>} speciesNames - List of scientific names to include
  * @returns {Promise<Array>} - Array of { scientificName, mediaID, timestamp, deploymentID, eventID, fileMediatype, weekStart, count }
  */
-export async function getSpeciesTimeseriesByMedia(dbPath, speciesNames = [], bbox = null) {
+export async function getSpeciesTimeseriesByMedia(
+  dbPath,
+  speciesNames = [],
+  bbox = null,
+  requireEffort = false
+) {
   const startTime = Date.now()
   log.info(`Querying species timeseries by media from: ${dbPath}`)
 
@@ -650,10 +696,25 @@ export async function getSpeciesTimeseriesByMedia(dbPath, speciesNames = [], bbo
         ne(observations.scientificName, ''),
         speciesCondition
       ]
-      if (bbox && bbox.west <= bbox.east) {
+      if (bbox || requireEffort) {
         query = query.innerJoin(deployments, eq(media.deploymentID, deployments.deploymentID))
+      }
+      if (bbox && bbox.west <= bbox.east) {
         conditions.push(between(deployments.latitude, bbox.south, bbox.north))
         conditions.push(between(deployments.longitude, bbox.west, bbox.east))
+      }
+      if (requireEffort) {
+        conditions.push(sql`julianday(${media.timestamp}) IS NOT NULL`)
+        conditions.push(sql`julianday(${deployments.deploymentStart}) IS NOT NULL`)
+        conditions.push(
+          sql`julianday(${deployments.deploymentEnd}) > julianday(${deployments.deploymentStart})`
+        )
+        conditions.push(
+          sql`julianday(${media.timestamp}) >= julianday(${deployments.deploymentStart})`
+        )
+        conditions.push(
+          sql`julianday(${media.timestamp}) < julianday(${deployments.deploymentEnd})`
+        )
       }
 
       results = await query
@@ -719,7 +780,8 @@ export async function getSpeciesHeatmapDataByMedia(
   startDate,
   endDate,
   timeRange = {},
-  includeNullTimestamps = false
+  includeNullTimestamps = false,
+  requireEffort = false
 ) {
   const startTime = Date.now()
   log.info(`Querying species heatmap data by media from: ${dbPath}`)
@@ -734,6 +796,19 @@ export async function getSpeciesHeatmapDataByMedia(
       isNotNull(deployments.latitude),
       isNotNull(deployments.longitude)
     ]
+    if (requireEffort) {
+      baseConditions.push(sql`julianday(${media.timestamp}) IS NOT NULL`)
+      baseConditions.push(sql`julianday(${deployments.deploymentStart}) IS NOT NULL`)
+      baseConditions.push(
+        sql`julianday(${deployments.deploymentEnd}) > julianday(${deployments.deploymentStart})`
+      )
+      baseConditions.push(
+        sql`julianday(${media.timestamp}) >= julianday(${deployments.deploymentStart})`
+      )
+      baseConditions.push(
+        sql`julianday(${media.timestamp}) < julianday(${deployments.deploymentEnd})`
+      )
+    }
 
     // Add date range filter with null timestamp support
     // Skip date filtering entirely if includeNullTimestamps=true and no dates provided
@@ -859,10 +934,11 @@ export async function getSequenceAwareHeatmapSQL(
   timeRange = {},
   includeNullTimestamps = false,
   gapSeconds,
-  countMetric = COUNT_METRIC_INDIVIDUALS
+  counting = COUNTING_INDIVIDUALS,
+  requireEffort = false
 ) {
-  const metric = normalizeCountMetric(countMetric)
-  const isObservations = metric === COUNT_METRIC_OBSERVATIONS
+  const metric = normalizeCounting(counting)
+  const isObservations = metric === COUNTING_OBSERVATIONS
   if (speciesNames.includes(BLANK_SENTINEL)) return null
   const regularSpecies = speciesNames.filter((s) => s !== BLANK_SENTINEL)
   if (regularSpecies.length === 0) return []
@@ -880,6 +956,13 @@ export async function getSequenceAwareHeatmapSQL(
       ? 'eventID'
       : 'per-media'
   const speciesPlaceholders = regularSpecies.map(() => '?').join(',')
+  const effortClause = requireEffort
+    ? `AND julianday(m.timestamp) IS NOT NULL
+       AND julianday(d.deploymentStart) IS NOT NULL
+       AND julianday(d.deploymentEnd) > julianday(d.deploymentStart)
+       AND julianday(m.timestamp) >= julianday(d.deploymentStart)
+       AND julianday(m.timestamp) < julianday(d.deploymentEnd)`
+    : ''
 
   // Date + hour filters. Non-window paths evaluate the predicate inline; the
   // window path pushes it into media_info (and needs a parallel null-ts
@@ -928,9 +1011,10 @@ export async function getSequenceAwareHeatmapSQL(
       // whichever sequence precedes them. Matches JS `hasValidTimestamp`
       // (grouping.js:13), which also treats invalid timestamps as null-ts.
       const windowTsGuard = 'AND m.timestamp IS NOT NULL AND julianday(m.timestamp) IS NOT NULL'
-      const nullBranchFilter = includeNullTimestamps
-        ? "AND (m.timestamp IS NULL OR m.timestamp = '' OR julianday(m.timestamp) IS NULL)"
-        : null
+      const nullBranchFilter =
+        includeNullTimestamps && !requireEffort
+          ? "AND (m.timestamp IS NULL OR m.timestamp = '' OR julianday(m.timestamp) IS NULL)"
+          : null
 
       const sql = `
         WITH media_obs AS (
@@ -949,6 +1033,7 @@ export async function getSequenceAwareHeatmapSQL(
             WHERE d.latitude IS NOT NULL AND d.longitude IS NOT NULL
               ${windowTsGuard}
               ${mediaFilter.where}
+              ${effortClause}
               AND m.mediaID IN (SELECT DISTINCT mediaID FROM media_obs)
         ),
         marked AS (
@@ -1031,6 +1116,7 @@ export async function getSequenceAwareHeatmapSQL(
               WHERE o.scientificName IN (${speciesPlaceholders})
                 AND d.latitude IS NOT NULL AND d.longitude IS NOT NULL
                 ${obsFilter.where}
+                ${effortClause}
               GROUP BY o.scientificName, o.mediaID
           ),
           classified AS (
@@ -1084,6 +1170,7 @@ export async function getSequenceAwareHeatmapSQL(
             WHERE o.scientificName IN (${speciesPlaceholders})
               AND d.latitude IS NOT NULL AND d.longitude IS NOT NULL
               ${obsFilter.where}
+                ${effortClause}
             GROUP BY o.scientificName, d.latitude, d.longitude
         `
         )
@@ -1127,10 +1214,11 @@ export async function getSequenceAwareDailyActivitySQL(
   endDate,
   gapSeconds,
   bbox = null,
-  countMetric = COUNT_METRIC_INDIVIDUALS
+  counting = COUNTING_INDIVIDUALS,
+  requireEffort = false
 ) {
-  const metric = normalizeCountMetric(countMetric)
-  const isObservations = metric === COUNT_METRIC_OBSERVATIONS
+  const metric = normalizeCounting(counting)
+  const isObservations = metric === COUNTING_OBSERVATIONS
   const regularSpecies = speciesNames.filter((s) => s !== BLANK_SENTINEL)
   if (speciesNames.includes(BLANK_SENTINEL)) return null
   if (regularSpecies.length === 0) return []
@@ -1142,7 +1230,15 @@ export async function getSequenceAwareDailyActivitySQL(
   const sqlite = manager.getSqlite()
 
   const { clause: bboxClause, params: bboxParams } = buildBboxClause(bbox, 'd')
-  const bboxJoin = bbox ? 'INNER JOIN deployments d ON m.deploymentID = d.deploymentID' : ''
+  const bboxJoin =
+    bbox || requireEffort ? 'INNER JOIN deployments d ON m.deploymentID = d.deploymentID' : ''
+  const effortClause = requireEffort
+    ? `AND julianday(m.timestamp) IS NOT NULL
+       AND julianday(d.deploymentStart) IS NOT NULL
+       AND julianday(d.deploymentEnd) > julianday(d.deploymentStart)
+       AND julianday(m.timestamp) >= julianday(d.deploymentStart)
+       AND julianday(m.timestamp) < julianday(d.deploymentEnd)`
+    : ''
 
   const isPositiveGap = typeof gapSeconds === 'number' && gapSeconds > 0
   const useEventIDPath = gapSeconds === 0
@@ -1170,6 +1266,7 @@ export async function getSequenceAwareDailyActivitySQL(
                 AND m.timestamp IS NOT NULL AND julianday(m.timestamp) IS NOT NULL
                 AND m.timestamp >= ? AND m.timestamp <= ?
                 ${bboxClause}
+                ${effortClause}
               GROUP BY o.scientificName, m.mediaID
           ),
           valid_media AS (
@@ -1223,6 +1320,7 @@ export async function getSequenceAwareDailyActivitySQL(
                 AND m.timestamp IS NOT NULL
                 AND m.timestamp >= ? AND m.timestamp <= ?
                 ${bboxClause}
+                ${effortClause}
               GROUP BY o.scientificName, o.mediaID
           ),
           marked AS (
@@ -1274,6 +1372,7 @@ export async function getSequenceAwareDailyActivitySQL(
                 AND m.timestamp IS NOT NULL
                 AND m.timestamp >= ? AND m.timestamp <= ?
                 ${bboxClause}
+                ${effortClause}
               GROUP BY o.scientificName, o.mediaID
           ),
           event_maxes AS (
@@ -1303,6 +1402,7 @@ export async function getSequenceAwareDailyActivitySQL(
               AND m.timestamp IS NOT NULL
               AND m.timestamp >= ? AND m.timestamp <= ?
               ${bboxClause}
+                ${effortClause}
             GROUP BY o.scientificName, hour
             ORDER BY hour
         `
@@ -1319,6 +1419,22 @@ export async function getSequenceAwareDailyActivitySQL(
     log.error(`Error in getSequenceAwareDailyActivitySQL: ${error.message}`)
     throw error
   }
+}
+
+/** Load deployment operation intervals for worker-side effort aggregation. */
+export async function getDeploymentEffortRows(dbPath) {
+  const studyId = getStudyIdFromPath(dbPath)
+  const manager = await getStudyDatabase(studyId, dbPath, { readonly: true })
+  return manager
+    .getSqlite()
+    .prepare(
+      `SELECT deploymentID, deploymentStart, deploymentEnd,
+              (julianday(deploymentStart) - 2440587.5) * 86400000 AS startMs,
+              (julianday(deploymentEnd) - 2440587.5) * 86400000 AS endMs,
+              latitude, longitude, locationName
+         FROM deployments`
+    )
+    .all()
 }
 
 /**

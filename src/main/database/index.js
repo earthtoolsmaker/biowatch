@@ -202,6 +202,7 @@ export {
   getSequenceAwareTimeseriesSQL,
   getSequenceAwareHeatmapSQL,
   getSequenceAwareDailyActivitySQL,
+  getDeploymentEffortRows,
   // Media
   getSourcesData,
   getMediaBboxes,
