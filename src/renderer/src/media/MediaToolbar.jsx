@@ -237,7 +237,7 @@ export default function MediaToolbar({
     queryFn: async () => {
       const res = await window.api.getSequenceAwareSpeciesDistribution({ studyId })
       if (res?.error) throw new Error(res.error)
-      return res?.data ?? res
+      return (res?.data ?? res)?.distribution
     },
     enabled: !!studyId && hasSpeciesChips,
     staleTime: 60000

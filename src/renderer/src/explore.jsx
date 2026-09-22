@@ -1413,7 +1413,7 @@ export default function Explore({ studyData, studyId }) {
 
   // Fetch sequence-aware species distribution data
   // sequenceGap in queryKey ensures refetch when slider changes (backend fetches from metadata)
-  const { data: speciesDistributionData, error: speciesDistributionError } = useQuery({
+  const { data: speciesDistributionResult, error: speciesDistributionError } = useQuery({
     queryKey: [
       'sequenceAwareSpeciesDistribution',
       actualStudyId,
@@ -1436,6 +1436,7 @@ export default function Explore({ studyData, studyId }) {
     refetchInterval: importStatus?.isRunning ? 5000 : false,
     staleTime: Infinity
   })
+  const speciesDistributionData = speciesDistributionResult?.distribution
 
   // Initialize selectedSpecies when speciesDistributionData loads. A
   // ?species deep-link (from the Overview tab) pre-selects that one species;

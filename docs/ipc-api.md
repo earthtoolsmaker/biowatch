@@ -223,12 +223,12 @@ An omitted metric defaults to N ind. Generic callers outside Explore rely on tha
 
 | Method                                         | Channel                              | Key request fields                                                                               | Returns                                    |
 | ---------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------ | ------------------------------------------ |
-| `getSequenceAwareSpeciesDistribution(request)` | `sequences:get-species-distribution` | `studyId`, `gapSeconds?`, `bbox?`, `metric?`                                                     | `{ data: [{scientificName, count, ...}] }` |
+| `getSequenceAwareSpeciesDistribution(request)` | `sequences:get-species-distribution` | `studyId`, `gapSeconds?`, `bbox?`, `metric?`                                                     | `{ data: {distribution, availability?} }`  |
 | `getSequenceAwareTimeseries(request)`          | `sequences:get-timeseries`           | `studyId`, `speciesNames`, `gapSeconds?`, `bbox?`, `metric?`                                     | `{ data: {timeseries, allSpecies} }`       |
 | `getSequenceAwareHeatmap(request)`             | `sequences:get-heatmap`              | `studyId`, `speciesNames`, dates, `timeRange`, `includeNullTimestamps`, `gapSeconds?`, `metric?` | `{ data: {locations, availability?} }`     |
 | `getSequenceAwareDailyActivity(request)`       | `sequences:get-daily-activity`       | `studyId`, `speciesNames`, dates, `gapSeconds?`, `bbox?`, `metric?`                              | `{ data: [24 hourly objects] }`            |
 
-When `gapSeconds` is omitted, the worker reads the study's configured sequence gap. RAI responses retain raw numerators and effort: distribution rows include `rawCount` and `effortDays`; timeline/activity rows include bucket `effortDays` and `rawCounts`; map locations include `rawCounts`, `effortDays`, and derived `values`. Missing effort yields `null`, never infinity.
+When `gapSeconds` is omitted, the worker reads the study's configured sequence gap. RAI responses retain raw numerators and effort: distribution rows include `rawCount`, with their shared effort in top-level `availability.effortDays`; timeline/activity rows include bucket `effortDays` and `rawCounts`; map locations include `rawCounts`, `effortDays`, and derived `values`. Missing effort yields `null`, never infinity.
 
 The renderer includes `metric.counting` and `metric.normalization` as primitive query-key fields, preventing stale results from appearing under another metric label.
 

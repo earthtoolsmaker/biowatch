@@ -64,19 +64,21 @@ function effortAvailability(validated, effortDays) {
 
 function normalizeRaiDistribution(rows, validated) {
   const effortDays = sumTotalEffort(validated.intervals)
-  return (rows || [])
+  const distribution = (rows || [])
     .map((row) => ({
       scientificName: row.scientificName,
       count: deriveRate(row.count, effortDays),
-      rawCount: Number(row.count),
-      effortDays,
-      availability: effortAvailability(validated, effortDays)
+      rawCount: Number(row.count)
     }))
     .sort((left, right) => {
       if (left.count == null) return right.count == null ? right.rawCount - left.rawCount : 1
       if (right.count == null) return -1
       return right.count - left.count || right.rawCount - left.rawCount
     })
+  return {
+    distribution,
+    availability: effortAvailability(validated, effortDays)
+  }
 }
 
 function normalizeRaiTimeseries(result, validated, selectedSpecies) {
@@ -272,7 +274,7 @@ async function run() {
         result = calculateSequenceAwareSpeciesCounts(rawData, effectiveGapSeconds, metric.counting)
         log.info(`${tag} aggregation done: ${result.length} species, heap=${heapMb()}MB`)
       }
-      if (!needsEffort) return result
+      if (!needsEffort) return { distribution: result }
       const validated = validateDeploymentIntervals(await getDeploymentEffortRows(dbPath), { bbox })
       if (result.length === 0 && validated.intervals.length === 0) {
         const species = await getDistinctSpecies(dbPath)
