@@ -272,7 +272,7 @@ export default function FilterDrawer({ open, studyId, filters, onChange }) {
     queryFn: async () => {
       const res = await window.api.getSequenceAwareSpeciesDistribution({ studyId })
       if (res?.error) throw new Error(res.error)
-      return res?.data ?? res
+      return (res?.data ?? res)?.distribution
     },
     enabled: open && !!studyId,
     staleTime: 60000

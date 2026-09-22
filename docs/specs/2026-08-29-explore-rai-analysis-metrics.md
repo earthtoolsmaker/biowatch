@@ -417,19 +417,30 @@ All species share the same denominator in this surface. Therefore:
 
 The rate still provides a meaningful standardized unit even when it does not change rank.
 
-A distribution row must retain the raw count separately from the displayed value:
+A distribution row must retain the raw count separately from the displayed value. Because
+all rows share the same denominator, effort and availability metadata are returned once at
+the result level:
 
 ```js
 {
-  scientificName,
-  count: 12.4,       // displayed metric value; null when unavailable
-  rawCount: 31,
-  effortDays: 250
+  distribution: [
+    {
+      scientificName,
+      count: 12.4, // displayed metric value; null when unavailable
+      rawCount: 31
+    }
+  ],
+  availability: {
+    effortDays: 250,
+    validDeploymentCount: 10,
+    excludedDeploymentCount: 1
+  }
 }
 ```
 
-For `normalization: 'none'`, `count === rawCount` and `effortDays` may be omitted/null.
-Use `rawCount`, not the RAI value, for activity-sufficiency gating in species hovercards.
+For `normalization: 'none'`, rows only need `count` and `availability` is omitted. For RAI,
+use `rawCount`, not the displayed rate, for activity-sufficiency gating in species
+hovercards.
 
 ### Weekly timeline
 
