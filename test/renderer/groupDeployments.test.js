@@ -146,4 +146,73 @@ describe('groupDeploymentsByLocation', () => {
     assert.equal(result.length, 1)
     assert.equal(result[0].locationID, 'd1')
   })
+
+  test('group carries the earliest start and latest end of its children', () => {
+    const result = groupDeploymentsByLocation([
+      {
+        deploymentID: 'd1',
+        locationID: 'loc-A',
+        locationName: 'Alpha',
+        deploymentStart: '2024-01-01',
+        deploymentEnd: '2024-03-01',
+        periods: [mkPeriod(1)]
+      },
+      {
+        deploymentID: 'd2',
+        locationID: 'loc-A',
+        locationName: 'Alpha',
+        deploymentStart: '2024-06-01',
+        deploymentEnd: '2024-09-01',
+        periods: [mkPeriod(1)]
+      }
+    ])
+    assert.equal(result[0].deploymentStart, '2024-01-01')
+    assert.equal(result[0].deploymentEnd, '2024-09-01')
+  })
+
+  test('a missing child end leaves the group open-ended', () => {
+    const result = groupDeploymentsByLocation([
+      {
+        deploymentID: 'd1',
+        locationID: 'loc-A',
+        locationName: 'Alpha',
+        deploymentStart: '2024-01-01',
+        deploymentEnd: '2024-03-01',
+        periods: [mkPeriod(1)]
+      },
+      {
+        deploymentID: 'd2',
+        locationID: 'loc-A',
+        locationName: 'Alpha',
+        deploymentStart: '2024-06-01',
+        deploymentEnd: null,
+        periods: [mkPeriod(1)]
+      }
+    ])
+    assert.equal(result[0].deploymentStart, '2024-01-01')
+    assert.equal(result[0].deploymentEnd, null)
+  })
+
+  test('ignores unparseable child dates in the union regardless of order', () => {
+    const mk = (id, start, end) => ({
+      deploymentID: id,
+      locationID: 'loc-A',
+      locationName: 'Alpha',
+      deploymentStart: start,
+      deploymentEnd: end,
+      periods: [mkPeriod(1)]
+    })
+    const forward = groupDeploymentsByLocation([
+      mk('d1', 'not-a-date', 'garbage'),
+      mk('d2', '2024-06-01', '2024-09-01')
+    ])
+    const reversed = groupDeploymentsByLocation([
+      mk('d2', '2024-06-01', '2024-09-01'),
+      mk('d1', 'not-a-date', 'garbage')
+    ])
+    for (const result of [forward, reversed]) {
+      assert.equal(result[0].deploymentStart, '2024-06-01')
+      assert.equal(result[0].deploymentEnd, '2024-09-01')
+    }
+  })
 })

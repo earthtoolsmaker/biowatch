@@ -16,6 +16,7 @@ import { resolveSelectedDeployment, withDeploymentParam } from './deployments/ur
 import DeploymentDetailPane from './deployments/DeploymentDetailPane'
 import DeploymentsCsvActions from './deployments/DeploymentsCsvActions'
 import EditableLocationName from './deployments/EditableLocationName'
+import { isOutsideCoverage } from './deployments/coverage'
 import { groupDeploymentsByLocation } from './deployments/groupDeployments'
 import Sparkline from './deployments/Sparkline'
 import SectionHeader from './deployments/SectionHeader'
@@ -471,7 +472,7 @@ const DeploymentRow = memo(function DeploymentRow({
     <div
       id={location.deploymentID}
       onClick={handleRowClick}
-      className={`flex gap-3 items-center px-3 h-10 hover:bg-gray-100 dark:hover:bg-accent cursor-pointer border-b border-gray-100 dark:border-border transition-colors ${
+      className={`group/row flex gap-3 items-center px-3 h-10 hover:bg-gray-100 dark:hover:bg-accent cursor-pointer border-b border-gray-100 dark:border-border transition-colors ${
         indented ? 'pl-9 bg-[#fcfcfd] dark:bg-card' : ''
       } ${
         isSelected
@@ -496,6 +497,9 @@ const DeploymentRow = memo(function DeploymentRow({
             periods={location.periods}
             mode={sparklineMode}
             percentile90Count={percentile90Count}
+            deploymentStart={location.deploymentStart}
+            deploymentEnd={location.deploymentEnd}
+            emphasized={isSelected}
           />
         )}
       </div>
@@ -746,6 +750,17 @@ function LocationsList({
     selectedDeployment && debouncedBucketIndex != null
       ? (selectedDeployment.periods[debouncedBucketIndex]?.count ?? 0)
       : null
+  // "0 obs" is ambiguous: the camera may have been down rather than quiet.
+  // Only an empty bucket gets relabelled; a bucket with observations
+  // outside the declared window still shows its count.
+  const cursorBucket = cursorCount === 0 ? selectedDeployment.periods[debouncedBucketIndex] : null
+  const cursorNotDeployed =
+    cursorBucket != null &&
+    isOutsideCoverage(
+      cursorBucket,
+      selectedDeployment.deploymentStart,
+      selectedDeployment.deploymentEnd
+    )
   const showCount = debouncedBucketIndex != null && debouncedBucketIndex === hoverBucketIndex
 
   return (
@@ -892,7 +907,7 @@ function LocationsList({
             top: `${hoverCursorY + CURSOR_PILL_OFFSET_Y}px`
           }}
         >
-          {formatStatNumber(cursorCount)} obs
+          {cursorNotDeployed ? 'not deployed' : `${formatStatNumber(cursorCount)} obs`}
         </div>
       )}
     </div>
