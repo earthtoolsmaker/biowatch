@@ -482,7 +482,10 @@ const DeploymentRow = memo(function DeploymentRow({
           : 'border-l-4 border-l-transparent'
       }`}
     >
-      <div className="w-[140px] min-w-0">
+      {/* Indented rows absorb the extra 24px of left padding here so the
+          sparkline column stays aligned with the header's date axis and
+          the hover ruler (which mirror a non-indented row). */}
+      <div className={`${indented ? 'w-[116px]' : 'w-[140px]'} min-w-0`}>
         <EditableLocationName
           locationID={location.locationID}
           locationName={location.locationName}
@@ -570,6 +573,11 @@ function LocationsList({
   // Cursor Y in container coords — only used to anchor the floating count
   // pill near the pointer; the crosshair line itself spans full height.
   const [hoverCursorY, setHoverCursorY] = useState(null)
+  // deploymentID of the row under the cursor (null over section headers),
+  // so the pill's "not deployed" wording is only used on the selected row
+  // itself — the pill describes the selected row, and over another row's
+  // busy cell that wording would read as a lie.
+  const [hoverDeploymentID, setHoverDeploymentID] = useState(null)
   const [sparklineMode, setSparklineMode] = useSparklineMode(studyId)
 
   useEffect(() => {
@@ -611,14 +619,18 @@ function LocationsList({
     if (x < 0 || x > sRect.width) {
       setHoverX(null)
       setHoverCursorY(null)
+      setHoverDeploymentID(null)
       return
     }
     setHoverX(x)
     setHoverCursorY(event.clientY - cNode.getBoundingClientRect().top)
+    // Deployment rows carry id={deploymentID}; section headers don't.
+    setHoverDeploymentID(event.target.closest('[data-index]')?.firstElementChild?.id || null)
   }
   const handleListMouseLeave = () => {
     setHoverX(null)
     setHoverCursorY(null)
+    setHoverDeploymentID(null)
   }
 
   const { timelineWidth, sparklineLeft, sparklineWidth } = metrics
@@ -751,9 +763,13 @@ function LocationsList({
       ? (selectedDeployment.periods[debouncedBucketIndex]?.count ?? 0)
       : null
   // "0 obs" is ambiguous: the camera may have been down rather than quiet.
-  // Only an empty bucket gets relabelled; a bucket with observations
-  // outside the declared window still shows its count.
-  const cursorBucket = cursorCount === 0 ? selectedDeployment.periods[debouncedBucketIndex] : null
+  // Only an empty bucket on the selected row itself gets relabelled; a
+  // bucket with observations outside the declared window still shows its
+  // count, and hovering any other row keeps the plain count.
+  const cursorBucket =
+    cursorCount === 0 && hoverDeploymentID === selectedDeployment.deploymentID
+      ? selectedDeployment.periods[debouncedBucketIndex]
+      : null
   const cursorNotDeployed =
     cursorBucket != null &&
     isOutsideCoverage(
