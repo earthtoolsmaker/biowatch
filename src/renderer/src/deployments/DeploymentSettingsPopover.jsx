@@ -1,11 +1,14 @@
 import { Settings } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { deploymentEffortDays } from '../../../shared/effort.js'
+import EffortTooltip from './EffortTooltip'
+import { formatDateRange, formatEffortDays } from './formatEffort'
 
 /**
  * Gear-icon popover in the DeploymentDetailPane header. Shows at-a-glance
  * stats (media, observations, blank rate), camera identifiers, and
- * deployment dates/duration for the currently selected deployment.
+ * deployment dates plus camera-days for the currently selected deployment.
  *
  * Read-only for v1. Row layout (label-left / value-right) is structured
  * so future inline editing drops in without restructuring.
@@ -128,7 +131,10 @@ function CameraSection({ deployment }) {
 function DeploymentSection({ deployment }) {
   const start = deployment.deploymentStart
   const end = deployment.deploymentEnd
-  const duration = formatDuration(start, end)
+  // Camera effort = the active interval in fractional camera-days (both
+  // dates parse, end after start; see src/shared/effort.js). Null renders
+  // as "—" rather than 0.
+  const effortDays = deploymentEffortDays(start, end)
 
   return (
     <div>
@@ -137,7 +143,14 @@ function DeploymentSection({ deployment }) {
       </div>
       <Row label="Start" value={formatDate(start)} />
       <Row label="End" value={formatDate(end)} />
-      {duration !== null && <Row label="Duration" value={duration} />}
+      <EffortTooltip effortDays={effortDays} detail={formatDateRange(start, end)}>
+        <div className="cursor-help">
+          <Row
+            label="Camera-days"
+            value={effortDays === null ? null : formatEffortDays(effortDays)}
+          />
+        </div>
+      </EffortTooltip>
     </div>
   )
 }
@@ -178,16 +191,4 @@ function formatDate(s) {
     month: 'short',
     day: 'numeric'
   })
-}
-
-const ONE_DAY_MS = 86_400_000
-
-function formatDuration(start, end) {
-  if (!start || !end) return null
-  const ms = new Date(end).getTime() - new Date(start).getTime()
-  if (!Number.isFinite(ms) || ms < 0) return null
-  const days = Math.round(ms / ONE_DAY_MS)
-  if (days === 0) return '< 1 day'
-  if (days === 1) return '1 day'
-  return `${days} days`
 }

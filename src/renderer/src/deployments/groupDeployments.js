@@ -40,6 +40,23 @@ const coverageUnion = (deployments) => {
 }
 
 /**
+ * Sum camera-days across deployments at one location. Deployments without a
+ * valid interval (effortDays null) are skipped; null when none has effort so
+ * the header can show "—" rather than a misleading 0.
+ */
+export const sumEffortDays = (deployments) => {
+  let total = null
+  for (const d of deployments) {
+    if (typeof d.effortDays === 'number') total = (total ?? 0) + d.effortDays
+  }
+  return total
+}
+
+/** Number of deployments skipped by sumEffortDays (no valid interval). */
+export const countMissingEffort = (deployments) =>
+  deployments.filter((d) => typeof d.effortDays !== 'number').length
+
+/**
  * Group deployments by locationID and return one alphabetically-sorted
  * sequence interleaving multi-deploy groups with singletons. Each entry
  * has isSingleDeployment for the renderer to switch between section
@@ -74,6 +91,7 @@ export function groupDeploymentsByLocation(deployments) {
       ...group,
       aggregatedPeriods: aggregatePeriods(group.deployments),
       ...coverageUnion(group.deployments),
+      aggregatedEffortDays: sumEffortDays(group.deployments),
       isSingleDeployment: group.deployments.length === 1
     }))
     .sort((a, b) => {

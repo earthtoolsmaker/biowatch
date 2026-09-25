@@ -17,7 +17,15 @@ import DeploymentDetailPane from './deployments/DeploymentDetailPane'
 import DeploymentsCsvActions from './deployments/DeploymentsCsvActions'
 import EditableLocationName from './deployments/EditableLocationName'
 import { isOutsideCoverage } from './deployments/coverage'
-import { groupDeploymentsByLocation } from './deployments/groupDeployments'
+import EffortCell from './deployments/EffortCell'
+import EffortTooltip from './deployments/EffortTooltip'
+import { formatDateRange, formatEffortLabel } from './deployments/formatEffort'
+import {
+  countMissingEffort,
+  groupDeploymentsByLocation,
+  sumEffortDays
+} from './deployments/groupDeployments'
+import ObservationsCell from './deployments/ObservationsCell'
 import Sparkline from './deployments/Sparkline'
 import SectionHeader from './deployments/SectionHeader'
 import SparklineToggle from './deployments/SparklineToggle'
@@ -466,7 +474,6 @@ const DeploymentRow = memo(function DeploymentRow({
   indented = false
 }) {
   const handleRowClick = useCallback(() => onSelect(location), [location, onSelect])
-  const total = location.totalCount ?? 0
 
   return (
     <div
@@ -507,9 +514,14 @@ const DeploymentRow = memo(function DeploymentRow({
         )}
       </div>
 
-      <div className="flex-shrink-0 w-16 text-right text-xs text-muted-foreground tabular-nums">
-        {total.toLocaleString()}
-      </div>
+      <ObservationsCell count={location.totalCount} />
+
+      {hasTimestamps && (
+        <EffortCell
+          effortDays={location.effortDays}
+          detail={formatDateRange(location.deploymentStart, location.deploymentEnd)}
+        />
+      )}
     </div>
   )
 })
@@ -645,6 +657,20 @@ function LocationsList({
     () => groupDeploymentsByLocation(activity.deployments),
     [activity.deployments]
   )
+
+  // Study-wide camera effort for the summary strip. Deployments without a
+  // valid interval are skipped, and the tooltip says how many were.
+  const { totalEffortDays, summaryDetail } = useMemo(() => {
+    const deployments = activity.deployments || []
+    const withoutDates = countMissingEffort(deployments)
+    const counted = deployments.length - withoutDates
+    const scope = `Across ${counted.toLocaleString()} ${counted === 1 ? 'deployment' : 'deployments'}`
+    return {
+      totalEffortDays: sumEffortDays(deployments),
+      summaryDetail:
+        withoutDates > 0 ? `${scope} · ${withoutDates.toLocaleString()} without valid dates` : scope
+    }
+  }, [activity.deployments])
 
   const virtualItems = useMemo(() => {
     const items = []
@@ -784,7 +810,26 @@ function LocationsList({
       {/* Tab-level actions strip — always visible (sibling of the conditional
           timeline header). Hosts deployments-CSV export/import so the buttons
           stay reachable for studies with hasTimestamps === false. */}
-      <div className="bg-card border-b border-border px-2 py-2 flex items-center justify-end">
+      <div className="bg-card border-b border-border px-2 py-2 flex items-center justify-between gap-2">
+        {/* Study-wide summary: deployments listed and their summed camera
+            effort. Effort is hidden alongside the timeline when the study
+            has no deployment dates. */}
+        <div className="text-xs text-muted-foreground tabular-nums truncate">
+          {activity.deployments.length.toLocaleString('en-US')}{' '}
+          {activity.deployments.length === 1 ? 'deployment' : 'deployments'}
+          {hasTimestamps && (
+            <>
+              {' · '}
+              <EffortTooltip effortDays={totalEffortDays} detail={summaryDetail} side="bottom">
+                <span className="cursor-help">
+                  {totalEffortDays === null
+                    ? '— camera-days'
+                    : formatEffortLabel(totalEffortDays, 'camera-day')}
+                </span>
+              </EffortTooltip>
+            </>
+          )}
+        </div>
         <DeploymentsCsvActions studyId={studyId} onApplied={onCsvApplied} />
       </div>
       {hasTimestamps && (
@@ -797,10 +842,10 @@ function LocationsList({
               {formatBucketRange(hoverBucket.start, hoverBucket.end)}
             </div>
           )}
-          {/* Date markers stretch across the activity column. The 212px
-              left gutter matches the row's name column + leading padding;
-              the 16px right gutter matches the count column; toggle on
-              the far right. */}
+          {/* Date markers stretch across the activity column. The 152px
+              left gutter matches the row's name column + gap; the right
+              gutter approximates the count + camera-days columns; toggle
+              on the far right. */}
           <div className="w-[152px] flex-shrink-0" />
           <div
             ref={timelineRef}
@@ -813,7 +858,7 @@ function LocationsList({
               </div>
             ))}
           </div>
-          <div className="w-16 flex-shrink-0" />
+          <div className="w-[156px] flex-shrink-0" />
           <div className="px-2 flex items-center">
             <SparklineToggle mode={sparklineMode} onChange={setSparklineMode} />
           </div>
@@ -834,6 +879,7 @@ function LocationsList({
           <div className="w-[140px] flex-shrink-0" />
           <div ref={sparklineRulerRef} className="flex-1 min-w-0" />
           <div className="w-16 flex-shrink-0" />
+          {hasTimestamps && <div className="w-20 flex-shrink-0" />}
         </div>
         <div
           style={{

@@ -20,6 +20,7 @@ import {
 import log from '../../services/logger.js'
 import { getStudyIdFromPath } from './utils.js'
 import { BLANK_SENTINEL, VEHICLE_SENTINEL } from '../../../shared/constants.js'
+import { deploymentEffortDays } from '../../../shared/effort.js'
 
 /**
  * Get one deployment row per unique (latitude, longitude) — intended for
@@ -617,7 +618,8 @@ export async function getDeploymentsActivity(dbPath, periodCount) {
           latitude: row.latitude,
           longitude: row.longitude,
           periods: [],
-          totalCount: Number(row.totalCount || 0)
+          totalCount: Number(row.totalCount || 0),
+          effortDays: deploymentEffortDays(row.deploymentStart, row.deploymentEnd)
         }))
       }
     }
@@ -694,7 +696,8 @@ export async function getDeploymentsActivity(dbPath, periodCount) {
         latitude: row.latitude,
         longitude: row.longitude,
         periods: deploymentPeriods,
-        totalCount
+        totalCount,
+        effortDays: deploymentEffortDays(row.deploymentStart, row.deploymentEnd)
       }
     })
 
