@@ -182,8 +182,9 @@ src/
 │   ├── deployments/         # Deployments-tab subcomponents
 │   │   ├── DeploymentDetailPane.jsx  # Bottom pane mounted when a deployment is selected
 │   │   ├── SectionHeader.jsx         # Always-expanded section header for co-located deployments
-│   │   ├── Sparkline.jsx             # Activity sparkline renderer (bars/line/heatmap)
+│   │   ├── Sparkline.jsx             # Activity sparkline renderer (bars/line/heatmap) + deployment start/end marks
 │   │   ├── SparklineToggle.jsx       # Sparkline mode toggle in timeline header
+│   │   ├── coverage.js               # Pure helper snapping deployment dates to sparkline bucket edges
 │   │   ├── LocationPopover.jsx       # Lat/lon editing popover in detail pane header
 │   │   ├── coordinateParser.js       # Pure parser for "lat, lon" paste field
 │   │   ├── groupDeployments.js       # Pure helper grouping deployments by location

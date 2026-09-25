@@ -1,4 +1,5 @@
-import { memo } from 'react'
+import { memo, useMemo } from 'react'
+import { coverageExtent } from './coverage'
 
 /**
  * Renders an activity sparkline for a deployment row. Three variants
@@ -9,16 +10,64 @@ import { memo } from 'react'
  *
  * `muted` swaps the primary color for slate-300, used on aggregated
  * section-header sparklines so children stand out.
+ *
+ * When `deploymentStart` / `deploymentEnd` are given, two 1px vertical
+ * marks sit behind the chart at the deployment's first and last bucket
+ * edges (see coverageExtent), so the stretch between them reads as
+ * "camera was running". Faint at rest; the row's `group/row` hover or
+ * `emphasized` (selected) turns them blue, `muted` keeps them slate. The
+ * marks are skipped in line mode, where they fight the smoothed curve.
  */
 const Sparkline = memo(function Sparkline({
   periods,
   mode = 'bars',
   percentile90Count,
-  muted = false
+  muted = false,
+  deploymentStart,
+  deploymentEnd,
+  emphasized = false
 }) {
+  const extent = useMemo(
+    () => coverageExtent(periods, deploymentStart, deploymentEnd),
+    [periods, deploymentStart, deploymentEnd]
+  )
   if (!periods || periods.length === 0) return null
   const max = percentile90Count || 1
 
+  const chart = renderChart({ periods, mode, max, muted })
+  if (!chart) return null
+  if (!extent || mode === 'line') return chart
+
+  return (
+    // `isolate` gives the marks their own stacking context, so their
+    // negative z-index puts them behind the chart (data always wins)
+    // without dropping them behind the row's background.
+    <div className="relative isolate">
+      {chart}
+      <CoverageMarks extent={extent} emphasized={emphasized} muted={muted} />
+    </div>
+  )
+})
+
+function CoverageMarks({ extent, emphasized, muted }) {
+  const rest = 'bg-slate-300/70 dark:bg-slate-500/50'
+  const color = emphasized
+    ? 'bg-blue-400 dark:bg-blue-400'
+    : muted
+      ? `${rest} group-hover/row:bg-slate-400 dark:group-hover/row:bg-slate-400`
+      : `${rest} group-hover/row:bg-blue-400 dark:group-hover/row:bg-blue-400`
+  // The marks overshoot the chart by 3px top and bottom so a boundary that
+  // lands on a full bar still shows as two bracket ends.
+  const mark = `absolute -top-[3px] -bottom-[3px] w-px transition-colors ${color}`
+  return (
+    <div aria-hidden="true" className="absolute inset-0 -z-10 pointer-events-none">
+      <div className={mark} style={{ left: `${extent.leftPct}%` }} />
+      <div className={mark} style={{ left: `calc(${extent.leftPct + extent.widthPct}% - 1px)` }} />
+    </div>
+  )
+}
+
+function renderChart({ periods, mode, max, muted }) {
   if (mode === 'bars') {
     return (
       <div className="flex gap-px items-end h-[22px] w-full">
@@ -94,6 +143,6 @@ const Sparkline = memo(function Sparkline({
   }
 
   return null
-})
+}
 
 export default Sparkline

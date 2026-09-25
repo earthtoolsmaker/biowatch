@@ -32,7 +32,7 @@ const SectionHeader = memo(function SectionHeader({
   return (
     <div
       onClick={handleClick}
-      className={`flex gap-3 items-center px-3 h-9 bg-muted hover:bg-accent cursor-pointer border-b border-border transition-colors ${
+      className={`group/row flex gap-3 items-center px-3 h-9 bg-muted hover:bg-accent cursor-pointer border-b border-border transition-colors ${
         isSelected ? 'border-l-4 border-l-blue-500 pl-2' : 'border-l-4 border-l-transparent'
       }`}
     >
@@ -56,6 +56,8 @@ const SectionHeader = memo(function SectionHeader({
             periods={group.aggregatedPeriods}
             mode={sparklineMode}
             percentile90Count={percentile90Count}
+            deploymentStart={group.deploymentStart}
+            deploymentEnd={group.deploymentEnd}
             muted
           />
         )}
