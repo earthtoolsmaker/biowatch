@@ -5,6 +5,20 @@ All notable changes to Biowatch will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.6] - 2026-09-25
+
+### Added
+
+- **Count metric toggle on the Explore tab**: switch between **N ind.** (sum of each species' maximum same-frame detection count per sequence, the existing behavior) and **N obs.** (one independent observation per sequence in which the species is present). The choice persists and applies consistently to the species rail, map encodings, timeline, daily activity, and hover cards.
+- **Relative abundance index (RAI) metrics** on the Explore tab: **RAI ind.** and **RAI obs.** normalize counts by camera effort across the date, time, area, weekly, hourly, and map views, with tooltips explaining each metric.
+- **Camera effort on the Deployments tab**: camera-days per deployment, summed per co-located group, and study-wide in the list header. Effort is only counted when both deployment dates parse and the end is after the start (shown as `—` otherwise, never 0), matching the effort denominator used by the RAI metrics. Observation counts and camera-days both get explanatory tooltips.
+- **Deployment start and end marks on activity sparklines**: faint vertical marks at each deployment's first and last bucket edges in bars and heatmap mode, so "camera wasn't running" reads differently from "camera ran but saw nothing". Section headers for co-located deployments show the union of their children's ranges, and the cursor pill on a selected row reads "not deployed" outside its window.
+
+### Fixed
+
+- Indented child rows under a location header on the Deployments tab shifted their sparkline right of the header's date axis and the hover ruler, so the crosshair mapped to the wrong bucket on grouped deployments.
+- macOS builds: updated electron-builder so code signing works again in CI.
+
 ## [1.9.5] - 2026-06-19
 
 ### Added
@@ -750,6 +764,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Activity heatmaps
 - Overview statistics
 
+[1.9.6]: https://github.com/earthtoolsmaker/biowatch/compare/v1.9.5...v1.9.6
 [1.9.5]: https://github.com/earthtoolsmaker/biowatch/compare/v1.9.4...v1.9.5
 [1.9.4]: https://github.com/earthtoolsmaker/biowatch/compare/v1.9.3...v1.9.4
 [1.9.3]: https://github.com/earthtoolsmaker/biowatch/compare/v1.9.2...v1.9.3
