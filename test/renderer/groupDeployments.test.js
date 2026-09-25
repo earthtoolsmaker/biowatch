@@ -1,6 +1,22 @@
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import { groupDeploymentsByLocation } from '../../src/renderer/src/deployments/groupDeployments.js'
+import {
+  countMissingEffort,
+  groupDeploymentsByLocation
+} from '../../src/renderer/src/deployments/groupDeployments.js'
+
+describe('countMissingEffort', () => {
+  test('counts deployments whose effort is null', () => {
+    assert.equal(
+      countMissingEffort([{ effortDays: 3 }, { effortDays: null }, { effortDays: undefined }]),
+      2
+    )
+  })
+
+  test('is zero when every deployment has effort', () => {
+    assert.equal(countMissingEffort([{ effortDays: 3 }, { effortDays: 0.5 }]), 0)
+  })
+})
 
 const mkPeriod = (count) => ({ start: '2024-01-01', end: '2024-02-01', count })
 
@@ -73,6 +89,58 @@ describe('groupDeploymentsByLocation', () => {
       result[0].aggregatedPeriods.map((p) => p.count),
       [7, 11]
     )
+  })
+
+  test('sums camera-days within a group, skipping deployments without effort', () => {
+    const result = groupDeploymentsByLocation([
+      {
+        deploymentID: 'd1',
+        locationID: 'loc-A',
+        locationName: 'Alpha',
+        deploymentStart: '2024-01-01',
+        periods: [mkPeriod(1)],
+        effortDays: 10.5
+      },
+      {
+        deploymentID: 'd2',
+        locationID: 'loc-A',
+        locationName: 'Alpha',
+        deploymentStart: '2025-01-01',
+        periods: [mkPeriod(1)],
+        effortDays: null
+      },
+      {
+        deploymentID: 'd3',
+        locationID: 'loc-A',
+        locationName: 'Alpha',
+        deploymentStart: '2025-06-01',
+        periods: [mkPeriod(1)],
+        effortDays: 2
+      }
+    ])
+    assert.equal(result[0].aggregatedEffortDays, 12.5)
+  })
+
+  test('reports null camera-days when no deployment in the group has effort', () => {
+    const result = groupDeploymentsByLocation([
+      {
+        deploymentID: 'd1',
+        locationID: 'loc-A',
+        locationName: 'Alpha',
+        deploymentStart: '2024-01-01',
+        periods: [mkPeriod(1)],
+        effortDays: null
+      },
+      {
+        deploymentID: 'd2',
+        locationID: 'loc-A',
+        locationName: 'Alpha',
+        deploymentStart: '2025-01-01',
+        periods: [mkPeriod(1)],
+        effortDays: null
+      }
+    ])
+    assert.equal(result[0].aggregatedEffortDays, null)
   })
 
   test('sorts alphabetically with sections interleaved with singletons (NOT groups-first)', () => {

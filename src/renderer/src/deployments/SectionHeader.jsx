@@ -1,5 +1,8 @@
 import { memo, useCallback } from 'react'
 import EditableLocationName from './EditableLocationName'
+import EffortCell from './EffortCell'
+import { countMissingEffort } from './groupDeployments'
+import ObservationsCell from './ObservationsCell'
 import Sparkline from './Sparkline'
 
 /**
@@ -22,6 +25,9 @@ const SectionHeader = memo(function SectionHeader({
   }, [group, onSectionClick])
 
   const total = group.deployments.reduce((sum, d) => sum + (d.totalCount || 0), 0)
+  const scope = `Summed across ${group.deployments.length} deployments at this location`
+  const missingEffort = countMissingEffort(group.deployments)
+  const effortScope = missingEffort > 0 ? `${scope} · ${missingEffort} without valid dates` : scope
 
   return (
     <div
@@ -55,9 +61,9 @@ const SectionHeader = memo(function SectionHeader({
         )}
       </div>
 
-      <div className="flex-shrink-0 w-16 text-right text-xs text-muted-foreground tabular-nums">
-        {total.toLocaleString()}
-      </div>
+      <ObservationsCell count={total} detail={scope} />
+
+      {hasTimestamps && <EffortCell effortDays={group.aggregatedEffortDays} detail={effortScope} />}
     </div>
   )
 })

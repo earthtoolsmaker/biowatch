@@ -359,6 +359,14 @@ describe('Database Query Functions Tests', () => {
           assert(typeof period.count === 'number', 'Period should have numeric count')
         })
       })
+
+      // deploy001 runs 2023-03-15T10:00Z → 2023-06-15T18:00Z: 92 days + 8 h,
+      // kept fractional (no rounding).
+      const deploy001 = result.deployments.find((d) => d.deploymentID === 'deploy001')
+      assert.ok(
+        Math.abs(deploy001.effortDays - (92 + 8 / 24)) < 1e-9,
+        `effortDays should be fractional camera-days, got ${deploy001.effortDays}`
+      )
     })
 
     test('falls back to timestamp-less list when deployments lack dates', async () => {
@@ -470,6 +478,7 @@ describe('Database Query Functions Tests', () => {
       assert.equal(byId.NB46.totalCount, 1, 'NB46 should report its 1 observation')
       result.deployments.forEach((d) => {
         assert.deepEqual(d.periods, [], 'periods should be empty without a date range')
+        assert.equal(d.effortDays, null, 'effortDays should be null without deployment dates')
       })
     })
 
@@ -540,6 +549,11 @@ describe('Database Query Functions Tests', () => {
       byId.dateless.periods.forEach((p) => {
         assert.equal(p.count, 0, 'Dateless deployment has no observations in any bucket')
       })
+      assert.ok(
+        Math.abs(byId.dated.effortDays - (31 - 1 / 86400)) < 1e-9,
+        `Dated deployment effort should be 31 days minus one second, got ${byId.dated.effortDays}`
+      )
+      assert.equal(byId.dateless.effortDays, null, 'Dateless deployment has null effort')
     })
   })
 
