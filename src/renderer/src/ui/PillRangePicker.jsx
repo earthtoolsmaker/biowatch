@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import * as Popover from '@radix-ui/react-popover'
 import { DayPicker } from 'react-day-picker'
 import 'react-day-picker/style.css'
@@ -58,19 +58,27 @@ const PillRangePicker = ({ range, fullExtent, onPick, muted }) => {
   const [open, setOpen] = useState(false)
   const [start, end] = range
 
-  // True while a caption Select is open, and for one tick after it closes so
-  // the same pointerdown that dismissed it doesn't also dismiss the popup.
+  // A pointerdown that starts while a caption Select is open must only close
+  // that Select. The popover may report it as "outside" only on release, long
+  // after the Select is gone, so tag those events up front (capture phase,
+  // before any layer reacts) and ignore them in onInteractOutside.
   const selectOpenRef = useRef(false)
+  const pressesDuringSelect = useRef(new WeakSet())
+  useEffect(() => {
+    if (!open) return
+    const tag = (e) => {
+      if (selectOpenRef.current) pressesDuringSelect.current.add(e)
+    }
+    document.addEventListener('pointerdown', tag, true)
+    return () => document.removeEventListener('pointerdown', tag, true)
+  }, [open])
   const Dropdown = useMemo(
     () =>
       function PillCalendarDropdown(props) {
         return (
           <CalendarDropdown
             {...props}
-            onOpenChange={(isOpen) => {
-              if (isOpen) selectOpenRef.current = true
-              else setTimeout(() => (selectOpenRef.current = false), 0)
-            }}
+            onOpenChange={(isOpen) => (selectOpenRef.current = isOpen)}
           />
         )
       },
@@ -114,11 +122,10 @@ const PillRangePicker = ({ range, fullExtent, onPick, muted }) => {
           sideOffset={6}
           collisionPadding={12}
           onOpenAutoFocus={(e) => e.preventDefault()}
-          // While a month/year Select is open, an outside click should only
-          // close that Select (it blocks body pointer events), not the popup.
-          // The Select unmounts before this runs, hence the ref.
           onInteractOutside={(e) => {
-            if (selectOpenRef.current) e.preventDefault()
+            if (selectOpenRef.current || pressesDuringSelect.current.has(e.detail?.originalEvent)) {
+              e.preventDefault()
+            }
           }}
           className="timeline-daypicker z-[10000] flex gap-3 bg-card text-popover-foreground rounded-lg border border-border shadow-md p-3"
         >
