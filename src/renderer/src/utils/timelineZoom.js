@@ -75,6 +75,28 @@ export function pxToDateMs({ px, rect, marginX, domain }) {
   return (px * (domain[1].getTime() - domain[0].getTime())) / innerWidth
 }
 
+/**
+ * Next filter range after picking a calendar day for one side of the pill.
+ * Start snaps to the start of the local day, end to its last millisecond
+ * so the picked end day is included. The other side keeps the current
+ * range (or the full extent when cleared). Returns [null, null] when the
+ * result covers the full extent, mirroring drag-to-clear.
+ */
+export function pickDayRange({ side, day, range, fullExtent }) {
+  const current = range[0] && range[1] ? range : fullExtent
+  const dayStart = new Date(day.getFullYear(), day.getMonth(), day.getDate())
+  let candidate
+  if (side === 'start') {
+    candidate = clampMinRange({ start: dayStart, end: current[1], anchorSide: 'start' })
+  } else {
+    const dayEnd = new Date(dayStart.getFullYear(), dayStart.getMonth(), dayStart.getDate() + 1)
+    dayEnd.setMilliseconds(-1)
+    candidate = clampMinRange({ start: current[0], end: dayEnd, anchorSide: 'end' })
+  }
+  if (shouldClearToFullExtent({ range: candidate, fullExtent })) return [null, null]
+  return candidate
+}
+
 export function resolveAction({ cursorDate, range, fullExtent, edgeTolMs }) {
   const cursorMs = cursorDate.getTime()
   const cleared = !range[0] || !range[1]

@@ -17,11 +17,13 @@ import {
   clampPanToBounds,
   resolveAction,
   shouldClearToFullExtent,
+  pickDayRange,
   pxToDateMs,
   zoomAroundAnchor,
   EDGE_PX_TOLERANCE,
   MIN_RANGE_MS
 } from '../utils/timelineZoom.js'
+import PillRangePicker from './PillRangePicker.jsx'
 
 const MARGIN_X = 4 // matches the LineChart margin used below
 
@@ -30,9 +32,6 @@ const MARGIN_X = 4 // matches the LineChart margin used below
 const TICK_MIN_SPACING_PX = 110
 const TICK_MIN = 2
 const TICK_MAX = 8
-
-const formatPillDate = (d) =>
-  d ? d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : ''
 
 /**
  * TimelineChart — date-range brush over a per-day species time-series.
@@ -372,6 +371,14 @@ const TimelineChart = ({
     [isDragging, dragState?.mode, dragState?.liveStart, dragState?.liveEnd, domain]
   )
 
+  const pickDay = useCallback(
+    (side, day) => {
+      if (!fullExtent) return
+      setDateRange(pickDayRange({ side, day, range: dateRange, fullExtent }))
+    },
+    [dateRange, fullExtent, setDateRange]
+  )
+
   // Handle color reflects the zoom/filter state: muted slate when the
   // chart is at full extent (no filter), saturated blue when zoomed in.
   // During a drag (edge/create) we use the saturated blue regardless,
@@ -542,29 +549,36 @@ const TimelineChart = ({
           </ComposedChart>
         </ResponsiveContainer>
       </div>
-      {interactive && !cleared && (
+      {interactive && fullExtent && displayedDomain && (
         <div
-          className="absolute top-1 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 pl-2 pr-1 py-0.5 rounded-full text-[10px] font-medium text-blue-700 dark:text-blue-300 bg-blue-50/90 dark:bg-blue-500/15 border border-blue-200/70 dark:border-blue-500/30 pointer-events-none"
+          className={`absolute top-1 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 py-0.5 rounded-full text-[10px] font-medium border pointer-events-none ${
+            cleared
+              ? 'px-2 text-slate-500 dark:text-slate-400 bg-slate-50/90 dark:bg-slate-500/10 border-slate-200/70 dark:border-slate-500/30'
+              : 'pl-2 pr-1 text-blue-700 dark:text-blue-300 bg-blue-50/90 dark:bg-blue-500/15 border-blue-200/70 dark:border-blue-500/30'
+          }`}
           aria-label="Date filter range"
         >
-          <span>
-            {formatPillDate(displayedDomain?.[0])}
-            {' → '}
-            {formatPillDate(displayedDomain?.[1])}
-          </span>
-          <button
-            type="button"
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.stopPropagation()
-              setDateRange([null, null])
-            }}
-            className="pointer-events-auto cursor-pointer inline-flex items-center justify-center w-3.5 h-3.5 rounded-full hover:bg-blue-200/70 dark:hover:bg-blue-500/30 transition-colors"
-            aria-label="Clear date filter"
-            title="Clear date filter"
-          >
-            <X size={10} strokeWidth={2.5} />
-          </button>
+          <PillRangePicker
+            range={displayedDomain}
+            fullExtent={fullExtent}
+            onPick={pickDay}
+            muted={cleared}
+          />
+          {!cleared && (
+            <button
+              type="button"
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation()
+                setDateRange([null, null])
+              }}
+              className="pointer-events-auto cursor-pointer inline-flex items-center justify-center w-3.5 h-3.5 rounded-full hover:bg-blue-200/70 dark:hover:bg-blue-500/30 transition-colors"
+              aria-label="Clear date filter"
+              title="Clear date filter"
+            >
+              <X size={10} strokeWidth={2.5} />
+            </button>
+          )}
         </div>
       )}
     </div>

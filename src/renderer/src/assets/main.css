@@ -398,6 +398,55 @@ input::-webkit-inner-spin-button {
   animation: tooltip-fade-out 100ms ease-in;
 }
 
+/* Timeline pill date calendar — compact react-day-picker in the app's blue. */
+.timeline-daypicker .rdp-root {
+  --rdp-accent-color: rgb(37 99 235);
+  --rdp-accent-background-color: rgb(239 246 255);
+  --rdp-today-color: inherit;
+  --rdp-day-height: 30px;
+  --rdp-day-width: 30px;
+  --rdp-day_button-height: 28px;
+  --rdp-day_button-width: 28px;
+  --rdp-day_button-border-radius: 6px;
+  --rdp-nav_button-height: 1.75rem;
+  --rdp-nav_button-width: 1.75rem;
+  --rdp-nav-height: 2rem;
+  --rdp-disabled-opacity: 0.4;
+  font-size: 12px;
+}
+.dark .timeline-daypicker .rdp-root {
+  --rdp-accent-color: rgb(96 165 250);
+  --rdp-accent-background-color: rgb(59 130 246 / 0.15);
+}
+/* The month / year dropdowns are the app's Radix Select (see PillRangePicker);
+   only the caption row's size needs taming here. */
+.timeline-daypicker .rdp-month_caption {
+  font-size: 12px;
+  font-weight: 500;
+}
+.timeline-daypicker .rdp-dropdowns {
+  gap: 4px;
+}
+.timeline-daypicker .rdp-nav .rdp-chevron {
+  width: 14px;
+  height: 14px;
+}
+.timeline-daypicker .rdp-selected {
+  font-size: inherit;
+  font-weight: 600;
+}
+/* Selected day stays blue-600 in both themes: white on the lighter dark-mode
+   accent (blue-400) is only ~2.5:1. */
+.timeline-daypicker .rdp-selected .rdp-day_button {
+  border-color: rgb(37 99 235);
+  background-color: rgb(37 99 235);
+  color: white;
+}
+.timeline-daypicker[data-state='open'] {
+  transform-origin: top center;
+  animation: hovercard-pop 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
 /* Respect reduced-motion: drop the pop/slide entrances for the hover cards
    and tooltips, leaving them to appear instantly. */
 @media (prefers-reduced-motion: reduce) {
