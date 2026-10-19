@@ -128,21 +128,15 @@ export default function DailyActivityExpandedChart({
               ))}
             </svg>
             <RadarChart width={width} height={height} cx={cx} cy={cy} outerRadius={r} data={rows}>
-              <PolarGrid gridType="circle" radialLines={false} />
+              {/* Outer circle only; exact values come from the hover readout. */}
+              <PolarGrid gridType="circle" radialLines={false} polarRadius={[r]} />
               <PolarAngleAxis
                 dataKey="hour"
                 tickFormatter={(h) => (h % 3 === 0 ? formatHour(h) : '')}
                 tick={{ fontSize: 10, fill: muted }}
               />
-              {/* Value labels just left of midnight, clear of the "00:00" label. */}
-              <PolarRadiusAxis
-                angle={97.5}
-                domain={[0, top]}
-                tickCount={yTicks.length}
-                tickFormatter={(v) => axisFormatter.format(v)}
-                tick={{ fontSize: 9, fill: muted }}
-                axisLine={false}
-              />
+              {/* Hidden: only fixes the scale (0 at the centre, `top` at the rim). */}
+              <PolarRadiusAxis domain={[0, top]} tick={false} axisLine={false} />
               {tooltip}
               {selectedSpecies.map((species, index) => (
                 <Radar

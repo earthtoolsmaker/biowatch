@@ -8,7 +8,7 @@ import { SpeciesName } from './timeseries'
 export function ControlGroup({ label, children }) {
   return (
     <div className="inline-flex items-center gap-2">
-      <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">
         {label}
       </span>
       {children}
@@ -96,13 +96,17 @@ export default function ExpandedChartModal({
         className="bg-card rounded-lg shadow-xl w-full h-[min(80vh,50vw)] min-h-[360px] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-5 pt-4 pb-3 flex items-center gap-4 border-b border-border">
-          <div className="flex items-baseline gap-2 shrink-0">
-            <h2 className="text-sm font-semibold text-foreground">{title}</h2>
-            {subtitle && <span className="text-xs text-muted-foreground">{subtitle}</span>}
+        {/* Title and controls wrap on narrow windows; the right-hand slot and
+            close stay pinned to the top-right corner. */}
+        <div className="px-5 pt-4 pb-3 flex items-start gap-4 border-b border-border">
+          <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-4 gap-y-2">
+            <div className="flex items-baseline gap-2 shrink-0">
+              <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+              {subtitle && <span className="text-xs text-muted-foreground">{subtitle}</span>}
+            </div>
+            {controls}
           </div>
-          {controls}
-          <div className="ml-auto shrink-0 flex items-center">{headerRight}</div>
+          {headerRight && <div className="shrink-0 flex items-center">{headerRight}</div>}
           <button
             type="button"
             onClick={onClose}
