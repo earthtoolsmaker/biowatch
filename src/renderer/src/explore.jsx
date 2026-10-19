@@ -3,7 +3,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import 'leaflet.heat'
 import { hexbin as d3Hexbin } from 'd3-hexbin'
-import { MapPin, X } from 'lucide-react'
+import { MapPin, Maximize2, X } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
@@ -54,6 +54,7 @@ import { getAvailableViewModes, clampViewMode, initialViewMode } from './utils/v
 import SpeciesDistribution from './ui/speciesDistribution'
 import TimelineChart from './ui/timeseries'
 import TimelineExpandedModal from './ui/TimelineExpandedModal'
+import DailyActivityExpandedModal from './ui/DailyActivityExpandedModal'
 import { useImportStatus } from './hooks/import'
 import { buildScientificToCommonMap, getMapDisplayName } from './utils/commonNames'
 import { formatScientificName } from './utils/scientificName'
@@ -1324,6 +1325,9 @@ export default function Explore({ studyData, studyId }) {
   const [timelineExpanded, setTimelineExpanded] = useState(false)
   const [timelineChartType, setTimelineChartType] = useState('line')
   const closeTimelineExpanded = useCallback(() => setTimelineExpanded(false), [])
+  const [dailyExpanded, setDailyExpanded] = useState(false)
+  const [dailyChartType, setDailyChartType] = useState('polar')
+  const closeDailyExpanded = useCallback(() => setDailyExpanded(false), [])
 
   // Explore view toggle: 'map' | 'gallery' | 'both' (not persisted). 'both' is
   // only available at lg+; clamp to 'map' if the window is narrower so a stale
@@ -1670,6 +1674,15 @@ export default function Explore({ studyData, studyId }) {
     [timeseriesData, selectedSpecies]
   )
 
+  const dailyRangeLabel = useMemo(() => {
+    const start = dateRange[0] ?? fullExtent[0]
+    const end = dateRange[1] ?? fullExtent[1]
+    if (!start || !end) return null
+    const fmt = (d) =>
+      d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+    return `${fmt(start)} – ${fmt(end)}`
+  }, [dateRange, fullExtent])
+
   const handleArcChange = useCallback((newArc) => {
     setArc(newArc)
   }, [])
@@ -1955,8 +1968,17 @@ export default function Explore({ studyData, studyId }) {
                 <div className="w-[180px] h-full rounded border border-border flex flex-col relative">
                   {chartShape === 'polar' ? (
                     <>
-                      <div className="absolute top-1.5 right-2 z-10">
+                      <div className="absolute top-1.5 right-2 z-10 flex items-center gap-1">
                         <ChartShapeToggle value={chartShape} onChange={setChartShape} />
+                        <button
+                          type="button"
+                          onClick={() => setDailyExpanded(true)}
+                          className="px-1.5 py-0.5 rounded-md border border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground transition-colors flex items-center justify-center"
+                          aria-label="Expand daily activity"
+                          title="Expand daily activity"
+                        >
+                          <Maximize2 size={12} />
+                        </button>
                       </div>
                       <div className="flex-1 relative">
                         <DailyActivityRadar
@@ -1977,8 +1999,17 @@ export default function Explore({ studyData, studyId }) {
                     </>
                   ) : (
                     <>
-                      <div className="flex justify-end px-2 pt-1.5">
+                      <div className="flex justify-end items-center gap-1 px-2 pt-1.5">
                         <ChartShapeToggle value={chartShape} onChange={setChartShape} />
+                        <button
+                          type="button"
+                          onClick={() => setDailyExpanded(true)}
+                          className="px-1.5 py-0.5 rounded-md border border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground transition-colors flex items-center justify-center"
+                          aria-label="Expand daily activity"
+                          title="Expand daily activity"
+                        >
+                          <Maximize2 size={12} />
+                        </button>
                       </div>
                       <div className="flex-1 relative">
                         <DailyActivityLine
@@ -2029,6 +2060,22 @@ export default function Explore({ studyData, studyId }) {
         setDateRange={setDateRange}
         chartType={timelineChartType}
         setChartType={setTimelineChartType}
+      />
+      <DailyActivityExpandedModal
+        isOpen={dailyExpanded}
+        isLoading={dailyActivityData === undefined}
+        onClose={closeDailyExpanded}
+        activityData={dailyActivityData}
+        selectedSpecies={selectedSpecies}
+        palette={palette}
+        metric={metric}
+        setMetric={setMetric}
+        scientificToCommon={scientificToCommon}
+        // Shade only an actual filter: the default (all day) has no ranges.
+        selectedRanges={timeRange.ranges.length > 0 ? visualRanges : []}
+        subtitle={dailyRangeLabel}
+        chartType={dailyChartType}
+        setChartType={setDailyChartType}
       />
     </div>
   )

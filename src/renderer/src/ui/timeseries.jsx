@@ -69,6 +69,30 @@ export const SpeciesName = ({ scientificName, scientificToCommon, className = ''
   )
 }
 
+// Hover readout card: a title (the hovered bin), the metric's unit, and one
+// row per species (from buildReadoutRows). Shared with the daily-activity chart.
+export const ReadoutCard = ({ title, metric, rows, scientificToCommon }) => (
+  <div className="min-w-[10rem] max-w-[18rem] px-3 py-2 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md">
+    <div className="flex items-baseline justify-between gap-3 mb-1">
+      <span className="font-medium whitespace-nowrap">{title}</span>
+      <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+        {analysisMetricUnit(metric)}
+      </span>
+    </div>
+    {rows.map((r) => (
+      <div key={r.scientificName} className="flex items-center gap-2 py-0.5">
+        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: r.color }} />
+        <SpeciesName
+          scientificName={r.scientificName}
+          scientificToCommon={scientificToCommon}
+          className="flex-1 truncate"
+        />
+        <span className="font-medium tabular-nums">{r.formatted}</span>
+      </div>
+    ))}
+  </div>
+)
+
 // Hover readout: the hovered week plus each species' real (unscaled) value,
 // read from the row's `raw` copy so a peak-scaled chart still reports counts.
 const ReadoutContent = ({
@@ -81,32 +105,13 @@ const ReadoutContent = ({
   scientificToCommon
 }) => {
   if (!active || !payload?.length || !metric) return null
-  const rows = buildReadoutRows({
-    row: payload[0].payload.raw,
-    selectedSpecies,
-    palette,
-    metric
-  })
   return (
-    <div className="min-w-[10rem] max-w-[18rem] px-3 py-2 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md">
-      <div className="flex items-baseline justify-between gap-3 mb-1">
-        <span className="font-medium whitespace-nowrap">Week of {formatWeekLabel(label)}</span>
-        <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-          {analysisMetricUnit(metric)}
-        </span>
-      </div>
-      {rows.map((r) => (
-        <div key={r.scientificName} className="flex items-center gap-2 py-0.5">
-          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: r.color }} />
-          <SpeciesName
-            scientificName={r.scientificName}
-            scientificToCommon={scientificToCommon}
-            className="flex-1 truncate"
-          />
-          <span className="font-medium tabular-nums">{r.formatted}</span>
-        </div>
-      ))}
-    </div>
+    <ReadoutCard
+      title={`Week of ${formatWeekLabel(label)}`}
+      metric={metric}
+      rows={buildReadoutRows({ row: payload[0].payload.raw, selectedSpecies, palette, metric })}
+      scientificToCommon={scientificToCommon}
+    />
   )
 }
 
