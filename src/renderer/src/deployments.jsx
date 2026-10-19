@@ -30,7 +30,6 @@ import Sparkline from './deployments/Sparkline'
 import SectionHeader from './deployments/SectionHeader'
 import SparklineToggle from './deployments/SparklineToggle'
 import { useSparklineMode } from './hooks/useSparklineMode'
-import { useTheme } from './hooks/useTheme'
 import { formatStatNumber } from './overview/utils/formatStats'
 
 // Fix the default marker icon issue in react-leaflet
@@ -334,16 +333,6 @@ function LocationMap({
     localStorage.setItem(mapLayerKey, selectedLayer)
   }, [selectedLayer, mapLayerKey])
 
-  const { resolved: streetMapResolved } = useTheme()
-  const streetMapUrl =
-    streetMapResolved === 'dark'
-      ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-      : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
-  const streetMapAttribution =
-    streetMapResolved === 'dark'
-      ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-      : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-
   // Escape key handler to exit place mode
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -391,9 +380,8 @@ function LocationMap({
 
           <LayersControl.BaseLayer name="Street Map" checked={selectedLayer === 'Street Map'}>
             <TileLayer
-              key={`street-${streetMapResolved}`}
-              attribution={streetMapAttribution}
-              url={streetMapUrl}
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
           </LayersControl.BaseLayer>
         </LayersControl>
