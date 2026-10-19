@@ -53,6 +53,7 @@ import { useIsLgUp } from './hooks/useIsLgUp'
 import { getAvailableViewModes, clampViewMode, initialViewMode } from './utils/viewLayout'
 import SpeciesDistribution from './ui/speciesDistribution'
 import TimelineChart from './ui/timeseries'
+import TimelineExpandedModal from './ui/TimelineExpandedModal'
 import { useImportStatus } from './hooks/import'
 import { buildScientificToCommonMap, getMapDisplayName } from './utils/commonNames'
 import { formatScientificName } from './utils/scientificName'
@@ -1320,6 +1321,8 @@ export default function Explore({ studyData, studyId }) {
   const { sequenceGap, setSequenceGap } = useSequenceGap(actualStudyId)
   const { metric, setMetric } = useExploreMetric(actualStudyId)
   const { showFilterCharts } = useShowFilterCharts(actualStudyId)
+  const [timelineExpanded, setTimelineExpanded] = useState(false)
+  const closeTimelineExpanded = useCallback(() => setTimelineExpanded(false), [])
 
   // Explore view toggle: 'map' | 'gallery' | 'both' (not persisted). 'both' is
   // only available at lg+; clamp to 'map' if the window is narrower so a stale
@@ -1994,10 +1997,14 @@ export default function Explore({ studyData, studyId }) {
                 <div className="flex-grow rounded px-2 border border-border">
                   <TimelineChart
                     timeseriesData={normalizedTimeseries}
+                    readoutData={timeseriesData}
                     selectedSpecies={selectedSpecies}
                     dateRange={dateRange}
                     setDateRange={setDateRange}
                     palette={palette}
+                    metric={metric}
+                    scientificToCommon={scientificToCommon}
+                    onExpand={() => setTimelineExpanded(true)}
                   />
                 </div>
               </div>
@@ -2005,6 +2012,21 @@ export default function Explore({ studyData, studyId }) {
           </div>
         </div>
       )}
+      <TimelineExpandedModal
+        // Not gated on hasTemporalData: that flips false while a metric switch
+        // refetches, which would close and reopen the window.
+        isOpen={timelineExpanded}
+        isLoading={timeseriesQueryData === undefined}
+        onClose={closeTimelineExpanded}
+        timeseriesData={timeseriesData}
+        selectedSpecies={selectedSpecies}
+        palette={palette}
+        metric={metric}
+        setMetric={setMetric}
+        scientificToCommon={scientificToCommon}
+        dateRange={dateRange}
+        setDateRange={setDateRange}
+      />
     </div>
   )
 }

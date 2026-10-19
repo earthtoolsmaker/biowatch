@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   CartesianGrid,
   ComposedChart,
@@ -6,10 +7,22 @@ import {
   ReferenceArea,
   ReferenceLine,
   ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis
 } from 'recharts'
-import { X } from 'lucide-react'
+import { Maximize2, X } from 'lucide-react'
+
+import { analysisMetricUnit } from '../utils/analysisMetric.js'
+import { getMapDisplayName } from '../utils/commonNames.js'
+import { formatScientificName } from '../utils/scientificName.js'
+import {
+  buildReadoutRows,
+  formatWeekLabel,
+  maxValueInRange,
+  niceYTicks,
+  yAxisUnitLabel
+} from '../utils/timelineReadout.js'
 
 import {
   clientXToDate,
@@ -26,12 +39,74 @@ import {
 import PillRangePicker from './PillRangePicker.jsx'
 
 const MARGIN_X = 4 // matches the LineChart margin used below
+const Y_AXIS_WIDTH = 64
+
+// The plot area's box: the gesture layer minus the y-axis gutter (when shown),
+// so cursor→date math stays aligned with the drawn x-axis.
+const plotRect = (el, yAxisWidth) => {
+  const r = el.getBoundingClientRect()
+  return { left: r.left + yAxisWidth, width: r.width - yAxisWidth }
+}
 
 // Min horizontal space each x-axis date label needs so labels like
 // "May 29, 18" don't crowd each other at small chart widths.
 const TICK_MIN_SPACING_PX = 110
 const TICK_MIN = 2
 const TICK_MAX = 8
+
+const axisFormatter = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 })
+
+// Same naming as the Explore map legend: capitalized common name, else the
+// italic scientific name.
+export const SpeciesName = ({ scientificName, scientificToCommon, className = '' }) => {
+  const common = getMapDisplayName(scientificName, scientificToCommon)
+  return (
+    <span className={`${className} ${common ? 'capitalize' : 'italic'}`}>
+      {common || formatScientificName(scientificName)}
+    </span>
+  )
+}
+
+// Hover readout: the hovered week plus each species' real (unscaled) value,
+// read from the row's `raw` copy so a peak-scaled chart still reports counts.
+const ReadoutContent = ({
+  active,
+  payload,
+  label,
+  selectedSpecies,
+  palette,
+  metric,
+  scientificToCommon
+}) => {
+  if (!active || !payload?.length || !metric) return null
+  const rows = buildReadoutRows({
+    row: payload[0].payload.raw,
+    selectedSpecies,
+    palette,
+    metric
+  })
+  return (
+    <div className="min-w-[10rem] max-w-[18rem] px-3 py-2 bg-popover text-popover-foreground text-xs rounded-md border border-border shadow-md">
+      <div className="flex items-baseline justify-between gap-3 mb-1">
+        <span className="font-medium whitespace-nowrap">Week of {formatWeekLabel(label)}</span>
+        <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+          {analysisMetricUnit(metric)}
+        </span>
+      </div>
+      {rows.map((r) => (
+        <div key={r.scientificName} className="flex items-center gap-2 py-0.5">
+          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: r.color }} />
+          <SpeciesName
+            scientificName={r.scientificName}
+            scientificToCommon={scientificToCommon}
+            className="flex-1 truncate"
+          />
+          <span className="font-medium tabular-nums">{r.formatted}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 /**
  * TimelineChart — date-range brush over a per-day species time-series.
@@ -46,6 +121,17 @@ const TICK_MAX = 8
  * range handles/pill. Pass false for a read-only sparkline (e.g. the
  * all-time over-time chart in the species hovercard), where only the line
  * and axis are drawn.
+ *
+ * Passing `metric` turns on a hover readout of each species' value for the
+ * hovered week. Values come from `readoutData` (rows aligned 1:1 with
+ * `timeseriesData`, e.g. the unscaled rows behind a peak-scaled series),
+ * falling back to `timeseriesData` itself. `showYAxis` draws a numeric axis
+ * titled with the metric's unit (only meaningful for unscaled data);
+ * `onExpand` adds an expand button to the date pill that calls it;
+ * `pillContainer` (a DOM node) renders the pill there instead of over the plot.
+ * `rangeGestures={false}` turns off the plot's range gestures (drag to
+ * create/pan/resize, scroll-zoom) and the edge handles, leaving the pill as
+ * the only range control.
  */
 const TimelineChart = ({
   timeseriesData,
@@ -53,9 +139,17 @@ const TimelineChart = ({
   dateRange,
   setDateRange,
   palette,
-  interactive = true
+  interactive = true,
+  readoutData,
+  metric,
+  scientificToCommon,
+  showYAxis = false,
+  onExpand,
+  pillContainer,
+  rangeGestures = true
 }) => {
   const containerRef = useRef(null)
+  const yAxisWidth = showYAxis ? Y_AXIS_WIDTH : 0
   const [dragState, setDragState] = useState(null)
   const isDragging = dragState !== null
   const [hoverAction, setHoverAction] = useState(null)
@@ -76,14 +170,14 @@ const TimelineChart = ({
 
   const data = useMemo(() => {
     if (!timeseriesData) return []
-    return timeseriesData.map((day) => {
-      const item = { date: new Date(day.date).getTime() }
+    return timeseriesData.map((day, i) => {
+      const item = { date: new Date(day.date).getTime(), raw: readoutData?.[i] ?? day }
       selectedSpecies.forEach((species) => {
         item[species.scientificName] = day[species.scientificName] || 0
       })
       return item
     })
-  }, [timeseriesData, selectedSpecies])
+  }, [timeseriesData, readoutData, selectedSpecies])
 
   const fullExtent = useMemo(() => {
     if (!data.length) return null
@@ -107,7 +201,7 @@ const TimelineChart = ({
   const eventToDate = useCallback(
     (e, { clamp = true } = {}) => {
       if (!containerRef.current || !domain) return null
-      const rect = containerRef.current.getBoundingClientRect()
+      const rect = plotRect(containerRef.current, yAxisWidth)
       return clientXToDate({
         clientX: e.clientX,
         rect,
@@ -116,14 +210,14 @@ const TimelineChart = ({
         clamp
       })
     },
-    [domain]
+    [domain, yAxisWidth]
   )
 
   const edgeTolMs = useMemo(() => {
     if (!containerRef.current || !domain) return 0
-    const rect = containerRef.current.getBoundingClientRect()
+    const rect = plotRect(containerRef.current, yAxisWidth)
     return pxToDateMs({ px: EDGE_PX_TOLERANCE, rect, marginX: MARGIN_X, domain })
-  }, [domain])
+  }, [domain, yAxisWidth])
 
   const actionAt = useCallback(
     (cursorDate) => {
@@ -174,7 +268,7 @@ const TimelineChart = ({
       setDragState((prev) => {
         if (!prev || !fullExtent) return prev
         if (prev.mode === 'pan') {
-          const rect = containerRef.current.getBoundingClientRect()
+          const rect = plotRect(containerRef.current, yAxisWidth)
           const innerWidth = rect.width - MARGIN_X * 2
           if (innerWidth <= 0) return prev
           const initialDomainMs = prev.panInitialEnd.getTime() - prev.panInitialStart.getTime()
@@ -190,7 +284,7 @@ const TimelineChart = ({
         }
         const cursor = clientXToDate({
           clientX: e.clientX,
-          rect: containerRef.current.getBoundingClientRect(),
+          rect: plotRect(containerRef.current, yAxisWidth),
           marginX: MARGIN_X,
           domain,
           clamp: true
@@ -397,14 +491,28 @@ const TimelineChart = ({
     const startMs = displayedDomain[0].getTime()
     const endMs = displayedDomain[1].getTime()
     if (endMs <= startMs) return [startMs]
-    const innerWidth = Math.max(0, containerWidth - MARGIN_X * 2)
+    const innerWidth = Math.max(0, containerWidth - yAxisWidth - MARGIN_X * 2)
     const tickCount = Math.max(
       TICK_MIN,
       Math.min(TICK_MAX, Math.floor(innerWidth / TICK_MIN_SPACING_PX))
     )
     const step = (endMs - startMs) / (tickCount - 1)
     return Array.from({ length: tickCount }, (_, i) => Math.round(startMs + i * step))
-  }, [displayedDomain, containerWidth])
+  }, [displayedDomain, containerWidth, yAxisWidth])
+
+  // With a numeric axis, fit it to the weeks in view rather than the whole
+  // study, so zooming into a quiet stretch doesn't leave flat lines. 5%
+  // headroom before rounding up keeps a peak (and the smoothed curve's
+  // overshoot) off the top edge.
+  const yTicks = useMemo(() => {
+    if (!showYAxis || !displayedDomain) return null
+    const max = maxValueInRange(
+      data,
+      displayedDomain,
+      selectedSpecies.map((s) => s.scientificName)
+    )
+    return niceYTicks(max * 1.05)
+  }, [showYAxis, data, displayedDomain, selectedSpecies])
 
   // Custom tick renderer: anchors the leftmost label at start, rightmost
   // at end, so the dates of the zoom (first and last) stay visible at
@@ -431,21 +539,78 @@ const TimelineChart = ({
     )
   }
 
+  const pill = interactive && fullExtent && displayedDomain && (
+    <div
+      className={`${
+        pillContainer ? '' : 'absolute top-1 left-1/2 -translate-x-1/2 z-10'
+      } flex items-center gap-1.5 py-0.5 rounded-full text-[10px] font-medium border pointer-events-none ${
+        cleared && !onExpand ? 'px-2' : 'pl-2 pr-1'
+      } ${
+        cleared
+          ? 'text-slate-500 dark:text-slate-400 bg-slate-50/90 dark:bg-slate-500/10 border-slate-200/70 dark:border-slate-500/30'
+          : 'text-blue-700 dark:text-blue-300 bg-blue-50/90 dark:bg-blue-500/15 border-blue-200/70 dark:border-blue-500/30'
+      }`}
+      aria-label="Date filter range"
+    >
+      <PillRangePicker
+        range={displayedDomain}
+        fullExtent={fullExtent}
+        onPick={pickDay}
+        muted={cleared}
+      />
+      {onExpand && (
+        <button
+          type="button"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation()
+            onExpand()
+          }}
+          className={`pointer-events-auto cursor-pointer inline-flex items-center justify-center w-3.5 h-3.5 rounded-full transition-colors ${
+            cleared
+              ? 'hover:bg-slate-200/70 dark:hover:bg-slate-500/30'
+              : 'hover:bg-blue-200/70 dark:hover:bg-blue-500/30'
+          }`}
+          aria-label="Expand timeline"
+          title="Expand timeline"
+        >
+          <Maximize2 size={9} strokeWidth={2.5} />
+        </button>
+      )}
+      {!cleared && (
+        <button
+          type="button"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation()
+            setDateRange([null, null])
+          }}
+          className="pointer-events-auto cursor-pointer inline-flex items-center justify-center w-3.5 h-3.5 rounded-full hover:bg-blue-200/70 dark:hover:bg-blue-500/30 transition-colors"
+          aria-label="Clear date filter"
+          title="Clear date filter"
+        >
+          <X size={10} strokeWidth={2.5} />
+        </button>
+      )}
+    </div>
+  )
+
   return (
     <div className="relative w-full h-full">
       <div
         ref={containerRef}
         className="absolute inset-0 select-none [&_*]:!cursor-[inherit]"
-        style={{ cursor: interactive ? cursorStyle : 'default' }}
-        onMouseDown={interactive ? handleNativeDown : undefined}
-        onMouseMove={interactive ? handleNativeMove : undefined}
-        onMouseLeave={interactive ? handleNativeLeave : undefined}
-        onWheel={interactive ? handleWheel : undefined}
+        style={{ cursor: interactive && rangeGestures ? cursorStyle : 'default' }}
+        onMouseDown={interactive && rangeGestures ? handleNativeDown : undefined}
+        onMouseMove={interactive && rangeGestures ? handleNativeMove : undefined}
+        onMouseLeave={interactive && rangeGestures ? handleNativeLeave : undefined}
+        onWheel={interactive && rangeGestures ? handleWheel : undefined}
       >
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart
             data={data}
-            margin={{ top: 0, right: MARGIN_X, bottom: 0, left: MARGIN_X }}
+            // Top margin with an axis so the top tick label isn't cut in half.
+            margin={{ top: showYAxis ? 8 : 0, right: MARGIN_X, bottom: 0, left: MARGIN_X }}
           >
             <CartesianGrid strokeDasharray="3 3" vertical={false} />
             <XAxis
@@ -465,8 +630,49 @@ const TimelineChart = ({
               height={25}
             />
             {/* 10% headroom so the peak isn't flush against the top edge
-                (otherwise the line gets clipped into a flat "cap"). */}
-            <YAxis hide domain={[0, (dataMax) => (dataMax > 0 ? dataMax * 1.1 : 1)]} />
+                (otherwise the line gets clipped into a flat "cap"). With a
+                visible axis, the round ticks above provide the headroom. */}
+            {showYAxis ? (
+              <YAxis
+                domain={[0, yTicks[yTicks.length - 1]]}
+                ticks={yTicks}
+                allowDataOverflow
+                width={Y_AXIS_WIDTH}
+                tickLine={false}
+                axisLine={false}
+                fontSize={10}
+                tick={{ fill: 'var(--color-muted-foreground)' }}
+                tickFormatter={(v) => axisFormatter.format(v)}
+                label={{
+                  value: yAxisUnitLabel(metric),
+                  angle: -90,
+                  position: 'insideLeft',
+                  style: {
+                    textAnchor: 'middle',
+                    fontSize: 11,
+                    fill: 'var(--color-muted-foreground)'
+                  }
+                }}
+              />
+            ) : (
+              <YAxis hide domain={[0, (dataMax) => (dataMax > 0 ? dataMax * 1.1 : 1)]} />
+            )}
+
+            {metric && (
+              <Tooltip
+                active={isDragging ? false : undefined}
+                isAnimationActive={false}
+                cursor={{ stroke: 'var(--color-muted-foreground)', strokeWidth: 1 }}
+                content={
+                  <ReadoutContent
+                    selectedSpecies={selectedSpecies}
+                    palette={palette}
+                    metric={metric}
+                    scientificToCommon={scientificToCommon}
+                  />
+                }
+              />
+            )}
 
             {livePreview && (
               <ReferenceArea
@@ -480,7 +686,7 @@ const TimelineChart = ({
               />
             )}
 
-            {interactive && handleStart && (
+            {interactive && rangeGestures && handleStart && (
               <ReferenceLine
                 x={handleStart.getTime()}
                 stroke={handleColor}
@@ -505,31 +711,34 @@ const TimelineChart = ({
                 }}
               />
             )}
-            {interactive && handleEnd && handleEnd.getTime() !== handleStart?.getTime() && (
-              <ReferenceLine
-                x={handleEnd.getTime()}
-                stroke={handleColor}
-                strokeWidth={hoveredEdge === 'end' ? 3 : 2}
-                isFront
-                label={{
-                  position: 'center',
-                  content: ({ viewBox }) => {
-                    if (!viewBox || viewBox.x === undefined) return null
-                    const cy = viewBox.y + (viewBox.height ?? 0) / 2
-                    return (
-                      <circle
-                        cx={viewBox.x}
-                        cy={cy}
-                        r={hoveredEdge === 'end' ? 6 : 4}
-                        fill={handleColor}
-                        stroke="white"
-                        strokeWidth={1}
-                      />
-                    )
-                  }
-                }}
-              />
-            )}
+            {interactive &&
+              rangeGestures &&
+              handleEnd &&
+              handleEnd.getTime() !== handleStart?.getTime() && (
+                <ReferenceLine
+                  x={handleEnd.getTime()}
+                  stroke={handleColor}
+                  strokeWidth={hoveredEdge === 'end' ? 3 : 2}
+                  isFront
+                  label={{
+                    position: 'center',
+                    content: ({ viewBox }) => {
+                      if (!viewBox || viewBox.x === undefined) return null
+                      const cy = viewBox.y + (viewBox.height ?? 0) / 2
+                      return (
+                        <circle
+                          cx={viewBox.x}
+                          cy={cy}
+                          r={hoveredEdge === 'end' ? 6 : 4}
+                          fill={handleColor}
+                          stroke="white"
+                          strokeWidth={1}
+                        />
+                      )
+                    }
+                  }}
+                />
+              )}
 
             {selectedSpecies.map((species, index) => (
               <Line
@@ -549,38 +758,7 @@ const TimelineChart = ({
           </ComposedChart>
         </ResponsiveContainer>
       </div>
-      {interactive && fullExtent && displayedDomain && (
-        <div
-          className={`absolute top-1 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 py-0.5 rounded-full text-[10px] font-medium border pointer-events-none ${
-            cleared
-              ? 'px-2 text-slate-500 dark:text-slate-400 bg-slate-50/90 dark:bg-slate-500/10 border-slate-200/70 dark:border-slate-500/30'
-              : 'pl-2 pr-1 text-blue-700 dark:text-blue-300 bg-blue-50/90 dark:bg-blue-500/15 border-blue-200/70 dark:border-blue-500/30'
-          }`}
-          aria-label="Date filter range"
-        >
-          <PillRangePicker
-            range={displayedDomain}
-            fullExtent={fullExtent}
-            onPick={pickDay}
-            muted={cleared}
-          />
-          {!cleared && (
-            <button
-              type="button"
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation()
-                setDateRange([null, null])
-              }}
-              className="pointer-events-auto cursor-pointer inline-flex items-center justify-center w-3.5 h-3.5 rounded-full hover:bg-blue-200/70 dark:hover:bg-blue-500/30 transition-colors"
-              aria-label="Clear date filter"
-              title="Clear date filter"
-            >
-              <X size={10} strokeWidth={2.5} />
-            </button>
-          )}
-        </div>
-      )}
+      {pill && (pillContainer ? createPortal(pill, pillContainer) : pill)}
     </div>
   )
 }
