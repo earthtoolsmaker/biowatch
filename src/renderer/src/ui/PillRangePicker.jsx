@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import * as Popover from '@radix-ui/react-popover'
 import { DayPicker } from 'react-day-picker'
 import 'react-day-picker/style.css'
@@ -9,10 +9,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
  * Select instead of react-day-picker's native <select> (whose option list
  * can't be themed). DayPicker's handlers read `e.target.value`.
  */
-const CalendarDropdown = ({ options = [], value, onChange, disabled, 'aria-label': ariaLabel }) => (
+const CalendarDropdown = ({
+  options = [],
+  value,
+  onChange,
+  onOpenChange,
+  disabled,
+  'aria-label': ariaLabel
+}) => (
   <Select
     value={String(value)}
     disabled={disabled}
+    onOpenChange={onOpenChange}
     onValueChange={(v) => onChange?.({ target: { value: v } })}
   >
     <SelectTrigger
@@ -50,6 +58,25 @@ const PillRangePicker = ({ range, fullExtent, onPick, muted }) => {
   const [open, setOpen] = useState(false)
   const [start, end] = range
 
+  // True while a caption Select is open, and for one tick after it closes so
+  // the same pointerdown that dismissed it doesn't also dismiss the popup.
+  const selectOpenRef = useRef(false)
+  const Dropdown = useMemo(
+    () =>
+      function PillCalendarDropdown(props) {
+        return (
+          <CalendarDropdown
+            {...props}
+            onOpenChange={(isOpen) => {
+              if (isOpen) selectOpenRef.current = true
+              else setTimeout(() => (selectOpenRef.current = false), 0)
+            }}
+          />
+        )
+      },
+    []
+  )
+
   const calendarProps = {
     mode: 'single',
     required: true,
@@ -59,7 +86,7 @@ const PillRangePicker = ({ range, fullExtent, onPick, muted }) => {
     weekStartsOn: 1,
     // Always 6 week rows so paging months never resizes the popup.
     fixedWeeks: true,
-    components: { Dropdown: CalendarDropdown }
+    components: { Dropdown }
   }
 
   return (
@@ -87,6 +114,12 @@ const PillRangePicker = ({ range, fullExtent, onPick, muted }) => {
           sideOffset={6}
           collisionPadding={12}
           onOpenAutoFocus={(e) => e.preventDefault()}
+          // While a month/year Select is open, an outside click should only
+          // close that Select (it blocks body pointer events), not the popup.
+          // The Select unmounts before this runs, hence the ref.
+          onInteractOutside={(e) => {
+            if (selectOpenRef.current) e.preventDefault()
+          }}
           className="timeline-daypicker z-[10000] flex gap-3 bg-card text-popover-foreground rounded-lg border border-border shadow-md p-3"
         >
           <div>
