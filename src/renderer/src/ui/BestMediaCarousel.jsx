@@ -589,7 +589,7 @@ function VideoViewerModal({
 /**
  * Individual media card for the carousel (supports both images and videos)
  */
-function MediaCard({ media, onClick, studyId, scrollSignal }) {
+function MediaCard({ media, onClick, studyId, scrollSignal, suppressHover }) {
   const [imageError, setImageError] = useState(false)
   const [thumbnailUrl, setThumbnailUrl] = useState(null)
   const [isExtractingThumbnail, setIsExtractingThumbnail] = useState(false)
@@ -598,6 +598,12 @@ function MediaCard({ media, onClick, studyId, scrollSignal }) {
   useEffect(() => {
     if (scrollSignal > 0) setHoverOpen(false)
   }, [scrollSignal])
+
+  // While the viewer modal is open, close the hover card and ignore Radix's
+  // pending open (hover/focus timer) so it can't pop up on top of the modal.
+  useEffect(() => {
+    if (suppressHover) setHoverOpen(false)
+  }, [suppressHover])
 
   const isVideo = isVideoMedia(media)
 
@@ -725,7 +731,12 @@ function MediaCard({ media, onClick, studyId, scrollSignal }) {
   if (!info?.imageUrl && !info?.blurb) return cardButton
 
   return (
-    <HoverCard.Root open={hoverOpen} onOpenChange={setHoverOpen} openDelay={400} closeDelay={120}>
+    <HoverCard.Root
+      open={hoverOpen}
+      onOpenChange={(open) => setHoverOpen(open && !suppressHover)}
+      openDelay={400}
+      closeDelay={120}
+    >
       <HoverCard.Trigger asChild>{cardButton}</HoverCard.Trigger>
       <HoverCard.Portal>
         <HoverCard.Content
@@ -883,6 +894,7 @@ export default function BestMediaCarousel({ studyId, isRunning, renderEmpty }) {
               onClick={() => setSelectedIndex(index)}
               studyId={studyId}
               scrollSignal={scrollSignal}
+              suppressHover={selectedIndex !== null}
             />
           ))}
         </div>
