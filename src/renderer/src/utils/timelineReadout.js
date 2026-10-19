@@ -72,6 +72,16 @@ export function niceYTicks(max) {
   return Array.from({ length: count + 1 }, (_, i) => Number((i * step).toFixed(10)))
 }
 
+/**
+ * Width of one species' bar in a weekly bar chart: the species share 80% of
+ * a week's horizontal slot, so groups keep a gap between weeks. At least 1px.
+ */
+export function barSizePx({ plotWidth, domainMs, speciesCount }) {
+  if (!(plotWidth > 0) || !(domainMs > 0) || !(speciesCount > 0)) return 1
+  const slotPx = (plotWidth * 7 * DAY_MS) / domainMs
+  return Math.max(1, Math.floor((slotPx * 0.8) / speciesCount))
+}
+
 /** Highest value of `keys` across the rows inside the range (0 when none). */
 export function maxValueInRange(rows, range, keys) {
   let max = 0

@@ -1,6 +1,7 @@
 import { describe, test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  barSizePx,
   buildReadoutRows,
   formatWeekLabel,
   maxValueInRange,
@@ -117,5 +118,15 @@ describe('timeline readout', () => {
     assert.deepEqual(niceYTicks(7), [0, 2, 4, 6, 8])
     assert.deepEqual(niceYTicks(0.34), [0, 0.1, 0.2, 0.3, 0.4])
     assert.deepEqual(niceYTicks(0), [0, 1])
+  })
+
+  test('bars split 80% of each week slot between species, at least 1px', () => {
+    const WEEK = 7 * 24 * 60 * 60 * 1000
+    // 10 weeks across 1000px → 100px slots → 80px for the group.
+    assert.equal(barSizePx({ plotWidth: 1000, domainMs: 10 * WEEK, speciesCount: 2 }), 40)
+    assert.equal(barSizePx({ plotWidth: 1000, domainMs: 10 * WEEK, speciesCount: 1 }), 80)
+    // Years of weeks on a narrow plot still draw something.
+    assert.equal(barSizePx({ plotWidth: 300, domainMs: 500 * WEEK, speciesCount: 3 }), 1)
+    assert.equal(barSizePx({ plotWidth: 0, domainMs: 0, speciesCount: 0 }), 1)
   })
 })

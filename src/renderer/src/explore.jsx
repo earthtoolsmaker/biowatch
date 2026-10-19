@@ -1322,6 +1322,7 @@ export default function Explore({ studyData, studyId }) {
   const { metric, setMetric } = useExploreMetric(actualStudyId)
   const { showFilterCharts } = useShowFilterCharts(actualStudyId)
   const [timelineExpanded, setTimelineExpanded] = useState(false)
+  const [timelineChartType, setTimelineChartType] = useState('line')
   const closeTimelineExpanded = useCallback(() => setTimelineExpanded(false), [])
 
   // Explore view toggle: 'map' | 'gallery' | 'both' (not persisted). 'both' is
@@ -2026,6 +2027,8 @@ export default function Explore({ studyData, studyId }) {
         scientificToCommon={scientificToCommon}
         dateRange={dateRange}
         setDateRange={setDateRange}
+        chartType={timelineChartType}
+        setChartType={setTimelineChartType}
       />
     </div>
   )

@@ -1,15 +1,53 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { X } from 'lucide-react'
+import { ChartColumn, ChartLine, X } from 'lucide-react'
 
 import AnalysisMetricToggle from './AnalysisMetricToggle'
 import TimelineChart, { SpeciesName } from './timeseries'
+
+const CHART_TYPES = [
+  { value: 'line', label: 'Lines', Icon: ChartLine },
+  { value: 'bar', label: 'Bars', Icon: ChartColumn }
+]
+
+// Lines / Bars switch, styled like the metric switch beside it.
+function ChartTypeToggle({ value, onChange }) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Chart type"
+      className="inline-flex shrink-0 rounded-md bg-card p-0.5"
+    >
+      {CHART_TYPES.map(({ value: type, label, Icon }) => {
+        const selected = value === type
+        return (
+          <button
+            key={type}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            onClick={() => onChange(type)}
+            className={`inline-flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium whitespace-nowrap transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 ${
+              selected
+                ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300'
+                : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+            }`}
+          >
+            <Icon size={11} />
+            {label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
 
 /**
  * Enlarged view of the Explore timeline: real weekly values on a y-axis
  * fitted to the weeks in view, with a hover readout. The metric switch and
  * the date range (set only from the header pill) are the Explore tab's
- * own state, so changes here also apply to the map behind.
+ * own state, so changes here also apply to the map behind. Lines / Bars
+ * only changes how this window draws the series.
  */
 export default function TimelineExpandedModal({
   isOpen,
@@ -22,7 +60,9 @@ export default function TimelineExpandedModal({
   setMetric,
   scientificToCommon,
   dateRange,
-  setDateRange
+  setDateRange,
+  chartType,
+  setChartType
 }) {
   useEffect(() => {
     if (!isOpen) return
@@ -57,6 +97,7 @@ export default function TimelineExpandedModal({
         <div className="px-5 pt-4 pb-3 flex items-center gap-4 border-b border-border">
           <h2 className="text-sm font-semibold text-foreground">Over time</h2>
           <AnalysisMetricToggle value={metric} onChange={setMetric} />
+          <ChartTypeToggle value={chartType} onChange={setChartType} />
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0 text-xs text-muted-foreground">
             {selectedSpecies.map((species, index) => (
               <span key={species.scientificName} className="inline-flex items-center gap-1.5">
@@ -98,6 +139,7 @@ export default function TimelineExpandedModal({
               showYAxis
               pillContainer={pillSlot}
               rangeGestures={false}
+              chartType={chartType}
             />
           )}
         </div>

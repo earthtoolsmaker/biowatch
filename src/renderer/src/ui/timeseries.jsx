@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
+  Bar,
   CartesianGrid,
   ComposedChart,
   Line,
@@ -17,6 +18,7 @@ import { analysisMetricUnit } from '../utils/analysisMetric.js'
 import { getMapDisplayName } from '../utils/commonNames.js'
 import { formatScientificName } from '../utils/scientificName.js'
 import {
+  barSizePx,
   buildReadoutRows,
   formatWeekLabel,
   maxValueInRange,
@@ -131,7 +133,8 @@ const ReadoutContent = ({
  * `pillContainer` (a DOM node) renders the pill there instead of over the plot.
  * `rangeGestures={false}` turns off the plot's range gestures (drag to
  * create/pan/resize, scroll-zoom) and the edge handles, leaving the pill as
- * the only range control.
+ * the only range control. `chartType` draws `'line'` (default) or grouped
+ * weekly `'bar'`s.
  */
 const TimelineChart = ({
   timeseriesData,
@@ -146,7 +149,8 @@ const TimelineChart = ({
   showYAxis = false,
   onExpand,
   pillContainer,
-  rangeGestures = true
+  rangeGestures = true,
+  chartType = 'line'
 }) => {
   const containerRef = useRef(null)
   const yAxisWidth = showYAxis ? Y_AXIS_WIDTH : 0
@@ -514,6 +518,18 @@ const TimelineChart = ({
     return niceYTicks(max * 1.05)
   }, [showYAxis, data, displayedDomain, selectedSpecies])
 
+  // Bars on a time axis need an explicit width: one week's slot at the
+  // current zoom, shared between the species.
+  const barSize = useMemo(
+    () =>
+      barSizePx({
+        plotWidth: containerWidth - yAxisWidth - MARGIN_X * 2,
+        domainMs: displayedDomain ? displayedDomain[1] - displayedDomain[0] : 0,
+        speciesCount: selectedSpecies.length
+      }),
+    [containerWidth, yAxisWidth, displayedDomain, selectedSpecies.length]
+  )
+
   // Custom tick renderer: anchors the leftmost label at start, rightmost
   // at end, so the dates of the zoom (first and last) stay visible at
   // the chart edges instead of being culled by Recharts' default
@@ -740,21 +756,32 @@ const TimelineChart = ({
                 />
               )}
 
-            {selectedSpecies.map((species, index) => (
-              <Line
-                key={species.scientificName}
-                type="monotone"
-                dataKey={species.scientificName}
-                stroke={palette[index % palette.length]}
-                strokeWidth={1.5}
-                dot={false}
-                activeDot={{ r: 5 }}
-                name={species.scientificName}
-                fillOpacity={0.2}
-                fill={palette[index % palette.length]}
-                isAnimationActive={false}
-              />
-            ))}
+            {chartType === 'bar'
+              ? selectedSpecies.map((species, index) => (
+                  <Bar
+                    key={species.scientificName}
+                    dataKey={species.scientificName}
+                    fill={palette[index % palette.length]}
+                    barSize={barSize}
+                    name={species.scientificName}
+                    isAnimationActive={false}
+                  />
+                ))
+              : selectedSpecies.map((species, index) => (
+                  <Line
+                    key={species.scientificName}
+                    type="monotone"
+                    dataKey={species.scientificName}
+                    stroke={palette[index % palette.length]}
+                    strokeWidth={1.5}
+                    dot={false}
+                    activeDot={{ r: 5 }}
+                    name={species.scientificName}
+                    fillOpacity={0.2}
+                    fill={palette[index % palette.length]}
+                    isAnimationActive={false}
+                  />
+                ))}
           </ComposedChart>
         </ResponsiveContainer>
       </div>
