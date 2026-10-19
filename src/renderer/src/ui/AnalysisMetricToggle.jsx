@@ -39,7 +39,7 @@ const NORMALIZATION_OPTIONS = [
   }
 ]
 
-function MetricGroup({ label, options, value, onChange }) {
+function MetricGroup({ label, options, value, onChange, boxed }) {
   const move = (event, index) => {
     if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return
     event.preventDefault()
@@ -53,7 +53,7 @@ function MetricGroup({ label, options, value, onChange }) {
     <div
       role="radiogroup"
       aria-label={label}
-      className="inline-flex shrink-0 rounded-md bg-card p-0.5"
+      className={`inline-flex shrink-0 rounded-md bg-card p-0.5 ${boxed ? 'border border-border' : ''}`}
     >
       {options.map((option, index) => {
         const selected = value === option.value
@@ -95,21 +95,24 @@ function MetricGroup({ label, options, value, onChange }) {
   )
 }
 
-export default function AnalysisMetricToggle({ value, onChange }) {
+// `boxed` outlines each pair so the two switches read as separate controls.
+export default function AnalysisMetricToggle({ value, onChange, boxed = false }) {
   return (
     <div
       role="group"
-      className="inline-flex shrink-0 items-center gap-1"
+      className={`inline-flex shrink-0 items-center ${boxed ? 'gap-2' : 'gap-1'}`}
       aria-label="Analysis metric"
     >
       <MetricGroup
         label="Counting basis"
+        boxed={boxed}
         options={COUNTING_OPTIONS}
         value={value.counting}
         onChange={(counting) => onChange({ ...value, counting })}
       />
       <MetricGroup
         label="Normalization"
+        boxed={boxed}
         options={NORMALIZATION_OPTIONS}
         value={value.normalization}
         onChange={(normalization) => onChange({ ...value, normalization })}

@@ -16,7 +16,7 @@ function ChartTypeToggle({ value, onChange }) {
     <div
       role="radiogroup"
       aria-label="Chart type"
-      className="inline-flex shrink-0 rounded-md bg-card p-0.5"
+      className="inline-flex shrink-0 rounded-md border border-border bg-card p-0.5"
     >
       {CHART_TYPES.map(({ value: type, label, Icon }) => {
         const selected = value === type
@@ -110,7 +110,7 @@ export default function TimelineExpandedModal({
         <div className="px-5 pt-4 pb-3 flex items-center gap-4 border-b border-border">
           <h2 className="text-sm font-semibold text-foreground">Over time</h2>
           <ControlGroup label="Measure">
-            <AnalysisMetricToggle value={metric} onChange={setMetric} />
+            <AnalysisMetricToggle value={metric} onChange={setMetric} boxed />
           </ControlGroup>
           <div className="w-px h-5 bg-border" aria-hidden="true" />
           <ControlGroup label="Show as">
