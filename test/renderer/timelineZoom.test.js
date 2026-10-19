@@ -9,6 +9,7 @@ import {
   clampMinRange,
   resolveAction,
   pxToDateMs,
+  pickDayRange,
   DAY_MS,
   MIN_RANGE_MS,
   CLEAR_TOLERANCE_MS,
@@ -301,5 +302,56 @@ describe('resolveAction', () => {
       }),
       'create'
     )
+  })
+})
+
+describe('pickDayRange', () => {
+  // Calendar days arrive as local midnights (what react-day-picker emits).
+  const day = (y, m, d) => new Date(y, m - 1, d)
+  const FULL = [day(2017, 10, 18), day(2020, 9, 23)]
+
+  test('picking a start day keeps the current end and snaps to start of day', () => {
+    const range = [day(2018, 1, 1), day(2019, 6, 1)]
+    const picked = new Date(2018, 2, 5, 15, 30)
+    const [s, e] = pickDayRange({ side: 'start', day: picked, range, fullExtent: FULL })
+    assert.deepEqual(s, day(2018, 3, 5))
+    assert.deepEqual(e, range[1])
+  })
+
+  test('picking an end day keeps the current start and includes the whole day', () => {
+    const range = [day(2018, 1, 1), day(2019, 6, 1)]
+    const [s, e] = pickDayRange({ side: 'end', day: day(2018, 12, 31), range, fullExtent: FULL })
+    assert.deepEqual(s, range[0])
+    assert.deepEqual(e, new Date(2018, 11, 31, 23, 59, 59, 999))
+  })
+
+  test('from a cleared filter, the untouched side falls back to the full extent', () => {
+    const [s, e] = pickDayRange({
+      side: 'start',
+      day: day(2019, 1, 1),
+      range: [null, null],
+      fullExtent: FULL
+    })
+    assert.deepEqual(s, day(2019, 1, 1))
+    assert.deepEqual(e, FULL[1])
+  })
+
+  test('picking back to the full extent clears the filter', () => {
+    const range = [day(2019, 1, 1), FULL[1]]
+    const next = pickDayRange({ side: 'start', day: FULL[0], range, fullExtent: FULL })
+    assert.deepEqual(next, [null, null])
+  })
+
+  test('picking the last data day as end clears when start is at the extent', () => {
+    const range = [FULL[0], day(2019, 1, 1)]
+    const next = pickDayRange({ side: 'end', day: FULL[1], range, fullExtent: FULL })
+    assert.deepEqual(next, [null, null])
+  })
+
+  test('start picked on the same day as end keeps at least one day of range', () => {
+    const range = [day(2018, 1, 1), new Date(2019, 5, 1, 6, 0)]
+    const [s, e] = pickDayRange({ side: 'start', day: day(2019, 6, 1), range, fullExtent: FULL })
+    assert.deepEqual(s, day(2019, 6, 1))
+    assert.ok(e.getTime() - s.getTime() >= MIN_RANGE_MS)
   })
 })
