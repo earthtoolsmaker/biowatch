@@ -129,6 +129,7 @@ const ReadoutContent = ({
  * titled with the metric's unit (only meaningful for unscaled data);
  * `onExpand` adds an expand button to the date pill that calls it;
  * `pillContainer` (a DOM node) renders the pill there instead of over the plot.
+ * `edgeHandles={false}` hides the range-edge handles and their drag-to-resize.
  */
 const TimelineChart = ({
   timeseriesData,
@@ -142,7 +143,8 @@ const TimelineChart = ({
   scientificToCommon,
   showYAxis = false,
   onExpand,
-  pillContainer
+  pillContainer,
+  edgeHandles = true
 }) => {
   const containerRef = useRef(null)
   const yAxisWidth = showYAxis ? Y_AXIS_WIDTH : 0
@@ -222,10 +224,11 @@ const TimelineChart = ({
         cursorDate,
         range: dateRange,
         fullExtent,
-        edgeTolMs
+        // No edge zone without handles: edges then pan/create like the rest.
+        edgeTolMs: edgeHandles ? edgeTolMs : -Infinity
       })
     },
-    [dateRange, fullExtent, edgeTolMs]
+    [dateRange, fullExtent, edgeTolMs, edgeHandles]
   )
 
   const commitDragOnRelease = useCallback(() => {
@@ -682,7 +685,7 @@ const TimelineChart = ({
               />
             )}
 
-            {interactive && handleStart && (
+            {interactive && edgeHandles && handleStart && (
               <ReferenceLine
                 x={handleStart.getTime()}
                 stroke={handleColor}
@@ -707,31 +710,34 @@ const TimelineChart = ({
                 }}
               />
             )}
-            {interactive && handleEnd && handleEnd.getTime() !== handleStart?.getTime() && (
-              <ReferenceLine
-                x={handleEnd.getTime()}
-                stroke={handleColor}
-                strokeWidth={hoveredEdge === 'end' ? 3 : 2}
-                isFront
-                label={{
-                  position: 'center',
-                  content: ({ viewBox }) => {
-                    if (!viewBox || viewBox.x === undefined) return null
-                    const cy = viewBox.y + (viewBox.height ?? 0) / 2
-                    return (
-                      <circle
-                        cx={viewBox.x}
-                        cy={cy}
-                        r={hoveredEdge === 'end' ? 6 : 4}
-                        fill={handleColor}
-                        stroke="white"
-                        strokeWidth={1}
-                      />
-                    )
-                  }
-                }}
-              />
-            )}
+            {interactive &&
+              edgeHandles &&
+              handleEnd &&
+              handleEnd.getTime() !== handleStart?.getTime() && (
+                <ReferenceLine
+                  x={handleEnd.getTime()}
+                  stroke={handleColor}
+                  strokeWidth={hoveredEdge === 'end' ? 3 : 2}
+                  isFront
+                  label={{
+                    position: 'center',
+                    content: ({ viewBox }) => {
+                      if (!viewBox || viewBox.x === undefined) return null
+                      const cy = viewBox.y + (viewBox.height ?? 0) / 2
+                      return (
+                        <circle
+                          cx={viewBox.x}
+                          cy={cy}
+                          r={hoveredEdge === 'end' ? 6 : 4}
+                          fill={handleColor}
+                          stroke="white"
+                          strokeWidth={1}
+                        />
+                      )
+                    }
+                  }}
+                />
+              )}
 
             {selectedSpecies.map((species, index) => (
               <Line

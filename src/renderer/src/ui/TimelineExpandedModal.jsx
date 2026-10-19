@@ -97,6 +97,7 @@ export default function TimelineExpandedModal({
               scientificToCommon={scientificToCommon}
               showYAxis
               pillContainer={pillSlot}
+              edgeHandles={false}
             />
           )}
         </div>
