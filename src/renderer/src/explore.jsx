@@ -685,6 +685,10 @@ const SpeciesMap = ({
   const createPieChartIcon = useCallback(
     (counts, opacity = 1) => {
       const total = Object.values(counts).reduce((sum, count) => sum + count, 0)
+      // Zero-count species must not count as "multiple species": a lone
+      // non-zero slice would span 2π, and an SVG arc whose start and end
+      // points coincide renders nothing (leaving the white background).
+      const presentSpecies = Object.keys(counts).filter((species) => counts[species] > 0)
       // Min raised to 22px so low-count sites stay legible (they used to all
       // collapse onto a 10px floor). Still √-scaled and capped at 60px.
       const size = Math.min(60, Math.max(22, Math.sqrt(total) * 3))
@@ -699,7 +703,7 @@ const SpeciesMap = ({
         if (opacity < 1) svg.setAttribute('opacity', String(opacity))
 
         // Add a circle background - only needed for multiple species
-        if (Object.keys(counts).length > 1) {
+        if (presentSpecies.length > 1) {
           const circle = document.createElementNS(svgNS, 'circle')
           circle.setAttribute('cx', '50')
           circle.setAttribute('cy', '50')
@@ -729,8 +733,8 @@ const SpeciesMap = ({
         // Special case for single species - draw a full circle
         if (total === 0) {
           // Neutral circle already drawn above.
-        } else if (Object.keys(counts).length === 1) {
-          const species = Object.keys(counts)[0]
+        } else if (presentSpecies.length === 1) {
+          const species = presentSpecies[0]
           const index = selectedSpecies.findIndex((s) => s.scientificName === species)
           const colorIndex = index >= 0 ? index : 0
           const color = colors[colorIndex]
