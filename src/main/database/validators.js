@@ -47,7 +47,7 @@ export const metadataSchema = z.object({
   updatedAt: z.string().nullable(),
   startDate: z.string().regex(isoDatePattern, 'Must be ISO date format (YYYY-MM-DD)').nullable(),
   endDate: z.string().regex(isoDatePattern, 'Must be ISO date format (YYYY-MM-DD)').nullable(),
-  sequenceGap: z.number().int().min(0).max(600).nullable() // Media grouping threshold in seconds
+  sequenceGap: z.number().int().min(0).max(7200).nullable() // Media grouping threshold in seconds
 })
 
 // Schema for updating metadata (all fields optional except what's being updated)
@@ -67,7 +67,7 @@ export const metadataUpdateSchema = z
       .regex(isoDatePattern, 'Must be ISO date format (YYYY-MM-DD)')
       .nullable()
       .optional(),
-    sequenceGap: z.number().int().min(0).max(600).nullable().optional()
+    sequenceGap: z.number().int().min(0).max(7200).nullable().optional()
   })
   .strict()
 
@@ -90,7 +90,7 @@ export const metadataCreateSchema = z.object({
     .regex(isoDatePattern, 'Must be ISO date format (YYYY-MM-DD)')
     .nullable()
     .optional(),
-  sequenceGap: z.number().int().min(0).max(600).nullable().optional()
+  sequenceGap: z.number().int().min(0).max(7200).nullable().optional()
 })
 
 // ============================================================================

@@ -1,37 +1,24 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Layers } from 'lucide-react'
 import * as Tooltip from '@radix-ui/react-tooltip'
-
-/**
- * Format sequence gap value for display
- * @param {number | null} seconds - The gap in seconds, or null for Off
- * @returns {string} - Formatted string (e.g., "Off", "30s", "1m 30s", "2m")
- */
-function formatGapValue(seconds) {
-  if (seconds === null || seconds === 0) return 'Off'
-  if (seconds < 60) return `${seconds}s`
-  if (seconds < 120) return `${Math.floor(seconds / 60)}min ${seconds % 60}s`
-  return `${Math.round(seconds / 60)}min`
-}
+import { SEQUENCE_GAP_STOPS, formatGapValue, gapToStopIndex } from '../utils/sequenceGap.js'
 
 /**
  * Reusable sequence gap slider component
  *
  * @param {Object} props
- * @param {number | null} props.value - Current gap in seconds (null or 10-300), null = Off
+ * @param {number | null} props.value - Current gap in seconds (null or 10-7200), null = Off
  * @param {function} props.onChange - Callback when value changes (receives null for Off, or number > 0)
  * @param {'compact' | 'full'} [props.variant='full'] - Display variant
  * @param {boolean} [props.showDescription=false] - Show description text below slider
  * @param {boolean} [props.disabled=false] - Disable the slider
- * @param {number} [props.max=300] - Maximum value in seconds
  */
 export function SequenceGapSlider({
   value,
   onChange,
   variant = 'full',
   showDescription = false,
-  disabled = false,
-  max = 300
+  disabled = false
 }) {
   // Local dragging state so the track/handle move smoothly without firing the
   // parent's onChange on every intermediate value. Every commit currently
@@ -42,8 +29,8 @@ export function SequenceGapSlider({
     setDragValue(value)
   }, [value])
 
-  // Convert null to 0 for slider display, and 0 back to null.
-  const sliderValue = dragValue ?? 0
+  // The range input moves over SEQUENCE_GAP_STOPS indices (non-linear scale).
+  const sliderIndex = gapToStopIndex(dragValue)
 
   // Force-open the tooltip while the user is actively dragging the thumb so
   // the value stays readable mid-gesture. Hover/focus continues to drive
@@ -52,7 +39,7 @@ export function SequenceGapSlider({
   const [hoverOpen, setHoverOpen] = useState(false)
 
   const handleInput = (e) => {
-    const n = Number(e.target.value)
+    const n = SEQUENCE_GAP_STOPS[Number(e.target.value)]
     setDragValue(n === 0 ? null : n)
   }
 
@@ -74,9 +61,9 @@ export function SequenceGapSlider({
             <input
               type="range"
               min="0"
-              max={max}
-              step="10"
-              value={sliderValue}
+              max={SEQUENCE_GAP_STOPS.length - 1}
+              step="1"
+              value={sliderIndex}
               onChange={handleInput}
               onPointerDown={() => setIsDragging(true)}
               onPointerUp={() => setIsDragging(false)}
@@ -141,9 +128,9 @@ export function SequenceGapSlider({
       <input
         type="range"
         min="0"
-        max={max}
-        step="10"
-        value={sliderValue}
+        max={SEQUENCE_GAP_STOPS.length - 1}
+        step="1"
+        value={sliderIndex}
         onChange={handleInput}
         onMouseUp={commit}
         onKeyUp={commit}
