@@ -8,7 +8,7 @@ import TimelineChart, { SpeciesName } from './timeseries'
 /**
  * Enlarged view of the Explore timeline: real weekly values on a y-axis
  * fitted to the weeks in view, with a hover readout. The metric switch and
- * the date range (drag, scroll-zoom, pill calendars) are the Explore tab's
+ * the date range (set only from the header pill) are the Explore tab's
  * own state, so changes here also apply to the map behind.
  */
 export default function TimelineExpandedModal({
@@ -97,7 +97,7 @@ export default function TimelineExpandedModal({
               scientificToCommon={scientificToCommon}
               showYAxis
               pillContainer={pillSlot}
-              edgeHandles={false}
+              rangeGestures={false}
             />
           )}
         </div>

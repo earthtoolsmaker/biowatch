@@ -129,7 +129,9 @@ const ReadoutContent = ({
  * titled with the metric's unit (only meaningful for unscaled data);
  * `onExpand` adds an expand button to the date pill that calls it;
  * `pillContainer` (a DOM node) renders the pill there instead of over the plot.
- * `edgeHandles={false}` hides the range-edge handles and their drag-to-resize.
+ * `rangeGestures={false}` turns off the plot's range gestures (drag to
+ * create/pan/resize, scroll-zoom) and the edge handles, leaving the pill as
+ * the only range control.
  */
 const TimelineChart = ({
   timeseriesData,
@@ -144,7 +146,7 @@ const TimelineChart = ({
   showYAxis = false,
   onExpand,
   pillContainer,
-  edgeHandles = true
+  rangeGestures = true
 }) => {
   const containerRef = useRef(null)
   const yAxisWidth = showYAxis ? Y_AXIS_WIDTH : 0
@@ -224,11 +226,10 @@ const TimelineChart = ({
         cursorDate,
         range: dateRange,
         fullExtent,
-        // No edge zone without handles: edges then pan/create like the rest.
-        edgeTolMs: edgeHandles ? edgeTolMs : -Infinity
+        edgeTolMs
       })
     },
-    [dateRange, fullExtent, edgeTolMs, edgeHandles]
+    [dateRange, fullExtent, edgeTolMs]
   )
 
   const commitDragOnRelease = useCallback(() => {
@@ -599,11 +600,11 @@ const TimelineChart = ({
       <div
         ref={containerRef}
         className="absolute inset-0 select-none [&_*]:!cursor-[inherit]"
-        style={{ cursor: interactive ? cursorStyle : 'default' }}
-        onMouseDown={interactive ? handleNativeDown : undefined}
-        onMouseMove={interactive ? handleNativeMove : undefined}
-        onMouseLeave={interactive ? handleNativeLeave : undefined}
-        onWheel={interactive ? handleWheel : undefined}
+        style={{ cursor: interactive && rangeGestures ? cursorStyle : 'default' }}
+        onMouseDown={interactive && rangeGestures ? handleNativeDown : undefined}
+        onMouseMove={interactive && rangeGestures ? handleNativeMove : undefined}
+        onMouseLeave={interactive && rangeGestures ? handleNativeLeave : undefined}
+        onWheel={interactive && rangeGestures ? handleWheel : undefined}
       >
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart
@@ -685,7 +686,7 @@ const TimelineChart = ({
               />
             )}
 
-            {interactive && edgeHandles && handleStart && (
+            {interactive && rangeGestures && handleStart && (
               <ReferenceLine
                 x={handleStart.getTime()}
                 stroke={handleColor}
@@ -711,7 +712,7 @@ const TimelineChart = ({
               />
             )}
             {interactive &&
-              edgeHandles &&
+              rangeGestures &&
               handleEnd &&
               handleEnd.getTime() !== handleStart?.getTime() && (
                 <ReferenceLine
