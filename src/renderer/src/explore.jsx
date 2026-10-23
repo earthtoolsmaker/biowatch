@@ -3,7 +3,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import 'leaflet.heat'
 import { hexbin as d3Hexbin } from 'd3-hexbin'
-import { MapPin, X } from 'lucide-react'
+import { MapPin } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
@@ -39,6 +39,9 @@ import FilterChartsToggle from './ui/FilterChartsToggle'
 import ViewModeToggle from './ui/ViewModeToggle'
 import MapEncodingToggle from './ui/MapEncodingToggle'
 import MapDensityLegend from './ui/MapDensityLegend'
+import ComparativeMapLayer from './ui/ComparativeMapLayer'
+import AreaFilterControl from './ui/AreaFilterControl'
+import { resolveComparativeMode, resolveMapEncoding } from './utils/comparativeDensity'
 import {
   DEFAULT_DENSITY_SCALE,
   getDensityScale,
@@ -291,70 +294,6 @@ function MapResizeHandler() {
   return null
 }
 
-// Floating top-center pill for the map area filter. The pill body always
-// snapshots the current viewport bounds on click — so when a filter is
-// already active you can re-filter a freshly-panned area in one click (no
-// clear-first dance). When a filter IS active the pill turns blue and a ✕
-// appears inside it at the trailing edge; clicking the ✕ clears in one click
-// without re-applying. The filter is a frozen snapshot: panning after
-// applying does NOT recompute it until you click the pill again.
-function AreaFilterControl({ areaFilter, onApplyAreaFilter }) {
-  const map = useMap()
-  const active = !!areaFilter
-
-  const apply = () => {
-    const b = map.getBounds()
-    onApplyAreaFilter({
-      north: b.getNorth(),
-      south: b.getSouth(),
-      east: b.getEast(),
-      west: b.getWest()
-    })
-  }
-
-  const clear = (e) => {
-    e.stopPropagation()
-    onApplyAreaFilter(null)
-  }
-
-  return (
-    <div className="leaflet-top" style={{ left: '50%', transform: 'translateX(-50%)' }}>
-      <div className="leaflet-control">
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={apply}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') apply()
-          }}
-          className={`flex items-center gap-1.5 h-7 rounded-full text-xs font-medium border shadow-sm transition-colors cursor-pointer ${
-            active ? 'pl-3 pr-1.5' : 'px-3'
-          } ${
-            active
-              ? 'text-blue-600 bg-blue-50 border-blue-200 hover:bg-blue-100 dark:text-blue-400 dark:bg-blue-500/15 dark:border-blue-500/30 dark:hover:bg-blue-500/25'
-              : 'text-muted-foreground bg-card border-border hover:bg-accent'
-          }`}
-          aria-label="Filter to this area"
-          aria-pressed={active}
-        >
-          <MapPin size={14} />
-          Filter to this area
-          {active && (
-            <button
-              type="button"
-              onClick={clear}
-              className="flex items-center justify-center h-5 w-5 rounded-full hover:bg-blue-200/60 dark:hover:bg-blue-500/30 transition-colors"
-              aria-label="Clear area filter"
-            >
-              <X size={13} />
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
 const slugifyForFilename = (s) =>
   (s || '')
     .toLowerCase()
@@ -588,12 +527,12 @@ const SpeciesMap = ({
   }, [selectedLayer, mapLayerKey])
 
   // How the distribution is drawn: 'pies' (composition), 'graduated'
-  // (abundance), 'heatmap' (density) or 'hexbin' (hex grid). Persisted per study
+  // (abundance), 'heatmap' (density), 'hexbin' (hex grid), or 'comparative'. Persisted per study
   // like the layer; an unknown/stale saved value falls back to 'pies'.
   const mapEncodingKey = `mapEncoding:${studyId}`
   const [mapEncoding, setMapEncoding] = useState(() => {
     const saved = localStorage.getItem(mapEncodingKey)
-    return ['graduated', 'heatmap', 'hexbin'].includes(saved) ? saved : 'pies'
+    return ['graduated', 'heatmap', 'hexbin', 'comparative'].includes(saved) ? saved : 'pies'
   })
   useEffect(() => {
     localStorage.setItem(mapEncodingKey, mapEncoding)
@@ -604,7 +543,20 @@ const SpeciesMap = ({
   // and fall back to Abundance for rendering, without overwriting the stored
   // preference so Composition returns once a second species is selected.
   const singleSpecies = selectedSpecies.length <= 1
-  const effectiveEncoding = singleSpecies && mapEncoding === 'pies' ? 'graduated' : mapEncoding
+  const effectiveEncoding = resolveMapEncoding(mapEncoding, selectedSpecies.length)
+  const [comparativeMode, setComparativeMode] = useState('overlap')
+  const effectiveComparativeMode = resolveComparativeMode(comparativeMode, selectedSpecies.length)
+  const comparativeSpecies = useMemo(
+    () =>
+      selectedSpecies.map((species, index) => ({
+        scientificName: species.scientificName,
+        label:
+          getMapDisplayName(species.scientificName, scientificToCommon) ||
+          formatScientificName(species.scientificName),
+        color: palette[index % palette.length]
+      })),
+    [selectedSpecies, palette, scientificToCommon]
+  )
   const isMarkerEncoding = effectiveEncoding === 'pies' || effectiveEncoding === 'graduated'
   const isDensityEncoding = effectiveEncoding === 'heatmap' || effectiveEncoding === 'hexbin'
 
@@ -1218,10 +1170,21 @@ const SpeciesMap = ({
             metric={metric}
           />
         )}
+        {!skeletonMode && effectiveEncoding === 'comparative' && (
+          <ComparativeMapLayer
+            locations={locationPoints}
+            species={comparativeSpecies}
+            mode={effectiveComparativeMode}
+            areaFilter={areaFilter}
+          />
+        )}
         <MapEncodingToggle
           value={effectiveEncoding}
           onChange={setMapEncoding}
           singleSpecies={singleSpecies}
+          selectionCount={selectedSpecies.length}
+          comparativeMode={effectiveComparativeMode}
+          onComparativeModeChange={setComparativeMode}
         />
         <LayerChangeHandler onLayerChange={setSelectedLayer} />
       </MapContainer>
