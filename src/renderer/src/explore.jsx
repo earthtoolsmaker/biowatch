@@ -39,6 +39,8 @@ import FilterChartsToggle from './ui/FilterChartsToggle'
 import ViewModeToggle from './ui/ViewModeToggle'
 import MapEncodingToggle from './ui/MapEncodingToggle'
 import MapDensityLegend from './ui/MapDensityLegend'
+import ComparativeMapLayer from './ui/ComparativeMapLayer'
+import { resolveComparativeMode, resolveMapEncoding } from './utils/comparativeDensity'
 import {
   DEFAULT_DENSITY_SCALE,
   getDensityScale,
@@ -588,12 +590,12 @@ const SpeciesMap = ({
   }, [selectedLayer, mapLayerKey])
 
   // How the distribution is drawn: 'pies' (composition), 'graduated'
-  // (abundance), 'heatmap' (density) or 'hexbin' (hex grid). Persisted per study
+  // (abundance), 'heatmap' (density), 'hexbin' (hex grid), or 'comparative'. Persisted per study
   // like the layer; an unknown/stale saved value falls back to 'pies'.
   const mapEncodingKey = `mapEncoding:${studyId}`
   const [mapEncoding, setMapEncoding] = useState(() => {
     const saved = localStorage.getItem(mapEncodingKey)
-    return ['graduated', 'heatmap', 'hexbin'].includes(saved) ? saved : 'pies'
+    return ['graduated', 'heatmap', 'hexbin', 'comparative'].includes(saved) ? saved : 'pies'
   })
   useEffect(() => {
     localStorage.setItem(mapEncodingKey, mapEncoding)
@@ -604,7 +606,20 @@ const SpeciesMap = ({
   // and fall back to Abundance for rendering, without overwriting the stored
   // preference so Composition returns once a second species is selected.
   const singleSpecies = selectedSpecies.length <= 1
-  const effectiveEncoding = singleSpecies && mapEncoding === 'pies' ? 'graduated' : mapEncoding
+  const effectiveEncoding = resolveMapEncoding(mapEncoding, selectedSpecies.length)
+  const [comparativeMode, setComparativeMode] = useState('overlap')
+  const effectiveComparativeMode = resolveComparativeMode(comparativeMode, selectedSpecies.length)
+  const comparativeSpecies = useMemo(
+    () =>
+      selectedSpecies.map((species, index) => ({
+        scientificName: species.scientificName,
+        label:
+          getMapDisplayName(species.scientificName, scientificToCommon) ||
+          formatScientificName(species.scientificName),
+        color: palette[index % palette.length]
+      })),
+    [selectedSpecies, palette, scientificToCommon]
+  )
   const isMarkerEncoding = effectiveEncoding === 'pies' || effectiveEncoding === 'graduated'
   const isDensityEncoding = effectiveEncoding === 'heatmap' || effectiveEncoding === 'hexbin'
 
@@ -1218,10 +1233,20 @@ const SpeciesMap = ({
             metric={metric}
           />
         )}
+        {!skeletonMode && effectiveEncoding === 'comparative' && (
+          <ComparativeMapLayer
+            locations={locationPoints}
+            species={comparativeSpecies}
+            mode={effectiveComparativeMode}
+          />
+        )}
         <MapEncodingToggle
           value={effectiveEncoding}
           onChange={setMapEncoding}
           singleSpecies={singleSpecies}
+          selectionCount={selectedSpecies.length}
+          comparativeMode={effectiveComparativeMode}
+          onComparativeModeChange={setComparativeMode}
         />
         <LayerChangeHandler onLayerChange={setSelectedLayer} />
       </MapContainer>
