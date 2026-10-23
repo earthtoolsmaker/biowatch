@@ -38,7 +38,8 @@ const ENCODINGS = [
     key: 'comparative',
     label: 'Comparative',
     icon: GitCompareArrows,
-    description: 'Compare independently normalized spatial distributions in the visible map area.'
+    description:
+      'Compare independently normalized spatial distributions within the area filter, or across all study locations when no area is selected.'
   }
 ]
 
