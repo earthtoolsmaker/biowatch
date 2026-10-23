@@ -7,6 +7,7 @@ import 'leaflet/dist/leaflet.css'
 import '../../../src/renderer/src/assets/main.css'
 import MapEncodingToggle from '../../../src/renderer/src/ui/MapEncodingToggle'
 import ComparativeMapLayer from '../../../src/renderer/src/ui/ComparativeMapLayer'
+import AreaFilterControl from '../../../src/renderer/src/ui/AreaFilterControl'
 import {
   resolveComparativeMode,
   resolveMapEncoding
@@ -43,6 +44,7 @@ function Fixture() {
   const [width, setWidth] = useState(900)
   const [locations, setLocations] = useState(observations)
   const [species, setSpecies] = useState(groups.slice(0, 1))
+  const [areaFilter, setAreaFilter] = useState(null)
   const selectionCount = species.length
   const effectiveEncoding = resolveMapEncoding(encoding, selectionCount)
   const effectiveMode = resolveComparativeMode(mode, selectionCount)
@@ -70,8 +72,14 @@ function Fixture() {
       <div style={{ width, height: 560 }}>
         <MapContainer center={[0, 0]} zoom={6} style={{ width: '100%', height: '100%' }}>
           <TestMapController />
+          <AreaFilterControl areaFilter={areaFilter} onApplyAreaFilter={setAreaFilter} />
           {effectiveEncoding === 'comparative' && (
-            <ComparativeMapLayer locations={locations} species={species} mode={effectiveMode} />
+            <ComparativeMapLayer
+              locations={locations}
+              species={species}
+              mode={effectiveMode}
+              areaFilter={areaFilter}
+            />
           )}
           <MapEncodingToggle
             value={effectiveEncoding}

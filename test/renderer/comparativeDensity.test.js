@@ -1,7 +1,9 @@
 import { describe, test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  buildViewportDensities,
+  buildComparativeDensities,
+  buildProjectedDensities,
+  getComparativeBounds,
   colorizeComparison,
   compareDensityGrids,
   getComparativeGrid,
@@ -12,7 +14,7 @@ import {
 const sum = (values) => values.reduce((total, value) => total + value, 0)
 const close = (actual, expected) =>
   assert.ok(Math.abs(actual - expected) < 1e-12, `${actual} ≠ ${expected}`)
-const viewport = {
+const frame = {
   width: 400,
   height: 300,
   zoom: 8,
@@ -20,10 +22,10 @@ const viewport = {
 }
 const site = (lat, lng, counts) => ({ lat, lng, counts })
 const build = (locations, names = ['a', 'b'], options = {}) =>
-  buildViewportDensities(locations, names, { ...viewport, ...options })
+  buildProjectedDensities(locations, names, { ...frame, ...options })
 
-describe('viewport-normalized comparative KDE', () => {
-  test('normalizes each density independently, including kernels cut by viewport edges', () => {
+describe('area-normalized comparative KDE', () => {
+  test('normalizes each density independently, including kernels cut by area edges', () => {
     const { grids } = build([site(0, 0, { a: 1000, b: 1 }), site(15, 20, { a: 400, b: 3 })])
     grids.forEach((grid) => close(sum(grid), 1))
     assert.ok(grids.every((grid) => grid.every((value) => Number.isFinite(value) && value >= 0)))
@@ -37,7 +39,7 @@ describe('viewport-normalized comparative KDE', () => {
     assert.equal(difference.peak, 0)
   })
 
-  test('filters out offscreen and invalid coordinates before generating KDEs', () => {
+  test('filters out coordinates outside the analysis frame and invalid locations', () => {
     const visible = [site(15, 20, { a: 1, b: 2 })]
     const baseline = build(visible)
     const filtered = build([
@@ -54,7 +56,7 @@ describe('viewport-normalized comparative KDE', () => {
     assert.deepEqual(filtered, baseline)
   })
 
-  test('pan, zoom, and resize regenerate the visible distributions', () => {
+  test('uses the supplied analysis projection and resolution', () => {
     const locations = [site(15, 10, { a: 1 }), site(15, 30, { b: 1 })]
     const initial = build(locations)
     const panned = build(locations, ['a', 'b'], {
@@ -87,7 +89,7 @@ describe('viewport-normalized comparative KDE', () => {
     assert.equal(compareDensityGrids(grids, 'difference').score, null)
   })
 
-  test('zero-sized map does not produce nonfinite densities', () => {
+  test('zero-sized analysis frame does not produce nonfinite densities', () => {
     const { grids } = build([site(0, 0, { a: 1, b: 1 })], ['a', 'b'], { width: 0, height: 0 })
     assert.ok(grids.every((grid) => grid.every((value) => value === 0)))
   })
@@ -101,6 +103,69 @@ describe('viewport-normalized comparative KDE', () => {
       const grid = getComparativeGrid(8000, 4000, zoom)
       assert.ok(grid.columns <= 256 && grid.rows <= 256)
     }
+  })
+})
+
+describe('area-filter comparison scope', () => {
+  const locations = [site(0, -3, { a: 5 }), site(0, 0, { a: 5, b: 50 }), site(0, 3, { b: 50 })]
+  const names = ['a', 'b']
+  const area = { north: 1, south: -1, west: -4, east: -2 }
+
+  test('no area filter includes the complete study extent', () => {
+    const density = buildComparativeDensities(locations, names, null)
+    assert.ok(density.bounds.west < -3 && density.bounds.east > 3)
+    density.grids.forEach((grid) => close(sum(grid), 1))
+    close(compareDensityGrids(density.grids, 'overlap').score, 0.5)
+  })
+
+  test('applied area filters observations before KDE normalization', () => {
+    const density = buildComparativeDensities(locations, names, area)
+    assert.deepEqual(density.bounds, area)
+    close(sum(density.grids[0]), 1)
+    assert.equal(sum(density.grids[1]), 0)
+    assert.equal(compareDensityGrids(density.grids, 'overlap').score, 0)
+    assert.equal(compareDensityGrids(density.grids, 'difference').score, 1)
+    assert.deepEqual(density, buildComparativeDensities([locations[0]], names, area))
+  })
+
+  test('clearing the filter restores the all-study calculation', () => {
+    const initial = buildComparativeDensities(locations, names, null)
+    const filtered = buildComparativeDensities(locations, names, area)
+    assert.notDeepEqual(filtered.grids, initial.grids)
+    assert.deepEqual(buildComparativeDensities(locations, names, null), initial)
+  })
+
+  test('an empty filtered area produces an empty raster and no score', () => {
+    const density = buildComparativeDensities(locations, names, { ...area, west: 40, east: 42 })
+    assert.equal(compareDensityGrids(density.grids, 'overlap').score, null)
+    assert.ok(density.grids.every((grid) => grid.every((value) => value === 0)))
+  })
+
+  test('antimeridian areas and wrapped world copies use equivalent analytical frames', () => {
+    const points = [site(0, 179, { a: 1 }), site(0, -179, { b: 1 })]
+    const crossing = { north: 5, south: -5, west: 170, east: -170 }
+    const density = buildComparativeDensities(points, names, crossing)
+    density.grids.forEach((grid) => close(sum(grid), 1))
+    assert.deepEqual(density.bounds, { ...crossing, east: 190 })
+    assert.deepEqual(density, buildComparativeDensities(points, names, { ...crossing, east: 190 }))
+    const wrapped = buildComparativeDensities(points, names, { ...crossing, west: 530, east: 550 })
+    close(
+      compareDensityGrids(density.grids, 'overlap').score,
+      compareDensityGrids(wrapped.grids, 'overlap').score
+    )
+    const bounds = getComparativeBounds(points, null)
+    assert.ok(bounds.east - bounds.west < 3)
+  })
+
+  test('single-site and empty studies have valid, deterministic extents', () => {
+    const density = buildComparativeDensities([site(50, 5, { a: 1, b: 100 })], names, null)
+    assert.ok(density.bounds.north > density.bounds.south)
+    assert.ok(density.bounds.east > density.bounds.west)
+    close(compareDensityGrids(density.grids, 'overlap').score, 1)
+    const empty = buildComparativeDensities([], names, null)
+    assert.equal(empty.bounds, null)
+    assert.equal(compareDensityGrids(empty.grids, 'overlap').score, null)
+    assert.equal(getComparativeBounds([site(NaN, 0, {})], null), null)
   })
 })
 

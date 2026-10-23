@@ -1,7 +1,7 @@
 /**
- * Viewport-local KDEs. Work is bounded by a 256 × 256 grid, not observation
+ * Area-scoped KDEs. Work is bounded by a 256 × 256 grid, not observation
  * count × pixels: deposit weighted sites, then apply a separable Gaussian.
- * Pixel-space bandwidth shrinks in geographic units as the user zooms in.
+ * The analysis frame depends on the selected area, never the live map view.
  */
 export function getComparativeGrid(width, height, zoom) {
   const cellSize = Math.max(3, 8 - zoom / 4, width / 256, height / 256)
@@ -9,6 +9,92 @@ export function getComparativeGrid(width, height, zoom) {
     columns: Math.max(1, Math.ceil(width / cellSize)),
     rows: Math.max(1, Math.ceil(height / cellSize)),
     bandwidth: Math.max(24, Math.min(56, 24 + zoom * 1.5))
+  }
+}
+
+const MAX_LATITUDE = 85.0511287798
+const clampLatitude = (latitude) => Math.max(-MAX_LATITUDE, Math.min(MAX_LATITUDE, latitude))
+const validLocation = ({ lat, lng }) =>
+  Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180
+
+/** Frozen area-filter bounds, or a padded extent of all usable study locations. */
+export function getComparativeBounds(locations, areaFilter) {
+  if (areaFilter) {
+    const { north, south, east, west } = areaFilter
+    if (![north, south, east, west].every(Number.isFinite) || north <= south) return null
+    const unwrappedEast = east < west ? east + 360 * Math.ceil((west - east) / 360) : east
+    if (unwrappedEast <= west) return null
+    return { north: clampLatitude(north), south: clampLatitude(south), east: unwrappedEast, west }
+  }
+  const usable = locations.filter(validLocation)
+  if (!usable.length) return null
+  let north = -MAX_LATITUDE
+  let south = MAX_LATITUDE
+  const longitudes = usable
+    .map(({ lat, lng }) => {
+      north = Math.max(north, clampLatitude(lat))
+      south = Math.min(south, clampLatitude(lat))
+      return lng
+    })
+    .sort((a, b) => a - b)
+  // Cut at the largest gap so a study spanning ±180° uses its short arc,
+  // rather than nearly the entire world. Longitudes may extend beyond 180°.
+  let gapIndex = longitudes.length - 1
+  let largestGap = longitudes[0] + 360 - longitudes.at(-1)
+  for (let i = 0; i < longitudes.length - 1; i++) {
+    const gap = longitudes[i + 1] - longitudes[i]
+    if (gap > largestGap) {
+      largestGap = gap
+      gapIndex = i
+    }
+  }
+  const west = longitudes[(gapIndex + 1) % longitudes.length]
+  const east = longitudes[gapIndex] + (gapIndex < longitudes.length - 1 ? 360 : 0)
+  const padding = Math.max(0.01, Math.max(north - south, east - west) * 0.2)
+  return {
+    north: clampLatitude(north + padding),
+    south: clampLatitude(south - padding),
+    west: west - padding,
+    east: east + padding
+  }
+}
+
+const mercatorY = (latitude) => {
+  const sin = Math.sin((clampLatitude(latitude) * Math.PI) / 180)
+  return (1 - Math.log((1 + sin) / (1 - sin)) / (2 * Math.PI)) / 2
+}
+
+/** Fixed Web Mercator analysis frame; pan, zoom, and resize cannot change it. */
+export function buildComparativeDensities(locations, speciesNames, areaFilter) {
+  const bounds = getComparativeBounds(locations, areaFilter)
+  if (!bounds || bounds.north <= bounds.south) {
+    return { bounds: null, columns: 1, rows: 1, grids: speciesNames.map(() => new Float64Array(1)) }
+  }
+  const left = (bounds.west + 180) / 360
+  const top = mercatorY(bounds.north)
+  const spanX = (bounds.east - bounds.west) / 360
+  const spanY = mercatorY(bounds.south) - top
+  // A deterministic reference size preserves geographic bandwidth and mesh
+  // resolution even when the actual map pane changes size or zoom level.
+  const zoom = Math.max(
+    0,
+    Math.min(18, Math.log2(Math.min(900 / (256 * spanX), 560 / (256 * spanY))))
+  )
+  const scale = 256 * 2 ** zoom
+  const width = spanX * scale
+  const height = spanY * scale
+  const centerLongitude = (bounds.east + bounds.west) / 2
+  return {
+    bounds,
+    ...buildProjectedDensities(locations, speciesNames, {
+      width,
+      height,
+      zoom,
+      project: (lat, lng) => {
+        const longitude = lng + 360 * Math.round((centerLongitude - lng) / 360)
+        return { x: ((longitude + 180) / 360 - left) * scale, y: (mercatorY(lat) - top) * scale }
+      }
+    })
   }
 }
 
@@ -47,26 +133,19 @@ function gaussianBlur(grid, columns, rows, sigmaX, sigmaY) {
 }
 
 /**
- * `project(lat, lng)` returns viewport pixel coordinates (Leaflet handles the
- * projection). Only visible, valid locations participate; counts are the
+ * `project(lat, lng)` returns coordinates in the fixed analysis frame.
+ * Only valid locations inside that frame participate; counts are the
  * active Explore metric values, so date/time and counting filters are shared
  * with the other map encodings. A missing/null rate is not an observation.
  */
-export function buildViewportDensities(locations, speciesNames, { width, height, zoom, project }) {
+export function buildProjectedDensities(locations, speciesNames, { width, height, zoom, project }) {
   const { columns, rows, bandwidth } = getComparativeGrid(width, height, zoom)
   const grids = speciesNames.map(() => new Float64Array(columns * rows))
   if (width <= 0 || height <= 0) return { columns, rows, grids }
 
   for (const location of locations) {
     const { lat, lng } = location
-    if (
-      !Number.isFinite(lat) ||
-      !Number.isFinite(lng) ||
-      Math.abs(lat) > 90 ||
-      Math.abs(lng) > 180
-    ) {
-      continue
-    }
+    if (!validLocation(location)) continue
     const point = project(lat, lng)
     if (
       !Number.isFinite(point.x) ||
@@ -79,7 +158,7 @@ export function buildViewportDensities(locations, speciesNames, { width, height,
       continue
     }
 
-    // Bilinear deposition avoids snapping sites to a single cell when panning.
+    // Bilinear deposition avoids snapping sites to a single cell.
     const gx = Math.max(0, Math.min(columns - 1, (point.x / width) * columns - 0.5))
     const gy = Math.max(0, Math.min(rows - 1, (point.y / height) * rows - 0.5))
     const x = Math.floor(gx)

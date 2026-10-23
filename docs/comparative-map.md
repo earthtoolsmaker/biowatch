@@ -19,12 +19,18 @@ Removing tags below the required number temporarily falls back to Abundance.
 Selecting a third tag while Difference is active temporarily uses Overlap.
 Neither fallback overwrites the user's preferred mode.
 
-## Live scores
+## Area-scoped scores
 
-The legend describes the **current visible map area**, not the entire study.
-It updates while panning and after zooming or resizing the map. Points outside
-the viewport are excluded _before_ smoothing; each nonempty group's visible KDE is separately
-normalized to sum to 1.
+Use the existing **Filter to this area** button to compare the current map area.
+The button captures its bounds as a fixed area filter. Panning, zooming, or
+resizing afterwards does **not** change the comparison surface or either score.
+Click the button again to replace the filter with the newly visible area.
+Clearing the area filter restores the comparison across **all study locations**.
+The legend states which scope is being used.
+
+Points outside the applied area are excluded _before_ smoothing; each nonempty
+group's KDE is separately normalized to sum to 1. Taxonomy, date/time, and
+analysis-metric changes still update the comparison within that same scope.
 
 - **Overlap score:** `sum(min(density₁, …, densityₙ))`. Values range from 0
   (no shared density) to 1 (identical distributions).
@@ -34,14 +40,14 @@ normalized to sum to 1.
   the signed sum of differences, which would always be zero for normalized
   nonempty distributions.
 
-If a group has no usable observations in the viewport, its density is zero and
-its name is listed in the legend. This yields zero overlap (or an imbalance of
-1 if only one of two groups is present). If all groups are empty, the legend
-shows **No visible data** instead of a score.
+If a group has no usable observations in the comparison area, its density is zero
+and its name is listed in the legend. This yields zero overlap (or an imbalance
+of 1 if only one of two groups is present). If all groups are empty, the legend
+shows **No data in comparison area** instead of a score.
 
 The raster intensity is scaled to its current peak for legibility. It has no
 absolute count units; use the score to compare shared mass, not color brightness
-between different frames. Scores depend on viewport and smoothing and should
+between different areas. Scores depend on the applied area and smoothing and should
 not be interpreted as proof of ecological interaction or statistical significance.
 
 ## Implementation
@@ -51,19 +57,21 @@ metric and date/time filters. Missing rates and invalid coordinates are omitted.
 When RAI is selected, site rates weight the spatial distribution; the surface is
 a probability mass grid, not a sum of RAI values reported as a combined rate.
 
-Locations are projected through Leaflet (including wrapped longitude near the
-antimeridian), filtered to the viewport, and deposited bilinearly on a grid. A
-separable Gaussian convolution, truncated at three standard deviations, produces
-each group's KDE. Each nonempty KDE is normalized after clipping at the viewport
-edges. The grid is capped at 256 cells per axis to bound computation. Cell size
-and screen-space bandwidth vary with zoom; the geographic bandwidth decreases
-as the map zooms in.
+Locations are projected into a deterministic Web Mercator analysis frame
+(including wrapped longitude near the antimeridian), filtered to the applied
+area, and deposited bilinearly on a grid. Without an area filter, the frame uses
+the padded extent of the study's usable locations, choosing the short longitude
+arc for antimeridian-spanning studies. A separable Gaussian convolution,
+truncated at three standard deviations, produces each group's KDE. Each nonempty
+KDE is normalized after clipping at the analysis area's edges. The grid is capped
+at 256 cells per axis. Resolution and bandwidth are derived from a fixed reference
+size for the area, never from the current map zoom or pane dimensions.
 
-The result is drawn into a noninteractive canvas in Leaflet's overlay pane. Map
-events are coalesced with `requestAnimationFrame`, including live updates during
-panning. The previous viewport's raster is hidden until the next redraw; Leaflet
-hides the raster during animated zoom transitions. Listeners, scheduled work,
-and the canvas are removed when switching encodings or unmounting the map.
+A canvas produces the raster, which is displayed as a noninteractive Leaflet
+image overlay anchored to the analysis bounds. Leaflet handles navigation and
+scaling without recomputing the KDEs or scores. A display-only move listener
+keeps the image in the nearest world copy; it does not change the analysis.
+The image and listener are removed when switching encodings or unmounting.
 
 ## Tests
 
@@ -75,5 +83,5 @@ npx playwright test test/e2e/comparative-map.spec.js
 
 The Electron integration tests serve a deterministic Leaflet fixture without
 basemap requests or a dataset download. They cover selection constraints,
-tooltips, signed raster colors, live scores, pan/zoom/resize, empty viewports,
-and overlay cleanup.
+tooltips, signed raster colors, stable scores across pan/zoom/resize, applying,
+replacing, and clearing the real area filter, empty areas, and overlay cleanup.

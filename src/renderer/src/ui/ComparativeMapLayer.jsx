@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useMap } from 'react-leaflet'
 import L from 'leaflet'
 import {
-  buildViewportDensities,
+  buildComparativeDensities,
   colorizeComparison,
   compareDensityGrids
 } from '../utils/comparativeDensity'
@@ -16,11 +16,18 @@ function colorChannels(color) {
   return [...context.getImageData(0, 0, 1, 1).data].slice(0, 3)
 }
 
-/** A bounded, viewport-local raster plus its live analytical legend. */
-export default function ComparativeMapLayer({ locations, species, mode }) {
+/** A geographically anchored raster and scores for the applied area filter. */
+export default function ComparativeMapLayer({ locations, species, mode, areaFilter }) {
   const map = useMap()
   const legendRef = useRef(null)
-  const [summary, setSummary] = useState(null)
+  const analysis = useMemo(() => {
+    const density = buildComparativeDensities(
+      locations,
+      species.map((group) => group.scientificName),
+      areaFilter
+    )
+    return { ...density, ...compareDensityGrids(density.grids, mode) }
+  }, [locations, species, mode, areaFilter])
 
   useEffect(() => {
     const element = legendRef.current
@@ -29,78 +36,57 @@ export default function ComparativeMapLayer({ locations, species, mode }) {
   }, [])
 
   useEffect(() => {
-    const canvas = L.DomUtil.create('canvas', 'leaflet-zoom-hide')
-    canvas.style.position = 'absolute'
-    canvas.style.pointerEvents = 'none'
-    canvas.setAttribute('aria-hidden', 'true')
-    canvas.dataset.comparativeRaster = mode
-    map.getPanes().overlayPane.appendChild(canvas)
+    const { bounds, columns, rows } = analysis
+    if (!bounds) return undefined
+    const canvas = document.createElement('canvas')
+    canvas.width = columns
+    canvas.height = rows
     const context = canvas.getContext('2d')
-    const colors = species.map((group) => colorChannels(group.color))
-    let frame = 0
-
-    const redraw = () => {
-      const { x: width, y: height } = map.getSize()
-      if (width <= 0 || height <= 0) return
-      const centerLongitude = map.getCenter().lng
-      const { columns, rows, grids } = buildViewportDensities(
-        locations,
-        species.map((group) => group.scientificName),
-        {
-          width,
-          height,
-          zoom: map.getZoom(),
-          project: (lat, lng) => {
-            // Use the world copy closest to the viewport, including frames
-            // crossing the antimeridian or panned beyond ±180°.
-            const longitude = lng + 360 * Math.round((centerLongitude - lng) / 360)
-            return map.latLngToContainerPoint([lat, longitude])
-          }
-        }
+    const image = context.createImageData(columns, rows)
+    image.data.set(
+      colorizeComparison(
+        analysis,
+        mode,
+        species.map((group) => colorChannels(group.color))
       )
-      const result = compareDensityGrids(grids, mode)
-      canvas.width = columns
-      canvas.height = rows
-      canvas.style.width = `${width}px`
-      canvas.style.height = `${height}px`
-      L.DomUtil.setPosition(canvas, map.containerPointToLayerPoint([0, 0]))
-      const image = context.createImageData(columns, rows)
-      image.data.set(colorizeComparison(result, mode, colors))
-      context.putImageData(image, 0, 0)
-      canvas.style.visibility = 'visible'
-      setSummary({ score: result.score, emptyGroups: result.emptyGroups, species, mode })
+    )
+    context.putImageData(image, 0, 0)
+    const layer = L.imageOverlay(
+      canvas.toDataURL(),
+      [
+        [bounds.south, bounds.west],
+        [bounds.north, bounds.east]
+      ],
+      { interactive: false }
+    ).addTo(map)
+    layer.getElement().dataset.comparativeRaster = mode
+    // Leaflet repositions/scales this fixed geographical image when navigating;
+    // it never recomputes the analysis or changes its normalization domain.
+    let worldOffset = 0
+    const updateWorldCopy = () => {
+      const centerLongitude = (bounds.east + bounds.west) / 2
+      const nextOffset = 360 * Math.round((map.getCenter().lng - centerLongitude) / 360)
+      if (nextOffset === worldOffset) return
+      worldOffset = nextOffset
+      layer.setBounds([
+        [bounds.south, bounds.west + worldOffset],
+        [bounds.north, bounds.east + worldOffset]
+      ])
     }
-    const schedule = () => {
-      if (frame) return
-      frame = requestAnimationFrame(() => {
-        frame = 0
-        redraw()
-      })
-    }
-    // Hide the old viewport until the first coalesced redraw. During a pan,
-    // move events keep both the surface and score live, at most once per frame.
-    const hide = () => {
-      cancelAnimationFrame(frame)
-      frame = 0
-      canvas.style.visibility = 'hidden'
-    }
-    redraw()
-    map.on('movestart zoomstart', hide)
-    map.on('move moveend zoomend resize viewreset', schedule)
+    updateWorldCopy()
+    map.on('moveend', updateWorldCopy)
     return () => {
-      cancelAnimationFrame(frame)
-      map.off('movestart zoomstart', hide)
-      map.off('move moveend zoomend resize viewreset', schedule)
-      canvas.remove()
+      map.off('moveend', updateWorldCopy)
+      map.removeLayer(layer)
     }
-  }, [map, locations, species, mode])
+  }, [map, analysis, species, mode])
 
   const difference = mode === 'difference'
-  const currentSummary = summary?.species === species && summary.mode === mode ? summary : null
-  const emptyNames = currentSummary?.emptyGroups.map((index) => species[index].label).join(', ')
+  const scope = areaFilter ? 'the filtered area' : 'all study locations'
+  const emptyNames = analysis.emptyGroups.map((index) => species[index].label).join(', ')
   const scoreDescription = difference
-    ? 'Sum of absolute density differences divided by combined density (total variation distance). 0 = identical distributions; 1 = fully separated. Each group is normalized independently within this viewport.'
-    : 'Sum of the pointwise minimum across all selected, independently normalized densities. 0 = no shared density; 1 = identical distributions within this viewport.'
+    ? `Sum of absolute density differences divided by combined density (total variation distance). 0 = identical distributions; 1 = fully separated. Each group is normalized independently within ${scope}.`
+    : `Sum of the pointwise minimum across all selected, independently normalized densities. 0 = no shared density; 1 = identical distributions within ${scope}.`
 
   return (
     <div
@@ -116,7 +102,7 @@ export default function ComparativeMapLayer({ locations, species, mode }) {
           aria-atomic="true"
           className="font-medium tabular-nums"
         >
-          {currentSummary?.score == null ? 'No visible data' : currentSummary.score.toFixed(3)}
+          {analysis.score == null ? 'No data in comparison area' : analysis.score.toFixed(3)}
         </span>
       </div>
       <div
@@ -144,10 +130,14 @@ export default function ComparativeMapLayer({ locations, species, mode }) {
       <p className="text-[10px] text-muted-foreground">
         {difference ? '0 = identical · 1 = separated' : '0 = no overlap · 1 = identical'}
         <br />
-        Normalized per taxonomy in the visible map area
+        Normalized per taxonomy within {scope}
+        <br />
+        Use “Filter to this area” to compare another area
       </p>
       {emptyNames && (
-        <p className="text-[10px] text-muted-foreground">No visible data for: {emptyNames}</p>
+        <p className="text-[10px] text-muted-foreground">
+          No data in comparison area for: {emptyNames}
+        </p>
       )}
     </div>
   )
