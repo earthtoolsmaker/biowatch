@@ -832,18 +832,47 @@ const SpeciesMap = ({
   }, [])
   useEffect(() => () => clearTimeout(hoverCloseTimer.current), [])
 
+  // Clicking a location is a shortcut for zooming in and pressing "Filter to
+  // this area". Snap the view before reading its bounds so every chart gets the
+  // destination area, not the old viewport or an intermediate animation frame.
+  const focusLocation = useCallback(
+    (e) => {
+      const map = mapRef.current
+      if (!map) return
+      map.setView(e.target.getLatLng(), Math.min(map.getMaxZoom(), Math.max(map.getZoom(), 16)), {
+        animate: false
+      })
+      const bounds = map.getBounds()
+      onApplyAreaFilter({
+        north: bounds.getNorth(),
+        south: bounds.getSouth(),
+        east: bounds.getEast(),
+        west: bounds.getWest()
+      })
+    },
+    [onApplyAreaFilter]
+  )
+
   // PieChartMarker. Hovering opens the shared composition card (HoverCardOverlay)
   // beside the marker; out-of-area de-emphasis is applied imperatively (see the
   // opacity effect below) rather than via an `opacity` prop, so toggling the
   // area filter never re-renders these markers. `counts` is passed straight to
   // the Leaflet marker options so the cluster builder can read it back.
-  function PieChartMarker({ point, icon }) {
+  function PieChartMarker({ point, icon, onClick }) {
     return (
       <Marker
         position={[point.lat, point.lng]}
         icon={icon}
+        title="Zoom and filter to this location"
         analysisLocation={point}
         eventHandlers={{
+          click: onClick,
+          keydown: (e) => {
+            if (e.originalEvent.key === 'Enter' || e.originalEvent.key === ' ') {
+              e.originalEvent.preventDefault()
+              onClick(e)
+            }
+          },
           mouseover: () => showHoverCard(point, point.lat, point.lng),
           mouseout: hideHoverCard
         }}
@@ -903,10 +932,15 @@ const SpeciesMap = ({
     () =>
       isMarkerEncoding
         ? locationPoints.map((point, index) => (
-            <PieChartMarker key={index} point={point} icon={pieIcons[index]} />
+            <PieChartMarker
+              key={index}
+              point={point}
+              icon={pieIcons[index]}
+              onClick={focusLocation}
+            />
           ))
         : [],
-    [locationPoints, pieIcons, isMarkerEncoding]
+    [locationPoints, pieIcons, isMarkerEncoding, focusLocation]
   )
 
   // De-emphasize markers outside the area filter imperatively: set each marker's
