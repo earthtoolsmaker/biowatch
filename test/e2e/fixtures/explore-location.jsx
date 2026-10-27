@@ -38,6 +38,16 @@ window.exploreLocationCalls = calls
 L.Map.addInitHook(function () {
   window.exploreLocationMap = this
 })
+// Stable selectors for the real markers, even when switching encodings
+// remounts them or Leaflet changes layer/DOM order during navigation.
+L.Marker.addInitHook(function () {
+  this.on('add', () => {
+    const location = this.options.analysisLocation
+    if (location) {
+      this.getElement().dataset.testid = `location-${location.lat}-${location.lng}`
+    }
+  })
+})
 window.api = {
   getImportStatus: async () => ({ isRunning: false, done: 0 }),
   getSequenceGap: async () => ({ data: 60 }),
