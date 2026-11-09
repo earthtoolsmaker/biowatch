@@ -4,6 +4,7 @@ import { mkdirSync, rmSync, existsSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import Database from 'better-sqlite3'
+import { registerCameraTimeFunctions } from '../../../src/main/services/cameraTime.js'
 
 // Import the function we want to test
 import { importWildlifeDatasetWithPath } from '../../../src/main/services/import/parsers/wildlifeInsights.js'
@@ -133,12 +134,18 @@ describe('Wildlife Import Tests', () => {
       )
       assert.equal(deployment.latitude, 43.321849, 'Should have correct latitude')
       assert.equal(deployment.longitude, -5.99154, 'Should have correct longitude')
-      assert(deployment.deploymentStart, 'Should have deployment start date')
-      assert(deployment.deploymentEnd, 'Should have deployment end date')
+      assert.equal(deployment.deploymentStart, null, 'No instant without a camera zone')
+      assert.equal(deployment.deploymentEnd, null, 'No instant without a camera zone')
 
       // Verify date format (should be ISO format)
-      assert(deployment.deploymentStart.includes('2024-04-04'), 'Start date should be correct')
-      assert(deployment.deploymentEnd.includes('2024-05-03'), 'End date should be correct')
+      assert(
+        deployment.sourceDeploymentStart.includes('2024-04-04'),
+        'Source start date should be preserved'
+      )
+      assert(
+        deployment.sourceDeploymentEnd.includes('2024-05-03'),
+        'Source end date should be preserved'
+      )
     })
 
     test('should import media records correctly', async () => {
@@ -158,7 +165,9 @@ describe('Wildlife Import Tests', () => {
       for (const media of mediaRecords) {
         assert(media.mediaID, 'Media should have an ID')
         assert(media.deploymentID, 'Media should be linked to a deployment')
-        assert(media.timestamp, 'Media should have a timestamp')
+        assert(media.sourceTimestamp, 'Media should retain its source timestamp')
+        assert(media.localTimestamp, 'Camera wall time should be preserved')
+        assert.equal(media.timestamp, null, 'Do not infer the instant from the host timezone')
         assert(media.filePath, 'Media should have a file path')
         assert(media.fileName, 'Media should have a file name')
       }
@@ -197,8 +206,9 @@ describe('Wildlife Import Tests', () => {
         assert(obs.observationID, 'Observation should have an ID')
         assert(obs.mediaID, 'Observation should be linked to media')
         assert(obs.deploymentID, 'Observation should be linked to deployment')
-        assert(obs.eventStart, 'Observation should have event start time')
-        assert(obs.eventEnd, 'Observation should have event end time')
+        assert(obs.sourceEventStart, 'Observation should retain source start time')
+        assert(obs.sourceEventEnd, 'Observation should retain source end time')
+        assert.equal(obs.eventStart, null, 'Do not infer the instant from the host timezone')
       }
 
       // Check for blank observations
@@ -273,7 +283,13 @@ describe('Wildlife Import Tests', () => {
 
       const dbPath = join(testBiowatchDataPath, 'studies', studyId, 'study.db')
 
-      // Check that timestamps are in ISO format
+      // User confirms this offset-free dataset's camera timezone.
+      const writer = new Database(dbPath)
+      registerCameraTimeFunctions(writer)
+      writer.prepare('UPDATE deployments SET cameraTimeZone = ?').run('Europe/Madrid')
+      writer.close()
+
+      // Check that timestamps are in ISO UTC format
       const mediaWithTimestamp = queryDatabase(
         dbPath,
         'SELECT timestamp FROM media WHERE timestamp IS NOT NULL LIMIT 5'
@@ -291,7 +307,10 @@ describe('Wildlife Import Tests', () => {
       )
       assert.equal(specificRecord.length, 1, 'Should find the specific record')
       assert(specificRecord[0].timestamp.includes('2024-04-09'), 'Should have correct date')
-      assert(specificRecord[0].timestamp.includes('12:15:36'), 'Should have correct time')
+      assert(
+        specificRecord[0].timestamp.includes('10:15:36'),
+        '12:15 camera time is 10:15 UTC in April'
+      )
     })
 
     test('metadata should be stored in database with valid name', async () => {

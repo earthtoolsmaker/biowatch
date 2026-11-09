@@ -36,6 +36,14 @@ const api = {
   getAllDeployments: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('deployments:get-all', studyId)
   },
+  setCameraTimeZone: async (studyId, deploymentID, timeZone) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'deployments:set-camera-time-zone',
+      studyId,
+      deploymentID,
+      timeZone
+    )
+  },
   getDeploymentSpecies: async (studyId, deploymentID) => {
     return await electronAPI.ipcRenderer.invoke('deployments:get-species', studyId, deploymentID)
   },

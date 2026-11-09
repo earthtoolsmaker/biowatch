@@ -128,36 +128,37 @@ describe('Import Methods Tests', () => {
 
       // Each deployment should have start and end dates
       for (const deployment of deployments) {
+        assert.equal(deployment.deploymentStart, null, 'Offset-free dates need a camera setting')
         assert(
-          deployment.deploymentStart,
+          deployment.sourceDeploymentStart,
           `Deployment ${deployment.locationName} should have start date`
         )
         assert(
-          deployment.deploymentEnd,
+          deployment.sourceDeploymentEnd,
           `Deployment ${deployment.locationName} should have end date`
         )
 
         // Start date should be <= end date
         assert(
-          deployment.deploymentStart <= deployment.deploymentEnd,
+          deployment.sourceDeploymentStart <= deployment.sourceDeploymentEnd,
           `Deployment ${deployment.locationName} start should be <= end`
         )
 
         // Verify deployment start matches the earliest media date for this deployment
         const mediaForDeployment = queryDatabase(
           dbPath,
-          `SELECT MIN(timestamp) as earliestDate, MAX(timestamp) as latestDate
+          `SELECT MIN(localTimestamp) as earliestDate, MAX(localTimestamp) as latestDate
            FROM media WHERE deploymentID = '${deployment.deploymentID}'`
         )
 
         if (mediaForDeployment[0].earliestDate) {
           assert.equal(
-            deployment.deploymentStart,
+            deployment.sourceDeploymentStart,
             mediaForDeployment[0].earliestDate,
             `Deployment ${deployment.locationName} start should match earliest media date`
           )
           assert.equal(
-            deployment.deploymentEnd,
+            deployment.sourceDeploymentEnd,
             mediaForDeployment[0].latestDate,
             `Deployment ${deployment.locationName} end should match latest media date`
           )

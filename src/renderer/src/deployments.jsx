@@ -1250,10 +1250,22 @@ export default function Deployments({ studyId }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [selectedLocation, isPlaceMode, setSelectedLocation])
 
+  const unresolvedCount =
+    deploymentsList?.reduce(
+      (sum, deployment) => sum + (deployment.unresolvedTimestampCount || 0),
+      0
+    ) || 0
+
   return (
     <div
       className={`flex flex-col px-4 h-full overflow-hidden ${isPlaceMode ? 'place-mode-active' : ''}`}
     >
+      {unresolvedCount > 0 && (
+        <p role="status" className="flex-shrink-0 my-2 text-xs text-amber-600">
+          {unresolvedCount} media need a camera timezone before date-based analysis. Select a
+          deployment and open its settings.
+        </p>
+      )}
       <PanelGroup direction="vertical" autoSaveId="deployments-v2">
         <Panel defaultSize={selectedLocation ? 38 : 100} minSize={20} className="flex flex-col">
           <PanelGroup direction="horizontal" autoSaveId="deployments-v3-top">

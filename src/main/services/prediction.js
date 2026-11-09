@@ -7,7 +7,7 @@
 
 import crypto from 'crypto'
 import exifr from 'exifr'
-import geoTz from 'geo-tz'
+import { parseCameraTime, hasExplicitOffset, exifCameraTimestamp } from './cameraTime.js'
 import { DateTime } from 'luxon'
 import path from 'path'
 import { eq } from 'drizzle-orm'
@@ -372,9 +372,11 @@ export async function insertPrediction(db, prediction, modelInfo = {}) {
  * @returns {string} ISO 8601 timestamp
  */
 function calculateTimestamp(baseTimestamp, frameNumber, fps) {
-  const baseDate = DateTime.fromISO(baseTimestamp)
+  const baseDate = DateTime.fromISO(baseTimestamp, { zone: 'UTC', setZone: true })
   const offsetSeconds = frameNumber / fps
-  return baseDate.plus({ seconds: offsetSeconds }).toISO()
+  return baseDate
+    .plus({ seconds: offsetSeconds })
+    .toISO({ includeOffset: hasExplicitOffset(baseTimestamp) })
 }
 
 /**
@@ -567,7 +569,8 @@ export async function processMediaDeployment(db, mediaRecord) {
     const parsedExif = await exifr.parse(mediaRecord.filePath, {
       gps: true,
       exif: true,
-      reviveValues: true
+      // Keep EXIF wall-clock strings; Date revival assigns the host timezone.
+      reviveValues: false
     })
     exifData = parsedExif || {}
   } catch (exifError) {
@@ -583,15 +586,18 @@ export async function processMediaDeployment(db, mediaRecord) {
   }
 
   // 3. Determine timestamp (support both image and video metadata fields)
-  const zones = latitude && longitude ? geoTz.find(latitude, longitude) : null
-  const captureDate = exifData.DateTimeOriginal || exifData.CreateDate || exifData.MediaCreateDate
-  let date = captureDate ? DateTime.fromJSDate(captureDate, { zone: zones?.[0] }) : null
+  let sourceTimestamp = exifCameraTimestamp(exifData)
 
   // 3b. For video files, fall back to video-specific timestamp extraction
-  if (!date && isVideoMediatype(mediaRecord.fileMediatype)) {
+  if (!sourceTimestamp && isVideoMediatype(mediaRecord.fileMediatype)) {
     const videoResult = await resolveVideoTimestamp(mediaRecord.filePath, mediaRecord.fileName)
     if (videoResult.timestamp) {
-      date = DateTime.fromJSDate(videoResult.timestamp, { zone: zones?.[0] || 'utc' })
+      sourceTimestamp =
+        videoResult.source === 'filename'
+          ? DateTime.fromJSDate(videoResult.timestamp, { zone: 'UTC' }).toISO({
+              includeOffset: false
+            })
+          : videoResult.timestamp.toISOString()
       exifData.timestampSource = videoResult.source
     }
   }
@@ -607,25 +613,22 @@ export async function processMediaDeployment(db, mediaRecord) {
     let deployment = await getDeployment(db, parentFolder)
 
     if (deployment) {
-      // Expand date range if this media extends it (only if we have a valid timestamp)
-      if (date && deployment.deploymentStart && deployment.deploymentEnd) {
+      if (sourceTimestamp) {
+        const values = [
+          deployment.sourceDeploymentStart,
+          deployment.sourceDeploymentEnd,
+          sourceTimestamp
+        ].filter(Boolean)
+        const key = (value) => {
+          const parsed = parseCameraTime(value, deployment.cameraTimeZone)
+          return parsed?.utc || parsed?.local || ''
+        }
+        values.sort((a, b) => key(a).localeCompare(key(b)))
         await db
           .update(deployments)
           .set({
-            deploymentStart: DateTime.min(
-              date,
-              DateTime.fromISO(deployment.deploymentStart)
-            ).toISO(),
-            deploymentEnd: DateTime.max(date, DateTime.fromISO(deployment.deploymentEnd)).toISO()
-          })
-          .where(eq(deployments.deploymentID, deployment.deploymentID))
-      } else if (date && (!deployment.deploymentStart || !deployment.deploymentEnd)) {
-        // Deployment exists but has no date range - set it from this media
-        await db
-          .update(deployments)
-          .set({
-            deploymentStart: deployment.deploymentStart || date.toISO(),
-            deploymentEnd: deployment.deploymentEnd || date.toISO()
+            sourceDeploymentStart: values[0],
+            sourceDeploymentEnd: values[values.length - 1]
           })
           .where(eq(deployments.deploymentID, deployment.deploymentID))
       }
@@ -638,8 +641,8 @@ export async function processMediaDeployment(db, mediaRecord) {
         deploymentID,
         locationID: parentFolder,
         locationName: parentFolder,
-        deploymentStart: date ? date.toISO() : null,
-        deploymentEnd: date ? date.toISO() : null,
+        deploymentStart: sourceTimestamp,
+        deploymentEnd: sourceTimestamp,
         latitude: parseFloat(latitude),
         longitude: parseFloat(longitude)
       })
@@ -648,13 +651,14 @@ export async function processMediaDeployment(db, mediaRecord) {
     }
 
     // 6. Update database with timestamp, deployment, and EXIF data
-    const timestamp = date ? date.toISO() : null
+    const parsed = parseCameraTime(sourceTimestamp)
+    const timestamp = parsed?.zoned || parsed?.local || null
     const serializedExifData = serializeExifData(exifData)
 
     await db
       .update(media)
       .set({
-        timestamp,
+        sourceTimestamp,
         deploymentID: deployment.deploymentID,
         exifData: serializedExifData
       })

@@ -1,5 +1,7 @@
 import { isAreaBboxApplicable } from '../../database/queries/bbox.js'
 import { normalizeTimeRange } from '../../database/queries/sequences.js'
+import { cameraZone, effortCameraZone } from '../cameraTime.js'
+import { DateTime } from 'luxon'
 
 const DAY_MS = 86_400_000
 const HOUR_MS = 3_600_000
@@ -42,12 +44,24 @@ export function validateDeploymentIntervals(
     const hasCoordinates = Number.isFinite(latitude) && Number.isFinite(longitude)
     const start = asMillis(row.startMs !== undefined ? row.startMs : row.deploymentStart)
     const end = asMillis(row.endMs !== undefined ? row.endMs : row.deploymentEnd)
-    if (start == null || end == null || end <= start || (requireCoordinates && !hasCoordinates)) {
+    const timeZone = effortCameraZone(
+      row.sourceDeploymentStart,
+      row.sourceDeploymentEnd,
+      row.cameraTimeZone
+    )
+    if (
+      start == null ||
+      end == null ||
+      end <= start ||
+      !cameraZone(timeZone) ||
+      (requireCoordinates && !hasCoordinates)
+    ) {
       excludedDeploymentCount += 1
       continue
     }
     intervals.push({
       deploymentID: row.deploymentID,
+      timeZone,
       start,
       end,
       latitude: hasCoordinates ? latitude : null,
@@ -104,7 +118,7 @@ function addPartialHours(target, start, end, allowedHours) {
   }
 }
 
-function addIntervalByHour(target, interval, allowedHours = null) {
+function addUtcIntervalByHour(target, interval, allowedHours = null) {
   let cursor = interval.start
   const startDate = new Date(cursor)
   const nextMidnight = Date.UTC(
@@ -126,7 +140,52 @@ function addIntervalByHour(target, interval, allowedHours = null) {
   if (cursor < interval.end) addPartialHours(target, cursor, interval.end, allowedHours)
 }
 
-/** Duration of one clipped interval after recurring hour-range intersection. */
+/**
+ * Partition real elapsed time into constant-offset segments. Fixed-offset
+ * cameras are O(1); civil clocks split exactly at DST changes, including
+ * half-hour transitions. No assumption that a local day lasts 24 hours.
+ */
+function* offsetSegments(interval) {
+  const setting = cameraZone(interval.timeZone)
+  if (!setting) throw new Error('Camera effort requires a known camera time setting')
+  const zone = DateTime.fromMillis(interval.start, { zone: setting }).zone
+  if (zone.isUniversal) {
+    yield { ...interval, offsetMs: zone.offset(interval.start) * 60_000 }
+    return
+  }
+  let cursor = interval.start
+  while (cursor < interval.end) {
+    const offset = zone.offset(cursor)
+    let end = Math.min(interval.end, cursor + DAY_MS)
+    if (zone.offset(end - 1) !== offset) {
+      let low = cursor
+      let high = end - 1
+      while (high - low > 1) {
+        const middle = Math.floor((low + high) / 2)
+        if (zone.offset(middle) === offset) low = middle
+        else high = middle
+      }
+      end = high
+    }
+    yield { ...interval, start: cursor, end, offsetMs: offset * 60_000 }
+    cursor = end
+  }
+}
+
+function addIntervalByHour(target, interval, allowedHours = null) {
+  for (const segment of offsetSegments(interval)) {
+    addUtcIntervalByHour(
+      target,
+      {
+        start: segment.start + segment.offsetMs,
+        end: segment.end + segment.offsetMs
+      },
+      allowedHours
+    )
+  }
+}
+
+/** Duration of one clipped interval after recurring camera-local hour intersection. */
 export function intersectRecurringTimeRanges(interval, timeRange) {
   const hours = selectedHours(timeRange)
   if (!hours) return interval.end - interval.start
@@ -160,24 +219,28 @@ export function groupEffortByWeek(intervals, { start = null, end = null } = {}) 
   for (const interval of intervals) {
     const clipped = clipInterval(interval, start, end)
     if (!clipped) continue
-    let bucketStart = mondayStart(clipped.start)
-    while (bucketStart < clipped.end) {
-      const overlapStart = Math.max(clipped.start, bucketStart)
-      const overlapEnd = Math.min(clipped.end, bucketStart + WEEK_MS)
-      if (overlapEnd > overlapStart) {
-        const label = weekLabel(bucketStart)
-        effortByWeek.set(
-          label,
-          (effortByWeek.get(label) || 0) + (overlapEnd - overlapStart) / DAY_MS
-        )
+    for (const segment of offsetSegments(clipped)) {
+      const localStart = segment.start + segment.offsetMs
+      const localEnd = segment.end + segment.offsetMs
+      let bucketStart = mondayStart(localStart)
+      while (bucketStart < localEnd) {
+        const overlapStart = Math.max(localStart, bucketStart)
+        const overlapEnd = Math.min(localEnd, bucketStart + WEEK_MS)
+        if (overlapEnd > overlapStart) {
+          const label = weekLabel(bucketStart)
+          effortByWeek.set(
+            label,
+            (effortByWeek.get(label) || 0) + (overlapEnd - overlapStart) / DAY_MS
+          )
+        }
+        bucketStart += WEEK_MS
       }
-      bucketStart += WEEK_MS
     }
   }
   return effortByWeek
 }
 
-/** Group clipped camera duration into UTC hour buckets, matching SQLite strftime('%H'). */
+/** Group elapsed camera duration into the same camera-local hours as detections. */
 export function groupEffortByHour(intervals, { start = null, end = null } = {}) {
   const milliseconds = Array(24).fill(0)
   for (const interval of intervals) {

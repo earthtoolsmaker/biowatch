@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import csv from 'csv-parser'
-import { DateTime } from 'luxon'
+import { parseCameraTime } from '../../cameraTime.js'
 import {
   getDrizzleDb,
   deployments,
@@ -156,15 +156,15 @@ async function insertDeployments(db, deploymentsCSV) {
     let rowCount = 0
 
     stream.on('data', (row) => {
-      const startDate = DateTime.fromSQL(row.start_date)
-      const endDate = DateTime.fromSQL(row.end_date)
+      const startDate = parseCameraTime(row.start_date) ? row.start_date : null
+      const endDate = parseCameraTime(row.end_date) ? row.end_date : null
 
       const transformedRow = {
         deploymentID: row.deployment_id,
         locationID: row.latitude + ' ' + row.longitude,
         locationName: row.deployment_id,
-        deploymentStart: startDate.isValid ? startDate.toISO() : null,
-        deploymentEnd: endDate.isValid ? endDate.toISO() : null,
+        deploymentStart: startDate,
+        deploymentEnd: endDate,
         latitude: parseFloat(row.latitude) || null,
         longitude: parseFloat(row.longitude) || null
       }
@@ -223,11 +223,11 @@ async function insertMedia(db, csvPath) {
         return
       }
 
-      const timestamp = DateTime.fromSQL(row.timestamp)
+      const timestamp = parseCameraTime(row.timestamp) ? row.timestamp : null
       const transformedRow = {
         mediaID: row.image_id,
         deploymentID: row.deployment_id || null,
-        timestamp: timestamp.isValid ? timestamp.toISO() : null,
+        timestamp,
         filePath: row.location || null,
         fileName: row.filename || null
       }
@@ -294,16 +294,16 @@ async function insertObservations(db, csvPath) {
         scientificName = row.common_name
       }
 
-      // Parse timestamp to ISO format
-      const timestamp = DateTime.fromSQL(row.timestamp)
+      // Keep the source clock value, not the importing computer's timezone.
+      const timestamp = parseCameraTime(row.timestamp) ? row.timestamp : null
 
       const transformedRow = {
         observationID: `${row.image_id}_obs`, // Create unique observation ID
         mediaID: row.image_id || null,
         deploymentID: row.deployment_id || null,
         eventID: row.sequence_id || null,
-        eventStart: timestamp.isValid ? timestamp.toISO() : null,
-        eventEnd: timestamp.isValid ? timestamp.toISO() : null,
+        eventStart: timestamp,
+        eventEnd: timestamp,
         scientificName: normalizeScientificName(scientificName),
         observationType: null, // Not available in Wildlife Insights format
         commonName: row.common_name || null,

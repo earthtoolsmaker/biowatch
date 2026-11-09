@@ -29,10 +29,12 @@ before(() => {
     CREATE TABLE deployments (
       deploymentID TEXT PRIMARY KEY, locationID TEXT, locationName TEXT,
       deploymentStart TEXT, deploymentEnd TEXT, latitude REAL, longitude REAL,
+      sourceDeploymentStart TEXT, sourceDeploymentEnd TEXT, cameraTimeZone TEXT DEFAULT 'UTC',
       cameraModel TEXT, cameraID TEXT, coordinateUncertainty INTEGER
     );
     CREATE TABLE media (
       mediaID TEXT PRIMARY KEY, deploymentID TEXT, timestamp TEXT,
+      localTimestamp TEXT GENERATED ALWAYS AS (substr(timestamp, 1, 23)) VIRTUAL,
       filePath TEXT, fileName TEXT, fileMediatype TEXT, folderName TEXT
     );
     CREATE TABLE observations (

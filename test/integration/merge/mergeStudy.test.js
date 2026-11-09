@@ -21,12 +21,13 @@ function bootstrapStudy(uuid, { title, importerName, contributors }) {
     CREATE TABLE deployments (
       deploymentID TEXT PRIMARY KEY, locationID TEXT, locationName TEXT,
       deploymentStart TEXT, deploymentEnd TEXT, latitude REAL, longitude REAL,
+      sourceDeploymentStart TEXT, sourceDeploymentEnd TEXT, cameraTimeZone TEXT,
       cameraModel TEXT, cameraID TEXT, coordinateUncertainty INTEGER
     );
     CREATE TABLE media (
       mediaID TEXT PRIMARY KEY,
       deploymentID TEXT REFERENCES deployments(deploymentID),
-      timestamp TEXT, filePath TEXT, fileName TEXT,
+      timestamp TEXT, sourceTimestamp TEXT, localTimestamp TEXT, filePath TEXT, fileName TEXT,
       importFolder TEXT, folderName TEXT, fileMediatype TEXT,
       exifData TEXT, favorite INTEGER
     );
@@ -46,7 +47,7 @@ function bootstrapStudy(uuid, { title, importerName, contributors }) {
       mediaID TEXT REFERENCES media(mediaID),
       deploymentID TEXT REFERENCES deployments(deploymentID),
       modelOutputID TEXT REFERENCES model_outputs(id),
-      eventID TEXT, eventStart TEXT, eventEnd TEXT,
+      eventID TEXT, eventStart TEXT, eventEnd TEXT, sourceEventStart TEXT, sourceEventEnd TEXT,
       scientificName TEXT, observationType TEXT, commonName TEXT,
       classificationProbability REAL, count INTEGER,
       lifeStage TEXT, age TEXT, sex TEXT, behavior TEXT,
@@ -114,6 +115,11 @@ describe('mergeStudy', () => {
          VALUES (?, ?, ?, ?)`
       )
       .run('obs1', 'IMG1', 'CAM_01', 'Lepus europaeus')
+    B.db.exec(`UPDATE deployments SET cameraTimeZone = 'Europe/Paris',
+      sourceDeploymentStart = '2024-05-01T00:00:00+02:00', sourceDeploymentEnd = '2024-05-02T00:00:00+02:00';
+      UPDATE media SET timestamp = '2024-05-01T20:30:00.000Z',
+        sourceTimestamp = '2024-05-01T22:30:00+02:00', localTimestamp = '2024-05-01T22:30:00.000';
+      UPDATE observations SET sourceEventStart = '2024-05-01T22:30:00+02:00';`)
 
     A.db.close()
     B.db.close()
@@ -137,6 +143,8 @@ describe('mergeStudy', () => {
       assert.equal(dep.length, 1)
       assert.equal(dep[0].deploymentID, 'study:bbbbbbbb:CAM_01')
       assert.equal(dep[0].locationID, 'CAM_01')
+      assert.equal(dep[0].cameraTimeZone, 'Europe/Paris')
+      assert.equal(dep[0].sourceDeploymentStart, '2024-05-01T00:00:00+02:00')
 
       const med = a.prepare('SELECT * FROM media').all()
       assert.equal(med.length, 1)
@@ -144,12 +152,15 @@ describe('mergeStudy', () => {
       assert.equal(med[0].deploymentID, 'study:bbbbbbbb:CAM_01')
       assert.equal(med[0].filePath, 'https://example.com/IMG1.jpg')
       assert.equal(med[0].importFolder, `merge:${B_UUID}`)
+      assert.equal(med[0].sourceTimestamp, '2024-05-01T22:30:00+02:00')
+      assert.equal(med[0].localTimestamp, '2024-05-01T22:30:00.000')
 
       const obs = a.prepare('SELECT * FROM observations').all()
       assert.equal(obs.length, 1)
       assert.equal(obs[0].observationID, 'study:bbbbbbbb:obs1')
       assert.equal(obs[0].mediaID, 'study:bbbbbbbb:IMG1')
       assert.equal(obs[0].deploymentID, 'study:bbbbbbbb:CAM_01')
+      assert.equal(obs[0].sourceEventStart, '2024-05-01T22:30:00+02:00')
 
       const meta = a.prepare('SELECT * FROM metadata').get()
       assert.equal(meta.description, 'merged')

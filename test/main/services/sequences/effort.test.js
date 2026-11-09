@@ -17,6 +17,7 @@ const interval = (start, end, extra = {}) => ({
   latitude: extra.latitude ?? 1,
   longitude: extra.longitude ?? 2,
   locationName: extra.locationName || 'Site',
+  timeZone: 'UTC',
   ...extra
 })
 
@@ -24,6 +25,60 @@ const close = (actual, expected, epsilon = 1e-9) =>
   assert.ok(Math.abs(actual - expected) < epsilon, `${actual} != ${expected}`)
 
 describe('effective camera effort', () => {
+  test('civil camera clocks account for skipped and repeated DST hours', () => {
+    const spring = interval('2024-03-30T23:00:00Z', '2024-03-31T22:00:00Z', {
+      timeZone: 'Europe/Paris'
+    })
+    const autumn = interval('2024-10-26T22:00:00Z', '2024-10-27T23:00:00Z', {
+      timeZone: 'Europe/Paris'
+    })
+    const springHours = groupEffortByHour([spring])
+    const autumnHours = groupEffortByHour([autumn])
+    close(springHours[2], 0)
+    close(autumnHours[2], 2 / 24)
+    close(
+      springHours.reduce((a, b) => a + b, 0),
+      23 / 24
+    )
+    close(
+      autumnHours.reduce((a, b) => a + b, 0),
+      25 / 24
+    )
+    close(intersectRecurringTimeRanges(autumn, { ranges: [{ start: 2, end: 3 }] }), 2 * 3_600_000)
+    const fixed = groupEffortByHour([{ ...autumn, timeZone: 'UTC+02:00' }])
+    close(fixed[2], 1 / 24)
+  })
+
+  test('half-hour DST changes conserve real elapsed effort', () => {
+    const source = interval('2024-04-06T13:00:00Z', '2024-04-07T13:30:00Z', {
+      timeZone: 'Australia/Lord_Howe'
+    })
+    const hours = groupEffortByHour([source])
+    close(hours[1], 1.5 / 24)
+    close(
+      hours.reduce((a, b) => a + b, 0),
+      24.5 / 24
+    )
+  })
+
+  test('different endpoint offsets require a civil camera time setting for effort', () => {
+    const rows = [
+      {
+        deploymentID: 'd',
+        deploymentStart: '2024-03-30T23:00:00Z',
+        deploymentEnd: '2024-03-31T22:00:00Z',
+        sourceDeploymentStart: '2024-03-31T00:00:00+01:00',
+        sourceDeploymentEnd: '2024-04-01T00:00:00+02:00'
+      }
+    ]
+    assert.equal(validateDeploymentIntervals(rows).excludedDeploymentCount, 1)
+    assert.equal(
+      validateDeploymentIntervals(rows.map((r) => ({ ...r, cameraTimeZone: 'Europe/Paris' })))
+        .validDeploymentCount,
+      1
+    )
+  })
+
   test('keeps fractional camera-days and clips half-open intervals', () => {
     const source = interval('2024-01-01T00:00:00Z', '2024-01-02T12:00:00Z')
     close(sumTotalEffort([source]), 1.5)
@@ -39,7 +94,9 @@ describe('effective camera effort', () => {
       { deploymentID: 'zero', deploymentStart: '2024-01-01', deploymentEnd: '2024-01-01' },
       { deploymentID: 'reverse', deploymentStart: '2024-01-02', deploymentEnd: '2024-01-01' }
     ]
-    const validated = validateDeploymentIntervals(rows)
+    const validated = validateDeploymentIntervals(
+      rows.map((row) => ({ ...row, cameraTimeZone: 'UTC' }))
+    )
     assert.equal(validated.validDeploymentCount, 1)
     assert.equal(validated.excludedDeploymentCount, 4)
   })
@@ -109,9 +166,12 @@ describe('effective camera effort', () => {
         longitude: 50
       }
     ]
-    const result = validateDeploymentIntervals(rows, {
-      bbox: { south: 0, north: 10, west: 0, east: 10 }
-    })
+    const result = validateDeploymentIntervals(
+      rows.map((row) => ({ ...row, cameraTimeZone: 'UTC' })),
+      {
+        bbox: { south: 0, north: 10, west: 0, east: 10 }
+      }
+    )
     assert.deepEqual(
       result.intervals.map((item) => item.deploymentID),
       ['in']

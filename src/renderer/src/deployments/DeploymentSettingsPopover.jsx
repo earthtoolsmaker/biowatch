@@ -1,6 +1,6 @@
 import { Settings } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { deploymentEffortDays } from '../../../shared/effort.js'
 import EffortTooltip from './EffortTooltip'
 import { formatDateRange, formatEffortDays } from './formatEffort'
@@ -10,8 +10,7 @@ import { formatDateRange, formatEffortDays } from './formatEffort'
  * stats (media, observations, blank rate), camera identifiers, and
  * deployment dates plus camera-days for the currently selected deployment.
  *
- * Read-only for v1. Row layout (label-left / value-right) is structured
- * so future inline editing drops in without restructuring.
+ * Camera time settings explicitly resolve offset-free source timestamps.
  */
 export default function DeploymentSettingsPopover({ studyId, deployment }) {
   const [isOpen, setIsOpen] = useState(false)
@@ -52,10 +51,17 @@ export default function DeploymentSettingsPopover({ studyId, deployment }) {
         ref={buttonRef}
         onClick={() => setIsOpen((v) => !v)}
         className="p-1 rounded text-muted-foreground hover:bg-accent hover:text-foreground"
-        title="Deployment settings"
+        title={
+          deployment.unresolvedTimestampCount > 0
+            ? 'Camera timezone needed — open deployment settings'
+            : 'Deployment settings'
+        }
         aria-label="Deployment settings"
       >
         <Settings size={16} />
+        {deployment.unresolvedTimestampCount > 0 && (
+          <span className="absolute top-0 right-0 h-2 w-2 rounded-full bg-amber-500" />
+        )}
       </button>
       {isOpen && (
         <div
@@ -64,10 +70,97 @@ export default function DeploymentSettingsPopover({ studyId, deployment }) {
         >
           <StatsSection stats={stats} />
           <CameraSection deployment={deployment} />
+          <CameraTimeSection
+            key={deployment.cameraTimeZone || 'source'}
+            studyId={studyId}
+            deployment={deployment}
+          />
           <DeploymentSection deployment={deployment} />
         </div>
       )}
     </div>
+  )
+}
+
+function CameraTimeSection({ studyId, deployment }) {
+  const queryClient = useQueryClient()
+  const [draft, setDraft] = useState(deployment.cameraTimeZone || '')
+  const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState(null)
+  const save = async (event) => {
+    event.preventDefault()
+    setSaving(true)
+    setMessage(null)
+    try {
+      const response = await window.api.setCameraTimeZone(
+        studyId,
+        deployment.deploymentID,
+        draft.trim() || null
+      )
+      if (response.error) throw new Error(response.error)
+      await queryClient.invalidateQueries({
+        predicate: (query) => query.queryKey.includes(studyId)
+      })
+      setMessage(
+        response.data.unresolvedCount > 0
+          ? `${response.data.unresolvedCount} timestamps still need an explicit offset (invalid or ambiguous camera time).`
+          : 'Camera time setting saved.'
+      )
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+  return (
+    <form onSubmit={save} className="mb-3 border-t border-border pt-3">
+      <label
+        className="text-[11px] font-semibold uppercase tracking-wide"
+        htmlFor="camera-time-zone"
+      >
+        Camera time setting
+      </label>
+      <p className="text-[11px] text-muted-foreground my-1">
+        Use Europe/Paris for daylight saving, or UTC+02:00 for a clock fixed year-round. Leave blank
+        to use offsets supplied by the source. Supplied offsets are always preserved.
+      </p>
+      {!deployment.cameraEffortTimeZone &&
+        deployment.sourceDeploymentStart &&
+        deployment.sourceDeploymentEnd && (
+          <p className="text-[11px] text-amber-600 mb-1">
+            Camera effort needs a setting consistent with the source offsets. Use a named timezone
+            when offsets change with daylight saving.
+          </p>
+        )}
+      {deployment.unresolvedTimestampCount > 0 && (
+        <p role="status" className="text-[11px] text-amber-600 mb-1">
+          {deployment.unresolvedTimestampCount} media have no known instant and are excluded from
+          date-based analysis. Set the camera timezone below.
+        </p>
+      )}
+      <div className="flex gap-2">
+        <input
+          id="camera-time-zone"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="Europe/Paris or UTC+02:00"
+          disabled={saving}
+          className="min-w-0 flex-1 rounded border border-border bg-background px-2 py-1 text-xs"
+        />
+        <button
+          type="submit"
+          disabled={saving}
+          className="rounded border border-border px-2 text-xs"
+        >
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+      {message && (
+        <p role="status" className="text-[11px] mt-1">
+          {message}
+        </p>
+      )}
+    </form>
   )
 }
 

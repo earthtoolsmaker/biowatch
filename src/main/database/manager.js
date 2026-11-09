@@ -5,6 +5,7 @@ import { existsSync, mkdirSync } from 'fs'
 import { dirname } from 'path'
 import log from '../services/logger.js'
 import * as schema from './models.js'
+import { registerCameraTimeFunctions } from '../services/cameraTime.js'
 import { getValidatedMigrationsPath } from './migrations-utils.js'
 
 /**
@@ -33,12 +34,14 @@ export class StudyDatabaseManager {
       // Create SQLite connection with appropriate mode
       if (this.readonly) {
         this.sqlite = new Database(this.dbPath, { readonly: true })
+        registerCameraTimeFunctions(this.sqlite)
         log.info(`[DB] Initialized READONLY database for study ${this.studyId}: ${this.dbPath}`)
 
         // Skip migrations and foreign key setup for readonly connections
         this.db = drizzle(this.sqlite, { schema })
       } else {
         this.sqlite = new Database(this.dbPath)
+        registerCameraTimeFunctions(this.sqlite)
 
         // Enable foreign keys
         this.sqlite.pragma('foreign_keys = ON')

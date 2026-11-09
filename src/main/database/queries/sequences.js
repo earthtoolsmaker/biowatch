@@ -59,13 +59,13 @@ export function buildHourRangeCondition(range) {
   if (start === end) return null
   if (start < end) {
     return and(
-      sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) >= ${start}`,
-      sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) < ${end}`
+      sql`CAST(substr(${media.localTimestamp}, 12, 2) AS INTEGER) >= ${start}`,
+      sql`CAST(substr(${media.localTimestamp}, 12, 2) AS INTEGER) < ${end}`
     )
   }
   return or(
-    sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) >= ${start}`,
-    sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER) < ${end}`
+    sql`CAST(substr(${media.localTimestamp}, 12, 2) AS INTEGER) >= ${start}`,
+    sql`CAST(substr(${media.localTimestamp}, 12, 2) AS INTEGER) < ${end}`
   )
 }
 

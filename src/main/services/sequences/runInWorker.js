@@ -1,7 +1,8 @@
 /**
  * Shared helper to run a task on the sequences worker thread.
  *
- * Each call spawns a fresh worker that opens its own readonly DB connection,
+ * Each call spawns a fresh worker that opens its own DB connection (readonly
+ * for analytics; writable for the explicit camera-time-setting task),
  * executes the task, posts the result, and exits. Used by IPC handlers that
  * would otherwise block the main event loop on heavy SQLite work.
  */

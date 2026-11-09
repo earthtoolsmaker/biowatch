@@ -204,7 +204,17 @@ export async function getAllDeployments(dbPath) {
         deploymentStart: deployments.deploymentStart,
         deploymentEnd: deployments.deploymentEnd,
         cameraID: deployments.cameraID,
-        cameraModel: deployments.cameraModel
+        cameraModel: deployments.cameraModel,
+        cameraTimeZone: deployments.cameraTimeZone,
+        cameraEffortTimeZone:
+          sql`camera_effort_zone(${deployments.sourceDeploymentStart}, ${deployments.sourceDeploymentEnd}, ${deployments.cameraTimeZone})`.as(
+            'cameraEffortTimeZone'
+          ),
+        sourceDeploymentStart: deployments.sourceDeploymentStart,
+        sourceDeploymentEnd: deployments.sourceDeploymentEnd,
+        unresolvedTimestampCount:
+          sql`(SELECT COUNT(*) FROM media m WHERE m.deploymentID = ${deployments.deploymentID}
+          AND m.sourceTimestamp IS NOT NULL AND m.timestamp IS NULL)`.as('unresolvedTimestampCount')
       })
       .from(deployments)
 

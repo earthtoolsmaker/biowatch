@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import csv from 'csv-parser'
-import { DateTime } from 'luxon'
+import { parseCameraTime, cameraZone } from '../../cameraTime.js'
 import { sql } from 'drizzle-orm'
 import {
   getStudyDatabase,
@@ -594,6 +594,7 @@ function transformDeploymentRow(row) {
     deploymentID,
     locationID,
     locationName: row.locationName || row.location_name || null,
+    cameraTimeZone: cameraZone(row.cameraTimeZone) ? row.cameraTimeZone : null,
     deploymentStart: transformDateField(row.deploymentStart || row.deployment_start),
     deploymentEnd: transformDateField(row.deploymentEnd || row.deployment_end),
     latitude,
@@ -704,8 +705,8 @@ function transformObservationRow(row) {
 function transformDateField(dateValue) {
   if (!dateValue) return null
 
-  const date = DateTime.fromISO(dateValue)
-  return date.isValid ? date.toUTC().toISO() : null
+  // Preserve the supplied wall time and offset; the database derives UTC.
+  return parseCameraTime(dateValue) ? dateValue.trim() : null
 }
 
 /**
@@ -846,6 +847,7 @@ export async function expandObservationsToMedia(db, onProgress = null, batchSize
     const insertResult = await db.run(sql`
       INSERT INTO observations (
         observationID, mediaID, deploymentID, eventID, eventStart, eventEnd,
+        sourceEventStart, sourceEventEnd,
         scientificName, observationType, commonName, classificationProbability,
         count, lifeStage, age, sex, behavior,
         bboxX, bboxY, bboxWidth, bboxHeight,
@@ -858,6 +860,7 @@ export async function expandObservationsToMedia(db, onProgress = null, batchSize
           substr('89ab', abs(random()) % 4 + 1, 1) ||
           substr(hex(randomblob(2)),2) || '-' || hex(randomblob(6))),
         m.mediaID, o.deploymentID, o.eventID, o.eventStart, o.eventEnd,
+        o.sourceEventStart, o.sourceEventEnd,
         o.scientificName, o.observationType, o.commonName, o.classificationProbability,
         o.count, o.lifeStage, o.age, o.sex, o.behavior,
         o.bboxX, o.bboxY, o.bboxWidth, o.bboxHeight,
@@ -866,8 +869,10 @@ export async function expandObservationsToMedia(db, onProgress = null, batchSize
       FROM observations o
       INNER JOIN media m
         ON o.deploymentID = m.deploymentID
-       AND m.timestamp >= o.eventStart
-       AND m.timestamp <= COALESCE(o.eventEnd, o.eventStart)
+       AND ((m.timestamp >= o.eventStart AND m.timestamp <= COALESCE(o.eventEnd, o.eventStart))
+         OR (m.timestamp IS NULL AND o.eventStart IS NULL
+           AND m.localTimestamp >= camera_local(o.sourceEventStart, NULL)
+           AND m.localTimestamp <= camera_local(COALESCE(o.sourceEventEnd, o.sourceEventStart), NULL)))
       WHERE o.mediaID IS NULL
         AND o.rowid > ${cursor}
         AND o.rowid <= ${lastRowid}
@@ -908,8 +913,11 @@ export async function expandObservationsToMedia(db, onProgress = null, batchSize
       AND EXISTS (
         SELECT 1 FROM media m
         WHERE m.deploymentID = observations.deploymentID
-          AND m.timestamp >= observations.eventStart
-          AND m.timestamp <= COALESCE(observations.eventEnd, observations.eventStart)
+          AND ((m.timestamp >= observations.eventStart
+            AND m.timestamp <= COALESCE(observations.eventEnd, observations.eventStart))
+            OR (m.timestamp IS NULL AND observations.eventStart IS NULL
+              AND m.localTimestamp >= camera_local(observations.sourceEventStart, NULL)
+              AND m.localTimestamp <= camera_local(COALESCE(observations.sourceEventEnd, observations.sourceEventStart), NULL)))
       )
   `)
   const expanded = Number(deleteResult.changes ?? 0)
