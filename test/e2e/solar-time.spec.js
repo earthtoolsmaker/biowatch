@@ -52,7 +52,19 @@ test.beforeAll(async () => {
     env: { ...process.env, NODE_ENV: 'test' }
   })
   window = await app.firstWindow()
+  // Resize the native window as well as the viewport so pointer hit testing
+  // reaches the docked species rail on runners with smaller default screens.
+  const browserWindow = await app.browserWindow(window)
+  await browserWindow.evaluate((win) => {
+    win.setContentSize(1024, 768)
+    win.setPosition(0, 0)
+    win.show()
+    win.focus()
+  })
+  await browserWindow.dispose()
+  await window.setViewportSize({ width: 1024, height: 768 })
   await window.bringToFront()
+  await expect.poll(() => window.evaluate(() => document.hasFocus())).toBe(true)
   window.on('pageerror', (error) => console.error('Solar fixture renderer error:', error.message))
   await expect(window.getByTestId('study-item-solar')).toBeVisible({ timeout: 30000 })
   await window.getByTestId('study-item-solar').click()
@@ -94,11 +106,7 @@ test('real IPC agrees on solar bins and filtering; shared mode/selection survive
   await expect(show).toBeVisible()
   // This gate requires all 10 detections. Weekly-label bounds would lose the
   // final week, leave only 5, and incorrectly hide the hovercard activity.
-  await window
-    .locator('.group[data-state="closed"]')
-    .filter({ hasText: 'Vulpes vulpes' })
-    .first()
-    .hover()
+  await window.locator('.group[data-state]').filter({ hasText: 'Vulpes vulpes' }).first().hover()
   await expect(window.getByText('Activity patterns · Solar Time', { exact: true })).toBeVisible()
   await show.click()
   await expect(window.getByRole('button', { name: 'Solar', exact: true })).toHaveAttribute(

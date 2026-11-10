@@ -1,13 +1,16 @@
 const path = require('path')
 const { test: base, expect } = require('./fixtures')
+const { waitForAppReady } = require('./utils')
 
 const test = base.extend({
   window: [
     async ({ electronApp }, use) => {
+      // Do not mistake the app's delayed startup window for our fixture window.
+      await waitForAppReady(electronApp)
       const ready = electronApp.waitForEvent('window')
-      await electronApp.evaluate(({ BrowserWindow }) => {
+      await electronApp.evaluate(async ({ BrowserWindow }) => {
         const window = new BrowserWindow({ width: 900, height: 900, show: true })
-        window.loadURL('about:blank')
+        await window.loadURL('about:blank')
       })
       const window = await ready
       await use(window)
@@ -28,10 +31,15 @@ test.beforeAll(async () => {
   server = await createServer({
     configFile: false,
     root: path.resolve(__dirname, '../..'),
+    cacheDir: 'node_modules/.vite/e2e-camera-time',
+    optimizeDeps: { entries: ['test/e2e/fixtures/camera-time.html'] },
     plugins: [react(), tailwindcss()],
     server: { host: '127.0.0.1', port: 0 }
   })
   await server.listen()
+  // Finish the initial module crawl before the first renderer requests dependencies.
+  await server.environments.client.warmupRequest('/test/e2e/fixtures/camera-time.jsx')
+  await server.environments.client.waitForRequestsIdle()
   fixtureUrl = `http://127.0.0.1:${server.httpServer.address().port}/test/e2e/fixtures/camera-time.html`
 })
 test.afterAll(async () => {
