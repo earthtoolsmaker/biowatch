@@ -54,19 +54,17 @@ export function normalizeTimeRange(timeRange) {
  *
  * Wrap-around (start > end) is OR'd: hour >= start OR hour < end.
  */
-export function buildHourRangeCondition(range) {
+export function buildHourRangeCondition(range, mode = 'clock') {
   const { start, end } = range
-  if (start === end) return null
+  const hour =
+    mode === 'solar'
+      ? sql`(SELECT solar_hours(${media.timestamp}, latitude, longitude) FROM deployments WHERE deploymentID = ${media.deploymentID})`
+      : sql`CAST(substr(${media.localTimestamp}, 12, 2) AS INTEGER)`
+  if (start === end) return mode === 'solar' ? sql`0` : null
   if (start < end) {
-    return and(
-      sql`CAST(substr(${media.localTimestamp}, 12, 2) AS INTEGER) >= ${start}`,
-      sql`CAST(substr(${media.localTimestamp}, 12, 2) AS INTEGER) < ${end}`
-    )
+    return and(sql`${hour} >= ${start}`, sql`${hour} < ${end}`)
   }
-  return or(
-    sql`CAST(substr(${media.localTimestamp}, 12, 2) AS INTEGER) >= ${start}`,
-    sql`CAST(substr(${media.localTimestamp}, 12, 2) AS INTEGER) < ${end}`
-  )
+  return or(sql`${hour} >= ${start}`, sql`${hour} < ${end}`)
 }
 
 /**
@@ -425,7 +423,9 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
 
       // Apply time of day filter — OR of per-range conditions.
       if (hasTimeFilter) {
-        const rangeConditions = timeRanges.map(buildHourRangeCondition).filter(Boolean)
+        const rangeConditions = timeRanges
+          .map((range) => buildHourRangeCondition(range, timeRange.mode))
+          .filter(Boolean)
         if (rangeConditions.length === 1) {
           timestampedConditions.push(rangeConditions[0])
         } else if (rangeConditions.length > 1) {
@@ -547,7 +547,7 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
 
       // Check if there's any null-timestamp media (for phase transition)
       let hasMoreNull = false
-      if (timestampedMedia.length < batchSize) {
+      if (timestampedMedia.length < batchSize && !(timeRange.mode === 'solar' && hasTimeFilter)) {
         // We've exhausted timestamped media, check for null-timestamp media
         const nullConditions = [isNull(media.timestamp)]
         if (deploymentCond) nullConditions.push(deploymentCond)
@@ -619,6 +619,7 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
     if (phase === 'null') {
       const offset = cursor?.offset || 0
       const nullConditions = [isNull(media.timestamp)]
+      if (timeRange.mode === 'solar' && hasTimeFilter) nullConditions.push(sql`0`)
 
       // Apply deployment filter (covers all species variants below via shared and(...))
       if (deploymentCond) nullConditions.push(deploymentCond)
@@ -801,7 +802,9 @@ export async function hasTimestampedMedia(dbPath, options = {}) {
     // Apply time range — same OR-of-ranges semantics as the paginated query.
     const timeRanges = normalizeTimeRange(timeRange)
     if (timeRanges.length > 0) {
-      const rangeConditions = timeRanges.map(buildHourRangeCondition).filter(Boolean)
+      const rangeConditions = timeRanges
+        .map((range) => buildHourRangeCondition(range, timeRange.mode))
+        .filter(Boolean)
       if (rangeConditions.length === 1) {
         conditions.push(rangeConditions[0])
       } else if (rangeConditions.length > 1) {

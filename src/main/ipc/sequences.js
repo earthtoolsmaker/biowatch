@@ -71,6 +71,10 @@ function validateRequest(request, allowedKeys) {
   ) {
     throw new Error('Invalid includeNullTimestamps')
   }
+  if (request.timeMode !== undefined && !['clock', 'solar'].includes(request.timeMode))
+    throw new Error('Invalid timeMode')
+  if (request.timeRange?.mode !== undefined && !['clock', 'solar'].includes(request.timeRange.mode))
+    throw new Error('Invalid timeRange mode')
   if (request.timeRange !== undefined) {
     if (
       !request.timeRange ||
@@ -215,7 +219,16 @@ export function registerSequencesIPCHandlers() {
       return await handleAnalysis(
         'daily-activity',
         request,
-        ['studyId', 'speciesNames', 'startDate', 'endDate', 'gapSeconds', 'bbox', 'metric'],
+        [
+          'studyId',
+          'speciesNames',
+          'startDate',
+          'endDate',
+          'gapSeconds',
+          'bbox',
+          'metric',
+          'timeMode'
+        ],
         async (validated, dbPath) => {
           const { stripped, vehicleOnly } = stripVehicleSentinel(validated.speciesNames)
           if (vehicleOnly) return { data: [] }

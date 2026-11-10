@@ -2199,7 +2199,7 @@ function Gallery({
         JSON.stringify(species),
         dateRange[0]?.toISOString(),
         dateRange[1]?.toISOString(),
-        JSON.stringify(timeRange.ranges ?? [{ start: timeRange.start, end: timeRange.end }]),
+        JSON.stringify(timeRange),
         includeNullTimestamps,
         JSON.stringify(areaFilter)
       ],

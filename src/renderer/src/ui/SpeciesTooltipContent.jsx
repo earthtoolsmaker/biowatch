@@ -8,6 +8,7 @@ import { resolveSpeciesInfo } from '../../../shared/speciesInfo/index.js'
 import IucnBadge from './IucnBadge'
 import { IUCN_ACCENT_BORDER } from './iucnPalette'
 import CircularTimeFilter, { DailyActivityRadar, DailyActivityLine } from './clock'
+import { useTimeFilter } from '../hooks/useTimeFilter'
 import TimelineChart from './timeseries'
 import { hasEnoughActivityData, MIN_ACTIVITY_DETECTIONS } from '../utils/activitySufficiency'
 import { DEFAULT_ANALYSIS_METRIC } from '../../../shared/analysisMetric.js'
@@ -121,12 +122,18 @@ export default function SpeciesTooltipContent({
   // study+species; gapSeconds is left undefined so the worker reads the
   // study's configured gap from metadata.
   //
-  // daily-activity needs an explicit [start, end] (it returns [] otherwise),
-  // so we mirror the Explore bottom row: the all-time range is the timeseries'
-  // full extent (first..last day with data). We fetch the timeseries first,
-  // then query daily activity over that range.
+  // Weekly labels are not recording bounds. Both requests stay All time;
+  // never derive daily query bounds from the first/last weekly labels.
+  const { mode: timeMode } = useTimeFilter(studyId)
   const { data: activity, isError: activityError } = useQuery({
-    queryKey: ['speciesHovercardActivity', studyId, sciName, metric.counting, metric.normalization],
+    queryKey: [
+      'speciesHovercardActivity',
+      studyId,
+      sciName,
+      metric.counting,
+      metric.normalization,
+      timeMode
+    ],
     queryFn: async () => {
       const ts = await window.api.getSequenceAwareTimeseries({
         studyId,
@@ -137,14 +144,12 @@ export default function SpeciesTooltipContent({
       const timeseries = ts.data?.timeseries ?? []
       if (timeseries.length === 0) return { dailyActivity: [], timeseries: [] }
 
-      const start = new Date(timeseries[0].date).toISOString()
-      const end = new Date(timeseries[timeseries.length - 1].date).toISOString()
+      // All time: weekly labels are not actual recording bounds.
       const daily = await window.api.getSequenceAwareDailyActivity({
         studyId,
         speciesNames: [sciName],
-        startDate: start,
-        endDate: end,
-        metric
+        metric,
+        timeMode
       })
       if (daily.error) throw new Error(daily.error)
       return { dailyActivity: daily.data ?? [], timeseries }
@@ -277,10 +282,12 @@ export default function SpeciesTooltipContent({
 
         {(showCharts || showActivitySkeleton) && (
           <div className="space-y-1.5">
-            <SectionHeading>Activity patterns</SectionHeading>
+            <SectionHeading>
+              Activity patterns · {timeMode === 'solar' ? 'Solar Time' : 'Clock Time'}
+            </SectionHeading>
             {showActivitySkeleton ? (
               <div className="space-y-1.5" aria-hidden="true">
-                <div className="flex gap-1.5 h-[132px]">
+                <div className="flex gap-1.5 h-[164px]">
                   <div className="flex-1 rounded-md border border-border bg-muted/40 animate-pulse" />
                   <div className="flex-1 rounded-md border border-border bg-muted/40 animate-pulse" />
                 </div>
@@ -292,7 +299,7 @@ export default function SpeciesTooltipContent({
                     over the clock-face circle (the Explore bottom row's look,
                     minus the filter handles) and its X–Y line twin, side by
                     side. */}
-                <div className="flex gap-1.5 h-[132px]">
+                <div className="flex gap-1.5 h-[164px]">
                   <div className="relative flex-1 min-w-0 rounded-md border border-border bg-background/60">
                     <DailyActivityRadar
                       activityData={activity.dailyActivity}
@@ -300,7 +307,12 @@ export default function SpeciesTooltipContent({
                       palette={ACTIVITY_PALETTE}
                     />
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <CircularTimeFilter onChange={() => {}} mode="chips" chipSectors={[]} />
+                      <CircularTimeFilter
+                        timeMode={timeMode}
+                        onChange={() => {}}
+                        mode="chips"
+                        chipSectors={[]}
+                      />
                     </div>
                   </div>
                   <div className="flex-1 min-w-0 rounded-md border border-border bg-background/60 p-1.5">
@@ -309,6 +321,7 @@ export default function SpeciesTooltipContent({
                       selectedSpecies={activitySpecies}
                       palette={ACTIVITY_PALETTE}
                       showTrackStrip={false}
+                      timeMode={timeMode}
                     />
                   </div>
                 </div>

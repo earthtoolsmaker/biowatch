@@ -10,7 +10,8 @@ import log from '../logger.js'
 import { groupMediaIntoSequences, groupMediaByEventID } from './grouping.js'
 import {
   getMediaForSequencePagination,
-  hasTimestampedMedia
+  hasTimestampedMedia,
+  normalizeTimeRange
 } from '../../database/queries/sequences.js'
 import { BLANK_SENTINEL } from '../../../shared/constants.js'
 
@@ -176,7 +177,7 @@ export async function getPaginatedSequences(dbPath, options = {}) {
   }
 
   // Phase 2: Null-timestamp sequences (each item is its own sequence)
-  if (phase === 'null') {
+  if (phase === 'null' && !(timeRange.mode === 'solar' && normalizeTimeRange(timeRange).length)) {
     const offset = cursor?.offset || 0
     const remainingLimit = limit - sequences.length
 

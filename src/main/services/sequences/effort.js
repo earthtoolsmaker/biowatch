@@ -2,6 +2,7 @@ import { isAreaBboxApplicable } from '../../database/queries/bbox.js'
 import { normalizeTimeRange } from '../../database/queries/sequences.js'
 import { cameraZone, effortCameraZone } from '../cameraTime.js'
 import { DateTime } from 'luxon'
+import { solarExposure, validSolarCoordinates } from '../solarTime.js'
 
 const DAY_MS = 86_400_000
 const HOUR_MS = 3_600_000
@@ -33,7 +34,7 @@ function insideBbox(row, bbox) {
 /** Validate and normalize deployment rows to half-open millisecond intervals. */
 export function validateDeploymentIntervals(
   rows,
-  { bbox = null, requireCoordinates = false } = {}
+  { bbox = null, requireCoordinates = false, timeMode = 'clock' } = {}
 ) {
   const intervals = []
   let excludedDeploymentCount = 0
@@ -53,7 +54,9 @@ export function validateDeploymentIntervals(
       start == null ||
       end == null ||
       end <= start ||
-      !cameraZone(timeZone) ||
+      (timeMode === 'solar'
+        ? !validSolarCoordinates(latitude, longitude)
+        : !cameraZone(timeZone)) ||
       (requireCoordinates && !hasCoordinates)
     ) {
       excludedDeploymentCount += 1
@@ -187,6 +190,12 @@ function addIntervalByHour(target, interval, allowedHours = null) {
 
 /** Duration of one clipped interval after recurring camera-local hour intersection. */
 export function intersectRecurringTimeRanges(interval, timeRange) {
+  if (timeRange?.mode === 'solar' && normalizeTimeRange(timeRange).length) {
+    return solarExposure(interval, normalizeTimeRange(timeRange)).reduce(
+      (sum, value) => sum + value,
+      0
+    )
+  }
   const hours = selectedHours(timeRange)
   if (!hours) return interval.end - interval.start
   const totals = Array(24).fill(0)
@@ -241,11 +250,19 @@ export function groupEffortByWeek(intervals, { start = null, end = null } = {}) 
 }
 
 /** Group elapsed camera duration into the same camera-local hours as detections. */
-export function groupEffortByHour(intervals, { start = null, end = null } = {}) {
+export function groupEffortByHour(
+  intervals,
+  { start = null, end = null, timeMode = 'clock' } = {}
+) {
   const milliseconds = Array(24).fill(0)
   for (const interval of intervals) {
     const clipped = clipInterval(interval, start, end)
-    if (clipped) addIntervalByHour(milliseconds, clipped)
+    if (!clipped) continue
+    if (timeMode === 'solar') {
+      solarExposure(clipped).forEach((value, hour) => {
+        milliseconds[hour] += value
+      })
+    } else addIntervalByHour(milliseconds, clipped)
   }
   return milliseconds.map((value) => value / DAY_MS)
 }
