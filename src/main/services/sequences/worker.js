@@ -31,6 +31,7 @@ import {
 } from '../../database/index.js'
 import { getPaginatedSequences } from './pagination.js'
 import { getStudyDatabase } from '../../database/manager.js'
+import { assertStudyDatabaseReady } from '../../database/study-readiness.js'
 import { setCameraTimeZone } from '../setCameraTimeZone.js'
 import { getDeploymentComposition } from './deploymentComposition.js'
 import {
@@ -232,6 +233,7 @@ async function run() {
     bbox,
     metric: requestedMetric = DEFAULT_ANALYSIS_METRIC
   } = workerData
+  assertStudyDatabaseReady(dbPath)
   if (type === 'set-camera-time-zone') {
     const manager = await getStudyDatabase(studyId, dbPath)
     return setCameraTimeZone(manager.getSqlite(), workerData.deploymentID, workerData.timeZone)

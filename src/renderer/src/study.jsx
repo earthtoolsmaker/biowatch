@@ -22,6 +22,7 @@ import Sources from './sources'
 import StudySettings from './StudySettings'
 import { useImportStatus } from '@renderer/hooks/import'
 import { Tab } from './ui/Tab'
+import { StudyDatabaseGate } from './StudyDatabaseError.jsx'
 
 // Error fallback component
 function ErrorFallback({ error, resetErrorBoundary }) {
@@ -215,25 +216,11 @@ function ImportStatus({ studyId, importerName }) {
 export default function Study() {
   let { id } = useParams()
 
-  const { data: study, error } = useQuery({
-    queryKey: ['study', id],
-    queryFn: async () => {
-      const studies = await window.api.getStudies()
-      const study = studies.find((s) => s.id === id)
-      if (!study) {
-        throw new Error(`Study with ID ${id} not found`)
-      }
-      return study
-    },
-    enabled: !!id
+  const { data: studies, error } = useQuery({
+    queryKey: ['studies'],
+    queryFn: () => window.api.getStudies()
   })
-
-  const { importStatus } = useImportStatus(id)
-  const isImportActive =
-    study?.importerName?.startsWith('local/') &&
-    importStatus &&
-    importStatus.total > 0 &&
-    importStatus.total > importStatus.done
+  const study = studies?.find((entry) => entry.id === id)
 
   if (error) {
     return (
@@ -244,8 +231,24 @@ export default function Study() {
   }
 
   if (!study) {
-    return
+    return studies ? <p className="p-4">Study not found.</p> : null
   }
+
+  return (
+    <StudyDatabaseGate study={study}>
+      <ReadyStudy key={id} id={id} study={study} />
+    </StudyDatabaseGate>
+  )
+}
+
+// Keep all study-data hooks below the readiness gate, including import polling.
+function ReadyStudy({ id, study }) {
+  const { importStatus } = useImportStatus(id)
+  const isImportActive =
+    study.importerName?.startsWith('local/') &&
+    importStatus &&
+    importStatus.total > 0 &&
+    importStatus.total > importStatus.done
 
   return (
     <div className="flex gap-4 flex-col h-full">

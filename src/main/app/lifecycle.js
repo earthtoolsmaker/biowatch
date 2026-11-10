@@ -114,8 +114,8 @@ export async function initializeMigrations() {
 
 /**
  * Run Drizzle migrations for all study databases at startup.
- * This ensures all databases have the latest schema before any
- * readonly connections are opened (e.g., when listing studies).
+ * Successful studies become available; failures remain blocked and are shown
+ * individually in the study error screen. One failure must not stop the app.
  */
 export async function initializeStudyDatabaseMigrations() {
   log.info('[Startup] Running Drizzle migrations for study databases...')
@@ -123,7 +123,9 @@ export async function initializeStudyDatabaseMigrations() {
   const result = await migrateAllStudyDatabases()
 
   if (result.failed.length > 0) {
-    log.warn(`[Startup] ${result.failed.length} study migration(s) failed:`)
+    log.warn(
+      `[Startup] ${result.failed.length} study database(s) blocked; other studies remain available:`
+    )
     for (const { studyId, error } of result.failed) {
       log.warn(`  - Study ${studyId}: ${error.message}`)
     }
@@ -144,8 +146,8 @@ export async function initializeApp() {
   }
 
   // Run Drizzle migrations for all study databases
-  // This ensures all databases are up-to-date before the UI opens and
-  // readonly connections are made (e.g., when listing studies)
+  // Failed studies are recorded as unavailable before the UI opens. Listing
+  // them uses only best-effort labels, never normal study queries.
   await initializeStudyDatabaseMigrations()
 
   // Set app user model id for windows

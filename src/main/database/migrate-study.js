@@ -9,6 +9,36 @@ import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import log from '../services/logger.js'
+import { registerCameraTimeFunctions } from '../services/cameraTime.js'
+import {
+  databaseFailure,
+  databaseNotReadyError,
+  getMigrationManifest,
+  inspectDatabaseVersion,
+  setStudyDatabaseStatus
+} from './study-readiness.js'
+
+/** Migrate and verify an existing connection, without hiding SQL failures. */
+export function migrateStudyConnection(sqlite, migrationsPath) {
+  let status
+  try {
+    const manifest = getMigrationManifest(migrationsPath)
+    status = { currentVersion: null, expectedVersion: manifest.entries.at(-1).tag }
+    status = inspectDatabaseVersion(sqlite, manifest.path)
+    if (status.status === 'newer' || status.status === 'incompatible') {
+      throw databaseNotReadyError(status)
+    }
+    registerCameraTimeFunctions(sqlite)
+    sqlite.pragma('foreign_keys = ON')
+    sqlite.pragma('journal_mode = WAL')
+    migrate(drizzle(sqlite), { migrationsFolder: manifest.path })
+    status = inspectDatabaseVersion(sqlite, manifest.path)
+    if (status.status !== 'ready') throw databaseNotReadyError(status)
+    return status
+  } catch (error) {
+    throw databaseNotReadyError(databaseFailure(error, status))
+  }
+}
 
 /**
  * Run Drizzle migrations on a single study database
@@ -17,36 +47,26 @@ import log from '../services/logger.js'
  * @param {string} studyId - The study identifier
  * @param {string} dbPath - Path to the study database file
  * @param {string} migrationsPath - Path to the migrations folder
- * @returns {Promise<{success: boolean, error?: Error}>} Migration result
+ * @returns {Promise<{success: boolean, database: Object, error?: Error}>} Migration result
  */
 export async function migrateStudyDatabase(studyId, dbPath, migrationsPath) {
   let sqlite = null
+  let previous
 
   try {
+    previous = { expectedVersion: getMigrationManifest(migrationsPath).entries.at(-1).tag }
     // Open a temporary read-write connection for migrations
-    sqlite = new Database(dbPath)
-
-    // Enable WAL mode and foreign keys
-    sqlite.pragma('foreign_keys = ON')
-    sqlite.pragma('journal_mode = WAL')
-
-    // Create Drizzle instance without schema (just for migrations)
-    const db = drizzle(sqlite)
-
-    // Run migrations - this is idempotent (checks __drizzle_migrations table)
-    await migrate(db, { migrationsFolder: migrationsPath })
+    sqlite = new Database(dbPath, { fileMustExist: true })
+    const database = migrateStudyConnection(sqlite, migrationsPath)
+    setStudyDatabaseStatus(dbPath, database)
 
     log.info(`[StudyMigrations] Successfully migrated study ${studyId}`)
-    return { success: true }
+    return { success: true, database }
   } catch (error) {
-    // Handle case where tables already exist (can happen with older databases)
-    if (error.message.includes('already exists') || error.message.includes('CREATE TABLE')) {
-      log.info(`[StudyMigrations] Study ${studyId} tables already exist, skipping`)
-      return { success: true }
-    }
-
+    const database = databaseFailure(error, previous)
+    setStudyDatabaseStatus(dbPath, database)
     log.error(`[StudyMigrations] Failed to migrate study ${studyId}:`, error)
-    return { success: false, error }
+    return { success: false, error, database }
   } finally {
     // Always close the temporary connection
     if (sqlite) {

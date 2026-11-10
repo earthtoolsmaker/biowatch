@@ -16,6 +16,7 @@ import {
 } from '../../../src/main/database/queries/species.js'
 import { getMediaForSequencePagination } from '../../../src/main/database/queries/sequences.js'
 import { closeStudyDatabase } from '../../../src/main/database/manager.js'
+import { migrateStudyConnection } from '../../../src/main/database/migrate-study.js'
 import { getBestMedia } from '../../../src/main/database/queries/best-media.js'
 import { updateMediaTimestamp } from '../../../src/main/database/queries/media.js'
 import { importCamTrapDatasetWithPath } from '../../../src/main/services/import/parsers/camtrapDP.js'
@@ -34,11 +35,7 @@ async function study(run) {
   registerCameraTimeFunctions(db)
   // Exercise triggers even with recursive triggers enabled.
   db.pragma('recursive_triggers = ON')
-  for (const file of readdirSync(migrations)
-    .filter((f) => f.endsWith('.sql'))
-    .sort()) {
-    db.exec(readFileSync(new URL(file, migrations), 'utf8'))
-  }
+  migrateStudyConnection(db)
   try {
     await run(db, path)
   } finally {
@@ -243,14 +240,14 @@ test('Camtrap imports retain source offsets and the optional civil camera settin
   }
 })
 
-test('migration adds the new model without rewriting existing records', () => {
+test('0017 alone adds the new model without rewriting existing records', () => {
   const db = new Database(':memory:')
   registerCameraTimeFunctions(db)
   try {
     const files = readdirSync(migrations)
       .filter((f) => f.endsWith('.sql'))
       .sort()
-    for (const file of files.filter((f) => !f.startsWith('0017_')))
+    for (const file of files.filter((f) => f < '0017_'))
       db.exec(readFileSync(new URL(file, migrations), 'utf8'))
     db.exec("INSERT INTO media (mediaID, timestamp) VALUES ('old', '2024-05-01T20:30:00.000Z')")
     db.exec(readFileSync(new URL('0017_camera_local_time.sql', migrations), 'utf8'))

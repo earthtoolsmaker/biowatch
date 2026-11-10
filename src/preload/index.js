@@ -18,6 +18,11 @@ const api = {
   getStudies: async () => {
     return await electronAPI.ipcRenderer.invoke('studies:list')
   },
+  retryStudyDatabaseUpdate: async (studyId) => {
+    const response = await electronAPI.ipcRenderer.invoke('study:retry-database-update', studyId)
+    if (response.error) throw new Error(response.error)
+    return response.data
+  },
   downloadDemoDataset: async () => {
     return await electronAPI.ipcRenderer.invoke('import:download-demo')
   },

@@ -32,6 +32,20 @@ const { data, error } = await window.api.getSequences(studyId, { limit: 20 })
 
 ### Studies
 
+`getStudies()` includes `database: { status, currentVersion, expectedVersion, message, appVersion }`
+for each study. Status is `ready`, `outdated`, `migration-failed`, `newer`, `incompatible`,
+or `updating`; version values are migration tags (an unknown version uses its journal
+timestamp), or `null` when unavailable. Only `ready` studies may mount normal study
+views or be selected for a merge. Unavailable entries have a best-effort name (falling
+back to their ID), `data: null`, and do not require normal study queries to list.
+
+`retryStudyDatabaseUpdate(studyId)` invokes `study:retry-database-update` and resolves
+to the updated `database` readiness object. A failed migration is returned as a
+non-ready status so the error screen stays visible; transport/lookup errors reject.
+The study stays blocked during the update, and concurrent retries for the same study
+share one operation. Newer or incompatible histories are never automatically
+rewritten. After completion, invalidate the `['studies']` query to refresh the gate.
+
 | Method                                     | Channel                        | Parameters                                                                           | Returns                                                                                                                                                                                                                                                                                                                                                                                  |
 | ------------------------------------------ | ------------------------------ | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `getStudies()`                             | `studies:list`                 | -                                                                                    | `Study[]`                                                                                                                                                                                                                                                                                                                                                                                |

@@ -150,8 +150,8 @@ changes. This prevents a writer from updating UTC while leaving local hours
 stale, or from silently dropping source offsets.
 
 `cameraTime.js` provides the pure parsing policy and the SQLite functions.
-Functions are registered on database-manager connections and on the raw merge
-writer. Derived physical columns keep analytics free of per-detection timezone
+Functions are registered on database-manager connections, the temporary startup
+migration connection, and the raw merge writer. Derived physical columns keep analytics free of per-detection timezone
 conversion. The hand-authored triggers in migration 0017 must be retained when
 changing the schema; the Drizzle snapshot describes columns, not triggers.
 
@@ -178,16 +178,51 @@ across DST transitions. It is not presented as a standard Camtrap DP field.
 Unknown-instant media follow the existing null-timestamp export exclusion and
 warning behaviour; exports do not manufacture a `Z` offset for floating values.
 
-## Explicit exclusion: existing-study recovery
+## Existing-study transition
 
-Per the requested scope, migration 0017 only adds schema and triggers. It does
-not backfill source/local fields, reconstruct discarded offsets, detect legacy
-import formats, or add compatibility fallbacks in queries. Existing records are
-not rewritten merely by opening a study.
+Migration 0017 only adds schema and triggers. Migration
+`0018_backfill_camera_local_time` completes the existing-study transition through
+the normal startup migration framework, including studies that already applied 0017. Do not edit or rerun 0017, delete migration history, or require reimport.
 
-**Existing studies need reimporting to receive this time model.** Old UTC values
-alone cannot recover the original camera clock. Existing-study repair and
-migration UX are deliberately not part of this PR.
+The backfill copies retained media timestamps, deployment bounds and observation
+event bounds into missing source fields. The existing normalization triggers derive
+canonical UTC and camera-local values from that representation. Missing local
+values whose source is already present are also filled without replacing that
+source or its existing UTC value. Completed new-import rows and explicit camera
+settings are left alone; IDs, favourites, annotations and file references survive.
+
+- Stored `20:30Z` becomes source `20:30Z`, canonical `20:30:00.000Z` and local
+  `20:30:00.000`. `Z` is an explicit zero offset, preserving the familiar UTC-hour
+  activity of old UTC-only studies without claiming to recover the original camera
+  clock. Selecting a different camera setting later does not override that offset.
+- A retained `22:30+02:00` becomes local `22:30` and canonical UTC `20:30`, fixing
+  the earlier SQLite UTC-hour extraction while preserving the real instant.
+- Offset-free values retain their wall time without inventing a UTC instant. They
+  still need a confirmed camera setting for instant-based date filtering and
+  elapsed-time analysis. Invalid inputs survive in source fields, not as invented
+  valid timestamps; absent values remain absent.
+
+All pending SQL/history changes for one study are transactional. The startup
+connection registers camera-time functions before running the migration. A failed
+0018 rolls back its work; if 0017 was also pending, that rolls back too. Reopening
+an already-upgraded study does not repeat the backfill.
+
+[Per-study database readiness](2026-11-09-per-study-database-readiness.md) defines
+the implemented failure isolation and retry/support screen. A failed migration
+must block only the affected study's normal queries, not hide the study or block
+the rest of the application. It is not a reason to delete or reimport a study.
+The readiness check and 0018 have separate responsibilities: one blocks access to
+an incompatible database; the other populates the new time representation. No
+legacy chart mode or per-query old-field fallback is added.
+
+A synthetic temporary study with 100,000 media and 100,000 observations upgraded
+from already-applied 0017 in approximately **1.6 seconds** locally (Electron's Node
+22.21.1 runtime), with no missing media source/local fields afterward. Startup
+therefore retains the existing sequential execution model; larger studies can take
+longer. This is a local reference measurement, not a cross-platform guarantee.
+
+The independently identified daily-chart range issue (using weekly labels as the
+actual recording bounds) is not corrected by this data migration.
 
 ## Small, testable deliverables
 
@@ -199,6 +234,9 @@ migration UX are deliberately not part of this PR.
    setting, reject invalid settings and DST ambiguity, and refresh the renderer.
 4. **Context survives subsequent operations.** Test timestamp edits, original
    event bounds, exports/reimports and merge field preservation.
+5. **Existing studies upgrade without reimport.** Cover pre-0017 and already-0017
+   databases, UTC-only query equivalence, retained offsets, floating/invalid inputs,
+   mixed old/new rows, retry/idempotence, and transactional failure rollback.
 
 ## Validation
 
@@ -206,8 +244,18 @@ Regression coverage includes positive and negative offsets, UTC/local midnight
 and week boundaries, floating SQL/ISO/EXIF values, explicit EXIF offset tags,
 source-offset precedence, timezone clearing, contradictory effort settings,
 spring/fall DST and half-hour DST, sequence counting and camera-offset-preserving
-edits. Run camera-time tests under multiple `TZ` environments to ensure that the
+edits. Backfill tests also exercise daily and weekly counting/gap modes, gallery
+hour filtering and effort, without altering valid UTC instants, favourites or
+annotations. An isolated Electron profile verifies that a legacy study upgrades
+at startup, exposes its chart toggle and returns populated daily activity.
+Run camera-time/backfill tests under multiple `TZ` environments to ensure that the
 host timezone does not influence interpretation.
+
+A temporary SQLite backup of an older 10,604-media demo was also upgraded locally:
+local timestamp coverage increased from zero to 10,604 in approximately 0.25 seconds,
+while media instants, observation IDs, favourites and full-study daily bins were
+preserved. The original was opened read-only and its counts/migration history were
+verified unchanged; the temporary backup was removed afterward.
 
 Run the full Node test suite, production build, formatting and lint checks. No
 remote database updates or deployments are required.

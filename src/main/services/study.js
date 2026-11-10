@@ -8,6 +8,12 @@ import path from 'path'
 import fs from 'fs'
 import log from './logger.js'
 import {
+  databaseFailure,
+  getStudyDatabaseStatus,
+  setStudyDatabaseStatus
+} from '../database/study-readiness.js'
+import { readUnavailableStudySummary } from '../database/study-summary.js'
+import {
   getReadonlyDrizzleDb,
   getDrizzleDb,
   getMetadata,
@@ -34,14 +40,8 @@ export async function getStudyFromDb(studyId) {
     return null
   }
 
-  try {
-    const db = await getReadonlyDrizzleDb(studyId, dbPath)
-    const metadata = await getMetadata(db)
-    return metadata
-  } catch (error) {
-    log.error(`Error reading metadata for study ${studyId}:`, error)
-    return null
-  }
+  const db = await getReadonlyDrizzleDb(studyId, dbPath)
+  return await getMetadata(db)
 }
 
 /**
@@ -65,9 +65,15 @@ export async function listStudies() {
   // Read metadata from DB for each study directory
   const studies = await Promise.all(
     studyDirs.map(async (studyId) => {
+      const dbPath = path.join(studiesPath, studyId, 'study.db')
+      if (!fs.existsSync(dbPath)) return null
+      const database = { ...getStudyDatabaseStatus(dbPath), appVersion: app.getVersion() }
+      if (database.status !== 'ready') {
+        return readUnavailableStudySummary(studyId, dbPath, database)
+      }
       try {
         const study = await getStudyFromDb(studyId)
-        if (!study) return null
+        if (!study) throw new Error('This study’s database has no metadata record.')
         // Wrap metadata in expected structure for frontend
         return {
           id: studyId,
@@ -75,6 +81,7 @@ export async function listStudies() {
           importerName: study.importerName,
           createdAt: study.created,
           path: null,
+          database,
           data: {
             id: study.id,
             name: study.name,
@@ -92,10 +99,9 @@ export async function listStudies() {
         }
       } catch (error) {
         log.warn(`Failed to read metadata for study ${studyId}:`, error.message)
-        return {
-          id: studyId,
-          error: 'Failed to load study data'
-        }
+        const failure = { ...databaseFailure(error, database), appVersion: app.getVersion() }
+        setStudyDatabaseStatus(dbPath, failure)
+        return readUnavailableStudySummary(studyId, dbPath, failure)
       }
     })
   )

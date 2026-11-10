@@ -1,4 +1,13 @@
-import { Pencil, Plus, Settings, Trash2, Search, ChevronRight, FolderPlus } from 'lucide-react'
+import {
+  Pencil,
+  Plus,
+  Settings,
+  Trash2,
+  Search,
+  ChevronRight,
+  FolderPlus,
+  AlertTriangle
+} from 'lucide-react'
 import { ErrorBoundary } from 'react-error-boundary'
 import { HashRouter, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
@@ -429,7 +438,10 @@ function AppContent() {
             {filteredStudies.map((study) => {
               const isCurrentStudy = location.pathname.includes(`/study/${study.id}`)
               const showHoverCard =
-                renamingStudyId !== study.id && !isCurrentStudy && contextMenu === null
+                study.database.status === 'ready' &&
+                renamingStudyId !== study.id &&
+                !isCurrentStudy &&
+                contextMenu === null
               const navLink = (
                 <NavLink
                   to={`/study/${study.id}`}
@@ -440,6 +452,13 @@ function AppContent() {
                   }`}
                 >
                   <span className="flex-1 text-left truncate">{study.name}</span>
+                  {study.database.status !== 'ready' && (
+                    <AlertTriangle
+                      size={16}
+                      className="shrink-0 text-amber-600 dark:text-amber-400"
+                      aria-label="Study unavailable"
+                    />
+                  )}
                   <ChevronRight
                     className={`h-4 w-4 flex-shrink-0 transition-opacity ${
                       isCurrentStudy ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'
@@ -512,6 +531,7 @@ function AppContent() {
         >
           <button
             data-testid="context-menu-rename"
+            disabled={contextMenu.study.database.status !== 'ready'}
             onClick={() => startRename(contextMenu.study)}
             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-accent text-left"
           >

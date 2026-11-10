@@ -20,6 +20,8 @@ import {
 import { getAtRiskMergeBreaks } from '../services/merge/mergeDependents.js'
 import { listMergedSourceIds } from '../services/merge/mergedSources.js'
 import { createMergeRegistry } from '../services/merge/registry.js'
+import { assertStudyDatabaseReady } from '../database/study-readiness.js'
+import { retryStudyDatabaseMigration } from '../services/study-db-migrations.js'
 
 function getBiowatchDataPath() {
   return join(app.getPath('userData'), 'biowatch-data')
@@ -35,6 +37,15 @@ export function registerStudyIPCHandlers() {
 
   ipcMain.handle('studies:list', async () => {
     return await listStudies()
+  })
+
+  ipcMain.handle('study:retry-database-update', async (_, studyId) => {
+    try {
+      const database = await retryStudyDatabaseMigration(studyId)
+      return { data: { ...database, appVersion: app.getVersion() } }
+    } catch (error) {
+      return { error: error.message }
+    }
   })
 
   ipcMain.handle('studies:update', async (_, id, update) => {
@@ -77,6 +88,7 @@ export function registerStudyIPCHandlers() {
 
   ipcMain.handle('study:list-merged-source-ids', async (_event, targetStudyId) => {
     try {
+      assertStudyDatabaseReady(getStudyDatabasePath(app.getPath('userData'), targetStudyId))
       return {
         data: listMergedSourceIds({
           biowatchDataPath: getBiowatchDataPath(),
@@ -90,6 +102,12 @@ export function registerStudyIPCHandlers() {
   })
 
   ipcMain.handle('study:merge-preflight', async (_event, targetStudyId, sourceStudyId) => {
+    try {
+      assertStudyDatabaseReady(getStudyDatabasePath(app.getPath('userData'), targetStudyId))
+      assertStudyDatabaseReady(getStudyDatabasePath(app.getPath('userData'), sourceStudyId))
+    } catch (error) {
+      return { error: error.message }
+    }
     log.info(`merge-preflight: target=${targetStudyId} source=${sourceStudyId} — spawning worker`)
     const startedAt = Date.now()
     return new Promise((resolve) => {
@@ -132,6 +150,12 @@ export function registerStudyIPCHandlers() {
   })
 
   ipcMain.handle('study:merge', async (event, targetStudyId, sourceStudyId, reviewed) => {
+    try {
+      assertStudyDatabaseReady(getStudyDatabasePath(app.getPath('userData'), targetStudyId))
+      assertStudyDatabaseReady(getStudyDatabasePath(app.getPath('userData'), sourceStudyId))
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
     if (mergeRegistry.has(targetStudyId)) {
       log.warn(
         `merge: refused — already in progress for target=${targetStudyId} (attempted source=${sourceStudyId})`
