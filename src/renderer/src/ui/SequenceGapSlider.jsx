@@ -18,12 +18,12 @@ function formatGapValue(seconds) {
  * Reusable sequence gap slider component
  *
  * @param {Object} props
- * @param {number | null} props.value - Current gap in seconds (null or 10-300), null = Off
+ * @param {number | null} props.value - Current gap in seconds (null or 10-7200 by default), null = Off
  * @param {function} props.onChange - Callback when value changes (receives null for Off, or number > 0)
  * @param {'compact' | 'full'} [props.variant='full'] - Display variant
  * @param {boolean} [props.showDescription=false] - Show description text below slider
  * @param {boolean} [props.disabled=false] - Disable the slider
- * @param {number} [props.max=300] - Maximum value in seconds
+ * @param {number} [props.max=7200] - Maximum value in seconds (120 minutes)
  */
 export function SequenceGapSlider({
   value,
@@ -31,7 +31,7 @@ export function SequenceGapSlider({
   variant = 'full',
   showDescription = false,
   disabled = false,
-  max = 300
+  max = 7200
 }) {
   // Local dragging state so the track/handle move smoothly without firing the
   // parent's onChange on every intermediate value. Every commit currently
