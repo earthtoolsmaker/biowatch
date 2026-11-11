@@ -297,7 +297,9 @@ export async function updateMediaTimestamp(dbPath, mediaID, newTimestamp) {
       return {
         success: true,
         mediaID,
-        newTimestamp,
+        newTimestamp: parsedInput.utc,
+        sourceTimestamp: newTimestamp,
+        localTimestamp: parsedInput.local,
         observationsUpdated: updatedCount
       }
     }
@@ -377,6 +379,8 @@ export async function updateMediaTimestamp(dbPath, mediaID, newTimestamp) {
       success: true,
       mediaID,
       newTimestamp: newTimestampDT.toISO(),
+      sourceTimestamp: formattedNewTimestamp,
+      localTimestamp: parseCameraTime(formattedNewTimestamp, currentMedia.cameraTimeZone)?.local,
       observationsUpdated: updatedCount
     }
   } catch (error) {

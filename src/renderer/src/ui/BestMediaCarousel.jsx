@@ -8,6 +8,7 @@ import DeploymentLinkPill from '../media/DeploymentLinkPill'
 import SpeciesTooltipContent from './SpeciesTooltipContent'
 import { resolveSpeciesInfo } from '../../../shared/speciesInfo/index.js'
 import { useHorizontalWheelScroll } from '../hooks/useHorizontalWheelScroll'
+import { formatMediaTimestamp } from '../utils/formatTimestamp'
 
 function toTitleCase(str) {
   return str.replace(/\b\w/g, (c) => c.toUpperCase())
@@ -187,9 +188,7 @@ function ImageViewerModal({
               >
                 <ChevronRight size={18} />
               </button>
-              <span className="truncate">
-                {media.timestamp ? new Date(media.timestamp).toLocaleString() : 'No timestamp'}
-              </span>
+              <span className="truncate">{formatMediaTimestamp(media, { seconds: true })}</span>
             </div>
 
             <div className="flex items-center gap-1 flex-shrink-0">
@@ -459,9 +458,7 @@ function VideoViewerModal({
               >
                 <ChevronRight size={18} />
               </button>
-              <span className="truncate">
-                {media.timestamp ? new Date(media.timestamp).toLocaleString() : 'No timestamp'}
-              </span>
+              <span className="truncate">{formatMediaTimestamp(media, { seconds: true })}</span>
             </div>
 
             <div className="flex items-center gap-1 flex-shrink-0">

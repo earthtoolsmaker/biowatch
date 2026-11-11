@@ -3,24 +3,12 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { Play, ImageOff, Layers, Film, Image as ImageIcon } from 'lucide-react'
 import { deriveTableRow, speciesDisplay } from './tableRows.js'
 import { SpeciesCountLabel } from '../ui/SpeciesLabel'
+import { formatMediaTimestamp, getMediaWallTime } from '../utils/formatTimestamp'
 
 const ROW_HEIGHT = 46
 // Shared column template for the header and every row so they stay aligned.
 // Columns: row number · thumbnail · type · species · when · deployment.
 const GRID_COLS = '48px 60px 56px minmax(0,1.4fr) 180px minmax(0,1fr)'
-
-function formatWhen(when) {
-  if (!when) return null
-  const d = new Date(when)
-  if (Number.isNaN(d.getTime())) return when
-  return d.toLocaleString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
-}
 
 // Small thumbnail. `url` points at a server-resized ~128px JPEG (see
 // protocols.js), so it's cheap to decode/composite even as virtualized rows
@@ -131,7 +119,11 @@ const TableRow = memo(function TableRow({
         )}
       </Cell>
       <Cell>
-        {formatWhen(row.when) || <span className="text-muted-foreground">— missing —</span>}
+        {getMediaWallTime(row.thumbnailMedia) ? (
+          formatMediaTimestamp(row.thumbnailMedia)
+        ) : (
+          <span className="text-muted-foreground">— missing —</span>
+        )}
       </Cell>
       <Cell>{row.deployment || <span className="text-muted-foreground">—</span>}</Cell>
     </div>

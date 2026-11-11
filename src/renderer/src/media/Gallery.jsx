@@ -55,7 +55,11 @@ import {
 import { SpeciesCountLabel } from '../ui/SpeciesLabel'
 import MediaTableView, { MediaTableHeader } from './MediaTableView.jsx'
 import { sortSequences } from './tableRows.js'
-import { formatGridTimestamp } from '../utils/formatTimestamp'
+import {
+  formatMediaTimestamp,
+  getMediaWallTime,
+  resolveMediaTimestamp
+} from '../utils/formatTimestamp'
 import { useSequenceGap } from '../hooks/useSequenceGap'
 import { useShowThumbnailBboxes } from '../hooks/useShowThumbnailBboxes'
 import DateTimePicker from '../ui/DateTimePicker'
@@ -289,11 +293,11 @@ function ImageModal({
   const lastVideoTimeUpdateRef = useRef(0)
   const [videoCurrentTime, setVideoCurrentTime] = useState(0)
 
+  const mediaWallTime = getMediaWallTime(media)
+
   // Initialize inline timestamp when media changes
   useEffect(() => {
-    if (media?.timestamp) {
-      setInlineTimestamp(new Date(media.timestamp).toLocaleString())
-    }
+    setInlineTimestamp(mediaWallTime)
     // Sync favorite state with media prop
     setIsFavorite(media?.favorite ?? false)
     // Reset editing state when media changes
@@ -310,7 +314,7 @@ function ImageModal({
     // Reset video playback tracking
     setVideoCurrentTime(0)
     lastVideoTimeUpdateRef.current = 0
-  }, [media?.mediaID, media?.timestamp, media?.favorite])
+  }, [media?.mediaID, media?.timestamp, mediaWallTime, media?.favorite])
 
   // Video transcoding effect - check if video needs transcoding and handle it
   useEffect(() => {
@@ -447,34 +451,29 @@ function ImageModal({
   )
 
   // Handle timestamp save
-  const handleTimestampSave = async (newTimestamp) => {
+  const handleTimestampSave = async (wallTime) => {
     if (!media || !studyId) return
 
     setIsSaving(true)
     setError(null)
 
-    // Store old timestamp for rollback
-    const oldTimestamp = media.timestamp
-
-    // Optimistic update
-    if (onTimestampUpdate) {
-      onTimestampUpdate(media.mediaID, newTimestamp)
-    }
-
     try {
+      const newTimestamp = resolveMediaTimestamp(wallTime, media)
       const result = await window.api.setMediaTimestamp(studyId, media.mediaID, newTimestamp)
 
       if (result.error) {
         throw new Error(result.error)
       }
 
-      // Update successful - use the formatted timestamp returned from backend
-      const savedTimestamp = result.newTimestamp || newTimestamp
-
-      // Update with the actual saved timestamp (preserves original format)
-      if (onTimestampUpdate) {
-        onTimestampUpdate(media.mediaID, savedTimestamp)
+      // Apply the canonical UTC + camera-local pair returned by the database.
+      // A wall-time-only optimistic update would incorrectly shift the instant.
+      const savedTime = {
+        timestamp: result.newTimestamp,
+        sourceTimestamp: result.sourceTimestamp,
+        localTimestamp: result.localTimestamp,
+        cameraTimeZone: media.cameraTimeZone
       }
+      onTimestampUpdate?.(media.mediaID, savedTime)
 
       // Invalidate relevant queries. Timestamp edits shift which week / hour
       // a media falls into and can reshape sequence grouping, so every
@@ -493,12 +492,8 @@ function ImageModal({
 
       setShowDatePicker(false)
       setIsEditingTimestamp(false)
-      setInlineTimestamp(new Date(savedTimestamp).toLocaleString())
+      setInlineTimestamp(getMediaWallTime(savedTime))
     } catch (err) {
-      // Rollback on error
-      if (onTimestampUpdate) {
-        onTimestampUpdate(media.mediaID, oldTimestamp)
-      }
       setError(err.message || 'Failed to update timestamp')
       console.error('Error updating timestamp:', err)
     } finally {
@@ -521,30 +516,15 @@ function ImageModal({
         return
       }
 
-      const parsedDate = new Date(trimmedInput)
-      if (isNaN(parsedDate.getTime())) {
-        setError('Invalid date format. Try: "12/25/2024, 2:30:00 PM" or "2024-12-25T14:30:00"')
-        return
-      }
-
-      // Validate year is within reasonable bounds
-      const year = parsedDate.getFullYear()
-      if (year < 1970 || year > 2100) {
-        setError('Year must be between 1970 and 2100')
-        return
-      }
-
-      handleTimestampSave(parsedDate.toISOString())
+      handleTimestampSave(trimmedInput)
     } catch {
-      setError('Invalid date format. Try: "12/25/2024, 2:30:00 PM"')
+      setError('Enter a valid camera-local date and time')
     }
   }
 
   const handleInlineCancel = () => {
     setIsEditingTimestamp(false)
-    if (media?.timestamp) {
-      setInlineTimestamp(new Date(media.timestamp).toLocaleString())
-    }
+    setInlineTimestamp(getMediaWallTime(media))
     setError(null)
   }
 
@@ -1076,7 +1056,9 @@ function ImageModal({
                 {isEditingTimestamp ? (
                   <>
                     <input
-                      type="text"
+                      type="datetime-local"
+                      step="0.001"
+                      aria-label="Camera-local timestamp"
                       value={inlineTimestamp}
                       onChange={(e) => setInlineTimestamp(e.target.value)}
                       onKeyDown={handleInlineKeyDown}
@@ -1109,9 +1091,7 @@ function ImageModal({
                       onClick={handleInlineEdit}
                       title="Click to edit timestamp"
                     >
-                      {media.timestamp
-                        ? new Date(media.timestamp).toLocaleString()
-                        : 'No timestamp'}
+                      {formatMediaTimestamp(media, { seconds: true })}
                     </span>
                     <button
                       onClick={handleInlineEdit}
@@ -1132,7 +1112,7 @@ function ImageModal({
                 {showDatePicker && (
                   <div className="absolute left-0 top-full mt-2 z-50">
                     <DateTimePicker
-                      value={media.timestamp}
+                      value={getMediaWallTime(media)}
                       onChange={handleTimestampSave}
                       onCancel={() => setShowDatePicker(false)}
                     />
@@ -1555,6 +1535,12 @@ function ImageModal({
               )}
             </div>
 
+            {media.sourceTimestamp && (
+              <p className="text-[11px] mt-1 break-all select-text">
+                Source timestamp: <span className="font-mono">{media.sourceTimestamp}</span>
+              </p>
+            )}
+
             {classificationUpdatePending && (
               <p className="text-[11px] text-blue-500 mt-1 dark:text-blue-400">
                 Updating classification...
@@ -1792,10 +1778,16 @@ function ThumbnailCard({
         )}
 
         {/* Timestamp overlay (top-left) */}
-        {media.timestamp && (
+        {(media.localTimestamp || media.timestamp) && (
           <div className="absolute top-2 left-2 z-20 bg-black/65 text-white px-1.5 py-0.5 rounded text-[11px] font-medium flex items-center gap-1 backdrop-blur-[2px] tabular-nums">
             <Clock size={11} />
-            <span>{formatGridTimestamp(media.timestamp)}</span>
+            <span
+              title={
+                media.sourceTimestamp ? `Source timestamp: ${media.sourceTimestamp}` : undefined
+              }
+            >
+              {formatMediaTimestamp(media)}
+            </span>
           </div>
         )}
       </div>
@@ -2055,10 +2047,18 @@ function SequenceCard({
         )}
 
         {/* Timestamp overlay (top-left) — updates as the sequence cycles */}
-        {currentMedia.timestamp && (
+        {(currentMedia.localTimestamp || currentMedia.timestamp) && (
           <div className="absolute top-2 left-2 z-20 bg-black/65 text-white px-1.5 py-0.5 rounded text-[11px] font-medium flex items-center gap-1 backdrop-blur-[2px] tabular-nums">
             <Clock size={11} />
-            <span>{formatGridTimestamp(currentMedia.timestamp)}</span>
+            <span
+              title={
+                currentMedia.sourceTimestamp
+                  ? `Source timestamp: ${currentMedia.sourceTimestamp}`
+                  : undefined
+              }
+            >
+              {formatMediaTimestamp(currentMedia)}
+            </span>
           </div>
         )}
       </div>
@@ -2450,25 +2450,28 @@ function Gallery({
     }
   }, [selectedMedia, navigableItems])
 
-  // Handle optimistic timestamp update
+  // Keep UTC and camera-local fields together after a successful timestamp edit.
   const handleTimestampUpdate = useCallback(
-    (mediaID, newTimestamp) => {
-      // Update the infinite query cache
-      queryClient.setQueryData(['media', id, species, dateRange, timeRange], (oldData) => {
+    (mediaID, savedTime) => {
+      const updateItem = (item) => (item.mediaID === mediaID ? { ...item, ...savedTime } : item)
+      const updateSequence = (sequence) => ({
+        ...sequence,
+        items: sequence.items.map(updateItem)
+      })
+      queryClient.setQueriesData({ queryKey: ['sequences', id] }, (oldData) => {
         if (!oldData) return oldData
         return {
           ...oldData,
-          pages: oldData.pages.map((page) =>
-            page.map((m) => (m.mediaID === mediaID ? { ...m, timestamp: newTimestamp } : m))
-          )
+          pages: oldData.pages.map((page) => ({
+            ...page,
+            sequences: page.sequences.map(updateSequence)
+          }))
         }
       })
-      // Also update selectedMedia if it's the one being edited
-      setSelectedMedia((prev) =>
-        prev?.mediaID === mediaID ? { ...prev, timestamp: newTimestamp } : prev
-      )
+      setSelectedMedia((prev) => (prev ? updateItem(prev) : prev))
+      setCurrentSequence((prev) => (prev ? updateSequence(prev) : prev))
     },
-    [queryClient, id, species, dateRange, timeRange]
+    [queryClient, id]
   )
 
   // Keep a ref to the current mediaID so the UndoManager can read it without

@@ -277,8 +277,9 @@ export async function getBestMedia(dbPath, options = {}) {
     const favoritesQuery = `
       WITH favs AS (
         SELECT
-          m.mediaID, m.filePath, m.fileName, m.timestamp, m.deploymentID, m.fileMediatype, m.favorite,
-          d.locationID, d.locationName
+          m.mediaID, m.filePath, m.fileName, m.timestamp, m.sourceTimestamp, m.localTimestamp,
+          m.deploymentID, m.fileMediatype, m.favorite,
+          d.locationID, d.locationName, d.cameraTimeZone
         FROM media m
         LEFT JOIN deployments d ON d.deploymentID = m.deploymentID
         WHERE m.favorite = 1
@@ -318,6 +319,9 @@ export async function getBestMedia(dbPath, options = {}) {
         f.filePath,
         f.fileName,
         f.timestamp,
+        f.sourceTimestamp,
+        f.localTimestamp,
+        f.cameraTimeZone,
         f.deploymentID,
         f.locationID,
         f.locationName,
@@ -533,6 +537,9 @@ export async function getBestMedia(dbPath, options = {}) {
         m.filePath,
         m.fileName,
         m.timestamp,
+        m.sourceTimestamp,
+        m.localTimestamp,
+        d.cameraTimeZone,
         m.deploymentID,
         d.locationID,
         d.locationName,

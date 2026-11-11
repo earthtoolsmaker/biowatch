@@ -87,24 +87,42 @@ export function clipInterval(interval, start, end) {
   return clippedEnd > clippedStart ? { ...interval, start: clippedStart, end: clippedEnd } : null
 }
 
-function selectedHours(timeRange) {
-  const ranges = normalizeTimeRange(timeRange)
-  if (ranges.length === 0) return null
-  const selected = new Set()
-  for (let hour = 0; hour < 24; hour += 1) {
-    if (
-      ranges.some(({ start, end }) => {
-        if (start === end) return false
-        return start < end ? hour >= start && hour < end : hour >= start || hour < end
-      })
-    ) {
-      selected.add(hour)
-    }
+// Union the selected windows before summing effort so overlapping presets
+// aren't counted twice. Keep fractional hours instead of rounding to bins.
+function selectedHourSegments(ranges) {
+  const segments = ranges
+    .flatMap(({ start, end }) =>
+      start === end
+        ? []
+        : start < end
+          ? [[start, end]]
+          : [
+              [start, 24],
+              [0, end]
+            ]
+    )
+    .sort((a, b) => a[0] - b[0])
+  const merged = []
+  for (const [start, end] of segments) {
+    const previous = merged[merged.length - 1]
+    if (previous && start <= previous[1]) previous[1] = Math.max(previous[1], end)
+    else merged.push([start, end])
   }
-  return selected
+  return merged
 }
 
-function addPartialHours(target, start, end, allowedHours) {
+// Cumulative selected wall-clock time up to ms. Subtracting two values gives
+// exact partial-day + whole-day effort without iterating over every day.
+function selectedTimeBefore(ms, segments) {
+  const day = Math.floor(ms / DAY_MS)
+  const withinDay = ms - day * DAY_MS
+  return segments.reduce((sum, [start, end]) => {
+    const duration = (end - start) * HOUR_MS
+    return sum + day * duration + Math.max(0, Math.min(duration, withinDay - start * HOUR_MS))
+  }, 0)
+}
+
+function addPartialHours(target, start, end) {
   let cursor = start
   while (cursor < end) {
     const date = new Date(cursor)
@@ -116,12 +134,12 @@ function addPartialHours(target, start, end, allowedHours) {
     )
     const next = Math.min(end, hourStart + HOUR_MS)
     const hour = date.getUTCHours()
-    if (!allowedHours || allowedHours.has(hour)) target[hour] += next - cursor
+    target[hour] += next - cursor
     cursor = next
   }
 }
 
-function addUtcIntervalByHour(target, interval, allowedHours = null) {
+function addUtcIntervalByHour(target, interval) {
   let cursor = interval.start
   const startDate = new Date(cursor)
   const nextMidnight = Date.UTC(
@@ -130,17 +148,17 @@ function addUtcIntervalByHour(target, interval, allowedHours = null) {
     startDate.getUTCDate() + 1
   )
   const firstEnd = Math.min(interval.end, nextMidnight)
-  addPartialHours(target, cursor, firstEnd, allowedHours)
+  addPartialHours(target, cursor, firstEnd)
   cursor = firstEnd
 
   const fullDays = Math.floor((interval.end - cursor) / DAY_MS)
   if (fullDays > 0) {
     for (let hour = 0; hour < 24; hour += 1) {
-      if (!allowedHours || allowedHours.has(hour)) target[hour] += fullDays * HOUR_MS
+      target[hour] += fullDays * HOUR_MS
     }
     cursor += fullDays * DAY_MS
   }
-  if (cursor < interval.end) addPartialHours(target, cursor, interval.end, allowedHours)
+  if (cursor < interval.end) addPartialHours(target, cursor, interval.end)
 }
 
 /**
@@ -175,16 +193,12 @@ function* offsetSegments(interval) {
   }
 }
 
-function addIntervalByHour(target, interval, allowedHours = null) {
+function addIntervalByHour(target, interval) {
   for (const segment of offsetSegments(interval)) {
-    addUtcIntervalByHour(
-      target,
-      {
-        start: segment.start + segment.offsetMs,
-        end: segment.end + segment.offsetMs
-      },
-      allowedHours
-    )
+    addUtcIntervalByHour(target, {
+      start: segment.start + segment.offsetMs,
+      end: segment.end + segment.offsetMs
+    })
   }
 }
 
@@ -196,11 +210,16 @@ export function intersectRecurringTimeRanges(interval, timeRange) {
       0
     )
   }
-  const hours = selectedHours(timeRange)
-  if (!hours) return interval.end - interval.start
-  const totals = Array(24).fill(0)
-  addIntervalByHour(totals, interval, hours)
-  return totals.reduce((sum, value) => sum + value, 0)
+  const ranges = normalizeTimeRange(timeRange)
+  if (ranges.length === 0) return interval.end - interval.start
+  const segments = selectedHourSegments(ranges)
+  let total = 0
+  for (const segment of offsetSegments(interval)) {
+    total +=
+      selectedTimeBefore(segment.end + segment.offsetMs, segments) -
+      selectedTimeBefore(segment.start + segment.offsetMs, segments)
+  }
+  return total
 }
 
 export function sumTotalEffort(intervals, { start = null, end = null, timeRange = null } = {}) {

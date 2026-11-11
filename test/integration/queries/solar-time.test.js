@@ -167,11 +167,11 @@ test('one sequence spanning adjacent solar bins contributes to both bins without
     }
 })
 
-test('All time includes final week, one-week data, and clipping stays absolute', async () => {
+test('raw clock All time includes floating clocks, final week and one-week data', async () => {
   const daily = (start, end) => getSequenceAwareDailyActivitySQL(dbPath, species, start, end, null)
   assert.equal(
     (await daily()).reduce((n, r) => n + r.count, 0),
-    6
+    7
   )
   assert.equal(
     (await daily('2024-06-30T00:00:00.000Z', '2024-06-30T23:59:59.999Z')).reduce(

@@ -87,12 +87,15 @@ export function selectSolarPeriod(selection = new Set(), key, additive = false) 
 export const dayPeriodPresets = (mode = 'clock') =>
   mode === 'solar' ? SOLAR_DAY_PERIOD_PRESETS : DAY_PERIOD_PRESETS
 
-/**
- * Format a {start, end} hour range as "HH:00 → HH:00".
- */
+/** Format fractional hours to the nearest minute, including end-of-day 24:00. */
+export function formatHour(hour) {
+  const minutes = Math.round(hour * 60)
+  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`
+}
+
+/** Format a {start, end} hour range as "HH:MM → HH:MM". */
 export function formatRange({ start, end }) {
-  const fmt = (h) => `${String(h).padStart(2, '0')}:00`
-  return `${fmt(start)} → ${fmt(end)}`
+  return `${formatHour(start)} → ${formatHour(end)}`
 }
 
 // Canonical render order: chronological, dawn first.
