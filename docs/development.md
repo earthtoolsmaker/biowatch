@@ -484,7 +484,9 @@ A single GitHub Actions workflow handles releases:
 
 | Workflow      | File                          | Trigger                         | Purpose                                          |
 | ------------- | ----------------------------- | ------------------------------- | ------------------------------------------------ |
-| Build/Release | `.github/workflows/build.yml` | Push to `main` or `v*.*.*` tags | Builds binaries and publishes the GitHub Release |
+| Build/Release | `.github/workflows/build.yml` | Push to `v*.*.*` tags | Builds binaries and publishes the GitHub Release |
+
+Only version-tag pushes publish releases. The tag pins the build to its commit, so work can continue on `main` while the release builds. Pull-request preview builds upload workflow artifacts without publishing releases.
 
 **Build/Release workflow:**
 

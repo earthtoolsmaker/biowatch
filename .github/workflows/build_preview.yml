@@ -14,11 +14,11 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            build_script: build:win
+            build_script: build:win:preview
             artifact_name: Biowatch-preview-windows
             artifact_path: dist/Biowatch-setup.exe
           - os: macos-latest
-            build_script: build:mac
+            build_script: build:mac:preview
             artifact_name: Biowatch-preview-macos
             artifact_path: dist/Biowatch.dmg
           - os: ubuntu-22.04
