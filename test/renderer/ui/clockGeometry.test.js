@@ -10,7 +10,8 @@ import {
   bandWraps,
   rangesToSegments,
   rangesToBoundaries,
-  resolveAction
+  resolveAction,
+  sectorPath
 } from '../../../src/renderer/src/ui/clockGeometry.js'
 
 describe('timeToAngle / angleToTime', () => {
@@ -26,6 +27,26 @@ describe('timeToAngle / angleToTime', () => {
     assert.equal(angleToTime(0), 0)
     assert.equal(angleToTime(90), 6)
     assert.equal(angleToTime(270), 18)
+  })
+})
+
+describe('sectorPath', () => {
+  test('day and night are closed clockwise half circles on opposite sides', () => {
+    const center = { x: 50, y: 50 }
+    assert.equal(
+      sectorPath(6, 18, 40, center),
+      'M 50 50 L 90 50 A 40 40 0 0 1 10 50.00000000000001 Z'
+    )
+    const night = sectorPath(18, 6, 40, center)
+    assert.ok(night.startsWith('M 50 50 L 10 '))
+    assert.ok(night.endsWith('A 40 40 0 0 1 90 50 Z'))
+  })
+
+  test('wrap-around night target uses the short arc, leaving twilight out', () => {
+    const path = sectorPath(19, 5, 42, { x: 76, y: 76 })
+    assert.ok(path.includes('A 42 42 0 0 1'))
+    assert.ok(path.endsWith(' Z'))
+    assert.ok(sectorPath(5, 19, 42, { x: 76, y: 76 }).includes('A 42 42 0 1 1'))
   })
 })
 

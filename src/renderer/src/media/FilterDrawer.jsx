@@ -4,6 +4,9 @@ import * as HoverCard from '@radix-ui/react-hover-card'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import { ArrowDownAZ, ArrowDownWideNarrow, Film, Image as ImageIcon, Search } from 'lucide-react'
 import SpeciesDistribution from '../ui/speciesDistribution.jsx'
+import { useTimeFilter } from '../hooks/useTimeFilter.js'
+import TimeModeToggle from '../ui/TimeModeToggle.jsx'
+import CircularTimeFilter from '../ui/clock.jsx'
 import DeploymentHoverMap from './DeploymentHoverMap.jsx'
 import { resolveCommonName } from '../../../shared/commonNames/index.js'
 import { isBlank, isVehicle } from '../utils/speciesUtils'
@@ -310,6 +313,14 @@ export default function FilterDrawer({ open, studyId, filters, onChange }) {
     return m
   }, [activity])
 
+  const {
+    mode: timeMode,
+    selection: hourSelection,
+    setMode: setTimeMode,
+    setTimeRange,
+    setSelection
+  } = useTimeFilter(studyId)
+  const chipSelection = new Set(hourSelection.kind === 'chips' ? hourSelection.keys : [])
   const selectedSpecies = useMemo(
     () => filters.species.map((scientificName) => ({ scientificName })),
     [filters.species]
@@ -401,6 +412,37 @@ export default function FilterDrawer({ open, studyId, filters, onChange }) {
           toolbar next to the active-filter chips. */}
       <div className="w-80 h-full bg-card border border-border rounded-lg overflow-hidden flex flex-col">
         <div className="flex-1 overflow-y-auto min-h-0">
+          <section className="p-3 border-b border-border" aria-label="Time filter">
+            <div className="flex justify-center">
+              <CircularTimeFilter
+                timeMode={timeMode}
+                periodSelection={chipSelection}
+                onPeriodSelectionChange={(keys) => setSelection({ kind: 'chips', keys: [...keys] })}
+                mode={
+                  timeMode === 'solar' || filters.timeRange.ranges.length > 1 ? 'chips' : 'drag'
+                }
+                chipSectors={
+                  filters.timeRange.ranges.length
+                    ? filters.timeRange.ranges
+                    : [{ start: 0, end: 24 }]
+                }
+                startTime={filters.timeRange.ranges[0]?.start ?? 0}
+                endTime={filters.timeRange.ranges[0]?.end ?? 24}
+                onChange={(range) =>
+                  setTimeRange({
+                    mode: timeMode,
+                    ranges:
+                      range.start === range.end || Math.abs(range.end - range.start) >= 23.9
+                        ? []
+                        : [range]
+                  })
+                }
+              />
+            </div>
+            <div className="flex items-center justify-center gap-2 mt-1">
+              <TimeModeToggle mode={timeMode} onChange={setTimeMode} />
+            </div>
+          </section>
           <Section
             title="Species"
             count={filters.species.length}

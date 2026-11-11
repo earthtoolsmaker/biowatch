@@ -7,6 +7,9 @@ import {
   chipsToRanges,
   DAY_PERIOD_ORDER,
   DAY_PERIOD_PRESETS,
+  SOLAR_DAY_PERIOD_PRESETS,
+  SOLAR_PERIOD_AREAS,
+  dayPeriodPresets,
   isFullDayArc,
   mergeChipRanges
 } from '../../src/renderer/src/utils/dayPeriods.js'
@@ -53,6 +56,47 @@ describe('chipsToRanges', () => {
 
   test('ignores unknown chip keys', () => {
     assert.deepEqual(chipsToRanges(new Set(['day', 'midnight'])), [{ start: 8, end: 18 }])
+  })
+})
+
+describe('solar period selections', () => {
+  test('solar hit areas partition all 24 hours and reserve twilight for dawn/dusk', () => {
+    for (let hour = 0; hour < 24; hour += 0.125) {
+      const hits = SOLAR_PERIOD_AREAS.filter(({ start, end }) =>
+        start < end ? hour >= start && hour < end : hour >= start || hour < end
+      )
+      assert.equal(hits.length, 1, `exactly one hit target at ${hour}h`)
+      if (hour >= 5 && hour < 7) assert.equal(hits[0].key, 'dawn')
+      if (hour >= 17 && hour < 19) assert.equal(hits[0].key, 'dusk')
+    }
+  })
+
+  test('solar Day and Night exclude dawn and dusk windows', () => {
+    assert.deepEqual(chipsToRanges(new Set(['day']), 'solar'), [{ start: 7, end: 17 }])
+    assert.deepEqual(chipsToRanges(new Set(['night']), 'solar'), [{ start: 19, end: 5 }])
+    assert.deepEqual(mergeChipRanges(chipsToRanges(new Set(['day', 'night']), 'solar')), [
+      { start: 19, end: 5 },
+      { start: 7, end: 17 }
+    ])
+  })
+
+  test('dawn and dusk windows are centered on the sunrise/sunset icon anchors', () => {
+    assert.deepEqual(chipsToRanges(new Set(['dawn', 'dusk']), 'solar'), [
+      { start: 5, end: 7 },
+      { start: 17, end: 19 }
+    ])
+    assert.equal(dayPeriodPresets('solar'), SOLAR_DAY_PERIOD_PRESETS)
+    assert.equal(dayPeriodPresets('clock'), DAY_PERIOD_PRESETS)
+  })
+
+  test('adjacent solar selections merge without changing clock presets', () => {
+    assert.deepEqual(mergeChipRanges(chipsToRanges(new Set(['dawn', 'day', 'dusk']), 'solar')), [
+      { start: 5, end: 19 }
+    ])
+    assert.deepEqual(chipsToRanges(new Set(['day', 'night']), 'clock'), [
+      { start: 8, end: 18 },
+      { start: 21, end: 5 }
+    ])
   })
 })
 

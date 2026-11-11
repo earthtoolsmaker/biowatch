@@ -47,8 +47,9 @@ test.beforeAll(async () => {
         .run(id, title, title, '2026-01-01T00:00:00Z', 'camtrap/datapackage')
       if (id === 'legacy') {
         db.exec(\`INSERT INTO deployments (deploymentID) VALUES ('d');
-          INSERT INTO media (mediaID, deploymentID, timestamp) VALUES
-            ('a', 'd', '2024-05-01T20:30:00Z'), ('b', 'd', '2024-05-15T21:30:00Z');
+          INSERT INTO media (mediaID, deploymentID, timestamp, filePath) VALUES
+            ('a', 'd', '2024-05-01T20:30:00Z', '/synthetic-a.jpg'),
+            ('b', 'd', '2024-05-15T21:30:00Z', '/synthetic-b.jpg');
           INSERT INTO observations (observationID, mediaID, deploymentID, scientificName)
             VALUES ('oa', 'a', 'd', 'Vulpes vulpes'), ('ob', 'b', 'd', 'Vulpes vulpes');\`)
         const migration = migrations[17]
@@ -96,6 +97,7 @@ test('startup isolates failures and a per-study retry restores access', async ()
     window.getByRole('button', { name: 'Show filter charts', exact: true })
   ).toBeVisible()
   await window.getByRole('button', { name: 'Show filter charts', exact: true }).click()
+  await window.getByRole('button', { name: 'Clock', exact: true }).click()
   await expect(window.locator('[title="Daily activity — camera-local clock time"]')).toBeVisible()
   const legacyActivity = await window.evaluate(() =>
     window.api.getSequenceAwareDailyActivity({

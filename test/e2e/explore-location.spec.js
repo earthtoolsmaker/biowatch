@@ -1,13 +1,16 @@
 const path = require('path')
 const { test: base, expect } = require('./fixtures')
+const { waitForAppReady } = require('./utils')
 
 // An isolated renderer window without the app's frozen contextBridge API lets
 // the fixture supply deterministic IPC responses without touching real data.
 const test = base.extend({
   window: [
     async ({ electronApp }, use) => {
+      // Do not mistake the app's delayed startup window for our fixture window.
+      await waitForAppReady(electronApp)
       const ready = electronApp.waitForEvent('window')
-      await electronApp.evaluate(({ BrowserWindow }) => {
+      await electronApp.evaluate(async ({ BrowserWindow }) => {
         // Real pointer events and the hover/map ResizeObserver callbacks need
         // a visible renderer; hidden windows throttle requestAnimationFrame.
         const window = new BrowserWindow({
@@ -16,7 +19,7 @@ const test = base.extend({
           useContentSize: true,
           show: true
         })
-        window.loadURL('about:blank')
+        await window.loadURL('about:blank')
       })
       const window = await ready
       await window.setViewportSize({ width: 1440, height: 900 })
@@ -81,10 +84,15 @@ test.describe('Explore location click', () => {
     server = await createServer({
       configFile: false,
       root: path.resolve(__dirname, '../..'),
+      cacheDir: 'node_modules/.vite/e2e-explore-location',
+      optimizeDeps: { entries: ['test/e2e/fixtures/explore-location.html'] },
       plugins: [react(), tailwindcss()],
       server: { host: '127.0.0.1', port: 0 }
     })
     await server.listen()
+    // Finish the initial module crawl before the first renderer requests dependencies.
+    await server.environments.client.warmupRequest('/test/e2e/fixtures/explore-location.jsx')
+    await server.environments.client.waitForRequestsIdle()
     fixtureUrl = `http://127.0.0.1:${server.httpServer.address().port}/test/e2e/fixtures/explore-location.html`
   })
 
@@ -135,7 +143,9 @@ test.describe('Explore location click', () => {
           const after = await readView(window)
           expect(after.zoom).toBeGreaterThan(before.zoom)
           expect(after.zoom).toBe(16)
-          expect(after.center).toEqual({ lat: 50, lng: 4 })
+          // Leaflet can round the projected center to a nearby screen pixel.
+          expect(after.center.lat).toBeCloseTo(50, 4)
+          expect(after.center.lng).toBeCloseTo(4, 4)
           const area = await readArea(window)
           expect(area).toEqual(after.bounds)
           await expect(

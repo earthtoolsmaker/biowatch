@@ -12,6 +12,19 @@ export const timeToAngle = (time) => (time * 15) % 360
 // Inverse of timeToAngle for an angle already normalized to [0, 360).
 export const angleToTime = (angle) => (angle / 15) % 24
 
+// Filled clockwise sector, including wrap-around at midnight.
+export const sectorPath = (start, end, radius, center) => {
+  const point = (hour) => {
+    const angle = ((hour * 15 - 90) * Math.PI) / 180
+    return [center.x + radius * Math.cos(angle), center.y + radius * Math.sin(angle)]
+  }
+  const [sx, sy] = point(start)
+  const [ex, ey] = point(end)
+  const sweep = (end - start + 24) % 24
+  const largeArc = sweep > 12 ? 1 : 0
+  return `M ${center.x} ${center.y} L ${sx} ${sy} A ${radius} ${radius} 0 ${largeArc} 1 ${ex} ${ey} Z`
+}
+
 // Whether `cursor` (hours) falls strictly inside a possibly-wrapping band.
 export const isInsideBand = (cursor, band) => {
   if (band.start < band.end) return cursor > band.start && cursor < band.end

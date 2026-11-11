@@ -28,7 +28,7 @@ function useCount(key, studyId, fetcher) {
 export default function MediaTab({ studyId, path }) {
   const { id } = useParams()
   const actualStudyId = studyId || id
-  const { filters, setFilters, patch } = useMediaFilters()
+  const { filters, setFilters, patch } = useMediaFilters(actualStudyId)
   const [drawerOpen, setDrawerOpen] = useState(true)
 
   // The tab nav links carry no query string, so leaving and re-entering the tab
@@ -44,7 +44,10 @@ export default function MediaTab({ studyId, path }) {
     if (hasActiveFilters(filters)) return
     const saved = sessionStorage.getItem(storageKey)
     if (saved !== null) {
-      setFilters(searchParamsToFilters(new URLSearchParams(saved)), { replace: true })
+      setFilters(
+        { ...searchParamsToFilters(new URLSearchParams(saved)), timeRange: filters.timeRange },
+        { replace: true }
+      )
     } else {
       patch({ quickView: 'detections' }, { replace: true })
     }

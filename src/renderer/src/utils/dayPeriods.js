@@ -3,7 +3,8 @@
  * (chip set, drag-arc) into the {ranges: [...]} shape consumed by the
  * backend timeRange filter.
  *
- * Hour ranges are half-open [start, end) in 24h local clock time. Night
+ * Hour ranges are half-open [start, end) in the selected time basis: camera-local
+ * clock hours or normalized solar hours (sunrise 06:00, sunset 18:00). Night
  * wraps midnight (start > end).
  */
 
@@ -38,6 +39,54 @@ export const DAY_PERIOD_PRESETS = {
   }
 }
 
+// Solar periods partition the day without overlap. Dawn/dusk are symmetric
+// one-solar-hour windows around sunrise/sunset; day/night exclude those windows.
+export const SOLAR_DAY_PERIOD_PRESETS = {
+  ...DAY_PERIOD_PRESETS,
+  dawn: {
+    ...DAY_PERIOD_PRESETS.dawn,
+    range: { start: 5, end: 7 },
+    description: 'One solar hour either side of sunrise (06:00).'
+  },
+  day: {
+    ...DAY_PERIOD_PRESETS.day,
+    range: { start: 7, end: 17 },
+    description: 'Daylight between dawn and dusk (07:00–17:00 solar).'
+  },
+  dusk: {
+    ...DAY_PERIOD_PRESETS.dusk,
+    range: { start: 17, end: 19 },
+    description: 'One solar hour either side of sunset (18:00).'
+  },
+  night: {
+    ...DAY_PERIOD_PRESETS.night,
+    range: { start: 19, end: 5 },
+    description: 'Nighttime between dusk and the following dawn (19:00–05:00 solar).'
+  }
+}
+
+// Hit targets and selected ranges share one definition so the hover area,
+// blue outline, tooltips, and actual filter always describe the same hours.
+export const SOLAR_PERIOD_AREAS = ['night', 'dawn', 'day', 'dusk'].map((key) => ({
+  key,
+  ...SOLAR_DAY_PERIOD_PRESETS[key].range
+}))
+
+// Shift toggles a period without changing the others. A plain click isolates
+// a period, or clears it when it is the sole selection (all hours active).
+export function selectSolarPeriod(selection = new Set(), key, additive = false) {
+  if (additive) {
+    const next = new Set(selection)
+    if (next.has(key)) next.delete(key)
+    else next.add(key)
+    return next
+  }
+  return new Set(selection.size === 1 && selection.has(key) ? [] : [key])
+}
+
+export const dayPeriodPresets = (mode = 'clock') =>
+  mode === 'solar' ? SOLAR_DAY_PERIOD_PRESETS : DAY_PERIOD_PRESETS
+
 /**
  * Format a {start, end} hour range as "HH:00 → HH:00".
  */
@@ -60,10 +109,9 @@ export const ALL_CHIPS_SELECTED = new Set(DAY_PERIOD_ORDER)
  * Convert a chip selection (Set<string>) into an ordered ranges array.
  * Unknown keys are ignored.
  */
-export function chipsToRanges(selection) {
-  return DAY_PERIOD_ORDER.filter((key) => selection.has(key)).map(
-    (key) => DAY_PERIOD_PRESETS[key].range
-  )
+export function chipsToRanges(selection, mode = 'clock') {
+  const presets = dayPeriodPresets(mode)
+  return DAY_PERIOD_ORDER.filter((key) => selection.has(key)).map((key) => presets[key].range)
 }
 
 /**

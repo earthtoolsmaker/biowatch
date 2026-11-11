@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import {
   CartesianGrid,
   ComposedChart,
@@ -7,6 +7,7 @@ import {
   PolarGrid,
   Radar,
   RadarChart,
+  ReferenceArea,
   ReferenceLine,
   ResponsiveContainer,
   XAxis,
@@ -20,29 +21,54 @@ import {
   bandToSegments,
   bandWidth,
   bandWraps,
-  resolveAction
+  resolveAction,
+  sectorPath
 } from './clockGeometry.js'
-import { isFullDayArc } from '../utils/dayPeriods.js'
+import {
+  isFullDayArc,
+  SOLAR_DAY_PERIOD_PRESETS,
+  SOLAR_PERIOD_AREAS,
+  selectSolarPeriod
+} from '../utils/dayPeriods.js'
+import SolarPeriodMarkers from './solarPeriodMarkers.jsx'
 
-// Outer radius (in px) of the activity radar and the inner reference circle.
-// The selection ring lives OUTSIDE this, so the radar is kept a little
-// smaller than the old full-size circle to leave room for the ring without
-// growing the widget's footprint (which would collide with the mode toggle).
-const CLOCK_OUTER_RADIUS_PX = 42
+// Compact default for standalone filters and species hovercards. Explore's
+// combined polar chart derives its radius from the available card space.
+const DEFAULT_CLOCK_RADIUS = 42
+const RING_GAP = 2
+const RING_WIDTH = 4
+// Reserve the same label/icon space so switching time modes never resizes the circle.
+const TIME_FILTER_PADDING = 28
+const TIME_LABEL_OFFSET = 16
 
-// Selection ring sits just OUTSIDE the radar circle so it never covers the
-// activity blob. Radii are in the same px space as CLOCK_OUTER_RADIUS_PX.
-const RING_GAP = 2 // gap between radar edge and ring
-const RING_WIDTH = 4 // stroke thickness of the ring
-const RING_MID = CLOCK_OUTER_RADIUS_PX + RING_GAP + RING_WIDTH / 2
-const RING_OUTER = CLOCK_OUTER_RADIUS_PX + RING_GAP + RING_WIDTH
+// Shared pointer/keyboard behavior for the polar sectors and line-chart bands.
+const solarAreaProps = (key, selection, onChange) => ({
+  role: 'button',
+  tabIndex: 0,
+  'aria-label': `${SOLAR_DAY_PERIOD_PRESETS[key].label} area`,
+  'aria-pressed': selection?.has(key) ?? false,
+  'data-solar-period': key,
+  className:
+    'cursor-pointer fill-transparent hover:fill-blue-500/15 focus-visible:fill-blue-500/15 outline-none transition-colors',
+  onClick: (event) => onChange(selectSolarPeriod(selection, key, event.shiftKey)),
+  onKeyDown: (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      onChange(selectSolarPeriod(selection, key, event.shiftKey))
+    }
+  }
+})
 
 const CircularTimeFilter = ({
   onChange,
   startTime = 6,
   endTime = 18,
   mode = 'drag',
-  chipSectors = []
+  chipSectors = [],
+  radius = DEFAULT_CLOCK_RADIUS,
+  timeMode = 'clock',
+  periodSelection,
+  onPeriodSelectionChange
 }) => {
   const [isDraggingStart, setIsDraggingStart] = useState(false)
   const [isDraggingEnd, setIsDraggingEnd] = useState(false)
@@ -51,11 +77,17 @@ const CircularTimeFilter = ({
   const [end, setEnd] = useState(endTime)
   const [lastDragPosition, setLastDragPosition] = useState(null)
   const svgRef = useRef(null)
+  const solarAreaClipId = useId()
 
-  const padding = 14 // room for hour labels outside the ring
-  const svgSize = RING_OUTER * 2 + padding * 2
-  const center = { x: RING_OUTER + padding, y: RING_OUTER + padding }
-  const labelOffset = RING_OUTER + 8
+  const RING_MID = radius + RING_GAP + RING_WIDTH / 2
+  const RING_OUTER = radius + RING_GAP + RING_WIDTH
+  const svgSize = RING_OUTER * 2 + TIME_FILTER_PADDING * 2
+  const center = {
+    x: RING_OUTER + TIME_FILTER_PADDING,
+    y: RING_OUTER + TIME_FILTER_PADDING
+  }
+  const labelOffset = RING_OUTER + TIME_LABEL_OFFSET
+  const resetRadius = Math.min(16, radius / 3)
 
   // Sync local state when parent updates bounds externally. Does NOT fire
   // onChange continuously — that happens only on pointer release.
@@ -65,14 +97,15 @@ const CircularTimeFilter = ({
   }, [startTime, endTime])
 
   const interactive = mode !== 'chips'
-  // A full-day freeform drag is "no filter" (same as the backend's
-  // isFullDayArc and the x-y view) — render no blue so it doesn't look like
-  // an active full selection. Chip-driven full day (the default) is the
-  // intended full ring and is left to the chipSectors path below.
+  // No filter includes every hour, so it always gets a full blue ring.
   const fullDayDrag = interactive && isFullDayArc({ start, end })
   // Ranges to paint as blue arcs: the live drag band, or the chip sectors.
-  const ranges = interactive ? [{ start, end }] : chipSectors
-  const segments = fullDayDrag ? [] : rangesToSegments(ranges)
+  const ranges = fullDayDrag
+    ? [{ start: 0, end: 24 }]
+    : interactive
+      ? [{ start, end }]
+      : chipSectors
+  const segments = rangesToSegments(ranges)
   const isFullRing = segments.length === 1 && segments[0][0] === 0 && segments[0][1] === 24
   // Interior boundary hours, drawn as dashed radial guides into the plot.
   const boundaries = fullDayDrag ? [] : rangesToBoundaries(ranges)
@@ -168,154 +201,198 @@ const CircularTimeFilter = ({
 
   return (
     <div className="flex flex-col items-center justify-center w-full h-full">
-      <svg
-        className="select-none"
-        width={svgSize}
-        height={svgSize}
-        onMouseMove={handleMouseMove}
-        ref={svgRef}
-      >
-        {/* Inner reference circle aligned to the radar's outer edge. */}
-        <circle
-          cx={center.x}
-          cy={center.y}
-          r={CLOCK_OUTER_RADIUS_PX}
-          fill="none"
-          stroke="var(--color-border)"
-          strokeWidth="1"
-        />
+      <div className="relative flex-shrink-0" style={{ width: svgSize, height: svgSize }}>
+        <svg
+          data-testid="time-filter-circle"
+          data-selected-ranges={JSON.stringify(fullDayDrag ? [] : ranges)}
+          className="select-none"
+          width={svgSize}
+          height={svgSize}
+          onMouseMove={handleMouseMove}
+          ref={svgRef}
+        >
+          {timeMode === 'solar' && (
+            <>
+              <defs>
+                <clipPath id={solarAreaClipId} clipPathUnits="userSpaceOnUse">
+                  <path
+                    clipRule="evenodd"
+                    d={`M 0 0 H ${svgSize} V ${svgSize} H 0 Z
+                      M ${center.x - resetRadius} ${center.y}
+                      a ${resetRadius} ${resetRadius} 0 1 0 ${resetRadius * 2} 0
+                      a ${resetRadius} ${resetRadius} 0 1 0 ${-resetRadius * 2} 0 Z`}
+                  />
+                </clipPath>
+              </defs>
+              <g clipPath={`url(#${solarAreaClipId})`}>
+                {onPeriodSelectionChange &&
+                  SOLAR_PERIOD_AREAS.map(({ key, start, end }) => (
+                    <path
+                      key={key}
+                      d={sectorPath(start, end, radius, center)}
+                      {...solarAreaProps(key, periodSelection, onPeriodSelectionChange)}
+                    >
+                      <title>{SOLAR_DAY_PERIOD_PRESETS[key].label}</title>
+                    </path>
+                  ))}
+              </g>
+              {onPeriodSelectionChange && (
+                <circle
+                  cx={center.x}
+                  cy={center.y}
+                  r={resetRadius}
+                  pointerEvents="fill"
+                  role="button"
+                  tabIndex={0}
+                  aria-label="Show all hours"
+                  data-testid="solar-reset-selection"
+                  className="cursor-pointer fill-transparent stroke-transparent hover:fill-blue-500/15 hover:stroke-blue-500/40 focus-visible:fill-blue-500/15 focus-visible:stroke-blue-500/40 outline-none transition-colors"
+                  onClick={() => onPeriodSelectionChange(new Set())}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      onPeriodSelectionChange(new Set())
+                    }
+                  }}
+                >
+                  <title>Show all hours</title>
+                </circle>
+              )}
+            </>
+          )}
+          {/* Inner reference circle aligned to the radar's outer edge. */}
+          <circle
+            cx={center.x}
+            cy={center.y}
+            r={radius}
+            fill="none"
+            stroke="var(--color-border)"
+            strokeWidth="1"
+          />
 
-        {/* Hour labels just outside the ring. */}
-        <text
-          x={center.x}
-          y={center.y - labelOffset}
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fontSize="9"
-          fill="var(--color-muted-foreground)"
-        >
-          0h
-        </text>
-        <text
-          x={center.x + labelOffset}
-          y={center.y}
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fontSize="9"
-          fill="var(--color-muted-foreground)"
-        >
-          6h
-        </text>
-        <text
-          x={center.x}
-          y={center.y + labelOffset}
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fontSize="9"
-          fill="var(--color-muted-foreground)"
-        >
-          12h
-        </text>
-        <text
-          x={center.x - labelOffset}
-          y={center.y}
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fontSize="9"
-          fill="var(--color-muted-foreground)"
-        >
-          18h
-        </text>
+          {/* Clock labels are replaced by solar-period controls in solar mode. */}
+          {timeMode === 'clock' &&
+            [0, 6, 12, 18].map((hour) => {
+              const p = pointAt(hour, labelOffset)
+              return (
+                <text
+                  key={hour}
+                  x={p.x}
+                  y={p.y}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  fontSize="12"
+                  fill="var(--color-muted-foreground)"
+                >
+                  {hour}h
+                </text>
+              )
+            })}
 
-        {/* Dashed radial guides at the selection boundaries (center -> radar
+          {/* Dashed radial guides at the selection boundaries (center -> radar
             edge), so it's visible where the window sits over the activity. */}
-        {boundaries.map((hour) => {
-          const p = pointAt(hour, CLOCK_OUTER_RADIUS_PX)
-          return (
-            <line
-              key={`bound-${hour}`}
-              x1={center.x}
-              y1={center.y}
-              x2={p.x}
-              y2={p.y}
-              stroke="var(--color-muted-foreground)"
-              strokeWidth="1"
-              strokeDasharray="3 3"
-              strokeOpacity="0.5"
-            />
-          )
-        })}
+          {boundaries.map((hour) => {
+            const p = pointAt(hour, radius)
+            return (
+              <line
+                key={`bound-${hour}`}
+                x1={center.x}
+                y1={center.y}
+                x2={p.x}
+                y2={p.y}
+                stroke="var(--color-muted-foreground)"
+                strokeWidth="1"
+                strokeDasharray="3 3"
+                strokeOpacity="0.5"
+                pointerEvents="none"
+              />
+            )
+          })}
 
-        {/* Gray track ring. */}
-        <circle
-          cx={center.x}
-          cy={center.y}
-          r={RING_MID}
-          fill="none"
-          stroke="var(--color-muted)"
-          strokeWidth={RING_WIDTH}
-        />
-
-        {/* Blue selection on the ring. Full-day -> full ring; else arcs.
-            The arc is the drag target for panning in interactive mode. */}
-        {isFullRing ? (
+          {/* Gray track ring. */}
           <circle
             cx={center.x}
             cy={center.y}
             r={RING_MID}
             fill="none"
-            stroke="rgb(59 130 246)"
+            stroke="var(--color-muted)"
             strokeWidth={RING_WIDTH}
-            cursor={interactive ? 'pointer' : 'default'}
-            onMouseDown={interactive ? handleMouseDown('arc') : undefined}
           />
-        ) : (
-          segments.map(([s, e], i) => (
-            <path
-              key={i}
-              d={ringArcPath(s, e)}
+
+          {/* Blue selection on the ring. Full-day -> full ring; else arcs.
+            The arc is the drag target for panning in interactive mode. */}
+          {isFullRing ? (
+            <circle
+              cx={center.x}
+              cy={center.y}
+              r={RING_MID}
               fill="none"
               stroke="rgb(59 130 246)"
               strokeWidth={RING_WIDTH}
-              strokeLinecap="butt"
               cursor={interactive ? 'pointer' : 'default'}
               onMouseDown={interactive ? handleMouseDown('arc') : undefined}
             />
-          ))
-        )}
+          ) : (
+            segments.map(([s, e], i) => (
+              <path
+                key={i}
+                d={ringArcPath(s, e)}
+                fill="none"
+                stroke="rgb(59 130 246)"
+                strokeWidth={RING_WIDTH}
+                strokeLinecap="butt"
+                cursor={interactive ? 'pointer' : 'default'}
+                onMouseDown={interactive ? handleMouseDown('arc') : undefined}
+              />
+            ))
+          )}
 
-        {/* Draggable handles (interactive mode only). */}
-        {interactive && (
-          <>
-            <circle
-              cx={startCoord.x}
-              cy={startCoord.y}
-              r="5"
-              fill="rgb(59 130 246)"
-              stroke="white"
-              strokeWidth="1.5"
-              cursor="pointer"
-              onMouseDown={handleMouseDown('start')}
-            />
-            <circle
-              cx={endCoord.x}
-              cy={endCoord.y}
-              r="5"
-              fill="rgb(59 130 246)"
-              stroke="white"
-              strokeWidth="1.5"
-              cursor="pointer"
-              onMouseDown={handleMouseDown('end')}
-            />
-          </>
+          {/* Draggable handles (interactive mode only). */}
+          {interactive && (
+            <>
+              <circle
+                cx={startCoord.x}
+                cy={startCoord.y}
+                r="5"
+                fill="rgb(59 130 246)"
+                stroke="white"
+                strokeWidth="1.5"
+                cursor="pointer"
+                onMouseDown={handleMouseDown('start')}
+              />
+              <circle
+                cx={endCoord.x}
+                cy={endCoord.y}
+                r="5"
+                fill="rgb(59 130 246)"
+                stroke="white"
+                strokeWidth="1.5"
+                cursor="pointer"
+                onMouseDown={handleMouseDown('end')}
+              />
+            </>
+          )}
+        </svg>
+        {timeMode === 'solar' && (
+          <SolarPeriodMarkers
+            selection={periodSelection}
+            onChange={onPeriodSelectionChange}
+            center={center.x}
+            radius={labelOffset}
+          />
         )}
-      </svg>
+      </div>
     </div>
   )
 }
 
 // New component for species daily activity visualization
-const DailyActivityRadar = ({ activityData, selectedSpecies, palette }) => {
+const DailyActivityRadar = ({
+  activityData,
+  selectedSpecies,
+  palette,
+  radius = DEFAULT_CLOCK_RADIUS
+}) => {
   const chartRef = useRef(null)
 
   // Convert the activity data to a format suitable for the radar chart
@@ -339,12 +416,12 @@ const DailyActivityRadar = ({ activityData, selectedSpecies, palette }) => {
 
   return (
     <div className="relative w-full h-full flex items-center justify-center" ref={chartRef}>
-      <div className="relative h-full aspect-square">
+      <div className="absolute inset-0">
         <ResponsiveContainer width="100%" height="100%">
           <RadarChart
             data={formattedData}
             margin={{ top: 8, right: 8, bottom: 8, left: 8 }}
-            outerRadius={CLOCK_OUTER_RADIUS_PX}
+            outerRadius={radius}
           >
             <PolarGrid radialLines={false} polarRadius={[]} strokeWidth={1} />
             <PolarAngleAxis dataKey="name" tick={false} />
@@ -401,7 +478,10 @@ const DailyActivityLine = ({
   // The selection track strip below the axis is only useful when the chart
   // drives a filter. Display-only uses (e.g. the species hovercard) pass false
   // to drop the otherwise-empty grey bar.
-  showTrackStrip = true
+  showTrackStrip = true,
+  timeMode = 'clock',
+  periodSelection,
+  onPeriodSelectionChange
 }) => {
   const hasSingleBand = selectedRanges.length === 1
   const isWrapBand = hasSingleBand && bandWraps(selectedRanges[0])
@@ -565,13 +645,43 @@ const DailyActivityLine = ({
               type="number"
               domain={[0, 24]}
               ticks={[0, 6, 12, 18, 24]}
-              tick={{ fontSize: 9, fill: 'var(--color-muted-foreground)' }}
+              interval={0}
+              tickFormatter={(hour) => `${hour}h`}
+              tick={
+                timeMode === 'solar'
+                  ? false
+                  : { fontSize: 9, fill: 'var(--color-muted-foreground)' }
+              }
+              height={timeMode === 'solar' ? 4 : 30}
               axisLine={false}
               tickLine={false}
             />
             {/* 10% headroom so a species' peak isn't flush against the top
                 edge (otherwise the line gets clipped into a flat "cap"). */}
             <YAxis hide domain={[0, (dataMax) => (dataMax > 0 ? dataMax * 1.1 : 1)]} />
+            {/* Keep reference areas direct children so Recharts discovers them. */}
+            {timeMode === 'solar' &&
+              onPeriodSelectionChange &&
+              SOLAR_PERIOD_AREAS.flatMap(({ key, start, end }) =>
+                bandToSegments({ start, end }).map(([s, e]) => (
+                  <ReferenceArea
+                    key={`${key}-${s}`}
+                    x1={s}
+                    x2={e}
+                    shape={({ x, y, width, height }) => (
+                      <rect
+                        x={x}
+                        y={y}
+                        width={width}
+                        height={height}
+                        {...solarAreaProps(key, periodSelection, onPeriodSelectionChange)}
+                      >
+                        <title>{SOLAR_DAY_PERIOD_PRESETS[key].label}</title>
+                      </rect>
+                    )}
+                  />
+                ))
+              )}
             {/* Dashed vertical guides at the selection boundaries. */}
             {boundaries.map((hour) => (
               <ReferenceLine
@@ -597,6 +707,14 @@ const DailyActivityLine = ({
           </ComposedChart>
         </ResponsiveContainer>
       </div>
+
+      {timeMode === 'solar' && (
+        <SolarPeriodMarkers
+          layout="line"
+          selection={periodSelection}
+          onChange={onPeriodSelectionChange}
+        />
+      )}
 
       {/* Selection track strip below the axis. 8px insets match the chart's
           left/right margin so hour 0..24 line up with the plot. */}
@@ -630,5 +748,48 @@ const DailyActivityLine = ({
   )
 }
 
-// Export all components
-export { DailyActivityRadar, DailyActivityLine, CircularTimeFilter as default }
+// Keep the radar and its selection overlay on exactly the same responsive
+// geometry. Only measured DOM bounds are state; all radii are derived.
+const DailyActivityPolar = ({
+  activityData,
+  selectedSpecies,
+  palette,
+  timeMode = 'clock',
+  ...filterProps
+}) => {
+  const containerRef = useRef(null)
+  const [bounds, setBounds] = useState({ width: 0, height: 0 })
+
+  useEffect(() => {
+    const observer = new ResizeObserver(([entry]) => {
+      setBounds({ width: entry.contentRect.width, height: entry.contentRect.height })
+    })
+    observer.observe(containerRef.current)
+    return () => observer.disconnect()
+  }, [])
+
+  const radius = Math.max(
+    1,
+    Math.min(bounds.width, bounds.height) / 2 - TIME_FILTER_PADDING - RING_GAP - RING_WIDTH - 6 // clearance around the outer icons/labels
+  )
+
+  return (
+    <div ref={containerRef} className="relative w-full h-full min-w-0 min-h-0">
+      {bounds.width > 0 && bounds.height > 0 && (
+        <>
+          <DailyActivityRadar
+            activityData={activityData}
+            selectedSpecies={selectedSpecies}
+            palette={palette}
+            radius={radius}
+          />
+          <div className="absolute inset-0">
+            <CircularTimeFilter {...filterProps} timeMode={timeMode} radius={radius} />
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+export { DailyActivityPolar, DailyActivityRadar, DailyActivityLine, CircularTimeFilter as default }

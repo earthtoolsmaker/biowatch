@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3'
+import { registerSolarTimeFunctions } from '../services/solarTime.js'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { existsSync, mkdirSync } from 'fs'
 import { dirname } from 'path'
@@ -60,6 +61,7 @@ export class StudyDatabaseManager {
         this.db = drizzle(this.sqlite, { schema })
       }
 
+      registerSolarTimeFunctions(this.sqlite)
       return this
     } catch (error) {
       this.sqlite?.close()

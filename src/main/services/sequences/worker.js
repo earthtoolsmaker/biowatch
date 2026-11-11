@@ -30,6 +30,7 @@ import {
   getOverviewStats
 } from '../../database/index.js'
 import { getPaginatedSequences } from './pagination.js'
+import { normalizeTimeRange } from '../../database/queries/sequences.js'
 import { getStudyDatabase } from '../../database/manager.js'
 import { assertStudyDatabaseReady } from '../../database/study-readiness.js'
 import { setCameraTimeZone } from '../setCameraTimeZone.js'
@@ -115,8 +116,12 @@ function normalizeRaiTimeseries(result, validated, selectedSpecies) {
   }
 }
 
-function normalizeRaiActivity(rows, validated, selectedSpecies, startDate, endDate) {
-  const effortByHour = groupEffortByHour(validated.intervals, { start: startDate, end: endDate })
+function normalizeRaiActivity(rows, validated, selectedSpecies, startDate, endDate, timeMode) {
+  const effortByHour = groupEffortByHour(validated.intervals, {
+    start: startDate,
+    end: endDate,
+    timeMode
+  })
   const raw = pivotPreAggregatedDailyActivity(rows || [], selectedSpecies)
   return raw.map((row, hour) => ({
     hour,
@@ -357,7 +362,9 @@ async function run() {
       }
       if (!needsEffort) return normalizeRawLocations(rows, speciesNames)
       const validated = validateDeploymentIntervals(await getDeploymentEffortRows(dbPath), {
-        requireCoordinates: true
+        requireCoordinates: true,
+        timeMode:
+          timeRange?.mode === 'solar' && normalizeTimeRange(timeRange).length ? 'solar' : 'clock'
       })
       return normalizeRaiLocations(rows, validated, speciesNames, {
         start: startDate,
@@ -366,6 +373,7 @@ async function run() {
       })
     }
     case 'daily-activity': {
+      const timeMode = workerData.timeMode || 'clock'
       const rows = await getSequenceAwareDailyActivitySQL(
         dbPath,
         speciesNames,
@@ -374,11 +382,15 @@ async function run() {
         effectiveGapSeconds,
         bbox,
         metric.counting,
-        needsEffort
+        needsEffort,
+        timeMode
       )
       if (!needsEffort) return pivotPreAggregatedDailyActivity(rows || [], speciesNames)
-      const validated = validateDeploymentIntervals(await getDeploymentEffortRows(dbPath), { bbox })
-      return normalizeRaiActivity(rows, validated, speciesNames, startDate, endDate)
+      const validated = validateDeploymentIntervals(await getDeploymentEffortRows(dbPath), {
+        bbox,
+        timeMode
+      })
+      return normalizeRaiActivity(rows, validated, speciesNames, startDate, endDate, timeMode)
     }
     case 'best-media': {
       // Off-main-thread path for the best-captures carousel. Covers both the
