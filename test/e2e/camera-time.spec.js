@@ -53,12 +53,16 @@ test.beforeEach(async ({ window }) => {
 test('resolve a floating camera clock, retain the selection, and clear it explicitly', async ({
   window
 }) => {
-  await expect(window.getByText('3 media have no known instant', { exact: false })).toBeVisible()
+  await expect(
+    window.getByText('3 media have no known UTC instant', { exact: false })
+  ).toBeVisible()
   const input = window.getByRole('textbox', { name: 'Camera time setting' })
   await input.fill('Europe/Paris')
   await window.getByRole('button', { name: 'Save', exact: true }).click()
   await expect(input).toHaveValue('Europe/Paris')
-  await expect(window.getByText('3 media have no known instant', { exact: false })).toHaveCount(0)
+  await expect(window.getByText('3 media have no known UTC instant', { exact: false })).toHaveCount(
+    0
+  )
   expect(await window.evaluate(() => window.cameraTimeCalls[0])).toEqual({
     study: 'camera-clock-fixture',
     id: 'camera',
@@ -66,7 +70,9 @@ test('resolve a floating camera clock, retain the selection, and clear it explic
   })
   await input.fill('')
   await window.getByRole('button', { name: 'Save', exact: true }).click()
-  await expect(window.getByText('3 media have no known instant', { exact: false })).toBeVisible()
+  await expect(
+    window.getByText('3 media have no known UTC instant', { exact: false })
+  ).toBeVisible()
   expect(await window.evaluate(() => window.cameraTimeCalls.at(-1).timeZone)).toBeNull()
 })
 
@@ -80,5 +86,7 @@ test('backend validation errors stay visible without silently changing the clock
     window.getByText('Use an IANA timezone, UTC, or a fixed offset', { exact: true })
   ).toBeVisible()
   await expect(input).toHaveValue('not-a-zone')
-  await expect(window.getByText('3 media have no known instant', { exact: false })).toBeVisible()
+  await expect(
+    window.getByText('3 media have no known UTC instant', { exact: false })
+  ).toBeVisible()
 })
