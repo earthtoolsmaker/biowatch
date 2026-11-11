@@ -79,10 +79,20 @@ UTC remains the basis for:
 - a future sunrise/sunset calculation using an instant and coordinates.
 
 Calendar week labels and hour-of-day values instead come from camera-local wall
-time. This PR does not redefine the existing date-range API: its start/end
-values still specify absolute instants, not a separate local-midnight interval
-for every deployment. The timeline retains its existing Monday–Sunday grouping
-and Sunday label convention.
+time. The absolute timeline, solar activity and effort-normalized analysis keep
+UTC date bounds and elapsed-time sequence gaps. The timeline retains its existing
+Monday–Sunday grouping and Sunday label convention.
+
+**Raw daily activity in clock mode is the exception:** it uses `localTimestamp`
+for eligibility, date filtering, ordering and sequence-gap grouping, so a camera
+with no known offset can still show its recorded hours. Bounds are interpreted
+as their written camera-calendar components, without shifting them through the
+viewer's timezone. These gaps measure camera-clock differences, not guaranteed
+elapsed real time across DST changes. Raw activity does not manufacture UTC
+instants or resolve ambiguous camera clocks. Solar and effort-normalized modes
+retain their stricter requirements; their empty states explain the camera
+settings, deployment intervals and coordinates they need. The daily chart remains
+reachable even when there is no absolute timeline.
 
 ### 4. Apply camera-local hours consistently
 
@@ -93,6 +103,31 @@ The following use `localTimestamp`, not the hour of the canonical UTC string:
 - both SQL and JavaScript-backed heatmap filtering paths;
 - best-media and per-species best-image daylight scoring;
 - calendar week grouping for activity series.
+
+Media captions, table rows, viewer readouts and best-media previews use one
+shared display policy, never the viewer's computer timezone. When a known UTC
+instant and an explicit deployment `cameraTimeZone` are available, display that
+instant in the confirmed camera timezone. This presentation-only conversion also
+applies to UTC-normalized sources: `04:58Z` can display as `06:58 UTC+02:00` without
+changing `sourceTimestamp`, `timestamp`, or stored `localTimestamp`. It does not
+change source-clock analytics, hour filters, effort eligibility or export policy.
+Users must confirm the camera clock setting; geography alone is not evidence.
+
+Without a confirmed setting, display the stored source-derived wall time, falling
+back to the UTC instant. Labels use 24-hour time and explicitly include `UTC` or
+`UTC±HH:MM` when the offset is known. Floating clocks without a resolved instant
+or source offset are labelled `timezone unknown`. The media viewer footer and
+gallery caption tooltips expose the unchanged source timestamp for comparison.
+This does not automatically recover an original camera offset lost by an older import.
+
+Timestamp editors operate on the displayed wall-clock components. For known
+instants displayed in a confirmed deployment timezone, resolve edits in that same
+timezone; otherwise use the source offset or the explicit deployment clock setting,
+never the host timezone. Missing settings and ambiguous/nonexistent civil times
+are reported rather than resolved using the computer's clock. The write boundary
+retains the source offset when serializing an edited instant. After a save, the
+renderer refreshes UTC, source and local fields together, retaining the display
+setting.
 
 The daylight score remains a fixed-hour heuristic. Correcting its timezone does
 not turn 06:00–18:00 into an astronomical sunrise/sunset calculation.
@@ -129,10 +164,14 @@ clock drift.
 The Deployments tab shows a count of media with a source timestamp but no known
 instant. Selecting a deployment exposes the warning and its settings control.
 
-The settings popover accepts a named timezone, `UTC`, or `UTC±HH:MM`. Saving
+The settings popover is portalled outside the clipped deployment pane, stays
+within the viewport and scrolls when its content exceeds the available height.
+It accepts a named timezone, `UTC`, or `UTC±HH:MM`. Saving
 reinterprets offset-free source values atomically and refreshes study queries.
-Clearing the setting returns those values to floating time. Supplied offsets
-remain authoritative. Invalid/ambiguous values still unresolved after a save
+For known instants, the same setting also selects the media display timezone;
+explicit source offsets remain authoritative for storage and source-clock analysis.
+Clearing the setting returns offset-free values to floating time and known-instant
+labels to their source clock. Supplied offsets remain unchanged. Invalid/ambiguous values still unresolved after a save
 are reported, rather than silently coerced.
 
 Timezone reassignment can touch many rows, so it runs in the background worker,
@@ -194,7 +233,9 @@ settings are left alone; IDs, favourites, annotations and file references surviv
 - Stored `20:30Z` becomes source `20:30Z`, canonical `20:30:00.000Z` and local
   `20:30:00.000`. `Z` is an explicit zero offset, preserving the familiar UTC-hour
   activity of old UTC-only studies without claiming to recover the original camera
-  clock. Selecting a different camera setting later does not override that offset.
+  clock. Selecting a different camera setting later does not override that stored
+  offset, but known-instant media labels can display the instant in the confirmed
+  camera timezone.
 - A retained `22:30+02:00` becomes local `22:30` and canonical UTC `20:30`, fixing
   the earlier SQLite UTC-hour extraction while preserving the real instant.
 - Offset-free values retain their wall time without inventing a UTC instant. They

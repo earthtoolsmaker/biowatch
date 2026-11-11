@@ -1,5 +1,6 @@
 import { Settings } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
+import * as Popover from '@radix-ui/react-popover'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { deploymentEffortDays } from '../../../shared/effort.js'
 import EffortTooltip from './EffortTooltip'
@@ -10,30 +11,10 @@ import { formatDateRange, formatEffortDays } from './formatEffort'
  * stats (media, observations, blank rate), camera identifiers, and
  * deployment dates plus camera-days for the currently selected deployment.
  *
- * Camera time settings explicitly resolve offset-free source timestamps.
+ * Camera time settings resolve offset-free sources and set the media display clock.
  */
 export default function DeploymentSettingsPopover({ studyId, deployment }) {
   const [isOpen, setIsOpen] = useState(false)
-  const popoverRef = useRef(null)
-  const buttonRef = useRef(null)
-
-  // Outside-click closes the popover. Same pattern as SpeciesFilterButton.
-  useEffect(() => {
-    if (!isOpen) return
-    const onDown = (e) => {
-      if (
-        popoverRef.current &&
-        !popoverRef.current.contains(e.target) &&
-        buttonRef.current &&
-        !buttonRef.current.contains(e.target)
-      ) {
-        setIsOpen(false)
-      }
-    }
-    window.addEventListener('mousedown', onDown)
-    return () => window.removeEventListener('mousedown', onDown)
-  }, [isOpen])
-
   const { data: stats } = useQuery({
     queryKey: ['deploymentStats', studyId, deployment.deploymentID],
     queryFn: async () => {
@@ -46,27 +27,31 @@ export default function DeploymentSettingsPopover({ studyId, deployment }) {
   })
 
   return (
-    <div className="relative">
-      <button
-        ref={buttonRef}
-        onClick={() => setIsOpen((v) => !v)}
-        className="p-1 rounded text-muted-foreground hover:bg-accent hover:text-foreground"
-        title={
-          deployment.unresolvedTimestampCount > 0
-            ? 'Camera timezone needed — open deployment settings'
-            : 'Deployment settings'
-        }
-        aria-label="Deployment settings"
-      >
-        <Settings size={16} />
-        {deployment.unresolvedTimestampCount > 0 && (
-          <span className="absolute top-0 right-0 h-2 w-2 rounded-full bg-amber-500" />
-        )}
-      </button>
-      {isOpen && (
-        <div
-          ref={popoverRef}
-          className="absolute right-0 top-full mt-1 w-80 bg-card border border-border rounded-lg shadow-lg z-[1100] p-4"
+    <Popover.Root open={isOpen} onOpenChange={setIsOpen}>
+      <Popover.Trigger asChild>
+        <button
+          className="relative p-1 rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+          title={
+            deployment.unresolvedTimestampCount > 0
+              ? 'Camera timezone needed — open deployment settings'
+              : 'Deployment settings'
+          }
+          aria-label="Deployment settings"
+        >
+          <Settings size={16} />
+          {deployment.unresolvedTimestampCount > 0 && (
+            <span className="absolute top-0 right-0 h-2 w-2 rounded-full bg-amber-500" />
+          )}
+        </button>
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content
+          side="bottom"
+          align="end"
+          sideOffset={4}
+          collisionPadding={12}
+          aria-label="Deployment settings"
+          className="w-80 max-w-[calc(100vw-24px)] max-h-[min(32rem,var(--radix-popover-content-available-height))] overflow-y-auto overscroll-contain bg-card border border-border rounded-lg shadow-lg z-[1100] p-4"
         >
           <StatsSection stats={stats} />
           <CameraSection deployment={deployment} />
@@ -76,9 +61,9 @@ export default function DeploymentSettingsPopover({ studyId, deployment }) {
             deployment={deployment}
           />
           <DeploymentSection deployment={deployment} />
-        </div>
-      )}
-    </div>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   )
 }
 
@@ -121,8 +106,13 @@ function CameraTimeSection({ studyId, deployment }) {
         Camera time setting
       </label>
       <p className="text-[11px] text-muted-foreground my-1">
-        Use Europe/Paris for daylight saving, or UTC+02:00 for a clock fixed year-round. Leave blank
-        to use offsets supplied by the source. Supplied offsets are always preserved.
+        Use Europe/Paris for daylight saving, or UTC+02:00 for a clock fixed year-round. Media
+        labels display known instants in this timezone; original source timestamps and their offsets
+        stay unchanged. Leave blank to display the source clock.
+      </p>
+      <p className="text-[11px] text-muted-foreground mb-1">
+        This also resolves offset-free sources. For sources with an explicit offset, stored clock
+        values and clock-based analysis still follow the source, not the display conversion.
       </p>
       {!deployment.cameraEffortTimeZone &&
         deployment.sourceDeploymentStart &&
@@ -134,8 +124,8 @@ function CameraTimeSection({ studyId, deployment }) {
         )}
       {deployment.unresolvedTimestampCount > 0 && (
         <p role="status" className="text-[11px] text-amber-600 mb-1">
-          {deployment.unresolvedTimestampCount} media have no known instant and are excluded from
-          date-based analysis. Set the camera timezone below.
+          {deployment.unresolvedTimestampCount} media have no known UTC instant. Raw camera-clock
+          activity is available; absolute-time and effort analysis need the camera timezone below.
         </p>
       )}
       <div className="flex gap-2">

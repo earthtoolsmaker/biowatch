@@ -118,6 +118,153 @@ test('RAI excludes deployments whose source offsets contradict the configured ef
     assert.equal(validated.excludedDeploymentCount, 1)
   }))
 
+test('raw daily activity includes floating camera clocks in every counting and grouping mode', async () =>
+  study(async (db, path) => {
+    db.exec(`INSERT INTO deployments (deploymentID, deploymentStart, deploymentEnd, latitude, longitude)
+      VALUES ('d', '2021-06-25T11:00:00', '2021-06-25T18:00:00', 48, 2);
+      INSERT INTO media (mediaID, deploymentID, sourceTimestamp, fileMediatype) VALUES
+        ('a', 'd', '2021:06:25 14:56:22', 'image/jpeg'),
+        ('b', 'd', '2021:06:25 14:56:42', 'image/jpeg'),
+        ('c', 'd', '2021:06:25 15:39:54', 'image/jpeg');
+      INSERT INTO observations (observationID, mediaID, deploymentID, eventID, scientificName) VALUES
+        ('oa1', 'a', 'd', 'e1', 'Vulpes vulpes'),
+        ('oa2', 'a', 'd', 'e1', 'Vulpes vulpes'),
+        ('ob', 'b', 'd', 'e1', 'Vulpes vulpes'),
+        ('oc', 'c', 'd', 'e2', 'Vulpes vulpes');`)
+    for (const gap of [null, 0, 120]) {
+      for (const counting of ['individuals', 'observations']) {
+        const rows = await getSequenceAwareDailyActivitySQL(
+          path,
+          [sp],
+          undefined,
+          undefined,
+          gap,
+          null,
+          counting
+        )
+        assert.deepEqual(rows, [
+          {
+            scientificName: sp,
+            hour: 14,
+            count: counting === 'individuals' ? (gap === null ? 3 : 2) : gap === null ? 2 : 1
+          },
+          { scientificName: sp, hour: 15, count: 1 }
+        ])
+        const clipped = await getSequenceAwareDailyActivitySQL(
+          path,
+          [sp],
+          '2021-06-25T15:00:00.000Z',
+          '2021-06-25T16:00:00.000Z',
+          gap,
+          null,
+          counting
+        )
+        assert.deepEqual(clipped, [{ scientificName: sp, hour: 15, count: 1 }])
+        for (const [timeMode, requireEffort] of [
+          ['solar', false],
+          ['clock', true],
+          ['solar', true]
+        ]) {
+          assert.deepEqual(
+            await getSequenceAwareDailyActivitySQL(
+              path,
+              [sp],
+              undefined,
+              undefined,
+              gap,
+              null,
+              counting,
+              requireEffort,
+              timeMode
+            ),
+            []
+          )
+        }
+      }
+    }
+    // Reading raw clock activity never manufactures an instant or camera setting.
+    assert.equal(db.prepare('SELECT COUNT(timestamp) AS n FROM media').get().n, 0)
+    assert.equal(db.prepare('SELECT cameraTimeZone FROM deployments').get().cameraTimeZone, null)
+  }))
+
+test('raw daily activity filters the written camera calendar, not UTC or the host timezone', async () =>
+  study(async (db, path) => {
+    seed(db)
+    for (const gap of [null, 0, 30]) {
+      for (const counting of ['individuals', 'observations']) {
+        const rows = await getSequenceAwareDailyActivitySQL(
+          path,
+          [sp],
+          '2024-05-01T22:00:00.000Z',
+          '2024-05-01T23:00:00.000Z',
+          gap,
+          null,
+          counting
+        )
+        assert.deepEqual(rows, [{ scientificName: sp, hour: 22, count: gap === null ? 2 : 1 }])
+        assert.deepEqual(
+          await getSequenceAwareDailyActivitySQL(
+            path,
+            [sp],
+            '2024-05-01T20:00:00.000Z',
+            '2024-05-01T21:00:00.000Z',
+            gap,
+            null,
+            counting
+          ),
+          []
+        )
+        // RAI still clips by absolute UTC instants, not floating wall time.
+        const rai = await getSequenceAwareDailyActivitySQL(
+          path,
+          [sp],
+          '2024-05-01T20:00:00.000Z',
+          '2024-05-01T21:00:00.000Z',
+          gap,
+          null,
+          counting,
+          true
+        )
+        assert.deepEqual(rai, [{ scientificName: sp, hour: 22, count: gap === null ? 2 : 1 }])
+      }
+    }
+  }))
+
+test('raw clock gaps use wall time while effort-normalized gaps retain elapsed UTC time', async () =>
+  study(async (db, path) => {
+    db.exec(`INSERT INTO deployments (deploymentID, deploymentStart, deploymentEnd, cameraTimeZone)
+      VALUES ('d', '2024-10-27T00:00:00+02:00', '2024-10-27T05:00:00+01:00', 'Europe/Paris');
+      INSERT INTO media (mediaID, deploymentID, sourceTimestamp, fileMediatype) VALUES
+        ('a', 'd', '2024-10-27T02:30:00+02:00', 'image/jpeg'),
+        ('b', 'd', '2024-10-27T02:30:20+01:00', 'image/jpeg');
+      INSERT INTO observations (observationID, mediaID, deploymentID, scientificName) VALUES
+        ('oa', 'a', 'd', 'Vulpes vulpes'),
+        ('ob', 'b', 'd', 'Vulpes vulpes');`)
+    for (const counting of ['individuals', 'observations']) {
+      const raw = await getSequenceAwareDailyActivitySQL(
+        path,
+        [sp],
+        undefined,
+        undefined,
+        120,
+        null,
+        counting
+      )
+      assert.deepEqual(raw, [{ scientificName: sp, hour: 2, count: 1 }])
+      const rai = await getSequenceAwareDailyActivitySQL(
+        path,
+        [sp],
+        undefined,
+        undefined,
+        120,
+        null,
+        counting,
+        true
+      )
+      assert.deepEqual(rai, [{ scientificName: sp, hour: 2, count: 2 }])
+    }
+  }))
+
 test('offset-free values wait for a confirmed camera zone, never use the host zone', async () =>
   study(async (db) => {
     db.exec(`INSERT INTO deployments (deploymentID, deploymentStart, deploymentEnd) VALUES ('d', '2024-05-01 21:00:00', '2024-05-02 01:00:00');

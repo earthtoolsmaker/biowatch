@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect } from 'react'
 import { ChevronLeft, ChevronRight, Clock } from 'lucide-react'
+import { wallTimeToDate } from '../utils/formatTimestamp'
 
 /**
- * DateTimePicker component for editing ISO 8601 timestamps
+ * DateTimePicker for editing camera wall time without a computer-timezone conversion
  *
  * @param {Object} props
- * @param {string} props.value - ISO 8601 timestamp
- * @param {(newValue: string) => void} props.onChange - Called with new ISO timestamp on save
+ * @param {string} props.value - ISO camera-local wall time
+ * @param {(newValue: string) => void} props.onChange - Called with offset-free ISO wall time on save
  * @param {() => void} props.onCancel - Called when picker is dismissed
  * @param {() => void} [props.onResetToAuto] - When provided, the picker shows a "Reset to auto" link that calls this handler. The handler should clear any persisted override so the value falls back to derivation.
  * @param {string} [props.className] - Additional CSS classes
@@ -20,15 +21,15 @@ export default function DateTimePicker({
   className = '',
   dateOnly = false
 }) {
-  // Parse initial value
-  const initialDate = value ? new Date(value) : new Date()
+  // UTC carries the written components; it does not imply the camera uses UTC.
+  const initialDate = wallTimeToDate(value) || new Date()
 
-  const [year, setYear] = useState(initialDate.getFullYear())
-  const [month, setMonth] = useState(initialDate.getMonth())
-  const [day, setDay] = useState(initialDate.getDate())
-  const [hours, setHours] = useState(initialDate.getHours())
-  const [minutes, setMinutes] = useState(initialDate.getMinutes())
-  const [seconds, setSeconds] = useState(initialDate.getSeconds())
+  const [year, setYear] = useState(initialDate.getUTCFullYear())
+  const [month, setMonth] = useState(initialDate.getUTCMonth())
+  const [day, setDay] = useState(initialDate.getUTCDate())
+  const [hours, setHours] = useState(initialDate.getUTCHours())
+  const [minutes, setMinutes] = useState(initialDate.getUTCMinutes())
+  const [seconds, setSeconds] = useState(initialDate.getUTCSeconds())
 
   const containerRef = useRef(null)
 
@@ -71,7 +72,9 @@ export default function DateTimePicker({
       return
     }
 
-    const newDate = new Date(year, month, day, hours, minutes, seconds)
+    const newDate = new Date(
+      Date.UTC(year, month, day, hours, minutes, seconds, initialDate.getUTCMilliseconds())
+    )
 
     // Check if the date is valid
     if (isNaN(newDate.getTime())) {
@@ -80,11 +83,11 @@ export default function DateTimePicker({
     }
 
     setValidationError(null)
-    onChange(newDate.toISOString())
+    onChange(newDate.toISOString().slice(0, -1))
   }
 
-  const getDaysInMonth = (y, m) => new Date(y, m + 1, 0).getDate()
-  const getFirstDayOfMonth = (y, m) => new Date(y, m, 1).getDay()
+  const getDaysInMonth = (y, m) => new Date(Date.UTC(y, m + 1, 0)).getUTCDate()
+  const getFirstDayOfMonth = (y, m) => new Date(Date.UTC(y, m, 1)).getUTCDay()
 
   const prevMonth = () => {
     if (month === 0) {

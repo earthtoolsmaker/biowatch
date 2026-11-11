@@ -59,7 +59,7 @@ export function buildHourRangeCondition(range, mode = 'clock') {
   const hour =
     mode === 'solar'
       ? sql`(SELECT solar_hours(${media.timestamp}, latitude, longitude) FROM deployments WHERE deploymentID = ${media.deploymentID})`
-      : sql`CAST(substr(${media.localTimestamp}, 12, 2) AS INTEGER)`
+      : sql`(CAST(substr(${media.localTimestamp}, 12, 2) AS INTEGER) + CAST(substr(${media.localTimestamp}, 15, 2) AS INTEGER) / 60.0 + CAST(substr(${media.localTimestamp}, 18) AS REAL) / 3600.0)`
   if (start === end) return mode === 'solar' ? sql`0` : null
   if (start < end) {
     return and(sql`${hour} >= ${start}`, sql`${hour} < ${end}`)
@@ -241,6 +241,9 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
       filePath: media.filePath,
       fileName: media.fileName,
       timestamp: media.timestamp,
+      sourceTimestamp: media.sourceTimestamp,
+      localTimestamp: media.localTimestamp,
+      cameraTimeZone: deployments.cameraTimeZone,
       deploymentID: media.deploymentID,
       locationID: deployments.locationID,
       locationName: deployments.locationName,
@@ -258,6 +261,9 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
       filePath: media.filePath,
       fileName: media.fileName,
       timestamp: media.timestamp,
+      sourceTimestamp: media.sourceTimestamp,
+      localTimestamp: media.localTimestamp,
+      cameraTimeZone: deployments.cameraTimeZone,
       deploymentID: media.deploymentID,
       locationID: deployments.locationID,
       locationName: deployments.locationName,
@@ -272,6 +278,9 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
       filePath: media.filePath,
       fileName: media.fileName,
       timestamp: media.timestamp,
+      sourceTimestamp: media.sourceTimestamp,
+      localTimestamp: media.localTimestamp,
+      cameraTimeZone: deployments.cameraTimeZone,
       deploymentID: media.deploymentID,
       locationID: deployments.locationID,
       locationName: deployments.locationName,
@@ -510,6 +519,9 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
             filePath: media.filePath,
             fileName: media.fileName,
             timestamp: media.timestamp,
+            sourceTimestamp: media.sourceTimestamp,
+            localTimestamp: media.localTimestamp,
+            cameraTimeZone: deployments.cameraTimeZone,
             deploymentID: media.deploymentID,
             locationID: deployments.locationID,
             locationName: deployments.locationName,
@@ -695,6 +707,9 @@ export async function getMediaForSequencePagination(dbPath, options = {}) {
             filePath: media.filePath,
             fileName: media.fileName,
             timestamp: media.timestamp,
+            sourceTimestamp: media.sourceTimestamp,
+            localTimestamp: media.localTimestamp,
+            cameraTimeZone: deployments.cameraTimeZone,
             deploymentID: media.deploymentID,
             locationID: deployments.locationID,
             locationName: deployments.locationName,

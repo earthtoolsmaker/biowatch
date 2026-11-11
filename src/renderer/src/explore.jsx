@@ -20,13 +20,13 @@ import { useParams, useSearchParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import ExploreMapContextMenu from './ui/ExploreMapContextMenu'
-import { DailyActivityPolar, DailyActivityLine } from './ui/clock'
-import ChartShapeToggle from './ui/chartShapeToggle'
+import DailyActivityPanel from './ui/DailyActivityPanel'
 import {
   arcToRanges,
   chipsToRanges,
   DAY_PERIOD_ORDER,
   DAY_PERIOD_PRESETS,
+  formatRange,
   mergeChipRanges
 } from './utils/dayPeriods'
 import HideLeafletAttribution from './ui/HideLeafletAttribution'
@@ -64,7 +64,6 @@ import { useShowFilterCharts } from './hooks/useShowFilterCharts'
 import { useDateRange } from './hooks/useDateRange'
 import { useAreaFilter } from './hooks/useAreaFilter'
 import { useTimeFilter } from './hooks/useTimeFilter'
-import TimeModeToggle from './ui/TimeModeToggle'
 import { useExploreMetric } from './hooks/useExploreMetric'
 import AnalysisMetricToggle from './ui/AnalysisMetricToggle'
 import { aggregateAnalysisLocations } from './utils/analysisMetric'
@@ -1277,6 +1276,11 @@ export default function Explore({ studyData, studyId }) {
     (range) => setSelection({ kind: 'ranges', ranges: arcToRanges(range) }),
     [setSelection]
   )
+  const setHourRanges = useCallback(
+    (ranges) =>
+      setSelection(ranges.length ? { kind: 'ranges', ranges } : { kind: 'chips', keys: [] }),
+    [setSelection]
+  )
   const [chartShape, setChartShape] = useState('polar')
 
   // No hour filter is displayed as a full-day blue outline/track.
@@ -1298,9 +1302,8 @@ export default function Explore({ studyData, studyId }) {
         .map((k) => DAY_PERIOD_PRESETS[k].label)
         .join(', ')
     }
-    const fmt = (h) => `${String(Math.floor(h)).padStart(2, '0')}:00`
-    return `${fmt(arc.start)} → ${fmt(arc.end)}`
-  }, [timeRange, chipSelection, arc])
+    return timeRange.ranges.map(formatRange).join(', ')
+  }, [timeRange, chipSelection])
   const dateFilterLabel = useMemo(() => {
     if (!hasDateFilter) return null
     const fmt = (d) =>
@@ -1546,10 +1549,6 @@ export default function Explore({ studyData, studyId }) {
     return startMatch && endMatch
   }, [hasTemporalData, fullExtent, dateRange])
 
-  useEffect(() => {
-    if (speciesInitialized && hasTemporalData) setFilterRowTransitionsEnabled(true)
-  }, [speciesInitialized, hasTemporalData])
-
   // All time deliberately omits query bounds: weekly labels are display buckets,
   // not recording bounds (and a one-week series has identical first/last labels).
   const effectiveStart = dateRange[0]
@@ -1635,6 +1634,13 @@ export default function Explore({ studyData, studyId }) {
     enabled: !!actualStudyId && speciesNames.length > 0 && sequenceGap !== undefined,
     staleTime: Infinity
   })
+
+  // A floating camera clock can populate daily activity without an absolute
+  // timeline. Keep its chart (and strict-mode explanations) reachable too.
+  const hasActivityCharts = hasTemporalData || dailyActivityData?.length > 0
+  useEffect(() => {
+    if (speciesInitialized && hasActivityCharts) setFilterRowTransitionsEnabled(true)
+  }, [speciesInitialized, hasActivityCharts])
 
   // Normalize each species to its own peak so a sparse species reads as if it
   // were the only one selected, instead of being flattened by an abundant one.
@@ -1764,10 +1770,11 @@ export default function Explore({ studyData, studyId }) {
               <div className="ml-auto flex items-center gap-1">
                 <FilterChartsToggle
                   studyId={actualStudyId}
-                  // Optimistic while timeseries is loading — hide only once
-                  // we've confirmed the study has no timestamps (ENA24, Biome
-                  // Health Project, etc).
-                  hasTemporalData={hasTemporalData || timeseriesQueryData === undefined}
+                  hasTemporalData={
+                    hasActivityCharts ||
+                    timeseriesQueryData === undefined ||
+                    dailyActivityData === undefined
+                  }
                   isFiltering={isFilteringWithArea}
                   dayFilterLabel={dayFilterLabel}
                   dateFilterLabel={dateFilterLabel}
@@ -1924,61 +1931,33 @@ export default function Explore({ studyData, studyId }) {
             className={`w-full flex-shrink-0 overflow-hidden ${
               filterRowTransitionsEnabled ? 'transition-all duration-300 ease-in-out' : ''
             } ${
-              showFilterCharts && hasTemporalData
+              showFilterCharts && hasActivityCharts
                 ? 'h-[240px] opacity-100 mt-4'
                 : 'h-0 opacity-0 mt-0'
             }`}
-            aria-hidden={!(showFilterCharts && hasTemporalData)}
+            aria-hidden={!(showFilterCharts && hasActivityCharts)}
           >
             {speciesInitialized && sequenceGap !== undefined && (
               <div className="w-full flex h-[240px] gap-3">
-                <div
-                  title={
-                    timeMode === 'solar'
-                      ? 'Daily activity — normalized solar hours'
-                      : 'Daily activity — camera-local clock time'
-                  }
-                  className="w-[250px] h-full rounded border border-border flex flex-col relative"
-                >
-                  <div className="flex items-center justify-between px-2 pt-1.5 gap-2">
-                    <TimeModeToggle mode={timeMode} onChange={setTimeMode} />
-                    <ChartShapeToggle value={chartShape} onChange={setChartShape} />
-                  </div>
-                  {chartShape === 'polar' ? (
-                    <div className="flex-1 min-h-0 relative">
-                      <DailyActivityPolar
-                        activityData={normalizedDailyActivity}
-                        selectedSpecies={selectedSpecies}
-                        palette={palette}
-                        timeMode={timeMode}
-                        periodSelection={chipSelection}
-                        onPeriodSelectionChange={setChipSelection}
-                        onChange={handleArcChange}
-                        startTime={arc.start}
-                        endTime={arc.end}
-                        mode={
-                          timeMode === 'solar' || timeRange.ranges.length > 1 ? 'chips' : 'drag'
-                        }
-                        chipSectors={visualRanges}
-                      />
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex-1 min-h-0 relative">
-                        <DailyActivityLine
-                          timeMode={timeMode}
-                          periodSelection={chipSelection}
-                          onPeriodSelectionChange={setChipSelection}
-                          activityData={normalizedDailyActivity}
-                          selectedSpecies={selectedSpecies}
-                          palette={palette}
-                          selectedRanges={visualRanges}
-                          onArcChange={handleArcChange}
-                        />
-                      </div>
-                    </>
-                  )}
-                </div>
+                <DailyActivityPanel
+                  activityData={normalizedDailyActivity}
+                  isLoading={dailyActivityData === undefined}
+                  metric={metric}
+                  selectedSpecies={selectedSpecies}
+                  palette={palette}
+                  scientificToCommon={scientificToCommon}
+                  timeMode={timeMode}
+                  setTimeMode={setTimeMode}
+                  chartShape={chartShape}
+                  setChartShape={setChartShape}
+                  chipSelection={chipSelection}
+                  setChipSelection={setChipSelection}
+                  arc={arc}
+                  onArcChange={handleArcChange}
+                  timeRange={timeRange}
+                  visualRanges={visualRanges}
+                  onRangesChange={setHourRanges}
+                />
                 <div className="flex-grow rounded px-2 border border-border">
                   <TimelineChart
                     timeseriesData={normalizedTimeseries}

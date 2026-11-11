@@ -839,7 +839,7 @@ export async function getSpeciesHeatmapDataByMedia(
     // Empty ranges array means no time filter.
     const hourColumn = solar
       ? sql`solar_hours(${media.timestamp}, ${deployments.latitude}, ${deployments.longitude})`
-      : sql`CAST(substr(${media.localTimestamp}, 12, 2) AS INTEGER)`
+      : sql`(CAST(substr(${media.localTimestamp}, 12, 2) AS INTEGER) + CAST(substr(${media.localTimestamp}, 15, 2) AS INTEGER) / 60.0 + CAST(substr(${media.localTimestamp}, 18) AS REAL) / 3600.0)`
     const ranges = normalizeTimeRange(timeRange)
     const rangeConditions = ranges
       .map((r) => {
@@ -998,7 +998,7 @@ export async function getSequenceAwareHeatmapSQL(
     }
     const hourExpr = solar
       ? 'solar_hours(m.timestamp, d.latitude, d.longitude)'
-      : 'CAST(substr(m.localTimestamp, 12, 2) AS INTEGER)'
+      : '(CAST(substr(m.localTimestamp, 12, 2) AS INTEGER) + CAST(substr(m.localTimestamp, 15, 2) AS INTEGER) / 60.0 + CAST(substr(m.localTimestamp, 18) AS REAL) / 3600.0)'
     const hourClauses = hourRanges
       .map(({ start, end }) => {
         if (start === end) return solar ? '0' : null
@@ -1220,7 +1220,9 @@ export async function getSequenceAwareHeatmapSQL(
  *    (not positive)       → each media its own sequence → COUNT(observationID)
  *                           per (species, hour).
  *
- * Ordering is (timestamp, mediaID) — deterministic, unlike the prior JS path
+ * Raw clock activity filters and groups by camera-local wall time, including
+ * clocks with no known UTC instant. Solar/effort modes still require instants.
+ * Ordering is (selected time basis, mediaID) — deterministic, unlike the prior JS path
  * which depended on SQLite's query-plan ordering for tied timestamps.
  */
 export async function getSequenceAwareDailyActivitySQL(
@@ -1243,6 +1245,14 @@ export async function getSequenceAwareDailyActivitySQL(
   startDate ??= '0000-01-01T00:00:00.000Z'
   endDate ??= '9999-12-31T23:59:59.999Z'
   const solar = timeMode === 'solar'
+  const rawClock = !solar && !requireEffort
+  const timeExpression = rawClock ? 'm.localTimestamp' : 'm.timestamp'
+  // Clock-mode bounds describe the written camera calendar, not viewer-local time.
+  const boundExpression = rawClock ? 'camera_local(?, NULL)' : '?'
+  const timeClause = `${timeExpression} IS NOT NULL
+                AND julianday(${timeExpression}) IS NOT NULL
+                AND ${timeExpression} >= ${boundExpression}
+                AND ${timeExpression} <= ${boundExpression}`
   const hourExpression = solar
     ? 'CAST(solar_hours(m.timestamp, d.latitude, d.longitude) AS INTEGER)'
     : 'CAST(substr(m.localTimestamp, 12, 2) AS INTEGER)'
@@ -1282,15 +1292,14 @@ export async function getSequenceAwareDailyActivitySQL(
         .prepare(
           `
           WITH media_species AS (
-            SELECT o.scientificName, m.mediaID, m.deploymentID, m.timestamp AS ts,
+            SELECT o.scientificName, m.mediaID, m.deploymentID, ${timeExpression} AS ts,
                    ${hourExpression} AS hour,
                    CASE WHEN m.fileMediatype LIKE 'video/%' THEN 1 ELSE 0 END AS is_video
               FROM observations o
               INNER JOIN media m ON o.mediaID = m.mediaID
               ${bboxJoin}
               WHERE o.scientificName IN (${speciesPlaceholders})
-                AND m.timestamp IS NOT NULL AND julianday(m.timestamp) IS NOT NULL
-                AND m.timestamp >= ? AND m.timestamp <= ?
+                AND ${timeClause}
                 ${bboxClause}
                 ${solar ? 'AND solar_hours(m.timestamp, d.latitude, d.longitude) IS NOT NULL' : ''}
                 ${effortClause}
@@ -1336,7 +1345,7 @@ export async function getSequenceAwareDailyActivitySQL(
             SELECT o.scientificName AS scientificName,
                    m.mediaID AS mediaID,
                    m.deploymentID AS deploymentID,
-                   m.timestamp AS ts,
+                   ${timeExpression} AS ts,
                    ${hourExpression} AS hour,
                    CASE WHEN m.fileMediatype LIKE 'video/%' THEN 1 ELSE 0 END AS is_video,
                    COUNT(*) AS media_count
@@ -1344,8 +1353,7 @@ export async function getSequenceAwareDailyActivitySQL(
               INNER JOIN media m ON o.mediaID = m.mediaID
               ${bboxJoin}
               WHERE o.scientificName IN (${speciesPlaceholders})
-                AND m.timestamp IS NOT NULL
-                AND m.timestamp >= ? AND m.timestamp <= ?
+                AND ${timeClause}
                 ${bboxClause}
                 ${solar ? 'AND solar_hours(m.timestamp, d.latitude, d.longitude) IS NOT NULL' : ''}
                 ${effortClause}
@@ -1397,8 +1405,7 @@ export async function getSequenceAwareDailyActivitySQL(
               INNER JOIN media m ON o.mediaID = m.mediaID
               ${bboxJoin}
               WHERE o.scientificName IN (${speciesPlaceholders})
-                AND m.timestamp IS NOT NULL
-                AND m.timestamp >= ? AND m.timestamp <= ?
+                AND ${timeClause}
                 ${bboxClause}
                 ${solar ? 'AND solar_hours(m.timestamp, d.latitude, d.longitude) IS NOT NULL' : ''}
                 ${effortClause}
@@ -1428,8 +1435,7 @@ export async function getSequenceAwareDailyActivitySQL(
             INNER JOIN media m ON o.mediaID = m.mediaID
             ${bboxJoin}
             WHERE o.scientificName IN (${speciesPlaceholders})
-              AND m.timestamp IS NOT NULL
-              AND m.timestamp >= ? AND m.timestamp <= ?
+              AND ${timeClause}
               ${bboxClause}
                 ${solar ? 'AND solar_hours(m.timestamp, d.latitude, d.longitude) IS NOT NULL' : ''}
                 ${effortClause}

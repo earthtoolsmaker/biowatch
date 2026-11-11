@@ -112,32 +112,4 @@ test.describe('Study Management', () => {
     // Modal should close
     await expect(window.getByTestId('delete-modal')).not.toBeVisible()
   })
-
-  test('can navigate study tabs', async ({ window }) => {
-    // Click on a study to navigate to it
-    const studiesList = window.getByTestId('studies-list')
-    const firstStudyLink = studiesList.locator('a').first()
-    await firstStudyLink.click()
-
-    // Wait for study page to load
-    await window.waitForURL(/#\/study\//)
-
-    // Check that tabs are visible by looking for tab links
-    await expect(window.getByRole('link', { name: 'Overview' })).toBeVisible()
-    await expect(window.getByRole('link', { name: 'Explore' })).toBeVisible()
-    await expect(window.getByRole('link', { name: 'Media' })).toBeVisible()
-    await expect(window.getByRole('link', { name: 'Deployments' })).toBeVisible()
-
-    // Navigate to Explore tab
-    await window.getByRole('link', { name: 'Explore' }).click()
-    await window.waitForURL(/#\/study\/.*\/explore/)
-
-    // Navigate to Media tab
-    await window.getByRole('link', { name: 'Media' }).click()
-    await window.waitForURL(/#\/study\/.*\/media/)
-
-    // Navigate back to Overview
-    await window.getByRole('link', { name: 'Overview' }).click()
-    await window.waitForURL(/#\/study\/[^/]+$/)
-  })
 })

@@ -8,7 +8,7 @@
  * - Signal handlers
  */
 
-import { app, BrowserWindow, dialog, shell } from 'electron'
+import { app, BrowserWindow, dialog, screen, shell } from 'electron'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import log from '../services/logger.js'
 import { autoUpdater } from 'electron-updater'
@@ -22,9 +22,12 @@ import { registerLocalFileProtocol, registerCachedImageProtocol } from './protoc
 import { setupRemoteMediaCORS } from './session.js'
 import { setupRendererLogCapture, closeRendererLog } from '../services/renderer-logger.js'
 import { migrateAllStudyDatabases } from '../services/study-db-migrations.js'
+import { createPreferencesStore } from '../services/preferences.js'
+import { createWindowStateService } from '../services/window-state.js'
 
 // Track shutdown state to prevent multiple shutdown attempts
 let isShuttingDown = false
+let saveMainWindowState = () => {}
 
 /**
  * Configure logging
@@ -39,9 +42,14 @@ export function configureLogging() {
  * Create the main browser window
  */
 export function createWindow() {
+  const windowState = createWindowStateService({
+    store: createPreferencesStore(app.getPath('userData')),
+    screen
+  })
+  const savedState = windowState.restore()
   const mainWindow = new BrowserWindow({
-    width: 1300,
-    height: 800,
+    ...savedState.bounds,
+    show: false,
     autoHideMenuBar: true,
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
@@ -50,7 +58,15 @@ export function createWindow() {
     }
   })
 
+  saveMainWindowState = () => windowState.save(mainWindow)
+  mainWindow.on('close', saveMainWindowState)
+  mainWindow.on('closed', () => {
+    saveMainWindowState = () => {}
+  })
+
   mainWindow.on('ready-to-show', () => {
+    if (savedState.maximized) mainWindow.maximize()
+    if (savedState.fullScreen) mainWindow.setFullScreen(true)
     mainWindow.show()
   })
 
@@ -200,6 +216,8 @@ export function setupShutdownHandlers() {
     // Prevent immediate quit
     event.preventDefault()
     isShuttingDown = true
+    // app.exit() below bypasses window close events, so persist before cleanup.
+    saveMainWindowState()
 
     log.info('[Shutdown] Graceful shutdown initiated')
 
@@ -229,6 +247,7 @@ export function setupShutdownHandlers() {
 
         if (!isShuttingDown) {
           isShuttingDown = true
+          saveMainWindowState()
           try {
             await shutdownAllServers()
             log.info('[Signal] All ML servers stopped successfully')

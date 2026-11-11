@@ -24,3 +24,5 @@ scripts/output/
 # IUCN Red List bulk exports — see docs/development.md
 # Account-bound, non-redistributable per IUCN T&C section 4.
 data/redlist_species_data_*/
+
+reports/

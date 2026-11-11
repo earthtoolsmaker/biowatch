@@ -201,9 +201,10 @@ test('real IPC agrees on solar bins and filtering; shared mode/selection survive
   expect(positions[1].x).toBeGreaterThan(box.x + box.width / 2)
   expect(positions[2].y).toBeGreaterThan(box.y + box.height / 2)
   expect(positions[3].x).toBeLessThan(box.x + box.width / 2)
+  // Compact activity controls sit below the chart.
   expect(
     (await panel.getByRole('button', { name: 'Solar', exact: true }).boundingBox()).y
-  ).toBeLessThan(box.y)
+  ).toBeGreaterThanOrEqual(box.y + box.height)
   const screenshot = test.info().outputPath('solar-period-controls.png')
   await window.screenshot({ path: screenshot })
   await test.info().attach('solar-period-controls', { path: screenshot, contentType: 'image/png' })
