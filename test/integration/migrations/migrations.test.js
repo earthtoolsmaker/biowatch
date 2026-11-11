@@ -1,4 +1,5 @@
 import { test, beforeEach, afterEach, describe } from 'node:test'
+import { migrateStudyConnection } from '../../../src/main/database/migrate-study.js'
 import assert from 'node:assert/strict'
 import { mkdirSync, rmSync, writeFileSync, existsSync } from 'fs'
 import { join } from 'path'
@@ -190,22 +191,8 @@ describe('Umzug Migration System', () => {
     const Database = (await import('better-sqlite3')).default
     const db = new Database(dbPath)
 
-    // Create metadata table
-    db.exec(`
-      CREATE TABLE metadata (
-        id TEXT PRIMARY KEY,
-        name TEXT,
-        title TEXT,
-        description TEXT,
-        created TEXT NOT NULL,
-        importerName TEXT NOT NULL,
-        contributors TEXT,
-        updatedAt TEXT,
-        startDate TEXT,
-        endDate TEXT,
-        sequenceGap INTEGER
-      )
-    `)
+    // Use a real migrated study, including its migration history.
+    migrateStudyConnection(db)
     db.close()
 
     // Run migrations
@@ -348,21 +335,7 @@ describe('Umzug Migration System', () => {
       const dbPath = join(studyPath, 'study.db')
       const db = new Database(dbPath)
 
-      db.exec(`
-        CREATE TABLE metadata (
-          id TEXT PRIMARY KEY,
-          name TEXT,
-          title TEXT,
-          description TEXT,
-          created TEXT NOT NULL,
-          importerName TEXT NOT NULL,
-          contributors TEXT,
-          updatedAt TEXT,
-          startDate TEXT,
-          endDate TEXT,
-          sequenceGap INTEGER
-        )
-      `)
+      migrateStudyConnection(db)
       db.close()
     }
 

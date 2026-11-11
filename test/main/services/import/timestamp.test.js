@@ -31,7 +31,7 @@ describe('isValidTimestamp', () => {
   })
 
   test('rejects future dates beyond current year + 1', () => {
-    const futureYear = new Date().getFullYear() + 2
+    const futureYear = new Date().getUTCFullYear() + 2
     assert.equal(isValidTimestamp(new Date(`${futureYear}-06-15T12:00:00Z`)), false)
   })
 
@@ -42,7 +42,7 @@ describe('isValidTimestamp', () => {
   })
 
   test('accepts dates in current year + 1 (clock drift)', () => {
-    const nextYear = new Date().getFullYear() + 1
+    const nextYear = new Date().getUTCFullYear() + 1
     assert.equal(isValidTimestamp(new Date(`${nextYear}-01-15T12:00:00Z`)), true)
   })
 })
@@ -104,47 +104,47 @@ describe('extractTimestampFromFilename', () => {
     const result = extractTimestampFromFilename('RCNX0001_20240315_143022.MP4')
     assert.ok(result.timestamp)
     assert.equal(result.source, 'filename')
-    assert.equal(result.timestamp.getFullYear(), 2024)
-    assert.equal(result.timestamp.getMonth(), 2) // March
-    assert.equal(result.timestamp.getDate(), 15)
-    assert.equal(result.timestamp.getHours(), 14)
-    assert.equal(result.timestamp.getMinutes(), 30)
-    assert.equal(result.timestamp.getSeconds(), 22)
+    assert.equal(result.timestamp.getUTCFullYear(), 2024)
+    assert.equal(result.timestamp.getUTCMonth(), 2) // March
+    assert.equal(result.timestamp.getUTCDate(), 15)
+    assert.equal(result.timestamp.getUTCHours(), 14)
+    assert.equal(result.timestamp.getUTCMinutes(), 30)
+    assert.equal(result.timestamp.getUTCSeconds(), 22)
   })
 
   test('parses VID_YYYYMMDD_HHMMSS (Android style)', () => {
     const result = extractTimestampFromFilename('VID_20230720_081530.mp4')
     assert.ok(result.timestamp)
-    assert.equal(result.timestamp.getFullYear(), 2023)
-    assert.equal(result.timestamp.getMonth(), 6) // July
+    assert.equal(result.timestamp.getUTCFullYear(), 2023)
+    assert.equal(result.timestamp.getUTCMonth(), 6) // July
   })
 
   test('parses YYYYMMDD-HHMMSS (dash separator)', () => {
     const result = extractTimestampFromFilename('20240315-143022.AVI')
     assert.ok(result.timestamp)
-    assert.equal(result.timestamp.getFullYear(), 2024)
-    assert.equal(result.timestamp.getHours(), 14)
+    assert.equal(result.timestamp.getUTCFullYear(), 2024)
+    assert.equal(result.timestamp.getUTCHours(), 14)
   })
 
   test('parses YYYY-MM-DD_HH-MM-SS (dashed variant)', () => {
     const result = extractTimestampFromFilename('2024-03-15_14-30-22.mp4')
     assert.ok(result.timestamp)
-    assert.equal(result.timestamp.getFullYear(), 2024)
-    assert.equal(result.timestamp.getMonth(), 2)
-    assert.equal(result.timestamp.getDate(), 15)
-    assert.equal(result.timestamp.getHours(), 14)
-    assert.equal(result.timestamp.getMinutes(), 30)
-    assert.equal(result.timestamp.getSeconds(), 22)
+    assert.equal(result.timestamp.getUTCFullYear(), 2024)
+    assert.equal(result.timestamp.getUTCMonth(), 2)
+    assert.equal(result.timestamp.getUTCDate(), 15)
+    assert.equal(result.timestamp.getUTCHours(), 14)
+    assert.equal(result.timestamp.getUTCMinutes(), 30)
+    assert.equal(result.timestamp.getUTCSeconds(), 22)
   })
 
   test('parses YYYYMMDD date-only (time defaults to 00:00:00)', () => {
     const result = extractTimestampFromFilename('IMG_20240315.jpg')
     assert.ok(result.timestamp)
-    assert.equal(result.timestamp.getFullYear(), 2024)
-    assert.equal(result.timestamp.getMonth(), 2)
-    assert.equal(result.timestamp.getDate(), 15)
-    assert.equal(result.timestamp.getHours(), 0)
-    assert.equal(result.timestamp.getMinutes(), 0)
+    assert.equal(result.timestamp.getUTCFullYear(), 2024)
+    assert.equal(result.timestamp.getUTCMonth(), 2)
+    assert.equal(result.timestamp.getUTCDate(), 15)
+    assert.equal(result.timestamp.getUTCHours(), 0)
+    assert.equal(result.timestamp.getUTCMinutes(), 0)
   })
 
   test('returns null for filenames with no timestamp', () => {
@@ -161,8 +161,8 @@ describe('extractTimestampFromFilename', () => {
     // Hour 25 is invalid, so the datetime pattern fails but date-only fallback succeeds
     const result = extractTimestampFromFilename('20240315_253022.MP4')
     assert.ok(result.timestamp)
-    assert.equal(result.timestamp.getFullYear(), 2024)
-    assert.equal(result.timestamp.getHours(), 0) // time defaults to 00:00:00
+    assert.equal(result.timestamp.getUTCFullYear(), 2024)
+    assert.equal(result.timestamp.getUTCHours(), 0) // time defaults to 00:00:00
   })
 
   test('returns null for pre-2000 dates in filenames', () => {
@@ -173,19 +173,19 @@ describe('extractTimestampFromFilename', () => {
   test('handles filenames with path prefix stripped', () => {
     const result = extractTimestampFromFilename('20240315_143022.MP4')
     assert.ok(result.timestamp)
-    assert.equal(result.timestamp.getFullYear(), 2024)
+    assert.equal(result.timestamp.getUTCFullYear(), 2024)
   })
 
   test('parses fully packed 14-digit timestamp (no separator)', () => {
     const result = extractTimestampFromFilename('20220614230232.mkv')
     assert.ok(result.timestamp)
     assert.equal(result.source, 'filename')
-    assert.equal(result.timestamp.getFullYear(), 2022)
-    assert.equal(result.timestamp.getMonth(), 5) // June
-    assert.equal(result.timestamp.getDate(), 14)
-    assert.equal(result.timestamp.getHours(), 23)
-    assert.equal(result.timestamp.getMinutes(), 2)
-    assert.equal(result.timestamp.getSeconds(), 32)
+    assert.equal(result.timestamp.getUTCFullYear(), 2022)
+    assert.equal(result.timestamp.getUTCMonth(), 5) // June
+    assert.equal(result.timestamp.getUTCDate(), 14)
+    assert.equal(result.timestamp.getUTCHours(), 23)
+    assert.equal(result.timestamp.getUTCMinutes(), 2)
+    assert.equal(result.timestamp.getUTCSeconds(), 32)
   })
 
   test('does not false-match on long serial numbers', () => {
@@ -193,8 +193,8 @@ describe('extractTimestampFromFilename', () => {
     const result = extractTimestampFromFilename('CAM00012024031514.MP4')
     // Should either not match or match the correct 20240315 date, not 00012024
     if (result.timestamp) {
-      assert.equal(result.timestamp.getFullYear(), 2024)
-      assert.equal(result.timestamp.getMonth(), 2) // March
+      assert.equal(result.timestamp.getUTCFullYear(), 2024)
+      assert.equal(result.timestamp.getUTCMonth(), 2) // March
     }
   })
 

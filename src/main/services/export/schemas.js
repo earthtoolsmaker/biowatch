@@ -208,6 +208,8 @@ export const deploymentSchema = z.object({
   longitude: z.number().min(-180).max(180),
   deploymentStart: isoDateTimeWithTz,
   deploymentEnd: isoDateTimeWithTz,
+  // Biowatch extension; not a standard Camtrap DP deployment field.
+  cameraTimeZone: z.string().nullable().optional(),
 
   // === Optional fields (what we currently export) ===
   locationID: z.string().nullable().optional(),

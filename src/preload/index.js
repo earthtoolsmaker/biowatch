@@ -18,6 +18,11 @@ const api = {
   getStudies: async () => {
     return await electronAPI.ipcRenderer.invoke('studies:list')
   },
+  retryStudyDatabaseUpdate: async (studyId) => {
+    const response = await electronAPI.ipcRenderer.invoke('study:retry-database-update', studyId)
+    if (response.error) throw new Error(response.error)
+    return response.data
+  },
   downloadDemoDataset: async () => {
     return await electronAPI.ipcRenderer.invoke('import:download-demo')
   },
@@ -35,6 +40,14 @@ const api = {
   },
   getAllDeployments: async (studyId) => {
     return await electronAPI.ipcRenderer.invoke('deployments:get-all', studyId)
+  },
+  setCameraTimeZone: async (studyId, deploymentID, timeZone) => {
+    return await electronAPI.ipcRenderer.invoke(
+      'deployments:set-camera-time-zone',
+      studyId,
+      deploymentID,
+      timeZone
+    )
   },
   getDeploymentSpecies: async (studyId, deploymentID) => {
     return await electronAPI.ipcRenderer.invoke('deployments:get-species', studyId, deploymentID)

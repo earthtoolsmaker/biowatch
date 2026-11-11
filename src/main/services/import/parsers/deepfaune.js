@@ -191,7 +191,7 @@ async function insertDeepfauneData(db, csvPath) {
         }
 
         // Parse timestamp from the date field (format: "2019:05:14 17:14:52")
-        const timestamp = DateTime.fromFormat(row.date, 'yyyy:MM:dd HH:mm:ss')
+        const timestamp = DateTime.fromFormat(row.date, 'yyyy:MM:dd HH:mm:ss', { zone: 'UTC' })
         if (!timestamp.isValid) {
           log.warn(`Invalid timestamp format: ${row.date}`)
           return
@@ -221,7 +221,7 @@ async function insertDeepfauneData(db, csvPath) {
         mediaRows.push({
           mediaID,
           deploymentID: deployment.deploymentID,
-          timestamp: timestamp.toISO(),
+          timestamp: timestamp.toISO({ includeOffset: false }),
           filePath: row.filename,
           fileName
         })
@@ -237,8 +237,8 @@ async function insertDeepfauneData(db, csvPath) {
             mediaID,
             deploymentID: deployment.deploymentID,
             eventID: row.seqnum || null, // Use sequence number as eventID
-            eventStart: timestamp.toISO(),
-            eventEnd: timestamp.toISO(),
+            eventStart: timestamp.toISO({ includeOffset: false }),
+            eventEnd: timestamp.toISO({ includeOffset: false }),
             scientificName: normalizeScientificName(row.prediction),
             observationType: null,
             commonName: row.prediction, // Use prediction as commonName too
@@ -267,8 +267,10 @@ async function insertDeepfauneData(db, csvPath) {
 
             // Find min and max timestamps
             const sortedTimestamps = timestamps.sort((a, b) => a.toMillis() - b.toMillis())
-            const minTimestamp = sortedTimestamps[0].toISO()
-            const maxTimestamp = sortedTimestamps[sortedTimestamps.length - 1].toISO()
+            const minTimestamp = sortedTimestamps[0].toISO({ includeOffset: false })
+            const maxTimestamp = sortedTimestamps[sortedTimestamps.length - 1].toISO({
+              includeOffset: false
+            })
 
             await db
               .update(deployments)

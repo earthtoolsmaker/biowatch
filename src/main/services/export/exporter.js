@@ -26,6 +26,7 @@ import {
   CAMTRAP_DP_PROFILE_URL
 } from './sanitizers.js'
 import { mapObservationType } from './observationType.js'
+import { formatCameraTimestamp } from '../cameraTime.js'
 
 function getStudyDatabasePath(userDataPath, studyId) {
   return join(getStudyPath(userDataPath, studyId), 'study.db')
@@ -63,6 +64,7 @@ async function queryMediaInBatches(db, mediaIDs) {
         mediaID: media.mediaID,
         deploymentID: media.deploymentID,
         timestamp: media.timestamp,
+        sourceTimestamp: media.sourceTimestamp,
         filePath: media.filePath,
         fileName: media.fileName,
         exifData: media.exifData,
@@ -733,6 +735,7 @@ function generateDataPackage(studyId, studyName, metadata = null) {
             { name: 'longitude', type: 'number' },
             { name: 'deploymentStart', type: 'datetime' },
             { name: 'deploymentEnd', type: 'datetime' },
+            { name: 'cameraTimeZone', type: 'string' },
             { name: 'cameraModel', type: 'string' },
             { name: 'cameraID', type: 'string' },
             { name: 'coordinateUncertainty', type: 'integer' }
@@ -867,6 +870,9 @@ export async function exportCamtrapDP(studyId, options = {}) {
         longitude: deployments.longitude,
         deploymentStart: deployments.deploymentStart,
         deploymentEnd: deployments.deploymentEnd,
+        sourceDeploymentStart: deployments.sourceDeploymentStart,
+        sourceDeploymentEnd: deployments.sourceDeploymentEnd,
+        cameraTimeZone: deployments.cameraTimeZone,
         cameraModel: deployments.cameraModel,
         cameraID: deployments.cameraID,
         coordinateUncertainty: deployments.coordinateUncertainty
@@ -875,6 +881,7 @@ export async function exportCamtrapDP(studyId, options = {}) {
       .orderBy(asc(deployments.deploymentID))
 
     log.info(`Found ${deploymentsData.length} deployments`)
+    const cameraZones = new Map(deploymentsData.map((d) => [d.deploymentID, d.cameraTimeZone]))
 
     // Transform and validate deployments data for Camtrap DP
     const deploymentValidationErrors = []
@@ -883,8 +890,17 @@ export async function exportCamtrapDP(studyId, options = {}) {
         deploymentID: d.deploymentID,
         latitude: d.latitude,
         longitude: d.longitude,
-        deploymentStart: d.deploymentStart,
-        deploymentEnd: d.deploymentEnd,
+        deploymentStart: formatCameraTimestamp(
+          d.deploymentStart,
+          d.sourceDeploymentStart,
+          d.cameraTimeZone
+        ),
+        deploymentEnd: formatCameraTimestamp(
+          d.deploymentEnd,
+          d.sourceDeploymentEnd,
+          d.cameraTimeZone
+        ),
+        cameraTimeZone: d.cameraTimeZone,
         // Strip synthesized geo: prefix so exported CSVs match the
         // curator's original shape — biowatch never publishes its own
         // synthetic identifiers into round-tripped CamTrap-DP packages.
@@ -955,6 +971,8 @@ export async function exportCamtrapDP(studyId, options = {}) {
         eventID: observations.eventID,
         eventStart: observations.eventStart,
         eventEnd: observations.eventEnd,
+        sourceEventStart: observations.sourceEventStart,
+        sourceEventEnd: observations.sourceEventEnd,
         observationType: observations.observationType,
         scientificName: observations.scientificName,
         count: observations.count,
@@ -984,6 +1002,8 @@ export async function exportCamtrapDP(studyId, options = {}) {
           eventID: observations.eventID,
           eventStart: observations.eventStart,
           eventEnd: observations.eventEnd,
+          sourceEventStart: observations.sourceEventStart,
+          sourceEventEnd: observations.sourceEventEnd,
           observationType: observations.observationType,
           scientificName: observations.scientificName,
           count: observations.count,
@@ -1083,7 +1103,11 @@ export async function exportCamtrapDP(studyId, options = {}) {
       const rawRow = {
         mediaID: m.mediaID,
         deploymentID: m.deploymentID,
-        timestamp: m.timestamp,
+        timestamp: formatCameraTimestamp(
+          m.timestamp,
+          m.sourceTimestamp,
+          cameraZones.get(m.deploymentID)
+        ),
         filePath: exportFilePath,
         filePublic: false,
         fileMediatype: inferMimeType(m.filePath),
@@ -1147,8 +1171,16 @@ export async function exportCamtrapDP(studyId, options = {}) {
         deploymentID: o.deploymentID,
         mediaID: o.mediaID,
         eventID: eventData ? eventData.eventID : o.eventID,
-        eventStart: eventData ? eventData.eventStart : o.eventStart,
-        eventEnd: eventData ? eventData.eventEnd : o.eventEnd,
+        eventStart: formatCameraTimestamp(
+          eventData ? eventData.eventStart : o.eventStart,
+          o.sourceEventStart,
+          cameraZones.get(o.deploymentID)
+        ),
+        eventEnd: formatCameraTimestamp(
+          eventData ? eventData.eventEnd : o.eventEnd,
+          o.sourceEventEnd,
+          cameraZones.get(o.deploymentID)
+        ),
         observationLevel: 'media',
         observationType: mapObservationType(o.observationType, o.scientificName),
         scientificName: o.scientificName,
@@ -1211,6 +1243,7 @@ export async function exportCamtrapDP(studyId, options = {}) {
       'longitude',
       'deploymentStart',
       'deploymentEnd',
+      'cameraTimeZone',
       'cameraModel',
       'cameraID',
       'coordinateUncertainty'

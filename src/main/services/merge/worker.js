@@ -12,10 +12,15 @@
  * Posts back `{ type: 'progress' | 'result' | 'error', ... }` messages.
  */
 import { parentPort, workerData } from 'worker_threads'
+import { join } from 'path'
+import { assertStudyDatabaseReady } from '../../database/study-readiness.js'
 
 import { mergeStudy } from './index.js'
 
 try {
+  for (const studyId of [workerData.targetStudyId, workerData.sourceStudyId]) {
+    assertStudyDatabaseReady(join(workerData.biowatchDataPath, 'studies', studyId, 'study.db'))
+  }
   const result = mergeStudy({
     biowatchDataPath: workerData.biowatchDataPath,
     targetStudyId: workerData.targetStudyId,

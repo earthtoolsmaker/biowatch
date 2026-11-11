@@ -42,7 +42,7 @@ export default function StudyPicker({ isOpen, currentStudyId, onBack, onCancel, 
       if (cancelled) return
       setStudies(
         (list || [])
-          .filter((s) => s.id !== currentStudyId)
+          .filter((s) => s.id !== currentStudyId && s.database.status === 'ready')
           .sort((a, b) =>
             (a.name || a.id || '').localeCompare(b.name || b.id || '', undefined, {
               sensitivity: 'base',

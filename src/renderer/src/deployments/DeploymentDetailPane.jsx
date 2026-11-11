@@ -82,6 +82,12 @@ export default function DeploymentDetailPane({
           </button>
         </div>
       </div>
+      {deployment.unresolvedTimestampCount > 0 && (
+        <p role="status" className="px-3 py-1 text-xs text-amber-600 border-b border-border">
+          {deployment.unresolvedTimestampCount} media need a camera timezone. Open deployment
+          settings to resolve their dates.
+        </p>
+      )}
       <div className="flex-1 min-h-0 overflow-hidden">
         <DeploymentMediaGallery deploymentID={deployment.deploymentID} species={selectedSpecies} />
       </div>

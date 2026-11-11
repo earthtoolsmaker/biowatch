@@ -4,7 +4,7 @@ This document explains how to work with Drizzle ORM migrations in the Biowatch a
 
 ## Overview
 
-Biowatch uses Drizzle ORM with a **per-study database architecture**. Each study has its own SQLite database file located at `biowatch-data/studies/{studyId}/study.db`. Migrations are automatically applied when a study database is first accessed or when new migrations are available.
+Biowatch uses Drizzle ORM with a **per-study database architecture**. Each study has its own SQLite database file located at `biowatch-data/studies/{studyId}/study.db`. Existing studies are migrated independently at startup. New study databases are migrated when their writable connection is initialized. Normal access requires the expected migration version; a failed study remains visible with an error screen while healthy studies remain usable.
 
 ## Project Structure
 
@@ -101,8 +101,8 @@ The tables are automatically re-exported from `src/main/database/index.js`, whic
 
 The migration will be automatically applied when:
 
-1. A study database is first accessed
-2. The app restarts and accesses existing study databases
+1. A new study database initializes its writable connection
+2. The app starts and checks existing study databases
 
 Test by:
 
@@ -194,19 +194,27 @@ export async function getStudySettings(dbPath) {
 
 1. **Development**: Make schema changes and generate migrations
 2. **Testing**: Migrations are applied automatically when accessing studies
-3. **Production**: When users update the app, migrations run on first database access
+3. **Production**: When users start the updated app, existing studies migrate independently before the UI opens
 
 ## Important Notes
 
 ### Per-Study Migration
 
 - Each study database is migrated **independently**
-- Migrations are applied the first time a study is accessed after an app update
-- Different studies can be at different migration states
+- Existing studies migrate at startup, before normal study queries
+- Different studies can be at different migration states, but only the expected version is usable
+- Failed/incompatible studies stay visible with diagnostics and a support link; healthy studies, settings and new imports remain available
+- **Retry update** reruns migrations for one affected study and refreshes its readiness; it never deletes migration history
+- A newer database is not downgraded: the user must update Biowatch
+- SQL migration failures, missing migration assets and mismatched migration hashes are errors, not evidence that the schema is already valid
 
-### No Rollbacks
+See [Per-study database readiness](specs/2026-11-09-per-study-database-readiness.md) for the access guards, retry lifecycle, diagnostics and test coverage.
 
-- This project uses **forward-only migrations**
+### Forward-only Upgrades and Failure Rollback
+
+- This project uses **forward-only migrations**: there is no downgrade operation
+- All pending migrations for one study run in one SQLite transaction; a failure rolls back their SQL and migration-history inserts
+- A migration committed on an earlier run is not undone if a later upgrade fails
 - There's no backward compatibility support
 - Plan schema changes carefully
 

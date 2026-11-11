@@ -4,7 +4,7 @@
  * import chain (electron, network, FS) that lila.js pulls in.
  */
 
-import { DateTime } from 'luxon'
+import { parseCameraTime } from '../../cameraTime.js'
 
 /**
  * Transform date field from COCO format to ISO
@@ -12,19 +12,8 @@ import { DateTime } from 'luxon'
 export function transformDateField(dateValue) {
   if (!dateValue) return null
 
-  // Try ISO format first
-  let date = DateTime.fromISO(dateValue)
-  if (date.isValid) {
-    return date.toUTC().toISO()
-  }
-
-  // Try COCO common format: "2022-12-31 09:52:50"
-  date = DateTime.fromFormat(dateValue, 'yyyy-MM-dd HH:mm:ss')
-  if (date.isValid) {
-    return date.toUTC().toISO()
-  }
-
-  return null
+  // Leave offset-free source values floating until the camera zone is supplied.
+  return parseCameraTime(dateValue) ? dateValue.trim() : null
 }
 
 /**

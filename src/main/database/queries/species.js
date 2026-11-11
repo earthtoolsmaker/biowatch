@@ -121,7 +121,8 @@ export async function getSpeciesDistributionByMedia(dbPath, bbox = null, require
       conditions.push(sql`julianday(${media.timestamp}) IS NOT NULL`)
       conditions.push(sql`julianday(${deployments.deploymentStart}) IS NOT NULL`)
       conditions.push(
-        sql`julianday(${deployments.deploymentEnd}) > julianday(${deployments.deploymentStart})`
+        sql`julianday(${deployments.deploymentEnd}) > julianday(${deployments.deploymentStart})`,
+        sql`${deployments.deploymentID} IN (SELECT deploymentID FROM deployments WHERE camera_effort_zone(sourceDeploymentStart, sourceDeploymentEnd, cameraTimeZone) IS NOT NULL)`
       )
       conditions.push(
         sql`julianday(${media.timestamp}) >= julianday(${deployments.deploymentStart})`
@@ -197,6 +198,7 @@ export async function getSequenceAwareSpeciesCountsSQL(
     bbox || requireEffort ? 'INNER JOIN deployments d ON m.deploymentID = d.deploymentID' : ''
   const effortClause = requireEffort
     ? `AND julianday(m.timestamp) IS NOT NULL
+       AND d.deploymentID IN (SELECT deploymentID FROM deployments WHERE camera_effort_zone(sourceDeploymentStart, sourceDeploymentEnd, cameraTimeZone) IS NOT NULL)
        AND julianday(d.deploymentStart) IS NOT NULL
        AND julianday(d.deploymentEnd) > julianday(d.deploymentStart)
        AND julianday(m.timestamp) >= julianday(d.deploymentStart)
@@ -470,6 +472,7 @@ export async function getSequenceAwareTimeseriesSQL(
     bbox || requireEffort ? 'INNER JOIN deployments d ON m.deploymentID = d.deploymentID' : ''
   const effortClause = requireEffort
     ? `AND julianday(m.timestamp) IS NOT NULL
+       AND d.deploymentID IN (SELECT deploymentID FROM deployments WHERE camera_effort_zone(sourceDeploymentStart, sourceDeploymentEnd, cameraTimeZone) IS NOT NULL)
        AND julianday(d.deploymentStart) IS NOT NULL
        AND julianday(d.deploymentEnd) > julianday(d.deploymentStart)
        AND julianday(m.timestamp) >= julianday(d.deploymentStart)
@@ -484,7 +487,7 @@ export async function getSequenceAwareTimeseriesSQL(
           `
           WITH media_species AS (
             SELECT o.scientificName, m.mediaID, m.deploymentID, m.timestamp AS ts,
-                   date(substr(m.timestamp, 1, 10), 'weekday 0', '-7 days') AS weekStart,
+                   date(substr(m.localTimestamp, 1, 10), 'weekday 0', '-7 days') AS weekStart,
                    CASE WHEN m.fileMediatype LIKE 'video/%' THEN 1 ELSE 0 END AS is_video
               FROM observations o
               INNER JOIN media m ON o.mediaID = m.mediaID
@@ -534,7 +537,7 @@ export async function getSequenceAwareTimeseriesSQL(
           `
           WITH species_events AS (
             SELECT o.scientificName AS scientificName,
-                   date(substr(m.timestamp, 1, 10), 'weekday 0', '-7 days') AS weekStart,
+                   date(substr(m.localTimestamp, 1, 10), 'weekday 0', '-7 days') AS weekStart,
                    COALESCE(NULLIF(o.eventID, ''), 'solo:' || o.mediaID) AS event_key
               FROM observations o
               INNER JOIN media m ON o.mediaID = m.mediaID
@@ -558,7 +561,7 @@ export async function getSequenceAwareTimeseriesSQL(
           WITH media_counts AS (
             SELECT o.scientificName AS scientificName,
                    COALESCE(NULLIF(o.eventID, ''), 'solo:' || o.mediaID) AS event_key,
-                   date(substr(m.timestamp, 1, 10), 'weekday 0', '-7 days') AS weekStart,
+                   date(substr(m.localTimestamp, 1, 10), 'weekday 0', '-7 days') AS weekStart,
                    COUNT(*) AS media_count
               FROM observations o
               INNER JOIN media m ON o.mediaID = m.mediaID
@@ -589,7 +592,7 @@ export async function getSequenceAwareTimeseriesSQL(
             ? `
               WITH species_media AS (
                 SELECT o.scientificName AS scientificName,
-                       date(substr(m.timestamp, 1, 10), 'weekday 0', '-7 days') AS weekStart,
+                       date(substr(m.localTimestamp, 1, 10), 'weekday 0', '-7 days') AS weekStart,
                        m.mediaID
                   FROM observations o
                   INNER JOIN media m ON o.mediaID = m.mediaID
@@ -606,7 +609,7 @@ export async function getSequenceAwareTimeseriesSQL(
             `
             : `
               SELECT o.scientificName AS scientificName,
-                     date(substr(m.timestamp, 1, 10), 'weekday 0', '-7 days') AS weekStart,
+                     date(substr(m.localTimestamp, 1, 10), 'weekday 0', '-7 days') AS weekStart,
                      COUNT(o.observationID) AS count
                 FROM observations o
                 INNER JOIN media m ON o.mediaID = m.mediaID
@@ -675,7 +678,7 @@ export async function getSpeciesTimeseriesByMedia(
 
       // Week start calculation using SQLite date functions
       const weekStartColumn =
-        sql`date(substr(${media.timestamp}, 1, 10), 'weekday 0', '-7 days')`.as('weekStart')
+        sql`date(substr(${media.localTimestamp}, 1, 10), 'weekday 0', '-7 days')`.as('weekStart')
 
       let query = db
         .select({
@@ -707,7 +710,8 @@ export async function getSpeciesTimeseriesByMedia(
         conditions.push(sql`julianday(${media.timestamp}) IS NOT NULL`)
         conditions.push(sql`julianday(${deployments.deploymentStart}) IS NOT NULL`)
         conditions.push(
-          sql`julianday(${deployments.deploymentEnd}) > julianday(${deployments.deploymentStart})`
+          sql`julianday(${deployments.deploymentEnd}) > julianday(${deployments.deploymentStart})`,
+          sql`${deployments.deploymentID} IN (SELECT deploymentID FROM deployments WHERE camera_effort_zone(sourceDeploymentStart, sourceDeploymentEnd, cameraTimeZone) IS NOT NULL)`
         )
         conditions.push(
           sql`julianday(${media.timestamp}) >= julianday(${deployments.deploymentStart})`
@@ -726,7 +730,7 @@ export async function getSpeciesTimeseriesByMedia(
     // Handle blanks if requested
     if (requestingBlanks) {
       const weekStartColumn =
-        sql`date(substr(${media.timestamp}, 1, 10), 'weekday 0', '-7 days')`.as('weekStart')
+        sql`date(substr(${media.localTimestamp}, 1, 10), 'weekday 0', '-7 days')`.as('weekStart')
 
       // Correlated subquery for blank detection
       const matchingObservations = db
@@ -800,7 +804,8 @@ export async function getSpeciesHeatmapDataByMedia(
       baseConditions.push(sql`julianday(${media.timestamp}) IS NOT NULL`)
       baseConditions.push(sql`julianday(${deployments.deploymentStart}) IS NOT NULL`)
       baseConditions.push(
-        sql`julianday(${deployments.deploymentEnd}) > julianday(${deployments.deploymentStart})`
+        sql`julianday(${deployments.deploymentEnd}) > julianday(${deployments.deploymentStart})`,
+        sql`${deployments.deploymentID} IN (SELECT deploymentID FROM deployments WHERE camera_effort_zone(sourceDeploymentStart, sourceDeploymentEnd, cameraTimeZone) IS NOT NULL)`
       )
       baseConditions.push(
         sql`julianday(${media.timestamp}) >= julianday(${deployments.deploymentStart})`
@@ -829,7 +834,7 @@ export async function getSpeciesHeatmapDataByMedia(
     // Add time-of-day condition using sql template for SQLite strftime.
     // When includeNullTimestamps=true, allow null timestamps through.
     // Empty ranges array means no time filter.
-    const hourColumn = sql`CAST(strftime('%H', ${media.timestamp}) AS INTEGER)`
+    const hourColumn = sql`CAST(substr(${media.localTimestamp}, 12, 2) AS INTEGER)`
     const ranges = normalizeTimeRange(timeRange)
     const rangeConditions = ranges
       .map((r) => {
@@ -958,6 +963,7 @@ export async function getSequenceAwareHeatmapSQL(
   const speciesPlaceholders = regularSpecies.map(() => '?').join(',')
   const effortClause = requireEffort
     ? `AND julianday(m.timestamp) IS NOT NULL
+       AND d.deploymentID IN (SELECT deploymentID FROM deployments WHERE camera_effort_zone(sourceDeploymentStart, sourceDeploymentEnd, cameraTimeZone) IS NOT NULL)
        AND julianday(d.deploymentStart) IS NOT NULL
        AND julianday(d.deploymentEnd) > julianday(d.deploymentStart)
        AND julianday(m.timestamp) >= julianday(d.deploymentStart)
@@ -982,7 +988,7 @@ export async function getSequenceAwareHeatmapSQL(
         params.push(startDate, endDate)
       }
     }
-    const hourExpr = `CAST(strftime('%H', ${tsCol}) AS INTEGER)`
+    const hourExpr = `CAST(substr(m.localTimestamp, 12, 2) AS INTEGER)`
     const hourClauses = hourRanges
       .map(({ start, end }) => {
         if (start === end) return null
@@ -1234,6 +1240,7 @@ export async function getSequenceAwareDailyActivitySQL(
     bbox || requireEffort ? 'INNER JOIN deployments d ON m.deploymentID = d.deploymentID' : ''
   const effortClause = requireEffort
     ? `AND julianday(m.timestamp) IS NOT NULL
+       AND d.deploymentID IN (SELECT deploymentID FROM deployments WHERE camera_effort_zone(sourceDeploymentStart, sourceDeploymentEnd, cameraTimeZone) IS NOT NULL)
        AND julianday(d.deploymentStart) IS NOT NULL
        AND julianday(d.deploymentEnd) > julianday(d.deploymentStart)
        AND julianday(m.timestamp) >= julianday(d.deploymentStart)
@@ -1257,7 +1264,7 @@ export async function getSequenceAwareDailyActivitySQL(
           `
           WITH media_species AS (
             SELECT o.scientificName, m.mediaID, m.deploymentID, m.timestamp AS ts,
-                   CAST(strftime('%H', m.timestamp) AS INTEGER) AS hour,
+                   CAST(substr(m.localTimestamp, 12, 2) AS INTEGER) AS hour,
                    CASE WHEN m.fileMediatype LIKE 'video/%' THEN 1 ELSE 0 END AS is_video
               FROM observations o
               INNER JOIN media m ON o.mediaID = m.mediaID
@@ -1310,7 +1317,7 @@ export async function getSequenceAwareDailyActivitySQL(
                    m.mediaID AS mediaID,
                    m.deploymentID AS deploymentID,
                    m.timestamp AS ts,
-                   CAST(strftime('%H', m.timestamp) AS INTEGER) AS hour,
+                   CAST(substr(m.localTimestamp, 12, 2) AS INTEGER) AS hour,
                    CASE WHEN m.fileMediatype LIKE 'video/%' THEN 1 ELSE 0 END AS is_video,
                    COUNT(*) AS media_count
               FROM observations o
@@ -1363,7 +1370,7 @@ export async function getSequenceAwareDailyActivitySQL(
           WITH media_counts AS (
             SELECT o.scientificName AS scientificName,
                    COALESCE(NULLIF(o.eventID, ''), 'solo:' || o.mediaID) AS event_key,
-                   CAST(strftime('%H', m.timestamp) AS INTEGER) AS hour,
+                   CAST(substr(m.localTimestamp, 12, 2) AS INTEGER) AS hour,
                    COUNT(*) AS media_count
               FROM observations o
               INNER JOIN media m ON o.mediaID = m.mediaID
@@ -1393,7 +1400,7 @@ export async function getSequenceAwareDailyActivitySQL(
         .prepare(
           `
           SELECT o.scientificName AS scientificName,
-                 CAST(strftime('%H', m.timestamp) AS INTEGER) AS hour,
+                 CAST(substr(m.localTimestamp, 12, 2) AS INTEGER) AS hour,
                  ${isObservations ? 'COUNT(DISTINCT o.mediaID)' : 'COUNT(o.observationID)'} AS count
             FROM observations o
             INNER JOIN media m ON o.mediaID = m.mediaID
@@ -1429,8 +1436,9 @@ export async function getDeploymentEffortRows(dbPath) {
     .getSqlite()
     .prepare(
       `SELECT deploymentID, deploymentStart, deploymentEnd,
-              (julianday(deploymentStart) - 2440587.5) * 86400000 AS startMs,
-              (julianday(deploymentEnd) - 2440587.5) * 86400000 AS endMs,
+              sourceDeploymentStart, sourceDeploymentEnd, cameraTimeZone,
+              ROUND((julianday(deploymentStart) - 2440587.5) * 86400000) AS startMs,
+              ROUND((julianday(deploymentEnd) - 2440587.5) * 86400000) AS endMs,
               latitude, longitude, locationName
          FROM deployments`
     )

@@ -32,6 +32,20 @@ const { data, error } = await window.api.getSequences(studyId, { limit: 20 })
 
 ### Studies
 
+`getStudies()` includes `database: { status, currentVersion, expectedVersion, message, appVersion }`
+for each study. Status is `ready`, `outdated`, `migration-failed`, `newer`, `incompatible`,
+or `updating`; version values are migration tags (an unknown version uses its journal
+timestamp), or `null` when unavailable. Only `ready` studies may mount normal study
+views or be selected for a merge. Unavailable entries have a best-effort name (falling
+back to their ID), `data: null`, and do not require normal study queries to list.
+
+`retryStudyDatabaseUpdate(studyId)` invokes `study:retry-database-update` and resolves
+to the updated `database` readiness object. A failed migration is returned as a
+non-ready status so the error screen stays visible; transport/lookup errors reject.
+The study stays blocked during the update, and concurrent retries for the same study
+share one operation. Newer or incompatible histories are never automatically
+rewritten. After completion, invalidate the `['studies']` query to refresh the gate.
+
 | Method                                     | Channel                        | Parameters                                                                           | Returns                                                                                                                                                                                                                                                                                                                                                                                  |
 | ------------------------------------------ | ------------------------------ | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `getStudies()`                             | `studies:list`                 | -                                                                                    | `Study[]`                                                                                                                                                                                                                                                                                                                                                                                |
@@ -65,11 +79,11 @@ const { data, error } = await window.api.getSequences(studyId, { limit: 20 })
 
 ### Species & Distribution
 
-| Method                              | Channel                    | Parameters | Returns                        |
-| ----------------------------------- | -------------------------- | ---------- | ------------------------------ |
-| `getSpeciesDistribution(studyId)`   | `species:get-distribution` | studyId    | `{ data: Distribution[] }`     |
-| `getDistinctSpecies(studyId)`       | `species:get-distinct`     | studyId    | `{ data: string[] }`           |
-| `getBestImagePerSpecies(studyId)`   | `species:get-best-images`  | studyId    | `{ data: SpeciesImage[] }`     |
+| Method                            | Channel                    | Parameters | Returns                    |
+| --------------------------------- | -------------------------- | ---------- | -------------------------- |
+| `getSpeciesDistribution(studyId)` | `species:get-distribution` | studyId    | `{ data: Distribution[] }` |
+| `getDistinctSpecies(studyId)`     | `species:get-distinct`     | studyId    | `{ data: string[] }`       |
+| `getBestImagePerSpecies(studyId)` | `species:get-best-images`  | studyId    | `{ data: SpeciesImage[] }` |
 
 `SpeciesImage` (one representative image per species, for hover tooltips):
 
@@ -140,6 +154,8 @@ Runs in the sequences worker thread (off the main process). Threatened species a
 **Note on `effortDays`:** `getDeploymentsActivity` emits `effortDays` per deployment: the camera effort as fractional camera-days (`deploymentEnd − deploymentStart` / 24 h, no rounding), or `null` when either date is missing/unparseable or the end is not after the start. Computed by `src/shared/effort.js` (`deploymentEffortDays`), which uses the same validity rule as `validateDeploymentIntervals` in `src/main/services/sequences/effort.js` (the Explore RAI denominator), so per-deployment camera-days agree with Explore's effort. The Overview KPI tile's `cameraDays` uses a looser SQL rule (it sums `julianday` differences, including inverted intervals), so its total can differ from the Deployments tab on studies with bad dates. The Deployments tab shows it per row, summed per co-located group (nulls skipped, `—` when no deployment in the group has a valid interval), and study-wide in the list header; the deployment settings popover shows the same value in place of the former "Duration" row. Display rounds to the nearest whole day (sums are computed on the fractional values first, then rounded), and every figure carries an explanatory tooltip.
 
 **Note on `hasTimestamps` / `totalCount`:** `getDeploymentsActivity` always returns a `hasTimestamps` boolean and always emits `totalCount` per deployment (observation count). When all deployments lack `deploymentStart`/`deploymentEnd` (e.g. LILA Biome Health, where the source COCO has no per-image datetimes), the response sets `hasTimestamps: false`, returns `startDate: null` / `endDate: null`, and emits each deployment with `periods: []`. In the timestamped branch, `totalCount` equals the sum of period counts. The renderer reads `hasTimestamps` to hide the date axis, sparkline column, and hover crosshair, while still listing every deployment with its `totalCount`.
+
+**Camera time:** `getAllDeployments` includes `cameraTimeZone`, `cameraEffortTimeZone`, `sourceDeploymentStart`, `sourceDeploymentEnd`, and `unresolvedTimestampCount`. `setCameraTimeZone(studyId, deploymentID, timeZone)` invokes `deployments:set-camera-time-zone` and returns `{ data: { unresolvedCount } }` or `{ error }`. Pass an IANA timezone, `UTC`, a fixed `UTC±HH:MM` setting, or `null` to clear it. The worker atomically reinterprets offset-free source timestamps; explicit source offsets remain authoritative. See [the camera-local time spec](specs/2026-11-09-camera-local-time.md).
 
 **Note on `setDeploymentLocationName`:** This updates the `locationName` for ALL deployments with the given `locationID`. When deployments share a `locationID` (grouped deployments), renaming any one updates the entire group.
 
@@ -223,12 +239,12 @@ metric: {
 
 An omitted metric defaults to N ind. Generic callers outside Explore rely on that default. Explicit malformed metrics are rejected.
 
-| Method                                         | Channel                              | Key request fields                                                                               | Returns                                    |
-| ---------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------ | ------------------------------------------ |
-| `getSequenceAwareSpeciesDistribution(request)` | `sequences:get-species-distribution` | `studyId`, `gapSeconds?`, `bbox?`, `metric?`                                                     | `{ data: {distribution, availability?} }`  |
-| `getSequenceAwareTimeseries(request)`          | `sequences:get-timeseries`           | `studyId`, `speciesNames`, `gapSeconds?`, `bbox?`, `metric?`                                     | `{ data: {timeseries, allSpecies} }`       |
-| `getSequenceAwareHeatmap(request)`             | `sequences:get-heatmap`              | `studyId`, `speciesNames`, dates, `timeRange`, `includeNullTimestamps`, `gapSeconds?`, `metric?` | `{ data: {locations, availability?} }`     |
-| `getSequenceAwareDailyActivity(request)`       | `sequences:get-daily-activity`       | `studyId`, `speciesNames`, dates, `gapSeconds?`, `bbox?`, `metric?`                              | `{ data: [24 hourly objects] }`            |
+| Method                                         | Channel                              | Key request fields                                                                               | Returns                                   |
+| ---------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------ | ----------------------------------------- |
+| `getSequenceAwareSpeciesDistribution(request)` | `sequences:get-species-distribution` | `studyId`, `gapSeconds?`, `bbox?`, `metric?`                                                     | `{ data: {distribution, availability?} }` |
+| `getSequenceAwareTimeseries(request)`          | `sequences:get-timeseries`           | `studyId`, `speciesNames`, `gapSeconds?`, `bbox?`, `metric?`                                     | `{ data: {timeseries, allSpecies} }`      |
+| `getSequenceAwareHeatmap(request)`             | `sequences:get-heatmap`              | `studyId`, `speciesNames`, dates, `timeRange`, `includeNullTimestamps`, `gapSeconds?`, `metric?` | `{ data: {locations, availability?} }`    |
+| `getSequenceAwareDailyActivity(request)`       | `sequences:get-daily-activity`       | `studyId`, `speciesNames`, dates, `gapSeconds?`, `bbox?`, `metric?`                              | `{ data: [24 hourly objects] }`           |
 
 When `gapSeconds` is omitted, the worker reads the study's configured sequence gap. RAI responses retain raw numerators and effort: distribution rows include `rawCount`, with their shared effort in top-level `availability.effortDays`; timeline/activity rows include bucket `effortDays` and `rawCounts`; map locations include `rawCounts`, `effortDays`, and derived `values`. Missing effort yields `null`, never infinity.
 

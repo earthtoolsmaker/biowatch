@@ -441,11 +441,11 @@ export async function getBestMedia(dbPath, options = {}) {
             0.5
           ) as rarityScore,
           -- Calculate daytime score: favor captures during daylight hours (6am-6pm)
-          -- Extract hour from timestamp and score based on typical daylight
+          -- Extract the camera's local hour and score based on typical daylight
           CASE
-            WHEN m.timestamp IS NULL THEN 0.5
-            WHEN CAST(strftime('%H', m.timestamp) AS INTEGER) BETWEEN 8 AND 16 THEN 1.0  -- Peak daylight (8am-4pm)
-            WHEN CAST(strftime('%H', m.timestamp) AS INTEGER) BETWEEN 6 AND 18 THEN 0.7  -- Extended daylight (6am-6pm)
+            WHEN m.localTimestamp IS NULL THEN 0.5
+            WHEN CAST(substr(m.localTimestamp, 12, 2) AS INTEGER) BETWEEN 8 AND 16 THEN 1.0  -- Peak daylight (8am-4pm)
+            WHEN CAST(substr(m.localTimestamp, 12, 2) AS INTEGER) BETWEEN 6 AND 18 THEN 0.7  -- Extended daylight (6am-6pm)
             ELSE 0.2  -- Night time
           END as daytimeScore
         FROM observations o
@@ -733,9 +733,9 @@ export async function getBestImagePerSpecies(dbPath) {
           ) as rarityScore,
           -- Daytime score
           CASE
-            WHEN m.timestamp IS NULL THEN 0.5
-            WHEN CAST(strftime('%H', m.timestamp) AS INTEGER) BETWEEN 8 AND 16 THEN 1.0
-            WHEN CAST(strftime('%H', m.timestamp) AS INTEGER) BETWEEN 6 AND 18 THEN 0.7
+            WHEN m.localTimestamp IS NULL THEN 0.5
+            WHEN CAST(substr(m.localTimestamp, 12, 2) AS INTEGER) BETWEEN 8 AND 16 THEN 1.0
+            WHEN CAST(substr(m.localTimestamp, 12, 2) AS INTEGER) BETWEEN 6 AND 18 THEN 0.7
             ELSE 0.2
           END as daytimeScore,
           o.detectionConfidence,

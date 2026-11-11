@@ -1949,7 +1949,10 @@ export default function Explore({ studyData, studyId }) {
           >
             {speciesInitialized && sequenceGap !== undefined && (
               <div className="w-full flex h-[180px] gap-3">
-                <div className="w-[180px] h-full rounded border border-border flex flex-col relative">
+                <div
+                  title="Daily activity — camera-local clock time"
+                  className="w-[180px] h-full rounded border border-border flex flex-col relative"
+                >
                   {chartShape === 'polar' ? (
                     <>
                       <div className="absolute top-1.5 right-2 z-10">

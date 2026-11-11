@@ -30,6 +30,9 @@ import {
   getOverviewStats
 } from '../../database/index.js'
 import { getPaginatedSequences } from './pagination.js'
+import { getStudyDatabase } from '../../database/manager.js'
+import { assertStudyDatabaseReady } from '../../database/study-readiness.js'
+import { setCameraTimeZone } from '../setCameraTimeZone.js'
 import { getDeploymentComposition } from './deploymentComposition.js'
 import {
   DEFAULT_ANALYSIS_METRIC,
@@ -230,6 +233,11 @@ async function run() {
     bbox,
     metric: requestedMetric = DEFAULT_ANALYSIS_METRIC
   } = workerData
+  assertStudyDatabaseReady(dbPath)
+  if (type === 'set-camera-time-zone') {
+    const manager = await getStudyDatabase(studyId, dbPath)
+    return setCameraTimeZone(manager.getSqlite(), workerData.deploymentID, workerData.timeZone)
+  }
   const metric = normalizeAnalysisMetric(requestedMetric)
   const needsEffort = metric.normalization === NORMALIZATION_RAI_100
 

@@ -1,6 +1,7 @@
 import { existsSync } from 'fs'
 import { join } from 'path'
 import Database from 'better-sqlite3'
+import { registerCameraTimeFunctions } from '../cameraTime.js'
 
 import { getMergeImportFolder, getMergePrefix, prefixRow } from './helpers.js'
 
@@ -20,6 +21,9 @@ const COLS = {
     'locationName',
     'deploymentStart',
     'deploymentEnd',
+    'sourceDeploymentStart',
+    'sourceDeploymentEnd',
+    'cameraTimeZone',
     'latitude',
     'longitude',
     'cameraModel',
@@ -30,6 +34,8 @@ const COLS = {
     'mediaID',
     'deploymentID',
     'timestamp',
+    'sourceTimestamp',
+    'localTimestamp',
     'filePath',
     'fileName',
     'importFolder',
@@ -47,6 +53,8 @@ const COLS = {
     'eventID',
     'eventStart',
     'eventEnd',
+    'sourceEventStart',
+    'sourceEventEnd',
     'scientificName',
     'observationType',
     'commonName',
@@ -107,6 +115,7 @@ export function mergeStudy({
   const prefix = getMergePrefix(sourceStudyId)
 
   const aDb = new Database(studyDbPath(biowatchDataPath, targetStudyId))
+  registerCameraTimeFunctions(aDb)
   const bDb = new Database(studyDbPath(biowatchDataPath, sourceStudyId), { readonly: true })
 
   // Throttle: emit progress every N rows. The IPC pipe is async but emitting

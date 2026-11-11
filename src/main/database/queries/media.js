@@ -7,7 +7,8 @@ import { media, observations, modelRuns, modelOutputs, deployments } from '../mo
 import { eq, and, desc, count, sql, isNotNull, inArray, isNull } from 'drizzle-orm'
 import { DateTime } from 'luxon'
 import log from '../../services/logger.js'
-import { getStudyIdFromPath, formatToMatchOriginal } from './utils.js'
+import { getStudyIdFromPath } from './utils.js'
+import { formatCameraTimestamp, parseCameraTime } from '../../services/cameraTime.js'
 import { transformBboxToCamtrapDP, detectModelType } from '../../utils/bbox.js'
 
 /**
@@ -226,7 +227,8 @@ export async function updateMediaTimestamp(dbPath, mediaID, newTimestamp) {
     }
 
     // Parse and validate the new timestamp
-    const newTimestampDT = DateTime.fromISO(newTimestamp)
+    const parsedInput = parseCameraTime(newTimestamp)
+    const newTimestampDT = DateTime.fromISO(parsedInput?.utc || '', { zone: 'UTC' })
 
     if (!newTimestampDT.isValid) {
       throw new Error(
@@ -246,7 +248,11 @@ export async function updateMediaTimestamp(dbPath, mediaID, newTimestamp) {
 
     // 1. Get current media timestamp
     const currentMedia = await db
-      .select({ timestamp: media.timestamp })
+      .select({
+        timestamp: media.timestamp,
+        sourceTimestamp: media.sourceTimestamp,
+        cameraTimeZone: sql`(SELECT cameraTimeZone FROM deployments WHERE deploymentID = ${media.deploymentID})`
+      })
       .from(media)
       .where(eq(media.mediaID, mediaID))
       .get()
@@ -259,10 +265,16 @@ export async function updateMediaTimestamp(dbPath, mediaID, newTimestamp) {
     const oldTimestamp = currentMedia.timestamp ? DateTime.fromISO(currentMedia.timestamp) : null
 
     if (!oldTimestamp || !oldTimestamp.isValid) {
+      if (currentMedia.sourceTimestamp) {
+        throw new Error('Set the camera timezone before adjusting an unresolved timestamp')
+      }
       // If no valid old timestamp, just set the new one without offset calculation
       log.info(`No valid existing timestamp for media ${mediaID}, setting directly`)
 
-      await db.update(media).set({ timestamp: newTimestamp }).where(eq(media.mediaID, mediaID))
+      await db
+        .update(media)
+        .set({ sourceTimestamp: newTimestamp })
+        .where(eq(media.mediaID, mediaID))
 
       // Update observations with the new timestamp directly (no offset)
       const relatedObservations = await db
@@ -294,10 +306,14 @@ export async function updateMediaTimestamp(dbPath, mediaID, newTimestamp) {
     const offsetMs = newTimestampDT.toMillis() - oldTimestamp.toMillis()
 
     // 2. Update media.timestamp - format to match original
-    const formattedNewTimestamp = formatToMatchOriginal(newTimestampDT, currentMedia.timestamp)
+    const formattedNewTimestamp = formatCameraTimestamp(
+      newTimestampDT.toISO(),
+      currentMedia.sourceTimestamp || newTimestamp,
+      currentMedia.cameraTimeZone
+    )
     await db
       .update(media)
-      .set({ timestamp: formattedNewTimestamp })
+      .set({ sourceTimestamp: formattedNewTimestamp })
       .where(eq(media.mediaID, mediaID))
 
     // 3. Get all related observations
@@ -305,7 +321,9 @@ export async function updateMediaTimestamp(dbPath, mediaID, newTimestamp) {
       .select({
         observationID: observations.observationID,
         eventStart: observations.eventStart,
-        eventEnd: observations.eventEnd
+        eventEnd: observations.eventEnd,
+        sourceEventStart: observations.sourceEventStart,
+        sourceEventEnd: observations.sourceEventEnd
       })
       .from(observations)
       .where(eq(observations.mediaID, mediaID))
@@ -320,7 +338,11 @@ export async function updateMediaTimestamp(dbPath, mediaID, newTimestamp) {
         const oldEventStart = DateTime.fromISO(obs.eventStart)
         if (oldEventStart.isValid) {
           const newEventStart = oldEventStart.plus({ milliseconds: offsetMs })
-          updateData.eventStart = formatToMatchOriginal(newEventStart, obs.eventStart)
+          updateData.sourceEventStart = formatCameraTimestamp(
+            newEventStart.toUTC().toISO(),
+            obs.sourceEventStart,
+            currentMedia.cameraTimeZone
+          )
         }
       }
 
@@ -329,7 +351,11 @@ export async function updateMediaTimestamp(dbPath, mediaID, newTimestamp) {
         const oldEventEnd = DateTime.fromISO(obs.eventEnd)
         if (oldEventEnd.isValid) {
           const newEventEnd = oldEventEnd.plus({ milliseconds: offsetMs })
-          updateData.eventEnd = formatToMatchOriginal(newEventEnd, obs.eventEnd)
+          updateData.sourceEventEnd = formatCameraTimestamp(
+            newEventEnd.toUTC().toISO(),
+            obs.sourceEventEnd,
+            currentMedia.cameraTimeZone
+          )
         }
       }
 
@@ -350,7 +376,7 @@ export async function updateMediaTimestamp(dbPath, mediaID, newTimestamp) {
     return {
       success: true,
       mediaID,
-      newTimestamp: formattedNewTimestamp,
+      newTimestamp: newTimestampDT.toISO(),
       observationsUpdated: updatedCount
     }
   } catch (error) {

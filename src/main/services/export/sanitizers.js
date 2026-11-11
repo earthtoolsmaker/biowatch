@@ -268,6 +268,8 @@ export function sanitizeDeployment(row) {
     longitude: row.longitude,
     deploymentStart: ensureTimezone(row.deploymentStart),
     deploymentEnd: ensureTimezone(row.deploymentEnd),
+    // Biowatch extension: preserves a civil/fixed camera clock through reimport.
+    cameraTimeZone: row.cameraTimeZone || null,
 
     // Optional fields
     locationID: row.locationID || null,

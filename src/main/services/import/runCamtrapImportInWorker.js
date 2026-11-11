@@ -8,6 +8,8 @@
  */
 import { join } from 'path'
 import { Worker } from 'worker_threads'
+import { existsSync } from 'fs'
+import { assertStudyDatabaseReady } from '../../database/study-readiness.js'
 
 import log from '../logger.js'
 
@@ -42,6 +44,8 @@ export function runCamtrapImportInWorker({
   signal
 }) {
   return new Promise((resolve, reject) => {
+    const dbPath = join(biowatchDataPath, 'studies', id, 'study.db')
+    if (existsSync(dbPath)) assertStudyDatabaseReady(dbPath)
     const workerPath = join(__dirname, 'camtrap-import-worker.js')
     log.info(`camtrap-import worker: spawning from ${workerPath} for study ${id}`)
     const worker = new Worker(workerPath, {

@@ -193,7 +193,8 @@ export function extractTimestampFromFilename(fileName) {
     if (day < 1 || day > 31) continue
     if (hour > 23 || minute > 59 || second > 59) continue
 
-    const date = new Date(year, month - 1, day, hour, minute, second)
+    // Transport a floating filename clock in UTC fields, never the host zone.
+    const date = new Date(Date.UTC(year, month - 1, day, hour, minute, second))
     if (isValidTimestamp(date)) {
       return { timestamp: date, source: 'filename' }
     }

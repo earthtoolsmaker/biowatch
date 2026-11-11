@@ -1,7 +1,8 @@
 /**
  * Shared helper to run a task on the sequences worker thread.
  *
- * Each call spawns a fresh worker that opens its own readonly DB connection,
+ * Each call spawns a fresh worker that opens its own DB connection (readonly
+ * for analytics; writable for the explicit camera-time-setting task),
  * executes the task, posts the result, and exits. Used by IPC handlers that
  * would otherwise block the main event loop on heavy SQLite work.
  */
@@ -9,6 +10,7 @@
 import { join } from 'path'
 import { Worker } from 'worker_threads'
 import log from '../logger.js'
+import { assertStudyDatabaseReady } from '../../database/study-readiness.js'
 
 /**
  * @param {Object} workerData - Task parameters passed to the worker. Must
@@ -21,6 +23,7 @@ import log from '../logger.js'
  */
 export function runInWorker(workerData) {
   return new Promise((resolve, reject) => {
+    assertStudyDatabaseReady(workerData.dbPath)
     // __dirname here resolves to `out/main/` at runtime because the main
     // bundle flattens all of src/main/**/* into that directory. The worker
     // is a separate rollup input (see electron.vite.config.mjs) and lands

@@ -1,11 +1,18 @@
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
-import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { existsSync, mkdirSync } from 'fs'
 import { dirname } from 'path'
 import log from '../services/logger.js'
 import * as schema from './models.js'
-import { getValidatedMigrationsPath } from './migrations-utils.js'
+import { registerCameraTimeFunctions } from '../services/cameraTime.js'
+import { migrateStudyConnection } from './migrate-study.js'
+import {
+  assertStudyNotBlocked,
+  databaseFailure,
+  databaseNotReadyError,
+  inspectDatabaseVersion,
+  setStudyDatabaseStatus
+} from './study-readiness.js'
 
 /**
  * Database manager for individual study databases with Drizzle ORM
@@ -24,6 +31,7 @@ export class StudyDatabaseManager {
    */
   async initialize() {
     try {
+      assertStudyNotBlocked(this.dbPath)
       // Ensure directory exists
       const dbDir = dirname(this.dbPath)
       if (!existsSync(dbDir)) {
@@ -33,18 +41,15 @@ export class StudyDatabaseManager {
       // Create SQLite connection with appropriate mode
       if (this.readonly) {
         this.sqlite = new Database(this.dbPath, { readonly: true })
+        const status = inspectDatabaseVersion(this.sqlite)
+        if (status.status !== 'ready') throw databaseNotReadyError(status)
+        registerCameraTimeFunctions(this.sqlite)
         log.info(`[DB] Initialized READONLY database for study ${this.studyId}: ${this.dbPath}`)
 
         // Skip migrations and foreign key setup for readonly connections
         this.db = drizzle(this.sqlite, { schema })
       } else {
         this.sqlite = new Database(this.dbPath)
-
-        // Enable foreign keys
-        this.sqlite.pragma('foreign_keys = ON')
-
-        // Enable WAL journal mode for better write performance
-        this.sqlite.pragma('journal_mode = WAL')
 
         log.info(`[DB] Initialized READ-WRITE database for study ${this.studyId}: ${this.dbPath}`)
 
@@ -57,141 +62,18 @@ export class StudyDatabaseManager {
 
       return this
     } catch (error) {
+      this.sqlite?.close()
+      this.sqlite = null
+      setStudyDatabaseStatus(this.dbPath, databaseFailure(error))
       log.error(`[DB] Failed to initialize database for study ${this.studyId}:`, error)
       throw error
     }
   }
 
-  /**
-   * Run pending migrations for this study database
-   */
+  /** Run pending migrations and require the expected database version. */
   async runMigrations() {
-    try {
-      log.info(`[DB] Checking migrations for study ${this.studyId}`)
-
-      // Check if migration tracking table exists
-      await this.checkMigrationState()
-
-      // Get validated migrations path with explicit logger injection
-      const migrationsPath = getValidatedMigrationsPath(undefined, log)
-
-      if (migrationsPath) {
-        log.info(`[DB] Running migrations from ${migrationsPath}`)
-
-        try {
-          // Create a temporary Drizzle instance WITHOUT schema for migrations only
-          const migrationDb = drizzle(this.sqlite)
-          await migrate(migrationDb, { migrationsFolder: migrationsPath })
-          log.info(`[DB] Migrations completed for study ${this.studyId}`)
-
-          // Verify migration state after successful migration
-          await this.checkMigrationState()
-        } catch (migrationError) {
-          // If migration fails due to tables already existing, check if this is expected
-          if (
-            migrationError.message.includes('already exists') ||
-            migrationError.message.includes('CREATE TABLE')
-          ) {
-            log.warn(`[DB] Migration attempted to create existing tables for study ${this.studyId}`)
-            await this.validateExistingSchema()
-          } else {
-            throw migrationError
-          }
-        }
-      } else {
-        log.warn(`[DB] No valid migrations folder found for study ${this.studyId}`)
-        log.info(`[DB] Database will be created with current schema on first use`)
-        // Note: Drizzle will create tables from schema when first accessed
-        // This is a fallback behavior if migrations are not available
-      }
-    } catch (error) {
-      log.error(`[DB] Migration failed for study ${this.studyId}:`, error)
-      throw error
-    }
-  }
-
-  /**
-   * Check the current migration state of the database
-   */
-  async checkMigrationState() {
-    try {
-      // Check if Drizzle migration tracking table exists
-      const tables = this.sqlite
-        .prepare(
-          `
-        SELECT name FROM sqlite_master
-        WHERE type='table' AND name='__drizzle_migrations'
-      `
-        )
-        .all()
-
-      if (tables.length > 0) {
-        log.info(`[DB] Migration tracking table exists for study ${this.studyId}`)
-
-        // Get applied migrations
-        const appliedMigrations = this.sqlite
-          .prepare(
-            `
-          SELECT * FROM __drizzle_migrations ORDER BY id
-        `
-          )
-          .all()
-
-        log.info(`[DB] Applied migrations for study ${this.studyId}:`, appliedMigrations)
-      } else {
-        log.info(`[DB] No migration tracking table found for study ${this.studyId}`)
-      }
-
-      // Check if main tables exist
-      const mainTables = this.sqlite
-        .prepare(
-          `
-        SELECT name FROM sqlite_master
-        WHERE type='table' AND name IN ('deployments', 'media', 'observations')
-      `
-        )
-        .all()
-
-      log.info(
-        `[DB] Existing main tables for study ${this.studyId}:`,
-        mainTables.map((t) => t.name)
-      )
-    } catch (error) {
-      log.error(`[DB] Error checking migration state for study ${this.studyId}:`, error)
-    }
-  }
-
-  /**
-   * Validate that existing schema matches expected schema
-   */
-  async validateExistingSchema() {
-    try {
-      log.info(`[DB] Validating existing schema for study ${this.studyId}`)
-
-      // Check if all required tables exist
-      const requiredTables = ['deployments', 'media', 'observations']
-      const existingTables = this.sqlite
-        .prepare(
-          `
-        SELECT name FROM sqlite_master
-        WHERE type='table' AND name IN (${requiredTables.map(() => '?').join(', ')})
-      `
-        )
-        .all(...requiredTables)
-
-      if (existingTables.length === requiredTables.length) {
-        log.info(
-          `[DB] All required tables exist for study ${this.studyId}, schema validation passed`
-        )
-      } else {
-        const missing = requiredTables.filter(
-          (table) => !existingTables.some((existing) => existing.name === table)
-        )
-        log.warn(`[DB] Missing tables for study ${this.studyId}:`, missing)
-      }
-    } catch (error) {
-      log.error(`[DB] Error validating schema for study ${this.studyId}:`, error)
-    }
+    const status = migrateStudyConnection(this.sqlite)
+    setStudyDatabaseStatus(this.dbPath, status)
   }
 
   /**
@@ -274,6 +156,7 @@ const dbConnections = new Map()
  * Get or create a database manager for a study
  */
 export async function getStudyDatabase(studyId, dbPath, options = {}) {
+  assertStudyNotBlocked(dbPath)
   const readonly = options.readonly || false
   const cacheKey = `${studyId}:${dbPath}:${readonly ? 'readonly' : 'readwrite'}`
 

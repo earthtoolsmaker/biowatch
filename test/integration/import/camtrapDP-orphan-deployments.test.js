@@ -69,8 +69,8 @@ describe('CamTrap-DP orphan deploymentID recovery', () => {
       // obs002 eventStart 2023-04-25, eventEnd 2023-05-20
       // obs003 eventStart 2023-04-25, eventEnd 2023-04-25
       // → start = 2023-04-25T10:00:00Z, end = 2023-05-20T10:01:00Z
-      assert.equal(stub.deploymentStart, '2023-04-25T10:00:00Z')
-      assert.equal(stub.deploymentEnd, '2023-05-20T10:01:00Z')
+      assert.equal(stub.deploymentStart, '2023-04-25T10:00:00.000Z')
+      assert.equal(stub.deploymentEnd, '2023-05-20T10:01:00.000Z')
     } finally {
       db.close()
     }

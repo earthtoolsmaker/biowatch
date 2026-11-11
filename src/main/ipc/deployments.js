@@ -25,6 +25,24 @@ import { BLANK_SENTINEL, VEHICLE_SENTINEL } from '../../shared/constants.js'
  * Register all deployments-related IPC handlers
  */
 export function registerDeploymentsIPCHandlers() {
+  ipcMain.handle('deployments:set-camera-time-zone', async (_, studyId, deploymentID, timeZone) => {
+    try {
+      const dbPath = getStudyDatabasePath(app.getPath('userData'), studyId)
+      if (!dbPath || !existsSync(dbPath)) return { error: 'Database not found for this study' }
+      const data = await runInWorker({
+        type: 'set-camera-time-zone',
+        dbPath,
+        studyId,
+        deploymentID,
+        timeZone
+      })
+      return { data }
+    } catch (error) {
+      log.error('Error setting camera timezone:', error)
+      return { error: error.message }
+    }
+  })
+
   // One row per unique (lat, lng) — for read-only overview maps that want
   // "one marker per physical camera-trap location." Drag-editable maps should
   // use deployments:get-all instead so co-located deployments get their own

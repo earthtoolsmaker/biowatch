@@ -1,6 +1,7 @@
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import Database from 'better-sqlite3'
+import { migrateStudyConnection } from '../../../src/main/database/migrate-study.js'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -25,25 +26,13 @@ before(() => {
   dir = mkdtempSync(join(tmpdir(), 'bbox-study-'))
   dbPath = join(dir, 'study.db')
   const db = new Database(dbPath)
+  migrateStudyConnection(db)
   db.exec(`
-    CREATE TABLE deployments (
-      deploymentID TEXT PRIMARY KEY, locationID TEXT, locationName TEXT,
-      deploymentStart TEXT, deploymentEnd TEXT, latitude REAL, longitude REAL,
-      cameraModel TEXT, cameraID TEXT, coordinateUncertainty INTEGER
-    );
-    CREATE TABLE media (
-      mediaID TEXT PRIMARY KEY, deploymentID TEXT, timestamp TEXT,
-      filePath TEXT, fileName TEXT, fileMediatype TEXT, folderName TEXT
-    );
-    CREATE TABLE observations (
-      observationID TEXT PRIMARY KEY, mediaID TEXT, deploymentID TEXT,
-      eventID TEXT, eventStart TEXT, scientificName TEXT, observationType TEXT
-    );
     INSERT INTO deployments (
-      deploymentID, deploymentStart, deploymentEnd, latitude, longitude
+      deploymentID, deploymentStart, deploymentEnd, latitude, longitude, cameraTimeZone
     ) VALUES
-      ('depA', '2024-05-01T00:00:00', '2024-07-01T00:00:00', 50.5, 4.5),
-      ('depB', NULL, NULL, 52.0, 6.0);
+      ('depA', '2024-05-01T00:00:00', '2024-07-01T00:00:00', 50.5, 4.5, 'UTC'),
+      ('depB', NULL, NULL, 52.0, 6.0, 'UTC');
     INSERT INTO media (mediaID, deploymentID, timestamp, fileMediatype) VALUES
       ('mA1', 'depA', '2024-06-01T08:00:00', 'image/jpeg'),
       ('mB1', 'depB', '2024-06-01T09:00:00', 'image/jpeg'),

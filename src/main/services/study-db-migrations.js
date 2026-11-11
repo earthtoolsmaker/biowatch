@@ -2,8 +2,8 @@
  * Study database migrations service
  *
  * Runs Drizzle migrations for all study databases at app startup.
- * This ensures all databases are up-to-date before any readonly connections
- * are opened (e.g., when listing studies).
+ * Successful databases become available before normal connections are opened.
+ * Failures stay discoverable but are blocked from normal study queries.
  */
 
 import { readdirSync, existsSync } from 'fs'
@@ -12,6 +12,55 @@ import log from './logger.js'
 import { getStudiesPath } from './study.js'
 import { getValidatedMigrationsPath } from '../database/migrations-utils.js'
 import { migrateStudyDatabase } from '../database/migrate-study.js'
+import { closeStudyDatabase } from '../database/manager.js'
+import {
+  databaseFailure,
+  getStudyDatabaseStatus,
+  setStudyDatabaseStatus
+} from '../database/study-readiness.js'
+
+const retries = new Map()
+
+/** Retry only this unavailable study, keeping normal access blocked throughout. */
+export async function retryStudyDatabaseMigration(studyId) {
+  if (retries.has(studyId)) return retries.get(studyId)
+  const study = enumerateStudyDatabases().find((entry) => entry.studyId === studyId)
+  if (!study) throw new Error('Study database not found.')
+  const previous = getStudyDatabaseStatus(study.dbPath)
+  if (
+    previous.status === 'ready' ||
+    previous.status === 'newer' ||
+    previous.status === 'incompatible'
+  ) {
+    return previous
+  }
+  setStudyDatabaseStatus(study.dbPath, {
+    ...previous,
+    status: 'updating',
+    message: 'This study’s database is being updated.'
+  })
+  const retry = (async () => {
+    try {
+      await closeStudyDatabase(studyId)
+      const result = await migrateStudyDatabase(
+        studyId,
+        study.dbPath,
+        getValidatedMigrationsPath(undefined, log)
+      )
+      return result.database
+    } catch (error) {
+      const database = databaseFailure(error, previous)
+      setStudyDatabaseStatus(study.dbPath, database)
+      return database
+    }
+  })()
+  retries.set(studyId, retry)
+  try {
+    return await retry
+  } finally {
+    retries.delete(studyId)
+  }
+}
 
 // Re-export for convenience
 export { migrateStudyDatabase }
@@ -62,7 +111,10 @@ export async function migrateAllStudyDatabases() {
   const migrationsPath = getValidatedMigrationsPath(undefined, log)
 
   if (!migrationsPath) {
-    log.error('[StudyMigrations] No valid migrations path found, skipping all study migrations')
+    log.error('[StudyMigrations] No valid migrations path found, blocking affected studies')
+    for (const { dbPath } of databases) {
+      setStudyDatabaseStatus(dbPath, databaseFailure(new Error('No valid migrations path found')))
+    }
     return {
       total: databases.length,
       succeeded: 0,

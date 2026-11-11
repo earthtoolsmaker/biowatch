@@ -31,6 +31,9 @@ export const deployments = sqliteTable(
     locationName: text('locationName'),
     deploymentStart: text('deploymentStart'),
     deploymentEnd: text('deploymentEnd'),
+    sourceDeploymentStart: text('sourceDeploymentStart'),
+    sourceDeploymentEnd: text('sourceDeploymentEnd'),
+    cameraTimeZone: text('cameraTimeZone'),
     latitude: real('latitude'),
     longitude: real('longitude'),
     // CamtrapDP fields extracted from EXIF
@@ -46,7 +49,9 @@ export const media = sqliteTable(
   {
     mediaID: text('mediaID').primaryKey(),
     deploymentID: text('deploymentID').references(() => deployments.deploymentID),
-    timestamp: text('timestamp'),
+    timestamp: text('timestamp'), // Canonical UTC instant; null when the camera zone is unknown
+    sourceTimestamp: text('sourceTimestamp'), // Original camera clock value, including any offset
+    localTimestamp: text('localTimestamp'), // Camera-local wall time, independent of the viewer
     filePath: text('filePath'),
     fileName: text('fileName'),
     importFolder: text('importFolder'),
@@ -123,6 +128,8 @@ export const observations = sqliteTable(
     eventID: text('eventID'),
     eventStart: text('eventStart'),
     eventEnd: text('eventEnd'),
+    sourceEventStart: text('sourceEventStart'),
+    sourceEventEnd: text('sourceEventEnd'),
     scientificName: text('scientificName'),
     observationType: text('observationType'),
     commonName: text('commonName'),
