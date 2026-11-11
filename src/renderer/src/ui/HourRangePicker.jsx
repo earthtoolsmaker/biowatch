@@ -58,10 +58,12 @@ export default function HourRangePicker({ ranges, onChange, onExpand }) {
 
   return (
     <div
-      className={`inline-flex max-w-full items-center gap-1 rounded-full border pl-2 pr-1 py-0.5 text-[10px] font-medium shadow-sm ${
+      className={`inline-flex max-w-full items-center gap-1.5 rounded-full border py-0.5 text-[10px] font-medium ${
+        cleared && !onExpand ? 'px-2' : 'pl-2 pr-1'
+      } ${
         cleared
-          ? 'border-slate-300 bg-slate-100 text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300'
-          : 'border-blue-300 bg-blue-100 text-blue-700 dark:border-blue-500/40 dark:bg-blue-500/15 dark:text-blue-300'
+          ? 'text-slate-500 dark:text-slate-400 bg-slate-50/90 dark:bg-slate-500/10 border-slate-200/70 dark:border-slate-500/30'
+          : 'text-blue-700 dark:text-blue-300 bg-blue-50/90 dark:bg-blue-500/15 border-blue-200/70 dark:border-blue-500/30'
       }`}
     >
       <Popover.Root>
@@ -70,7 +72,11 @@ export default function HourRangePicker({ ranges, onChange, onExpand }) {
             type="button"
             aria-label="Change time range"
             title={`${label} (camera-local clock time)`}
-            className="min-w-0 truncate cursor-pointer rounded-full px-1 -mx-1 outline-none hover:bg-blue-200/70 dark:hover:bg-blue-500/30 focus-visible:ring-2 focus-visible:ring-blue-500"
+            className={`min-w-0 truncate cursor-pointer rounded-full px-1 -mx-1 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-blue-400 ${
+              cleared
+                ? 'hover:bg-slate-200/70 hover:text-blue-700 dark:hover:bg-slate-500/30 dark:hover:text-blue-300 data-[state=open]:bg-slate-200/70 dark:data-[state=open]:bg-slate-500/30'
+                : 'hover:bg-blue-200/70 dark:hover:bg-blue-500/30 data-[state=open]:bg-blue-200/70 dark:data-[state=open]:bg-blue-500/30'
+            }`}
           >
             {label}
           </button>
@@ -120,7 +126,11 @@ export default function HourRangePicker({ ranges, onChange, onExpand }) {
           onClick={onExpand}
           aria-label="Expand daily activity"
           title="Expand daily activity"
-          className="flex h-3.5 w-3.5 shrink-0 cursor-pointer items-center justify-center rounded-full hover:bg-blue-200/70 dark:hover:bg-blue-500/30"
+          className={`flex h-3.5 w-3.5 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors ${
+            cleared
+              ? 'hover:bg-slate-200/70 dark:hover:bg-slate-500/30'
+              : 'hover:bg-blue-200/70 dark:hover:bg-blue-500/30'
+          }`}
         >
           <Maximize2 size={9} strokeWidth={2.5} />
         </button>
@@ -131,7 +141,7 @@ export default function HourRangePicker({ ranges, onChange, onExpand }) {
           onClick={() => onChange([])}
           aria-label="Clear time filter"
           title="Clear time filter"
-          className="flex h-3.5 w-3.5 shrink-0 cursor-pointer items-center justify-center rounded-full hover:bg-blue-200/70 dark:hover:bg-blue-500/30"
+          className="flex h-3.5 w-3.5 shrink-0 cursor-pointer items-center justify-center rounded-full hover:bg-blue-200/70 dark:hover:bg-blue-500/30 transition-colors"
         >
           <X size={10} strokeWidth={2.5} />
         </button>

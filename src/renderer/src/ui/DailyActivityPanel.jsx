@@ -1,12 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import * as Popover from '@radix-ui/react-popover'
 import { Maximize2, X } from 'lucide-react'
 import { DailyActivityPolar, DailyActivityLine } from './clock'
 import ChartShapeToggle from './chartShapeToggle'
 import HourRangePicker from './HourRangePicker'
 import TimeModeToggle from './TimeModeToggle'
 import { SpeciesName } from './timeseries'
-import { DAY_PERIOD_ORDER, SOLAR_DAY_PERIOD_PRESETS } from '../utils/dayPeriods'
+import {
+  DAY_PERIOD_ORDER,
+  SOLAR_DAY_PERIOD_PRESETS,
+  formatRange,
+  selectSolarPeriod
+} from '../utils/dayPeriods'
 import { NORMALIZATION_RAI_100 } from '../../../shared/analysisMetric.js'
 
 /** Both sizes edit Explore's existing filter and chart-shape state. */
@@ -114,12 +120,6 @@ export default function DailyActivityPanel({
     />
   )
 
-  const toggles = (
-    <>
-      <TimeModeToggle mode={timeMode} onChange={setTimeMode} />
-      <ChartShapeToggle value={chartShape} onChange={setChartShape} />
-    </>
-  )
   const hasHourFilter = timeRange.ranges.length > 0
   const solarSelectionLabel = !hasHourFilter
     ? 'All periods'
@@ -137,17 +137,93 @@ export default function DailyActivityPanel({
       />
     ) : (
       <div
-        className="inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-muted pl-2 pr-1 py-0.5 text-[10px] font-medium text-muted-foreground"
-        title="Select Dawn, Day, Dusk or Night on the chart. Shift-click to combine periods."
+        className={`inline-flex max-w-full items-center gap-1.5 rounded-full border py-0.5 text-[10px] font-medium ${
+          !hasHourFilter && !onExpand ? 'px-2' : 'pl-2 pr-1'
+        } ${
+          hasHourFilter
+            ? 'text-blue-700 dark:text-blue-300 bg-blue-50/90 dark:bg-blue-500/15 border-blue-200/70 dark:border-blue-500/30'
+            : 'text-slate-500 dark:text-slate-400 bg-slate-50/90 dark:bg-slate-500/10 border-slate-200/70 dark:border-slate-500/30'
+        }`}
       >
-        <span className="min-w-0 truncate">{solarSelectionLabel}</span>
+        <Popover.Root>
+          <Popover.Trigger asChild>
+            <button
+              type="button"
+              aria-label="Change solar periods"
+              title="Change solar periods"
+              className={`min-w-0 truncate cursor-pointer rounded-full px-1 -mx-1 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-blue-400 ${
+                hasHourFilter
+                  ? 'hover:bg-blue-200/70 dark:hover:bg-blue-500/30 data-[state=open]:bg-blue-200/70 dark:data-[state=open]:bg-blue-500/30'
+                  : 'hover:bg-slate-200/70 hover:text-blue-700 dark:hover:bg-slate-500/30 dark:hover:text-blue-300 data-[state=open]:bg-slate-200/70 dark:data-[state=open]:bg-slate-500/30'
+              }`}
+            >
+              {solarSelectionLabel}
+            </button>
+          </Popover.Trigger>
+          <Popover.Portal>
+            <Popover.Content
+              side="bottom"
+              sideOffset={6}
+              collisionPadding={12}
+              aria-label="Solar periods"
+              className="z-[10000] w-72 max-w-[calc(100vw-24px)] rounded-lg border border-border bg-card p-3 text-popover-foreground shadow-md"
+            >
+              <p className="mb-2 text-xs font-medium">Solar periods</p>
+              <div
+                role="group"
+                aria-label="Selected solar periods"
+                className="grid grid-cols-2 gap-2"
+              >
+                {DAY_PERIOD_ORDER.map((key) => {
+                  const period = SOLAR_DAY_PERIOD_PRESETS[key]
+                  const selected = chipSelection.has(key)
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      aria-label={period.label}
+                      aria-pressed={selected}
+                      title={period.description}
+                      onClick={() => setChipSelection(selectSolarPeriod(chipSelection, key, true))}
+                      className={`cursor-pointer rounded-md border px-3 py-2 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+                        selected
+                          ? 'border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-500/40 dark:bg-blue-500/15 dark:text-blue-300'
+                          : 'border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground'
+                      }`}
+                    >
+                      <span className="block text-xs font-medium">{period.label}</span>
+                      <span className="block text-[10px] tabular-nums">
+                        {formatRange(period.range)}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="mt-2 text-[10px] text-muted-foreground">
+                Combine periods by toggling them on or off. Times are normalized solar hours, not
+                local clock time.
+              </p>
+              <button
+                type="button"
+                onClick={() => onRangesChange([])}
+                className="mt-2 cursor-pointer text-xs text-blue-600 hover:underline dark:text-blue-400"
+              >
+                All periods
+              </button>
+            </Popover.Content>
+          </Popover.Portal>
+        </Popover.Root>
         {onExpand && (
           <button
             type="button"
             onClick={onExpand}
             aria-label="Expand daily activity"
             title="Expand daily activity"
-            className="flex h-3.5 w-3.5 shrink-0 cursor-pointer items-center justify-center rounded-full hover:bg-accent hover:text-foreground"
+            className={`flex h-3.5 w-3.5 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors ${
+              hasHourFilter
+                ? 'hover:bg-blue-200/70 dark:hover:bg-blue-500/30'
+                : 'hover:bg-slate-200/70 dark:hover:bg-slate-500/30'
+            }`}
           >
             <Maximize2 size={9} strokeWidth={2.5} />
           </button>
@@ -158,7 +234,7 @@ export default function DailyActivityPanel({
             onClick={() => onRangesChange([])}
             aria-label="Clear time filter"
             title="Show all periods"
-            className="flex h-3.5 w-3.5 shrink-0 cursor-pointer items-center justify-center rounded-full hover:bg-accent hover:text-foreground"
+            className="flex h-3.5 w-3.5 shrink-0 cursor-pointer items-center justify-center rounded-full hover:bg-blue-200/70 dark:hover:bg-blue-500/30 transition-colors"
           >
             <X size={10} strokeWidth={2.5} />
           </button>
@@ -176,9 +252,12 @@ export default function DailyActivityPanel({
         }
         className="w-[250px] shrink-0 h-full rounded border border-border flex flex-col relative"
       >
-        <div className="flex items-center justify-between px-2 pt-1.5 gap-2">{toggles}</div>
+        <div className="flex justify-center px-2 pt-1">{picker(() => setExpanded(true))}</div>
         <div className="flex-1 min-h-0 relative overflow-y-auto">{chart}</div>
-        <div className="flex justify-center px-2 pb-1.5">{picker(() => setExpanded(true))}</div>
+        <div className="flex items-center justify-between px-2 pb-1.5 gap-2">
+          <TimeModeToggle mode={timeMode} onChange={setTimeMode} />
+          <ChartShapeToggle value={chartShape} onChange={setChartShape} />
+        </div>
       </div>
       {expanded &&
         createPortal(
@@ -196,7 +275,8 @@ export default function DailyActivityPanel({
             >
               <div className="px-5 pt-4 pb-3 flex flex-wrap items-center gap-4 border-b border-border">
                 <h2 className="text-sm font-semibold text-foreground">Daily activity</h2>
-                {toggles}
+                <TimeModeToggle mode={timeMode} onChange={setTimeMode} />
+                <ChartShapeToggle value={chartShape} onChange={setChartShape} />
                 <div className="ml-auto min-w-0">{picker()}</div>
                 <button
                   ref={closeRef}
