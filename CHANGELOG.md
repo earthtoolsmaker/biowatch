@@ -5,6 +5,30 @@ All notable changes to Biowatch will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.7] - 2026-11-11
+
+### Added
+
+- **Solar-time activity charts and filtering** shared between Explore and Media, with dawn, day, dusk, and night presets aligned to each deployment's sunrise and sunset, plus effort-normalized solar-time RAI.
+- **Comparative density maps** on Explore: compare species distributions with overlap and difference surfaces, area-scoped scores, and legends explaining the comparison.
+- **Expanded timeline chart** with real-value hover readouts, a lines/bars switch, and calendar date-range pickers. Clicking a map location zooms to it and filters the activity charts.
+
+### Changed
+
+- **Sequence grouping up to 120 minutes**, with non-linear slider stops for both short bursts and longer independence windows.
+- Refined daily-activity controls and camera-clock display across Explore and Media, with explicit hour-range pickers.
+- Window size, position, and maximized state are remembered between sessions.
+- Releases publish only from version tags; pushes to `main` and pull-request previews no longer publish release assets.
+
+### Fixed
+
+- Activity analytics use the camera's local clock rather than UTC hours. Existing studies backfill camera-local timestamps, and migration failures are isolated per study.
+- Comparative analysis stays scoped to the applied area filter rather than changing when the map is panned or zoomed.
+- Timeline date popups stay open when switching month/year dropdowns.
+- Single-species map composition markers render as solid discs, including when other species have zero counts.
+- Street Map tiles work in dark mode without an API key.
+- Best-capture hover cards close when opening the media viewer.
+
 ## [1.9.6] - 2026-09-25
 
 ### Added
@@ -764,6 +788,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Activity heatmaps
 - Overview statistics
 
+[1.9.7]: https://github.com/earthtoolsmaker/biowatch/compare/v1.9.6...v1.9.7
 [1.9.6]: https://github.com/earthtoolsmaker/biowatch/compare/v1.9.5...v1.9.6
 [1.9.5]: https://github.com/earthtoolsmaker/biowatch/compare/v1.9.4...v1.9.5
 [1.9.4]: https://github.com/earthtoolsmaker/biowatch/compare/v1.9.3...v1.9.4
