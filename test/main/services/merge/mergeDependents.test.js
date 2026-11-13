@@ -5,6 +5,7 @@ import { join } from 'path'
 import { tmpdir } from 'os'
 import Database from 'better-sqlite3'
 
+import { migrateStudyConnection } from '../../../../src/main/database/migrate-study.js'
 import { getAtRiskMergeBreaks } from '../../../../src/main/services/merge/mergeDependents.js'
 
 let root
@@ -15,10 +16,7 @@ function newStudy(uuid, title) {
   mkdirSync(dir, { recursive: true })
   const dbPath = join(dir, 'study.db')
   const db = new Database(dbPath)
-  db.exec(`
-    CREATE TABLE media (mediaID TEXT PRIMARY KEY, filePath TEXT, importFolder TEXT);
-    CREATE TABLE metadata (id TEXT PRIMARY KEY, title TEXT, importerName TEXT NOT NULL, created TEXT NOT NULL);
-  `)
+  migrateStudyConnection(db)
   db.prepare('INSERT INTO metadata (id, title, importerName, created) VALUES (?, ?, ?, ?)').run(
     uuid,
     title,

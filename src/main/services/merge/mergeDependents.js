@@ -2,11 +2,14 @@ import { readdirSync, existsSync } from 'fs'
 import { join } from 'path'
 import Database from 'better-sqlite3'
 
+import { getStudyDatabaseStatus } from '../../database/study-readiness.js'
+import log from '../logger.js'
 import { getMergeImportFolder } from './helpers.js'
 
 /**
- * Return the list of local studies that would lose access to files if
- * `sourceStudyId` is deleted. Empty list means the deletion is safe.
+ * Return the list of available local studies that would lose access to files
+ * if `sourceStudyId` is deleted. Unavailable databases are skipped and logged;
+ * an empty list does not rule out dependencies in those skipped studies.
  *
  * @param {{ biowatchDataPath: string, sourceStudyId: string }} args
  * @returns {Array<{ studyId: string, title: string, brokenMediaCount: number }>}
@@ -21,6 +24,13 @@ export function getAtRiskMergeBreaks({ biowatchDataPath, sourceStudyId }) {
     if (studyId === sourceStudyId) continue
     const dbPath = join(studiesRoot, studyId, 'study.db')
     if (!existsSync(dbPath)) continue
+    const database = getStudyDatabaseStatus(dbPath)
+    if (database.status !== 'ready') {
+      log.warn(
+        `Skipping unavailable study ${studyId} during deletion dependency scan: ${database.status}`
+      )
+      continue
+    }
     const db = new Database(dbPath, { readonly: true })
     try {
       const brokenMediaCount = db
