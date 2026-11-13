@@ -10,6 +10,7 @@ import {
   ReferenceArea,
   ReferenceLine,
   ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis
 } from 'recharts'
@@ -31,6 +32,7 @@ import {
   selectSolarPeriod
 } from '../utils/dayPeriods.js'
 import SolarPeriodMarkers from './solarPeriodMarkers.jsx'
+import DailyActivityTooltip from './DailyActivityTooltip.jsx'
 
 // Compact default for standalone filters and species hovercards. Explore's
 // combined polar chart derives its radius from the available card space.
@@ -40,6 +42,7 @@ const RING_WIDTH = 4
 // Reserve the same label/icon space so switching time modes never resizes the circle.
 const TIME_FILTER_PADDING = 28
 const TIME_LABEL_OFFSET = 16
+const HOURS = Array.from({ length: 24 }, (_, hour) => hour)
 
 // Shared pointer/keyboard behavior for the polar sectors and line-chart bands.
 const solarAreaProps = (key, selection, onChange) => ({
@@ -64,6 +67,7 @@ const CircularTimeFilter = ({
   startTime = 6,
   endTime = 18,
   mode = 'drag',
+  readOnly = false,
   chipSectors = [],
   radius = DEFAULT_CLOCK_RADIUS,
   timeMode = 'clock',
@@ -96,19 +100,22 @@ const CircularTimeFilter = ({
     setEnd(endTime)
   }, [startTime, endTime])
 
-  const interactive = mode !== 'chips'
+  const dragMode = mode !== 'chips'
+  const interactive = dragMode && !readOnly
   // No filter includes every hour, so it always gets a full blue ring.
-  const fullDayDrag = interactive && isFullDayArc({ start, end })
-  // Ranges to paint as blue arcs: the live drag band, or the chip sectors.
-  const ranges = fullDayDrag
-    ? [{ start: 0, end: 24 }]
-    : interactive
-      ? [{ start, end }]
-      : chipSectors
+  const fullDayDrag = dragMode && isFullDayArc({ start, end })
+  // Expanded mode shows the whole day without any selection styling.
+  const ranges = readOnly
+    ? []
+    : fullDayDrag
+      ? [{ start: 0, end: 24 }]
+      : dragMode
+        ? [{ start, end }]
+        : chipSectors
   const segments = rangesToSegments(ranges)
   const isFullRing = segments.length === 1 && segments[0][0] === 0 && segments[0][1] === 24
-  // Interior boundary hours, drawn as dashed radial guides into the plot.
-  const boundaries = fullDayDrag ? [] : rangesToBoundaries(ranges)
+  // Expanded charts show every hourly boundary, compact charts only the filter edges.
+  const boundaries = readOnly ? HOURS : fullDayDrag ? [] : rangesToBoundaries(ranges)
 
   // Point on a circle of radius r at the given clock hour.
   const pointAt = (hour, r) => {
@@ -272,7 +279,7 @@ const CircularTimeFilter = ({
 
           {/* Clock labels are replaced by solar-period controls in solar mode. */}
           {timeMode === 'clock' &&
-            [0, 6, 12, 18].map((hour) => {
+            (readOnly ? HOURS : [0, 6, 12, 18]).map((hour) => {
               const p = pointAt(hour, labelOffset)
               return (
                 <text
@@ -289,8 +296,7 @@ const CircularTimeFilter = ({
               )
             })}
 
-          {/* Dashed radial guides at the selection boundaries (center -> radar
-            edge), so it's visible where the window sits over the activity. */}
+          {/* Hourly spokes in expanded mode; selection edges in compact mode. */}
           {boundaries.map((hour) => {
             const p = pointAt(hour, radius)
             return (
@@ -303,21 +309,23 @@ const CircularTimeFilter = ({
                 stroke="var(--color-muted-foreground)"
                 strokeWidth="1"
                 strokeDasharray="3 3"
-                strokeOpacity="0.5"
+                strokeOpacity={readOnly ? 0.25 : 0.5}
                 pointerEvents="none"
               />
             )
           })}
 
-          {/* Gray track ring. */}
-          <circle
-            cx={center.x}
-            cy={center.y}
-            r={RING_MID}
-            fill="none"
-            stroke="var(--color-muted)"
-            strokeWidth={RING_WIDTH}
-          />
+          {/* The filter track is only useful in compact mode. */}
+          {!readOnly && (
+            <circle
+              cx={center.x}
+              cy={center.y}
+              r={RING_MID}
+              fill="none"
+              stroke="var(--color-muted)"
+              strokeWidth={RING_WIDTH}
+            />
+          )}
 
           {/* Blue selection on the ring. Full-day -> full ring; else arcs.
             The arc is the drag target for panning in interactive mode. */}
@@ -471,6 +479,9 @@ function StripHandle({ left, active }) {
  */
 const DailyActivityLine = ({
   activityData,
+  readoutData,
+  metric,
+  scientificToCommon,
   selectedSpecies,
   palette,
   selectedRanges = [],
@@ -479,6 +490,7 @@ const DailyActivityLine = ({
   // drives a filter. Display-only uses (e.g. the species hovercard) pass false
   // to drop the otherwise-empty grey bar.
   showTrackStrip = true,
+  showHourlyGrid = false,
   timeMode = 'clock',
   periodSelection,
   onPeriodSelectionChange
@@ -489,6 +501,7 @@ const DailyActivityLine = ({
     typeof onArcChange === 'function' && (hasSingleBand || selectedRanges.length === 0)
 
   const stripRef = useRef(null)
+  const [readoutX, setReadoutX] = useState(null)
   const [dragState, setDragState] = useState(null)
   // dragState: { mode: 'create'|'start'|'end'|'pan', liveStart, liveEnd, panOffset?, panWidth? }
   const isDragging = dragState !== null
@@ -638,13 +651,49 @@ const DailyActivityLine = ({
     <div className="relative w-full h-full flex flex-col select-none">
       <div className="flex-1 min-h-0">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={formattedData} margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
+          <ComposedChart
+            data={formattedData}
+            margin={{ top: 4, right: 8, bottom: 0, left: 8 }}
+            onMouseMove={
+              readoutData
+                ? (state) => setReadoutX(state.isTooltipActive ? state.chartX : null)
+                : undefined
+            }
+            onMouseLeave={() => setReadoutX(null)}
+          >
             <CartesianGrid strokeOpacity={0} />
+            {readoutData && (
+              <Tooltip
+                filterNull={false}
+                isAnimationActive={false}
+                cursor={false}
+                wrapperStyle={{ pointerEvents: 'none', zIndex: 10 }}
+                content={({ active, viewBox }) => {
+                  if (!active || readoutX === null || !(viewBox.width > 0)) return null
+                  // Use the containing [hour, hour + 1) interval, not Recharts'
+                  // nearest data point (which switches halfway through a bucket).
+                  const hour = Math.min(
+                    23,
+                    Math.max(0, Math.floor(((readoutX - viewBox.x) / viewBox.width) * 24))
+                  )
+                  return (
+                    <DailyActivityTooltip
+                      row={readoutData.find((row) => row.hour === hour)}
+                      selectedSpecies={selectedSpecies}
+                      palette={palette}
+                      metric={metric}
+                      scientificToCommon={scientificToCommon}
+                      timeMode={timeMode}
+                    />
+                  )
+                }}
+              />
+            )}
             <XAxis
               dataKey="hour"
               type="number"
               domain={[0, 24]}
-              ticks={[0, 6, 12, 18, 24]}
+              ticks={showHourlyGrid ? [...HOURS, 24] : [0, 6, 12, 18, 24]}
               interval={0}
               tickFormatter={(hour) => `${hour}h`}
               tick={
@@ -682,15 +731,15 @@ const DailyActivityLine = ({
                   />
                 ))
               )}
-            {/* Dashed vertical guides at the selection boundaries. */}
-            {boundaries.map((hour) => (
+            {/* Expanded mode exposes every hourly bucket in either time basis. */}
+            {(showHourlyGrid ? [...HOURS, 24] : boundaries).map((hour) => (
               <ReferenceLine
                 key={`bound-${hour}`}
                 x={hour}
                 stroke="var(--color-muted-foreground)"
                 strokeWidth={1}
                 strokeDasharray="3 3"
-                strokeOpacity={0.5}
+                strokeOpacity={showHourlyGrid ? 0.25 : 0.5}
               />
             ))}
             {selectedSpecies.map((species, index) => (
@@ -701,6 +750,7 @@ const DailyActivityLine = ({
                 stroke={palette[index % palette.length]}
                 strokeWidth={1.5}
                 dot={false}
+                activeDot={false}
                 isAnimationActive={false}
               />
             ))}
@@ -752,6 +802,9 @@ const DailyActivityLine = ({
 // geometry. Only measured DOM bounds are state; all radii are derived.
 const DailyActivityPolar = ({
   activityData,
+  readoutData,
+  metric,
+  scientificToCommon,
   selectedSpecies,
   palette,
   timeMode = 'clock',
@@ -759,6 +812,7 @@ const DailyActivityPolar = ({
 }) => {
   const containerRef = useRef(null)
   const [bounds, setBounds] = useState({ width: 0, height: 0 })
+  const [pointer, setPointer] = useState(null)
 
   useEffect(() => {
     const observer = new ResizeObserver(([entry]) => {
@@ -773,8 +827,34 @@ const DailyActivityPolar = ({
     Math.min(bounds.width, bounds.height) / 2 - TIME_FILTER_PADDING - RING_GAP - RING_WIDTH - 6 // clearance around the outer icons/labels
   )
 
+  // The filter SVG covers the radar, so observe pointer movement on their
+  // shared parent instead of relying on Recharts' obscured hover targets.
+  const handlePointerMove = (event) => {
+    if (!readoutData || event.buttons) {
+      setPointer(null)
+      return
+    }
+    const rect = event.currentTarget.getBoundingClientRect()
+    const x = event.clientX - rect.left
+    const y = event.clientY - rect.top
+    const distance = Math.hypot(x - bounds.width / 2, y - bounds.height / 2)
+    setPointer(distance > 16 && distance <= radius ? { x, y } : null)
+  }
+  const angle = pointer
+    ? (Math.atan2(pointer.y - bounds.height / 2, pointer.x - bounds.width / 2) * 180) / Math.PI + 90
+    : 0
+  // Each wedge belongs to its starting hour, including the 23:00–00:00 wedge.
+  const hoveredHour = Math.floor(((angle + 360) % 360) / 15)
+  const hoveredRow = pointer && readoutData?.find((row) => row.hour === hoveredHour)
+
   return (
-    <div ref={containerRef} className="relative w-full h-full min-w-0 min-h-0">
+    <div
+      ref={containerRef}
+      className="relative w-full h-full min-w-0 min-h-0"
+      onPointerMove={readoutData ? handlePointerMove : undefined}
+      onPointerDown={() => setPointer(null)}
+      onPointerLeave={() => setPointer(null)}
+    >
       {bounds.width > 0 && bounds.height > 0 && (
         <>
           <DailyActivityRadar
@@ -786,6 +866,39 @@ const DailyActivityPolar = ({
           <div className="absolute inset-0">
             <CircularTimeFilter {...filterProps} timeMode={timeMode} radius={radius} />
           </div>
+          {hoveredRow && (
+            <>
+              <svg className="absolute inset-0 w-full h-full pointer-events-none">
+                <path
+                  d={sectorPath(hoveredHour, hoveredHour + 1, radius, {
+                    x: bounds.width / 2,
+                    y: bounds.height / 2
+                  })}
+                  fill="var(--color-muted-foreground)"
+                  fillOpacity={0.08}
+                />
+              </svg>
+              <div
+                className="absolute z-10 pointer-events-none max-w-full"
+                style={{
+                  left: Math.max(0, Math.min(pointer.x + 12, bounds.width - 288)),
+                  top: Math.max(
+                    0,
+                    Math.min(pointer.y + 12, bounds.height - (72 + selectedSpecies.length * 24))
+                  )
+                }}
+              >
+                <DailyActivityTooltip
+                  row={hoveredRow}
+                  selectedSpecies={selectedSpecies}
+                  palette={palette}
+                  metric={metric}
+                  scientificToCommon={scientificToCommon}
+                  timeMode={timeMode}
+                />
+              </div>
+            </>
+          )}
         </>
       )}
     </div>

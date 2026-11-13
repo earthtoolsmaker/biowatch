@@ -1941,6 +1941,7 @@ export default function Explore({ studyData, studyId }) {
               <div className="w-full flex h-[240px] gap-3">
                 <DailyActivityPanel
                   activityData={normalizedDailyActivity}
+                  readoutData={dailyActivityData}
                   isLoading={dailyActivityData === undefined}
                   metric={metric}
                   selectedSpecies={selectedSpecies}
