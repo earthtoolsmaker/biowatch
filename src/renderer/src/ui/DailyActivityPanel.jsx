@@ -15,9 +15,10 @@ import {
 } from '../utils/dayPeriods'
 import { NORMALIZATION_RAI_100 } from '../../../shared/analysisMetric.js'
 
-/** Both sizes edit Explore's existing filter and chart-shape state. */
+/** Compact mode filters hours; expanded mode explains the full daily profile. */
 export default function DailyActivityPanel({
   activityData,
+  readoutData,
   isLoading,
   metric,
   selectedSpecies,
@@ -79,46 +80,56 @@ export default function DailyActivityPanel({
         ? 'No solar-time activity for this selection. Solar time requires known UTC instants and deployment coordinates. Check camera timezones and locations in Deployments.'
         : 'No camera-local activity matches this selection.'
 
-  const chart = isLoading ? (
-    <div
-      role="status"
-      className="h-full flex items-center justify-center text-xs text-muted-foreground"
-    >
-      Loading…
-    </div>
-  ) : !hasActivity ? (
-    <div
-      role="status"
-      className="h-full flex items-center justify-center px-3 text-center text-xs text-muted-foreground"
-    >
-      {emptyMessage}
-    </div>
-  ) : chartShape === 'polar' ? (
-    <DailyActivityPolar
-      activityData={activityData}
-      selectedSpecies={selectedSpecies}
-      palette={palette}
-      timeMode={timeMode}
-      periodSelection={chipSelection}
-      onPeriodSelectionChange={setChipSelection}
-      onChange={onArcChange}
-      startTime={arc.start}
-      endTime={arc.end}
-      mode={timeMode === 'solar' || timeRange.ranges.length > 1 ? 'chips' : 'drag'}
-      chipSectors={visualRanges}
-    />
-  ) : (
-    <DailyActivityLine
-      activityData={activityData}
-      selectedSpecies={selectedSpecies}
-      palette={palette}
-      timeMode={timeMode}
-      periodSelection={chipSelection}
-      onPeriodSelectionChange={setChipSelection}
-      selectedRanges={visualRanges}
-      onArcChange={timeMode === 'clock' ? onArcChange : undefined}
-    />
-  )
+  const chart = (expandedChart = false) =>
+    isLoading ? (
+      <div
+        role="status"
+        className="h-full flex items-center justify-center text-xs text-muted-foreground"
+      >
+        Loading…
+      </div>
+    ) : !hasActivity ? (
+      <div
+        role="status"
+        className="h-full flex items-center justify-center px-3 text-center text-xs text-muted-foreground"
+      >
+        {emptyMessage}
+      </div>
+    ) : chartShape === 'polar' ? (
+      <DailyActivityPolar
+        activityData={activityData}
+        readoutData={expandedChart ? readoutData : undefined}
+        readOnly={expandedChart}
+        metric={metric}
+        scientificToCommon={scientificToCommon}
+        selectedSpecies={selectedSpecies}
+        palette={palette}
+        timeMode={timeMode}
+        periodSelection={expandedChart ? undefined : chipSelection}
+        onPeriodSelectionChange={expandedChart ? undefined : setChipSelection}
+        onChange={onArcChange}
+        startTime={arc.start}
+        endTime={arc.end}
+        mode={timeMode === 'solar' || timeRange.ranges.length > 1 ? 'chips' : 'drag'}
+        chipSectors={visualRanges}
+      />
+    ) : (
+      <DailyActivityLine
+        activityData={activityData}
+        readoutData={expandedChart ? readoutData : undefined}
+        showTrackStrip={!expandedChart}
+        showHourlyGrid={expandedChart}
+        metric={metric}
+        scientificToCommon={scientificToCommon}
+        selectedSpecies={selectedSpecies}
+        palette={palette}
+        timeMode={timeMode}
+        periodSelection={expandedChart ? undefined : chipSelection}
+        onPeriodSelectionChange={expandedChart ? undefined : setChipSelection}
+        selectedRanges={expandedChart ? [] : visualRanges}
+        onArcChange={!expandedChart && timeMode === 'clock' ? onArcChange : undefined}
+      />
+    )
 
   const hasHourFilter = timeRange.ranges.length > 0
   const solarSelectionLabel = !hasHourFilter
@@ -253,7 +264,7 @@ export default function DailyActivityPanel({
         className="w-[250px] shrink-0 h-full rounded border border-border flex flex-col relative"
       >
         <div className="flex justify-center px-2 pt-1">{picker(() => setExpanded(true))}</div>
-        <div className="flex-1 min-h-0 relative overflow-y-auto">{chart}</div>
+        <div className="flex-1 min-h-0 relative overflow-y-auto">{chart()}</div>
         <div className="flex items-center justify-between px-2 pb-1.5 gap-2">
           <TimeModeToggle mode={timeMode} onChange={setTimeMode} />
           <ChartShapeToggle value={chartShape} onChange={setChartShape} />
@@ -277,13 +288,12 @@ export default function DailyActivityPanel({
                 <h2 className="text-sm font-semibold text-foreground">Daily activity</h2>
                 <TimeModeToggle mode={timeMode} onChange={setTimeMode} />
                 <ChartShapeToggle value={chartShape} onChange={setChartShape} />
-                <div className="ml-auto min-w-0">{picker()}</div>
                 <button
                   ref={closeRef}
                   type="button"
                   onClick={() => setExpanded(false)}
                   aria-label="Close"
-                  className="w-7 h-7 shrink-0 rounded-md flex items-center justify-center text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
+                  className="ml-auto w-7 h-7 shrink-0 rounded-md flex items-center justify-center text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
                 >
                   <X size={16} />
                 </button>
@@ -303,11 +313,9 @@ export default function DailyActivityPanel({
                 ))}
               </div>
               <p className="px-5 pt-2 text-[10px] text-muted-foreground">
-                Relative activity · each species scaled to its own peak
-                {timeMode === 'solar' &&
-                  ' · Select a period on the chart; Shift-click to combine periods.'}
+                Full day · each species scaled to its own peak · Hover over an hour to see values.
               </p>
-              <div className="flex-1 min-h-0 px-5 py-4">{chart}</div>
+              <div className="flex-1 min-h-0 px-5 py-4">{chart(true)}</div>
             </div>
           </div>,
           document.body
